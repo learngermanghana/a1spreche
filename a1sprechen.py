@@ -9,7 +9,6 @@ from streamlit_webrtc import webrtc_streamer
 
 # School information
 SCHOOL_NAME = "Learn Language Education Academy"
-
 BASE_URL = "https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0"
 VOCAROO_URL = "https://vocaroo.com/1bW5U4NUiwmk"
 
@@ -20,19 +19,21 @@ def load_valid_codes():
     except Exception:
         return []
 
-# --- Sidebar login ---
-def login_sidebar():
-    st.sidebar.header("Login")
-    student_code = st.sidebar.text_input("Student Code (e.g., portia1)")
-    if student_code:
-        valid = load_valid_codes()
-        if student_code not in valid:
-            st.sidebar.warning("Invalid code. Please contact your teacher.")
+# --- Login on main page (hidden input) ---
+def login_main():
+    if 'student_code' not in st.session_state:
+        code = st.text_input("Student Code:", type="password")
+        if code:
+            valid = load_valid_codes()
+            if code in valid:
+                st.session_state['student_code'] = code
+            else:
+                st.error("Invalid code. Please contact your teacher.")
+                st.stop()
+        else:
+            st.info("Enter your student code to begin.")
             st.stop()
-        return student_code
-    else:
-        st.sidebar.info("Enter your student code to begin.")
-        st.stop()
+    return st.session_state['student_code']
 
 # --- Grammar check helpers ---
 def is_w_question(text):
@@ -63,36 +64,45 @@ def check_answer_structure(a):
 def teil1():
     st.header("Teil 1 – Introduction")
     st.markdown("**What to expect:** Introduce yourself with Name, Alter, Land, Wohnort, Sprachen, Beruf, Hobby.")
-    name = st.text_input("Name:")
-    alter = st.text_input("Alter:")
-    land = st.text_input("Land:")
-    wohnort = st.text_input("Wohnort:")
-    sprachen = st.text_input("Sprachen:")
-    beruf = st.text_input("Beruf:")
-    hobby = st.text_input("Hobby:")
-    # Follow-up questions
+    st.text_input("Name:")
+    st.text_input("Alter:")
+    st.text_input("Land:")
+    st.text_input("Wohnort:")
+    st.text_input("Sprachen:")
+    st.text_input("Beruf:")
+    st.text_input("Hobby:")
     st.text_input("Wie buchstabieren Sie Ihren Namen?")
     st.text_input("Sind Sie verheiratet? (Ja/Nein)")
     st.text_input("Wie alt ist Ihre Mutter?")
 
-    # Submission and live practice
     if 'intro_submitted' not in st.session_state:
         st.session_state['intro_submitted'] = False
     if st.button("🔵 Submit Introduction"):
         st.session_state['intro_submitted'] = True
         st.success("Introduction saved.")
-    if st.session_state['intro_submitted']:
         st.info("Now practice your introduction live. Grant mic access when prompted.")
+    if st.session_state['intro_submitted']:
         webrtc_streamer(key="live_intro", media_stream_constraints={"audio": True, "video": False})
         if st.button("🔘 Done Recording Introduction"):
-            st.success("Recording saved. Please share via WhatsApp.")
+            st.success("Recording saved.")
             st.info("Don't forget to share your progress with your tutor.")
             st.markdown(f"[Send via WhatsApp]({BASE_URL})")
+            # Restart and complete options
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🔄 Restart"):
+                    for k in ['t3_tasks','t3_sel','t3_idx','t3_score','t3_start','t3_sub','answers3','t3_done']:
+                        session.pop(k, None)
+                    st.rerun()
+            with col2:
+                if st.button("✅ Complete for today"):
+                    st.success("Übung für heute abgeschlossen. Bis zum nächsten Mal!")
+                    st.stop()
 
-# --- Teil 2: Q&A ---
+# --- Teil 2: Frage & Antwort ---
 def teil2(session):
-    st.header("Teil 2 – Question and Answer")
-    st.markdown("**What to expect:** Ask and answer on one line. End Q with '?' and A with '.'.")
+    st.header("Teil 2 – Frage & Antwort")
+    st.markdown("**What to expect:** Ask and answer one question-answer pair on a single line. The question should end with '?' and the answer with '.'.")
     vocab = [
         ("Geschäft","schließen"),("Uhr","Uhrzeit"),("Arbeit","Kollege"),("Hausaufgabe","machen"),
         ("Küche","kochen"),("Freizeit","lesen"),("Telefon","anrufen"),("Reise","Hotel"),
@@ -108,32 +118,25 @@ def teil2(session):
         ("Tasche","vergessen"),("Stadtplan","finden"),("Ticket","bezahlen"),("Zahnarzt","Schmerzen"),
         ("Museum","Öffnungszeiten"),("Handy","Akku leer")
     ]
-    # Task selection
     if session.get('t2_tasks', 0) == 0:
-        num = st.number_input("How many Q&A?", 1, len(vocab), len(vocab))
+        num = st.number_input("Wie viele Q&A?", 1, len(vocab), len(vocab))
         if st.button("▶️ Start Teil 2"):
-            session.update({
-                't2_tasks': num,
-                't2_sel': random.sample(vocab, num),
-                't2_idx': 0,
-                't2_score': 0,
-                't2_start': time.time(),
-                't2_sub': [False]*num,
-                'answers2': []
-            })
+            session.update({'t2_tasks': num, 't2_sel': random.sample(vocab, num),
+                            't2_idx': 0, 't2_score': 0, 't2_start': time.time(),
+                            't2_sub': [False]*num, 'answers2': []})
             st.rerun()
         return
     idx, num = session['t2_idx'], session['t2_tasks']
     rem = max(0, num*60 - (time.time() - session['t2_start']))
-    st.write(f"⏱ Time left: {int(rem)}s")
+    st.write(f"⏱ Zeit übrig: {int(rem)}s")
     st.progress(int(idx/num*100))
     if rem <= 0:
         session['t2_idx'] = num
     if idx < num:
         thema, wort = session['t2_sel'][idx]
-        st.subheader(f"{idx+1}/{num}: {thema} – {wort}")
-        qa = st.text_input("Q&A:", key=f"qa{idx}")
-        if not session['t2_sub'][idx] and st.button("Submit Answer", key=f"s2_{idx}"):
+        st.subheader(f"{idx+1}/{num}: Thema – {thema}, Stichwort – {wort}")
+        qa = st.text_input("Frage und Antwort:", key=f"qa{idx}")
+        if not session['t2_sub'][idx] and st.button("Antwort einreichen", key=f"s2_{idx}"):
             parts = qa.split('?')
             q = parts[0].strip() + '?' if len(parts)>1 else ''
             a = parts[1].strip() if len(parts)>1 else ''
@@ -143,27 +146,38 @@ def teil2(session):
             session['t2_score'] += sc
             session['answers2'].append({'q':q,'a':a,'score':sc})
             session['t2_sub'][idx] = True
-        if session['t2_sub'][idx] and st.button("Next Q", key=f"n2_{idx}"):
+        if session['t2_sub'][idx] and st.button("Nächste Frage", key=f"n2_{idx}"):
             session['t2_idx'] += 1
             st.rerun()
     else:
-        st.success(f"Done Teil 2! Score: {session['t2_score']}/{num}")
+        st.success(f"Teil 2 abgeschlossen! Punkte: {session['t2_score']}/{num}")
         if not session.get('t2_done', False):
             session.setdefault('summary', []).extend(session['answers2'])
             session['t2_done'] = True
         st.info("Now practice your Teil 2 summary live. Grant mic access.")
         webrtc_streamer(key="live2", media_stream_constraints={"audio": True, "video": False})
         if st.button("Done Recording", key="done2"):
-            st.success("Recording saved. Please share via WhatsApp.")
-            st.info("Don't forget to share your progress with your tutor.")
-            st.markdown(f"[Send via WhatsApp]({BASE_URL})")
+            st.success("Aufnahme gespeichert.")
+            st.info("Vergiss nicht, Deinen Fortschritt mit Deinem Tutor zu teilen.")
+            st.markdown(f"[Sende über WhatsApp]({BASE_URL})")
+            # Neustart und Beenden Optionen
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🔄 Restart"):
+                    for k in ['t2_tasks','t2_sel','t2_idx','t2_score','t2_start','t2_sub','answers2','t2_done']:
+                        session.pop(k, None)
+                    st.rerun()
+            with col2:
+                if st.button("✅ Complete for today"):
+                    st.success("Übung für heute abgeschlossen. Bis zum nächsten Mal!")
+                    st.stop()
 
-# --- Teil 3: Requests & Replies ---
+# --- Teil 3: Anfragen & Antworten ---
 def teil3(session):
-    st.header("Teil 3 – Requests & Replies")
-    st.markdown("**What to expect:** Polite request & reply. End '?' & '.'.")
+    st.header("Teil 3 – Anfragen & Antworten")
+    st.markdown("**What to expect:** Formulate a polite request and its reply on a single line. The request should end with '?' and the reply with '.'.")
     prompts = [
-        "Radio anmachen","Fenster zumachen","Licht anschalten","Tür aufmachen","Tisch sauber machen",
+        "Radio anmachen","Fenster zum machen","Licht anschalten","Tür aufmachen","Tisch sauber machen",
         "Hausaufgaben schicken","Buch bringen","Handy ausmachen","Stuhl nehmen","Wasser holen",
         "Fenster öffnen","Musik leiser machen","Tafel sauber wischen","Kaffee kochen","Deutsch üben",
         "Auto waschen","Kind abholen","Tisch decken","Termin machen","Nachricht schreiben"
@@ -220,7 +234,7 @@ def teil3(session):
 def main():
     st.set_page_config(page_title=f"A1 Sprechen – {SCHOOL_NAME}", layout="wide")
     st.title(f"A1 Sprechen – {SCHOOL_NAME}")
-    _ = login_sidebar()
+    _ = login_main()
     if 'summary' not in st.session_state:
         st.session_state['summary'] = []
     part = st.radio("Select section:", ["Teil 1","Teil 2","Teil 3"], horizontal=True)
