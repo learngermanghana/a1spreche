@@ -2,4 +2,3 @@ streamlit
 pandas
 language-tool-python
 streamlit-webrtc
-requests
