@@ -127,7 +127,7 @@ def teil2():
         ("Bus","Abfahrt"),("Arztpraxis","Wartezeit"),("Kuchen","backen"),("Park","spazieren"),
         ("Bäckerei","Brötchen"),("Geldautomat","Karte"),("Buchladen","Roman"),("Fernseher","Programm"),
         ("Tasche","vergessen"),("Stadtplan","finden"),("Ticket","bezahlen"),("Zahnarzt","Schmerzen"),
-        ("Museum","Öffnungszeiten"),("Handy","Akku leer")
+        ("Museum","Öffnungszeiten"),("Handy","Akku leer"),("Zeit","Uhr")
     ]
     # Session keys for this part
     if st.session_state.get('t2_tasks', 0) == 0:
@@ -174,9 +174,9 @@ def teil2():
         st.info("Now practice your Teil 2 summary live. Grant mic access.")
         webrtc_streamer(key="live2", media_stream_constraints={"audio": True, "video": False})
         if st.button("Done Recording", key="done2"):
-            st.success("Aufnahme gespeichert.")
-            st.info("Vergiss nicht, Deinen Fortschritt mit Deinem Tutor zu teilen.")
-            st.markdown(f"[Sende über WhatsApp]({BASE_URL})")
+            st.success("You can hear yourself live speaking only on computer.")
+            st.info("Dont forget to share your progress with your tutor.")
+            st.markdown(f"[Send via whatsapp]({BASE_URL})")
             # Restart and Complete options
             col1, col2 = st.columns(2)
             with col1:
@@ -198,6 +198,7 @@ def teil3():
         "Hausaufgaben schicken","Buch bringen","Handy ausmachen","Stuhl nehmen","Wasser holen",
         "Fenster öffnen","Musik leiser machen","Tafel sauber wischen","Kaffee kochen","Deutsch üben",
         "Auto waschen","Kind abholen","Tisch decken","Termin machen","Nachricht schreiben"
+        "Rauchen verboten"
     ]
     if st.session_state.get('t3_tasks', 0) == 0:
         num = st.number_input("How many requests?", 1, len(prompts), len(prompts))
@@ -246,7 +247,7 @@ def teil3():
         st.info("Now practice your Teil 3 summary live. Grant mic access.")
         webrtc_streamer(key="live3", media_stream_constraints={"audio": True, "video": False})
         if st.button("Done Recording", key="done3"):
-            st.success("Recording saved. Please share via WhatsApp.")
+            st.success("You can hear yourself live speaking only on computer.")
             st.info("Don't forget to share your progress with your tutor.")
             st.markdown(f"[Send via WhatsApp]({BASE_URL})")
 
