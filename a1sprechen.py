@@ -213,8 +213,8 @@ def teil2():
                 if not ok_a:
                     st.error(f"Answer error: {msg_a}")
             st.session_state['t2_idx'] += 1
-            st.experimental_rerun()
-            return
+            rerun()
+            
     else:
         st.success(f"Your score: {st.session_state['t2_score']} out of {t2_total} in Teil 2.")
         df = pd.DataFrame(st.session_state['t2_history'])
@@ -224,7 +224,7 @@ def teil2():
         if st.button("Restart Teil 2"):
             for k in ['t2_idxs', 't2_idx', 't2_score', 't2_history']:
                 st.session_state.pop(k, None)
-            st.experimental_rerun()
+            rerun()
             return
 
 # ---- Teil 3 prompts ----
