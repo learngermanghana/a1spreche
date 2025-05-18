@@ -4,10 +4,11 @@ import random
 import requests
 from streamlit_webrtc import webrtc_streamer
 
+# ---- Settings ----
 SCHOOL_NAME = "Learn Language Education Academy"
 BASE_URL = "https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0"
 
-# --- Load valid student codes ---
+# ---- Load valid student codes ----
 def load_valid_codes():
     try:
         df = pd.read_csv("student_codes.csv")
@@ -15,7 +16,6 @@ def load_valid_codes():
     except Exception:
         return []
 
-# --- Login function ---
 def login_main():
     if 'student_code' not in st.session_state:
         code = st.text_input("Student Code:", type="password")
@@ -32,7 +32,7 @@ def login_main():
             st.stop()
     return st.session_state['student_code']
 
-# --- LanguageTool HTTP API grammar check ---
+# ---- LanguageTool HTTP API Grammar Check ----
 def grammar_feedback(text):
     url = "https://api.languagetool.org/v2/check"
     data = {
@@ -57,7 +57,18 @@ def grammar_feedback(text):
             feedbacks.append(f"{msg}{sug}")
         return False, " | ".join(feedbacks)
 
-# --- Teil 1: Introduction ---
+# ---- Helper: Show vocab/prompt lists ----
+def show_vocab_popup(vocab_list, label="See all vocab pairs (click to expand)"):
+    with st.expander(label):
+        df = pd.DataFrame(vocab_list, columns=["Topic", "Keyword"])
+        st.dataframe(df, hide_index=True)
+
+def show_prompts_popup(prompt_list, label="See all polite request prompts (click to expand)"):
+    with st.expander(label):
+        df = pd.DataFrame(prompt_list, columns=["Prompt"])
+        st.dataframe(df, hide_index=True)
+
+# ---- Teil 1: Introduction ----
 def teil1():
     st.header("Teil 1 – Introduction")
     st.markdown("**What to expect:** Introduce yourself with Name, Age, Country, City, Languages, Job, Hobby.")
@@ -108,7 +119,8 @@ def teil1():
                         'intro_submitted', 'teil1_score', 'summary'
                     ]:
                         st.session_state.pop(k, None)
-                    st.rerun()
+                    st.experimental_rerun()
+                    return
             with col2:
                 if st.button("✅ Complete for today"):
                     st.success("Practice for today completed. See you next time!")
@@ -121,7 +133,7 @@ def teil1():
         csv = df.to_csv(index=False).encode('utf-8')
         st.download_button("Download Introduction as CSV", csv, "teil1_intro.csv")
 
-# --- Teil 2 vocab and function ---
+# ---- Teil 2 vocab ----
 TEIL2_VOCAB = [
     ("Geschäft", "schließen"), ("Uhr", "Uhrzeit"), ("Arbeit", "Kollege"), ("Hausaufgabe", "machen"),
     ("Küche", "kochen"), ("Freizeit", "lesen"), ("Telefon", "anrufen"), ("Reise", "Hotel"),
@@ -142,11 +154,6 @@ TEIL2_VOCAB = [
     ("Markt", "Gemüse"), ("Bibliothek", "Buch"), ("Restaurant", "Tisch reservieren"), ("Polizei", "Anzeige")
 ]
 
-def show_vocab_popup(vocab_list, label="See all vocab pairs (click to expand)"):
-    with st.expander(label):
-        df = pd.DataFrame(vocab_list, columns=["Topic", "Keyword"])
-        st.dataframe(df, hide_index=True)
-
 def teil2():
     st.header("Teil 2 – Question & Answer Practice")
     st.markdown(
@@ -165,6 +172,8 @@ def teil2():
     if st.button("Start new Teil 2 session"):
         for k in ['t2_idxs', 't2_idx', 't2_score', 't2_history']:
             st.session_state.pop(k, None)
+        st.experimental_rerun()
+        return
 
     if 't2_idxs' not in st.session_state:
         st.session_state['t2_idxs'] = random.sample(range(len(TEIL2_VOCAB)), t2_total)
@@ -205,6 +214,7 @@ def teil2():
                     st.error(f"Answer error: {msg_a}")
             st.session_state['t2_idx'] += 1
             st.experimental_rerun()
+            return
     else:
         st.success(f"Your score: {st.session_state['t2_score']} out of {t2_total} in Teil 2.")
         df = pd.DataFrame(st.session_state['t2_history'])
@@ -215,19 +225,15 @@ def teil2():
             for k in ['t2_idxs', 't2_idx', 't2_score', 't2_history']:
                 st.session_state.pop(k, None)
             st.experimental_rerun()
+            return
 
-# --- Teil 3 prompts and function ---
+# ---- Teil 3 prompts ----
 TEIL3_PROMPTS = [
     "Radio anmachen", "Fenster zumachen", "Licht anschalten", "Tür aufmachen", "Tisch sauber machen",
     "Hausaufgaben schicken", "Buch bringen", "Handy ausmachen", "Stuhl nehmen", "Wasser holen",
     "Fenster öffnen", "Musik leiser machen", "Tafel sauber wischen", "Kaffee kochen", "Deutsch üben",
     "Auto waschen", "Kind abholen", "Tisch decken", "Termin machen", "Nachricht schreiben", "Rauchen verboten"
 ]
-
-def show_prompts_popup(prompt_list, label="See all polite request prompts (click to expand)"):
-    with st.expander(label):
-        df = pd.DataFrame(prompt_list, columns=["Prompt"])
-        st.dataframe(df, hide_index=True)
 
 def teil3():
     st.header("Teil 3 – Polite Request & Reply Practice")
@@ -247,6 +253,8 @@ def teil3():
     if st.button("Start new Teil 3 session"):
         for k in ['t3_idxs', 't3_idx', 't3_score', 't3_history']:
             st.session_state.pop(k, None)
+        st.experimental_rerun()
+        return
 
     if 't3_idxs' not in st.session_state:
         st.session_state['t3_idxs'] = random.sample(range(len(TEIL3_PROMPTS)), t3_total)
@@ -287,6 +295,7 @@ def teil3():
                     st.error(f"Reply error: {msg_rep}")
             st.session_state['t3_idx'] += 1
             st.experimental_rerun()
+            return
     else:
         st.success(f"Your score: {st.session_state['t3_score']} out of {t3_total} in Teil 3.")
         df = pd.DataFrame(st.session_state['t3_history'])
@@ -297,8 +306,9 @@ def teil3():
             for k in ['t3_idxs', 't3_idx', 't3_score', 't3_history']:
                 st.session_state.pop(k, None)
             st.experimental_rerun()
+            return
 
-# --- Main App ---
+# ---- Main App ----
 def main():
     st.title(f"A1 Sprechen – {SCHOOL_NAME}")
     login_main()
@@ -308,8 +318,31 @@ def main():
         teil1()
     elif part == "Teil 2":
         teil2()
-    else:
+    elif part == "Teil 3":
         teil3()
+
+    # ---- Show total summary and score if any parts done ----
+    show_score = False
+    scores = []
+    if st.session_state.get("teil1_score") is not None:
+        scores.append(st.session_state.get("teil1_score"))
+        show_score = True
+    if st.session_state.get("t2_score") is not None:
+        scores.append(st.session_state.get("t2_score"))
+        show_score = True
+    if st.session_state.get("t3_score") is not None:
+        scores.append(st.session_state.get("t3_score"))
+        show_score = True
+
+    if show_score:
+        total = sum(scores)
+        st.markdown("---")
+        st.info(
+            f"**Total Score so far:** {total} "
+            f"(Teil 1: {st.session_state.get('teil1_score',0)}, "
+            f"Teil 2: {st.session_state.get('t2_score',0)}, "
+            f"Teil 3: {st.session_state.get('t3_score',0)})"
+        )
 
 if __name__ == "__main__":
     main()
