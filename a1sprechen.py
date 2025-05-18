@@ -119,7 +119,7 @@ def teil1():
                         'intro_submitted', 'teil1_score', 'summary'
                     ]:
                         st.session_state.pop(k, None)
-                    st.experimental_rerun()
+                    rerun()
                     return
             with col2:
                 if st.button("✅ Complete for today"):
@@ -253,7 +253,7 @@ def teil3():
     if st.button("Start new Teil 3 session"):
         for k in ['t3_idxs', 't3_idx', 't3_score', 't3_history']:
             st.session_state.pop(k, None)
-        st.experimental_rerun()
+        rerun()
         return
 
     if 't3_idxs' not in st.session_state:
@@ -294,7 +294,7 @@ def teil3():
                 if not ok_rep:
                     st.error(f"Reply error: {msg_rep}")
             st.session_state['t3_idx'] += 1
-            st.experimental_rerun()
+            rerun()
             return
     else:
         st.success(f"Your score: {st.session_state['t3_score']} out of {t3_total} in Teil 3.")
