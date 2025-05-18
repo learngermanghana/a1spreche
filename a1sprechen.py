@@ -1,14 +1,13 @@
 import streamlit as st
 import pandas as pd
 import random
-import language_tool_python
+import requests
 from streamlit_webrtc import webrtc_streamer
 
-# ---- Settings ----
 SCHOOL_NAME = "Learn Language Education Academy"
 BASE_URL = "https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0"
 
-# ---- Load valid student codes ----
+# --- Load valid student codes ---
 def load_valid_codes():
     try:
         df = pd.read_csv("student_codes.csv")
@@ -16,7 +15,7 @@ def load_valid_codes():
     except Exception:
         return []
 
-# ---- Login on main page (hidden input) ----
+# --- Login function ---
 def login_main():
     if 'student_code' not in st.session_state:
         code = st.text_input("Student Code:", type="password")
@@ -33,31 +32,32 @@ def login_main():
             st.stop()
     return st.session_state['student_code']
 
-# ---- LanguageTool setup (German) ----
-lt_tool = language_tool_python.LanguageTool('de')
-
+# --- LanguageTool HTTP API grammar check ---
 def grammar_feedback(text):
-    matches = lt_tool.check(text)
+    url = "https://api.languagetool.org/v2/check"
+    data = {
+        "text": text,
+        "language": "de"
+    }
+    try:
+        resp = requests.post(url, data=data, timeout=8)
+        result = resp.json()
+    except Exception:
+        return False, "Error connecting to grammar server."
+    matches = result.get("matches", [])
     if not matches:
         return True, "Correct! 🎉"
     else:
         feedbacks = []
         for m in matches:
-            sug = f" (Suggestion: {m.replacements[0]})" if m.replacements else ""
-            feedbacks.append(f"{m.message}{sug}")
+            msg = m["message"]
+            sug = ""
+            if m.get('replacements'):
+                sug = f" (Suggestion: {m['replacements'][0]['value']})"
+            feedbacks.append(f"{msg}{sug}")
         return False, " | ".join(feedbacks)
 
-def show_vocab_popup(vocab_list, label="See all vocab pairs (click to expand)"):
-    with st.expander(label):
-        df = pd.DataFrame(vocab_list, columns=["Topic", "Keyword"])
-        st.dataframe(df, hide_index=True)
-
-def show_prompts_popup(prompt_list, label="See all polite request prompts (click to expand)"):
-    with st.expander(label):
-        df = pd.DataFrame(prompt_list, columns=["Prompt"])
-        st.dataframe(df, hide_index=True)
-
-# ---- Teil 1: Introduction ----
+# --- Teil 1: Introduction ---
 def teil1():
     st.header("Teil 1 – Introduction")
     st.markdown("**What to expect:** Introduce yourself with Name, Age, Country, City, Languages, Job, Hobby.")
@@ -121,7 +121,7 @@ def teil1():
         csv = df.to_csv(index=False).encode('utf-8')
         st.download_button("Download Introduction as CSV", csv, "teil1_intro.csv")
 
-# ---- Teil 2 ----
+# --- Teil 2 vocab and function ---
 TEIL2_VOCAB = [
     ("Geschäft", "schließen"), ("Uhr", "Uhrzeit"), ("Arbeit", "Kollege"), ("Hausaufgabe", "machen"),
     ("Küche", "kochen"), ("Freizeit", "lesen"), ("Telefon", "anrufen"), ("Reise", "Hotel"),
@@ -141,6 +141,11 @@ TEIL2_VOCAB = [
     ("Straßenbahn", "Fahrkarte"), ("Schwimmbad", "schwimmen"), ("Zirkus", "Clown"), ("Garten", "Blumen"),
     ("Markt", "Gemüse"), ("Bibliothek", "Buch"), ("Restaurant", "Tisch reservieren"), ("Polizei", "Anzeige")
 ]
+
+def show_vocab_popup(vocab_list, label="See all vocab pairs (click to expand)"):
+    with st.expander(label):
+        df = pd.DataFrame(vocab_list, columns=["Topic", "Keyword"])
+        st.dataframe(df, hide_index=True)
 
 def teil2():
     st.header("Teil 2 – Question & Answer Practice")
@@ -211,13 +216,18 @@ def teil2():
                 st.session_state.pop(k, None)
             st.experimental_rerun()
 
-# ---- Teil 3 ----
+# --- Teil 3 prompts and function ---
 TEIL3_PROMPTS = [
     "Radio anmachen", "Fenster zumachen", "Licht anschalten", "Tür aufmachen", "Tisch sauber machen",
     "Hausaufgaben schicken", "Buch bringen", "Handy ausmachen", "Stuhl nehmen", "Wasser holen",
     "Fenster öffnen", "Musik leiser machen", "Tafel sauber wischen", "Kaffee kochen", "Deutsch üben",
     "Auto waschen", "Kind abholen", "Tisch decken", "Termin machen", "Nachricht schreiben", "Rauchen verboten"
 ]
+
+def show_prompts_popup(prompt_list, label="See all polite request prompts (click to expand)"):
+    with st.expander(label):
+        df = pd.DataFrame(prompt_list, columns=["Prompt"])
+        st.dataframe(df, hide_index=True)
 
 def teil3():
     st.header("Teil 3 – Polite Request & Reply Practice")
@@ -288,7 +298,7 @@ def teil3():
                 st.session_state.pop(k, None)
             st.experimental_rerun()
 
-# ---- Main App ----
+# --- Main App ---
 def main():
     st.title(f"A1 Sprechen – {SCHOOL_NAME}")
     login_main()
