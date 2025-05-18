@@ -4,6 +4,10 @@ import random
 import requests
 from streamlit_webrtc import webrtc_streamer
 
+# ---- Helper: rerun for session reset ----
+def rerun():
+    st.experimental_rerun()
+
 # ---- Settings ----
 SCHOOL_NAME = "Learn Language Education Academy"
 BASE_URL = "https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0"
@@ -172,7 +176,7 @@ def teil2():
     if st.button("Start new Teil 2 session"):
         for k in ['t2_idxs', 't2_idx', 't2_score', 't2_history']:
             st.session_state.pop(k, None)
-        st.experimental_rerun()
+        rerun()
         return
 
     if 't2_idxs' not in st.session_state:
@@ -305,7 +309,7 @@ def teil3():
         if st.button("Restart Teil 3"):
             for k in ['t3_idxs', 't3_idx', 't3_score', 't3_history']:
                 st.session_state.pop(k, None)
-            st.experimental_rerun()
+            rerun()
             return
 
 # ---- Main App ----
