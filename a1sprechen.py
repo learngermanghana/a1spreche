@@ -404,7 +404,7 @@ def get_next_bitten(used, n=1):
 def teil3_chat():
     st.header("Teil 3: Requests & Replies (Exam Simulation)")
 
-    # --- Always safely initialize all session state keys! ---
+    # --- Safe initialization for all state keys ---
     if "teil3_state" not in st.session_state:
         st.session_state.teil3_state = "name"
     if "teil3_chat" not in st.session_state:
@@ -439,7 +439,6 @@ def teil3_chat():
     for msg in st.session_state.teil3_chat:
         st.chat_message("assistant" if msg["role"] == "examiner" else "user").write(msg["content"])
 
-
     # Step 2: How many
     if st.session_state.teil3_state == "howmany":
         user_input = st.chat_input("How many requests? (1-5):")
@@ -452,7 +451,7 @@ def teil3_chat():
                     st.session_state.teil3_prompts_used = []
                     st.session_state.teil3_chat.append({"role": "student", "content": user_input})
                     st.session_state.teil3_chat.append({"role": "examiner", "content":
-                        f"Great! I will ask you {n} requests, one after another. When you are ready to start, type 'Begin'."
+                        f"Great! I will give you {n} requests, one after another. When you are ready to start, type 'Begin'."
                     })
                     st.session_state.teil3_state = "ready"
                     st.rerun()
@@ -494,14 +493,15 @@ def teil3_chat():
             feedback = get_ai_teil3_feedback(prompt_topic, reply)
             st.session_state.teil3_chat.append({"role": "examiner", "content": feedback})
             st.session_state.teil3_rounds_done += 1
+
             if st.session_state.teil3_rounds_done < st.session_state.teil3_rounds_total:
                 st.session_state.teil3_state = "continue"
             else:
-                st.session_state.teil3_state = "done"
+                st.session_state.teil3_state = "more"
             st.rerun()
         return
 
-    # Step 5: Wait for 'Okay' before next
+    # Step 5: Continue for more requests
     if st.session_state.teil3_state == "continue":
         user_input = st.chat_input("Type 'Okay' to get the next request.")
         if user_input and user_input.lower().strip() == "okay":
@@ -520,10 +520,36 @@ def teil3_chat():
             st.rerun()
         return
 
-    # Step 6: Done
+    # Step 6: After the round is finished, ask if want more or end
+    if st.session_state.teil3_state == "more":
+        user_input = st.chat_input("You've finished your set. Type 'continue' for more requests or 'end' to finish for today.")
+        if user_input:
+            st.session_state.teil3_chat.append({"role": "student", "content": user_input})
+            if user_input.lower().strip() == "continue":
+                st.session_state.teil3_rounds_total = 1
+                st.session_state.teil3_rounds_done = 0
+                st.session_state.teil3_state = "ready"
+                st.session_state.teil3_chat.append({"role": "examiner", "content":
+                    "Great! I'll give you one more random request. Type 'Begin' to continue."
+                })
+                st.rerun()
+            elif user_input.lower().strip() == "end":
+                st.session_state.teil3_chat.append({"role": "examiner", "content":
+                    "Congratulations, you have finished Teil 3 practice for today! If you want to start again, please refresh or restart the app."
+                })
+                st.session_state.teil3_state = "done"
+                st.rerun()
+            else:
+                st.session_state.teil3_chat.append({"role": "examiner", "content":
+                    "Please type 'continue' or 'end'."
+                })
+                st.rerun()
+        return
+
+    # Step 7: Done
     if st.session_state.teil3_state == "done":
-        st.session_state.teil3_chat.append({"role": "examiner", "content": "Super! You finished Teil 3. If you want to practice again, please restart."})
         st.chat_input("Teil 3 complete. Restart to try again.", disabled=True)
+
 
 # ========== MAIN APP ==========
 st.set_page_config(page_title=f"A1 Sprechen – {SCHOOL_NAME}", layout="wide")
