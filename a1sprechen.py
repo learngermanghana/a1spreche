@@ -3,7 +3,8 @@ import openai
 import random
 import pandas as pd
 
-# ------------------ SCHOOL INFO & LOGIN ------------------
+# ========== SCHOOL INFO & LOGIN ==========
+
 SCHOOL_NAME = "Learn Language Education Academy"
 BASE_URL = "https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0"
 VOCAROO_URL = "https://vocaroo.com/1bW5U4NUiwmk"
@@ -29,10 +30,12 @@ def login_main():
             st.stop()
     return st.session_state['student_code']
 
-# ------------------ OPENAI KEY SETUP ------------------
-openai.api_key = st.secrets["OPENAI_API_KEY"]  # or use os.environ['OPENAI_API_KEY']
+# ========== OPENAI KEY SETUP ==========
 
-# ------------------ VOCABULARY LISTS ------------------
+openai.api_key = st.secrets["OPENAI_API_KEY"]
+
+# ========== VOCABULARY LISTS ==========
+
 VOCAB = [
     ("Geschäft", "schließen"), ("Uhr", "Uhrzeit"), ("Arbeit", "Kollege"),
     ("Hausaufgabe", "machen"), ("Küche", "kochen"), ("Freizeit", "lesen"),
@@ -61,22 +64,24 @@ BITTEN_PROMPTS = [
     "Termin machen", "Nachricht schreiben",
 ]
 
-# ------------------ AI FEEDBACK FUNCTIONS ------------------
+# ========== AI FEEDBACK FUNCTIONS (ENGLISH FEEDBACK) ==========
+
 def get_openai_feedback_teil1(inputs):
     prompt = f"""
-Du bist ein Deutschlehrer für das Niveau A1. Überprüfe die Selbstvorstellung eines Schülers. Achte auf:
-- Jede Antwort ist ein einfacher, vollständiger Satz.
-- Wortstellung, Großschreibung und Zeichensetzung sind korrekt.
-- Nutze nur einfaches Deutsch (A1).
-Gib für jeden Punkt eine kurze Korrektur und eine Rückmeldung auf Deutsch (A1-Niveau).
+You are a German teacher for A1 beginners. Check the student's self-introduction. Look for:
+- Each answer is a simple, complete sentence.
+- Word order, capitalization, and punctuation are correct.
+- Use only A1 German words and grammar.
 
-Vorstellung des Schülers:
+Return corrections and short feedback for each point IN ENGLISH. If there are mistakes, explain briefly in English, with a corrected example.
+
+Student introduction:
 Name: {inputs['name']}
-Alter: {inputs['age']}
-Land: {inputs['country']}
-Wohnort: {inputs['residence']}
-Sprachen: {inputs['languages']}
-Beruf: {inputs['profession']}
+Age: {inputs['age']}
+Country: {inputs['country']}
+Residence: {inputs['residence']}
+Languages: {inputs['languages']}
+Profession: {inputs['profession']}
 Hobby: {inputs['hobby']}
 """
     response = openai.chat.completions.create(
@@ -88,16 +93,17 @@ Hobby: {inputs['hobby']}
 
 def get_openai_feedback_teil2(thema, stichwort, frage, antwort):
     prompt = f"""
-Du bist ein Deutschlehrer für das Niveau A1. Überprüfe die Frage und Antwort eines Schülers zu einem Thema. Achte auf:
-- Frage beginnt mit Fragewort/Verb? Endet mit „?“?
-- Antwort ist ein einfacher, vollständiger Satz und endet mit „.“?
-- Großschreibung und Zeichensetzung korrekt?
-Gib für beide eine kurze Korrektur und Rückmeldung auf Deutsch (A1-Niveau).
+You are a German teacher for A1 beginners. Check the student's question and answer for the topic and keyword. Look for:
+- Does the question start with a question word or a verb? Does it end with "?"?
+- Is the answer a simple, complete sentence? Does it end with "."?
+- Are capitalization and punctuation correct?
 
-Thema: {thema}
-Stichwort: {stichwort}
-Frage: {frage}
-Antwort: {antwort}
+Give a short correction and feedback for both (question and answer) IN ENGLISH. If there are mistakes, explain briefly and show a corrected example.
+
+Topic: {thema}
+Keyword: {stichwort}
+Question: {frage}
+Answer: {antwort}
 """
     response = openai.chat.completions.create(
         model="gpt-4o",
@@ -108,15 +114,16 @@ Antwort: {antwort}
 
 def get_openai_feedback_teil3(aufgabe, bitte, antwort):
     prompt = f"""
-Du bist ein Deutschlehrer für das Niveau A1. Überprüfe die Bitte und Antwort eines Schülers zu einer Aufgabe. Achte auf:
-- Bitte höflich formuliert? Z.B. „Können Sie bitte ...?“ oder „Machen Sie bitte ...?“ Endet mit „?“
-- Antwort ist ein einfacher, vollständiger Satz, endet mit „.“?
-- Großschreibung und Zeichensetzung korrekt?
-Gib für beide eine kurze Korrektur und Rückmeldung auf Deutsch (A1-Niveau).
+You are a German teacher for A1 beginners. Check the student's polite request and the reply for a given task. Look for:
+- Is the request polite? Does it start with "Können Sie bitte..." or "Machen Sie bitte..." and end with "?"?
+- Is the reply a simple, complete sentence and does it end with "."?
+- Are capitalization and punctuation correct?
 
-Aufgabe: {aufgabe}
-Bitte: {bitte}
-Antwort: {antwort}
+Give a short correction and feedback for both (request and reply) IN ENGLISH. If there are mistakes, explain briefly and give a corrected example.
+
+Task: {aufgabe}
+Request: {bitte}
+Reply: {antwort}
 """
     response = openai.chat.completions.create(
         model="gpt-4o",
@@ -125,116 +132,120 @@ Antwort: {antwort}
     )
     return response.choices[0].message.content.strip()
 
-# ------------------ TEIL 1 ------------------
+# ========== TEIL 1 ==========
+
 def teil1():
-    st.subheader("Teil 1: Selbstvorstellung")
-    st.info("Stelle dich mit vollständigen Sätzen auf Deutsch vor.")
+    st.subheader("Teil 1: Self-introduction")
+    st.info("Introduce yourself in German using simple, full sentences.")
     inputs = {}
-    inputs['name'] = st.text_input("Name (Satz):", placeholder="Ich heiße ...")
-    inputs['age'] = st.text_input("Alter (Satz):", placeholder="Ich bin ... Jahre alt.")
-    inputs['country'] = st.text_input("Land (Satz):", placeholder="Ich komme aus ...")
-    inputs['residence'] = st.text_input("Wohnort (Satz):", placeholder="Ich wohne in ...")
-    inputs['languages'] = st.text_input("Sprachen (Satz):", placeholder="Ich spreche ...")
-    inputs['profession'] = st.text_input("Beruf (Satz):", placeholder="Ich bin ... von Beruf.")
-    inputs['hobby'] = st.text_input("Hobby (Satz):", placeholder="Mein Hobby ist ...")
-    if st.button("Vorstellung prüfen"):
-        with st.spinner("Wird geprüft..."):
+    inputs['name'] = st.text_input("Name (sentence):", placeholder="Ich heiße ...")
+    inputs['age'] = st.text_input("Age (sentence):", placeholder="Ich bin ... Jahre alt.")
+    inputs['country'] = st.text_input("Country (sentence):", placeholder="Ich komme aus ...")
+    inputs['residence'] = st.text_input("Residence (sentence):", placeholder="Ich wohne in ...")
+    inputs['languages'] = st.text_input("Languages (sentence):", placeholder="Ich spreche ...")
+    inputs['profession'] = st.text_input("Profession (sentence):", placeholder="Ich bin ... von Beruf.")
+    inputs['hobby'] = st.text_input("Hobby (sentence):", placeholder="Mein Hobby ist ...")
+    if st.button("Check introduction"):
+        with st.spinner("Checking..."):
             feedback = get_openai_feedback_teil1(inputs)
-            st.success("Rückmeldung von deinem Deutschlehrer:")
+            st.success("Feedback from your teacher:")
             st.markdown(feedback)
             st.session_state['teil1_feedback'] = feedback
     if 'teil1_feedback' in st.session_state:
         st.markdown("---")
-        st.markdown("**Letztes Feedback:**")
+        st.markdown("**Last feedback:**")
         st.markdown(st.session_state['teil1_feedback'])
 
-# ------------------ TEIL 2 ------------------
+# ========== TEIL 2 ==========
+
 def teil2():
-    st.subheader("Teil 2: Fragen & Antworten")
+    st.subheader("Teil 2: Questions & Answers")
     if 't2_idx' not in st.session_state:
         st.session_state['t2_idx'] = 0
         st.session_state['t2_results'] = []
         st.session_state['t2_order'] = random.sample(VOCAB, len(VOCAB))
     if st.session_state['t2_idx'] < len(VOCAB):
         thema, stichwort = st.session_state['t2_order'][st.session_state['t2_idx']]
-        st.info(f"Thema: **{thema}**  |  Stichwort: **{stichwort}**")
-        frage = st.text_input("Deine Frage (mit ?):", key=f"frage_{st.session_state['t2_idx']}")
-        antwort = st.text_input("Deine Antwort (mit .):", key=f"antwort_{st.session_state['t2_idx']}")
-        if st.button("Antwort prüfen", key=f"check2_{st.session_state['t2_idx']}"):
-            with st.spinner("Wird geprüft..."):
+        st.info(f"Topic: **{thema}**  |  Keyword: **{stichwort}**")
+        frage = st.text_input("Your question (ends with ?):", key=f"frage_{st.session_state['t2_idx']}")
+        antwort = st.text_input("Your answer (ends with .):", key=f"antwort_{st.session_state['t2_idx']}")
+        if st.button("Check answer", key=f"check2_{st.session_state['t2_idx']}"):
+            with st.spinner("Checking..."):
                 feedback = get_openai_feedback_teil2(thema, stichwort, frage, antwort)
                 st.session_state['t2_results'].append({
-                    "Thema": thema,
-                    "Stichwort": stichwort,
-                    "Frage": frage,
-                    "Antwort": antwort,
+                    "Topic": thema,
+                    "Keyword": stichwort,
+                    "Question": frage,
+                    "Answer": antwort,
                     "Feedback": feedback
                 })
                 st.session_state['t2_idx'] += 1
-                st.experimental_rerun()
+                st.rerun()
     else:
-        st.success("Teil 2 abgeschlossen! Rückmeldung:")
+        st.success("Teil 2 finished! Here is your feedback:")
         for res in st.session_state['t2_results']:
-            st.write(f"**Thema:** {res['Thema']} | **Stichwort:** {res['Stichwort']}")
-            st.write(f"**Frage:** {res['Frage']}")
-            st.write(f"**Antwort:** {res['Antwort']}")
+            st.write(f"**Topic:** {res['Topic']} | **Keyword:** {res['Keyword']}")
+            st.write(f"**Question:** {res['Question']}")
+            st.write(f"**Answer:** {res['Answer']}")
             st.markdown(f"**Feedback:**\n{res['Feedback']}")
             st.markdown("---")
-        if st.button("Nochmal üben (Teil 2)"):
+        if st.button("Practice Teil 2 again"):
             for k in ['t2_idx', 't2_results', 't2_order']:
                 st.session_state.pop(k, None)
             st.rerun()
 
-# ------------------ TEIL 3 ------------------
+# ========== TEIL 3 ==========
+
 def teil3():
-    st.subheader("Teil 3: Bitten & Antworten")
+    st.subheader("Teil 3: Requests & Replies")
     if 't3_idx' not in st.session_state:
         st.session_state['t3_idx'] = 0
         st.session_state['t3_results'] = []
         st.session_state['t3_order'] = random.sample(BITTEN_PROMPTS, len(BITTEN_PROMPTS))
     if st.session_state['t3_idx'] < len(BITTEN_PROMPTS):
         aufgabe = st.session_state['t3_order'][st.session_state['t3_idx']]
-        st.info(f"**Aufgabe:** {aufgabe}")
-        bitte = st.text_input("Deine Bitte (mit ?):", key=f"bitte_{st.session_state['t3_idx']}")
-        antwort = st.text_input("Antwort auf die Bitte (mit .):", key=f"antwort3_{st.session_state['t3_idx']}")
-        if st.button("Antwort prüfen", key=f"check3_{st.session_state['t3_idx']}"):
-            with st.spinner("Wird geprüft..."):
+        st.info(f"Task: {aufgabe}")
+        bitte = st.text_input("Your request (ends with ?):", key=f"bitte_{st.session_state['t3_idx']}")
+        antwort = st.text_input("Reply to the request (ends with .):", key=f"antwort3_{st.session_state['t3_idx']}")
+        if st.button("Check reply", key=f"check3_{st.session_state['t3_idx']}"):
+            with st.spinner("Checking..."):
                 feedback = get_openai_feedback_teil3(aufgabe, bitte, antwort)
                 st.session_state['t3_results'].append({
-                    "Aufgabe": aufgabe,
-                    "Bitte": bitte,
-                    "Antwort": antwort,
+                    "Task": aufgabe,
+                    "Request": bitte,
+                    "Reply": antwort,
                     "Feedback": feedback
                 })
                 st.session_state['t3_idx'] += 1
-                st.experimental_rerun()
+                st.rerun()
     else:
-        st.success("Teil 3 abgeschlossen! Rückmeldung:")
+        st.success("Teil 3 finished! Here is your feedback:")
         for res in st.session_state['t3_results']:
-            st.write(f"**Aufgabe:** {res['Aufgabe']}")
-            st.write(f"**Bitte:** {res['Bitte']}")
-            st.write(f"**Antwort:** {res['Antwort']}")
+            st.write(f"**Task:** {res['Task']}")
+            st.write(f"**Request:** {res['Request']}")
+            st.write(f"**Reply:** {res['Reply']}")
             st.markdown(f"**Feedback:**\n{res['Feedback']}")
             st.markdown("---")
-        if st.button("Nochmal üben (Teil 3)"):
+        if st.button("Practice Teil 3 again"):
             for k in ['t3_idx', 't3_results', 't3_order']:
                 st.session_state.pop(k, None)
-            st.experimental_rerun()
+            st.rerun()
 
-# ------------------ MAIN APP ------------------
+# ========== MAIN APP ==========
+
 st.set_page_config(page_title=f"A1 Sprechen – {SCHOOL_NAME}", layout="wide")
 st.title(f"A1 Sprechen – {SCHOOL_NAME}")
 
-# Show school info
 st.markdown(f"""
-**Schule:** {SCHOOL_NAME}  
-[Sprich hier auf Vocaroo]({VOCAROO_URL}) | [Ergebnis an Lehrer senden (WhatsApp)]({BASE_URL})
+**School:** {SCHOOL_NAME}  
+[Record your voice here (Vocaroo)]({VOCAROO_URL})  
+[Send result to teacher (WhatsApp)]({BASE_URL})
 """)
 
-# Require login before any part
+# Require login before using the app
 _ = login_main()
 
-tab = st.radio("Wähle einen Teil:", ["Teil 1: Selbstvorstellung", "Teil 2: Fragen & Antworten", "Teil 3: Bitten & Antworten"])
+tab = st.radio("Choose a part:", ["Teil 1: Self-introduction", "Teil 2: Questions & Answers", "Teil 3: Requests & Replies"])
 
 if tab.startswith("Teil 1"):
     teil1()
