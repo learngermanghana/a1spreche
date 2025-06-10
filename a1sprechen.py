@@ -235,14 +235,22 @@ def get_next_vocab(used, n=1):
 
 def teil2_chat():
     st.header("Teil 2: Questions & Answers (Exam Simulation)")
+
+    # Always initialize all state keys to avoid AttributeError!
+    if "teil2_state" not in st.session_state:
+        st.session_state.teil2_state = "name"
     if "teil2_chat" not in st.session_state:
         st.session_state.teil2_chat = []
+    if "teil2_name" not in st.session_state:
         st.session_state.teil2_name = ""
+    if "teil2_rounds_total" not in st.session_state:
         st.session_state.teil2_rounds_total = None
+    if "teil2_rounds_done" not in st.session_state:
         st.session_state.teil2_rounds_done = 0
+    if "teil2_vocabs_used" not in st.session_state:
         st.session_state.teil2_vocabs_used = []
+    if "teil2_current_vocab" not in st.session_state:
         st.session_state.teil2_current_vocab = None
-        st.session_state.teil2_state = "name"  # name, howmany, ready, question, feedback, continue, done
 
     # Step 1: Name
     if st.session_state.teil2_state == "name":
@@ -367,14 +375,22 @@ def get_next_bitten(used, n=1):
 
 def teil3_chat():
     st.header("Teil 3: Requests & Replies (Exam Simulation)")
+
+    # --- Always safely initialize all session state keys! ---
+    if "teil3_state" not in st.session_state:
+        st.session_state.teil3_state = "name"
     if "teil3_chat" not in st.session_state:
         st.session_state.teil3_chat = []
+    if "teil3_name" not in st.session_state:
         st.session_state.teil3_name = ""
+    if "teil3_rounds_total" not in st.session_state:
         st.session_state.teil3_rounds_total = None
+    if "teil3_rounds_done" not in st.session_state:
         st.session_state.teil3_rounds_done = 0
+    if "teil3_prompts_used" not in st.session_state:
         st.session_state.teil3_prompts_used = []
+    if "teil3_current_prompt" not in st.session_state:
         st.session_state.teil3_current_prompt = None
-        st.session_state.teil3_state = "name"
 
     # Step 1: Name
     if st.session_state.teil3_state == "name":
@@ -394,6 +410,7 @@ def teil3_chat():
 
     for msg in st.session_state.teil3_chat:
         st.chat_message("assistant" if msg["role"] == "examiner" else "user").write(msg["content"])
+
 
     # Step 2: How many
     if st.session_state.teil3_state == "howmany":
