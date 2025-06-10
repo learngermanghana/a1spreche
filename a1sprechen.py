@@ -68,9 +68,9 @@ You are a Goethe A1 examiner. The student just gave this introduction in German:
 ---
 {intro_text}
 ---
-1. Give feedback in **simple English** (not German), pointing out A1-level mistakes, missing points, and praise correct sentences.
+1. Give feedback in simple English (not German), pointing out A1-level mistakes, missing points, and praise correct sentences.
 2. Give a score out of 5 points (all 7 points = 5/5, deduct 1 for each missing/weak part).
-3. Show a sample correct introduction in German.
+3. Show a sample correct introduction in German (brief, one or two sentences per keyword).
 Feedback first, then Score, then Example.
 """
     response = openai.chat.completions.create(
@@ -85,31 +85,34 @@ def get_ai_followup_feedback(q, a):
 You are a Goethe A1 examiner. The student answered this question:
 Q: {q}
 A: {a}
-1. Give simple English feedback about correctness and A1-level mistakes. Correct and praise where possible.
-2. Show a sample correct answer in German.
-Feedback first, then Example.
+Give very brief, friendly English feedback (max 2 sentences). Correct or praise only the main point. Then show a sample correct answer in German (1 line). Feedback first, then Example.
 """
     response = openai.chat.completions.create(
         model="gpt-4o",
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=300
+        max_tokens=180
     )
     return response.choices[0].message.content.strip()
 
 def get_ai_teil2_feedback(topic, keyword, student_message):
     prompt = f"""
-You are an A1 Goethe oral examiner. The student was told:
+You are an A1 Goethe examiner. The student was told:
 Topic: {topic}
 Keyword: {keyword}
 Student's message: {student_message}
-1. Give feedback and correction in simple English (not German). Point out errors, praise good parts, and show a correct model answer in German.
-2. Give 'Correct' or 'Incorrect' and 1/1 or 0/1 for this question.
-Feedback first, then Score, then Example.
+Your job:
+- Check if the student wrote one German question (ending with '?', starting with a verb or W-word) about the topic/keyword, and one suitable answer (ending with '.').
+- Accept and praise simple yes/no questions (e.g. "Kaufen Sie Fahrkarte?") or W-questions (e.g. "Was kaufen Sie?") as both are correct at A1.
+- Accept short answers like "Ja, ich kaufe Fahrkarte." as correct at A1—even if 'eine' is missing.
+- If the question/answer is understandable and fits A1, praise and give 'Correct' (1/1). Only mark as incorrect (0/1) for missing question mark, answer, or if not understandable at all.
+- Give very short and encouraging English feedback (max 2 sentences). Then show a model correct answer in German (1 line).
+- End with 'Ready for the next one? Type Okay.' if there are more, or 'Well done, you finished Teil 2!' if done.
+Feedback first, then Model Answer, then Next instruction.
 """
     response = openai.chat.completions.create(
         model="gpt-4o",
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=350
+        max_tokens=180
     )
     return response.choices[0].message.content.strip()
 
@@ -118,19 +121,19 @@ def get_ai_teil3_feedback(prompt_topic, student_message):
 You are a Goethe A1 examiner. The student had to write a polite request (e.g. 'Können Sie bitte ...?') and a suitable reply, both in German in one message:
 Task: {prompt_topic}
 Student's message: {student_message}
-1. Give feedback in simple English and point out any mistakes.
-2. Show a model correct answer in German.
-Feedback first, then Example.
+- Give very short and friendly English feedback (max 2 sentences).
+- Then show a model correct answer in German (1 line).
+- End with 'Ready for the next one? Type Okay.' if there are more, or 'Well done, you finished Teil 3!' if done.
+Feedback first, then Model Answer, then Next instruction.
 """
     response = openai.chat.completions.create(
         model="gpt-4o",
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=350
+        max_tokens=180
     )
     return response.choices[0].message.content.strip()
 
 # ========== TEIL 1: CHAT ==========
-
 TEIL1_KEYWORDS = ["Name", "Alter", "Land", "Wohnort", "Sprachen", "Beruf", "Hobby"]
 TEIL1_FOLLOWUP = [
     "Wie buchstabieren Sie Ihren Namen?",
@@ -206,7 +209,6 @@ def teil1_chat():
     st.chat_input("Teil 1 complete. Restart to try again.", disabled=True)
 
 # ========== TEIL 2 CHAT ==========
-
 VOCAB_TEIL2 = [
     ("Geschäft", "schließen"), ("Uhr", "Uhrzeit"), ("Arbeit", "Kollege"),
     ("Hausaufgabe", "machen"), ("Küche", "kochen"), ("Freizeit", "lesen"),
@@ -231,13 +233,6 @@ def get_next_vocab(used, n=1):
     available = [pair for pair in VOCAB_TEIL2 if pair not in used]
     return random.sample(available, min(len(available), n)) if available else []
 
-def examiner_teil2_intro(name, n_rounds):
-    return (
-        f"Welcome, {name}! This is Teil 2 of the A1 oral exam (Questions & Answers).\n"
-        "I will give you a topic and a keyword. Please write a question about them in German (ending with '?') and answer it (ending with '.') in the same message.\n"
-        f"We will do {n_rounds} questions. Let’s start!"
-    )
-
 def teil2_chat():
     st.header("Teil 2: Questions & Answers (Exam Simulation)")
     if "teil2_chat" not in st.session_state:
@@ -247,21 +242,30 @@ def teil2_chat():
         st.session_state.teil2_rounds_done = 0
         st.session_state.teil2_vocabs_used = []
         st.session_state.teil2_current_vocab = None
+        st.session_state.teil2_state = "name"  # name, howmany, ready, question, feedback, continue, done
 
-    # Student name
-    if not st.session_state.teil2_name:
+    # Step 1: Name
+    if st.session_state.teil2_state == "name":
         name = st.text_input("Enter your name for the examiner to greet you:", key="teil2name")
         if name:
             st.session_state.teil2_name = name
-            st.session_state.teil2_chat.append({"role": "examiner", "content": f"Welcome, {name}! How many questions do you want to practice for Teil 2? (1-5)"})
+            st.session_state.teil2_chat.append({"role": "examiner", "content":
+                f"Welcome, {name}! This is Teil 2 of the A1 oral exam (Questions & Answers).\n"
+                "I will give you a topic and a keyword. You should write a question in German about them (ending with '?') and answer it (ending with '.') in the same message."
+            })
+            st.session_state.teil2_chat.append({"role": "examiner", "content":
+                "How many questions would you like to practice today? (1-5)"
+            })
+            st.session_state.teil2_state = "howmany"
             st.rerun()
         return
 
+    # Chat history
     for msg in st.session_state.teil2_chat:
         st.chat_message("assistant" if msg["role"] == "examiner" else "user").write(msg["content"])
 
-    # Get how many rounds
-    if st.session_state.teil2_rounds_total is None:
+    # Step 2: How many
+    if st.session_state.teil2_state == "howmany":
         user_input = st.chat_input("How many questions? (1-5):")
         if user_input:
             try:
@@ -269,11 +273,12 @@ def teil2_chat():
                 if 1 <= n <= 5:
                     st.session_state.teil2_rounds_total = n
                     st.session_state.teil2_rounds_done = 0
+                    st.session_state.teil2_vocabs_used = []
                     st.session_state.teil2_chat.append({"role": "student", "content": user_input})
-                    st.session_state.teil2_chat.append({"role": "examiner", "content": examiner_teil2_intro(st.session_state.teil2_name, n)})
-                    vocab = get_next_vocab(st.session_state.teil2_vocabs_used)
-                    st.session_state.teil2_current_vocab = vocab[0]
-                    st.session_state.teil2_vocabs_used.append(vocab[0])
+                    st.session_state.teil2_chat.append({"role": "examiner", "content":
+                        f"Great! I will ask you {n} questions, one after another. When you are ready to start, type 'Begin'."
+                    })
+                    st.session_state.teil2_state = "ready"
                     st.rerun()
                 else:
                     st.session_state.teil2_chat.append({"role": "examiner", "content": "Please enter a number between 1 and 5."})
@@ -283,32 +288,70 @@ def teil2_chat():
                 st.rerun()
         return
 
-    # Each question round
-    if st.session_state.teil2_rounds_done < st.session_state.teil2_rounds_total:
-        t, k = st.session_state.teil2_current_vocab
-        st.session_state.teil2_chat.append({"role": "examiner", "content": f"Topic: {t}\nKeyword: {k}\nWrite your question (ends with '?') and answer (ends with '.') in one German message."})
-        student_input = st.chat_input("Type your German question + answer here:")
+    # Step 3: Wait for 'Begin'
+    if st.session_state.teil2_state == "ready":
+        user_input = st.chat_input("Type 'Begin' to start the first question.")
+        if user_input and user_input.lower().strip() == "begin":
+            vocab = get_next_vocab(st.session_state.teil2_vocabs_used)
+            st.session_state.teil2_current_vocab = vocab[0]
+            st.session_state.teil2_vocabs_used.append(vocab[0])
+            t, k = vocab[0]
+            st.session_state.teil2_chat.append({"role": "student", "content": user_input})
+            st.session_state.teil2_chat.append({"role": "examiner", "content":
+                f"Here is your first question:\n\n**Topic:** {t}\n**Keyword:** {k}\n\nWrite a question in German about these (ending with '?') and answer it (ending with '.'), both in one message."
+            })
+            st.session_state.teil2_state = "question"
+            st.rerun()
+        elif user_input:
+            st.session_state.teil2_chat.append({"role": "student", "content": user_input})
+            st.session_state.teil2_chat.append({"role": "examiner", "content": "Please type 'Begin' to start."})
+            st.rerun()
+        return
+
+    # Step 4: Student answers question
+    if st.session_state.teil2_state == "question":
+        student_input = st.chat_input("Your German question + answer:")
         transcript = show_audio_upload_and_transcribe(key=f"teil2q{st.session_state.teil2_rounds_done}_audio")
         reply = student_input or transcript
         if reply:
             st.session_state.teil2_chat.append({"role": "student", "content": reply})
+            t, k = st.session_state.teil2_current_vocab
             feedback = get_ai_teil2_feedback(t, k, reply)
             st.session_state.teil2_chat.append({"role": "examiner", "content": feedback})
             st.session_state.teil2_rounds_done += 1
             if st.session_state.teil2_rounds_done < st.session_state.teil2_rounds_total:
-                vocab = get_next_vocab(st.session_state.teil2_vocabs_used)
-                if vocab:
-                    st.session_state.teil2_current_vocab = vocab[0]
-                    st.session_state.teil2_vocabs_used.append(vocab[0])
+                st.session_state.teil2_state = "continue"
             else:
-                st.session_state.teil2_chat.append({"role": "examiner", "content": "Examiner: Teil 2 finished! Review your feedback. Try again for more practice!"})
+                st.session_state.teil2_state = "done"
             st.rerun()
         return
 
-    st.chat_input("Teil 2 complete. Restart to try again.", disabled=True)
+    # Step 5: Wait for 'Okay' before next
+    if st.session_state.teil2_state == "continue":
+        user_input = st.chat_input("Type 'Okay' to get the next question.")
+        if user_input and user_input.lower().strip() == "okay":
+            vocab = get_next_vocab(st.session_state.teil2_vocabs_used)
+            st.session_state.teil2_current_vocab = vocab[0]
+            st.session_state.teil2_vocabs_used.append(vocab[0])
+            t, k = vocab[0]
+            st.session_state.teil2_chat.append({"role": "student", "content": user_input})
+            st.session_state.teil2_chat.append({"role": "examiner", "content":
+                f"Here is your next question:\n\n**Topic:** {t}\n**Keyword:** {k}\n\nWrite a question in German about these (ending with '?') and answer it (ending with '.'), both in one message."
+            })
+            st.session_state.teil2_state = "question"
+            st.rerun()
+        elif user_input:
+            st.session_state.teil2_chat.append({"role": "student", "content": user_input})
+            st.session_state.teil2_chat.append({"role": "examiner", "content": "Type 'Okay' to get the next question."})
+            st.rerun()
+        return
+
+    # Step 6: Done
+    if st.session_state.teil2_state == "done":
+        st.session_state.teil2_chat.append({"role": "examiner", "content": "Super! You finished Teil 2. If you want to practice again, please restart."})
+        st.chat_input("Teil 2 complete. Restart to try again.", disabled=True)
 
 # ========== TEIL 3 CHAT ==========
-
 BITTEN_PROMPTS = [
     "Radio anmachen", "Fenster zumachen", "Licht anschalten", "Tür aufmachen",
     "Tisch sauber machen", "Hausaufgaben schicken", "Buch bringen",
@@ -322,13 +365,6 @@ def get_next_bitten(used, n=1):
     available = [b for b in BITTEN_PROMPTS if b not in used]
     return random.sample(available, min(len(available), n)) if available else []
 
-def examiner_teil3_intro(name, n_rounds):
-    return (
-        f"Welcome, {name}! This is Teil 3 of the A1 oral exam (Requests & Replies).\n"
-        "I will give you a task. Please write a polite request in German (ending with '?') and a suitable reply (ending with '.') in the same message.\n"
-        f"We will do {n_rounds} requests. Let’s start!"
-    )
-
 def teil3_chat():
     st.header("Teil 3: Requests & Replies (Exam Simulation)")
     if "teil3_chat" not in st.session_state:
@@ -338,21 +374,29 @@ def teil3_chat():
         st.session_state.teil3_rounds_done = 0
         st.session_state.teil3_prompts_used = []
         st.session_state.teil3_current_prompt = None
+        st.session_state.teil3_state = "name"
 
-    # Student name
-    if not st.session_state.teil3_name:
+    # Step 1: Name
+    if st.session_state.teil3_state == "name":
         name = st.text_input("Enter your name for the examiner to greet you:", key="teil3name")
         if name:
             st.session_state.teil3_name = name
-            st.session_state.teil3_chat.append({"role": "examiner", "content": f"Welcome, {name}! How many requests do you want to practice for Teil 3? (1-5)"})
+            st.session_state.teil3_chat.append({"role": "examiner", "content":
+                f"Welcome, {name}! This is Teil 3 of the A1 oral exam (Requests & Replies).\n"
+                "I will give you a task. You should write a polite request in German (ending with '?') and a suitable reply (ending with '.') in the same message."
+            })
+            st.session_state.teil3_chat.append({"role": "examiner", "content":
+                "How many requests would you like to practice today? (1-5)"
+            })
+            st.session_state.teil3_state = "howmany"
             st.rerun()
         return
 
     for msg in st.session_state.teil3_chat:
         st.chat_message("assistant" if msg["role"] == "examiner" else "user").write(msg["content"])
 
-    # Get how many rounds
-    if st.session_state.teil3_rounds_total is None:
+    # Step 2: How many
+    if st.session_state.teil3_state == "howmany":
         user_input = st.chat_input("How many requests? (1-5):")
         if user_input:
             try:
@@ -360,11 +404,12 @@ def teil3_chat():
                 if 1 <= n <= 5:
                     st.session_state.teil3_rounds_total = n
                     st.session_state.teil3_rounds_done = 0
+                    st.session_state.teil3_prompts_used = []
                     st.session_state.teil3_chat.append({"role": "student", "content": user_input})
-                    st.session_state.teil3_chat.append({"role": "examiner", "content": examiner_teil3_intro(st.session_state.teil3_name, n)})
-                    prompt = get_next_bitten(st.session_state.teil3_prompts_used)
-                    st.session_state.teil3_current_prompt = prompt[0]
-                    st.session_state.teil3_prompts_used.append(prompt[0])
+                    st.session_state.teil3_chat.append({"role": "examiner", "content":
+                        f"Great! I will ask you {n} requests, one after another. When you are ready to start, type 'Begin'."
+                    })
+                    st.session_state.teil3_state = "ready"
                     st.rerun()
                 else:
                     st.session_state.teil3_chat.append({"role": "examiner", "content": "Please enter a number between 1 and 5."})
@@ -374,29 +419,66 @@ def teil3_chat():
                 st.rerun()
         return
 
-    # Each round
-    if st.session_state.teil3_rounds_done < st.session_state.teil3_rounds_total:
-        prompt = st.session_state.teil3_current_prompt
-        st.session_state.teil3_chat.append({"role": "examiner", "content": f"Task: {prompt}\nWrite a polite request (ends with '?') and reply (ends with '.') in German, both in one message."})
-        student_input = st.chat_input("Type your German request + reply here:")
+    # Step 3: Wait for 'Begin'
+    if st.session_state.teil3_state == "ready":
+        user_input = st.chat_input("Type 'Begin' to start the first request.")
+        if user_input and user_input.lower().strip() == "begin":
+            prompt = get_next_bitten(st.session_state.teil3_prompts_used)
+            st.session_state.teil3_current_prompt = prompt[0]
+            st.session_state.teil3_prompts_used.append(prompt[0])
+            st.session_state.teil3_chat.append({"role": "student", "content": user_input})
+            st.session_state.teil3_chat.append({"role": "examiner", "content":
+                f"Here is your first request:\n\n**Task:** {prompt[0]}\n\nWrite a polite request in German (ending with '?') and a reply (ending with '.'), both in one message."
+            })
+            st.session_state.teil3_state = "question"
+            st.rerun()
+        elif user_input:
+            st.session_state.teil3_chat.append({"role": "student", "content": user_input})
+            st.session_state.teil3_chat.append({"role": "examiner", "content": "Please type 'Begin' to start."})
+            st.rerun()
+        return
+
+    # Step 4: Student answers request
+    if st.session_state.teil3_state == "question":
+        student_input = st.chat_input("Your German request + reply:")
         transcript = show_audio_upload_and_transcribe(key=f"teil3q{st.session_state.teil3_rounds_done}_audio")
         reply = student_input or transcript
         if reply:
             st.session_state.teil3_chat.append({"role": "student", "content": reply})
-            feedback = get_ai_teil3_feedback(prompt, reply)
+            prompt_topic = st.session_state.teil3_current_prompt
+            feedback = get_ai_teil3_feedback(prompt_topic, reply)
             st.session_state.teil3_chat.append({"role": "examiner", "content": feedback})
             st.session_state.teil3_rounds_done += 1
             if st.session_state.teil3_rounds_done < st.session_state.teil3_rounds_total:
-                newprompt = get_next_bitten(st.session_state.teil3_prompts_used)
-                if newprompt:
-                    st.session_state.teil3_current_prompt = newprompt[0]
-                    st.session_state.teil3_prompts_used.append(newprompt[0])
+                st.session_state.teil3_state = "continue"
             else:
-                st.session_state.teil3_chat.append({"role": "examiner", "content": "Examiner: Teil 3 finished! Review your feedback. Try again for more practice!"})
+                st.session_state.teil3_state = "done"
             st.rerun()
         return
 
-    st.chat_input("Teil 3 complete. Restart to try again.", disabled=True)
+    # Step 5: Wait for 'Okay' before next
+    if st.session_state.teil3_state == "continue":
+        user_input = st.chat_input("Type 'Okay' to get the next request.")
+        if user_input and user_input.lower().strip() == "okay":
+            prompt = get_next_bitten(st.session_state.teil3_prompts_used)
+            st.session_state.teil3_current_prompt = prompt[0]
+            st.session_state.teil3_prompts_used.append(prompt[0])
+            st.session_state.teil3_chat.append({"role": "student", "content": user_input})
+            st.session_state.teil3_chat.append({"role": "examiner", "content":
+                f"Here is your next request:\n\n**Task:** {prompt[0]}\n\nWrite a polite request in German (ending with '?') and a reply (ending with '.'), both in one message."
+            })
+            st.session_state.teil3_state = "question"
+            st.rerun()
+        elif user_input:
+            st.session_state.teil3_chat.append({"role": "student", "content": user_input})
+            st.session_state.teil3_chat.append({"role": "examiner", "content": "Type 'Okay' to get the next request."})
+            st.rerun()
+        return
+
+    # Step 6: Done
+    if st.session_state.teil3_state == "done":
+        st.session_state.teil3_chat.append({"role": "examiner", "content": "Super! You finished Teil 3. If you want to practice again, please restart."})
+        st.chat_input("Teil 3 complete. Restart to try again.", disabled=True)
 
 # ========== MAIN APP ==========
 st.set_page_config(page_title=f"A1 Sprechen – {SCHOOL_NAME}", layout="wide")
@@ -410,7 +492,11 @@ st.markdown(f"""
 
 _ = login_main()
 
-tab = st.radio("Choose a part:", ["Teil 1: Self-introduction", "Teil 2: Questions & Answers (Chat)", "Teil 3: Requests & Replies (Chat)"])
+tab = st.radio("Choose a part:", [
+    "Teil 1: Self-introduction",
+    "Teil 2: Questions & Answers (Chat)",
+    "Teil 3: Requests & Replies (Chat)"
+])
 
 if tab.startswith("Teil 1"):
     teil1_chat()
