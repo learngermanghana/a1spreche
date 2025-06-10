@@ -183,7 +183,7 @@ def teil2():
         if st.button("Nochmal üben (Teil 2)"):
             for k in ['t2_idx', 't2_results', 't2_order']:
                 st.session_state.pop(k, None)
-            st.experimental_rerun()
+            st.rerun()
 
 # ------------------ TEIL 3 ------------------
 def teil3():
