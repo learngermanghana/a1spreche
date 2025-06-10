@@ -1,25 +1,19 @@
-# -*- coding: utf-8 -*-
-# A1 Sprechen Streamlit App with Live Audio Recording
 import streamlit as st
-import pandas as pd
+import openai
 import random
-import time
-import urllib.parse
-from streamlit_webrtc import webrtc_streamer
+import pandas as pd
 
-# School information
+# ------------------ SCHOOL INFO & LOGIN ------------------
 SCHOOL_NAME = "Learn Language Education Academy"
 BASE_URL = "https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0"
 VOCAROO_URL = "https://vocaroo.com/1bW5U4NUiwmk"
 
-# --- Load valid student codes ---
 def load_valid_codes():
     try:
         return pd.read_csv("student_codes.csv")["code"].tolist()
     except Exception:
         return []
 
-# --- Login on main page (hidden input) ---
 def login_main():
     if 'student_code' not in st.session_state:
         code = st.text_input("Student Code:", type="password")
@@ -35,224 +29,216 @@ def login_main():
             st.stop()
     return st.session_state['student_code']
 
-# --- Grammar check helpers ---
-def is_w_question(text):
-    word = text.strip().split()[0].lower() if text.split() else ""
-    return word in ["was","wie","wo","wann","wer","wen","wem","warum","welche","welcher","welches"]
+# ------------------ OPENAI KEY SETUP ------------------
+openai.api_key = st.secrets["OPENAI_API_KEY"]  # or use os.environ['OPENAI_API_KEY']
 
-def is_verb_question(text):
-    word = text.strip().split()[0].lower() if text.split() else ""
-    return word in ["haben","sein","gehen","kommen","machen","sehen","sprechen","fahren","arbeiten","lesen"]
+# ------------------ VOCABULARY LISTS ------------------
+VOCAB = [
+    ("Geschäft", "schließen"), ("Uhr", "Uhrzeit"), ("Arbeit", "Kollege"),
+    ("Hausaufgabe", "machen"), ("Küche", "kochen"), ("Freizeit", "lesen"),
+    ("Telefon", "anrufen"), ("Reise", "Hotel"), ("Auto", "fahren"),
+    ("Einkaufen", "Obst"), ("Schule", "Lehrer"), ("Geburtstag", "Geschenk"),
+    ("Essen", "Frühstück"), ("Arzt", "Termin"), ("Zug", "Abfahrt"),
+    ("Wetter", "Regen"), ("Buch", "lesen"), ("Computer", "E-Mail"),
+    ("Kind", "spielen"), ("Wochenende", "Plan"), ("Bank", "Geld"),
+    ("Sport", "laufen"), ("Abend", "Fernsehen"), ("Freunde", "Besuch"),
+    ("Bahn", "Fahrkarte"), ("Straße", "Stau"), ("Essen gehen", "Restaurant"),
+    ("Hund", "Futter"), ("Familie", "Kinder"), ("Post", "Brief"),
+    ("Nachbarn", "laut"), ("Kleid", "kaufen"), ("Büro", "Chef"),
+    ("Urlaub", "Strand"), ("Kino", "Film"), ("Internet", "Seite"),
+    ("Bus", "Abfahrt"), ("Arztpraxis", "Wartezeit"), ("Kuchen", "backen"),
+    ("Park", "spazieren"), ("Bäckerei", "Brötchen"), ("Geldautomat", "Karte"),
+    ("Buchladen", "Roman"), ("Fernseher", "Programm"), ("Tasche", "vergessen"),
+    ("Stadtplan", "finden"), ("Ticket", "bezahlen"), ("Zahnarzt", "Schmerzen"),
+    ("Museum", "Öffnungszeiten"), ("Handy", "Akku leer"),
+]
+BITTEN_PROMPTS = [
+    "Radio anmachen", "Fenster zumachen", "Licht anschalten", "Tür aufmachen",
+    "Tisch sauber machen", "Hausaufgaben schicken", "Buch bringen",
+    "Handy ausmachen", "Stuhl nehmen", "Wasser holen", "Fenster öffnen",
+    "Musik leiser machen", "Tafel sauber wischen", "Kaffee kochen",
+    "Deutsch üben", "Auto waschen", "Kind abholen", "Tisch decken",
+    "Termin machen", "Nachricht schreiben",
+]
 
-def check_question_structure(q):
-    if not q.endswith("?"):
-        return False, "Question must end with '?'"
-    if not (is_w_question(q) or is_verb_question(q)):
-        return False, "Question must start with a W-word or verb"
-    return True, "Question format OK"
+# ------------------ AI FEEDBACK FUNCTIONS ------------------
+def get_openai_feedback_teil1(inputs):
+    prompt = f"""
+Du bist ein Deutschlehrer für das Niveau A1. Überprüfe die Selbstvorstellung eines Schülers. Achte auf:
+- Jede Antwort ist ein einfacher, vollständiger Satz.
+- Wortstellung, Großschreibung und Zeichensetzung sind korrekt.
+- Nutze nur einfaches Deutsch (A1).
+Gib für jeden Punkt eine kurze Korrektur und eine Rückmeldung auf Deutsch (A1-Niveau).
 
-def check_answer_structure(a):
-    if not a.endswith("."):
-        return False, "Answer must end with '.'"
-    if not a[0].isupper():
-        return False, "Answer must start with a capital letter"
-    if len(a.split()) < 2:
-        return False, "Answer too short, use a full sentence"
-    return True, "Answer format OK"
+Vorstellung des Schülers:
+Name: {inputs['name']}
+Alter: {inputs['age']}
+Land: {inputs['country']}
+Wohnort: {inputs['residence']}
+Sprachen: {inputs['languages']}
+Beruf: {inputs['profession']}
+Hobby: {inputs['hobby']}
+"""
+    response = openai.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=600
+    )
+    return response.choices[0].message.content.strip()
 
-# --- Teil 1: Introduction ---
+def get_openai_feedback_teil2(thema, stichwort, frage, antwort):
+    prompt = f"""
+Du bist ein Deutschlehrer für das Niveau A1. Überprüfe die Frage und Antwort eines Schülers zu einem Thema. Achte auf:
+- Frage beginnt mit Fragewort/Verb? Endet mit „?“?
+- Antwort ist ein einfacher, vollständiger Satz und endet mit „.“?
+- Großschreibung und Zeichensetzung korrekt?
+Gib für beide eine kurze Korrektur und Rückmeldung auf Deutsch (A1-Niveau).
+
+Thema: {thema}
+Stichwort: {stichwort}
+Frage: {frage}
+Antwort: {antwort}
+"""
+    response = openai.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=500
+    )
+    return response.choices[0].message.content.strip()
+
+def get_openai_feedback_teil3(aufgabe, bitte, antwort):
+    prompt = f"""
+Du bist ein Deutschlehrer für das Niveau A1. Überprüfe die Bitte und Antwort eines Schülers zu einer Aufgabe. Achte auf:
+- Bitte höflich formuliert? Z.B. „Können Sie bitte ...?“ oder „Machen Sie bitte ...?“ Endet mit „?“
+- Antwort ist ein einfacher, vollständiger Satz, endet mit „.“?
+- Großschreibung und Zeichensetzung korrekt?
+Gib für beide eine kurze Korrektur und Rückmeldung auf Deutsch (A1-Niveau).
+
+Aufgabe: {aufgabe}
+Bitte: {bitte}
+Antwort: {antwort}
+"""
+    response = openai.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=500
+    )
+    return response.choices[0].message.content.strip()
+
+# ------------------ TEIL 1 ------------------
 def teil1():
-    st.header("Teil 1 – Introduction")
-    st.markdown("**What to expect:** Introduce yourself with Name, Alter, Land, Wohnort, Sprachen, Beruf, Hobby.")
-    st.text_input("Name:")
-    st.text_input("Alter:")
-    st.text_input("Land:")
-    st.text_input("Wohnort:")
-    st.text_input("Sprachen:")
-    st.text_input("Beruf:")
-    st.text_input("Hobby:")
-    st.text_input("Wie buchstabieren Sie Ihren Namen?")
-    st.text_input("Sind Sie verheiratet? (Ja/Nein)")
-    st.text_input("Wie alt ist Ihre Mutter?")
+    st.subheader("Teil 1: Selbstvorstellung")
+    st.info("Stelle dich mit vollständigen Sätzen auf Deutsch vor.")
+    inputs = {}
+    inputs['name'] = st.text_input("Name (Satz):", placeholder="Ich heiße ...")
+    inputs['age'] = st.text_input("Alter (Satz):", placeholder="Ich bin ... Jahre alt.")
+    inputs['country'] = st.text_input("Land (Satz):", placeholder="Ich komme aus ...")
+    inputs['residence'] = st.text_input("Wohnort (Satz):", placeholder="Ich wohne in ...")
+    inputs['languages'] = st.text_input("Sprachen (Satz):", placeholder="Ich spreche ...")
+    inputs['profession'] = st.text_input("Beruf (Satz):", placeholder="Ich bin ... von Beruf.")
+    inputs['hobby'] = st.text_input("Hobby (Satz):", placeholder="Mein Hobby ist ...")
+    if st.button("Vorstellung prüfen"):
+        with st.spinner("Wird geprüft..."):
+            feedback = get_openai_feedback_teil1(inputs)
+            st.success("Rückmeldung von deinem Deutschlehrer:")
+            st.markdown(feedback)
+            st.session_state['teil1_feedback'] = feedback
+    if 'teil1_feedback' in st.session_state:
+        st.markdown("---")
+        st.markdown("**Letztes Feedback:**")
+        st.markdown(st.session_state['teil1_feedback'])
 
-    if 'intro_submitted' not in st.session_state:
-        st.session_state['intro_submitted'] = False
-    if st.button("🔵 Submit Introduction"):
-        st.session_state['intro_submitted'] = True
-        st.success("Introduction saved.")
-        st.info("Now practice your introduction live. Grant mic access when prompted.")
-    if st.session_state['intro_submitted']:
-        webrtc_streamer(key="live_intro", media_stream_constraints={"audio": True, "video": False})
-        if st.button("🔘 Done Recording Introduction"):
-            st.success("Recording saved.")
-            st.info("Don't forget to share your progress with your tutor.")
-            st.markdown(f"[Send via WhatsApp]({BASE_URL})")
-            # Restart and complete options
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("🔄 Restart"):
-                    for k in ['t3_tasks','t3_sel','t3_idx','t3_score','t3_start','t3_sub','answers3','t3_done']:
-                        session.pop(k, None)
-                    st.rerun()
-            with col2:
-                if st.button("✅ Complete for today"):
-                    st.success("Übung für heute abgeschlossen. Bis zum nächsten Mal!")
-                    st.stop()
-
-# --- Teil 2: Frage & Antwort ---
-def teil2(session):
-    st.header("Teil 2 – Frage & Antwort")
-    st.markdown("**What to expect:** Ask and answer one question-answer pair on a single line. The question should end with '?' and the answer with '.'.")
-    vocab = [
-        ("Geschäft","schließen"),("Uhr","Uhrzeit"),("Arbeit","Kollege"),("Hausaufgabe","machen"),
-        ("Küche","kochen"),("Freizeit","lesen"),("Telefon","anrufen"),("Reise","Hotel"),
-        ("Auto","fahren"),("Einkaufen","Obst"),("Schule","Lehrer"),("Geburtstag","Geschenk"),
-        ("Essen","Frühstück"),("Arzt","Termin"),("Zug","Abfahrt"),("Wetter","Regen"),
-        ("Buch","lesen"),("Computer","E-Mail"),("Kind","spielen"),("Wochenende","Plan"),
-        ("Bank","Geld"),("Sport","laufen"),("Abend","Fernsehen"),("Freunde","Besuch"),
-        ("Bahn","Fahrkarte"),("Straße","Stau"),("Essen gehen","Restaurant"),("Hund","Futter"),
-        ("Familie","Kinder"),("Post","Brief"),("Nachbarn","laut"),("Kleid","kaufen"),
-        ("Büro","Chef"),("Urlaub","Strand"),("Kino","Film"),("Internet","Seite"),
-        ("Bus","Abfahrt"),("Arztpraxis","Wartezeit"),("Kuchen","backen"),("Park","spazieren"),
-        ("Bäckerei","Brötchen"),("Geldautomat","Karte"),("Buchladen","Roman"),("Fernseher","Programm"),
-        ("Tasche","vergessen"),("Stadtplan","finden"),("Ticket","bezahlen"),("Zahnarzt","Schmerzen"),
-        ("Museum","Öffnungszeiten"),("Handy","Akku leer")
-    ]
-    if session.get('t2_tasks', 0) == 0:
-        num = st.number_input("Wie viele Q&A?", 1, len(vocab), len(vocab))
-        if st.button("▶️ Start Teil 2"):
-            session.update({'t2_tasks': num, 't2_sel': random.sample(vocab, num),
-                            't2_idx': 0, 't2_score': 0, 't2_start': time.time(),
-                            't2_sub': [False]*num, 'answers2': []})
-            st.rerun()
-        return
-    idx, num = session['t2_idx'], session['t2_tasks']
-    rem = max(0, num*60 - (time.time() - session['t2_start']))
-    st.write(f"⏱ Zeit übrig: {int(rem)}s")
-    st.progress(int(idx/num*100))
-    if rem <= 0:
-        session['t2_idx'] = num
-    if idx < num:
-        thema, wort = session['t2_sel'][idx]
-        st.subheader(f"{idx+1}/{num}: Thema – {thema}, Stichwort – {wort}")
-        qa = st.text_input("Frage und Antwort:", key=f"qa{idx}")
-        if not session['t2_sub'][idx] and st.button("Antwort einreichen", key=f"s2_{idx}"):
-            parts = qa.split('?')
-            q = parts[0].strip() + '?' if len(parts)>1 else ''
-            a = parts[1].strip() if len(parts)>1 else ''
-            ok_q,_ = check_question_structure(q)
-            ok_a,_ = check_answer_structure(a)
-            sc = 1 if (ok_q and ok_a) else 0
-            session['t2_score'] += sc
-            session['answers2'].append({'q':q,'a':a,'score':sc})
-            session['t2_sub'][idx] = True
-        if session['t2_sub'][idx] and st.button("Nächste Frage", key=f"n2_{idx}"):
-            session['t2_idx'] += 1
-            st.rerun()
+# ------------------ TEIL 2 ------------------
+def teil2():
+    st.subheader("Teil 2: Fragen & Antworten")
+    if 't2_idx' not in st.session_state:
+        st.session_state['t2_idx'] = 0
+        st.session_state['t2_results'] = []
+        st.session_state['t2_order'] = random.sample(VOCAB, len(VOCAB))
+    if st.session_state['t2_idx'] < len(VOCAB):
+        thema, stichwort = st.session_state['t2_order'][st.session_state['t2_idx']]
+        st.info(f"Thema: **{thema}**  |  Stichwort: **{stichwort}**")
+        frage = st.text_input("Deine Frage (mit ?):", key=f"frage_{st.session_state['t2_idx']}")
+        antwort = st.text_input("Deine Antwort (mit .):", key=f"antwort_{st.session_state['t2_idx']}")
+        if st.button("Antwort prüfen", key=f"check2_{st.session_state['t2_idx']}"):
+            with st.spinner("Wird geprüft..."):
+                feedback = get_openai_feedback_teil2(thema, stichwort, frage, antwort)
+                st.session_state['t2_results'].append({
+                    "Thema": thema,
+                    "Stichwort": stichwort,
+                    "Frage": frage,
+                    "Antwort": antwort,
+                    "Feedback": feedback
+                })
+                st.session_state['t2_idx'] += 1
+                st.experimental_rerun()
     else:
-        st.success(f"Teil 2 abgeschlossen! Punkte: {session['t2_score']}/{num}")
-        if not session.get('t2_done', False):
-            session.setdefault('summary', []).extend(session['answers2'])
-            session['t2_done'] = True
-        st.info("Now practice your Teil 2 summary live. Grant mic access.")
-        webrtc_streamer(key="live2", media_stream_constraints={"audio": True, "video": False})
-        if st.button("Done Recording", key="done2"):
-            st.success("Aufnahme gespeichert.")
-            st.info("Vergiss nicht, Deinen Fortschritt mit Deinem Tutor zu teilen.")
-            st.markdown(f"[Sende über WhatsApp]({BASE_URL})")
-            # Neustart und Beenden Optionen
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("🔄 Restart"):
-                    for k in ['t2_tasks','t2_sel','t2_idx','t2_score','t2_start','t2_sub','answers2','t2_done']:
-                        session.pop(k, None)
-                    st.rerun()
-            with col2:
-                if st.button("✅ Complete for today"):
-                    st.success("Übung für heute abgeschlossen. Bis zum nächsten Mal!")
-                    st.stop()
+        st.success("Teil 2 abgeschlossen! Rückmeldung:")
+        for res in st.session_state['t2_results']:
+            st.write(f"**Thema:** {res['Thema']} | **Stichwort:** {res['Stichwort']}")
+            st.write(f"**Frage:** {res['Frage']}")
+            st.write(f"**Antwort:** {res['Antwort']}")
+            st.markdown(f"**Feedback:**\n{res['Feedback']}")
+            st.markdown("---")
+        if st.button("Nochmal üben (Teil 2)"):
+            for k in ['t2_idx', 't2_results', 't2_order']:
+                st.session_state.pop(k, None)
+            st.experimental_rerun()
 
-# --- Teil 3: Anfragen & Antworten ---
-def teil3(session):
-    st.header("Teil 3 – Anfragen & Antworten")
-    st.markdown("**What to expect:** Formulate a polite request and its reply on a single line. The request should end with '?' and the reply with '.'.")
-    prompts = [
-        "Radio anmachen","Fenster zum machen","Licht anschalten","Tür aufmachen","Tisch sauber machen",
-        "Hausaufgaben schicken","Buch bringen","Handy ausmachen","Stuhl nehmen","Wasser holen",
-        "Fenster öffnen","Musik leiser machen","Tafel sauber wischen","Kaffee kochen","Deutsch üben",
-        "Auto waschen","Kind abholen","Tisch decken","Termin machen","Nachricht schreiben"
-    ]
-    if session.get('t3_tasks', 0) == 0:
-        num = st.number_input("How many requests?", 1, len(prompts), len(prompts))
-        if st.button("▶️ Start Teil 3"):
-            session.update({
-                't3_tasks': num,
-                't3_sel': random.sample(prompts, num),
-                't3_idx': 0,
-                't3_score': 0,
-                't3_start': time.time(),
-                't3_sub': [False]*num,
-                'answers3': []
-            })
-            st.rerun()
-        return
-    idx, num = session['t3_idx'], session['t3_tasks']
-    rem = max(0, num*45 - (time.time() - session['t3_start']))
-    st.write(f"⏱ Time left: {int(rem)}s")
-    st.progress(int(idx/num*100))
-    if rem <= 0:
-        session['t3_idx'] = num
-    if idx < num:
-        task = session['t3_sel'][idx]
-        st.subheader(f"{idx+1}/{num}: {task}")
-        rr = st.text_input("Req+Reply:", key=f"rr{idx}")
-        if not session['t3_sub'][idx] and st.button("Submit Reply", key=f"s3_{idx}"):
-            parts = rr.split('?')
-            req = parts[0].strip() + '?' if len(parts)>1 else ''
-            rep = parts[1].strip() if len(parts)>1 else ''
-            ok = req.endswith('?') and rep.endswith('.')
-            sc = 1 if ok else 0
-            session['t3_score'] += sc
-            session['answers3'].append({'req':req,'rep':rep,'score':sc})
-            session['t3_sub'][idx] = True
-        if session['t3_sub'][idx] and st.button("Next", key=f"n3_{idx}"):
-            session['t3_idx'] += 1
-            st.rerun()
+# ------------------ TEIL 3 ------------------
+def teil3():
+    st.subheader("Teil 3: Bitten & Antworten")
+    if 't3_idx' not in st.session_state:
+        st.session_state['t3_idx'] = 0
+        st.session_state['t3_results'] = []
+        st.session_state['t3_order'] = random.sample(BITTEN_PROMPTS, len(BITTEN_PROMPTS))
+    if st.session_state['t3_idx'] < len(BITTEN_PROMPTS):
+        aufgabe = st.session_state['t3_order'][st.session_state['t3_idx']]
+        st.info(f"**Aufgabe:** {aufgabe}")
+        bitte = st.text_input("Deine Bitte (mit ?):", key=f"bitte_{st.session_state['t3_idx']}")
+        antwort = st.text_input("Antwort auf die Bitte (mit .):", key=f"antwort3_{st.session_state['t3_idx']}")
+        if st.button("Antwort prüfen", key=f"check3_{st.session_state['t3_idx']}"):
+            with st.spinner("Wird geprüft..."):
+                feedback = get_openai_feedback_teil3(aufgabe, bitte, antwort)
+                st.session_state['t3_results'].append({
+                    "Aufgabe": aufgabe,
+                    "Bitte": bitte,
+                    "Antwort": antwort,
+                    "Feedback": feedback
+                })
+                st.session_state['t3_idx'] += 1
+                st.experimental_rerun()
     else:
-        st.success(f"Done Teil 3! Score: {session['t3_score']}/{num}")
-        if not session.get('t3_done', False):
-            session.setdefault('summary', []).extend(session['answers3'])
-            session['t3_done'] = True
-        st.info("Now practice your Teil 3 summary live. Grant mic access.")
-        webrtc_streamer(key="live3", media_stream_constraints={"audio": True, "video": False})
-        if st.button("Done Recording", key="done3"):
-            st.success("Recording saved. Please share via WhatsApp.")
-            st.info("Don't forget to share your progress with your tutor.")
-            st.markdown(f"[Send via WhatsApp]({BASE_URL})")
+        st.success("Teil 3 abgeschlossen! Rückmeldung:")
+        for res in st.session_state['t3_results']:
+            st.write(f"**Aufgabe:** {res['Aufgabe']}")
+            st.write(f"**Bitte:** {res['Bitte']}")
+            st.write(f"**Antwort:** {res['Antwort']}")
+            st.markdown(f"**Feedback:**\n{res['Feedback']}")
+            st.markdown("---")
+        if st.button("Nochmal üben (Teil 3)"):
+            for k in ['t3_idx', 't3_results', 't3_order']:
+                st.session_state.pop(k, None)
+            st.experimental_rerun()
 
-# --- Main App & Summary ---
-def main():
-    st.set_page_config(page_title=f"A1 Sprechen – {SCHOOL_NAME}", layout="wide")
-    st.title(f"A1 Sprechen – {SCHOOL_NAME}")
-    _ = login_main()
-    if 'summary' not in st.session_state:
-        st.session_state['summary'] = []
-    part = st.radio("Select section:", ["Teil 1","Teil 2","Teil 3"], horizontal=True)
-    if part == "Teil 1":
-        teil1()
-    elif part == "Teil 2":
-        teil2(st.session_state)
-    else:
-        teil3(st.session_state)
-    st.markdown("---")
-    if st.session_state['summary']:
-        df = pd.DataFrame(st.session_state['summary'])
-        st.header("Session Summary")
-        st.dataframe(df)
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button("Download CSV", csv, "summary.csv")
-        text = urllib.parse.quote(df.to_string(index=False))
-        st.markdown(f"[Share via WhatsApp]({BASE_URL}&text={text})")
+# ------------------ MAIN APP ------------------
+st.set_page_config(page_title=f"A1 Sprechen – {SCHOOL_NAME}", layout="wide")
+st.title(f"A1 Sprechen – {SCHOOL_NAME}")
 
-if __name__ == "__main__":
-    main()
+# Show school info
+st.markdown(f"""
+**Schule:** {SCHOOL_NAME}  
+[Sprich hier auf Vocaroo]({VOCAROO_URL}) | [Ergebnis an Lehrer senden (WhatsApp)]({BASE_URL})
+""")
+
+# Require login before any part
+_ = login_main()
+
+tab = st.radio("Wähle einen Teil:", ["Teil 1: Selbstvorstellung", "Teil 2: Fragen & Antworten", "Teil 3: Bitten & Antworten"])
+
+if tab.startswith("Teil 1"):
+    teil1()
+elif tab.startswith("Teil 2"):
+    teil2()
+elif tab.startswith("Teil 3"):
+    teil3()
