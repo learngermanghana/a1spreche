@@ -236,7 +236,7 @@ def get_next_vocab(used, n=1):
 def teil2_chat():
     st.header("Teil 2: Questions & Answers (Exam Simulation)")
 
-    # Always initialize all state keys to avoid AttributeError!
+    # --- Safe initialization ---
     if "teil2_state" not in st.session_state:
         st.session_state.teil2_state = "name"
     if "teil2_chat" not in st.session_state:
@@ -252,7 +252,7 @@ def teil2_chat():
     if "teil2_current_vocab" not in st.session_state:
         st.session_state.teil2_current_vocab = None
 
-    # Step 1: Name
+    # --- Name entry ---
     if st.session_state.teil2_state == "name":
         name = st.text_input("Enter your name for the examiner to greet you:", key="teil2name")
         if name:
@@ -268,11 +268,11 @@ def teil2_chat():
             st.rerun()
         return
 
-    # Chat history
+    # --- Chat history ---
     for msg in st.session_state.teil2_chat:
         st.chat_message("assistant" if msg["role"] == "examiner" else "user").write(msg["content"])
 
-    # Step 2: How many
+    # --- Number of questions ---
     if st.session_state.teil2_state == "howmany":
         user_input = st.chat_input("How many questions? (1-5):")
         if user_input:
@@ -296,7 +296,7 @@ def teil2_chat():
                 st.rerun()
         return
 
-    # Step 3: Wait for 'Begin'
+    # --- Wait for 'Begin' ---
     if st.session_state.teil2_state == "ready":
         user_input = st.chat_input("Type 'Begin' to start the first question.")
         if user_input and user_input.lower().strip() == "begin":
@@ -316,7 +316,7 @@ def teil2_chat():
             st.rerun()
         return
 
-    # Step 4: Student answers question
+    # --- Question/Answer round ---
     if st.session_state.teil2_state == "question":
         student_input = st.chat_input("Your German question + answer:")
         transcript = show_audio_upload_and_transcribe(key=f"teil2q{st.session_state.teil2_rounds_done}_audio")
@@ -327,14 +327,16 @@ def teil2_chat():
             feedback = get_ai_teil2_feedback(t, k, reply)
             st.session_state.teil2_chat.append({"role": "examiner", "content": feedback})
             st.session_state.teil2_rounds_done += 1
+
+            # Decide if there are more to go
             if st.session_state.teil2_rounds_done < st.session_state.teil2_rounds_total:
                 st.session_state.teil2_state = "continue"
             else:
-                st.session_state.teil2_state = "done"
+                st.session_state.teil2_state = "more"
             st.rerun()
         return
 
-    # Step 5: Wait for 'Okay' before next
+    # --- Continue for more questions in the round ---
     if st.session_state.teil2_state == "continue":
         user_input = st.chat_input("Type 'Okay' to get the next question.")
         if user_input and user_input.lower().strip() == "okay":
@@ -354,10 +356,36 @@ def teil2_chat():
             st.rerun()
         return
 
-    # Step 6: Done
+    # --- After the round is finished, ask if want more or end ---
+    if st.session_state.teil2_state == "more":
+        user_input = st.chat_input("You've finished your set. Type 'continue' for more questions or 'end' to finish for today.")
+        if user_input:
+            st.session_state.teil2_chat.append({"role": "student", "content": user_input})
+            if user_input.lower().strip() == "continue":
+                st.session_state.teil2_rounds_total = 1
+                st.session_state.teil2_rounds_done = 0
+                st.session_state.teil2_state = "ready"
+                st.session_state.teil2_chat.append({"role": "examiner", "content":
+                    "Great! I'll give you one more random question. Type 'Begin' to continue."
+                })
+                st.rerun()
+            elif user_input.lower().strip() == "end":
+                st.session_state.teil2_chat.append({"role": "examiner", "content":
+                    "Congratulations, you have finished Teil 2 practice for today! If you want to start again, please refresh or restart the app."
+                })
+                st.session_state.teil2_state = "done"
+                st.rerun()
+            else:
+                st.session_state.teil2_chat.append({"role": "examiner", "content":
+                    "Please type 'continue' or 'end'."
+                })
+                st.rerun()
+        return
+
+    # --- Done ---
     if st.session_state.teil2_state == "done":
-        st.session_state.teil2_chat.append({"role": "examiner", "content": "Super! You finished Teil 2. If you want to practice again, please restart."})
         st.chat_input("Teil 2 complete. Restart to try again.", disabled=True)
+
 
 # ========== TEIL 3 CHAT ==========
 BITTEN_PROMPTS = [
