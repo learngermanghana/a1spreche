@@ -5,7 +5,7 @@ import pandas as pd
 import random
 import time
 import urllib.parse
-from streamlit_webrtc import webrtc_streamer
+
 
 # School information
 SCHOOL_NAME = "Learn Language Education Academy"
