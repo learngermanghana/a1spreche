@@ -1816,6 +1816,7 @@ if tab == "Course":
     import streamlit as st
     import datetime, urllib.parse
 
+    # ------- 1. DEFINE SCHEDULE DICTIONARY --------
     def get_a1_schedule():
         return [
             # DAY 1
@@ -1831,7 +1832,7 @@ if tab == "Course":
                     "workbook_link": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/view?usp=sharing"
                 }
             },
-            # DAY 2 – Multi chapter
+            # DAY 2 (multi chapter)
             {
                 "day": 2,
                 "topic": "Lesen & Hören",
@@ -1895,7 +1896,7 @@ if tab == "Course":
                     "workbook_link": ""
                 }
             },
-            # DAY 5
+            # DAY 5 (Schreiben & Sprechen recap)
             {
                 "day": 5,
                 "topic": "Schreiben & Sprechen (Recap)",
@@ -1907,15 +1908,17 @@ if tab == "Course":
                     "workbook_link": ""
                 }
             },
-            # ...continue adding more days as needed!
+            # Add more days as needed!
         ]
+    # -------- END OF SCHEDULE DEFINITION --------
 
-    # 2. SCHEDULE PICK
+    # ------- 2. PICK LEVEL AND SCHEDULE ---------
     student_row = st.session_state.get('student_row', {})
     student_level = student_row.get('Level', 'A1').upper()
     level_map = {
         "A1": get_a1_schedule(),
-        # You can define get_a2_schedule(), get_b1_schedule() as needed
+        # "A2": get_a2_schedule(),   # Add when ready
+        # "B1": get_b1_schedule(),   # Add when ready
     }
     schedule = level_map.get(student_level, get_a1_schedule())
 
@@ -1930,7 +1933,7 @@ if tab == "Course":
     )
     day_info = schedule[selected_day_idx]
 
-    # 3. SHOW LESSON CONTENT
+    # ---------- 3. SHOW LESSON CONTENT ----------
     st.markdown(f"### Day {day_info['day']}: {day_info['topic']} (Chapter {day_info['chapter']})")
 
     if day_info.get("goal"):
@@ -2046,7 +2049,6 @@ Answer: {answer if answer.strip() else '[See attached file/photo]'}
 - For file/photo: paste message in WhatsApp and attach before sending.
 - Always use your real name and code for tracking!
 """)
-
 
 #Myresults
 
