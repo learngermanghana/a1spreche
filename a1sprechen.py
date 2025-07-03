@@ -476,104 +476,62 @@ c1_teil3_evaluations = [
 ]
 
 
-# ==========================
-# 6. MAIN UI
-# ==========================
-# -- PAGE CONFIG
-st.set_page_config(page_title="Falowen App", layout="centered")
-
-# -- LOGIN SYSTEM
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
-if not st.session_state["logged_in"]:
-    st.title("🔑 Student Login")
-    inp = st.text_input("Student Code or Email:").strip().lower()
-    if st.button("Login"):
-        df=load_student_data()
-        found=df[(df.StudentCode==inp)|(df.Email==inp)]
-        if not found.empty:
-            row=found.iloc[0].to_dict()
-            if contract_active(row):
-                st.session_state.update(logged_in=True, student_row=row)
-                st.experimental_rerun()
-            else:
-                st.error("⛔️ Contract expired.")
-        else:
-            st.error("Invalid code/email.")
-    st.stop()
-
-row = st.session_state["student_row"]
-student_code = row["StudentCode"]
-
-if st.button("🚪 Log Out"):
-    st.session_state.update(logged_in=False, student_row=None)
-    st.experimental_rerun()
-
-if not has_falowen_quota(student_code):
-    st.error("Daily quota reached.")
-    st.stop()
-
-# -- TAB SELECTION
-tab = st.radio(
-    "How do you want to practice?",
-    ["Dashboard","Vocab Trainer","Schreiben Trainer","Sprechen Trainer","My Results","Admin"],
-    key="main_tab"
-)
-
 # --- DASHBOARD TAB ---
-if tab=="Dashboard":
+if tab == "Dashboard":
     st.header("📊 Student Dashboard")
-    df=load_student_data()
-    f=df[df.StudentCode.str.lower()==student_code.lower()]
-    stud=f.iloc[0].to_dict() if not f.empty else {}
-    streak=get_vocab_streak(student_code)
-    tot,passed,acc=get_writing_stats(student_code)
-    used=get_falowen_usage(student_code)
+
+    df = load_student_data()
+    f  = df[df.StudentCode.str.lower() == student_code.lower()]
+    stud = f.iloc[0].to_dict() if not f.empty else {}
+
+    # core stats
+    streak = get_vocab_streak(student_code)
+    total_attempted, total_passed, accuracy = get_writing_stats(student_code)
+    used_today = get_falowen_usage(student_code)
+
+    # profile info
     st.markdown(f"**Name:** {stud.get('Name','')}")
     st.markdown(f"**Level:** {stud.get('Level','')}")
     st.markdown(f"**Code:** `{stud.get('StudentCode','')}`")
     st.markdown(f"**Email:** {stud.get('Email','')}")
     st.markdown(f"**Contract End:** {stud.get('ContractEnd','')}")
     st.markdown("---")
-    st.markdown(f"🔥 Vocab Streak: **{streak}** days")
-    st.markdown(f"📄 Letters: **{tot}** | ✅ Passed: **{passed}** | 🏅 Rate: **{acc}%**")
-    st.markdown(f"📅 Today: **{used} / {SCHREIBEN_DAILY_LIMIT}**")
 
-        # --- Payment Info ---
-        balance = float(student_row.get("Balance", 0) or 0)
-        if balance > 0:
-            st.warning(f"💸 Balance to pay: **₵{balance:.2f}**")
+    # payment info
+    balance = float(stud.get("Balance", 0) or 0)
+    if balance > 0:
+        st.warning(f"💸 Balance to pay: **₵{balance:.2f}**")
 
-        # --- Contract Reminder ---
-        contract_end = student_row.get("ContractEnd")
-        if contract_end:
-            try:
-                ce_date = datetime.strptime(str(contract_end), "%Y-%m-%d")
-                days_left = (ce_date - datetime.now()).days
-                if 0 < days_left <= 30:
-                    st.info(f"⚠️ Contract ends in {days_left} days. Please renew soon.")
-                elif days_left < 0:
-                    st.error("⏰ Contract expired. Contact office to renew.")
-            except:
-                pass
+    # contract reminder
+    ce = stud.get("ContractEnd")
+    if ce:
+        try:
+            ce_date   = datetime.strptime(str(ce), "%Y-%m-%d")
+            days_left = (ce_date - datetime.now()).days
+            if 0 < days_left <= 30:
+                st.info(f"⚠️ Contract ends in {days_left} days. Please renew soon.")
+            elif days_left < 0:
+                st.error("⏰ Contract expired. Contact the office to renew.")
+        except:
+            pass
 
-        # --- Progress Stats ---
-        st.markdown(f"🔥 **Vocab Streak:** {streak} days")
-        if total_attempted < 2:
-            st.success(f"🎯 Your next goal: Write {2 - total_attempted} more letter(s) this week!")
-        else:
-            st.success("🎉 Weekly goal reached! Keep practicing!")
+    # progress stats
+    st.markdown(f"🔥 **Vocab Streak:** {streak} days")
+    st.markdown(f"📄 **Letters submitted:** {total_attempted}")
+    st.markdown(f"✅ **Passed (≥17):** {total_passed}")
+    st.markdown(f"🏅 **Pass rate:** {accuracy}%")
+    st.markdown(f"📅 **Today:** {used_today} / {SCHREIBEN_DAILY_LIMIT}")
+
+    # next-week goal
+    if total_attempted < 2:
+        st.success(f"🎯 Your next goal: Write {2 - total_attempted} more letter(s) this week!")
+    else:
+        st.success("🎉 Weekly goal reached! Keep practicing!")
+
+    # upcoming exams
+    with st.expander("📅 Upcoming Goethe Exams & Registration (Tap for details)", expanded=True):
         st.markdown(
-            f"**📝 Letters submitted:** {total_attempted}  \n"
-            f"**✅ Passed (score ≥17):** {total_passed}  \n"
-            f"**🏅 Pass rate:** {accuracy}%  \n"
-            f"**📅 Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}"
-        )
-
-        # --- Upcoming Exams Expander ---
-        with st.expander("📅 Upcoming Goethe Exams & Registration (Tap for details)", expanded=True):
-            st.markdown(
-                """
+            """
 **Registration for Aug./Sept. 2025 Exams:**
 
 | Level | Date       | Fee (GHS) | Per Module (GHS) |
@@ -603,9 +561,9 @@ Account Name: **GOETHE-INSTITUT GHANA**
 Account No.: **1441 001 701 903**  
 Branch: **Ring Road Central**  
 SWIFT: **ECOCGHAC**
-                """,
-                unsafe_allow_html=True,
-            )
+            """,
+            unsafe_allow_html=True,
+        )
 
 
 # ================================
