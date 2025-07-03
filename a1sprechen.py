@@ -19,7 +19,7 @@ if not OPENAI_API_KEY:
     st.error("Missing OpenAI API key. Please set OPENAI_API_KEY as an environment variable or in Streamlit secrets.")
     st.stop()
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
-client = OpenAI()  # for openai>=1.0, do NOT pass api_key here
+client = OpenAI()
 
 # ---- DB connection helper ----
 def get_connection():
@@ -31,10 +31,8 @@ def get_connection():
 conn = get_connection()
 c = conn.cursor()
 
-# --- Create/verify tables if not exist ---
 def init_db():
     c = conn.cursor()
-    # (Table creation code as before...)
     c.execute("""
         CREATE TABLE IF NOT EXISTS vocab_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -47,7 +45,7 @@ def init_db():
             date TEXT
         )
     """)
-    # ... all other tables ...
+    # ...all other tables you want...
     conn.commit()
 init_db()
 
@@ -69,9 +67,9 @@ def load_student_data():
         return pd.DataFrame()
 
 def contract_active(row):
-    # Column can be ContractEnd or Contract_End_Date, change as needed
+    # Accepts ContractEnd or Contract_End_Date columns
     contract_end_str = row.get("ContractEnd") or row.get("Contract_End_Date")
-    if not contract_end_str:
+    if not contract_end_str or str(contract_end_str).strip() in ["", "nan", "None"]:
         return False
     try:
         contract_end = datetime.strptime(str(contract_end_str), "%Y-%m-%d").date()
@@ -86,7 +84,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ---- LOGO/HEADER (OPTIONAL) ----
 st.markdown(
     """
     <div style='display:flex;align-items:center;gap:18px;margin-bottom:22px;'>
@@ -106,7 +103,6 @@ st.markdown(
 )
 
 # ------------------ LOGIN SYSTEM -----------------
-
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 if "student_row" not in st.session_state:
@@ -129,7 +125,7 @@ if not st.session_state["logged_in"]:
                 st.stop()
             st.session_state["logged_in"] = True
             st.session_state["student_row"] = row
-            st.success(f"Welcome, {row['Name']}! Login successful.")
+            st.success(f"Welcome, {row.get('Name', 'Student')}! Login successful.")
             st.rerun()
         else:
             st.error("Login failed. Please check your Student Code or Email and try again.")
@@ -144,9 +140,7 @@ if row and not contract_active(row):
     st.error("⛔️ Your contract has expired. Please contact admin to renew your access.")
     st.stop()
 
-# Place this immediately after login (and contract check), e.g. after:
-# row = st.session_state["student_row"]
-
+# --- DASHBOARD CARD ---
 st.markdown("### 📊 Student Dashboard")
 if not row:
     st.warning("Student details not found.")
@@ -170,7 +164,7 @@ else:
         <br><b>📱 Phone:</b> {show_val('Phone')}
         <br><b>📍 Location:</b> {show_val('Location')}
         <br><b>🗓️ Enroll Date:</b> {show_val('EnrollDate')}
-        <br><b>📄 Contract End:</b> {show_val('ContractEnd')}
+        <br><b>📄 Contract End:</b> {show_val('ContractEnd') or show_val('Contract_End_Date')}
         <br><b>✅ Status:</b> {show_val('Status', default='Active')}
         </div>
         """, unsafe_allow_html=True)
@@ -184,7 +178,7 @@ if st.button("🚪 Log Out"):
     st.experimental_rerun()
 
 # --- Your app content goes here! ---
-st.success(f"Welcome: {row['Name']} (Level: {row['Level']})")
+st.success(f"Welcome: {row.get('Name', 'Student')} (Level: {row.get('Level', '')})")
 
 
 # ---- DB connection helper ----
