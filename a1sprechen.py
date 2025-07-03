@@ -2156,7 +2156,55 @@ if tab == "Course":
             }
         }
     ]
-
+      # =========== A2 SCHEDULE ===========
+    a2_schedule = [
+        {
+            "day": 1,
+            "topic": "Small Talk (Exercise)",
+            "chapter": "1.1",
+            "goal": "Practice basic greetings and small talk.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        {
+            "day": 2,
+            "topic": "Personen Beschreiben (Exercise)",
+            "chapter": "1.2",
+            "goal": "Describe people and their appearance.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # Continue adding for all 28 days...
+    ]
+    # =========== B1 SCHEDULE ===========
+    b1_schedule = [
+        {
+            "day": 1,
+            "topic": "Traumwelten (Übung)",
+            "chapter": "1.1",
+            "goal": "Talk about dream worlds and imagination.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        {
+            "day": 2,
+            "topic": "Freundes für Leben (Übung)",
+            "chapter": "1.2",
+            "goal": "Discuss friendship and important qualities.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # Continue adding for all 28 days...
+    ]
+  
 
     # --- Simulate student level for demo/testing ---
     student_row = st.session_state.get('student_row', {})
