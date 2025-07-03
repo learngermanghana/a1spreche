@@ -1812,7 +1812,7 @@ if "student_row" not in st.session_state:
     }
 # --------------------------------------
 
-if tab == "Course":
+if tab == "Course Book":
     import streamlit as st
     import datetime, urllib.parse
 
