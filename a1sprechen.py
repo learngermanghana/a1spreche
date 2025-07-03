@@ -2919,6 +2919,29 @@ if tab == "Course Book":
             else:
                 st.markdown(f"- [🔗 Extra Resource]({extras})")
 
+    # ---------- For A2/B1/B2: Show all at top level ----------
+    if student_level in ["A2", "B1", "B2"]:
+        if day_info.get("video"):
+            st.video(day_info["video"])
+        if day_info.get("grammarbook_link"):
+            st.markdown(
+                f"<a href='{day_info['grammarbook_link']}' target='_blank' "
+                "style='font-size:1.1em; color:#357ae8; font-weight:bold;'>📘 Open Grammar Book</a>",
+                unsafe_allow_html=True)
+        if day_info.get("workbook_link"):
+            st.markdown(
+                f"<a href='{day_info['workbook_link']}' target='_blank' "
+                "style='font-size:1.1em; color:#34a853; font-weight:bold;'>📒 Open Workbook</a>",
+                unsafe_allow_html=True)
+        extras = day_info.get('extra_resources')
+        if extras:
+            if isinstance(extras, list):
+                for link in extras:
+                    st.markdown(f"- [🔗 Extra Resource]({link})")
+            else:
+                st.markdown(f"- [🔗 Extra Resource]({extras})")
+
+
     # --- Assignment Submission Section (WhatsApp) ---
     st.divider()
     st.subheader("📲 Submit Assignment (WhatsApp)")
