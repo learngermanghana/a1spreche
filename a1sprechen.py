@@ -1803,6 +1803,14 @@ if tab == "Schreiben Trainer":
             )
 
 
+# --- FORCE A MOCK LOGIN FOR TESTING ---
+if "student_row" not in st.session_state:
+    st.session_state["student_row"] = {
+        "Name": "Test Student",
+        "Level": "A1",
+        "StudentCode": "demo001"
+    }
+# --------------------------------------
 
 if tab == "Course":
     import streamlit as st
