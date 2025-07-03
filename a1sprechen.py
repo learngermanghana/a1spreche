@@ -1818,7 +1818,7 @@ def get_a1_schedule():
                 "workbook_link": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/view?usp=sharing"
             }
         },
-        # DAY 2 – Multi chapter example
+        # DAY 2 – Multi chapter
         {
             "day": 2,
             "topic": "Lesen & Hören",
@@ -1842,9 +1842,333 @@ def get_a1_schedule():
                 }
             ]
         },
-        
-        # Add more days...
+        # DAY 3
+        {
+            "day": 3,
+            "topic": "Schreiben & Sprechen and Lesen & Hören",
+            "chapter": "1.1_1.2",
+            "goal": "Introduce others and talk about your family.",
+            "instruction": (
+                "Begin with the practicals at **Schreiben & Sprechen** (writing & speaking). "
+                "Then, move to **Lesen & Hören** (reading & listening). "
+                "**Do assignments only at Lesen & Hören.**\n\n"
+                "Schreiben & Sprechen activities are for self-practice and have answers provided for self-check. "
+                "Main assignment to be marked is under Lesen & Hören below."
+            ),
+            "schreiben_sprechen": {
+                "video": "",
+                "grammarbook_link": "",
+                "workbook_link": ""
+            },
+            "lesen_hören": [
+                {
+                    "chapter": "1.2",
+                    "video": "",
+                    "grammarbook_link": "",
+                    "workbook_link": "",
+                    "extra_resources": ""
+                }
+            ]
+        },
+        # DAY 4
+        {
+            "day": 4,
+            "topic": "Lesen & Hören",
+            "chapter": "2",
+            "goal": "Learn numbers and telling the time.",
+            "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 5
+        {
+            "day": 5,
+            "topic": "Schreiben & Sprechen (Recap)",
+            "chapter": "1.2",
+            "goal": "Consolidate your understanding of introductions.",
+            "instruction": "Use self-practice workbook and review answers for self-check.",
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 6
+        {
+            "day": 6,
+            "topic": "Schreiben & Sprechen",
+            "chapter": "2.3",
+            "goal": "",
+            "instruction": "",
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 7
+        {
+            "day": 7,
+            "topic": "Lesen & Hören",
+            "chapter": "3",
+            "goal": "",
+            "instruction": "",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 8
+        {
+            "day": 8,
+            "topic": "Lesen & Hören",
+            "chapter": "4",
+            "goal": "",
+            "instruction": "",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 9
+        {
+            "day": 9,
+            "topic": "Lesen & Hören",
+            "chapter": "5",
+            "goal": "",
+            "instruction": "",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 10
+        {
+            "day": 10,
+            "topic": "Lesen & Hören and Schreiben & Sprechen",
+            "chapter": "6_2.4",
+            "goal": "",
+            "instruction": "",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "",
+                "workbook_link": ""
+            },
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 11
+        {
+            "day": 11,
+            "topic": "Lesen & Hören",
+            "chapter": "7",
+            "goal": "",
+            "instruction": "",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 12
+        {
+            "day": 12,
+            "topic": "Lesen & Hören",
+            "chapter": "8",
+            "goal": "",
+            "instruction": "",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 13
+        {
+            "day": 13,
+            "topic": "Schreiben & Sprechen",
+            "chapter": "3.5",
+            "goal": "",
+            "instruction": "",
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 14
+        {
+            "day": 14,
+            "topic": "Schreiben & Sprechen",
+            "chapter": "3.6",
+            "goal": "",
+            "instruction": "",
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 15
+        {
+            "day": 15,
+            "topic": "Schreiben & Sprechen",
+            "chapter": "4.7",
+            "goal": "",
+            "instruction": "",
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 16
+        {
+            "day": 16,
+            "topic": "Lesen & Hören",
+            "chapter": "9_10",
+            "goal": "",
+            "instruction": "",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 17
+        {
+            "day": 17,
+            "topic": "Lesen & Hören",
+            "chapter": "11",
+            "goal": "",
+            "instruction": "",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 18
+        {
+            "day": 18,
+            "topic": "Lesen & Hören and Schreiben & Sprechen (including 5.8)",
+            "chapter": "12.1",
+            "goal": "",
+            "instruction": "",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "",
+                "workbook_link": ""
+            },
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 19
+        {
+            "day": 19,
+            "topic": "Schreiben & Sprechen",
+            "chapter": "5.9",
+            "goal": "",
+            "instruction": "",
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 20
+        {
+            "day": 20,
+            "topic": "Schreiben & Sprechen (Intro to letter writing)",
+            "chapter": "6.10",
+            "goal": "",
+            "instruction": "",
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 21
+        {
+            "day": 21,
+            "topic": "Lesen & Hören and Schreiben & Sprechen",
+            "chapter": "13_6.11",
+            "goal": "",
+            "instruction": "",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "",
+                "workbook_link": ""
+            },
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 22
+        {
+            "day": 22,
+            "topic": "Lesen & Hören and Schreiben & Sprechen",
+            "chapter": "14.1_7.12",
+            "goal": "",
+            "instruction": "",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "",
+                "workbook_link": ""
+            },
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 23
+        {
+            "day": 23,
+            "topic": "Lesen & Hören and Schreiben & Sprechen",
+            "chapter": "14.2_7.12",
+            "goal": "",
+            "instruction": "",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "",
+                "workbook_link": ""
+            },
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 24
+        {
+            "day": 24,
+            "topic": "Schreiben & Sprechen",
+            "chapter": "8.13",
+            "goal": "",
+            "instruction": "",
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 25
+        {
+            "day": 25,
+            "topic": "Exam tips - Schreiben & Sprechen recap",
+            "chapter": "final",
+            "goal": "",
+            "instruction": "",
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        }
     ]
+
 
 def get_a2_schedule():
     return [
@@ -1876,13 +2200,7 @@ def get_b1_schedule():
         # Add more days...
     ]
 
-# --- FORCE A MOCK LOGIN FOR TESTING ---
-if "student_row" not in st.session_state:
-    st.session_state["student_row"] = {
-        "Name": "Test Student",
-        "Level": "A1",
-        "StudentCode": "demo001"
-    }
+
 # --------------------------------------
 
 # --- FORCE A MOCK LOGIN FOR TESTING ---
