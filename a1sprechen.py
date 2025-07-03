@@ -1809,24 +1809,25 @@ if "student_row" not in st.session_state:
 tab = "Course"
 
 if tab == "Course":
-    import streamlit as st
-    import datetime, urllib.parse
+    
 
     st.header("📚 Your Course Schedule & Materials")
 
-    # ==== A1 SCHEDULE (with sub-sections for Lesen & Hören, Schreiben & Sprechen) ====
+    # === SCHEDULE DICTIONARIES ===
+
+    # ==== A1 SCHEDULE (Lesen & Horen + Schreiben & Sprechen) ====
     a1_schedule = [
         {
             "day": 1,
             "topic": "Lesen & Hören",
             "chapter": "0.1",
-            "lesen_hören": {
-                "workbook_id": "1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ",   # Your sample workbook
-                "grammarbook_id": "1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_", # Your sample grammar book
+            "lesen_horen": {
+                "workbook_link": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/view?usp=sharing",
+                "grammarbook_link": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/view?usp=sharing",
                 "video": "https://www.youtube.com/embed/8k2VKKjbekA"
             },
             "schreiben_sprechen": {
-                "workbook_id": None,
+                "workbook_link": None,
                 "video": None
             }
         },
@@ -1834,13 +1835,13 @@ if tab == "Course":
             "day": 2,
             "topic": "Lesen & Hören",
             "chapter": "0.2_1.1",
-            "lesen_hoeren": {
-                "workbook_id": "A1_LH_WB_ID2",
-                "grammarbook_id": "A1_LH_GR_ID2",
-                "video": None
+            "lesen_horen": {
+                "workbook_link": "",
+                "grammarbook_link": "",
+                "video": ""
             },
             "schreiben_sprechen": {
-                "workbook_id": None,
+                "workbook_link": None,
                 "video": None
             }
         },
@@ -1848,64 +1849,53 @@ if tab == "Course":
             "day": 3,
             "topic": "Schreiben & Sprechen, Lesen & Hören",
             "chapter": "1.1_1.2",
-            "lesen_hoeren": {
-                "workbook_id": "A1_LH_WB_ID3",
-                "grammarbook_id": "A1_LH_GR_ID3",
-                "video": None
+            "lesen_horen": {
+                "workbook_link": "",
+                "grammarbook_link": "",
+                "video": ""
             },
             "schreiben_sprechen": {
-                "workbook_id": "A1_SS_WB_ID3",
-                "video": "https://www.youtube.com/embed/EXAMPLE_VIDEO_ID"
+                "workbook_link": "",
+                "video": ""
             }
         },
-        # ...Add days 4 to 25, using same structure!
+        # ... continue for all 25 days
     ]
-    # ==== A2 SCHEDULE (simple, one workbook/grammarbook/video per day) ====
+
+    # ==== A2 SCHEDULE (one workbook + grammar + video per day) ====
     a2_schedule = [
         {
             "day": 1,
             "topic": "Small Talk (Exercise)",
             "chapter": "1.1",
-            "workbook_id": "A2_WB_ID1",
-            "grammarbook_id": "A2_GR_ID1",
-            "video": None
+            "workbook_link": "",
+            "grammarbook_link": "",
+            "video": ""
         },
-        {
-            "day": 2,
-            "topic": "Personen Beschreiben (Exercise)",
-            "chapter": "1.2",
-            "workbook_id": "A2_WB_ID2",
-            "grammarbook_id": "A2_GR_ID2",
-            "video": None
-        },
-        # ...add all 28 days for A2
+        # ...continue for all 28 days
     ]
 
-    # ==== B1 SCHEDULE (same format as A2) ====
+    # ==== B1 SCHEDULE (one workbook + grammar + video per day) ====
     b1_schedule = [
         {
             "day": 1,
             "topic": "Traumwelten (Übung)",
             "chapter": "1.1",
-            "workbook_id": "B1_WB_ID1",
-            "grammarbook_id": "B1_GR_ID1",
-            "video": None
+            "workbook_link": "",
+            "grammarbook_link": "",
+            "video": ""
         },
-        {
-            "day": 2,
-            "topic": "Freundes für Leben (Übung)",
-            "chapter": "1.2",
-            "workbook_id": "B1_WB_ID2",
-            "grammarbook_id": "B1_GR_ID2",
-            "video": None
-        },
-        # ...add all 28 days for B1
+        # ...continue for all 28 days
     ]
 
-    # === LEVEL SELECTION & LOGIC ===
-    level_map = {'A1': a1_schedule, 'A2': a2_schedule, 'B1': b1_schedule}
+    # ==== LEVEL MAP ====
     student_row = st.session_state.get('student_row', {})
     student_level = student_row.get('Level', 'A1').upper()
+    level_map = {
+        "A1": a1_schedule,
+        "A2": a2_schedule,
+        "B1": b1_schedule,
+    }
     schedule = level_map.get(student_level, [])
 
     if not schedule:
