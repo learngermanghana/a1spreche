@@ -1897,15 +1897,12 @@ if "student_row" not in st.session_state:
 if tab == "Course Book":
     import streamlit as st
     import datetime, urllib.parse
+    from schedule_data import get_a1_schedule   # Or paste get_a1_schedule above
 
-    # ====== MAIN COURSE BOOK CODE ======
+    # 1. Pick schedule based on student
     student_row = st.session_state.get('student_row', {})
     student_level = student_row.get('Level', 'A1').upper()
-    level_map = {
-        "A1": get_a1_schedule(),
-        # "A2": get_a2_schedule(),
-        # "B1": get_b1_schedule(),
-    }
+    level_map = {"A1": get_a1_schedule()}
     schedule = level_map.get(student_level, get_a1_schedule())
 
     if not schedule:
@@ -1913,7 +1910,7 @@ if tab == "Course Book":
         st.stop()
 
     selected_day_idx = st.selectbox(
-        "Choose your lesson/day:",
+        "📅 Choose your lesson/day:",
         range(len(schedule)),
         format_func=lambda i: f"Day {schedule[i]['day']} – {schedule[i]['topic']}"
     )
@@ -1922,113 +1919,75 @@ if tab == "Course Book":
     st.markdown(f"### Day {day_info['day']}: {day_info['topic']} (Chapter {day_info['chapter']})")
 
     if day_info.get("goal"):
-        st.markdown(f"**🎯 Goal:** {day_info['goal']}")
+        st.markdown(f"**🎯 Goal:**<br>{day_info['goal']}", unsafe_allow_html=True)
     if day_info.get("instruction"):
-        st.markdown(f"**📝 Instruction:** {day_info['instruction']}")
+        st.markdown(f"**📝 Instruction:**<br>{day_info['instruction']}", unsafe_allow_html=True)
 
-    # Show Lesen & Hören (list or single)
-    if "lesen_hören" in day_info:
-        lh_section = day_info["lesen_hören"]
-        # MULTIPLE assignments
-        if isinstance(lh_section, list):
+    # --------- Show Lesen & Hören ----------
+    def render_lh_section(lh, idx=None, total=None):
+        if idx is not None and total is not None:
             st.markdown(
-                """
-                <div style='padding:12px;background:#f0f4ff;border-radius:10px;
-                border-left:7px solid #357ae8;margin-bottom:10px;font-size:1.1em;'>
-                    <b>📢 Note: You have <span style="color:#357ae8;">multiple Lesen & Hören assignments</span> for this day.<br>
-                    Complete <u>ALL</u> sections below and submit each as required!</b>
-                </div>
-                """, unsafe_allow_html=True)
-            for idx, chapter_lh in enumerate(lh_section):
-                st.markdown(
-                    f"""
-                    <div style='margin-top:20px; padding:10px 16px; background:#f7faff;
-                    border-radius:8px; border-left:5px solid #5d9cec; margin-bottom:12px;'>
-                        <b>📚 Assignment {idx+1} of {len(lh_section)}: Lesen & Hören – Chapter {chapter_lh.get('chapter', '')}</b>
-                    </div>
-                    """, unsafe_allow_html=True
-                )
-                if chapter_lh.get("video"):
-                    st.video(chapter_lh["video"])
-                if chapter_lh.get("grammarbook_link"):
-                    st.markdown("**📘 Grammar Book:**")
-                    st.markdown(
-                        f"<iframe src='{chapter_lh['grammarbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
-                        unsafe_allow_html=True,
-                    )
-                    st.markdown(f"[🔍 Open Grammar Book in new tab]({chapter_lh['grammarbook_link']})")
-                if chapter_lh.get("workbook_link"):
-                    st.markdown("**📒 Workbook:**")
-                    st.markdown(
-                        f"<iframe src='{chapter_lh['workbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
-                        unsafe_allow_html=True,
-                    )
-                    st.markdown(f"[🔍 Open Workbook in new tab]({chapter_lh['workbook_link']})")
-                extras = chapter_lh.get('extra_resources')
-                if extras:
-                    st.markdown("**🔗 Extra Resources:**")
-                    if isinstance(extras, list):
-                        for link in extras:
-                            st.markdown(f"- [Resource Link]({link})")
-                    else:
-                        st.markdown(f"- [Resource Link]({extras})")
-                # Divider if not last
-                if idx < len(lh_section) - 1:
-                    st.markdown("<hr style='border-top: 2px dashed #aaccee;'/>", unsafe_allow_html=True)
-        # SINGLE assignment
-        elif isinstance(lh_section, dict):
-            if lh_section.get("video"):
-                st.video(lh_section["video"])
-            if lh_section.get("grammarbook_link"):
-                st.markdown("**📘 Grammar Book:**")
-                st.markdown(
-                    f"<iframe src='{lh_section['grammarbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
-                    unsafe_allow_html=True,
-                )
-                st.markdown(f"[🔍 Open Grammar Book in new tab]({lh_section['grammarbook_link']})")
-            if lh_section.get("workbook_link"):
-                st.markdown("**📒 Workbook:**")
-                st.markdown(
-                    f"<iframe src='{lh_section['workbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
-                    unsafe_allow_html=True,
-                )
-                st.markdown(f"[🔍 Open Workbook in new tab]({lh_section['workbook_link']})")
-            extras = lh_section.get('extra_resources')
-            if extras:
-                st.markdown("**🔗 Extra Resources:**")
-                if isinstance(extras, list):
-                    for link in extras:
-                        st.markdown(f"- [Resource Link]({link})")
-                else:
-                    st.markdown(f"- [Resource Link]({extras})")
-    
-    # Show Schreiben & Sprechen (if present)
-    if "schreiben_sprechen" in day_info:
-        ss = day_info["schreiben_sprechen"]
-        if ss.get("video"):
-            st.video(ss["video"])
-        if ss.get("workbook_link"):
-            st.markdown("**📒 Schreiben & Sprechen Workbook:**")
+                f"#### 📚 Assignment {idx+1} of {total}: Lesen & Hören – Chapter {lh.get('chapter','')}")
+        if lh.get("video"):
+            st.video(lh["video"])
+        if lh.get("grammarbook_link"):
             st.markdown(
-                f"<iframe src='{ss['workbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
-                unsafe_allow_html=True,
-            )
-            st.markdown(f"[🔍 Open S&S Workbook in new tab]({ss['workbook_link']})")
-        extras = ss.get('extra_resources')
+                f"<a href='{lh['grammarbook_link']}' target='_blank' style='font-size:1.1em; color:#357ae8; font-weight:bold;'>📘 Open Grammar Book</a>",
+                unsafe_allow_html=True)
+        if lh.get("workbook_link"):
+            st.markdown(
+                f"<a href='{lh['workbook_link']}' target='_blank' style='font-size:1.1em; color:#34a853; font-weight:bold;'>📒 Open Workbook</a>",
+                unsafe_allow_html=True)
+        extras = lh.get('extra_resources')
         if extras:
-            st.markdown("**🔗 Extra Resources:**")
             if isinstance(extras, list):
                 for link in extras:
-                    st.markdown(f"- [Resource Link]({link})")
+                    st.markdown(f"- [🔗 Extra Resource]({link})")
             else:
-                st.markdown(f"- [Resource Link]({extras})")
+                st.markdown(f"- [🔗 Extra Resource]({extras})")
+
+    # Multi assignment note
+    if "lesen_hören" in day_info:
+        lh_section = day_info["lesen_hören"]
+        if isinstance(lh_section, list):
+            st.markdown(
+                "<div style='background:#f0f4ff;border-radius:7px;padding:10px 15px;margin:8px 0 15px 0; font-size:1em;'>"
+                "<b>📢 Multiple reading/listening assignments for today. Complete <u>all</u> sections below!</b>"
+                "</div>", unsafe_allow_html=True
+            )
+            for idx, chapter_lh in enumerate(lh_section):
+                render_lh_section(chapter_lh, idx, len(lh_section))
+        elif isinstance(lh_section, dict):
+            render_lh_section(lh_section)
+
+    # --- Show Schreiben & Sprechen (if present) ---
+    if "schreiben_sprechen" in day_info:
+        ss = day_info["schreiben_sprechen"]
+        st.markdown("#### 📝 Schreiben & Sprechen")
+        if ss.get("video"):
+            st.video(ss["video"])
+        if ss.get("grammarbook_link"):
+            st.markdown(
+                f"<a href='{ss['grammarbook_link']}' target='_blank' style='font-size:1.1em; color:#357ae8; font-weight:bold;'>📘 Open Grammar Book</a>",
+                unsafe_allow_html=True)
+        if ss.get("workbook_link"):
+            st.markdown(
+                f"<a href='{ss['workbook_link']}' target='_blank' style='font-size:1.1em; color:#34a853; font-weight:bold;'>📒 Open Workbook</a>",
+                unsafe_allow_html=True)
+        extras = ss.get('extra_resources')
+        if extras:
+            if isinstance(extras, list):
+                for link in extras:
+                    st.markdown(f"- [🔗 Extra Resource]({link})")
+            else:
+                st.markdown(f"- [🔗 Extra Resource]({extras})")
 
     # --- Assignment Submission Section (WhatsApp) ---
     st.divider()
     st.subheader("📲 Submit Assignment (WhatsApp)")
     student_name = st.text_input("Your Name", value=student_row.get('Name', ''))
     student_code = st.text_input("Student Code", value=student_row.get('StudentCode', ''))
-    answer = st.text_area("Your Answer (leave blank if sending file/photo on WhatsApp)", height=110)
+    answer = st.text_area("Your Answer (leave blank if sending file/photo on WhatsApp)", height=90)
 
     wa_message = f"""Learn Language Education Academy – Assignment Submission
 Name: {student_name}
@@ -2044,14 +2003,14 @@ Answer: {answer if answer.strip() else '[See attached file/photo]'}
     if st.button("📤 Submit via WhatsApp"):
         st.success("Click the link below to open WhatsApp and send your assignment!")
         st.markdown(
-            f"""<a href="{wa_url}" target="_blank" style="font-size:1.3em;font-weight:600;display:inline-block;background:#25D366;color:white;padding:14px 28px;border-radius:8px;margin:12px 0;">Open WhatsApp</a>""",
+            f"""<a href="{wa_url}" target="_blank" style="font-size:1.15em;font-weight:600;display:inline-block;background:#25D366;color:white;padding:12px 24px;border-radius:8px;margin:10px 0;">Open WhatsApp</a>""",
             unsafe_allow_html=True
         )
-        st.text_area("Message to Copy (if needed):", wa_message, height=90)
+        st.text_area("Message to Copy (if needed):", wa_message, height=70)
 
     st.info("""
-- PDFs above are scrollable and zoomable on phone (tap [🔍 Open ...] to zoom in new tab).
-- For file/photo: paste message in WhatsApp and attach before sending.
+- Tap the links above to open books on your phone. No PDF preview, all links open in a new tab.
+- Submit only your main assignment below (if more than one, mention which).
 - Always use your real name and code for tracking!
 """)
 
