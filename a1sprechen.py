@@ -1822,8 +1822,8 @@ if tab == "Course":
             "topic": "Lesen & Hören",
             "chapter": "0.1",
             "lesen_horen": {
-                "workbook_link": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/view?usp=sharing",
-                "grammarbook_link": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/view?usp=sharing",
+                "workbook_link": "1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ",
+                "grammarbook_link": "1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_",
                 "video": "https://www.youtube.com/embed/8k2VKKjbekA"
             },
             "schreiben_sprechen": {
