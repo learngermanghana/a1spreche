@@ -1800,82 +1800,184 @@ if tab == "Schreiben Trainer":
                 unsafe_allow_html=True
             )
 
-if tab == "Course Book":
-    st.header("📖 Workbook, Grammar Book & Assignment Submission")
+if tab == "Course":
+    import streamlit as st
+    import datetime, urllib.parse
 
-    # ---- Chapters setup (no 'book_pdf', only workbook and grammar) ----
-    chapters = [
-        {
-            "name": "Chapter 1 – Introductions",
-            "workbook_pdf": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/preview",  # Workbook for this chapter
-            "grammar_pdf": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/preview",     # Grammar book (can use same for all)
-            "video": None,   # Or YouTube link if you have, else None
-        },
-        # Add more chapters here if you want:
-        # {
-        #     "name": "Chapter 2 – Shopping",
-        #     "workbook_pdf": "https://drive.google.com/file/d/ANOTHER_WORKBOOK_ID/preview",
-        #     "grammar_pdf": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/preview",
-        #     "video": None,
-        # },
-    ]
+    st.header("📚 Your Course Schedule & Materials")
 
-    # Auto-fill student info if available
-    student_name = st.session_state.get("student_name", "")
-    student_code = st.session_state.get("student_code", "")
+    # === SCHEDULE DICTIONARIES ===
 
-    chapter_titles = [c["name"] for c in chapters]
-    sel_idx = st.selectbox("Select Chapter", range(len(chapter_titles)), format_func=lambda i: chapter_titles[i])
-    chapter = chapters[sel_idx]
+# ======= A1 SCHEDULE =======
+a1_schedule = [
+    {"day": 1,  "topic": "Lesen & Hören",                               "chapter": "0.1",        "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID1",  "assignment_id": "A1_ASSIGNMENT_ID1",  "video": None},
+    {"day": 2,  "topic": "Lesen & Hören",                               "chapter": "0.2_1.1",    "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID2",  "assignment_id": "A1_ASSIGNMENT_ID2",  "video": None},
+    {"day": 3,  "topic": "Schreiben & Sprechen, Lesen & Hören",         "chapter": "1.1_1.2",    "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID3",  "assignment_id": "A1_ASSIGNMENT_ID3",  "video": None},
+    {"day": 4,  "topic": "Lesen & Hören",                               "chapter": "2",          "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID4",  "assignment_id": "A1_ASSIGNMENT_ID4",  "video": None},
+    {"day": 5,  "topic": "Schreiben & Sprechen (Recap)",                "chapter": "1.2",        "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID5",  "assignment_id": "A1_ASSIGNMENT_ID5",  "video": None},
+    {"day": 6,  "topic": "Schreiben & Sprechen",                        "chapter": "2.3",        "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID6",  "assignment_id": "A1_ASSIGNMENT_ID6",  "video": None},
+    {"day": 7,  "topic": "Lesen & Hören",                               "chapter": "3",          "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID7",  "assignment_id": "A1_ASSIGNMENT_ID7",  "video": None},
+    {"day": 8,  "topic": "Lesen & Hören",                               "chapter": "4",          "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID8",  "assignment_id": "A1_ASSIGNMENT_ID8",  "video": None},
+    {"day": 9,  "topic": "Lesen & Hören",                               "chapter": "5",          "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID9",  "assignment_id": "A1_ASSIGNMENT_ID9",  "video": None},
+    {"day":10,  "topic": "Lesen & Hören, Schreiben & Sprechen",         "chapter": "6_2.4",      "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID10", "assignment_id": "A1_ASSIGNMENT_ID10", "video": None},
+    {"day":11,  "topic": "Lesen & Hören",                               "chapter": "7",          "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID11", "assignment_id": "A1_ASSIGNMENT_ID11", "video": None},
+    {"day":12,  "topic": "Lesen & Hören",                               "chapter": "8",          "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID12", "assignment_id": "A1_ASSIGNMENT_ID12", "video": None},
+    {"day":13,  "topic": "Schreiben & Sprechen",                        "chapter": "3.5",        "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID13", "assignment_id": "A1_ASSIGNMENT_ID13", "video": None},
+    {"day":14,  "topic": "Schreiben & Sprechen",                        "chapter": "3.6",        "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID14", "assignment_id": "A1_ASSIGNMENT_ID14", "video": None},
+    {"day":15,  "topic": "Schreiben & Sprechen",                        "chapter": "4.7",        "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID15", "assignment_id": "A1_ASSIGNMENT_ID15", "video": None},
+    {"day":16,  "topic": "Lesen & Hören",                               "chapter": "9_10",       "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID16", "assignment_id": "A1_ASSIGNMENT_ID16", "video": None},
+    {"day":17,  "topic": "Lesen & Hören",                               "chapter": "11",         "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID17", "assignment_id": "A1_ASSIGNMENT_ID17", "video": None},
+    {"day":18,  "topic": "Lesen & Hören, Schreiben & Sprechen (5.8)",   "chapter": "12.1_5.8",   "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID18", "assignment_id": "A1_ASSIGNMENT_ID18", "video": None},
+    {"day":19,  "topic": "Schreiben & Sprechen",                        "chapter": "5.9",        "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID19", "assignment_id": "A1_ASSIGNMENT_ID19", "video": None},
+    {"day":20,  "topic": "Schreiben & Sprechen (Intro to letter writing)","chapter": "6.10",     "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID20", "assignment_id": "A1_ASSIGNMENT_ID20", "video": None},
+    {"day":21,  "topic": "Lesen & Hören, Schreiben & Sprechen",         "chapter": "13_6.11",    "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID21", "assignment_id": "A1_ASSIGNMENT_ID21", "video": None},
+    {"day":22,  "topic": "Lesen & Hören, Schreiben & Sprechen",         "chapter": "14.1_7.12",  "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID22", "assignment_id": "A1_ASSIGNMENT_ID22", "video": None},
+    {"day":23,  "topic": "Lesen & Hören, Schreiben & Sprechen",         "chapter": "14.2_7.12",  "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID23", "assignment_id": "A1_ASSIGNMENT_ID23", "video": None},
+    {"day":24,  "topic": "Schreiben & Sprechen",                        "chapter": "8.13",       "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID24", "assignment_id": "A1_ASSIGNMENT_ID24", "video": None},
+    {"day":25,  "topic": "Exam tips - Schreiben & Sprechen recap",       "chapter": "final",      "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID25", "assignment_id": "A1_ASSIGNMENT_ID25", "video": None},
+]
 
-    st.subheader(f"📝 {chapter['name']} Workbook")
+# ======= A2 SCHEDULE =======
+a2_schedule = [
+    {"day": 1,  "topic": "Small Talk (Exercise)",                        "chapter": "1.1",   "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID1",  "assignment_id": "A2_ASSIGNMENT_ID1",  "video": None},
+    {"day": 2,  "topic": "Personen Beschreiben (Exercise)",              "chapter": "1.2",   "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID2",  "assignment_id": "A2_ASSIGNMENT_ID2",  "video": None},
+    {"day": 3,  "topic": "Dinge und Personen vergleichen",               "chapter": "1.3",   "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID3",  "assignment_id": "A2_ASSIGNMENT_ID3",  "video": None},
+    {"day": 4,  "topic": "Wo möchten wir uns treffen?",                  "chapter": "2.4",   "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID4",  "assignment_id": "A2_ASSIGNMENT_ID4",  "video": None},
+    {"day": 5,  "topic": "Was machst du in deiner Freizeit?",            "chapter": "2.5",   "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID5",  "assignment_id": "A2_ASSIGNMENT_ID5",  "video": None},
+    {"day": 6,  "topic": "Möbel und Räume kennenlernen",                 "chapter": "3.6",   "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID6",  "assignment_id": "A2_ASSIGNMENT_ID6",  "video": None},
+    {"day": 7,  "topic": "Eine Wohnung suchen (Übung)",                  "chapter": "3.7",   "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID7",  "assignment_id": "A2_ASSIGNMENT_ID7",  "video": None},
+    {"day": 8,  "topic": "Rezepte und Essen (Exercise)",                 "chapter": "3.8",   "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID8",  "assignment_id": "A2_ASSIGNMENT_ID8",  "video": None},
+    {"day": 9,  "topic": "Urlaub",                                       "chapter": "4.9",   "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID9",  "assignment_id": "A2_ASSIGNMENT_ID9",  "video": None},
+    {"day":10,  "topic": "Tourismus und Traditionelle Feste",            "chapter": "4.10",  "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID10", "assignment_id": "A2_ASSIGNMENT_ID10", "video": None},
+    {"day":11,  "topic": "Unterwegs: Verkehrsmittel vergleichen",        "chapter": "4.11",  "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID11", "assignment_id": "A2_ASSIGNMENT_ID11", "video": None},
+    {"day":12,  "topic": "Ein Tag im Leben (Übung)",                     "chapter": "5.12",  "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID12", "assignment_id": "A2_ASSIGNMENT_ID12", "video": None},
+    {"day":13,  "topic": "Ein Vorstellungsgesprach (Exercise)",          "chapter": "5.13",  "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID13", "assignment_id": "A2_ASSIGNMENT_ID13", "video": None},
+    {"day":14,  "topic": "Beruf und Karriere (Exercise)",                "chapter": "5.14",  "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID14", "assignment_id": "A2_ASSIGNMENT_ID14", "video": None},
+    {"day":15,  "topic": "Mein Lieblingssport",                          "chapter": "6.15",  "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID15", "assignment_id": "A2_ASSIGNMENT_ID15", "video": None},
+    {"day":16,  "topic": "Wohlbefinden und Entspannung",                 "chapter": "6.16",  "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID16", "assignment_id": "A2_ASSIGNMENT_ID16", "video": None},
+    {"day":17,  "topic": "In die Apotheke gehen",                        "chapter": "6.17",  "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID17", "assignment_id": "A2_ASSIGNMENT_ID17", "video": None},
+    {"day":18,  "topic": "Die Bank Anrufen",                             "chapter": "7.18",  "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID18", "assignment_id": "A2_ASSIGNMENT_ID18", "video": None},
+    {"day":19,  "topic": "Einkaufen? Wo und wie? (Exercise)",            "chapter": "7.19",  "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID19", "assignment_id": "A2_ASSIGNMENT_ID19", "video": None},
+    {"day":20,  "topic": "Typische Reklamationssituationen üben",        "chapter": "7.20",  "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID20", "assignment_id": "A2_ASSIGNMENT_ID20", "video": None},
+    {"day":21,  "topic": "Ein Wochenende planen",                        "chapter": "8.21",  "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID21", "assignment_id": "A2_ASSIGNMENT_ID21", "video": None},
+    {"day":22,  "topic": "Die Woche Plannung",                           "chapter": "8.22",  "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID22", "assignment_id": "A2_ASSIGNMENT_ID22", "video": None},
+    {"day":23,  "topic": "Wie kommst du zur Schule / zur Arbeit?",       "chapter": "9.23",  "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID23", "assignment_id": "A2_ASSIGNMENT_ID23", "video": None},
+    {"day":24,  "topic": "Einen Urlaub planen",                          "chapter": "9.24",  "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID24", "assignment_id": "A2_ASSIGNMENT_ID24", "video": None},
+    {"day":25,  "topic": "Tagesablauf (Exercise)",                       "chapter": "9.25",  "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID25", "assignment_id": "A2_ASSIGNMENT_ID25", "video": None},
+    {"day":26,  "topic": "Gefühle in verschiedenen Situationen beschr",  "chapter": "10.26", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID26", "assignment_id": "A2_ASSIGNMENT_ID26", "video": None},
+    {"day":27,  "topic": "Digitale Kommunikation",                       "chapter": "10.27", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID27", "assignment_id": "A2_ASSIGNMENT_ID27", "video": None},
+    {"day":28,  "topic": "Über die Zukunft sprechen",                    "chapter": "10.28", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID28", "assignment_id": "A2_ASSIGNMENT_ID28", "video": None},
+]
 
-    # --- Show Workbook PDF (embedded) ---
-    st.markdown(
-        f'<iframe src="{chapter["workbook_pdf"]}" width="700" height="500" allow="autoplay"></iframe>',
-        unsafe_allow_html=True
+# ======= B1 SCHEDULE =======
+b1_schedule = [
+    {"day": 1,  "topic": "Traumwelten (Übung)",                         "chapter": "1.1",   "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID1",  "assignment_id": "B1_ASSIGNMENT_ID1",  "video": None},
+    {"day": 2,  "topic": "Freundes für Leben (Übung)",                  "chapter": "1.2",   "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID2",  "assignment_id": "B1_ASSIGNMENT_ID2",  "video": None},
+    {"day": 3,  "topic": "Erfolgsgeschichten (Übung)",                  "chapter": "1.3",   "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID3",  "assignment_id": "B1_ASSIGNMENT_ID3",  "video": None},
+    {"day": 4,  "topic": "Wohnung suchen (Übung)",                      "chapter": "2.4",   "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID4",  "assignment_id": "B1_ASSIGNMENT_ID4",  "video": None},
+    {"day": 5,  "topic": "Der Besichtigungstermin (Übung)",             "chapter": "2.5",   "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID5",  "assignment_id": "B1_ASSIGNMENT_ID5",  "video": None},
+    {"day": 6,  "topic": "Leben in der Stadt oder auf dem Land?",       "chapter": "2.6",   "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID6",  "assignment_id": "B1_ASSIGNMENT_ID6",  "video": None},
+    {"day": 7,  "topic": "Fast Food vs. Hausmannskost",                 "chapter": "3.7",   "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID7",  "assignment_id": "B1_ASSIGNMENT_ID7",  "video": None},
+    {"day": 8,  "topic": "Alles für die Gesundheit",                    "chapter": "3.8",   "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID8",  "assignment_id": "B1_ASSIGNMENT_ID8",  "video": None},
+    {"day": 9,  "topic": "Work-Life-Balance im modernen Arbeitsumfeld", "chapter": "3.9",   "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID9",  "assignment_id": "B1_ASSIGNMENT_ID9",  "video": None},
+    {"day":10,  "topic": "Digitale Auszeit und Selbstfürsorge",         "chapter": "4.10",  "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID10", "assignment_id": "B1_ASSIGNMENT_ID10", "video": None},
+    {"day":11,  "topic": "Teamspiele und Kooperative Aktivitäten",      "chapter": "4.11",  "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID11", "assignment_id": "B1_ASSIGNMENT_ID11", "video": None},
+    {"day":12,  "topic": "Abenteuer in der Natur",                      "chapter": "4.12",  "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID12", "assignment_id": "B1_ASSIGNMENT_ID12", "video": None},
+    {"day":13,  "topic": "Eigene Filmkritik schreiben",                 "chapter": "4.13",  "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID13", "assignment_id": "B1_ASSIGNMENT_ID13", "video": None},
+    {"day":14,  "topic": "Traditionelles vs. digitales Lernen",         "chapter": "5.14",  "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID14", "assignment_id": "B1_ASSIGNMENT_ID14", "video": None},
+    {"day":15,  "topic": "Medien und Arbeiten im Homeoffice",           "chapter": "5.15",  "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID15", "assignment_id": "B1_ASSIGNMENT_ID15", "video": None},
+    {"day":16,  "topic": "Prüfungsangst und Stressbewältigung",         "chapter": "5.16",  "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID16", "assignment_id": "B1_ASSIGNMENT_ID16", "video": None},
+    {"day":17,  "topic": "Wie lernt man am besten?",                    "chapter": "5.17",  "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID17", "assignment_id": "B1_ASSIGNMENT_ID17", "video": None},
+    {"day":18,  "topic": "Wege zum Wunschberuf",                        "chapter": "6.18",  "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID18", "assignment_id": "B1_ASSIGNMENT_ID18", "video": None},
+    {"day":19,  "topic": "Das Vorstellungsgespräch",                    "chapter": "6.19",  "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID19", "assignment_id": "B1_ASSIGNMENT_ID19", "video": None},
+    {"day":20,  "topic": "Wie wird man ...? (Ausbildung und Qu)",       "chapter": "6.20",  "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID20", "assignment_id": "B1_ASSIGNMENT_ID20", "video": None},
+    {"day":21,  "topic": "Lebensformen heute – Familie, Wohng.",        "chapter": "7.21",  "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID21", "assignment_id": "B1_ASSIGNMENT_ID21", "video": None},
+    {"day":22,  "topic": "Was ist dir in einer Beziehung wichtig?",     "chapter": "7.22",  "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID22", "assignment_id": "B1_ASSIGNMENT_ID22", "video": None},
+    {"day":23,  "topic": "Erstes Date – Typische Situationen",          "chapter": "7.23",  "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID23", "assignment_id": "B1_ASSIGNMENT_ID23", "video": None},
+    {"day":24,  "topic": "Konsum und Nachhaltigkeit",                   "chapter": "8.24",  "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID24", "assignment_id": "B1_ASSIGNMENT_ID24", "video": None},
+    {"day":25,  "topic": "Online einkaufen – Rechte und Risiken",       "chapter": "8.25",  "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID25", "assignment_id": "B1_ASSIGNMENT_ID25", "video": None},
+    {"day":26,  "topic": "Reiseprobleme und Lösungen",                  "chapter": "9.26",  "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID26", "assignment_id": "B1_ASSIGNMENT_ID26", "video": None},
+    {"day":27,  "topic": "Umweltfreundlich im Alltag",                  "chapter": "10.27", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID27", "assignment_id": "B1_ASSIGNMENT_ID27", "video": None},
+    {"day":28,  "topic": "Klimafreundlich leben",                       "chapter": "10.28", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID28", "assignment_id": "B1_ASSIGNMENT_ID28", "video": None},
+]
+
+
+
+    # === LEVEL DETECTION (You can use session_state or login logic) ===
+    # For demo: pick from a selectbox (in your app: auto detect or session_state)
+    level_map = {'A1': a1_schedule, 'A2': a2_schedule, 'B1': b1_schedule}
+    level = st.session_state.get('Level', None)
+    if not level:
+        level = st.selectbox("Select your level", ["A1", "A2", "B1"])
+    schedule = level_map.get(level, [])
+
+    if not schedule:
+        st.warning("No schedule found for your level. Please contact admin.")
+        st.stop()
+
+    # === DAY SELECTOR ===
+    selected_day_idx = st.selectbox(
+        "Choose your lesson/day:",
+        range(len(schedule)),
+        format_func=lambda i: f"Day {schedule[i]['day']} – {schedule[i]['topic']}"
     )
+    day_info = schedule[selected_day_idx]
 
-    # --- Show Grammar Book PDF (embedded) ---
-    st.markdown("**Grammar Book:**")
+    # === PDF & VIDEO DISPLAY ===
+    workbook_pdf = f"https://drive.google.com/file/d/{day_info['workbook_id']}/preview"
+    assignment_pdf = f"https://drive.google.com/file/d/{day_info['assignment_id']}/preview" if day_info.get('has_assignment') else None
+
+    st.markdown(f"### Day {day_info['day']}: {day_info['topic']} (Chapter {day_info['chapter']})")
+
+    st.markdown("**Workbook/Chapter PDF:**")
     st.markdown(
-        f'<iframe src="{chapter["grammar_pdf"]}" width="700" height="500" allow="autoplay"></iframe>',
-        unsafe_allow_html=True
+        f"<iframe src='{workbook_pdf}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
+        unsafe_allow_html=True,
     )
+    st.markdown(f"[🔍 Open Workbook in new tab]({workbook_pdf.replace('/preview','/view')})")
 
-    # --- Optional: Video (if available) ---
-    if chapter.get("video"):
-        st.divider()
-        st.subheader("🎬 Lecture Video")
-        st.video(chapter["video"])
+    if assignment_pdf:
+        st.markdown("**Assignment PDF:**")
+        st.markdown(
+            f"<iframe src='{assignment_pdf}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(f"[🔍 Open Assignment in new tab]({assignment_pdf.replace('/preview','/view')})")
 
-    # --- WhatsApp Assignment Submission ---
+    if day_info.get('video'):
+        st.video(day_info['video'])
+
     st.divider()
-    st.subheader("Submit Assignment via WhatsApp")
+    st.subheader("📲 Submit Assignment (WhatsApp)")
 
-    student_name = st.text_input("Your Name", value=student_name)
-    student_code = st.text_input("Student Code", value=student_code)
-    answer = st.text_area("Your Answer (leave blank if you are sending a file/photo on WhatsApp)", height=120)
+    # === STUDENT DETAILS (auto-fill if you have session_state) ===
+    student_row = st.session_state.get('student_row', {})
+    student_name = st.text_input("Your Name", value=student_row.get('Name', ''))
+    student_code = st.text_input("Student Code", value=student_row.get('StudentCode', ''))
+    answer = st.text_area("Your Answer (leave blank if sending file/photo on WhatsApp)", height=110)
 
-    from datetime import datetime
-    import urllib.parse
     wa_message = f"""Learn Language Education Academy – Assignment Submission
 Name: {student_name}
 Code: {student_code}
-Chapter: {chapter['name']}
-Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+Level: {level}
+Day: {day_info['day']}
+Chapter: {day_info['chapter']}
+Date: {datetime.datetime.now():%Y-%m-%d %H:%M}
 Answer: {answer if answer.strip() else '[See attached file/photo]'}
 """
     wa_url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(wa_message)
 
-    if st.button("Submit Assignment via WhatsApp"):
-        st.success("Now click below to send via WhatsApp. If you are submitting a file/photo, attach it after pasting the message.")
-        st.markdown(f"[📲 Send to Tutor on WhatsApp]({wa_url})")
-        st.text_area("WhatsApp Message (copy if needed):", wa_message, height=140)
+    if st.button("📤 Submit via WhatsApp"):
+        st.success("Click the link below to open WhatsApp and send your assignment!")
+        st.markdown(
+            f"""<a href="{wa_url}" target="_blank" style="font-size:1.3em;font-weight:600;display:inline-block;background:#25D366;color:white;padding:14px 28px;border-radius:8px;margin:12px 0;">Open WhatsApp</a>""",
+            unsafe_allow_html=True
+        )
+        st.text_area("Message to Copy (if needed):", wa_message, height=90)
 
     st.info("""
-- WhatsApp will open with your assignment message pre-filled.
-- If submitting a file/photo, paste the message in WhatsApp, then attach your file/photo before sending.
+- PDFs above are scrollable and zoomable on phone (tap [🔍 Open ...] to zoom in new tab).
+- For file/photo: paste message in WhatsApp and attach before sending.
 - Always use your real name and code for tracking!
 """)
 
