@@ -1803,429 +1803,20 @@ if tab == "Schreiben Trainer":
             )
 
 # Force a mock login
-if "student_row" not in st.session_state:
-    st.session_state['student_row'] = {"Name": "Test User", "StudentCode": "demo01", "Level": "A1"}
-
-tab = "Course"
-
 if tab == "Course":
     import streamlit as st
     import datetime, urllib.parse
 
     st.header("📚 Your Course Schedule & Materials")
 
-    a1_schedule = [
-        # DAY 1
-        {
-            "day": 1,
-            "topic": "Lesen & Hören",
-            "chapter": "0.1",
-            "goal": "You will learn to introduce yourself and greet others in German.",
-            "instruction": "Watch the video, review grammar, do the workbook, submit assignment.",
-            "lesen_hören": {
-                "video": "https://youtu.be/8k2VKKjbekA?si=cgYIJ2Di-OEmOpLJ",
-                "grammarbook_link": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/view?usp=sharing",
-                "workbook_link": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/view?usp=sharing"
-            }
-        },
-        # DAY 2
-        {
-            "day": 2,
-            "topic": "Lesen & Hören",
-            "chapter": "0.2_1.1",
-            "goal": "Understand the German alphabets and know the special characters called Umlaut",
-            "instruction": "You are doing Lesen and Hören chapter 0.2 and 1.1. Make sure to follow up attentively.",
-            "lesen_hören": [
-                {
-                    "chapter": "0.2",
-                    "video": "",
-                    "grammarbook_link": "https://drive.google.com/file/d/1KtJCF15Ng4cLU88wdUCX5iumOLY7ZA0a/view?usp=sharing",
-                    "workbook_link": "https://drive.google.com/file/d/1R6PqzgsPm9f5iVn7JZXSNVa_NttoPU9Q/view?usp=sharing",
-                    "extra_resources": "https://youtu.be/wpBPaDI5IgI"
-                },
-                {
-                    "chapter": "1.1",
-                    "video": "",
-                    "grammarbook_link": "https://drive.google.com/file/d/1DKhyi-43HX1TNs8fxA9bgRvhylubilBf/view?usp=sharing",
-                    "workbook_link": "https://drive.google.com/file/d/1A1D1pAssnoncF1JY0v54XT2npPb6mQZv/view?usp=sharing",
-                    "extra_resources": "https://youtu.be/_Hy9_tDhgtc?si=xbfW31T4aUHeJNa_"
-                }
-            ]
-        },  
-        # DAY 3
-        {
-            "day": 3,
-            "topic": "Schreiben & Sprechen and Lesen & Hören",
-            "chapter": "1.1_1.2",
-            "goal": "",
-            "instruction": (
-                "Begin with the practicals at the **Schreiben & Sprechen** (writing & speaking). "
-                "After that, move to **Lesen & Hören** (reading & listening). "
-                "**Do the assignments only at Lesen & Hören.**\n\n"
-                "The activities for Schreiben & Sprechen are for self-practice and have answers provided—"
-                "you do a self-check. The main assignment to be marked and submitted is under the Lesen & Hören section below."
-            ),
-            "schreiben_sprechen": {
-                "video": "",
-                "grammarbook_link": "https://drive.google.com/file/d/1GXWzy3cvbl_goP4-ymFuYDtX4X23D70j/view?usp=sharing"
-            },
-            "lesen_hören": [
-                {
-                    "chapter": "1.2",
-                    "video": "",
-                    "grammarbook_link": "https://drive.google.com/file/d/1OUJT9aSU1XABi3cdZlstUvfBIndyEOwb/view?usp=sharing",
-                    "workbook_link": "https://drive.google.com/file/d/1Lubevhd7zMlbvPcvHHC1D0GzW7xqa4Mp/view?usp=sharing",
-                    "extra_resources": "https://youtu.be/0LRs_M_BtsI?si=ChwjMGhSoD-NPjJq"
-                }
-            ]
-        },
-        # DAY 4
-        {
-            "day": 4,
-            "topic": "Lesen & Hören",
-            "chapter": "2",
-            "goal": "",
-            "instruction": "",
-            "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
-            }
-        },
-        # DAY 5
-        {
-            "day": 5,
-            "topic": "Schreiben & Sprechen (Recap)",
-            "chapter": "1.2",
-            "goal": "",
-            "instruction": "",
-            "schreiben_sprechen": {
-                "video": "",
-                "workbook_link": ""
-            }
-        },
-        # DAY 6
-        {
-            "day": 6,
-            "topic": "Schreiben & Sprechen",
-            "chapter": "2.3",
-            "goal": "",
-            "instruction": "",
-            "schreiben_sprechen": {
-                "video": "",
-                "workbook_link": ""
-            }
-        },
-        # DAY 7
-        {
-            "day": 7,
-            "topic": "Lesen & Hören",
-            "chapter": "3",
-            "goal": "",
-            "instruction": "",
-            "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
-            }
-        },
-        # DAY 8
-        {
-            "day": 8,
-            "topic": "Lesen & Hören",
-            "chapter": "4",
-            "goal": "",
-            "instruction": "",
-            "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
-            }
-        },
-        # DAY 9
-        {
-            "day": 9,
-            "topic": "Lesen & Hören",
-            "chapter": "5",
-            "goal": "",
-            "instruction": "",
-            "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
-            }
-        },
-        # DAY 10
-        {
-            "day": 10,
-            "topic": "Lesen & Hören and Schreiben & Sprechen",
-            "chapter": "6_2.4",
-            "goal": "",
-            "instruction": "",
-            "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
-            },
-            "schreiben_sprechen": {
-                "video": "",
-                "workbook_link": ""
-            }
-        },
-        # DAY 11
-        {
-            "day": 11,
-            "topic": "Lesen & Hören",
-            "chapter": "7",
-            "goal": "",
-            "instruction": "",
-            "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
-            }
-        },
-        # DAY 12
-        {
-            "day": 12,
-            "topic": "Lesen & Hören",
-            "chapter": "8",
-            "goal": "",
-            "instruction": "",
-            "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
-            }
-        },
-        # DAY 13
-        {
-            "day": 13,
-            "topic": "Schreiben & Sprechen",
-            "chapter": "3.5",
-            "goal": "",
-            "instruction": "",
-            "schreiben_sprechen": {
-                "video": "",
-                "workbook_link": ""
-            }
-        },
-        # DAY 14
-        {
-            "day": 14,
-            "topic": "Schreiben & Sprechen",
-            "chapter": "3.6",
-            "goal": "",
-            "instruction": "",
-            "schreiben_sprechen": {
-                "video": "",
-                "workbook_link": ""
-            }
-        },
-        # DAY 15
-        {
-            "day": 15,
-            "topic": "Schreiben & Sprechen",
-            "chapter": "4.7",
-            "goal": "",
-            "instruction": "",
-            "schreiben_sprechen": {
-                "video": "",
-                "workbook_link": ""
-            }
-        },
-        # DAY 16
-        {
-            "day": 16,
-            "topic": "Lesen & Hören",
-            "chapter": "9_10",
-            "goal": "",
-            "instruction": "",
-            "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
-            }
-        },
-        # DAY 17
-        {
-            "day": 17,
-            "topic": "Lesen & Hören",
-            "chapter": "11",
-            "goal": "",
-            "instruction": "",
-            "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
-            }
-        },
-        # DAY 18
-        {
-            "day": 18,
-            "topic": "Lesen & Hören and Schreiben & Sprechen (including 5.8)",
-            "chapter": "12.1",
-            "goal": "",
-            "instruction": "",
-            "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
-            },
-            "schreiben_sprechen": {
-                "video": "",
-                "workbook_link": ""
-            }
-        },
-        # DAY 19
-        {
-            "day": 19,
-            "topic": "Schreiben & Sprechen",
-            "chapter": "5.9",
-            "goal": "",
-            "instruction": "",
-            "schreiben_sprechen": {
-                "video": "",
-                "workbook_link": ""
-            }
-        },
-        # DAY 20
-        {
-            "day": 20,
-            "topic": "Schreiben & Sprechen (Intro to letter writing)",
-            "chapter": "6.10",
-            "goal": "",
-            "instruction": "",
-            "schreiben_sprechen": {
-                "video": "",
-                "workbook_link": ""
-            }
-        },
-        # DAY 21
-        {
-            "day": 21,
-            "topic": "Lesen & Hören and Schreiben & Sprechen",
-            "chapter": "13_6.11",
-            "goal": "",
-            "instruction": "",
-            "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
-            },
-            "schreiben_sprechen": {
-                "video": "",
-                "workbook_link": ""
-            }
-        },
-        # DAY 22
-        {
-            "day": 22,
-            "topic": "Lesen & Hören and Schreiben & Sprechen",
-            "chapter": "14.1_7.12",
-            "goal": "",
-            "instruction": "",
-            "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
-            },
-            "schreiben_sprechen": {
-                "video": "",
-                "workbook_link": ""
-            }
-        },
-        # DAY 23
-        {
-            "day": 23,
-            "topic": "Lesen & Hören and Schreiben & Sprechen",
-            "chapter": "14.2_7.12",
-            "goal": "",
-            "instruction": "",
-            "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
-            },
-            "schreiben_sprechen": {
-                "video": "",
-                "workbook_link": ""
-            }
-        },
-        # DAY 24
-        {
-            "day": 24,
-            "topic": "Schreiben & Sprechen",
-            "chapter": "8.13",
-            "goal": "",
-            "instruction": "",
-            "schreiben_sprechen": {
-                "video": "",
-                "workbook_link": ""
-            }
-        },
-        # DAY 25
-        {
-            "day": 25,
-            "topic": "Exam tips - Schreiben & Sprechen recap",
-            "chapter": "final",
-            "goal": "",
-            "instruction": "",
-            "schreiben_sprechen": {
-                "video": "",
-                "workbook_link": ""
-            }
-        }
-    ]
-      # =========== A2 SCHEDULE ===========
-    a2_schedule = [
-        {
-            "day": 1,
-            "topic": "Small Talk (Exercise)",
-            "chapter": "1.1",
-            "goal": "Practice basic greetings and small talk.",
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
-            "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
-        },
-        {
-            "day": 2,
-            "topic": "Personen Beschreiben (Exercise)",
-            "chapter": "1.2",
-            "goal": "Describe people and their appearance.",
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
-            "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
-        },
-        # Continue adding for all 28 days...
-    ]
-    # =========== B1 SCHEDULE ===========
-    b1_schedule = [
-        {
-            "day": 1,
-            "topic": "Traumwelten (Übung)",
-            "chapter": "1.1",
-            "goal": "Talk about dream worlds and imagination.",
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
-            "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
-        },
-        {
-            "day": 2,
-            "topic": "Freundes für Leben (Übung)",
-            "chapter": "1.2",
-            "goal": "Discuss friendship and important qualities.",
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
-            "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
-        },
-        # Continue adding for all 28 days...
-    ]
-
+    # ==================== 2. PICK LEVEL AND SCHEDULE ====================
+    student_row = st.session_state.get('student_row', {})
+    student_level = student_row.get('Level', 'A1').upper()
+    level_map = {
+        "A1": a1_schedule,
+        "A2": a2_schedule,
+        "B1": b1_schedule,
+    }
     schedule = level_map.get(student_level, a1_schedule)
 
     if not schedule:
@@ -2386,3 +1977,234 @@ Answer: {answer if answer.strip() else '[See attached file/photo]'}
 - For file/photo: paste message in WhatsApp and attach before sending.
 - Always use your real name and code for tracking!
 """)
+
+""")
+
+#Myresults
+
+if tab == "My Results and Resources":
+    # Always define these at the top
+    student_code = st.session_state.get("student_code", "")
+    student_name = st.session_state.get("student_name", "")
+    st.header("📈 My Results and Resources Hub")
+    st.markdown("View and download your assignment history. All results are private and only visible to you.")
+
+    # === LIVE GOOGLE SHEETS CSV LINK ===
+    GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
+
+    import requests
+    import io
+    import pandas as pd
+    from fpdf import FPDF
+
+    @st.cache_data
+    def fetch_scores():
+        response = requests.get(GOOGLE_SHEET_CSV, timeout=7)
+        response.raise_for_status()
+        df = pd.read_csv(io.StringIO(response.text), engine='python')
+
+        # Clean and validate columns
+        df.columns = [col.strip().lower().replace('studentcode', 'student_code') for col in df.columns]
+
+        # Drop rows with missing *required* fields
+        required_cols = ["student_code", "name", "assignment", "score", "date", "level"]
+        df = df.dropna(subset=required_cols)
+
+        return df
+
+    df_scores = fetch_scores()
+    required_cols = {"student_code", "name", "assignment", "score", "date", "level"}
+    if not required_cols.issubset(df_scores.columns):
+        st.error("Data format error. Please contact support.")
+        st.write("Columns found:", df_scores.columns.tolist())  # <-- for debugging
+        st.stop()
+
+    # Filter for current student
+    code = st.session_state.get("student_code", "").lower().strip()
+    df_user = df_scores[df_scores.student_code.str.lower().str.strip() == code]
+    if df_user.empty:
+        st.info("No results yet. Complete an assignment to see your scores!")
+        st.stop()
+
+    # Choose level
+    df_user['level'] = df_user.level.str.upper().str.strip()
+    levels = sorted(df_user['level'].unique())
+    level = st.selectbox("Select level:", levels)
+    df_lvl = df_user[df_user.level == level]
+
+    # Summary metrics
+    totals = {"A1": 18, "A2": 28, "B1": 26, "B2": 24}
+    total = totals.get(level, 0)
+    completed = df_lvl.assignment.nunique()
+    avg_score = df_lvl.score.mean() or 0
+    best_score = df_lvl.score.max() or 0
+
+    # Display metrics in columns
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total Assignments", total)
+    col2.metric("Completed", completed)
+    col3.metric("Average Score", f"{avg_score:.1f}")
+    col4.metric("Best Score", best_score)
+
+    # Detailed results
+    with st.expander("See detailed results", expanded=False):
+        df_display = (
+            df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
+                 [['assignment', 'score', 'date']]
+                 .reset_index(drop=True)
+        )
+        st.table(df_display)
+
+    # Download PDF summary
+    if st.button("⬇️ Download PDF Summary"):
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", 'B', 14)
+        pdf.cell(0, 10, "Learn Language Education Academy", ln=1, align='C')
+        pdf.ln(5)
+        pdf.set_font("Arial", '', 12)
+        pdf.multi_cell(
+            0, 8,
+            f"Name: {df_user.name.iloc[0]}\n"
+            f"Code: {code}\n"
+            f"Level: {level}\n"
+            f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"
+        )
+        pdf.ln(4)
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(0, 8, "Summary Metrics", ln=1)
+        pdf.set_font("Arial", '', 11)
+        pdf.cell(0, 8, f"Total: {total}, Completed: {completed}, Avg: {avg_score:.1f}, Best: {best_score}", ln=1)
+        pdf.ln(4)
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(0, 8, "Detailed Results", ln=1)
+        pdf.set_font("Arial", '', 10)
+        for _, row in df_display.iterrows():
+            pdf.cell(0, 7, f"{row['assignment']}: {row['score']} ({row['date']})", ln=1)
+        pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
+        st.download_button(
+            label="Download PDF",
+            data=pdf_bytes,
+            file_name=f"{code}_results_{level}.pdf",
+            mime="application/pdf"
+        )
+
+if tab == "Admin":
+    # --- Admin Auth ---
+    if not st.session_state.get("is_admin", False):
+        admin_pw = st.text_input("Enter admin password:", type="password", key="admin_pw")
+        if st.button("Login as Admin"):
+            ADMIN_PASSWORD = "Felix029"
+            if admin_pw == ADMIN_PASSWORD:
+                st.session_state["is_admin"] = True
+                st.success("Welcome, Admin!")
+                st.rerun()
+            else:
+                st.error("Incorrect password.")
+        st.stop()
+    else:
+        st.info("You are logged in as admin.")
+
+        # --- Force Refresh Button ---
+        if st.button("🔄 Force Refresh All Data"):
+            st.cache_data.clear()
+            st.success("Cache cleared! Reloading…")
+            st.rerun()
+
+        st.subheader("Student Data Backup & Restore")
+
+        # ===== Download/Backup Section =====
+        import pandas as pd
+
+        # --- Student Scores Backup ---
+        st.markdown("### 📥 Download Backups")
+
+        # Scores (assignment marking) backup
+        try:
+            conn_scores = sqlite3.connect('scores.db')
+            df_scores = pd.read_sql_query("SELECT * FROM scores", conn_scores)
+            csv_scores = df_scores.to_csv(index=False).encode('utf-8')
+            st.download_button("⬇️ Download Scores Backup", csv_scores, file_name="scores_backup.csv", mime="text/csv")
+        except Exception as e:
+            st.warning(f"Could not load scores: {e}")
+
+        # Vocab Progress backup
+        try:
+            conn_vocab = sqlite3.connect('vocab_progress.db')
+            df_vocab = pd.read_sql_query("SELECT * FROM vocab_progress", conn_vocab)
+            csv_vocab = df_vocab.to_csv(index=False).encode('utf-8')
+            st.download_button("⬇️ Download Vocab Progress", csv_vocab, file_name="vocab_progress_backup.csv", mime="text/csv")
+        except Exception as e:
+            st.warning(f"Could not load vocab progress: {e}")
+
+        # Schreiben Progress backup
+        try:
+            conn_schreiben = sqlite3.connect('vocab_progress.db')
+            df_schreiben = pd.read_sql_query("SELECT * FROM schreiben_progress", conn_schreiben)
+            csv_schreiben = df_schreiben.to_csv(index=False).encode('utf-8')
+            st.download_button("⬇️ Download Schreiben Progress", csv_schreiben, file_name="schreiben_progress_backup.csv", mime="text/csv")
+        except Exception as e:
+            st.warning(f"Could not load schreiben progress: {e}")
+
+        # Sprechen Progress backup (if table exists)
+        try:
+            conn_sprechen = sqlite3.connect('vocab_progress.db')
+            df_sprechen = pd.read_sql_query("SELECT * FROM sprechen_progress", conn_sprechen)
+            csv_sprechen = df_sprechen.to_csv(index=False).encode('utf-8')
+            st.download_button("⬇️ Download Sprechen Progress", csv_sprechen, file_name="sprechen_progress_backup.csv", mime="text/csv")
+        except Exception as e:
+            st.info("No Sprechen Progress table found. (If not used, ignore this warning.)")
+
+        # ===== Upload/Restore Section =====
+        st.markdown("### 📤 Restore from Backup (Upload, overwrites current data)")
+
+        # --- Scores Upload ---
+        uploaded_scores = st.file_uploader("Upload Scores CSV", type="csv", key="up_scores")
+        if uploaded_scores:
+            try:
+                df_new = pd.read_csv(uploaded_scores)
+                conn_scores = sqlite3.connect('scores.db')
+                df_new.to_sql('scores', conn_scores, if_exists='replace', index=False)
+                st.success("Scores data uploaded & replaced.")
+            except Exception as e:
+                st.error(f"Upload failed: {e}")
+
+        # --- Vocab Progress Upload ---
+        uploaded_vocab = st.file_uploader("Upload Vocab Progress CSV", type="csv", key="up_vocab")
+        if uploaded_vocab:
+            try:
+                df_new = pd.read_csv(uploaded_vocab)
+                conn_vocab = sqlite3.connect('vocab_progress.db')
+                df_new.to_sql('vocab_progress', conn_vocab, if_exists='replace', index=False)
+                st.success("Vocab Progress uploaded & replaced.")
+            except Exception as e:
+                st.error(f"Upload failed: {e}")
+
+        # --- Schreiben Progress Upload ---
+        uploaded_schreiben = st.file_uploader("Upload Schreiben Progress CSV", type="csv", key="up_schreiben")
+        if uploaded_schreiben:
+            try:
+                df_new = pd.read_csv(uploaded_schreiben)
+                conn_schreiben = sqlite3.connect('vocab_progress.db')
+                df_new.to_sql('schreiben_progress', conn_schreiben, if_exists='replace', index=False)
+                st.success("Schreiben Progress uploaded & replaced.")
+            except Exception as e:
+                st.error(f"Upload failed: {e}")
+
+        # --- Sprechen Progress Upload ---
+        uploaded_sprechen = st.file_uploader("Upload Sprechen Progress CSV", type="csv", key="up_sprechen")
+        if uploaded_sprechen:
+            try:
+                df_new = pd.read_csv(uploaded_sprechen)
+                conn_sprechen = sqlite3.connect('vocab_progress.db')
+                df_new.to_sql('sprechen_progress', conn_sprechen, if_exists='replace', index=False)
+                st.success("Sprechen Progress uploaded & replaced.")
+            except Exception as e:
+                st.error(f"Upload failed: {e}")
+
+        # --- Show all students table (as before) ---
+        st.markdown("---")
+        st.markdown("### 👀 View All Student Records")
+        df_students = load_student_data()
+        st.dataframe(df_students)
+
