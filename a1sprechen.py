@@ -1809,25 +1809,24 @@ if "student_row" not in st.session_state:
 tab = "Course"
 
 if tab == "Course":
-    
+    import streamlit as st
+    import datetime, urllib.parse
 
     st.header("📚 Your Course Schedule & Materials")
 
-    # === SCHEDULE DICTIONARIES ===
-
-    # ==== A1 SCHEDULE (Lesen & Horen + Schreiben & Sprechen) ====
+    # ==== EXAMPLE: A1 SCHEDULE (edit links as needed) ====
     a1_schedule = [
         {
             "day": 1,
             "topic": "Lesen & Hören",
             "chapter": "0.1",
-            "lesen_horen": {
-                "workbook_link": "1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ",
-                "grammarbook_link": "1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_",
-                "video": "https://www.youtube.com/embed/8k2VKKjbekA"
+            "lesen_hören": {
+                "workbook_link": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/view?usp=sharing",
+                "grammarbook_link": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/view?usp=sharing",
+                "video": "https://youtu.be/8k2VKKjbekA?si=cgYIJ2Di-OEmOpLJ"
             },
             "schreiben_sprechen": {
-                "workbook_link": None,
+                "workbook_link": None,  # No workbook for S&S this day
                 "video": None
             }
         },
@@ -1835,10 +1834,10 @@ if tab == "Course":
             "day": 2,
             "topic": "Lesen & Hören",
             "chapter": "0.2_1.1",
-            "lesen_horen": {
-                "workbook_link": "",
-                "grammarbook_link": "",
-                "video": ""
+            "lesen_hören": {
+                "workbook_link": "YOUR_DAY2_WORKBOOK_LINK",
+                "grammarbook_link": "YOUR_DAY2_GRAMMARBOOK_LINK",
+                "video": "YOUR_DAY2_VIDEO_LINK"
             },
             "schreiben_sprechen": {
                 "workbook_link": None,
@@ -1849,53 +1848,28 @@ if tab == "Course":
             "day": 3,
             "topic": "Schreiben & Sprechen, Lesen & Hören",
             "chapter": "1.1_1.2",
-            "lesen_horen": {
-                "workbook_link": "",
-                "grammarbook_link": "",
-                "video": ""
+            "lesen_hören": {
+                "workbook_link": "YOUR_DAY3_LH_WORKBOOK_LINK",
+                "grammarbook_link": "YOUR_DAY3_LH_GRAMMARBOOK_LINK",
+                "video": "YOUR_DAY3_LH_VIDEO_LINK"
             },
             "schreiben_sprechen": {
-                "workbook_link": "",
-                "video": ""
+                "workbook_link": "YOUR_DAY3_SS_WORKBOOK_LINK",
+                "video": "YOUR_DAY3_SS_VIDEO_LINK"
             }
         },
-        # ... continue for all 25 days
+        # ...Continue for all days up to day 25
     ]
 
-    # ==== A2 SCHEDULE (one workbook + grammar + video per day) ====
-    a2_schedule = [
-        {
-            "day": 1,
-            "topic": "Small Talk (Exercise)",
-            "chapter": "1.1",
-            "workbook_link": "",
-            "grammarbook_link": "",
-            "video": ""
-        },
-        # ...continue for all 28 days
-    ]
-
-    # ==== B1 SCHEDULE (one workbook + grammar + video per day) ====
-    b1_schedule = [
-        {
-            "day": 1,
-            "topic": "Traumwelten (Übung)",
-            "chapter": "1.1",
-            "workbook_link": "",
-            "grammarbook_link": "",
-            "video": ""
-        },
-        # ...continue for all 28 days
-    ]
-
-    # ==== LEVEL MAP ====
-    student_row = st.session_state.get('student_row', {})
-    student_level = student_row.get('Level', 'A1').upper()
+    # ==== LEVEL MAP (you can add A2, B1, B2 similarly) ====
     level_map = {
         "A1": a1_schedule,
-        "A2": a2_schedule,
-        "B1": b1_schedule,
+        # "A2": a2_schedule,
+        # "B1": b1_schedule,
     }
+
+    student_row = st.session_state.get('student_row', {})
+    student_level = student_row.get('Level', 'A1').upper()
     schedule = level_map.get(student_level, [])
 
     if not schedule:
@@ -1909,28 +1883,39 @@ if tab == "Course":
     )
     day_info = schedule[selected_day_idx]
 
-    workbook_pdf = f"https://drive.google.com/file/d/{day_info['workbook_id']}/preview"
-    assignment_pdf = f"https://drive.google.com/file/d/{day_info['assignment_id']}/preview" if day_info.get('has_assignment') else None
-
     st.markdown(f"### Day {day_info['day']}: {day_info['topic']} (Chapter {day_info['chapter']})")
-    st.markdown("**Workbook/Chapter PDF:**")
-    st.markdown(
-        f"<iframe src='{workbook_pdf}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(f"[🔍 Open Workbook in new tab]({workbook_pdf.replace('/preview','/view')})")
 
-    if assignment_pdf:
-        st.markdown("**Assignment PDF:**")
+    # ==== LESEN & HÖREN ====
+    lh = day_info.get("lesen_hören", {})
+    st.markdown("#### 📖 Lesen & Hören")
+    if lh.get("workbook_link"):
         st.markdown(
-            f"<iframe src='{assignment_pdf}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
+            f"<iframe src='{lh['workbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
             unsafe_allow_html=True,
         )
-        st.markdown(f"[🔍 Open Assignment in new tab]({assignment_pdf.replace('/preview','/view')})")
+        st.markdown(f"[🔍 Open Workbook in new tab]({lh['workbook_link']})")
+    if lh.get("grammarbook_link"):
+        st.markdown(
+            f"<iframe src='{lh['grammarbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(f"[🔍 Open Grammar Book in new tab]({lh['grammarbook_link']})")
+    if lh.get("video"):
+        st.video(lh["video"])
 
-    if day_info.get('video'):
-        st.video(day_info['video'])
+    # ==== SCHREIBEN & SPRECHEN ====
+    ss = day_info.get("schreiben_sprechen", {})
+    st.markdown("#### ✍️ Schreiben & Sprechen")
+    if ss.get("workbook_link"):
+        st.markdown(
+            f"<iframe src='{ss['workbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(f"[🔍 Open Workbook in new tab]({ss['workbook_link']})")
+    if ss.get("video"):
+        st.video(ss["video"])
 
+    # ==== SUBMISSION (WhatsApp) ====
     st.divider()
     st.subheader("📲 Submit Assignment (WhatsApp)")
     student_name = st.text_input("Your Name", value=student_row.get('Name', ''))
@@ -1943,7 +1928,7 @@ Code: {student_code}
 Level: {student_level}
 Day: {day_info['day']}
 Chapter: {day_info['chapter']}
-Date: {datetime.datetime.now():%Y-%m-%d %H:%M}
+Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}
 Answer: {answer if answer.strip() else '[See attached file/photo]'}
 """
     wa_url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(wa_message)
@@ -1961,6 +1946,7 @@ Answer: {answer if answer.strip() else '[See attached file/photo]'}
 - For file/photo: paste message in WhatsApp and attach before sending.
 - Always use your real name and code for tracking!
 """)
+
 
 
 
