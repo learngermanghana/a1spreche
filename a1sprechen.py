@@ -1810,7 +1810,7 @@ if tab == "Course":
 
     st.header("📚 Your Course Schedule & Materials")
 
-        a1_schedule = [
+    a1_schedule = [
         # DAY 1
         {
             "day": 1,
