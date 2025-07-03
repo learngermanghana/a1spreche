@@ -2179,12 +2179,13 @@ def get_a2_schedule():
             "goal": "Practice basic greetings and small talk.",
             "instruction": (
                 "Today's lesson has 4 parts:\n\n"
-                 "**1. Sprechen (Group Practice):** Practice the daily question using the brain map provided. Use the chat feature in the Falowen app to speak for at least 1 minute.\n\n"
-                 "**2. Schreiben:** Reframe your group practice as a short letter (assignment).\n\n"
-                 "**3. Lesen:** Complete the reading exercise (7 questions).\n\n"
-                 "**4. Hören:** Do the listening exercise (5 questions).\n\n"
-                 "**5. Assignments to be submitted is schreiben,lesen and horen."
-                 "Finish all sections before submitting your answers."
+                "**1. Sprechen (Group Practice):** Practice the daily question using the brain map provided. Use the chat feature in the Falowen app to speak for at least 1 minute.\n\n"
+                "**2. Schreiben:** Reframe your group practice as a short letter (assignment).\n\n"
+                "**3. Lesen:** Complete the reading exercise (7 questions).\n\n"
+                "**4. Hören:** Do the listening exercise (5 questions).\n\n"
+                "**Assignments to be submitted:** Schreiben, Lesen, and Hören.\n\n"
+                "Finish all sections before submitting your answers."
+            ),
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1NsCKO4K7MWI-queLWCeBuclmaqPN04YQ/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1LXDI1yyJ4aT4LhX5eGDbKnkCkJZ2EE2T/view?usp=sharing"
@@ -2195,7 +2196,15 @@ def get_a2_schedule():
             "topic": "Personen Beschreiben (Exercise)",
             "chapter": "1.2",
             "goal": "Describe people and their appearance.",
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": (
+                "Today's lesson has 4 parts:\n\n"
+                "**1. Sprechen (Group Practice):** Practice describing people using the brain map and discuss in the Falowen chat for at least 1 minute.\n\n"
+                "**2. Schreiben:** Write a short letter about a person.\n\n"
+                "**3. Lesen:** Do the reading exercise (7 questions).\n\n"
+                "**4. Hören:** Complete the listening exercise (5 questions).\n\n"
+                "**Assignments to be submitted:** Schreiben, Lesen, and Hören.\n\n"
+                "Finish all sections before submitting your answers."
+            ),
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1VB_nXEfdeTgkzCYjh0tvE75zFJleMlyU/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/128lWaKgCZ2V-3tActM-dwNy6igLLlzH3/view?usp=sharing"
