@@ -319,10 +319,6 @@ def save_progress(student_code, level, teil, remaining, used):
     )
     conn.commit()
     
-import os
-import streamlit as st
-import datetime
-from encrypted_cookie_manager import EncryptedCookieManager  # or your import path
 
 # ------------------ DATA LOADING (no changes needed) -----------------
 @st.cache_data
