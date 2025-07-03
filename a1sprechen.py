@@ -2172,6 +2172,7 @@ def get_a1_schedule():
 
 def get_a2_schedule():
     return [
+        # DAY 1
         {
             "day": 1,
             "topic": "Small Talk (Exercise)",
@@ -2182,11 +2183,308 @@ def get_a2_schedule():
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # Add more days...
+        # DAY 2
+        {
+            "day": 2,
+            "topic": "Personen Beschreiben (Exercise)",
+            "chapter": "1.2",
+            "goal": "Describe people and their appearance.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 3
+        {
+            "day": 3,
+            "topic": "Dinge und Personen vergleichen",
+            "chapter": "1.3",
+            "goal": "Learn to compare things and people.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 4
+        {
+            "day": 4,
+            "topic": "Wo möchten wir uns treffen?",
+            "chapter": "2.4",
+            "goal": "Arrange and discuss meeting places.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 5
+        {
+            "day": 5,
+            "topic": "Was machst du in deiner Freizeit?",
+            "chapter": "2.5",
+            "goal": "Talk about free time activities.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 6
+        {
+            "day": 6,
+            "topic": "Möbel und Räume kennenlernen",
+            "chapter": "3.6",
+            "goal": "Identify furniture and rooms.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 7
+        {
+            "day": 7,
+            "topic": "Eine Wohnung suchen (Übung)",
+            "chapter": "3.7",
+            "goal": "Practice searching for an apartment.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 8
+        {
+            "day": 8,
+            "topic": "Rezepte und Essen (Exercise)",
+            "chapter": "3.8",
+            "goal": "Learn about recipes and food.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 9
+        {
+            "day": 9,
+            "topic": "Urlaub",
+            "chapter": "4.9",
+            "goal": "Discuss vacation plans.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 10
+        {
+            "day": 10,
+            "topic": "Tourismus und Traditionelle Feste",
+            "chapter": "4.10",
+            "goal": "Learn about tourism and festivals.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 11
+        {
+            "day": 11,
+            "topic": "Unterwegs: Verkehrsmittel vergleichen",
+            "chapter": "4.11",
+            "goal": "Compare means of transportation.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 12
+        {
+            "day": 12,
+            "topic": "Ein Tag im Leben (Übung)",
+            "chapter": "5.12",
+            "goal": "Describe a typical day.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 13
+        {
+            "day": 13,
+            "topic": "Ein Vorstellungsgespräch (Exercise)",
+            "chapter": "5.13",
+            "goal": "Prepare for a job interview.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 14
+        {
+            "day": 14,
+            "topic": "Beruf und Karriere (Exercise)",
+            "chapter": "5.14",
+            "goal": "Discuss jobs and careers.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 15
+        {
+            "day": 15,
+            "topic": "Mein Lieblingssport",
+            "chapter": "6.15",
+            "goal": "Talk about your favorite sport.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 16
+        {
+            "day": 16,
+            "topic": "Wohlbefinden und Entspannung",
+            "chapter": "6.16",
+            "goal": "Express well-being and relaxation.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 17
+        {
+            "day": 17,
+            "topic": "In die Apotheke gehen",
+            "chapter": "6.17",
+            "goal": "Learn phrases for the pharmacy.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 18
+        {
+            "day": 18,
+            "topic": "Die Bank anrufen",
+            "chapter": "7.18",
+            "goal": "Practice calling the bank.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 19
+        {
+            "day": 19,
+            "topic": "Einkaufen? Wo und wie? (Exercise)",
+            "chapter": "7.19",
+            "goal": "Shop and ask about locations.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 20
+        {
+            "day": 20,
+            "topic": "Typische Reklamationssituationen üben",
+            "chapter": "7.20",
+            "goal": "Handle typical complaints.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 21
+        {
+            "day": 21,
+            "topic": "Ein Wochenende planen",
+            "chapter": "8.21",
+            "goal": "Plan a weekend.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 22
+        {
+            "day": 22,
+            "topic": "Die Woche Planung",
+            "chapter": "8.22",
+            "goal": "Make a weekly plan.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 23
+        {
+            "day": 23,
+            "topic": "Wie kommst du zur Schule / zur Arbeit?",
+            "chapter": "9.23",
+            "goal": "Talk about your route to school or work.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 24
+        {
+            "day": 24,
+            "topic": "Einen Urlaub planen",
+            "chapter": "9.24",
+            "goal": "Plan a vacation.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 25
+        {
+            "day": 25,
+            "topic": "Tagesablauf (Exercise)",
+            "chapter": "9.25",
+            "goal": "Describe a daily routine.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 26
+        {
+            "day": 26,
+            "topic": "Gefühle in verschiedenen Situationen beschreiben",
+            "chapter": "10.26",
+            "goal": "Express feelings in various situations.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 27
+        {
+            "day": 27,
+            "topic": "Digitale Kommunikation",
+            "chapter": "10.27",
+            "goal": "Talk about digital communication.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 28
+        {
+            "day": 28,
+            "topic": "Über die Zukunft sprechen",
+            "chapter": "10.28",
+            "goal": "Discuss the future.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
     ]
 
 def get_b1_schedule():
     return [
+        # DAY 1
         {
             "day": 1,
             "topic": "Traumwelten (Übung)",
@@ -2197,8 +2495,305 @@ def get_b1_schedule():
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # Add more days...
+        # DAY 2
+        {
+            "day": 2,
+            "topic": "Freunde fürs Leben (Übung)",
+            "chapter": "1.2",
+            "goal": "Discuss friendships and important qualities.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 3
+        {
+            "day": 3,
+            "topic": "Vergangenheit erzählen",
+            "chapter": "1.3",
+            "goal": "Tell stories about the past.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 4
+        {
+            "day": 4,
+            "topic": "Wohnen und Zusammenleben",
+            "chapter": "2.1",
+            "goal": "Discuss housing and living together.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 5
+        {
+            "day": 5,
+            "topic": "Feste feiern",
+            "chapter": "2.2",
+            "goal": "Talk about festivals and celebrations.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 6
+        {
+            "day": 6,
+            "topic": "Mein Traumjob",
+            "chapter": "2.3",
+            "goal": "Describe your dream job.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 7
+        {
+            "day": 7,
+            "topic": "Gesund bleiben",
+            "chapter": "3.1",
+            "goal": "Learn how to talk about health and fitness.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 8
+        {
+            "day": 8,
+            "topic": "Arztbesuch und Gesundheitstipps",
+            "chapter": "3.2",
+            "goal": "Communicate with a doctor and give health tips.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 9
+        {
+            "day": 9,
+            "topic": "Erinnerungen und Kindheit",
+            "chapter": "3.3",
+            "goal": "Talk about childhood memories.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 10
+        {
+            "day": 10,
+            "topic": "Typisch deutsch? Kultur und Alltag",
+            "chapter": "4.1",
+            "goal": "Discuss cultural habits and everyday life.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 11
+        {
+            "day": 11,
+            "topic": "Wünsche und Träume",
+            "chapter": "4.2",
+            "goal": "Express wishes and dreams.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 12
+        {
+            "day": 12,
+            "topic": "Medien und Kommunikation",
+            "chapter": "4.3",
+            "goal": "Talk about media and communication.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 13
+        {
+            "day": 13,
+            "topic": "Reisen und Verkehr",
+            "chapter": "5.1",
+            "goal": "Discuss travel and transportation.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 14
+        {
+            "day": 14,
+            "topic": "Stadt oder Land",
+            "chapter": "5.2",
+            "goal": "Compare life in the city and the countryside.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 15
+        {
+            "day": 15,
+            "topic": "Wohnungssuche und Umzug",
+            "chapter": "5.3",
+            "goal": "Talk about searching for an apartment and moving.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 16
+        {
+            "day": 16,
+            "topic": "Natur und Umwelt",
+            "chapter": "6.1",
+            "goal": "Learn to discuss nature and the environment.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 17
+        {
+            "day": 17,
+            "topic": "Probleme und Lösungen",
+            "chapter": "6.2",
+            "goal": "Describe problems and find solutions.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 18
+        {
+            "day": 18,
+            "topic": "Arbeit und Finanzen",
+            "chapter": "6.3",
+            "goal": "Talk about work and finances.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 19
+        {
+            "day": 19,
+            "topic": "Berufliche Zukunft",
+            "chapter": "7.1",
+            "goal": "Discuss future career plans.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 20
+        {
+            "day": 20,
+            "topic": "Bildung und Weiterbildung",
+            "chapter": "7.2",
+            "goal": "Talk about education and further studies.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 21
+        {
+            "day": 21,
+            "topic": "Familie und Gesellschaft",
+            "chapter": "7.3",
+            "goal": "Discuss family and society.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 22
+        {
+            "day": 22,
+            "topic": "Konsum und Werbung",
+            "chapter": "8.1",
+            "goal": "Talk about consumption and advertising.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 23
+        {
+            "day": 23,
+            "topic": "Globalisierung",
+            "chapter": "8.2",
+            "goal": "Discuss globalization and its effects.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 24
+        {
+            "day": 24,
+            "topic": "Kulturelle Unterschiede",
+            "chapter": "8.3",
+            "goal": "Talk about cultural differences.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 25
+        {
+            "day": 25,
+            "topic": "Lebenslauf schreiben",
+            "chapter": "9.1",
+            "goal": "Write a CV and cover letter.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 26
+        {
+            "day": 26,
+            "topic": "Präsentationen halten",
+            "chapter": "9.2",
+            "goal": "Learn to give presentations.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 27
+        {
+            "day": 27,
+            "topic": "Zusammenfassen und Berichten",
+            "chapter": "9.3",
+            "goal": "Practice summarizing and reporting.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 28
+        {
+            "day": 28,
+            "topic": "Abschlussprüfungsvorbereitung",
+            "chapter": "10.1",
+            "goal": "Prepare for the final exam.",
+            "instruction": "Review all topics, watch the revision video, and complete your mock exam.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
     ]
+
 
 
 # --------------------------------------
@@ -2220,12 +2815,17 @@ if tab == "Course Book":
     # 1. Pick schedule based on student
     student_row = st.session_state.get('student_row', {})
     student_level = student_row.get('Level', 'A1').upper()
-    level_map = {"A1": get_a1_schedule()}
+    level_map = {
+        "A1": get_a1_schedule(),
+        "A2": get_a2_schedule(),
+        "B1": get_b1_schedule(),
+    }
     schedule = level_map.get(student_level, get_a1_schedule())
 
     if not schedule:
         st.warning("No schedule found for your level. Please contact the admin.")
         st.stop()
+
 
     selected_day_idx = st.selectbox(
         "📅 Choose your lesson/day:",
