@@ -1,23 +1,24 @@
 import os
-import random
-import difflib
-import sqlite3
-import atexit
 import json
+import random
 from datetime import date, datetime
+
 import pandas as pd
-import streamlit as st
-import urllib.parse
 import requests
 import io
+import streamlit as st
 from openai import OpenAI
 from fpdf import FPDF
 
+# Firebase Admin imports
+import firebase_admin
+from firebase_admin import credentials, firestore
+
 # ========== CONSTANTS ==========
-FALOWEN_DAILY_LIMIT = 20
-VOCAB_DAILY_LIMIT   = 20
+FALOWEN_DAILY_LIMIT   = 20
+VOCAB_DAILY_LIMIT     = 20
 SCHREIBEN_DAILY_LIMIT = 5
-max_turns = 25
+max_turns             = 25
 
 # ========== OPENAI SETUP ==========
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
@@ -25,180 +26,105 @@ if not OPENAI_API_KEY:
     st.error("Missing OpenAI API key. Please set OPENAI_API_KEY in env or secrets.")
     st.stop()
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
-client = OpenAI()
+ai = OpenAI()
 
-# ==========================
-# SQLITE HELPERS
-# ==========================
-def get_connection():
-    if "conn" not in st.session_state:
-        st.session_state["conn"] = sqlite3.connect("local.db", check_same_thread=False)
-        atexit.register(st.session_state["conn"].close)
-    return st.session_state["conn"]
+# ========== FIREBASE INIT ==========
+# Expect the service‐account JSON in FIREBASE_SERVICE_ACCOUNT env var (or secrets)
+sa_json = os.getenv("FIREBASE_SERVICE_ACCOUNT") or st.secrets.get("FIREBASE_SERVICE_ACCOUNT")
+if not sa_json:
+    st.error("Missing FIREBASE_SERVICE_ACCOUNT. Please set in env or secrets.")
+    st.stop()
 
-def init_db():
-    c = get_connection().cursor()
-    # Create progress tables
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS vocab_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            word TEXT,
-            student_answer TEXT,
-            is_correct INTEGER,
-            date TEXT
-        )
-    """)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS schreiben_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            essay TEXT,
-            score INTEGER,
-            feedback TEXT,
-            date TEXT
-        )
-    """)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS sprechen_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            teil TEXT,
-            message TEXT,
-            score INTEGER,
-            feedback TEXT,
-            date TEXT
-        )
-    """)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS my_vocab (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            level TEXT,
-            word TEXT,
-            translation TEXT,
-            date_added TEXT
-        )
-    """)
-    get_connection().commit()
-
-init_db()
-
-# ==========================
-# DATA LOADING & HELPERS
-# ==========================
-@st.cache_data
-def load_student_data():
-    SHEET_CSV = (
-        "https://docs.google.com/spreadsheets/d/"
-        "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
-    )
-    try:
-        resp = requests.get(SHEET_CSV, timeout=7)
-        resp.raise_for_status()
-        df = pd.read_csv(io.StringIO(resp.text), engine="python")
-        df.columns = [c.strip() for c in df.columns]
-        for col in ["StudentCode", "Email"]:
-            if col in df.columns:
-                df[col] = df[col].str.strip().str.lower()
-        return df
-    except Exception as e:
-        st.warning(f"Could not load student data: {e}")
-        return pd.DataFrame()
+sa_info = json.loads(sa_json)
+cred    = credentials.Certificate(sa_info)
+firebase_admin.initialize_app(cred)
+db = firestore.client()
 
 
-def contract_active(row):
-    end = row.get("ContractEnd") or row.get("Contract_End_Date")
-    if not end or str(end).strip().lower() in ["", "nan", "none"]:
-        return False
-    try:
-        return datetime.strptime(str(end), "%Y-%m-%d").date() >= date.today()
-    except:
-        return False
+# ========== PROGRESS SAVERS ==========
 
-# Progress savers
+def save_vocab_submission(student_code, name, level, word, student_answer, is_correct):
+    """Records a vocab check in Firestore."""
+    db.collection("vocab_progress").add({
+        "student_code":   student_code,
+        "name":           name,
+        "level":          level,
+        "word":           word,
+        "student_answer": student_answer,
+        "is_correct":     bool(is_correct),
+        "date":           firestore.SERVER_TIMESTAMP
+    })
 
-def save_vocab_submission(student_code, name, level, word, ans, correct):
-    conn = get_connection(); c = conn.cursor()
-    c.execute(
-        "INSERT INTO vocab_progress VALUES (NULL,?,?,?,?,?,?,?)",
-        (student_code, name, level, word, ans, int(correct), str(date.today())),
-    )
-    conn.commit()
+def save_schreiben_submission(student_code, name, level, essay, score, feedback):
+    """Records one writing submission."""
+    db.collection("schreiben_progress").add({
+        "student_code": student_code,
+        "name":         name,
+        "level":        level,
+        "essay":        essay,
+        "score":        score,
+        "feedback":     feedback,
+        "date":         firestore.SERVER_TIMESTAMP
+    })
 
+def save_sprechen_submission(student_code, name, level, teil, message, score, feedback):
+    """Records one speaking submission."""
+    db.collection("sprechen_progress").add({
+        "student_code": student_code,
+        "name":         name,
+        "level":        level,
+        "teil":         teil,
+        "message":      message,
+        "score":        score,
+        "feedback":     feedback,
+        "date":         firestore.SERVER_TIMESTAMP
+    })
 
-def save_schreiben_submission(student_code, name, level, essay, score, fb):
-    conn = get_connection(); c = conn.cursor()
-    c.execute(
-        "INSERT INTO schreiben_progress VALUES (NULL,?,?,?,?,?,?,?)",
-        (student_code, name, level, essay, score, fb, str(date.today())),
-    )
-    conn.commit()
-
-
-def save_sprechen_submission(student_code, name, level, teil, msg, score, fb):
-    conn = get_connection(); c = conn.cursor()
-    c.execute(
-        "INSERT INTO sprechen_progress VALUES (NULL,?,?,?,?,?,?,?,?)",
-        (student_code, name, level, teil, msg, score, fb, str(date.today())),
-    )
-    conn.commit()
-
-# Stats & quotas
+# ========== STATS & QUOTAS via Firestore ==========
 
 def get_vocab_streak(student_code):
-    conn = get_connection(); c = conn.cursor()
-    c.execute(
-        "SELECT DISTINCT date FROM vocab_progress WHERE student_code=? ORDER BY date DESC",
-        (student_code,),
-    )
-    rows = c.fetchall()
-    if not rows:
-        return 0
-    dates = [date.fromisoformat(r[0]) for r in rows]
-    if (date.today() - dates[0]).days > 1:
+    docs = db.collection("vocab_progress")\
+             .where("student_code","==",student_code)\
+             .order_by("date", direction=firestore.Query.DESCENDING)\
+             .stream()
+    dates = [d.to_dict()["date"].date() for d in docs if "date" in d.to_dict()]
+    # compute streak just like before...
+    if not dates or (date.today()-dates[0]).days>1:
         return 0
     streak, prev = 1, dates[0]
     for d in dates[1:]:
-        if (prev - d).days == 1:
-            streak += 1; prev = d
+        if (prev-d).days==1:
+            streak+=1; prev=d
         else:
             break
     return streak
 
-
-def get_writing_stats(student_code):
-    conn = get_connection(); c = conn.cursor()
-    c.execute(
-        "SELECT COUNT(*),SUM(score>=17) FROM schreiben_progress WHERE student_code=?",
-        (student_code,),
-    )
-    tot, passed = c.fetchone() or (0,0)
-    acc = round(100 * passed / tot) if tot else 0
-    return tot, passed, acc
-
+def get_writing_stats(student_code, passing_score=17):
+    docs = db.collection("schreiben_progress")\
+             .where("student_code","==",student_code)\
+             .stream()
+    total = passed = 0
+    for d in docs:
+        total += 1
+        if d.to_dict().get("score",0) >= passing_score:
+            passed += 1
+    acc = round(100 * passed / total) if total else 0
+    return total, passed, acc
 
 def get_falowen_usage(student_code):
-    today = str(date.today()); key = f"{student_code}_falowen_{today}"
-    usg = st.session_state.setdefault("falowen_usage", {})
-    return usg.setdefault(key, 0)
-
+    today = str(date.today())
+    key = f"{student_code}_falowen_{today}"
+    usage = st.session_state.setdefault("falowen_usage", {})
+    return usage.setdefault(key, 0)
 
 def inc_falowen_usage(student_code):
-    today = str(date.today()); key = f"{student_code}_falowen_{today}"
-    usg = st.session_state.setdefault("falowen_usage", {})
-    usg[key] = usg.get(key,0) + 1
-
+    today = str(date.today())
+    key = f"{student_code}_falowen_{today}"
+    usage = st.session_state.setdefault("falowen_usage", {})
+    usage[key] = usage.get(key, 0) + 1
 
 def has_falowen_quota(student_code):
     return get_falowen_usage(student_code) < FALOWEN_DAILY_LIMIT
-
 
 # --- Vocab lists for all levels ---
 
