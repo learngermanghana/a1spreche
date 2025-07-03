@@ -1804,18 +1804,18 @@ if tab == "Schreiben Trainer":
 if tab == "Course Book":
     st.header("📖 Course Book")
 
-    # --- Table of Contents (customize this as needed) ---
+    # --- Table of Contents (edit these to match your book's chapters/pages) ---
     toc = [
         {"chapter": "Chapter 0.1 – Greetings", "page": 3},
         {"chapter": "Chapter 0.2 – Introducing Yourself", "page": 6},
         {"chapter": "Chapter 1.1 – At the Café", "page": 12},
         {"chapter": "Chapter 1.2 – Shopping", "page": 20},
-        # Add more chapters as needed!
+        # Add more as needed!
     ]
 
-    # --- Google Drive PDF link (replace with your file ID) ---
-    pdf_id = "your_pdf_file_id"
-    pdf_link = f"https://drive.google.com/file/d/14llTlqrTQav8mv6fayNXF1nnIrHHqVt7/view?usp=sharing"
+    # Your Google Drive PDF ID
+    pdf_id = "14llTlqrTQav8mv6fayNXF1nnIrHHqVt7"
+    pdf_link = f"https://drive.google.com/file/d/{pdf_id}/preview"
 
     st.subheader("Table of Contents")
     for entry in toc:
