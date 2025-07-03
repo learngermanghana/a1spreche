@@ -28,10 +28,8 @@ def get_connection():
         atexit.register(st.session_state["conn"].close)
     return st.session_state["conn"]
 
-conn = get_connection()
-c = conn.cursor()
-
 def init_db():
+    conn = get_connection()
     c = conn.cursor()
     c.execute("""
         CREATE TABLE IF NOT EXISTS vocab_progress (
@@ -45,7 +43,63 @@ def init_db():
             date TEXT
         )
     """)
-    # ...all other tables you want...
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS schreiben_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            name TEXT,
+            level TEXT,
+            essay TEXT,
+            score INTEGER,
+            feedback TEXT,
+            date TEXT
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS sprechen_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            name TEXT,
+            level TEXT,
+            teil TEXT,
+            message TEXT,
+            score INTEGER,
+            feedback TEXT,
+            date TEXT
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS scores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            name TEXT,
+            assignment TEXT,
+            score REAL,
+            comments TEXT,
+            date TEXT,
+            level TEXT
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS exam_progress (
+            student_code TEXT,
+            level        TEXT,
+            teil         TEXT,
+            remaining    TEXT,    -- JSON list of topics still to do
+            used         TEXT,    -- JSON list of already done
+            PRIMARY KEY (student_code, level, teil)
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS my_vocab (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            level TEXT,
+            word TEXT,
+            translation TEXT,
+            date_added TEXT
+        )
+    """)
     conn.commit()
 init_db()
 
@@ -67,15 +121,158 @@ def load_student_data():
         return pd.DataFrame()
 
 def contract_active(row):
-    # Accepts ContractEnd or Contract_End_Date columns
     contract_end_str = row.get("ContractEnd") or row.get("Contract_End_Date")
-    if not contract_end_str or str(contract_end_str).strip() in ["", "nan", "None"]:
+    if not contract_end_str or str(contract_end_str).strip().lower() in ["", "nan", "none"]:
         return False
     try:
         contract_end = datetime.strptime(str(contract_end_str), "%Y-%m-%d").date()
         return contract_end >= date.today()
     except Exception:
         return False
+
+# ========== DB HELPERS ==========
+def save_vocab_submission(student_code, name, level, word, student_answer, is_correct):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO vocab_progress (student_code, name, level, word, student_answer, is_correct, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (student_code, name, level, word, student_answer, int(is_correct), str(date.today()))
+    )
+    conn.commit()
+
+def save_schreiben_submission(student_code, name, level, essay, score, feedback):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO schreiben_progress (student_code, name, level, essay, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (student_code, name, level, essay, score, feedback, str(date.today()))
+    )
+    conn.commit()
+
+def save_sprechen_submission(student_code, name, level, teil, message, score, feedback):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO sprechen_progress (student_code, name, level, teil, message, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (student_code, name, level, teil, message, score, feedback, str(date.today()))
+    )
+    conn.commit()
+
+def get_personal_vocab_stats(student_code):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT level, COUNT(*) FROM my_vocab WHERE student_code=? GROUP BY level",
+        (student_code,)
+    )
+    rows = c.fetchall()
+    stats = {row[0]: row[1] for row in rows}
+    stats['total'] = sum(stats.values())
+    return stats
+
+def add_my_vocab(student_code, level, word, translation):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO my_vocab (student_code, level, word, translation, date_added) VALUES (?, ?, ?, ?, ?)",
+        (student_code, level, word, translation, str(date.today()))
+    )
+    conn.commit()
+
+def get_my_vocab(student_code, level=None):
+    conn = get_connection()
+    c = conn.cursor()
+    if level:
+        c.execute(
+            "SELECT id, word, translation, date_added FROM my_vocab WHERE student_code=? AND level=? ORDER BY date_added DESC",
+            (student_code, level)
+        )
+    else:
+        c.execute(
+            "SELECT id, word, translation, date_added FROM my_vocab WHERE student_code=? ORDER BY date_added DESC",
+            (student_code,)
+        )
+    return c.fetchall()
+
+def delete_my_vocab(vocab_id, student_code):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("DELETE FROM my_vocab WHERE id=? AND student_code=?", (vocab_id, student_code))
+    conn.commit()
+
+def count_my_vocab(student_code, level=None):
+    conn = get_connection()
+    c = conn.cursor()
+    if level:
+        c.execute("SELECT COUNT(*) FROM my_vocab WHERE student_code=? AND level=?", (student_code, level))
+    else:
+        c.execute("SELECT COUNT(*) FROM my_vocab WHERE student_code=?", (student_code,))
+    return c.fetchone()[0]
+
+def get_writing_stats(student_code):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT COUNT(*), SUM(score>=17) FROM schreiben_progress WHERE student_code=?
+    """, (student_code,))
+    result = c.fetchone()
+    attempted = result[0] or 0
+    passed = result[1] if result[1] is not None else 0
+    accuracy = round(100 * passed / attempted) if attempted > 0 else 0
+    return attempted, passed, accuracy
+
+def get_student_stats(student_code):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT level, SUM(score >= 17), COUNT(*) 
+        FROM schreiben_progress 
+        WHERE student_code=?
+        GROUP BY level
+    """, (student_code,))
+    stats = {}
+    for level, correct, attempted in c.fetchall():
+        stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
+    return stats
+
+def get_falowen_usage(student_code):
+    today_str = str(date.today())
+    key = f"{student_code}_falowen_{today_str}"
+    if "falowen_usage" not in st.session_state:
+        st.session_state["falowen_usage"] = {}
+    st.session_state["falowen_usage"].setdefault(key, 0)
+    return st.session_state["falowen_usage"][key]
+
+def inc_falowen_usage(student_code):
+    today_str = str(date.today())
+    key = f"{student_code}_falowen_{today_str}"
+    if "falowen_usage" not in st.session_state:
+        st.session_state["falowen_usage"] = {}
+    st.session_state["falowen_usage"].setdefault(key, 0)
+    st.session_state["falowen_usage"][key] += 1
+
+def get_vocab_streak(student_code):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT DISTINCT date FROM vocab_progress WHERE student_code=? ORDER BY date DESC",
+        (student_code,),
+    )
+    rows = c.fetchall()
+    if not rows:
+        return 0
+    dates = [date.fromisoformat(r[0]) for r in rows]
+    if (date.today() - dates[0]).days > 1:
+        return 0
+    streak = 1
+    prev = dates[0]
+    for d in dates[1:]:
+        if (prev - d).days == 1:
+            streak += 1
+            prev = d
+        else:
+            break
+    return streak
 
 # --- Streamlit page config ---
 st.set_page_config(
@@ -180,263 +377,6 @@ if st.button("🚪 Log Out"):
 # --- Your app content goes here! ---
 st.success(f"Welcome: {row.get('Name', 'Student')} (Level: {row.get('Level', '')})")
 
-
-# ---- DB connection helper ----
-def get_connection():
-    if "conn" not in st.session_state:
-        st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
-        atexit.register(st.session_state["conn"].close)
-    return st.session_state["conn"]
-
-conn = get_connection()
-c = conn.cursor()
-
-# --- Create/verify tables if not exist (run once per app startup) ---
-def init_db():
-    conn = get_connection()
-    c = conn.cursor()
-    # Vocab Progress Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS vocab_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            word TEXT,
-            student_answer TEXT,
-            is_correct INTEGER,
-            date TEXT
-        )
-    """)
-    # Schreiben Progress Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS schreiben_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            essay TEXT,
-            score INTEGER,
-            feedback TEXT,
-            date TEXT
-        )
-    """)
-    # Sprechen Progress Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS sprechen_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            teil TEXT,
-            message TEXT,
-            score INTEGER,
-            feedback TEXT,
-            date TEXT
-        )
-    """)
-    # Scores Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS scores (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            assignment TEXT,
-            score REAL,
-            comments TEXT,
-            date TEXT,
-            level TEXT
-        )
-    """)
-    # Exam Progress Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS exam_progress (
-            student_code TEXT,
-            level        TEXT,
-            teil         TEXT,
-            remaining    TEXT,    -- JSON list of topics still to do
-            used         TEXT,    -- JSON list of already done
-            PRIMARY KEY (student_code, level, teil)
-        )
-    """)
-    # My Vocab Table (STUDENT PERSONAL VOCAB)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS my_vocab (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            level TEXT,
-            word TEXT,
-            translation TEXT,
-            date_added TEXT
-        )
-    """)
-    conn.commit()
-
-# Call DB initialization ONCE after imports
-init_db()
-
-# ====== DB HELPERS (for all tables) ======
-
-def save_vocab_submission(student_code, name, level, word, student_answer, is_correct):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO vocab_progress (student_code, name, level, word, student_answer, is_correct, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (student_code, name, level, word, student_answer, int(is_correct), str(date.today()))
-    )
-    conn.commit()
-
-def save_schreiben_submission(student_code, name, level, essay, score, feedback):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO schreiben_progress (student_code, name, level, essay, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (student_code, name, level, essay, score, feedback, str(date.today()))
-    )
-    conn.commit()
-
-def save_sprechen_submission(student_code, name, level, teil, message, score, feedback):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO sprechen_progress (student_code, name, level, teil, message, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (student_code, name, level, teil, message, score, feedback, str(date.today()))
-    )
-    conn.commit()
-
-# ====== PERSONAL VOCAB HELPERS ======
-def get_personal_vocab_stats(student_code):
-    """
-    Returns a dict: {level: count} for all levels where this student has personal vocab,
-    and total.
-    """
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "SELECT level, COUNT(*) FROM my_vocab WHERE student_code=? GROUP BY level",
-        (student_code,)
-    )
-    rows = c.fetchall()
-    stats = {row[0]: row[1] for row in rows}
-    stats['total'] = sum(stats.values())
-    return stats
-
-def add_my_vocab(student_code, level, word, translation):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO my_vocab (student_code, level, word, translation, date_added) VALUES (?, ?, ?, ?, ?)",
-        (student_code, level, word, translation, str(date.today()))
-    )
-    conn.commit()
-
-def get_my_vocab(student_code, level=None):
-    conn = get_connection()
-    c = conn.cursor()
-    if level:
-        c.execute(
-            "SELECT id, word, translation, date_added FROM my_vocab WHERE student_code=? AND level=? ORDER BY date_added DESC",
-            (student_code, level)
-        )
-    else:
-        c.execute(
-            "SELECT id, word, translation, date_added FROM my_vocab WHERE student_code=? ORDER BY date_added DESC",
-            (student_code,)
-        )
-    return c.fetchall()
-
-def delete_my_vocab(vocab_id, student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("DELETE FROM my_vocab WHERE id=? AND student_code=?", (vocab_id, student_code))
-    conn.commit()
-
-def count_my_vocab(student_code, level=None):
-    conn = get_connection()
-    c = conn.cursor()
-    if level:
-        c.execute("SELECT COUNT(*) FROM my_vocab WHERE student_code=? AND level=?", (student_code, level))
-    else:
-        c.execute("SELECT COUNT(*) FROM my_vocab WHERE student_code=?", (student_code,))
-    return c.fetchone()[0]
-
-# ====== OTHER HELPERS (existing, no change) ======
-
-def get_writing_stats(student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT COUNT(*), SUM(score>=17) FROM schreiben_progress WHERE student_code=?
-    """, (student_code,))
-    result = c.fetchone()
-    attempted = result[0] or 0
-    passed = result[1] if result[1] is not None else 0
-    accuracy = round(100 * passed / attempted) if attempted > 0 else 0
-    return attempted, passed, accuracy
-
-def get_student_stats(student_code):
-    """Return writing stats per level for a student."""
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT level, SUM(score >= 17), COUNT(*) 
-        FROM schreiben_progress 
-        WHERE student_code=?
-        GROUP BY level
-    """, (student_code,))
-    stats = {}
-    for level, correct, attempted in c.fetchall():
-        stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
-    return stats
-
-def get_falowen_usage(student_code):
-    today_str = str(date.today())
-    key = f"{student_code}_falowen_{today_str}"
-    if "falowen_usage" not in st.session_state:
-        st.session_state["falowen_usage"] = {}
-    st.session_state["falowen_usage"].setdefault(key, 0)
-    return st.session_state["falowen_usage"][key]
-
-def inc_falowen_usage(student_code):
-    today_str = str(date.today())
-    key = f"{student_code}_falowen_{today_str}"
-    if "falowen_usage" not in st.session_state:
-        st.session_state["falowen_usage"] = {}
-    st.session_state["falowen_usage"].setdefault(key, 0)
-    st.session_state["falowen_usage"][key] += 1
-
-def has_falowen_quota(student_code):
-    return get_falowen_usage(student_code) < FALOWEN_DAILY_LIMIT
-
-def get_vocab_streak(student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "SELECT DISTINCT date FROM vocab_progress WHERE student_code=? ORDER BY date DESC",
-        (student_code,),
-    )
-    rows = c.fetchall()
-    if not rows:
-        return 0
-    dates = [date.fromisoformat(r[0]) for r in rows]
-    if (date.today() - dates[0]).days > 1:
-        return 0
-    streak = 1
-    prev = dates[0]
-    for d in dates[1:]:
-        if (prev - d).days == 1:
-            streak += 1
-            prev = d
-        else:
-            break
-    return streak
-
-# --- Streamlit page config ---
-st.set_page_config(
-    page_title="Falowen – Your German Conversation Partner",
-    layout="centered",
-    initial_sidebar_state="expanded"
-)
 
 # ---- Falowen Header ----
 st.markdown(
