@@ -2158,21 +2158,25 @@ if tab == "Course":
     ]
 
 
-    # ==== LEVEL MAP (you can add A2, B1, B2 similarly) ====
+    # --- Simulate student level for demo/testing ---
+    student_row = st.session_state.get('student_row', {})
+    student_level = student_row.get('Level', 'A2').upper()   # Or change to 'A1', 'A2', 'B1'
+    # For demo:
+    # student_level = "A2"
+
+    # --- Use the correct schedule based on level ---
     level_map = {
         "A1": a1_schedule,
-        # "A2": a2_schedule,
-        # "B1": b1_schedule,
+        "A2": a2_schedule,
+        "B1": b1_schedule,
     }
-
-    student_row = st.session_state.get('student_row', {})
-    student_level = student_row.get('Level', 'A1').upper()
-    schedule = level_map.get(student_level, [])
+    schedule = level_map.get(student_level, a2_schedule)
 
     if not schedule:
         st.warning("No schedule found for your level. Please contact the admin.")
         st.stop()
 
+    # --- Let user pick a day ---
     selected_day_idx = st.selectbox(
         "Choose your lesson/day:",
         range(len(schedule)),
@@ -2180,39 +2184,37 @@ if tab == "Course":
     )
     day_info = schedule[selected_day_idx]
 
+    # --- Show the lesson content in your preferred order ---
     st.markdown(f"### Day {day_info['day']}: {day_info['topic']} (Chapter {day_info['chapter']})")
+    
+    if day_info.get("goal"):
+        st.markdown(f"**🎯 Goal:** {day_info['goal']}")
+    if day_info.get("instruction"):
+        st.markdown(f"**📝 Instruction:** {day_info['instruction']}")
 
-    # ==== LESEN & HÖREN ====
-    lh = day_info.get("lesen_hören", {})
-    st.markdown("#### 📖 Lesen & Hören")
-    if lh.get("workbook_link"):
+    # --- Video (if available) ---
+    if day_info.get("video"):
+        st.video(day_info["video"])
+
+    # --- Grammar Book ---
+    if day_info.get("grammarbook_link"):
+        st.markdown("**📘 Grammar Book:**")
         st.markdown(
-            f"<iframe src='{lh['workbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
+            f"<iframe src='{day_info['grammarbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
             unsafe_allow_html=True,
         )
-        st.markdown(f"[🔍 Open Workbook in new tab]({lh['workbook_link']})")
-    if lh.get("grammarbook_link"):
+        st.markdown(f"[🔍 Open Grammar Book in new tab]({day_info['grammarbook_link']})")
+    
+    # --- Workbook ---
+    if day_info.get("workbook_link"):
+        st.markdown("**📒 Workbook:**")
         st.markdown(
-            f"<iframe src='{lh['grammarbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
+            f"<iframe src='{day_info['workbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
             unsafe_allow_html=True,
         )
-        st.markdown(f"[🔍 Open Grammar Book in new tab]({lh['grammarbook_link']})")
-    if lh.get("video"):
-        st.video(lh["video"])
+        st.markdown(f"[🔍 Open Workbook in new tab]({day_info['workbook_link']})")
 
-    # ==== SCHREIBEN & SPRECHEN ====
-    ss = day_info.get("schreiben_sprechen", {})
-    st.markdown("#### ✍️ Schreiben & Sprechen")
-    if ss.get("workbook_link"):
-        st.markdown(
-            f"<iframe src='{ss['workbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
-            unsafe_allow_html=True,
-        )
-        st.markdown(f"[🔍 Open Workbook in new tab]({ss['workbook_link']})")
-    if ss.get("video"):
-        st.video(ss["video"])
-
-    # ==== SUBMISSION (WhatsApp) ====
+    # --- Assignment Submission Section (WhatsApp) ---
     st.divider()
     st.subheader("📲 Submit Assignment (WhatsApp)")
     student_name = st.text_input("Your Name", value=student_row.get('Name', ''))
@@ -2225,7 +2227,7 @@ Code: {student_code}
 Level: {student_level}
 Day: {day_info['day']}
 Chapter: {day_info['chapter']}
-Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}
+Date: {datetime.datetime.now():%Y-%m-%d %H:%M}
 Answer: {answer if answer.strip() else '[See attached file/photo]'}
 """
     wa_url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(wa_message)
@@ -2243,235 +2245,4 @@ Answer: {answer if answer.strip() else '[See attached file/photo]'}
 - For file/photo: paste message in WhatsApp and attach before sending.
 - Always use your real name and code for tracking!
 """)
-
-
-
-
-#Myresults
-
-if tab == "My Results and Resources":
-    # Always define these at the top
-    student_code = st.session_state.get("student_code", "")
-    student_name = st.session_state.get("student_name", "")
-    st.header("📈 My Results and Resources Hub")
-    st.markdown("View and download your assignment history. All results are private and only visible to you.")
-
-    # === LIVE GOOGLE SHEETS CSV LINK ===
-    GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
-
-    import requests
-    import io
-    import pandas as pd
-    from fpdf import FPDF
-
-    @st.cache_data
-    def fetch_scores():
-        response = requests.get(GOOGLE_SHEET_CSV, timeout=7)
-        response.raise_for_status()
-        df = pd.read_csv(io.StringIO(response.text), engine='python')
-
-        # Clean and validate columns
-        df.columns = [col.strip().lower().replace('studentcode', 'student_code') for col in df.columns]
-
-        # Drop rows with missing *required* fields
-        required_cols = ["student_code", "name", "assignment", "score", "date", "level"]
-        df = df.dropna(subset=required_cols)
-
-        return df
-
-    df_scores = fetch_scores()
-    required_cols = {"student_code", "name", "assignment", "score", "date", "level"}
-    if not required_cols.issubset(df_scores.columns):
-        st.error("Data format error. Please contact support.")
-        st.write("Columns found:", df_scores.columns.tolist())  # <-- for debugging
-        st.stop()
-
-    # Filter for current student
-    code = st.session_state.get("student_code", "").lower().strip()
-    df_user = df_scores[df_scores.student_code.str.lower().str.strip() == code]
-    if df_user.empty:
-        st.info("No results yet. Complete an assignment to see your scores!")
-        st.stop()
-
-    # Choose level
-    df_user['level'] = df_user.level.str.upper().str.strip()
-    levels = sorted(df_user['level'].unique())
-    level = st.selectbox("Select level:", levels)
-    df_lvl = df_user[df_user.level == level]
-
-    # Summary metrics
-    totals = {"A1": 18, "A2": 28, "B1": 26, "B2": 24}
-    total = totals.get(level, 0)
-    completed = df_lvl.assignment.nunique()
-    avg_score = df_lvl.score.mean() or 0
-    best_score = df_lvl.score.max() or 0
-
-    # Display metrics in columns
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Assignments", total)
-    col2.metric("Completed", completed)
-    col3.metric("Average Score", f"{avg_score:.1f}")
-    col4.metric("Best Score", best_score)
-
-    # Detailed results
-    with st.expander("See detailed results", expanded=False):
-        df_display = (
-            df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
-                 [['assignment', 'score', 'date']]
-                 .reset_index(drop=True)
-        )
-        st.table(df_display)
-
-    # Download PDF summary
-    if st.button("⬇️ Download PDF Summary"):
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", 'B', 14)
-        pdf.cell(0, 10, "Learn Language Education Academy", ln=1, align='C')
-        pdf.ln(5)
-        pdf.set_font("Arial", '', 12)
-        pdf.multi_cell(
-            0, 8,
-            f"Name: {df_user.name.iloc[0]}\n"
-            f"Code: {code}\n"
-            f"Level: {level}\n"
-            f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"
-        )
-        pdf.ln(4)
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 8, "Summary Metrics", ln=1)
-        pdf.set_font("Arial", '', 11)
-        pdf.cell(0, 8, f"Total: {total}, Completed: {completed}, Avg: {avg_score:.1f}, Best: {best_score}", ln=1)
-        pdf.ln(4)
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 8, "Detailed Results", ln=1)
-        pdf.set_font("Arial", '', 10)
-        for _, row in df_display.iterrows():
-            pdf.cell(0, 7, f"{row['assignment']}: {row['score']} ({row['date']})", ln=1)
-        pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
-        st.download_button(
-            label="Download PDF",
-            data=pdf_bytes,
-            file_name=f"{code}_results_{level}.pdf",
-            mime="application/pdf"
-        )
-
-if tab == "Admin":
-    # --- Admin Auth ---
-    if not st.session_state.get("is_admin", False):
-        admin_pw = st.text_input("Enter admin password:", type="password", key="admin_pw")
-        if st.button("Login as Admin"):
-            ADMIN_PASSWORD = "Felix029"
-            if admin_pw == ADMIN_PASSWORD:
-                st.session_state["is_admin"] = True
-                st.success("Welcome, Admin!")
-                st.rerun()
-            else:
-                st.error("Incorrect password.")
-        st.stop()
-    else:
-        st.info("You are logged in as admin.")
-
-        # --- Force Refresh Button ---
-        if st.button("🔄 Force Refresh All Data"):
-            st.cache_data.clear()
-            st.success("Cache cleared! Reloading…")
-            st.rerun()
-
-        st.subheader("Student Data Backup & Restore")
-
-        # ===== Download/Backup Section =====
-        import pandas as pd
-
-        # --- Student Scores Backup ---
-        st.markdown("### 📥 Download Backups")
-
-        # Scores (assignment marking) backup
-        try:
-            conn_scores = sqlite3.connect('scores.db')
-            df_scores = pd.read_sql_query("SELECT * FROM scores", conn_scores)
-            csv_scores = df_scores.to_csv(index=False).encode('utf-8')
-            st.download_button("⬇️ Download Scores Backup", csv_scores, file_name="scores_backup.csv", mime="text/csv")
-        except Exception as e:
-            st.warning(f"Could not load scores: {e}")
-
-        # Vocab Progress backup
-        try:
-            conn_vocab = sqlite3.connect('vocab_progress.db')
-            df_vocab = pd.read_sql_query("SELECT * FROM vocab_progress", conn_vocab)
-            csv_vocab = df_vocab.to_csv(index=False).encode('utf-8')
-            st.download_button("⬇️ Download Vocab Progress", csv_vocab, file_name="vocab_progress_backup.csv", mime="text/csv")
-        except Exception as e:
-            st.warning(f"Could not load vocab progress: {e}")
-
-        # Schreiben Progress backup
-        try:
-            conn_schreiben = sqlite3.connect('vocab_progress.db')
-            df_schreiben = pd.read_sql_query("SELECT * FROM schreiben_progress", conn_schreiben)
-            csv_schreiben = df_schreiben.to_csv(index=False).encode('utf-8')
-            st.download_button("⬇️ Download Schreiben Progress", csv_schreiben, file_name="schreiben_progress_backup.csv", mime="text/csv")
-        except Exception as e:
-            st.warning(f"Could not load schreiben progress: {e}")
-
-        # Sprechen Progress backup (if table exists)
-        try:
-            conn_sprechen = sqlite3.connect('vocab_progress.db')
-            df_sprechen = pd.read_sql_query("SELECT * FROM sprechen_progress", conn_sprechen)
-            csv_sprechen = df_sprechen.to_csv(index=False).encode('utf-8')
-            st.download_button("⬇️ Download Sprechen Progress", csv_sprechen, file_name="sprechen_progress_backup.csv", mime="text/csv")
-        except Exception as e:
-            st.info("No Sprechen Progress table found. (If not used, ignore this warning.)")
-
-        # ===== Upload/Restore Section =====
-        st.markdown("### 📤 Restore from Backup (Upload, overwrites current data)")
-
-        # --- Scores Upload ---
-        uploaded_scores = st.file_uploader("Upload Scores CSV", type="csv", key="up_scores")
-        if uploaded_scores:
-            try:
-                df_new = pd.read_csv(uploaded_scores)
-                conn_scores = sqlite3.connect('scores.db')
-                df_new.to_sql('scores', conn_scores, if_exists='replace', index=False)
-                st.success("Scores data uploaded & replaced.")
-            except Exception as e:
-                st.error(f"Upload failed: {e}")
-
-        # --- Vocab Progress Upload ---
-        uploaded_vocab = st.file_uploader("Upload Vocab Progress CSV", type="csv", key="up_vocab")
-        if uploaded_vocab:
-            try:
-                df_new = pd.read_csv(uploaded_vocab)
-                conn_vocab = sqlite3.connect('vocab_progress.db')
-                df_new.to_sql('vocab_progress', conn_vocab, if_exists='replace', index=False)
-                st.success("Vocab Progress uploaded & replaced.")
-            except Exception as e:
-                st.error(f"Upload failed: {e}")
-
-        # --- Schreiben Progress Upload ---
-        uploaded_schreiben = st.file_uploader("Upload Schreiben Progress CSV", type="csv", key="up_schreiben")
-        if uploaded_schreiben:
-            try:
-                df_new = pd.read_csv(uploaded_schreiben)
-                conn_schreiben = sqlite3.connect('vocab_progress.db')
-                df_new.to_sql('schreiben_progress', conn_schreiben, if_exists='replace', index=False)
-                st.success("Schreiben Progress uploaded & replaced.")
-            except Exception as e:
-                st.error(f"Upload failed: {e}")
-
-        # --- Sprechen Progress Upload ---
-        uploaded_sprechen = st.file_uploader("Upload Sprechen Progress CSV", type="csv", key="up_sprechen")
-        if uploaded_sprechen:
-            try:
-                df_new = pd.read_csv(uploaded_sprechen)
-                conn_sprechen = sqlite3.connect('vocab_progress.db')
-                df_new.to_sql('sprechen_progress', conn_sprechen, if_exists='replace', index=False)
-                st.success("Sprechen Progress uploaded & replaced.")
-            except Exception as e:
-                st.error(f"Upload failed: {e}")
-
-        # --- Show all students table (as before) ---
-        st.markdown("---")
-        st.markdown("### 👀 View All Student Records")
-        df_students = load_student_data()
-        st.dataframe(df_students)
 
