@@ -1978,8 +1978,6 @@ Answer: {answer if answer.strip() else '[See attached file/photo]'}
 - Always use your real name and code for tracking!
 """)
 
-""")
-
 #Myresults
 
 if tab == "My Results and Resources":
