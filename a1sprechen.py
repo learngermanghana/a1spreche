@@ -427,12 +427,29 @@ c1_teil3_evaluations = [
 ]
 
 
-# — Main tab selector —
+# … after your login / logout logic …
+
+# Make sure the user is logged in and we have a student_row
+if not st.session_state.get("logged_in", False):
+    st.error("Please log in to continue.")
+    st.stop()
+
+# Grab the full student record once:
+row = st.session_state["student_row"]
 student_code = row["StudentCode"]
+
+#  — Main tab selector —
 tab = st.radio(
     "How do you want to practice?",
-    ["Dashboard","Exams Mode & Custom Chat","Vocab Trainer",
-     "Schreiben Trainer","Course Book","My Results and Resources","Admin"],
+    [
+        "Dashboard",
+        "Exams Mode & Custom Chat",
+        "Vocab Trainer",
+        "Schreiben Trainer",
+        "Course Book",
+        "My Results and Resources",
+        "Admin"
+    ],
     key="main_tab"
 )
 
@@ -440,54 +457,67 @@ tab = st.radio(
 if tab == "Dashboard":
     st.header("📊 Student Dashboard")
 
-    # Refresh student data
+    # Re-load in case it changed upstream
     df = load_student_data()
-    f  = df[df["StudentCode"].str.lower()==student_code]
-    student = f.iloc[0].to_dict() if not f.empty else {}
+    found = df[df["StudentCode"].str.lower() == student_code.lower()]
+    student = found.iloc[0].to_dict() if not found.empty else {}
 
+    # Stats
     streak = get_vocab_streak(student_code)
-    tot,passed,acc = get_writing_stats(student_code)
-    today = str(date.today())
-    key   = f"{student_code}_schreiben_{today}"
-    used  = st.session_state.setdefault("schreiben_usage",{}).setdefault(key,0)
+    tot, passed, acc = get_writing_stats(student_code)
 
-    # Display info
-    st.markdown(f"### 👤 {student.get('Name','')}")
+    # Today’s Schreiben usage
+    today_key = f"{student_code}_schreiben_{date.today()}"
+    written_today = st.session_state.setdefault("schreiben_usage", {}).setdefault(today_key, 0)
+
+    # Student info panel
+    st.markdown(f"### 👤 {student.get('Name','n/a')}")
     st.markdown(
-        f"**Level:** {student.get('Level','')}  \n"
+        f"**Level:** {student.get('Level','n/a')}  \n"
         f"**Code:** `{student.get('StudentCode','')}`  \n"
-        f"**Email:** {student.get('Email','')}  \n"
-        f"**Phone:** {student.get('Phone','')}  \n"
-        f"**Location:** {student.get('Location','')}  \n"
+        f"**Email:** {student.get('Email','n/a')}  \n"
+        f"**Phone:** {student.get('Phone','n/a')}  \n"
+        f"**Location:** {student.get('Location','n/a')}  \n"
         f"**Contract:** {student.get('ContractStart','')} ➔ {student.get('ContractEnd','')}  \n"
         f"**Enroll Date:** {student.get('EnrollDate','')}  \n"
         f"**Status:** {student.get('Status','')}"
     )
 
-    if float(student.get("Balance","0") or 0) > 0:
-        st.warning(f"💸 Balance to pay: ₵{float(student.get('Balance',0)):.2f}")
+    # Balance warning
+    balance = float(student.get("Balance", 0) or 0)
+    if balance > 0:
+        st.warning(f"💸 Balance to pay: ₵{balance:.2f}")
 
+    # Contract expiry reminder
     ce = student.get("ContractEnd")
     if ce:
         try:
-            dleft = (datetime.strptime(str(ce),"%Y-%m-%d") - datetime.now()).days
-            if 0<dleft<=30: st.info(f"⚠️ Contract ends in {dleft} days.")
-            elif dleft<0: st.error("⏰ Contract expired.")
-        except: pass
+            days_left = (datetime.strptime(ce, "%Y-%m-%d") - datetime.now()).days
+            if 0 < days_left <= 30:
+                st.info(f"⚠️ Contract ends in {days_left} days.")
+            elif days_left < 0:
+                st.error("⏰ Contract expired.")
+        except:
+            pass
 
+    # Progress metrics
     st.markdown(f"🔥 **Vocab Streak:** {streak} days")
-    goal = max(0,2-tot)
-    if goal>0: st.success(f"🎯 Write {goal} more letter(s) this week!")
-    else:     st.success("🎉 Weekly goal reached!")
+    goal = max(0, 2 - tot)
+    if goal > 0:
+        st.success(f"🎯 Write {goal} more letter(s) this week!")
+    else:
+        st.success("🎉 Weekly goal reached!")
     st.markdown(
         f"**📝 Letters submitted:** {tot}  \n"
         f"**✅ Passed (≥17):** {passed}  \n"
         f"**🏅 Pass rate:** {acc}%  \n"
-        f"**Today:** {used} / {SCHREIBEN_DAILY_LIMIT}"
+        f"**Today:** {written_today} / {SCHREIBEN_DAILY_LIMIT}"
     )
 
+    # Upcoming exams
     with st.expander("📅 Upcoming Goethe Exams", expanded=True):
-        st.markdown("""
+        st.markdown(
+            """
 | Level | Date       | Fee (GHS) |
 |-------|------------|-----------|
 | A1    | 21.07.2025 | 2,850     |
@@ -495,7 +525,9 @@ if tab == "Dashboard":
 | B1    | 23.07.2025 | 2,750     |
 | B2    | 24.07.2025 | 2,500     |
 | C1    | 25.07.2025 | 2,450     |
-""")
+            """
+        )
+
 
 
 # ================================
