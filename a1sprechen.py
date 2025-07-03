@@ -1809,99 +1809,98 @@ if "student_row" not in st.session_state:
 tab = "Course"
 
 if tab == "Course":
+    import streamlit as st
+    import datetime, urllib.parse
+
     st.header("📚 Your Course Schedule & Materials")
 
-    # ======= A1 SCHEDULE =======
+    # === SCHEDULE DICTIONARIES ===
+
+    # ==== A1 SCHEDULE (with sub-sections for Lesen & Hören, Schreiben & Sprechen) ====
     a1_schedule = [
-        {"day": 1, "topic": "Lesen & Hören", "chapter": "0.1", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID1", "assignment_id": "A1_ASSIGNMENT_ID1", "video": None},
-        {"day": 2, "topic": "Lesen & Hören", "chapter": "0.2_1.1", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID2", "assignment_id": "A1_ASSIGNMENT_ID2", "video": None},
-        {"day": 3, "topic": "Schreiben & Sprechen, Lesen & Hören", "chapter": "1.1_1.2", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID3", "assignment_id": "A1_ASSIGNMENT_ID3", "video": None},
-        {"day": 4, "topic": "Lesen & Hören", "chapter": "2", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID4", "assignment_id": "A1_ASSIGNMENT_ID4", "video": None},
-        {"day": 5, "topic": "Schreiben & Sprechen (Recap)", "chapter": "1.2", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID5", "assignment_id": "A1_ASSIGNMENT_ID5", "video": None},
-        {"day": 6, "topic": "Schreiben & Sprechen", "chapter": "2.3", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID6", "assignment_id": "A1_ASSIGNMENT_ID6", "video": None},
-        {"day": 7, "topic": "Lesen & Hören", "chapter": "3", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID7", "assignment_id": "A1_ASSIGNMENT_ID7", "video": None},
-        {"day": 8, "topic": "Lesen & Hören", "chapter": "4", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID8", "assignment_id": "A1_ASSIGNMENT_ID8", "video": None},
-        {"day": 9, "topic": "Lesen & Hören", "chapter": "5", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID9", "assignment_id": "A1_ASSIGNMENT_ID9", "video": None},
-        {"day":10, "topic": "Lesen & Hören, Schreiben & Sprechen", "chapter": "6_2.4", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID10", "assignment_id": "A1_ASSIGNMENT_ID10", "video": None},
-        {"day":11, "topic": "Lesen & Hören", "chapter": "7", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID11", "assignment_id": "A1_ASSIGNMENT_ID11", "video": None},
-        {"day":12, "topic": "Lesen & Hören", "chapter": "8", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID12", "assignment_id": "A1_ASSIGNMENT_ID12", "video": None},
-        {"day":13, "topic": "Schreiben & Sprechen", "chapter": "3.5", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID13", "assignment_id": "A1_ASSIGNMENT_ID13", "video": None},
-        {"day":14, "topic": "Schreiben & Sprechen", "chapter": "3.6", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID14", "assignment_id": "A1_ASSIGNMENT_ID14", "video": None},
-        {"day":15, "topic": "Schreiben & Sprechen", "chapter": "4.7", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID15", "assignment_id": "A1_ASSIGNMENT_ID15", "video": None},
-        {"day":16, "topic": "Lesen & Hören", "chapter": "9_10", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID16", "assignment_id": "A1_ASSIGNMENT_ID16", "video": None},
-        {"day":17, "topic": "Lesen & Hören", "chapter": "11", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID17", "assignment_id": "A1_ASSIGNMENT_ID17", "video": None},
-        {"day":18, "topic": "Lesen & Hören, Schreiben & Sprechen (5.8)", "chapter": "12.1_5.8", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID18", "assignment_id": "A1_ASSIGNMENT_ID18", "video": None},
-        {"day":19, "topic": "Schreiben & Sprechen", "chapter": "5.9", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID19", "assignment_id": "A1_ASSIGNMENT_ID19", "video": None},
-        {"day":20, "topic": "Schreiben & Sprechen (Intro to letter writing)", "chapter": "6.10", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID20", "assignment_id": "A1_ASSIGNMENT_ID20", "video": None},
-        {"day":21, "topic": "Lesen & Hören, Schreiben & Sprechen", "chapter": "13_6.11", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID21", "assignment_id": "A1_ASSIGNMENT_ID21", "video": None},
-        {"day":22, "topic": "Lesen & Hören, Schreiben & Sprechen", "chapter": "14.1_7.12", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID22", "assignment_id": "A1_ASSIGNMENT_ID22", "video": None},
-        {"day":23, "topic": "Lesen & Hören, Schreiben & Sprechen", "chapter": "14.2_7.12", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID23", "assignment_id": "A1_ASSIGNMENT_ID23", "video": None},
-        {"day":24, "topic": "Schreiben & Sprechen", "chapter": "8.13", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID24", "assignment_id": "A1_ASSIGNMENT_ID24", "video": None},
-        {"day":25, "topic": "Exam tips - Schreiben & Sprechen recap", "chapter": "final", "has_assignment": True, "workbook_id": "A1_WORKBOOK_ID25", "assignment_id": "A1_ASSIGNMENT_ID25", "video": None},
+        {
+            "day": 1,
+            "topic": "Lesen & Hören",
+            "chapter": "0.1",
+            "lesen_hoeren": {
+                "workbook_id": "1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ",          
+                "grammarbook_id": "1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_", 
+                "video": "https://youtu.be/8k2VKKjbekA?si=cgYIJ2Di-OEmOpLJ", 
+            },
+            "schreiben_sprechen": {
+                "workbook_id": None,                     # None if not available
+                "video": None                            # None if not available
+            }
+        },
+        {
+            "day": 2,
+            "topic": "Lesen & Hören",
+            "chapter": "0.2_1.1",
+            "lesen_hoeren": {
+                "workbook_id": "A1_LH_WB_ID2",
+                "grammarbook_id": "A1_LH_GR_ID2"
+            },
+            "schreiben_sprechen": {
+                "workbook_id": None,
+                "video": None
+            }
+        },
+        {
+            "day": 3,
+            "topic": "Schreiben & Sprechen, Lesen & Hören",
+            "chapter": "1.1_1.2",
+            "lesen_hoeren": {
+                "workbook_id": "A1_LH_WB_ID3",
+                "grammarbook_id": "A1_LH_GR_ID3"
+            },
+            "schreiben_sprechen": {
+                "workbook_id": "A1_SS_WB_ID3",
+                "video": "https://www.youtube.com/embed/EXAMPLE_VIDEO_ID"
+            }
+        },
+        # ...add remaining days up to day 25
     ]
 
-    # ======= A2 SCHEDULE =======
+    # ==== A2 SCHEDULE (simple, one workbook/grammarbook/video per day) ====
     a2_schedule = [
-        {"day": 1, "topic": "Small Talk (Exercise)", "chapter": "1.1", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID1", "assignment_id": "A2_ASSIGNMENT_ID1", "video": None},
-        {"day": 2, "topic": "Personen Beschreiben (Exercise)", "chapter": "1.2", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID2", "assignment_id": "A2_ASSIGNMENT_ID2", "video": None},
-        {"day": 3, "topic": "Dinge und Personen vergleichen", "chapter": "1.3", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID3", "assignment_id": "A2_ASSIGNMENT_ID3", "video": None},
-        {"day": 4, "topic": "Wo möchten wir uns treffen?", "chapter": "2.4", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID4", "assignment_id": "A2_ASSIGNMENT_ID4", "video": None},
-        {"day": 5, "topic": "Was machst du in deiner Freizeit?", "chapter": "2.5", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID5", "assignment_id": "A2_ASSIGNMENT_ID5", "video": None},
-        {"day": 6, "topic": "Möbel und Räume kennenlernen", "chapter": "3.6", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID6", "assignment_id": "A2_ASSIGNMENT_ID6", "video": None},
-        {"day": 7, "topic": "Eine Wohnung suchen (Übung)", "chapter": "3.7", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID7", "assignment_id": "A2_ASSIGNMENT_ID7", "video": None},
-        {"day": 8, "topic": "Rezepte und Essen (Exercise)", "chapter": "3.8", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID8", "assignment_id": "A2_ASSIGNMENT_ID8", "video": None},
-        {"day": 9, "topic": "Urlaub", "chapter": "4.9", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID9", "assignment_id": "A2_ASSIGNMENT_ID9", "video": None},
-        {"day":10, "topic": "Tourismus und Traditionelle Feste", "chapter": "4.10", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID10", "assignment_id": "A2_ASSIGNMENT_ID10", "video": None},
-        {"day":11, "topic": "Unterwegs: Verkehrsmittel vergleichen", "chapter": "4.11", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID11", "assignment_id": "A2_ASSIGNMENT_ID11", "video": None},
-        {"day":12, "topic": "Ein Tag im Leben (Übung)", "chapter": "5.12", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID12", "assignment_id": "A2_ASSIGNMENT_ID12", "video": None},
-        {"day":13, "topic": "Ein Vorstellungsgesprach (Exercise)", "chapter": "5.13", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID13", "assignment_id": "A2_ASSIGNMENT_ID13", "video": None},
-        {"day":14, "topic": "Beruf und Karriere (Exercise)", "chapter": "5.14", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID14", "assignment_id": "A2_ASSIGNMENT_ID14", "video": None},
-        {"day":15, "topic": "Mein Lieblingssport", "chapter": "6.15", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID15", "assignment_id": "A2_ASSIGNMENT_ID15", "video": None},
-        {"day":16, "topic": "Wohlbefinden und Entspannung", "chapter": "6.16", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID16", "assignment_id": "A2_ASSIGNMENT_ID16", "video": None},
-        {"day":17, "topic": "In die Apotheke gehen", "chapter": "6.17", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID17", "assignment_id": "A2_ASSIGNMENT_ID17", "video": None},
-        {"day":18, "topic": "Die Bank Anrufen", "chapter": "7.18", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID18", "assignment_id": "A2_ASSIGNMENT_ID18", "video": None},
-        {"day":19, "topic": "Einkaufen? Wo und wie? (Exercise)", "chapter": "7.19", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID19", "assignment_id": "A2_ASSIGNMENT_ID19", "video": None},
-        {"day":20, "topic": "Typische Reklamationssituationen üben", "chapter": "7.20", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID20", "assignment_id": "A2_ASSIGNMENT_ID20", "video": None},
-        {"day":21, "topic": "Ein Wochenende planen", "chapter": "8.21", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID21", "assignment_id": "A2_ASSIGNMENT_ID21", "video": None},
-        {"day":22, "topic": "Die Woche Plannung", "chapter": "8.22", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID22", "assignment_id": "A2_ASSIGNMENT_ID22", "video": None},
-        {"day":23, "topic": "Wie kommst du zur Schule / zur Arbeit?", "chapter": "9.23", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID23", "assignment_id": "A2_ASSIGNMENT_ID23", "video": None},
-        {"day":24, "topic": "Einen Urlaub planen", "chapter": "9.24", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID24", "assignment_id": "A2_ASSIGNMENT_ID24", "video": None},
-        {"day":25, "topic": "Tagesablauf (Exercise)", "chapter": "9.25", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID25", "assignment_id": "A2_ASSIGNMENT_ID25", "video": None},
-        {"day":26, "topic": "Gefühle in verschiedenen Situationen beschr", "chapter": "10.26", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID26", "assignment_id": "A2_ASSIGNMENT_ID26", "video": None},
-        {"day":27, "topic": "Digitale Kommunikation", "chapter": "10.27", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID27", "assignment_id": "A2_ASSIGNMENT_ID27", "video": None},
-        {"day":28, "topic": "Über die Zukunft sprechen", "chapter": "10.28", "has_assignment": True, "workbook_id": "A2_WORKBOOK_ID28", "assignment_id": "A2_ASSIGNMENT_ID28", "video": None},
+        {
+            "day": 1,
+            "topic": "Small Talk (Exercise)",
+            "chapter": "1.1",
+            "workbook_id": "A2_WB_ID1",
+            "grammarbook_id": "A2_GR_ID1",
+            "video": None
+        },
+        {
+            "day": 2,
+            "topic": "Personen Beschreiben (Exercise)",
+            "chapter": "1.2",
+            "workbook_id": "A2_WB_ID2",
+            "grammarbook_id": "A2_GR_ID2",
+            "video": None
+        },
+        # ...add all 28 days for A2
     ]
 
-    # ======= B1 SCHEDULE =======
+    # ==== B1 SCHEDULE (same format as A2) ====
     b1_schedule = [
-        {"day": 1, "topic": "Traumwelten (Übung)", "chapter": "1.1", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID1", "assignment_id": "B1_ASSIGNMENT_ID1", "video": None},
-        {"day": 2, "topic": "Freundes für Leben (Übung)", "chapter": "1.2", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID2", "assignment_id": "B1_ASSIGNMENT_ID2", "video": None},
-        {"day": 3, "topic": "Erfolgsgeschichten (Übung)", "chapter": "1.3", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID3", "assignment_id": "B1_ASSIGNMENT_ID3", "video": None},
-        {"day": 4, "topic": "Wohnung suchen (Übung)", "chapter": "2.4", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID4", "assignment_id": "B1_ASSIGNMENT_ID4", "video": None},
-        {"day": 5, "topic": "Der Besichtigungstermin (Übung)", "chapter": "2.5", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID5", "assignment_id": "B1_ASSIGNMENT_ID5", "video": None},
-        {"day": 6, "topic": "Leben in der Stadt oder auf dem Land?", "chapter": "2.6", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID6", "assignment_id": "B1_ASSIGNMENT_ID6", "video": None},
-        {"day": 7, "topic": "Fast Food vs. Hausmannskost", "chapter": "3.7", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID7", "assignment_id": "B1_ASSIGNMENT_ID7", "video": None},
-        {"day": 8, "topic": "Alles für die Gesundheit", "chapter": "3.8", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID8", "assignment_id": "B1_ASSIGNMENT_ID8", "video": None},
-        {"day": 9, "topic": "Work-Life-Balance im modernen Arbeitsumfeld", "chapter": "3.9", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID9", "assignment_id": "B1_ASSIGNMENT_ID9", "video": None},
-        {"day":10, "topic": "Digitale Auszeit und Selbstfürsorge", "chapter": "4.10", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID10", "assignment_id": "B1_ASSIGNMENT_ID10", "video": None},
-        {"day":11, "topic": "Teamspiele und Kooperative Aktivitäten", "chapter": "4.11", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID11", "assignment_id": "B1_ASSIGNMENT_ID11", "video": None},
-        {"day":12, "topic": "Abenteuer in der Natur", "chapter": "4.12", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID12", "assignment_id": "B1_ASSIGNMENT_ID12", "video": None},
-        {"day":13, "topic": "Eigene Filmkritik schreiben", "chapter": "4.13", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID13", "assignment_id": "B1_ASSIGNMENT_ID13", "video": None},
-        {"day":14, "topic": "Traditionelles vs. digitales Lernen", "chapter": "5.14", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID14", "assignment_id": "B1_ASSIGNMENT_ID14", "video": None},
-        {"day":15, "topic": "Medien und Arbeiten im Homeoffice", "chapter": "5.15", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID15", "assignment_id": "B1_ASSIGNMENT_ID15", "video": None},
-        {"day":16, "topic": "Prüfungsangst und Stressbewältigung", "chapter": "5.16", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID16", "assignment_id": "B1_ASSIGNMENT_ID16", "video": None},
-        {"day":17, "topic": "Wie lernt man am besten?", "chapter": "5.17", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID17", "assignment_id": "B1_ASSIGNMENT_ID17", "video": None},
-        {"day":18, "topic": "Wege zum Wunschberuf", "chapter": "6.18", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID18", "assignment_id": "B1_ASSIGNMENT_ID18", "video": None},
-        {"day":19, "topic": "Das Vorstellungsgespräch", "chapter": "6.19", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID19", "assignment_id": "B1_ASSIGNMENT_ID19", "video": None},
-        {"day":20, "topic": "Wie wird man ...? (Ausbildung und Qu)", "chapter": "6.20", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID20", "assignment_id": "B1_ASSIGNMENT_ID20", "video": None},
-        {"day":21, "topic": "Lebensformen heute – Familie, Wohng.", "chapter": "7.21", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID21", "assignment_id": "B1_ASSIGNMENT_ID21", "video": None},
-        {"day":22, "topic": "Was ist dir in einer Beziehung wichtig?", "chapter": "7.22", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID22", "assignment_id": "B1_ASSIGNMENT_ID22", "video": None},
-        {"day":23, "topic": "Erstes Date – Typische Situationen", "chapter": "7.23", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID23", "assignment_id": "B1_ASSIGNMENT_ID23", "video": None},
-        {"day":24, "topic": "Konsum und Nachhaltigkeit", "chapter": "8.24", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID24", "assignment_id": "B1_ASSIGNMENT_ID24", "video": None},
-        {"day":25, "topic": "Online einkaufen – Rechte und Risiken", "chapter": "8.25", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID25", "assignment_id": "B1_ASSIGNMENT_ID25", "video": None},
-        {"day":26, "topic": "Reiseprobleme und Lösungen", "chapter": "9.26", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID26", "assignment_id": "B1_ASSIGNMENT_ID26", "video": None},
-        {"day":27, "topic": "Umweltfreundlich im Alltag", "chapter": "10.27", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID27", "assignment_id": "B1_ASSIGNMENT_ID27", "video": None},
-        {"day":28, "topic": "Klimafreundlich leben", "chapter": "10.28", "has_assignment": True, "workbook_id": "B1_WORKBOOK_ID28", "assignment_id": "B1_ASSIGNMENT_ID28", "video": None},
+        {
+            "day": 1,
+            "topic": "Traumwelten (Übung)",
+            "chapter": "1.1",
+            "workbook_id": "B1_WB_ID1",
+            "grammarbook_id": "B1_GR_ID1",
+            "video": None
+        },
+        {
+            "day": 2,
+            "topic": "Freundes für Leben (Übung)",
+            "chapter": "1.2",
+            "workbook_id": "B1_WB_ID2",
+            "grammarbook_id": "B1_GR_ID2",
+            "video": None
+        },
+        # ...add all 28 days for B1
     ]
 
     # === LEVEL SELECTION & LOGIC ===
