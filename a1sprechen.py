@@ -2,70 +2,84 @@
 # 1. IMPORTS & CONSTANTS
 # ==========================
 import os
-import random
-import difflib
 import sqlite3
 import atexit
-import json
+import requests
+import io
 from datetime import date, datetime
 import pandas as pd
 import streamlit as st
-import urllib.parse
-import requests
-import io
 from openai import OpenAI
-from fpdf import FPDF
 
-# ========== CONSTANTS ==========
-FALOWEN_DAILY_LIMIT = 20
-VOCAB_DAILY_LIMIT   = 20
-SCHREIBEN_DAILY_LIMIT = 5
-max_turns = 25
+# Daily limits
+FALOWEN_DAILY_LIMIT    = 20
+VOCAB_DAILY_LIMIT      = 20
+SCHREIBEN_DAILY_LIMIT  = 5
 
-# ========== OPENAI SETUP ==========
+# OpenAI setup
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
-    st.error("Missing OpenAI API key. Please set OPENAI_API_KEY in env or secrets.")
+    st.error("Missing OPENAI_API_KEY in env or Streamlit secrets.")
     st.stop()
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
-client = OpenAI()  # Do NOT pass api_key here for openai>=1.0
+client = OpenAI()  # for openai>=1.0, no api_key arg
+
+# Page config
+st.set_page_config(
+    page_title="Falowen – German Learning",
+    layout="centered",
+    initial_sidebar_state="expanded"
+)
 
 # ==========================
-# 3. SQLITE HELPERS
+# 2. DB CONNECTION & HELPERS
 # ==========================
 def get_connection():
     if "conn" not in st.session_state:
-        st.session_state["conn"] = sqlite3.connect("local.db", check_same_thread=False)
+        st.session_state["conn"] = sqlite3.connect("progress.db", check_same_thread=False)
         atexit.register(st.session_state["conn"].close)
     return st.session_state["conn"]
 
 def init_db():
-    c = get_connection().cursor()
-    for tbl, cols in {
-        "vocab":     "id INTEGER PRIMARY KEY, student_code, name, level, word, student_answer, is_correct, date",
-        "schreiben":"id INTEGER PRIMARY KEY, student_code, name, level, essay, score, feedback, date",
-        "sprechen":  "id INTEGER PRIMARY KEY, student_code, name, level, teil, message, score, feedback, date"
-    }.items():
-        c.execute(f"CREATE TABLE IF NOT EXISTS {tbl}_progress ({cols})")
-    get_connection().commit()
+    conn = get_connection()
+    c = conn.cursor()
+    # Create tables
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS vocab_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT, name TEXT, level TEXT,
+            word TEXT, student_answer TEXT, is_correct INTEGER, date TEXT
+        )""")
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS schreiben_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT, name TEXT, level TEXT,
+            essay TEXT, score INTEGER, feedback TEXT, date TEXT
+        )""")
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS sprechen_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT, name TEXT, level TEXT,
+            teil TEXT, message TEXT, score INTEGER, feedback TEXT, date TEXT
+        )""")
+    conn.commit()
 
 init_db()
 
-# ==========================
-# 4. GOOGLE SHEETS + CONTRACT
-# ==========================
 @st.cache_data
 def load_student_data():
-    SHEET = (
+    SHEET_CSV = (
         "https://docs.google.com/spreadsheets/d/"
         "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
     )
     try:
-        r = requests.get(SHEET, timeout=7); r.raise_for_status()
+        r = requests.get(SHEET_CSV, timeout=7)
+        r.raise_for_status()
         df = pd.read_csv(io.StringIO(r.text))
         df.columns = [c.strip() for c in df.columns]
         for col in ("StudentCode","Email"):
-            if col in df: df[col] = df[col].str.strip().str.lower()
+            if col in df.columns:
+                df[col] = df[col].str.strip().str.lower()
         return df
     except Exception as e:
         st.warning(f"Could not load student data: {e}")
@@ -73,66 +87,46 @@ def load_student_data():
 
 def contract_active(row):
     end = row.get("ContractEnd") or row.get("Contract_End_Date")
-    if not end or str(end).lower() in ("","nan","none"):
+    if not end or str(end).strip().lower() in ("","nan","none"):
         return False
     try:
         return datetime.strptime(str(end), "%Y-%m-%d").date() >= date.today()
     except:
         return False
 
-# ==========================
-# 5. FIRESTORE HELPERS
-# ==========================
-def save_firestore(tbl, doc):
-    db.collection(f"{tbl}_progress").add(doc)
+def get_writing_stats(student_code):
+    c = get_connection().cursor()
+    c.execute("SELECT COUNT(*),SUM(score>=17) FROM schreiben_progress WHERE student_code=?", (student_code,))
+    tot, passed = c.fetchone() or (0,0)
+    acc = round(100 * passed / tot) if tot else 0
+    return tot, passed, acc
 
-def get_firestore_submissions(tbl, student_code, **filters):
-    col = db.collection(f"{tbl}_progress").where("student_code","==", student_code)
-    for k,v in filters.items():
-        col = col.where(k,"==",v)
-    return [d.to_dict() for d in col.order_by("date", direction=firestore.Query.DESCENDING).stream()]
-
-# ==========================
-# 6. STREAMLIT LOGIN & DASH
-# ==========================
-st.set_page_config(page_title="Falowen App", layout="centered")
-st.title("🔑 Student Login")
-
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
-
-if not st.session_state["logged_in"]:
-    inp = st.text_input("Student Code or Email:").strip().lower()
-    if st.button("Login"):
-        df = load_student_data()
-        found = df[(df["StudentCode"]==inp)|(df["Email"]==inp)]
-        if found.empty:
-            st.error("Invalid credentials")
+def get_vocab_streak(student_code):
+    c = get_connection().cursor()
+    c.execute("SELECT DISTINCT date FROM vocab_progress WHERE student_code=? ORDER BY date DESC", (student_code,))
+    rows = c.fetchall()
+    if not rows:
+        return 0
+    dates = [date.fromisoformat(r[0]) for r in rows]
+    if (date.today() - dates[0]).days > 1:
+        return 0
+    streak, prev = 1, dates[0]
+    for d in dates[1:]:
+        if (prev - d).days == 1:
+            streak += 1
+            prev = d
         else:
-            row = found.iloc[0].to_dict()
-            if not contract_active(row):
-                st.error("⛔ Contract expired")
-            else:
-                st.session_state.update(
-                    logged_in=True,
-                    student_code=row["StudentCode"],
-                    student_name=row.get("Name",""),
-                    student_row=row
-                )
-                st.rerun()
-    st.stop()
+            break
+    return streak
 
-row = st.session_state["student_row"]
-st.header(f"👤 {row.get('Name')}  |  Level {row.get('Level')}")
-st.markdown(f"""
-- 🔑 Code: `{row.get('StudentCode')}`
-- 📧 Email: {row.get('Email')}
-- 📄 Contract End: {row.get('ContractEnd') or row.get('Contract_End_Date')}
-""")
-if st.button("🚪 Log Out"):
-    for k in ("logged_in","student_row","student_code","student_name"):
-        st.session_state.pop(k,None)
-    st.experimental_rerun()
+def get_falowen_usage(student_code):
+    key = f"{student_code}_use_{date.today()}"
+    usage = st.session_state.setdefault("falowen_usage", {})
+    return usage.setdefault(key, 0)
+
+def has_falowen_quota(student_code):
+    return get_falowen_usage(student_code) < FALOWEN_DAILY_LIMIT
+
 
 # --- Vocab lists for all levels ---
 
@@ -438,96 +432,127 @@ if not st.session_state.get("logged_in", False):
 row = st.session_state["student_row"]
 student_code = row["StudentCode"]
 
-#  — Main tab selector —
-tab = st.radio(
-    "How do you want to practice?",
-    [
-        "Dashboard",
-        "Exams Mode & Custom Chat",
-        "Vocab Trainer",
-        "Schreiben Trainer",
-        "Course Book",
-        "My Results and Resources",
-        "Admin"
-    ],
-    key="main_tab"
-)
+if st.session_state["logged_in"]:
+    # === Context ===
+    student_code = st.session_state.get("student_code", "")
+    student_name = st.session_state.get("student_name", "")
 
-# --- Dashboard only ---
-if tab == "Dashboard":
-    st.header("📊 Student Dashboard")
-
-    # Re-load in case it changed upstream
-    df = load_student_data()
-    found = df[df["StudentCode"].str.lower() == student_code.lower()]
-    student = found.iloc[0].to_dict() if not found.empty else {}
-
-    # Stats
-    streak = get_vocab_streak(student_code)
-    tot, passed, acc = get_writing_stats(student_code)
-
-    # Today’s Schreiben usage
-    today_key = f"{student_code}_schreiben_{date.today()}"
-    written_today = st.session_state.setdefault("schreiben_usage", {}).setdefault(today_key, 0)
-
-    # Student info panel
-    st.markdown(f"### 👤 {student.get('Name','n/a')}")
-    st.markdown(
-        f"**Level:** {student.get('Level','n/a')}  \n"
-        f"**Code:** `{student.get('StudentCode','')}`  \n"
-        f"**Email:** {student.get('Email','n/a')}  \n"
-        f"**Phone:** {student.get('Phone','n/a')}  \n"
-        f"**Location:** {student.get('Location','n/a')}  \n"
-        f"**Contract:** {student.get('ContractStart','')} ➔ {student.get('ContractEnd','')}  \n"
-        f"**Enroll Date:** {student.get('EnrollDate','')}  \n"
-        f"**Status:** {student.get('Status','')}"
+    # === Main Tab Selector ===
+    tab = st.radio(
+        "How do you want to practice?",
+        [
+            "Dashboard",
+            "Exams Mode & Custom Chat",
+            "Vocab Trainer",
+            "Schreiben Trainer",
+            "My Results and Resources",
+            "Admin"
+        ],
+        key="main_tab_select"
     )
 
-    # Balance warning
-    balance = float(student.get("Balance", 0) or 0)
-    if balance > 0:
-        st.warning(f"💸 Balance to pay: ₵{balance:.2f}")
+    # --- Dashboard Tab ---
+    if tab == "Dashboard":
+        st.header("📊 Student Dashboard")
+        
+        # Fetch fresh student data
+        df_students = load_student_data()
+        found = df_students[
+            df_students["StudentCode"].str.lower().str.strip() == student_code
+        ]
+        student_row = found.iloc[0].to_dict() if not found.empty else {}
 
-    # Contract expiry reminder
-    ce = student.get("ContractEnd")
-    if ce:
-        try:
-            days_left = (datetime.strptime(ce, "%Y-%m-%d") - datetime.now()).days
-            if 0 < days_left <= 30:
-                st.info(f"⚠️ Contract ends in {days_left} days.")
-            elif days_left < 0:
-                st.error("⏰ Contract expired.")
-        except:
-            pass
+        # Stats
+        streak = get_vocab_streak(student_code)
+        total_attempted, total_passed, accuracy = get_writing_stats(student_code)
 
-    # Progress metrics
-    st.markdown(f"🔥 **Vocab Streak:** {streak} days")
-    goal = max(0, 2 - tot)
-    if goal > 0:
-        st.success(f"🎯 Write {goal} more letter(s) this week!")
-    else:
-        st.success("🎉 Weekly goal reached!")
-    st.markdown(
-        f"**📝 Letters submitted:** {tot}  \n"
-        f"**✅ Passed (≥17):** {passed}  \n"
-        f"**🏅 Pass rate:** {acc}%  \n"
-        f"**Today:** {written_today} / {SCHREIBEN_DAILY_LIMIT}"
-    )
+        # Daily usage
+        today_str = str(date.today())
+        key = f"{student_code}_schreiben_{today_str}"
+        if "schreiben_usage" not in st.session_state:
+            st.session_state["schreiben_usage"] = {}
+        daily_so_far = st.session_state["schreiben_usage"].setdefault(key, 0)
 
-    # Upcoming exams
-    with st.expander("📅 Upcoming Goethe Exams", expanded=True):
+        # --- Student Info ---
+        st.markdown(f"### 👤 {student_row.get('Name', '')}")
         st.markdown(
-            """
-| Level | Date       | Fee (GHS) |
-|-------|------------|-----------|
-| A1    | 21.07.2025 | 2,850     |
-| A2    | 22.07.2025 | 2,400     |
-| B1    | 23.07.2025 | 2,750     |
-| B2    | 24.07.2025 | 2,500     |
-| C1    | 25.07.2025 | 2,450     |
-            """
+            f"**Level:** {student_row.get('Level', '')}  \n"
+            f"**Code:** `{student_row.get('StudentCode', '')}`  \n"
+            f"**Email:** {student_row.get('Email', '')}  \n"
+            f"**Phone:** {student_row.get('Phone', '')}  \n"
+            f"**Location:** {student_row.get('Location', '')}  \n"
+            f"**Contract:** {student_row.get('ContractStart', '')} ➔ {student_row.get('ContractEnd', '')}  \n"
+            f"**Enroll Date:** {student_row.get('EnrollDate', '')}  \n"
+            f"**Status:** {student_row.get('Status', '')}"
         )
 
+        # --- Payment Info ---
+        balance = float(student_row.get("Balance", 0) or 0)
+        if balance > 0:
+            st.warning(f"💸 Balance to pay: **₵{balance:.2f}**")
+
+        # --- Contract Reminder ---
+        contract_end = student_row.get("ContractEnd")
+        if contract_end:
+            try:
+                ce_date = datetime.strptime(str(contract_end), "%Y-%m-%d")
+                days_left = (ce_date - datetime.now()).days
+                if 0 < days_left <= 30:
+                    st.info(f"⚠️ Contract ends in {days_left} days. Please renew soon.")
+                elif days_left < 0:
+                    st.error("⏰ Contract expired. Contact office to renew.")
+            except:
+                pass
+
+        # --- Progress Stats ---
+        st.markdown(f"🔥 **Vocab Streak:** {streak} days")
+        if total_attempted < 2:
+            st.success(f"🎯 Your next goal: Write {2 - total_attempted} more letter(s) this week!")
+        else:
+            st.success("🎉 Weekly goal reached! Keep practicing!")
+        st.markdown(
+            f"**📝 Letters submitted:** {total_attempted}  \n"
+            f"**✅ Passed (score ≥17):** {total_passed}  \n"
+            f"**🏅 Pass rate:** {accuracy}%  \n"
+            f"**📅 Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}"
+        )
+
+        # --- Upcoming Exams Expander ---
+        with st.expander("📅 Upcoming Goethe Exams & Registration (Tap for details)", expanded=True):
+            st.markdown(
+                """
+**Registration for Aug./Sept. 2025 Exams:**
+
+| Level | Date       | Fee (GHS) | Per Module (GHS) |
+|-------|------------|-----------|------------------|
+| A1    | 21.07.2025 | 2,850     | —                |
+| A2    | 22.07.2025 | 2,400     | —                |
+| B1    | 23.07.2025 | 2,750     | 880              |
+| B2    | 24.07.2025 | 2,500     | 840              |
+| C1    | 25.07.2025 | 2,450     | 700              |
+
+---
+
+### 📝 Registration Steps
+
+1. [**Register Here (9–10 am, keep checking!)**](https://www.goethe.de/ins/gh/en/spr/prf/anm.html)  
+2. Fill the form and choose **extern**  
+3. Submit and get payment confirmation  
+4. Pay by Mobile Money or Ecobank (**use full name as reference**)  
+   - Email proof to: [registrations-accra@goethe.de](mailto:registrations-accra@goethe.de)  
+5. Wait for response; send polite reminders if needed.
+
+---
+
+**Payment Details:**  
+**Ecobank Ghana**  
+Account Name: **GOETHE-INSTITUT GHANA**  
+Account No.: **1441 001 701 903**  
+Branch: **Ring Road Central**  
+SWIFT: **ECOCGHAC**
+                """,
+                unsafe_allow_html=True,
+            )
 
 
 # ================================
