@@ -1943,14 +1943,18 @@ if tab == "Course Book":
             else:
                 st.markdown(f"- [🔗 Extra Resource]({extras})")
 
-    # Multi assignment note
+    # Multi assignment note (clean, mobile-friendly)
     if "lesen_hören" in day_info:
         lh_section = day_info["lesen_hören"]
         if isinstance(lh_section, list):
             st.markdown(
-                "<div style='background:#f0f4ff;border-radius:7px;padding:10px 15px;margin:8px 0 15px 0; font-size:1em;'>"
-                "<b>📢 Multiple reading/listening assignments for today. Complete <u>all</u> sections below!</b>"
-                "</div>", unsafe_allow_html=True
+                """
+                <div style='padding:8px 12px; background:#eaf4ff; border-radius:7px; 
+                border-left:5px solid #357ae8; margin-bottom:12px; font-size:1.03em; line-height:1.3;'>
+                    <span style="font-weight:600; color:#357ae8;">ℹ️ This lesson has more than one Lesen & Hören assignment.<br>
+                    Do <u>all parts below</u> before you submit.</span>
+                </div>
+                """, unsafe_allow_html=True
             )
             for idx, chapter_lh in enumerate(lh_section):
                 render_lh_section(chapter_lh, idx, len(lh_section))
