@@ -1814,8 +1814,6 @@ if tab == "Course":
 
     st.header("📚 Your Course Schedule & Materials")
 
-    # === SCHEDULE DICTIONARIES ===
-
     # ==== A1 SCHEDULE (with sub-sections for Lesen & Hören, Schreiben & Sprechen) ====
     a1_schedule = [
         {
@@ -1823,13 +1821,13 @@ if tab == "Course":
             "topic": "Lesen & Hören",
             "chapter": "0.1",
             "lesen_hoeren": {
-                "workbook_id": "1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ",          
-                "grammarbook_id": "1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_", 
-                "video": "https://youtu.be/8k2VKKjbekA?si=cgYIJ2Di-OEmOpLJ"
+                "workbook_id": "1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ",   # Your sample workbook
+                "grammarbook_id": "1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_", # Your sample grammar book
+                "video": "https://www.youtube.com/embed/8k2VKKjbekA"
             },
             "schreiben_sprechen": {
-                "workbook_id": None,                     # None if not available
-                "video": None                            # None if not available
+                "workbook_id": None,
+                "video": None
             }
         },
         {
@@ -1838,7 +1836,8 @@ if tab == "Course":
             "chapter": "0.2_1.1",
             "lesen_hoeren": {
                 "workbook_id": "A1_LH_WB_ID2",
-                "grammarbook_id": "A1_LH_GR_ID2"
+                "grammarbook_id": "A1_LH_GR_ID2",
+                "video": None
             },
             "schreiben_sprechen": {
                 "workbook_id": None,
@@ -1851,16 +1850,14 @@ if tab == "Course":
             "chapter": "1.1_1.2",
             "lesen_hoeren": {
                 "workbook_id": "A1_LH_WB_ID3",
-                "grammarbook_id": "A1_LH_GR_ID3"
+                "grammarbook_id": "A1_LH_GR_ID3",
+                "video": None
             },
             "schreiben_sprechen": {
                 "workbook_id": "A1_SS_WB_ID3",
                 "video": "https://www.youtube.com/embed/EXAMPLE_VIDEO_ID"
             }
         },
-        # ...add remaining days up to day 25
-    ]
-
     # ==== A2 SCHEDULE (simple, one workbook/grammarbook/video per day) ====
     a2_schedule = [
         {
