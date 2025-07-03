@@ -1825,7 +1825,7 @@ if tab == "Course":
             "lesen_hoeren": {
                 "workbook_id": "1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ",          
                 "grammarbook_id": "1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_", 
-                "video": "https://youtu.be/8k2VKKjbekA?si=cgYIJ2Di-OEmOpLJ", 
+                "video": "https://youtu.be/8k2VKKjbekA?si=cgYIJ2Di-OEmOpLJ"
             },
             "schreiben_sprechen": {
                 "workbook_id": None,                     # None if not available
