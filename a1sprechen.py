@@ -2225,11 +2225,32 @@ if tab == "Course":
         },
         # Continue adding for all 28 days...
     ]
-  
-    # For A1: Show Lesen & Hören (list or single)
+
+    schedule = level_map.get(student_level, a1_schedule)
+
+    if not schedule:
+        st.warning("No schedule found for your level. Please contact the admin.")
+        st.stop()
+
+    selected_day_idx = st.selectbox(
+        "Choose your lesson/day:",
+        range(len(schedule)),
+        format_func=lambda i: f"Day {schedule[i]['day']} – {schedule[i]['topic']}"
+    )
+    day_info = schedule[selected_day_idx]
+
+    # ==================== 3. SHOW LESSON CONTENT ====================
+    st.markdown(f"### Day {day_info['day']}: {day_info['topic']} (Chapter {day_info['chapter']})")
+
+    if day_info.get("goal"):
+        st.markdown(f"**🎯 Goal:** {day_info['goal']}")
+    if day_info.get("instruction"):
+        st.markdown(f"**📝 Instruction:** {day_info['instruction']}")
+
+    # ---------- For A1: Show Lesen & Hören (list or single) ----------
     if "lesen_hören" in day_info:
         lh_section = day_info["lesen_hören"]
-        # If multiple (list)
+        # If multiple chapters (list)
         if isinstance(lh_section, list):
             for chapter_lh in lh_section:
                 st.markdown(f"#### Lesen & Hören – Chapter {chapter_lh.get('chapter','')}")
@@ -2258,7 +2279,7 @@ if tab == "Course":
                             st.markdown(f"- [Resource Link]({link})")
                     else:
                         st.markdown(f"- [Resource Link]({extras})")
-        # If only one dict
+        # If only one dict (single chapter)
         elif isinstance(lh_section, dict):
             if lh_section.get("video"):
                 st.video(lh_section["video"])
@@ -2285,7 +2306,7 @@ if tab == "Course":
                 else:
                     st.markdown(f"- [Resource Link]({extras})")
 
-    # For A1: Show Schreiben & Sprechen (if present)
+    # ---------- For A1: Show Schreiben & Sprechen (if present) ----------
     if "schreiben_sprechen" in day_info:
         ss = day_info["schreiben_sprechen"]
         if ss.get("video"):
@@ -2306,7 +2327,7 @@ if tab == "Course":
             else:
                 st.markdown(f"- [Resource Link]({extras})")
 
-    # For A2/B1: Show at top level
+    # ---------- For A2/B1: Show all at top level ----------
     if student_level in ["A2", "B1"]:
         if day_info.get("video"):
             st.video(day_info["video"])
@@ -2334,8 +2355,7 @@ if tab == "Course":
             else:
                 st.markdown(f"- [Resource Link]({extras})")
 
-
-    # --- Assignment Submission Section (WhatsApp) ---
+    # ==================== 4. ASSIGNMENT SUBMISSION ====================
     st.divider()
     st.subheader("📲 Submit Assignment (WhatsApp)")
     student_name = st.text_input("Your Name", value=student_row.get('Name', ''))
@@ -2366,4 +2386,3 @@ Answer: {answer if answer.strip() else '[See attached file/photo]'}
 - For file/photo: paste message in WhatsApp and attach before sending.
 - Always use your real name and code for tracking!
 """)
-
