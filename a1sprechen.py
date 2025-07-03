@@ -1800,7 +1800,6 @@ if tab == "Schreiben Trainer":
                 unsafe_allow_html=True
             )
 
-
 if tab == "Course Book":
     st.header("📖 Course Book")
 
@@ -1809,7 +1808,7 @@ if tab == "Course Book":
         {
             "chapter": "Chapter 0.1 – Greetings",
             "page": 3,
-            "video": "https://www.youtube.com/watch?v=your_video_id"  # Replace with your real video link
+            "video": "https://drive.google.com/file/d/17E6b8sMrTuMdqMHbzFHlqK4vm-7YqmPO/view?usp=sharing"  
         },
         {
             "chapter": "Chapter 0.2 – Introducing Yourself",
