@@ -1837,8 +1837,8 @@ if tab == "Course":
             "instruction": "",
             "lesen_hören": {
                 "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
+                "grammarbook_link": "https://drive.google.com/file/d/1q9gOrF7Pv_kyVu_e04nElmOpJDOVdTne/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1R6PqzgsPm9f5iVn7JZXSNVa_NttoPU9Q/view?usp=sharing"
             }
         },
         # DAY 3
