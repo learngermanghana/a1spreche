@@ -1896,6 +1896,9 @@ if "student_row" not in st.session_state:
 
 if tab == "Course Book":
 
+    import streamlit as st
+    import datetime, urllib.parse
+
     # 1. Pick schedule based on student
     student_row = st.session_state.get('student_row', {})
     student_level = student_row.get('Level', 'A1').upper()
