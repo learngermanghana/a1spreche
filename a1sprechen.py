@@ -7,6 +7,8 @@ import json
 from datetime import date, datetime
 import pandas as pd
 import streamlit as st
+import datetime
+import urllib.parse
 import requests
 import io
 from openai import OpenAI
