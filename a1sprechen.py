@@ -7,13 +7,11 @@ import json
 from datetime import date, datetime
 import pandas as pd
 import streamlit as st
-import datetime
 import urllib.parse
 import requests
 import io
 from openai import OpenAI
 from fpdf import FPDF
-
 
 # ---- OpenAI Client Setup ----
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
@@ -108,105 +106,52 @@ st.markdown(
 )
 
 # ------------------ LOGIN SYSTEM -----------------
-COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
-if not COOKIE_SECRET:
-    raise ValueError("COOKIE_SECRET environment variable not set")
-
-cookie_manager = EncryptedCookieManager(
-    prefix="falowen_",
-    password=COOKIE_SECRET
-)
-cookie_manager.ready()
 
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 if "student_row" not in st.session_state:
     st.session_state["student_row"] = None
-if "student_code" not in st.session_state:
-    st.session_state["student_code"] = ""
-if "student_name" not in st.session_state:
-    st.session_state["student_name"] = ""
 
-# --- 1. Auto-login from cookie if exists ---
-code_from_cookie = cookie_manager.get("student_code")
-if not st.session_state.get("logged_in", False) and code_from_cookie:
-    df_students = load_student_data()
-    found = df_students[
-        (df_students["StudentCode"].astype(str).str.lower().str.strip() == code_from_cookie)
-    ]
-    if not found.empty:
-        row = found.iloc[0].to_dict()
-        if not contract_active(row):
-            st.session_state["logged_in"] = False
-            st.session_state["student_row"] = None
-            st.session_state["student_code"] = ""
-            st.session_state["student_name"] = ""
-            cookie_manager.pop("student_code", None)
-            cookie_manager.save()
-            st.error("⛔️ Your contract has expired. Please contact admin to renew your access.")
-            st.stop()
-        st.session_state["logged_in"] = True
-        st.session_state["student_row"] = row
-        st.session_state["student_code"] = row.get("StudentCode", "")
-        st.session_state["student_name"] = row.get("Name", "")
-
-# --- 2. If not logged in, show login form ---
 if not st.session_state["logged_in"]:
     st.title("🔑 Student Login")
-    login_input = st.text_input(
-        "Enter your Student Code or Email to begin:",
-        value=code_from_cookie if code_from_cookie else ""
-    ).strip().lower()
+    login_input = st.text_input("Enter your Student Code or Email to begin:").strip().lower()
     if st.button("Login"):
         df_students = load_student_data()
         found = df_students[
-            (df_students["StudentCode"].astype(str).str.lower().str.strip() == login_input) |
-            (df_students["Email"].astype(str).str.lower().str.strip() == login_input)
+            (df_students["StudentCode"] == login_input) |
+            (df_students["Email"] == login_input)
         ]
         if not found.empty:
             row = found.iloc[0].to_dict()
+            # --- Contract check ---
             if not contract_active(row):
                 st.error("⛔️ Your contract has expired. Please contact admin to renew your access.")
                 st.stop()
             st.session_state["logged_in"] = True
             st.session_state["student_row"] = row
-            st.session_state["student_code"] = row.get("StudentCode", "")
-            st.session_state["student_name"] = row.get("Name", "")
-            cookie_manager["student_code"] = st.session_state["student_code"]
-            cookie_manager.save()
-            st.success(f"Welcome, {st.session_state['student_name']}! Login successful.")
-            st.rerun()
+            st.success(f"Welcome, {row['Name']}! Login successful.")
+            st.experimental_rerun()
         else:
             st.error("Login failed. Please check your Student Code or Email and try again.")
     st.stop()
 
-# --- 3. Universal contract guard for all tabs (add at top of every tab!) ---
-row = st.session_state.get("student_row")
+row = st.session_state["student_row"]
+
+# --- Universal contract check (guard for all tabs!) ---
 if row and not contract_active(row):
     st.session_state["logged_in"] = False
     st.session_state["student_row"] = None
-    st.session_state["student_code"] = ""
-    st.session_state["student_name"] = ""
-    cookie_manager.pop("student_code", None)
-    cookie_manager.save()
     st.error("⛔️ Your contract has expired. Please contact admin to renew your access.")
     st.stop()
 
-# ---- LOGOUT BUTTON (sidebar or top of page) ----
-if st.session_state.get("logged_in", False):
-    if st.button("🚪 Log Out", key="logout_btn"):
-        st.session_state["logged_in"] = False
-        st.session_state["student_row"] = None
-        st.session_state["student_code"] = ""
-        st.session_state["student_name"] = ""
-        cookie_manager.pop("student_code", None)
-        cookie_manager.save()
-        st.success("Logged out successfully.")
-        st.experimental_rerun()
+# --- Log Out Button ---
+if st.button("🚪 Log Out"):
+    st.session_state["logged_in"] = False
+    st.session_state["student_row"] = None
+    st.experimental_rerun()
 
-# -------------- The rest of your app logic here --------------
-# e.g. display tabs, student content, coursebook, etc.
-
+# --- Your app content goes here! ---
+st.success(f"Welcome: {row['Name']} (Level: {row['Level']})")
 
 
 # ---- DB connection helper ----
