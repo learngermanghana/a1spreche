@@ -2217,8 +2217,8 @@ def get_a2_schedule():
             "goal": "Learn to compare things and people.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1Z3sSDCxPQz27TDSpN9r8lQUpHhBVfhYZ/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/18YXe9mxyyKTars1gL5cgFsXrbM25kiN8/view?usp=sharing"
         },
         # DAY 4
         {
@@ -2228,8 +2228,8 @@ def get_a2_schedule():
             "goal": "Arrange and discuss meeting places.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/14qE_XJr3mTNr6PF5aa0aCqauh9ngYTJ8/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1RaXTZQ9jHaJYwKrP728zevDSQHFKeR0E/view?usp=sharing"
         },
         # DAY 5
         {
@@ -2239,8 +2239,8 @@ def get_a2_schedule():
             "goal": "Talk about free time activities.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/11yEcMioSB9x1ZD-x5_67ApFzP53iau-N/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1dIsFg7wNaqyyOHm95h7xv4Ssll5Fm0V1/view?usp=sharing"
         },
         # DAY 6
         {
@@ -2250,8 +2250,8 @@ def get_a2_schedule():
             "goal": "Identify furniture and rooms.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1clWbDAvLlXpgWx7pKc71Oq3H2p0_GZnV/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1EF87TdHa6Y-qgLFUx8S6GAom9g5EBQNP/view?usp=sharing"
         },
         # DAY 7
         {
@@ -2261,8 +2261,8 @@ def get_a2_schedule():
             "goal": "Practice searching for an apartment.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1MSahBEyElIiLnitWoJb5xkvRlB21yo0y/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/16UfBIrL0jxCqWtqqZaLhKWflosNQkwF4/view?usp=sharing"
         },
         # DAY 8
         {
@@ -2272,8 +2272,8 @@ def get_a2_schedule():
             "goal": "Learn about recipes and food.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1Ax6owMx-5MPvCk_m-QRhARY8nuDQjDsK/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1c8JJyVlKYI2mz6xLZZ6RkRHLnH3Dtv0c/view?usp=sharing"
         },
         # DAY 9
         {
@@ -2283,8 +2283,8 @@ def get_a2_schedule():
             "goal": "Discuss vacation plans.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1kOb7c08Pkxf21OQE_xIGEaif7Xq7k-ty/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1NzRxbGUe306Vq0mq9kKsc3y3HYqkMhuA/view?usp=sharing"
         },
         # DAY 10
         {
@@ -2294,8 +2294,8 @@ def get_a2_schedule():
             "goal": "Learn about tourism and festivals.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1snFsDYBK8RrPRq2n3PtWvcIctSph-zvN/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1vijZn-ryhT46cTzGmetuF0c4zys0yGlB/view?usp=sharing"
         },
         # DAY 11
         {
@@ -2305,8 +2305,8 @@ def get_a2_schedule():
             "goal": "Compare means of transportation.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1Vl9UPeM2RaATafT8t539aOPrxnSkfr9A/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1snFsDYBK8RrPRq2n3PtWvcIctSph-zvN/view?usp=sharing"
         },
         # DAY 12
         {
@@ -2316,8 +2316,8 @@ def get_a2_schedule():
             "goal": "Describe a typical day.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1ayExWDJ8rTEL8hsuMgbil5_ddDPO8z29/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/18u6FnHpd2nAh1Ev_2mVk5aV3GdVC6Add/view?usp=sharing"
         },
         # DAY 13
         {
@@ -2404,8 +2404,8 @@ def get_a2_schedule():
             "goal": "Handle typical complaints.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1-72wZuNJE4Y92Luy0h5ygWooDnBd9PQW/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1_GTumT1II0E1PRoh6hMDwWsTPEInGeed/view?usp=sharing"
         },
         # DAY 21
         {
@@ -2415,8 +2415,8 @@ def get_a2_schedule():
             "goal": "Plan a weekend.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1FcCg7orEizna4rAkX3_FCyd3lh_Bb3IT/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1mMtZza34QoJO_lfUiEX3kwTa-vsTN_RK/view?usp=sharing"
         },
         # DAY 22
         {
@@ -2426,8 +2426,8 @@ def get_a2_schedule():
             "goal": "Make a weekly plan.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1dWr4QHw8zT1RPbuIEr_X13cPLYpH-mms/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1mg_2ytNAYF00_j-TFQelajAxgQpmgrhW/view?usp=sharing"
         },
         # DAY 23
         {
@@ -2437,8 +2437,8 @@ def get_a2_schedule():
             "goal": "Talk about your route to school or work.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1XbWKmc5P7ZAR-OqFce744xqCe7PQguXo/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1Ialg19GIE_KKHiLBDMm1aHbrzfNdb7L_/view?usp=sharing"
         },
         # DAY 24
         {
@@ -2448,8 +2448,8 @@ def get_a2_schedule():
             "goal": "Plan a vacation.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1tFXs-DNKvt97Q4dsyXsYvKVQvT5Qqt0y/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1t3xqddDJp3-1XeJ6SesnsYsTO5xSm9vG/view?usp=sharing"
         },
         # DAY 25
         {
@@ -2459,8 +2459,7 @@ def get_a2_schedule():
             "goal": "Describe a daily routine.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "workbook_link": "https://drive.google.com/file/d/1jfWDzGfXrzhfGZ1bQe1u5MXVQkR5Et43/view?usp=sharing"
         },
         # DAY 26
         {
@@ -2470,8 +2469,7 @@ def get_a2_schedule():
             "goal": "Express feelings in various situations.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "workbook_link": "https://drive.google.com/file/d/126MQiti-lpcovP1TdyUKQAK6KjqBaoTx/view?usp=sharing"
         },
         # DAY 27
         {
@@ -2481,8 +2479,7 @@ def get_a2_schedule():
             "goal": "Talk about digital communication.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "workbook_link": "https://drive.google.com/file/d/1UdBu6O2AMQ2g6Ot_abTsFwLvT87LHHwY/view?usp=sharing"
         },
         # DAY 28
         {
@@ -2492,8 +2489,7 @@ def get_a2_schedule():
             "goal": "Discuss the future.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "workbook_link": "https://drive.google.com/file/d/1164aJFtkZM1AMb87s1-K59wuobD7q34U/view?usp=sharing"
         },
     ]
 
