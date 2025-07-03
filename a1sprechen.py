@@ -13,33 +13,7 @@ import requests
 import io
 from openai import OpenAI
 from fpdf import FPDF
-from streamlit_cookies_manager import EncryptedCookieManager
 
-# ---- OpenAI Client Setup ----
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
-if not OPENAI_API_KEY:
-    st.error(
-        "Missing OpenAI API key. Please set OPENAI_API_KEY as an environment variable or in Streamlit secrets."
-    )
-    st.stop()
-os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY   # <- Set for OpenAI client!
-client = OpenAI()  # <-- Do NOT pass api_key here for openai>=1.0
-
-import os
-import random
-import difflib
-import sqlite3
-import atexit
-import json
-from datetime import date, datetime
-import pandas as pd
-import streamlit as st
-import urllib.parse
-import requests
-import io
-from openai import OpenAI
-from fpdf import FPDF
-from streamlit_encrypted_cookie_manager import EncryptedCookieManager  # <-- THIS IS CORRECT
 
 # ---- OpenAI Client Setup ----
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
