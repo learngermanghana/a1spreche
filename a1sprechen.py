@@ -1804,33 +1804,61 @@ if tab == "Schreiben Trainer":
 if tab == "Course Book":
     st.header("📖 Course Book")
 
-    # --- Table of Contents (edit these to match your book's chapters/pages) ---
+    # --- Table of Contents: add 'video' keys (None if not available) ---
     toc = [
-        {"chapter": "Chapter 0.1 – Greetings", "page": 3},
-        {"chapter": "Chapter 0.2 – Introducing Yourself", "page": 6},
-        {"chapter": "Chapter 1.1 – At the Café", "page": 12},
-        {"chapter": "Chapter 1.2 – Shopping", "page": 20},
-        # Add more as needed!
+        {
+            "chapter": "Chapter 0.1 – Greetings",
+            "page": 3,
+            "video": "https://www.youtube.com/watch?v=your_video_id"  # Replace with your real video link
+        },
+        {
+            "chapter": "Chapter 0.2 – Introducing Yourself",
+            "page": 6,
+            "video": None  # No video yet
+        },
+        {
+            "chapter": "Chapter 1.1 – At the Café",
+            "page": 12,
+            "video": None
+        },
+        {
+            "chapter": "Chapter 1.2 – Shopping",
+            "page": 20,
+            "video": None
+        },
+        # Add more chapters as needed
     ]
 
-    # Your Google Drive PDF ID
+    # --- Your Google Drive PDF file ---
     pdf_id = "14llTlqrTQav8mv6fayNXF1nnIrHHqVt7"
     pdf_link = f"https://drive.google.com/file/d/{pdf_id}/preview"
 
-    st.subheader("Table of Contents")
-    for entry in toc:
-        st.markdown(f"- **{entry['chapter']}** (Page {entry['page']})")
+    # --- Chapter selection (dropdown) ---
+    chapter_titles = [entry["chapter"] for entry in toc]
+    selected_idx = st.selectbox(
+        "Select Chapter", range(len(chapter_titles)), format_func=lambda i: chapter_titles[i]
+    )
+    selected_chapter = toc[selected_idx]
+
+    st.subheader(selected_chapter["chapter"])
+    st.markdown(f"**Page:** {selected_chapter['page']}")
 
     st.divider()
-    st.subheader("View the Course Book")
-
+    st.subheader("📕 View in Course Book")
     st.markdown(f"""
     <iframe src="{pdf_link}" width="700" height="900" allow="autoplay"></iframe>
     """, unsafe_allow_html=True)
+    st.info(f"Scroll to page {selected_chapter['page']} in the PDF above for this chapter.")
 
-    st.info("Scroll to the page number in the Table of Contents to find your chapter. For best experience, you can also open the book in a new tab.")
+    # --- Video integration (if available) ---
+    if selected_chapter.get("video"):
+        st.divider()
+        st.subheader("🎬 Lecture Video")
+        st.video(selected_chapter["video"])
+    else:
+        st.warning("No video available for this chapter yet.")
 
-    # Optional: Open in New Tab button
+    # --- Optional: Open full PDF in new tab ---
     book_url = f"https://drive.google.com/file/d/{pdf_id}/view"
     st.markdown(f"[🔗 Open Full Book in New Tab]({book_url})")
 
