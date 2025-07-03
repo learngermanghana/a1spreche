@@ -30,70 +30,42 @@ if not OPENAI_API_KEY:
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI()  # Do NOT pass api_key here for openai>=1.0
 
-# ========== DB CONNECTION & INIT ==========
+# ==========================
+# 3. SQLITE HELPERS
+# ==========================
 def get_connection():
     if "conn" not in st.session_state:
-        st.session_state["conn"] = sqlite3.connect(
-            "vocab_progress.db", check_same_thread=False
-        )
+        st.session_state["conn"] = sqlite3.connect("local.db", check_same_thread=False)
         atexit.register(st.session_state["conn"].close)
     return st.session_state["conn"]
 
 def init_db():
-    conn = get_connection()
-    c    = conn.cursor()
-    # Create all tables if they don't exist
-    c.execute("""CREATE TABLE IF NOT EXISTS vocab_progress (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        student_code TEXT, name TEXT, level TEXT,
-        word TEXT, student_answer TEXT, is_correct INTEGER, date TEXT
-    )""")
-    c.execute("""CREATE TABLE IF NOT EXISTS schreiben_progress (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        student_code TEXT, name TEXT, level TEXT,
-        essay TEXT, score INTEGER, feedback TEXT, date TEXT
-    )""")
-    c.execute("""CREATE TABLE IF NOT EXISTS sprechen_progress (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        student_code TEXT, name TEXT, level TEXT,
-        teil TEXT, message TEXT, score INTEGER, feedback TEXT, date TEXT
-    )""")
-    c.execute("""CREATE TABLE IF NOT EXISTS scores (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        student_code TEXT, name TEXT, assignment TEXT,
-        score REAL, comments TEXT, date TEXT, level TEXT
-    )""")
-    c.execute("""CREATE TABLE IF NOT EXISTS exam_progress (
-        student_code TEXT, level TEXT, teil TEXT,
-        remaining TEXT, used TEXT,
-        PRIMARY KEY (student_code, level, teil)
-    )""")
-    c.execute("""CREATE TABLE IF NOT EXISTS my_vocab (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        student_code TEXT, level TEXT,
-        word TEXT, translation TEXT, date_added TEXT
-    )""")
-    conn.commit()
+    c = get_connection().cursor()
+    for tbl, cols in {
+        "vocab":     "id INTEGER PRIMARY KEY, student_code, name, level, word, student_answer, is_correct, date",
+        "schreiben":"id INTEGER PRIMARY KEY, student_code, name, level, essay, score, feedback, date",
+        "sprechen":  "id INTEGER PRIMARY KEY, student_code, name, level, teil, message, score, feedback, date"
+    }.items():
+        c.execute(f"CREATE TABLE IF NOT EXISTS {tbl}_progress ({cols})")
+    get_connection().commit()
 
 init_db()
 
 # ==========================
-# 2. DATA LOADING & HELPERS
+# 4. GOOGLE SHEETS + CONTRACT
 # ==========================
 @st.cache_data
 def load_student_data():
-    SHEET_CSV = (
+    SHEET = (
         "https://docs.google.com/spreadsheets/d/"
         "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
     )
     try:
-        resp = requests.get(SHEET_CSV, timeout=7)
-        resp.raise_for_status()
-        df = pd.read_csv(io.StringIO(resp.text), engine="python")
+        r = requests.get(SHEET, timeout=7); r.raise_for_status()
+        df = pd.read_csv(io.StringIO(r.text))
         df.columns = [c.strip() for c in df.columns]
-        for col in ["StudentCode", "Email"]:
-            if col in df.columns:
-                df[col] = df[col].str.strip().str.lower()
+        for col in ("StudentCode","Email"):
+            if col in df: df[col] = df[col].str.strip().str.lower()
         return df
     except Exception as e:
         st.warning(f"Could not load student data: {e}")
@@ -101,108 +73,66 @@ def load_student_data():
 
 def contract_active(row):
     end = row.get("ContractEnd") or row.get("Contract_End_Date")
-    if not end or str(end).strip().lower() in ["", "nan", "none"]:
+    if not end or str(end).lower() in ("","nan","none"):
         return False
     try:
         return datetime.strptime(str(end), "%Y-%m-%d").date() >= date.today()
     except:
         return False
 
-# — Save/Load progress helpers —
+# ==========================
+# 5. FIRESTORE HELPERS
+# ==========================
+def save_firestore(tbl, doc):
+    db.collection(f"{tbl}_progress").add(doc)
 
-def save_vocab_submission(student_code, name, level, word, ans, correct):
-    conn = get_connection(); c = conn.cursor()
-    c.execute(
-        "INSERT INTO vocab_progress VALUES (NULL,?,?,?,?,?,?,?)",
-        (student_code, name, level, word, ans, int(correct), str(date.today())),
-    )
-    conn.commit()
+def get_firestore_submissions(tbl, student_code, **filters):
+    col = db.collection(f"{tbl}_progress").where("student_code","==", student_code)
+    for k,v in filters.items():
+        col = col.where(k,"==",v)
+    return [d.to_dict() for d in col.order_by("date", direction=firestore.Query.DESCENDING).stream()]
 
-def save_schreiben_submission(student_code, name, level, essay, score, fb):
-    conn = get_connection(); c = conn.cursor()
-    c.execute(
-        "INSERT INTO schreiben_progress VALUES (NULL,?,?,?,?,?,?,?)",
-        (student_code, name, level, essay, score, fb, str(date.today())),
-    )
-    conn.commit()
+# ==========================
+# 6. STREAMLIT LOGIN & DASH
+# ==========================
+st.set_page_config(page_title="Falowen App", layout="centered")
+st.title("🔑 Student Login")
 
-def save_sprechen_submission(student_code, name, level, teil, msg, score, fb):
-    conn = get_connection(); c = conn.cursor()
-    c.execute(
-        "INSERT INTO sprechen_progress VALUES (NULL,?,?,?,?,?,?,?,?)",
-        (student_code, name, level, teil, msg, score, fb, str(date.today())),
-    )
-    conn.commit()
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
 
-# — Personal vocab —
-
-def get_personal_vocab_stats(student_code):
-    conn = get_connection(); c = conn.cursor()
-    c.execute("SELECT level,COUNT(*) FROM my_vocab WHERE student_code=? GROUP BY level", (student_code,))
-    rows = c.fetchall(); stats = {lvl: cnt for lvl, cnt in rows}; stats["total"]=sum(stats.values())
-    return stats
-
-def add_my_vocab(student_code, level, word, tr):
-    conn = get_connection(); c = conn.cursor()
-    c.execute(
-        "INSERT INTO my_vocab VALUES (NULL,?,?,?,?,?)",
-        (student_code, level, word, tr, str(date.today())),
-    )
-    conn.commit()
-
-def get_my_vocab(student_code, level=None):
-    conn = get_connection(); c = conn.cursor()
-    if level:
-        c.execute(
-            "SELECT * FROM my_vocab WHERE student_code=? AND level=? ORDER BY date_added DESC",
-            (student_code, level),
-        )
-    else:
-        c.execute("SELECT * FROM my_vocab WHERE student_code=? ORDER BY date_added DESC", (student_code,))
-    return c.fetchall()
-
-def delete_my_vocab(vocab_id, student_code):
-    conn = get_connection(); c = conn.cursor()
-    c.execute("DELETE FROM my_vocab WHERE id=? AND student_code=?", (vocab_id, student_code))
-    conn.commit()
-
-# — Stats & quotas —
-
-def get_writing_stats(student_code):
-    conn = get_connection(); c = conn.cursor()
-    c.execute("SELECT COUNT(*),SUM(score>=17) FROM schreiben_progress WHERE student_code=?", (student_code,))
-    tot, passed = c.fetchone() or (0,0)
-    acc = round(100 * passed / tot) if tot else 0
-    return tot, passed, acc
-
-def get_vocab_streak(student_code):
-    conn = get_connection(); c = conn.cursor()
-    c.execute("SELECT DISTINCT date FROM vocab_progress WHERE student_code=? ORDER BY date DESC", (student_code,))
-    rows = c.fetchall()
-    if not rows: return 0
-    dates = [date.fromisoformat(r[0]) for r in rows]
-    if (date.today()-dates[0]).days>1: return 0
-    streak, prev = 1, dates[0]
-    for d in dates[1:]:
-        if (prev-d).days==1:
-            streak+=1; prev=d
+if not st.session_state["logged_in"]:
+    inp = st.text_input("Student Code or Email:").strip().lower()
+    if st.button("Login"):
+        df = load_student_data()
+        found = df[(df["StudentCode"]==inp)|(df["Email"]==inp)]
+        if found.empty:
+            st.error("Invalid credentials")
         else:
-            break
-    return streak
+            row = found.iloc[0].to_dict()
+            if not contract_active(row):
+                st.error("⛔ Contract expired")
+            else:
+                st.session_state.update(
+                    logged_in=True,
+                    student_code=row["StudentCode"],
+                    student_name=row.get("Name",""),
+                    student_row=row
+                )
+                st.rerun()
+    st.stop()
 
-def get_falowen_usage(student_code):
-    today = str(date.today()); key=f"{student_code}_falowen_{today}"
-    usg = st.session_state.setdefault("falowen_usage", {})
-    return usg.setdefault(key, 0)
-
-def inc_falowen_usage(student_code):
-    today = str(date.today()); key=f"{student_code}_falowen_{today}"
-    usg = st.session_state.setdefault("falowen_usage", {})
-    usg[key] = usg.get(key,0)+1
-
-def has_falowen_quota(student_code):
-    return get_falowen_usage(student_code) < FALOWEN_DAILY_LIMIT
-
+row = st.session_state["student_row"]
+st.header(f"👤 {row.get('Name')}  |  Level {row.get('Level')}")
+st.markdown(f"""
+- 🔑 Code: `{row.get('StudentCode')}`
+- 📧 Email: {row.get('Email')}
+- 📄 Contract End: {row.get('ContractEnd') or row.get('Contract_End_Date')}
+""")
+if st.button("🚪 Log Out"):
+    for k in ("logged_in","student_row","student_code","student_name"):
+        st.session_state.pop(k,None)
+    st.experimental_rerun()
 
 # --- Vocab lists for all levels ---
 
