@@ -1808,7 +1808,7 @@ if tab == "Course Book":
         {
             "chapter": "Chapter 0.1 – Greetings",
             "page": 3,
-            "video": "https://drive.google.com/file/d/17E6b8sMrTuMdqMHbzFHlqK4vm-7YqmPO/view?usp=sharing"  
+            "video": "https://www.youtube.com/watch?v=8k2VKKjbekA&feature=youtu.be"  
         },
         {
             "chapter": "Chapter 0.2 – Introducing Yourself",
