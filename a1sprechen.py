@@ -18,402 +18,190 @@ from fpdf import FPDF
 
 # ========== CONSTANTS ==========
 FALOWEN_DAILY_LIMIT = 20
-VOCAB_DAILY_LIMIT = 20
+VOCAB_DAILY_LIMIT   = 20
 SCHREIBEN_DAILY_LIMIT = 5
 max_turns = 25
 
 # ========== OPENAI SETUP ==========
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
-    st.error("Missing OpenAI API key. Please set OPENAI_API_KEY as an environment variable or in Streamlit secrets.")
+    st.error("Missing OpenAI API key. Please set OPENAI_API_KEY in env or secrets.")
     st.stop()
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI()  # Do NOT pass api_key here for openai>=1.0
 
-# ========== DB CONNECTION ==========
+# ========== DB CONNECTION & INIT ==========
 def get_connection():
     if "conn" not in st.session_state:
-        st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
+        st.session_state["conn"] = sqlite3.connect(
+            "vocab_progress.db", check_same_thread=False
+        )
         atexit.register(st.session_state["conn"].close)
     return st.session_state["conn"]
 
-# ========== DB TABLE CREATION ==========
 def init_db():
     conn = get_connection()
-    c = conn.cursor()
-    # Vocab Progress Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS vocab_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            word TEXT,
-            student_answer TEXT,
-            is_correct INTEGER,
-            date TEXT
-        )
-    """)
-    # Schreiben Progress Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS schreiben_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            essay TEXT,
-            score INTEGER,
-            feedback TEXT,
-            date TEXT
-        )
-    """)
-    # Sprechen Progress Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS sprechen_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            teil TEXT,
-            message TEXT,
-            score INTEGER,
-            feedback TEXT,
-            date TEXT
-        )
-    """)
-    # Scores Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS scores (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            assignment TEXT,
-            score REAL,
-            comments TEXT,
-            date TEXT,
-            level TEXT
-        )
-    """)
-    # Exam Progress Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS exam_progress (
-            student_code TEXT,
-            level        TEXT,
-            teil         TEXT,
-            remaining    TEXT,    -- JSON list of topics still to do
-            used         TEXT,    -- JSON list of already done
-            PRIMARY KEY (student_code, level, teil)
-        )
-    """)
-    # My Vocab Table (STUDENT PERSONAL VOCAB)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS my_vocab (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            level TEXT,
-            word TEXT,
-            translation TEXT,
-            date_added TEXT
-        )
-    """)
+    c    = conn.cursor()
+    # Create all tables if they don't exist
+    c.execute("""CREATE TABLE IF NOT EXISTS vocab_progress (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_code TEXT, name TEXT, level TEXT,
+        word TEXT, student_answer TEXT, is_correct INTEGER, date TEXT
+    )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS schreiben_progress (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_code TEXT, name TEXT, level TEXT,
+        essay TEXT, score INTEGER, feedback TEXT, date TEXT
+    )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS sprechen_progress (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_code TEXT, name TEXT, level TEXT,
+        teil TEXT, message TEXT, score INTEGER, feedback TEXT, date TEXT
+    )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS scores (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_code TEXT, name TEXT, assignment TEXT,
+        score REAL, comments TEXT, date TEXT, level TEXT
+    )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS exam_progress (
+        student_code TEXT, level TEXT, teil TEXT,
+        remaining TEXT, used TEXT,
+        PRIMARY KEY (student_code, level, teil)
+    )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS my_vocab (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_code TEXT, level TEXT,
+        word TEXT, translation TEXT, date_added TEXT
+    )""")
     conn.commit()
+
 init_db()
 
-# ========== DATA LOADING ==========
+# ==========================
+# 2. DATA LOADING & HELPERS
+# ==========================
 @st.cache_data
 def load_student_data():
-    GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
+    SHEET_CSV = (
+        "https://docs.google.com/spreadsheets/d/"
+        "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
+    )
     try:
-        response = requests.get(GOOGLE_SHEET_CSV, timeout=7)
-        response.raise_for_status()
-        df = pd.read_csv(io.StringIO(response.text), engine='python')
+        resp = requests.get(SHEET_CSV, timeout=7)
+        resp.raise_for_status()
+        df = pd.read_csv(io.StringIO(resp.text), engine="python")
         df.columns = [c.strip() for c in df.columns]
         for col in ["StudentCode", "Email"]:
             if col in df.columns:
-                df[col] = df[col].astype(str).str.strip().str.lower()
+                df[col] = df[col].str.strip().str.lower()
         return df
     except Exception as e:
-        st.warning(f"Could not load student data from Google Sheets: {e}")
+        st.warning(f"Could not load student data: {e}")
         return pd.DataFrame()
 
-# ========== CONTRACT HELPER ==========
 def contract_active(row):
-    contract_end_str = row.get("ContractEnd") or row.get("Contract_End_Date")
-    if not contract_end_str or str(contract_end_str).strip().lower() in ["", "nan", "none"]:
+    end = row.get("ContractEnd") or row.get("Contract_End_Date")
+    if not end or str(end).strip().lower() in ["", "nan", "none"]:
         return False
     try:
-        contract_end = datetime.strptime(str(contract_end_str), "%Y-%m-%d").date()
-        return contract_end >= date.today()
-    except Exception:
+        return datetime.strptime(str(end), "%Y-%m-%d").date() >= date.today()
+    except:
         return False
-# ==========================
-# 2. DB & APP HELPERS
-# ==========================
 
-# --- Save progress helpers ---
-def save_vocab_submission(student_code, name, level, word, student_answer, is_correct):
-    conn = get_connection()
-    c = conn.cursor()
+# — Save/Load progress helpers —
+
+def save_vocab_submission(student_code, name, level, word, ans, correct):
+    conn = get_connection(); c = conn.cursor()
     c.execute(
-        "INSERT INTO vocab_progress (student_code, name, level, word, student_answer, is_correct, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (student_code, name, level, word, student_answer, int(is_correct), str(date.today()))
+        "INSERT INTO vocab_progress VALUES (NULL,?,?,?,?,?,?,?)",
+        (student_code, name, level, word, ans, int(correct), str(date.today())),
     )
     conn.commit()
 
-def save_schreiben_submission(student_code, name, level, essay, score, feedback):
-    conn = get_connection()
-    c = conn.cursor()
+def save_schreiben_submission(student_code, name, level, essay, score, fb):
+    conn = get_connection(); c = conn.cursor()
     c.execute(
-        "INSERT INTO schreiben_progress (student_code, name, level, essay, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (student_code, name, level, essay, score, feedback, str(date.today()))
+        "INSERT INTO schreiben_progress VALUES (NULL,?,?,?,?,?,?,?)",
+        (student_code, name, level, essay, score, fb, str(date.today())),
     )
     conn.commit()
 
-def save_sprechen_submission(student_code, name, level, teil, message, score, feedback):
-    conn = get_connection()
-    c = conn.cursor()
+def save_sprechen_submission(student_code, name, level, teil, msg, score, fb):
+    conn = get_connection(); c = conn.cursor()
     c.execute(
-        "INSERT INTO sprechen_progress (student_code, name, level, teil, message, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (student_code, name, level, teil, message, score, feedback, str(date.today()))
+        "INSERT INTO sprechen_progress VALUES (NULL,?,?,?,?,?,?,?,?)",
+        (student_code, name, level, teil, msg, score, fb, str(date.today())),
     )
     conn.commit()
 
-# --- Personal vocab helpers ---
+# — Personal vocab —
+
 def get_personal_vocab_stats(student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "SELECT level, COUNT(*) FROM my_vocab WHERE student_code=? GROUP BY level",
-        (student_code,)
-    )
-    rows = c.fetchall()
-    stats = {row[0]: row[1] for row in rows}
-    stats['total'] = sum(stats.values())
+    conn = get_connection(); c = conn.cursor()
+    c.execute("SELECT level,COUNT(*) FROM my_vocab WHERE student_code=? GROUP BY level", (student_code,))
+    rows = c.fetchall(); stats = {lvl: cnt for lvl, cnt in rows}; stats["total"]=sum(stats.values())
     return stats
 
-def add_my_vocab(student_code, level, word, translation):
-    conn = get_connection()
-    c = conn.cursor()
+def add_my_vocab(student_code, level, word, tr):
+    conn = get_connection(); c = conn.cursor()
     c.execute(
-        "INSERT INTO my_vocab (student_code, level, word, translation, date_added) VALUES (?, ?, ?, ?, ?)",
-        (student_code, level, word, translation, str(date.today()))
+        "INSERT INTO my_vocab VALUES (NULL,?,?,?,?,?)",
+        (student_code, level, word, tr, str(date.today())),
     )
     conn.commit()
 
 def get_my_vocab(student_code, level=None):
-    conn = get_connection()
-    c = conn.cursor()
+    conn = get_connection(); c = conn.cursor()
     if level:
         c.execute(
-            "SELECT id, word, translation, date_added FROM my_vocab WHERE student_code=? AND level=? ORDER BY date_added DESC",
-            (student_code, level)
+            "SELECT * FROM my_vocab WHERE student_code=? AND level=? ORDER BY date_added DESC",
+            (student_code, level),
         )
     else:
-        c.execute(
-            "SELECT id, word, translation, date_added FROM my_vocab WHERE student_code=? ORDER BY date_added DESC",
-            (student_code,)
-        )
+        c.execute("SELECT * FROM my_vocab WHERE student_code=? ORDER BY date_added DESC", (student_code,))
     return c.fetchall()
 
 def delete_my_vocab(vocab_id, student_code):
-    conn = get_connection()
-    c = conn.cursor()
+    conn = get_connection(); c = conn.cursor()
     c.execute("DELETE FROM my_vocab WHERE id=? AND student_code=?", (vocab_id, student_code))
     conn.commit()
 
-def count_my_vocab(student_code, level=None):
-    conn = get_connection()
-    c = conn.cursor()
-    if level:
-        c.execute("SELECT COUNT(*) FROM my_vocab WHERE student_code=? AND level=?", (student_code, level))
-    else:
-        c.execute("SELECT COUNT(*) FROM my_vocab WHERE student_code=?", (student_code,))
-    return c.fetchone()[0]
+# — Stats & quotas —
 
-# --- Writing/usage stats ---
 def get_writing_stats(student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT COUNT(*), SUM(score>=17) FROM schreiben_progress WHERE student_code=?
-    """, (student_code,))
-    result = c.fetchone()
-    attempted = result[0] or 0
-    passed = result[1] if result[1] is not None else 0
-    accuracy = round(100 * passed / attempted) if attempted > 0 else 0
-    return attempted, passed, accuracy
-
-def get_student_stats(student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT level, SUM(score >= 17), COUNT(*) 
-        FROM schreiben_progress 
-        WHERE student_code=?
-        GROUP BY level
-    """, (student_code,))
-    stats = {}
-    for level, correct, attempted in c.fetchall():
-        stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
-    return stats
-
-# --- Falowen Usage Helpers ---
-def get_falowen_usage(student_code):
-    today_str = str(date.today())
-    key = f"{student_code}_falowen_{today_str}"
-    if "falowen_usage" not in st.session_state:
-        st.session_state["falowen_usage"] = {}
-    st.session_state["falowen_usage"].setdefault(key, 0)
-    return st.session_state["falowen_usage"][key]
-
-def inc_falowen_usage(student_code):
-    today_str = str(date.today())
-    key = f"{student_code}_falowen_{today_str}"
-    if "falowen_usage" not in st.session_state:
-        st.session_state["falowen_usage"] = {}
-    st.session_state["falowen_usage"].setdefault(key, 0)
-    st.session_state["falowen_usage"][key] += 1
-
-def has_falowen_quota(student_code):
-    return get_falowen_usage(student_code) < FALOWEN_DAILY_LIMIT
+    conn = get_connection(); c = conn.cursor()
+    c.execute("SELECT COUNT(*),SUM(score>=17) FROM schreiben_progress WHERE student_code=?", (student_code,))
+    tot, passed = c.fetchone() or (0,0)
+    acc = round(100 * passed / tot) if tot else 0
+    return tot, passed, acc
 
 def get_vocab_streak(student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "SELECT DISTINCT date FROM vocab_progress WHERE student_code=? ORDER BY date DESC",
-        (student_code,),
-    )
+    conn = get_connection(); c = conn.cursor()
+    c.execute("SELECT DISTINCT date FROM vocab_progress WHERE student_code=? ORDER BY date DESC", (student_code,))
     rows = c.fetchall()
-    if not rows:
-        return 0
+    if not rows: return 0
     dates = [date.fromisoformat(r[0]) for r in rows]
-    if (date.today() - dates[0]).days > 1:
-        return 0
-    streak = 1
-    prev = dates[0]
+    if (date.today()-dates[0]).days>1: return 0
+    streak, prev = 1, dates[0]
     for d in dates[1:]:
-        if (prev - d).days == 1:
-            streak += 1
-            prev = d
+        if (prev-d).days==1:
+            streak+=1; prev=d
         else:
             break
     return streak
 
-# ==========================
-# 3. MAIN UI & LOGIN LOGIC
-# ==========================
+def get_falowen_usage(student_code):
+    today = str(date.today()); key=f"{student_code}_falowen_{today}"
+    usg = st.session_state.setdefault("falowen_usage", {})
+    return usg.setdefault(key, 0)
 
-# --- Streamlit page config ---
-st.set_page_config(
-    page_title="Falowen – Your German Conversation Partner",
-    layout="centered",
-    initial_sidebar_state="expanded"
-)
+def inc_falowen_usage(student_code):
+    today = str(date.today()); key=f"{student_code}_falowen_{today}"
+    usg = st.session_state.setdefault("falowen_usage", {})
+    usg[key] = usg.get(key,0)+1
 
-# --- HEADER ---
-st.markdown(
-    """
-    <div style='display:flex;align-items:center;gap:18px;margin-bottom:22px;'>
-        <img src='https://cdn-icons-png.flaticon.com/512/323/323329.png' width='50' style='border-radius:50%;border:2.5px solid #d2b431;box-shadow:0 2px 8px #e4c08d;'/>
-        <div>
-            <span style='font-size:2.0rem;font-weight:bold;color:#17617a;letter-spacing:2px;'>Falowen App</span>
-            <span style='font-size:1.6rem;margin-left:12px;'>🇩🇪</span>
-            <br>
-            <span style='font-size:1.02rem;color:#ff9900;font-weight:600;'>Learn Language Education Academy</span><br>
-            <span style='font-size:1.01rem;color:#268049;font-weight:400;'>
-                Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
-            </span>
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-# --- LOGIN SYSTEM ---
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
-if "student_row" not in st.session_state:
-    st.session_state["student_row"] = None
-
-if not st.session_state["logged_in"]:
-    st.title("🔑 Student Login")
-    login_input = st.text_input("Enter your Student Code or Email to begin:").strip().lower()
-    if st.button("Login"):
-        df_students = load_student_data()
-        found = df_students[
-            (df_students["StudentCode"] == login_input) |
-            (df_students["Email"] == login_input)
-        ]
-        if not found.empty:
-            row = found.iloc[0].to_dict()
-            # --- Contract check ---
-            if not contract_active(row):
-                st.error("⛔️ Your contract has expired. Please contact admin to renew your access.")
-                st.stop()
-            st.session_state["logged_in"] = True
-            st.session_state["student_row"] = row
-            st.success(f"Welcome, {row.get('Name', 'Student')}! Login successful.")
-            st.rerun()
-        else:
-            st.error("Login failed. Please check your Student Code or Email and try again.")
-    st.stop()
-
-row = st.session_state["student_row"]
-
-# --- Universal contract check (guard for all tabs!) ---
-if row and not contract_active(row):
-    st.session_state["logged_in"] = False
-    st.session_state["student_row"] = None
-    st.error("⛔️ Your contract has expired. Please contact admin to renew your access.")
-    st.stop()
-
-# --- Log Out Button ---
-if st.button("🚪 Log Out"):
-    st.session_state["logged_in"] = False
-    st.session_state["student_row"] = None
-    st.experimental_rerun()
-
-# --- EXAMPLE: Falowen usage quota check (useful for all students) ---
-student_code = row.get("StudentCode", "") if row else ""
-if student_code and not has_falowen_quota(student_code):
-    st.error("You have reached your daily Falowen usage quota. Try again tomorrow.")
-    st.stop()
-
-# --- Your app content goes here! ---
-st.success(f"Welcome: {row.get('Name', 'Student')} (Level: {row.get('Level', '')})")
-
-row = st.session_state.get("student_row")
-if not row:
-    st.warning("Student details not found. Please log in.")
-    st.stop()
-
-def show_val(key, icon=None, default="N/A"):
-    val = row.get(key, default)
-    # Handle NaN, None, empty string
-    if val is None or str(val).strip().lower() in ["nan", "none", ""]:
-        val = default
-    if icon:
-        return f"{icon} {val}"
-    return val
-
-col1, col2 = st.columns([2,1])
-with col1:
-    st.markdown(f"""
-    <div style="font-size:1.08em;line-height:1.7">
-    <b>👤 Name:</b> {show_val('Name')}
-    <br><b>🏷️ Level:</b> {show_val('Level')}
-    <br><b>🔑 Code:</b> <code>{show_val('StudentCode')}</code>
-    <br><b>📧 Email:</b> {show_val('Email')}
-    <br><b>📱 Phone:</b> {show_val('Phone')}
-    <br><b>📍 Location:</b> {show_val('Location')}
-    <br><b>🗓️ Enroll Date:</b> {show_val('EnrollDate')}
-    <br><b>📄 Contract End:</b> {show_val('ContractEnd') or show_val('Contract_End_Date')}
-    <br><b>✅ Status:</b> {show_val('Status', default='Active')}
-    </div>
-    """, unsafe_allow_html=True)
-with col2:
-    st.image("https://cdn-icons-png.flaticon.com/512/323/323329.png", width=90)
+def has_falowen_quota(student_code):
+    return get_falowen_usage(student_code) < FALOWEN_DAILY_LIMIT
 
 
 # --- Vocab lists for all levels ---
@@ -708,133 +496,138 @@ c1_teil3_evaluations = [
     "Wie verändert sich die Familie?",
 ]
 
-if st.session_state["logged_in"]:
-    # === Context: Always define at the top ===
-    student_code = st.session_state.get("student_code", "")
-    student_name = st.session_state.get("student_name", "")
+# ==========================
+# 3. MAIN UI & LOGIN LOGIC
+# ==========================
+# — Streamlit page config —
+st.set_page_config(
+    page_title="Falowen – Your German Conversation Partner",
+    layout="centered",
+    initial_sidebar_state="expanded"
+)
 
-    # === MAIN TAB SELECTOR ===
-    tab = st.radio(
-        "How do you want to practice?",
-        [
-            "Dashboard",
-            "Exams Mode & Custom Chat",
-            "Vocab Trainer",
-            "Schreiben Trainer",
-            "Course Book",
-            "My Results and Resources",
-            "Admin"
-        ],
-        key="main_tab_select"
+# — Header —
+st.markdown("""
+<div style='display:flex;align-items:center;gap:18px;margin-bottom:22px;'>
+  <img src='https://cdn-icons-png.flaticon.com/512/323/323329.png' width='50' 
+       style='border-radius:50%;border:2.5px solid #d2b431;box-shadow:0 2px 8px #e4c08d;'/>
+  <div>
+    <span style='font-size:2.0rem;font-weight:bold;color:#17617a;'>Falowen App 🇩🇪</span><br>
+    <span style='font-size:1.02rem;color:#ff9900;'>Learn Language Education Academy</span><br>
+    <span style='font-size:1.01rem;color:#268049;'>
+      Your All-in-One German Learning Platform
+    </span>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+# — LOGIN SYSTEM —
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+    st.session_state["student_row"] = None
+
+if not st.session_state["logged_in"]:
+    st.title("🔑 Student Login")
+    inp = st.text_input("Enter your Student Code or Email:").strip().lower()
+    if st.button("Login"):
+        df = load_student_data()
+        f  = df[(df["StudentCode"]==inp)|(df["Email"]==inp)]
+        if not f.empty:
+            row = f.iloc[0].to_dict()
+            if not contract_active(row):
+                st.error("⛔️ Contract expired. Contact admin.")
+                st.stop()
+            st.session_state["logged_in"]   = True
+            st.session_state["student_row"] = row
+            st.session_state["student_code"]= row["StudentCode"]
+            st.session_state["student_name"]= row["Name"]
+            st.success(f"Welcome, {row['Name']}!")
+            st.experimental_rerun()
+        else:
+            st.error("Login failed. Check code/email.")
+
+    st.stop()
+
+row = st.session_state["student_row"]
+if not row or not contract_active(row):
+    st.error("Access denied. Please log in with a valid, active contract.")
+    st.stop()
+
+# — Log out button —
+if st.button("🚪 Log Out"):
+    st.session_state.clear()
+    st.experimental_rerun()
+
+# — Main tab selector —
+student_code = row["StudentCode"]
+tab = st.radio(
+    "How do you want to practice?",
+    ["Dashboard","Exams Mode & Custom Chat","Vocab Trainer",
+     "Schreiben Trainer","Course Book","My Results","Admin"],
+    key="main_tab"
+)
+
+# --- Dashboard only ---
+if tab == "Dashboard":
+    st.header("📊 Student Dashboard")
+
+    # Refresh student data
+    df = load_student_data()
+    f  = df[df["StudentCode"].str.lower()==student_code]
+    student = f.iloc[0].to_dict() if not f.empty else {}
+
+    streak = get_vocab_streak(student_code)
+    tot,passed,acc = get_writing_stats(student_code)
+    today = str(date.today())
+    key   = f"{student_code}_schreiben_{today}"
+    used  = st.session_state.setdefault("schreiben_usage",{}).setdefault(key,0)
+
+    # Display info
+    st.markdown(f"### 👤 {student.get('Name','')}")
+    st.markdown(
+        f"**Level:** {student.get('Level','')}  \n"
+        f"**Code:** `{student.get('StudentCode','')}`  \n"
+        f"**Email:** {student.get('Email','')}  \n"
+        f"**Phone:** {student.get('Phone','')}  \n"
+        f"**Location:** {student.get('Location','')}  \n"
+        f"**Contract:** {student.get('ContractStart','')} ➔ {student.get('ContractEnd','')}  \n"
+        f"**Enroll Date:** {student.get('EnrollDate','')}  \n"
+        f"**Status:** {student.get('Status','')}"
     )
 
-    # --- DASHBOARD TAB ---
-    if tab == "Dashboard":
-        st.header("📊 Student Dashboard")
-        
-        # Always fetch latest student data
-        df_students = load_student_data()
-        code = student_code
-        found = df_students[df_students["StudentCode"].str.lower().str.strip() == code]
-        student_row = found.iloc[0].to_dict() if not found.empty else {}
+    if float(student.get("Balance","0") or 0) > 0:
+        st.warning(f"💸 Balance to pay: ₵{float(student.get('Balance',0)):.2f}")
 
-        streak = get_vocab_streak(code)
-        total_attempted, total_passed, accuracy = get_writing_stats(code)
-
-        # --- Usage calculation
-        today_str = str(date.today())
-        limit_key = f"{code}_schreiben_{today_str}"
-        if "schreiben_usage" not in st.session_state:
-            st.session_state["schreiben_usage"] = {}
-        st.session_state["schreiben_usage"].setdefault(limit_key, 0)
-        daily_so_far = st.session_state["schreiben_usage"][limit_key]
-
-        # --- Student Info ---
-        st.markdown(f"### 👤 {student_row.get('Name', '')}")
-        st.markdown(
-            f"**Level:** {student_row.get('Level', '')}  \n"
-            f"**Code:** `{student_row.get('StudentCode', '')}`  \n"
-            f"**Email:** {student_row.get('Email', '')}  \n"
-            f"**Phone:** {student_row.get('Phone', '')}  \n"
-            f"**Location:** {student_row.get('Location', '')}  \n"
-            f"**Contract:** {student_row.get('ContractStart', '')} ➔ {student_row.get('ContractEnd', '')}  \n"
-            f"**Enroll Date:** {student_row.get('EnrollDate', '')}  \n"
-            f"**Status:** {student_row.get('Status', '')}"
-        )
-
-        # --- Payment info ---
-        balance = student_row.get('Balance', '0.0')
+    ce = student.get("ContractEnd")
+    if ce:
         try:
-            balance_float = float(balance)
-        except Exception:
-            balance_float = 0.0
-        if balance_float > 0:
-            st.warning(f"💸 Balance to pay: **₵{balance_float:.2f}** (update when paid)")
+            dleft = (datetime.strptime(str(ce),"%Y-%m-%d") - datetime.now()).days
+            if 0<dleft<=30: st.info(f"⚠️ Contract ends in {dleft} days.")
+            elif dleft<0: st.error("⏰ Contract expired.")
+        except: pass
 
-        # --- Contract End reminder ---
-        contract_end = student_row.get('ContractEnd')
-        if contract_end:
-            try:
-                contract_end_date = datetime.strptime(str(contract_end), "%Y-%m-%d")
-                days_left = (contract_end_date - datetime.now()).days
-                if 0 < days_left <= 30:
-                    st.info(f"⚠️ Contract ends in {days_left} days. Please renew soon.")
-                elif days_left < 0:
-                    st.error("⏰ Contract expired. Contact the office to renew.")
-            except Exception:
-                pass
+    st.markdown(f"🔥 **Vocab Streak:** {streak} days")
+    goal = max(0,2-tot)
+    if goal>0: st.success(f"🎯 Write {goal} more letter(s) this week!")
+    else:     st.success("🎉 Weekly goal reached!")
+    st.markdown(
+        f"**📝 Letters submitted:** {tot}  \n"
+        f"**✅ Passed (≥17):** {passed}  \n"
+        f"**🏅 Pass rate:** {acc}%  \n"
+        f"**Today:** {used} / {SCHREIBEN_DAILY_LIMIT}"
+    )
 
+    with st.expander("📅 Upcoming Goethe Exams", expanded=True):
+        st.markdown("""
+| Level | Date       | Fee (GHS) |
+|-------|------------|-----------|
+| A1    | 21.07.2025 | 2,850     |
+| A2    | 22.07.2025 | 2,400     |
+| B1    | 23.07.2025 | 2,750     |
+| B2    | 24.07.2025 | 2,500     |
+| C1    | 25.07.2025 | 2,450     |
+""")
 
-        # --- Progress stats ---
-        st.markdown(f"🔥 **Vocab Streak:** {streak} days")
-        goal_remain = max(0, 2 - (total_attempted or 0))
-        if goal_remain > 0:
-            st.success(f"🎯 Your next goal: Write {goal_remain} more letter(s) this week!")
-        else:
-            st.success("🎉 Weekly goal reached! Keep practicing!")
-        st.markdown(
-            f"**📝 Letters submitted:** {total_attempted}  \n"
-            f"**✅ Passed (score ≥17):** {total_passed}  \n"
-            f"**🏅 Pass rate:** {accuracy}%  \n"
-            f"**Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT} used"
-        )
-
-        # --- UPCOMING EXAMS (dashboard only) ---
-        with st.expander("📅 Upcoming Goethe Exams & Registration (Tap for details)", expanded=True):
-            st.markdown(
-                """
-**Registration for Aug./Sept. 2025 Exams:**
-
-| Level | Date       | Fee (GHS) | Per Module (GHS) |
-|-------|------------|-----------|------------------|
-| A1    | 21.07.2025 | 2,850     | —                |
-| A2    | 22.07.2025 | 2,400     | —                |
-| B1    | 23.07.2025 | 2,750     | 880              |
-| B2    | 24.07.2025 | 2,500     | 840              |
-| C1    | 25.07.2025 | 2,450     | 700              |
-
----
-
-### 📝 Registration Steps
-
-1. [**Register Here (9–10am, keep checking!)**](https://www.goethe.de/ins/gh/en/spr/prf/anm.html)
-2. Fill the form and choose **extern**
-3. Submit and get payment confirmation
-4. Pay by Mobile Money or Ecobank (**use full name as reference**)
-    - Email proof to: [registrations-accra@goethe.de](mailto:registrations-accra@goethe.de)
-5. Wait for response. If not, send polite reminders by email.
-
----
-
-**Payment Details:**  
-**Ecobank Ghana**  
-Account Name: **GOETHE-INSTITUT GHANA**  
-Account No.: **1441 001 701 903**  
-Branch: **Ring Road Central**  
-SWIFT: **ECOCGHAC**
-                """,
-                unsafe_allow_html=True,
-            )
 
 # ================================
 # 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
