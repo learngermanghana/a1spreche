@@ -533,7 +533,15 @@ if not has_falowen_quota(student_code):
 # -- TAB SELECTION --
 tab = st.radio(
     "How do you want to practice?",
-    ["Dashboard","Vocab Trainer","Schreiben Trainer","Sprechen Trainer","My Results","Admin"],
+    [
+        "Dashboard",
+        "Exams Mode & Custom Chat",
+        "Vocab Trainer",
+        "Schreiben Trainer",
+        "Course Book",
+        "My Results and Resources",
+        "Admin"
+    ],
     key="main_tab"
 )
 
@@ -542,7 +550,7 @@ if tab == "Dashboard":
     st.header("📊 Student Dashboard")
 
     df = load_student_data()
-    f  = df[df.StudentCode.str.lower() == student_code.lower()]
+    f  = df[df.StudentCode.str.lower() == student_code]
     stud = f.iloc[0].to_dict() if not f.empty else {}
 
     streak = get_vocab_streak(student_code)
@@ -576,7 +584,7 @@ if tab == "Dashboard":
     st.markdown(f"📄 **Letters submitted:** {tot}")
     st.markdown(f"✅ **Passed (≥17):** {passed}")
     st.markdown(f"🏅 **Pass rate:** {acc}%")
-    st.markdown(f"📅 **Today:** {used} / {SCHREIBEN_DAILY_LIMIT}")
+    st.markdown(f"📅 **Today:** {used} / {SCHREIBEN_DAILY_LIMIT}" )
 
     if tot < 2:
         st.success(f"🎯 Your next goal: Write {2 - tot} more letter(s) this week!")
@@ -604,21 +612,18 @@ if tab == "Dashboard":
 2. Fill the form and choose **extern**  
 3. Submit and get payment confirmation  
 4. Pay by Mobile Money or Ecobank (**use full name as reference**)  
-   - Email proof to: [registrations-accra@goethe.de](mailto:registrations-accra@goethe.de)  
+   - Email proof to: registrations-accra@goethe.de  
 5. Wait for response; send polite reminders if needed.
-
----
 
 **Payment Details:**  
 **Ecobank Ghana**  
 Account Name: **GOETHE-INSTITUT GHANA**  
-Account No.: **1441 001 701 903**  
+Account No: **1441 001 701 903**  
 Branch: **Ring Road Central**  
 SWIFT: **ECOCGHAC**
             """,
             unsafe_allow_html=True,
         )
-
 
 # ================================
 # 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
