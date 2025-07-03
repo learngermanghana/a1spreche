@@ -821,6 +821,7 @@ if st.session_state["logged_in"]:
             "Exams Mode & Custom Chat",
             "Vocab Trainer",
             "Schreiben Trainer",
+            "Course Book",
             "My Results and Resources",
             "Admin"
         ],
@@ -1798,6 +1799,41 @@ if tab == "Schreiben Trainer":
                 f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                 unsafe_allow_html=True
             )
+
+
+if tab == "Course Book":
+    st.header("📖 Course Book")
+
+    # --- Table of Contents (customize this as needed) ---
+    toc = [
+        {"chapter": "Chapter 0.1 – Greetings", "page": 3},
+        {"chapter": "Chapter 0.2 – Introducing Yourself", "page": 6},
+        {"chapter": "Chapter 1.1 – At the Café", "page": 12},
+        {"chapter": "Chapter 1.2 – Shopping", "page": 20},
+        # Add more chapters as needed!
+    ]
+
+    # --- Google Drive PDF link (replace with your file ID) ---
+    pdf_id = "your_pdf_file_id"
+    pdf_link = f"https://drive.google.com/file/d/{pdf_id}/preview"
+
+    st.subheader("Table of Contents")
+    for entry in toc:
+        st.markdown(f"- **{entry['chapter']}** (Page {entry['page']})")
+
+    st.divider()
+    st.subheader("View the Course Book")
+
+    st.markdown(f"""
+    <iframe src="{pdf_link}" width="700" height="900" allow="autoplay"></iframe>
+    """, unsafe_allow_html=True)
+
+    st.info("Scroll to the page number in the Table of Contents to find your chapter. For best experience, you can also open the book in a new tab.")
+
+    # Optional: Open in New Tab button
+    book_url = f"https://drive.google.com/file/d/{pdf_id}/view"
+    st.markdown(f"[🔗 Open Full Book in New Tab]({book_url})")
+
 
 #Myresults
 
