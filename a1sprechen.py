@@ -414,6 +414,38 @@ if student_code and not has_falowen_quota(student_code):
 # --- Your app content goes here! ---
 st.success(f"Welcome: {row.get('Name', 'Student')} (Level: {row.get('Level', '')})")
 
+row = st.session_state.get("student_row")
+if not row:
+    st.warning("Student details not found. Please log in.")
+    st.stop()
+
+def show_val(key, icon=None, default="N/A"):
+    val = row.get(key, default)
+    # Handle NaN, None, empty string
+    if val is None or str(val).strip().lower() in ["nan", "none", ""]:
+        val = default
+    if icon:
+        return f"{icon} {val}"
+    return val
+
+col1, col2 = st.columns([2,1])
+with col1:
+    st.markdown(f"""
+    <div style="font-size:1.08em;line-height:1.7">
+    <b>👤 Name:</b> {show_val('Name')}
+    <br><b>🏷️ Level:</b> {show_val('Level')}
+    <br><b>🔑 Code:</b> <code>{show_val('StudentCode')}</code>
+    <br><b>📧 Email:</b> {show_val('Email')}
+    <br><b>📱 Phone:</b> {show_val('Phone')}
+    <br><b>📍 Location:</b> {show_val('Location')}
+    <br><b>🗓️ Enroll Date:</b> {show_val('EnrollDate')}
+    <br><b>📄 Contract End:</b> {show_val('ContractEnd') or show_val('Contract_End_Date')}
+    <br><b>✅ Status:</b> {show_val('Status', default='Active')}
+    </div>
+    """, unsafe_allow_html=True)
+with col2:
+    st.image("https://cdn-icons-png.flaticon.com/512/323/323329.png", width=90)
+
 
 # --- Vocab lists for all levels ---
 
