@@ -1800,47 +1800,72 @@ if tab == "Schreiben Trainer":
                 unsafe_allow_html=True
             )
 
-if tab == "Assignments":
-    st.header("📝 Assignment Submission")
+if tab == "Course Book":
+    st.header("📖 Course Book & Assignments")
 
-    # --- Example assignment list (edit as needed) ---
-    assignments = [
-        {"chapter": "Chapter 0.1 – Greetings", "assignment": "Write a greeting dialogue in German."},
-        {"chapter": "Chapter 1.1 – At the Café", "assignment": "Write a short café conversation."},
-        {"chapter": "Chapter 1.2 – Shopping", "assignment": "Describe your last shopping experience in German."},
-        # ...add more assignments!
+    # --- List your chapters/assignments ---
+    chapters = [
+        {
+            "name": "Chapter 0.1 – Greetings",
+            "pdf": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/view?usp=sharing",
+            "video": "https://www.youtube.com/watch?v=8k2VKKjbekA",  # Or None
+            "assignment_pdf": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/view?usp=sharing."
+        },
+        {
+            "name": "Chapter 1.1 – At the Café",
+            "pdf": "https://drive.google.com/file/d/your_pdf_id_2/preview",
+            "video": None,  # No video for this chapter
+            "assignment": "Write a short café conversation."
+        },
+        # ...add more chapters
     ]
 
-    # --- Student Information (auto-fill if possible) ---
+    # --- Student info (auto-filled if available) ---
     student_name = st.session_state.get("student_name", "")
     student_code = st.session_state.get("student_code", "")
 
+    # --- Chapter selector ---
+    chapter_titles = [c["name"] for c in chapters]
+    sel_idx = st.selectbox("Select Chapter", range(len(chapter_titles)), format_func=lambda i: chapter_titles[i])
+    chapter = chapters[sel_idx]
+
+    st.subheader(chapter["name"])
+
+    # --- Show PDF for the chapter (embed or link) ---
+    st.markdown(
+        f'<iframe src="{chapter["pdf"]}" width="700" height="900" allow="autoplay"></iframe>',
+        unsafe_allow_html=True
+    )
+
+    # --- Optional: video ---
+    if chapter.get("video"):
+        st.divider()
+        st.subheader("🎬 Lecture Video")
+        st.video(chapter["video"])
+
+    # --- Assignment section ---
+    st.divider()
+    st.subheader("📝 Assignment")
+    st.markdown(chapter.get("assignment", "No assignment for this chapter."))
+
+    # --- WhatsApp Submission Section ---
     student_name = st.text_input("Your Name", value=student_name)
     student_code = st.text_input("Student Code", value=student_code)
+    answer = st.text_area("Your Answer (leave blank if you will send a photo/file on WhatsApp)", height=120)
 
-    # --- Assignment Selector ---
-    chapter_titles = [a["chapter"] for a in assignments]
-    sel_idx = st.selectbox("Select Chapter", range(len(chapter_titles)), format_func=lambda i: chapter_titles[i])
-    sel_assignment = assignments[sel_idx]
-    st.markdown(f"**Assignment:** {sel_assignment['assignment']}")
-
-    # --- Student's Answer (or file/photo by WhatsApp) ---
-    answer = st.text_area("Your Answer (leave blank if you want to send a photo/file on WhatsApp)", height=120)
-
-    # --- Prepare WhatsApp message ---
     from datetime import datetime
     import urllib.parse
     wa_message = f"""Learn Language Education Academy – Assignment Submission
 Name: {student_name}
 Code: {student_code}
-Chapter: {sel_assignment['chapter']}
-Assignment: {sel_assignment['assignment']}
+Chapter: {chapter['name']}
+Assignment: {chapter['assignment']}
 Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}
 Answer: {answer if answer.strip() else '[See attached file/photo]'}
 """
     wa_url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(wa_message)
 
-    if st.button("Submit via WhatsApp"):
+    if st.button("Submit Assignment via WhatsApp"):
         st.success("Now click below to send via WhatsApp. If you are submitting a file/photo, attach it after pasting the message.")
         st.markdown(f"[📲 Send to Tutor on WhatsApp]({wa_url})")
         st.text_area("WhatsApp Message (copy if needed):", wa_message, height=140)
