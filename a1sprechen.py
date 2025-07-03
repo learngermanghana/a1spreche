@@ -319,13 +319,12 @@ def save_progress(student_code, level, teil, remaining, used):
     )
     conn.commit()
     
-# ====================================
-# 2. STUDENT DATA LOADING
-# ====================================
+import os
+import streamlit as st
+import datetime
+from encrypted_cookie_manager import EncryptedCookieManager  # or your import path
 
-STUDENTS_CSV = "students.csv"
-CODES_FILE = "student_codes.csv"
-
+# ------------------ DATA LOADING (no changes needed) -----------------
 @st.cache_data
 def load_student_data():
     GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
@@ -344,12 +343,22 @@ def load_student_data():
         st.warning(f"Could not load student data from Google Sheets: {e}")
         return pd.DataFrame()
 
+# -------- CONTRACT CHECK --------
+def contract_active(row):
+    # Column name can be "ContractEnd" or adjust below
+    contract_end_str = row.get("ContractEnd") or row.get("Contract_End_Date")
+    if not contract_end_str:
+        # If missing, treat as expired (or return True for open access)
+        return False
+    try:
+        contract_end = datetime.datetime.strptime(str(contract_end_str), "%Y-%m-%d").date()
+        return contract_end >= datetime.date.today()
+    except Exception:
+        return False
 
-# ====================================
-# 3. STUDENT LOGIN LOGIC (single, clean block!)
-# ====================================
+# ------------------ LOGIN SYSTEM -----------------
 
-# Use a secret from env or .streamlit/secrets.toml (RECOMMENDED, DO NOT HARD-CODE)
+# Use env/secret TOML
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 if not COOKIE_SECRET:
     raise ValueError("COOKIE_SECRET environment variable not set")
@@ -369,20 +378,31 @@ if "student_code" not in st.session_state:
 if "student_name" not in st.session_state:
     st.session_state["student_name"] = ""
 
-# --- 1. Check for cookie before showing login ---
+# --- 1. Auto-login from cookie if exists ---
 code_from_cookie = cookie_manager.get("student_code")
 if not st.session_state.get("logged_in", False) and code_from_cookie:
-    st.session_state["student_code"] = code_from_cookie
-    st.session_state["logged_in"] = True
-    # Optional: Fill in other fields
     df_students = load_student_data()
     found = df_students[
         (df_students["StudentCode"].astype(str).str.lower().str.strip() == code_from_cookie)
     ]
     if not found.empty:
-        st.session_state["student_row"] = found.iloc[0].to_dict()
-        st.session_state["student_name"] = found.iloc[0]["Name"]
-# --- 2. Show login if not logged in ---
+        row = found.iloc[0].to_dict()
+        # Contract check
+        if not contract_active(row):
+            st.session_state["logged_in"] = False
+            st.session_state["student_row"] = None
+            st.session_state["student_code"] = ""
+            st.session_state["student_name"] = ""
+            cookie_manager.pop("student_code", None)
+            cookie_manager.save()
+            st.error("⛔️ Your contract has expired. Please contact admin to renew your access.")
+            st.stop()
+        st.session_state["logged_in"] = True
+        st.session_state["student_row"] = row
+        st.session_state["student_code"] = row.get("StudentCode", "")
+        st.session_state["student_name"] = row.get("Name", "")
+
+# --- 2. If not logged in, show login form ---
 if not st.session_state["logged_in"]:
     st.title("🔑 Student Login")
     login_input = st.text_input(
@@ -396,11 +416,14 @@ if not st.session_state["logged_in"]:
             (df_students["Email"].astype(str).str.lower().str.strip() == login_input)
         ]
         if not found.empty:
+            row = found.iloc[0].to_dict()
+            if not contract_active(row):
+                st.error("⛔️ Your contract has expired. Please contact admin to renew your access.")
+                st.stop()
             st.session_state["logged_in"] = True
-            st.session_state["student_row"] = found.iloc[0].to_dict()
-            st.session_state["student_code"] = found.iloc[0]["StudentCode"].lower()
-            st.session_state["student_name"] = found.iloc[0]["Name"]
-            # ← Replace .set() with dict assignment and save()
+            st.session_state["student_row"] = row
+            st.session_state["student_code"] = row.get("StudentCode", "")
+            st.session_state["student_name"] = row.get("Name", "")
             cookie_manager["student_code"] = st.session_state["student_code"]
             cookie_manager.save()
             st.success(f"Welcome, {st.session_state['student_name']}! Login successful.")
@@ -409,63 +432,30 @@ if not st.session_state["logged_in"]:
             st.error("Login failed. Please check your Student Code or Email and try again.")
     st.stop()
 
-# --- 1. Always check if cookie manager is ready ---
-if not cookie_manager.ready():
-    st.warning("Cookies are not ready. Please refresh this page.")
-    st.stop()
-
-# --- 2. Try to load student code from cookie safely ---
-code_from_cookie = cookie_manager.get("student_code") or ""
-
-# --- 3. Check if user is logged in (via session) ---
-if "logged_in" not in st.session_state:
+# --- 3. Universal contract guard for all tabs (add at top of every tab!) ---
+row = st.session_state.get("student_row")
+if row and not contract_active(row):
     st.session_state["logged_in"] = False
-if "student_row" not in st.session_state:
     st.session_state["student_row"] = None
-if "student_code" not in st.session_state:
     st.session_state["student_code"] = ""
-if "student_name" not in st.session_state:
     st.session_state["student_name"] = ""
-
-# --- 4. Try auto-login if cookie exists ---
-if not st.session_state["logged_in"] and code_from_cookie:
-    df_students = load_student_data()
-    if not df_students.empty and "StudentCode" in df_students.columns:
-        found = df_students[df_students["StudentCode"].str.lower().str.strip() == code_from_cookie]
-        if not found.empty:
-            st.session_state["student_code"] = code_from_cookie
-            st.session_state["logged_in"] = True
-            st.session_state["student_row"] = found.iloc[0].to_dict()
-            st.session_state["student_name"] = found.iloc[0]["Name"]
-
-# --- 5. If not logged in, show login UI ---
-if not st.session_state["logged_in"]:
-    st.title("🔑 Student Login")
-    login_input = st.text_input(
-        "Enter your Student Code or Email to begin:",
-        value=code_from_cookie
-    ).strip().lower()
-    if st.button("Login"):
-        df_students = load_student_data()
-        if not df_students.empty:
-            found = df_students[
-                (df_students["StudentCode"].str.lower().str.strip() == login_input) |
-                (df_students["Email"].str.lower().str.strip() == login_input)
-            ]
-            if not found.empty:
-                st.session_state["logged_in"] = True
-                st.session_state["student_row"] = found.iloc[0].to_dict()
-                st.session_state["student_code"] = found.iloc[0]["StudentCode"].lower()
-                st.session_state["student_name"] = found.iloc[0]["Name"]
-                cookie_manager["student_code"] = st.session_state["student_code"]
-                cookie_manager.save()
-                st.success(f"Welcome, {st.session_state['student_name']}! Login successful.")
-                st.rerun()
-            else:
-                st.error("Login failed. Please check your Student Code or Email and try again.")
-        else:
-            st.error("Student list is not available.")
+    cookie_manager.pop("student_code", None)
+    cookie_manager.save()
+    st.error("⛔️ Your contract has expired. Please contact admin to renew your access.")
     st.stop()
+
+# ---- LOGOUT BUTTON (place at top of sidebar or page) ----
+if st.session_state.get("logged_in", False):
+    if st.button("🚪 Log Out", key="logout_btn"):
+        # Clear all session state and cookie
+        st.session_state["logged_in"] = False
+        st.session_state["student_row"] = None
+        st.session_state["student_code"] = ""
+        st.session_state["student_name"] = ""
+        cookie_manager.pop("student_code", None)
+        cookie_manager.save()
+        st.success("Logged out successfully.")
+        st.experimental_rerun()
 
 # ====================================
 # 4. FLEXIBLE ANSWER CHECKERS
