@@ -563,7 +563,7 @@ student_code = row["StudentCode"]
 tab = st.radio(
     "How do you want to practice?",
     ["Dashboard","Exams Mode & Custom Chat","Vocab Trainer",
-     "Schreiben Trainer","Course Book","My Results","Admin"],
+     "Schreiben Trainer","Course Book","My Results and Resources","Admin"],
     key="main_tab"
 )
 
@@ -2665,7 +2665,7 @@ Answer: {answer if answer.strip() else '[See attached file/photo]'}
 
 #Myresults
 
-if tab == "My Results":
+if tab == "My Results and Resources":
     # Always define these at the top
     student_code = st.session_state.get("student_code", "")
     student_name = st.session_state.get("student_name", "")
