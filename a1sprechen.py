@@ -1821,14 +1821,10 @@ if tab == "Course":
             "topic": "Lesen & Hören",
             "chapter": "0.1",
             "lesen_hören": {
-                "workbook_link": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/view?usp=sharing",
-                "grammarbook_link": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/view?usp=sharing",
                 "video": "https://youtu.be/8k2VKKjbekA?si=cgYIJ2Di-OEmOpLJ"
+                "grammarbook_link": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/view?usp=sharing",
             },
-            "schreiben_sprechen": {
-                "workbook_link": None,  # No workbook for S&S this day
-                "video": None
-            }
         },
         {
             "day": 2,
