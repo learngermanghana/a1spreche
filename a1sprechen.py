@@ -1833,12 +1833,19 @@ if tab == "Course":
             "day": 2,
             "topic": "Lesen & Hören",
             "chapter": "0.2_1.1",
-            "goal": "",
-            "instruction": "",
+            "goal": "Understand the German alphabets and know the special characters called Umlaut",
+            "instruction": ("You are doing Lesen and Horen chapter 0.2 and 1.1. Make sure to follow up attentively",
             "lesen_hören": {
                 "video": "",
-                "grammarbook_link": "https://drive.google.com/file/d/1q9gOrF7Pv_kyVu_e04nElmOpJDOVdTne/view?usp=sharing",
-                "workbook_link": "https://drive.google.com/file/d/1R6PqzgsPm9f5iVn7JZXSNVa_NttoPU9Q/view?usp=sharing"
+                "grammarbook_link": "https://drive.google.com/file/d/1KtJCF15Ng4cLU88wdUCX5iumOLY7ZA0a/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1R6PqzgsPm9f5iVn7JZXSNVa_NttoPU9Q/view?usp=sharing",
+                "extra_resources": "https://youtu.be/wpBPaDI5IgI"
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "https://drive.google.com/file/d/1DKhyi-43HX1TNs8fxA9bgRvhylubilBf/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1A1D1pAssnoncF1JY0v54XT2npPb6mQZv/view?usp=sharing",
+                "extra_resources": "https://youtu.be/_Hy9_tDhgtc?si=xbfW31T4aUHeJNa_" 
+#
             }
         },
         # DAY 3
@@ -1847,15 +1854,20 @@ if tab == "Course":
             "topic": "Schreiben & Sprechen and Lesen & Hören",
             "chapter": "1.1_1.2",
             "goal": "",
-            "instruction": "",
-            "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
-            },
+            "instruction": (
+                "Begin with the practicals at the **Schreiben & Sprechen** (writing & speaking). "
+                "After that, move to **Lesen & Hören** (reading & listening). "
+                "**Do the assignments only at Lesen & Hören.**\n\n"
+                "The activities for Schreiben & Sprechen are for self-practice and have answers provided—"
+                "you do a self-check. The main assignment to be marked and submitted is under the Lesen & Hören section below."
             "schreiben_sprechen": {
                 "video": "",
-                "workbook_link": ""
+                "grammarbook_link": "https://drive.google.com/file/d/1GXWzy3cvbl_goP4-ymFuYDtX4X23D70j/view?usp=sharing",
+             "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "https://drive.google.com/file/d/1OUJT9aSU1XABi3cdZlstUvfBIndyEOwb/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1Lubevhd7zMlbvPcvHHC1D0GzW7xqa4Mp/view?usp=sharing",
+                "extra_resources": "https://youtu.be/0LRs_M_BtsI?si=ChwjMGhSoD-NPjJq"              
             }
         },
         # DAY 4
@@ -2253,6 +2265,15 @@ if tab == "Course":
                 unsafe_allow_html=True,
             )
             st.markdown(f"[🔍 Open Workbook in new tab]({lh['workbook_link']})")
+        # Extra Resources for Lesen & Hören
+        extras = lh.get('extra_resources')
+        if extras:
+            st.markdown("**🔗 Extra Resources:**")
+            if isinstance(extras, list):
+                for link in extras:
+                    st.markdown(f"- [Resource Link]({link})")
+            else:
+                st.markdown(f"- [Resource Link]({extras})")
     # For A1: Show Schreiben & Sprechen (if present)
     if "schreiben_sprechen" in day_info:
         ss = day_info["schreiben_sprechen"]
@@ -2265,6 +2286,15 @@ if tab == "Course":
                 unsafe_allow_html=True,
             )
             st.markdown(f"[🔍 Open S&S Workbook in new tab]({ss['workbook_link']})")
+        # Extra Resources for Schreiben & Sprechen (if any)
+        extras = ss.get('extra_resources')
+        if extras:
+            st.markdown("**🔗 Extra Resources:**")
+            if isinstance(extras, list):
+                for link in extras:
+                    st.markdown(f"- [Resource Link]({link})")
+            else:
+                st.markdown(f"- [Resource Link]({extras})")
 
     # For A2/B1: Show at top level
     if student_level in ["A2", "B1"]:
@@ -2284,6 +2314,16 @@ if tab == "Course":
                 unsafe_allow_html=True,
             )
             st.markdown(f"[🔍 Open Workbook in new tab]({day_info['workbook_link']})")
+        # Extra Resources for A2/B1 (if any)
+        extras = day_info.get('extra_resources')
+        if extras:
+            st.markdown("**🔗 Extra Resources:**")
+            if isinstance(extras, list):
+                for link in extras:
+                    st.markdown(f"- [Resource Link]({link})")
+            else:
+                st.markdown(f"- [Resource Link]({extras})")
+
 
     # --- Assignment Submission Section (WhatsApp) ---
     st.divider()
