@@ -1152,14 +1152,6 @@ if tab == "Schreiben Trainer":
     st.session_state["schreiben_usage"].setdefault(limit_key, 0)
     daily_so_far = st.session_state["schreiben_usage"][limit_key]
 
-    # 3. Show overall writing performance (DB-driven, mobile-first)
-    attempted, passed, accuracy = get_writing_stats(student_code)
-    st.markdown(f"""**📝 Your Overall Writing Performance**
-- 📨 **Submitted:** {attempted}
-- ✅ **Passed (≥17):** {passed}
-- 📊 **Pass Rate:** {accuracy}%
-- 📅 **Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}
-""")
 
     # 4. Level-Specific Stats (optional)
     stats = get_student_stats(student_code)
