@@ -1,3 +1,6 @@
+# ==========================
+# 1. IMPORTS & CONSTANTS
+# ==========================
 import os
 import random
 import difflib
@@ -13,24 +16,32 @@ import io
 from openai import OpenAI
 from fpdf import FPDF
 
-# ---- OpenAI Client Setup ----
+# ========== CONSTANTS ==========
+FALOWEN_DAILY_LIMIT = 20
+VOCAB_DAILY_LIMIT = 20
+SCHREIBEN_DAILY_LIMIT = 5
+max_turns = 25
+
+# ========== OPENAI SETUP ==========
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     st.error("Missing OpenAI API key. Please set OPENAI_API_KEY as an environment variable or in Streamlit secrets.")
     st.stop()
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
-client = OpenAI()
+client = OpenAI()  # Do NOT pass api_key here for openai>=1.0
 
-# ---- DB connection helper ----
+# ========== DB CONNECTION ==========
 def get_connection():
     if "conn" not in st.session_state:
         st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
         atexit.register(st.session_state["conn"].close)
     return st.session_state["conn"]
 
+# ========== DB TABLE CREATION ==========
 def init_db():
     conn = get_connection()
     c = conn.cursor()
+    # Vocab Progress Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS vocab_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,6 +54,7 @@ def init_db():
             date TEXT
         )
     """)
+    # Schreiben Progress Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS schreiben_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,6 +67,7 @@ def init_db():
             date TEXT
         )
     """)
+    # Sprechen Progress Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS sprechen_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,6 +81,7 @@ def init_db():
             date TEXT
         )
     """)
+    # Scores Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS scores (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,6 +94,7 @@ def init_db():
             level TEXT
         )
     """)
+    # Exam Progress Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS exam_progress (
             student_code TEXT,
@@ -90,6 +105,7 @@ def init_db():
             PRIMARY KEY (student_code, level, teil)
         )
     """)
+    # My Vocab Table (STUDENT PERSONAL VOCAB)
     c.execute("""
         CREATE TABLE IF NOT EXISTS my_vocab (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -103,7 +119,7 @@ def init_db():
     conn.commit()
 init_db()
 
-# ------------------ DATA LOADING -----------------
+# ========== DATA LOADING ==========
 @st.cache_data
 def load_student_data():
     GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
@@ -120,6 +136,7 @@ def load_student_data():
         st.warning(f"Could not load student data from Google Sheets: {e}")
         return pd.DataFrame()
 
+# ========== CONTRACT HELPER ==========
 def contract_active(row):
     contract_end_str = row.get("ContractEnd") or row.get("Contract_End_Date")
     if not contract_end_str or str(contract_end_str).strip().lower() in ["", "nan", "none"]:
@@ -129,8 +146,11 @@ def contract_active(row):
         return contract_end >= date.today()
     except Exception:
         return False
+# ==========================
+# 2. DB & APP HELPERS
+# ==========================
 
-# ========== DB HELPERS ==========
+# --- Save progress helpers ---
 def save_vocab_submission(student_code, name, level, word, student_answer, is_correct):
     conn = get_connection()
     c = conn.cursor()
@@ -158,6 +178,7 @@ def save_sprechen_submission(student_code, name, level, teil, message, score, fe
     )
     conn.commit()
 
+# --- Personal vocab helpers ---
 def get_personal_vocab_stats(student_code):
     conn = get_connection()
     c = conn.cursor()
@@ -209,6 +230,7 @@ def count_my_vocab(student_code, level=None):
         c.execute("SELECT COUNT(*) FROM my_vocab WHERE student_code=?", (student_code,))
     return c.fetchone()[0]
 
+# --- Writing/usage stats ---
 def get_writing_stats(student_code):
     conn = get_connection()
     c = conn.cursor()
@@ -235,6 +257,7 @@ def get_student_stats(student_code):
         stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
     return stats
 
+# --- Falowen Usage Helpers ---
 def get_falowen_usage(student_code):
     today_str = str(date.today())
     key = f"{student_code}_falowen_{today_str}"
@@ -250,6 +273,9 @@ def inc_falowen_usage(student_code):
         st.session_state["falowen_usage"] = {}
     st.session_state["falowen_usage"].setdefault(key, 0)
     st.session_state["falowen_usage"][key] += 1
+
+def has_falowen_quota(student_code):
+    return get_falowen_usage(student_code) < FALOWEN_DAILY_LIMIT
 
 def get_vocab_streak(student_code):
     conn = get_connection()
@@ -274,6 +300,10 @@ def get_vocab_streak(student_code):
             break
     return streak
 
+# ==========================
+# 3. MAIN UI & LOGIN LOGIC
+# ==========================
+
 # --- Streamlit page config ---
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
@@ -281,6 +311,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# --- HEADER ---
 st.markdown(
     """
     <div style='display:flex;align-items:center;gap:18px;margin-bottom:22px;'>
@@ -299,7 +330,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# ------------------ LOGIN SYSTEM -----------------
+# --- LOGIN SYSTEM ---
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 if "student_row" not in st.session_state:
@@ -374,58 +405,14 @@ if st.button("🚪 Log Out"):
     st.session_state["student_row"] = None
     st.experimental_rerun()
 
+# --- EXAMPLE: Falowen usage quota check (useful for all students) ---
+student_code = row.get("StudentCode", "") if row else ""
+if student_code and not has_falowen_quota(student_code):
+    st.error("You have reached your daily Falowen usage quota. Try again tomorrow.")
+    st.stop()
+
 # --- Your app content goes here! ---
 st.success(f"Welcome: {row.get('Name', 'Student')} (Level: {row.get('Level', '')})")
-
-
-# ---- Falowen Header ----
-st.markdown(
-    """
-    <div style='display:flex;align-items:center;gap:18px;margin-bottom:22px;'>
-        <img src='https://cdn-icons-png.flaticon.com/512/323/323329.png' width='50' style='border-radius:50%;border:2.5px solid #d2b431;box-shadow:0 2px 8px #e4c08d;'/>
-        <div>
-            <span style='font-size:2.0rem;font-weight:bold;color:#17617a;letter-spacing:2px;'>Falowen App</span>
-            <span style='font-size:1.6rem;margin-left:12px;'>🇩🇪</span>
-            <br>
-            <span style='font-size:1.02rem;color:#ff9900;font-weight:600;'>Learn Language Education Academy</span><br>
-            <span style='font-size:1.01rem;color:#268049;font-weight:400;'>
-                Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
-            </span>
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-# ==== 2) Helpers to load & save progress ====
-def load_progress(student_code, level, teil):
-    c.execute(
-        "SELECT remaining, used FROM exam_progress WHERE student_code=? AND level=? AND teil=?",
-        (student_code, level, teil)
-    )
-    row = c.fetchone()
-    if row:
-        return json.loads(row[0]), json.loads(row[1])
-    return None, None
-
-def save_progress(student_code, level, teil, remaining, used):
-    c.execute(
-        "REPLACE INTO exam_progress (student_code, level, teil, remaining, used) VALUES (?,?,?,?,?)",
-        (student_code, level, teil, json.dumps(remaining), json.dumps(used))
-    )
-    conn.commit()
-    
-
-
-
-# ====================================
-# 5. CONSTANTS & VOCAB LISTS
-# ====================================
-
-FALOWEN_DAILY_LIMIT = 20
-VOCAB_DAILY_LIMIT = 20
-SCHREIBEN_DAILY_LIMIT = 5
-max_turns = 25
 
 
 # --- Vocab lists for all levels ---
