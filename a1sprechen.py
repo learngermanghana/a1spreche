@@ -1834,19 +1834,24 @@ if tab == "Course":
             "topic": "Lesen & Hören",
             "chapter": "0.2_1.1",
             "goal": "Understand the German alphabets and know the special characters called Umlaut",
-            "instruction": ("You are doing Lesen and Horen chapter 0.2 and 1.1. Make sure to follow up attentively",
-            "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "https://drive.google.com/file/d/1KtJCF15Ng4cLU88wdUCX5iumOLY7ZA0a/view?usp=sharing",
-                "workbook_link": "https://drive.google.com/file/d/1R6PqzgsPm9f5iVn7JZXSNVa_NttoPU9Q/view?usp=sharing",
-                "extra_resources": "https://youtu.be/wpBPaDI5IgI"
-            "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "https://drive.google.com/file/d/1DKhyi-43HX1TNs8fxA9bgRvhylubilBf/view?usp=sharing",
-                "workbook_link": "https://drive.google.com/file/d/1A1D1pAssnoncF1JY0v54XT2npPb6mQZv/view?usp=sharing",
-                "extra_resources": "https://youtu.be/_Hy9_tDhgtc?si=xbfW31T4aUHeJNa_" 
-            }
-        },
+            "instruction": "You are doing Lesen and Hören chapter 0.2 and 1.1. Make sure to follow up attentively.",
+            "lesen_hören": [
+                {
+                    "chapter": "0.2",
+                    "video": "",
+                    "grammarbook_link": "https://drive.google.com/file/d/1KtJCF15Ng4cLU88wdUCX5iumOLY7ZA0a/view?usp=sharing",
+                    "workbook_link": "https://drive.google.com/file/d/1R6PqzgsPm9f5iVn7JZXSNVa_NttoPU9Q/view?usp=sharing",
+                    "extra_resources": "https://youtu.be/wpBPaDI5IgI"
+                },
+                {
+                    "chapter": "1.1",
+                    "video": "",
+                    "grammarbook_link": "https://drive.google.com/file/d/1DKhyi-43HX1TNs8fxA9bgRvhylubilBf/view?usp=sharing",
+                    "workbook_link": "https://drive.google.com/file/d/1A1D1pAssnoncF1JY0v54XT2npPb6mQZv/view?usp=sharing",
+                    "extra_resources": "https://youtu.be/_Hy9_tDhgtc?si=xbfW31T4aUHeJNa_"
+                }
+            ]
+        },  
         # DAY 3
         {
             "day": 3,
@@ -1859,15 +1864,20 @@ if tab == "Course":
                 "**Do the assignments only at Lesen & Hören.**\n\n"
                 "The activities for Schreiben & Sprechen are for self-practice and have answers provided—"
                 "you do a self-check. The main assignment to be marked and submitted is under the Lesen & Hören section below."
+            ),
             "schreiben_sprechen": {
                 "video": "",
-                "grammarbook_link": "https://drive.google.com/file/d/1GXWzy3cvbl_goP4-ymFuYDtX4X23D70j/view?usp=sharing",
-             "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "https://drive.google.com/file/d/1OUJT9aSU1XABi3cdZlstUvfBIndyEOwb/view?usp=sharing",
-                "workbook_link": "https://drive.google.com/file/d/1Lubevhd7zMlbvPcvHHC1D0GzW7xqa4Mp/view?usp=sharing",
-                "extra_resources": "https://youtu.be/0LRs_M_BtsI?si=ChwjMGhSoD-NPjJq"              
-            }
+                "grammarbook_link": "https://drive.google.com/file/d/1GXWzy3cvbl_goP4-ymFuYDtX4X23D70j/view?usp=sharing"
+            },
+            "lesen_hören": [
+                {
+                    "chapter": "1.2",
+                    "video": "",
+                    "grammarbook_link": "https://drive.google.com/file/d/1OUJT9aSU1XABi3cdZlstUvfBIndyEOwb/view?usp=sharing",
+                    "workbook_link": "https://drive.google.com/file/d/1Lubevhd7zMlbvPcvHHC1D0GzW7xqa4Mp/view?usp=sharing",
+                    "extra_resources": "https://youtu.be/0LRs_M_BtsI?si=ChwjMGhSoD-NPjJq"
+                }
+            ]
         },
         # DAY 4
         {
@@ -2216,63 +2226,65 @@ if tab == "Course":
         # Continue adding for all 28 days...
     ]
   
-
-    student_row = st.session_state.get('student_row', {})
-    student_level = student_row.get('Level', 'A1').upper()
-    level_map = {
-        "A1": a1_schedule,
-        "A2": a2_schedule,
-        "B1": b1_schedule,
-    }
-    schedule = level_map.get(student_level, a1_schedule)
-
-    if not schedule:
-        st.warning("No schedule found for your level. Please contact the admin.")
-        st.stop()
-
-    selected_day_idx = st.selectbox(
-        "Choose your lesson/day:",
-        range(len(schedule)),
-        format_func=lambda i: f"Day {schedule[i]['day']} – {schedule[i]['topic']}"
-    )
-    day_info = schedule[selected_day_idx]
-
-    # --- Show the lesson content in your preferred order ---
-    st.markdown(f"### Day {day_info['day']}: {day_info['topic']} (Chapter {day_info['chapter']})")
-    
-    if day_info.get("goal"):
-        st.markdown(f"**🎯 Goal:** {day_info['goal']}")
-    if day_info.get("instruction"):
-        st.markdown(f"**📝 Instruction:** {day_info['instruction']}")
-
-    # For A1: Show Lesen & Hören
+    # For A1: Show Lesen & Hören (list or single)
     if "lesen_hören" in day_info:
-        lh = day_info["lesen_hören"]
-        if lh.get("video"):
-            st.video(lh["video"])
-        if lh.get("grammarbook_link"):
-            st.markdown("**📘 Grammar Book:**")
-            st.markdown(
-                f"<iframe src='{lh['grammarbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
-                unsafe_allow_html=True,
-            )
-            st.markdown(f"[🔍 Open Grammar Book in new tab]({lh['grammarbook_link']})")
-        if lh.get("workbook_link"):
-            st.markdown("**📒 Workbook:**")
-            st.markdown(
-                f"<iframe src='{lh['workbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
-                unsafe_allow_html=True,
-            )
-            st.markdown(f"[🔍 Open Workbook in new tab]({lh['workbook_link']})")
-        # Extra Resources for Lesen & Hören
-        extras = lh.get('extra_resources')
-        if extras:
-            st.markdown("**🔗 Extra Resources:**")
-            if isinstance(extras, list):
-                for link in extras:
-                    st.markdown(f"- [Resource Link]({link})")
-            else:
-                st.markdown(f"- [Resource Link]({extras})")
+        lh_section = day_info["lesen_hören"]
+        # If multiple (list)
+        if isinstance(lh_section, list):
+            for chapter_lh in lh_section:
+                st.markdown(f"#### Lesen & Hören – Chapter {chapter_lh.get('chapter','')}")
+                if chapter_lh.get("video"):
+                    st.video(chapter_lh["video"])
+                if chapter_lh.get("grammarbook_link"):
+                    st.markdown("**📘 Grammar Book:**")
+                    st.markdown(
+                        f"<iframe src='{chapter_lh['grammarbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
+                        unsafe_allow_html=True,
+                    )
+                    st.markdown(f"[🔍 Open Grammar Book in new tab]({chapter_lh['grammarbook_link']})")
+                if chapter_lh.get("workbook_link"):
+                    st.markdown("**📒 Workbook:**")
+                    st.markdown(
+                        f"<iframe src='{chapter_lh['workbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
+                        unsafe_allow_html=True,
+                    )
+                    st.markdown(f"[🔍 Open Workbook in new tab]({chapter_lh['workbook_link']})")
+                # Extra Resources for each chapter
+                extras = chapter_lh.get('extra_resources')
+                if extras:
+                    st.markdown("**🔗 Extra Resources:**")
+                    if isinstance(extras, list):
+                        for link in extras:
+                            st.markdown(f"- [Resource Link]({link})")
+                    else:
+                        st.markdown(f"- [Resource Link]({extras})")
+        # If only one dict
+        elif isinstance(lh_section, dict):
+            if lh_section.get("video"):
+                st.video(lh_section["video"])
+            if lh_section.get("grammarbook_link"):
+                st.markdown("**📘 Grammar Book:**")
+                st.markdown(
+                    f"<iframe src='{lh_section['grammarbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown(f"[🔍 Open Grammar Book in new tab]({lh_section['grammarbook_link']})")
+            if lh_section.get("workbook_link"):
+                st.markdown("**📒 Workbook:**")
+                st.markdown(
+                    f"<iframe src='{lh_section['workbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown(f"[🔍 Open Workbook in new tab]({lh_section['workbook_link']})")
+            extras = lh_section.get('extra_resources')
+            if extras:
+                st.markdown("**🔗 Extra Resources:**")
+                if isinstance(extras, list):
+                    for link in extras:
+                        st.markdown(f"- [Resource Link]({link})")
+                else:
+                    st.markdown(f"- [Resource Link]({extras})")
+
     # For A1: Show Schreiben & Sprechen (if present)
     if "schreiben_sprechen" in day_info:
         ss = day_info["schreiben_sprechen"]
@@ -2285,7 +2297,6 @@ if tab == "Course":
                 unsafe_allow_html=True,
             )
             st.markdown(f"[🔍 Open S&S Workbook in new tab]({ss['workbook_link']})")
-        # Extra Resources for Schreiben & Sprechen (if any)
         extras = ss.get('extra_resources')
         if extras:
             st.markdown("**🔗 Extra Resources:**")
