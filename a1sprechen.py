@@ -1800,10 +1800,13 @@ if tab == "Schreiben Trainer":
                 unsafe_allow_html=True
             )
 
-if tab == "Course":
-    import streamlit as st
-    import datetime, urllib.parse
+# Force a mock login
+if "student_row" not in st.session_state:
+    st.session_state['student_row'] = {"Name": "Test User", "StudentCode": "demo01", "Level": "A1"}
 
+tab = "Course"
+
+if tab == "Course":
     st.header("📚 Your Course Schedule & Materials")
 
     # ======= A1 SCHEDULE =======
