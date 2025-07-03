@@ -1815,7 +1815,7 @@ if tab == "Course Book":
 
     # --- Google Drive PDF link (replace with your file ID) ---
     pdf_id = "your_pdf_file_id"
-    pdf_link = f"https://drive.google.com/file/d/{pdf_id}/preview"
+    pdf_link = f"https://drive.google.com/file/d/14llTlqrTQav8mv6fayNXF1nnIrHHqVt7/view?usp=sharing"
 
     st.subheader("Table of Contents")
     for entry in toc:
