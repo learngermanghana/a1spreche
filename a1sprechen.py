@@ -2206,25 +2206,19 @@ if tab == "Course":
     ]
   
 
-    # --- Simulate student level for demo/testing ---
     student_row = st.session_state.get('student_row', {})
-    student_level = student_row.get('Level', 'A2').upper()   # Or change to 'A1', 'A2', 'B1'
-    # For demo:
-    # student_level = "A2"
-
-    # --- Use the correct schedule based on level ---
+    student_level = student_row.get('Level', 'A1').upper()
     level_map = {
         "A1": a1_schedule,
         "A2": a2_schedule,
         "B1": b1_schedule,
     }
-    schedule = level_map.get(student_level, a2_schedule)
+    schedule = level_map.get(student_level, a1_schedule)
 
     if not schedule:
         st.warning("No schedule found for your level. Please contact the admin.")
         st.stop()
 
-    # --- Let user pick a day ---
     selected_day_idx = st.selectbox(
         "Choose your lesson/day:",
         range(len(schedule)),
@@ -2240,27 +2234,56 @@ if tab == "Course":
     if day_info.get("instruction"):
         st.markdown(f"**📝 Instruction:** {day_info['instruction']}")
 
-    # --- Video (if available) ---
-    if day_info.get("video"):
-        st.video(day_info["video"])
+    # For A1: Show Lesen & Hören
+    if "lesen_hören" in day_info:
+        lh = day_info["lesen_hören"]
+        if lh.get("video"):
+            st.video(lh["video"])
+        if lh.get("grammarbook_link"):
+            st.markdown("**📘 Grammar Book:**")
+            st.markdown(
+                f"<iframe src='{lh['grammarbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(f"[🔍 Open Grammar Book in new tab]({lh['grammarbook_link']})")
+        if lh.get("workbook_link"):
+            st.markdown("**📒 Workbook:**")
+            st.markdown(
+                f"<iframe src='{lh['workbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(f"[🔍 Open Workbook in new tab]({lh['workbook_link']})")
+    # For A1: Show Schreiben & Sprechen (if present)
+    if "schreiben_sprechen" in day_info:
+        ss = day_info["schreiben_sprechen"]
+        if ss.get("video"):
+            st.video(ss["video"])
+        if ss.get("workbook_link"):
+            st.markdown("**📒 Schreiben & Sprechen Workbook:**")
+            st.markdown(
+                f"<iframe src='{ss['workbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(f"[🔍 Open S&S Workbook in new tab]({ss['workbook_link']})")
 
-    # --- Grammar Book ---
-    if day_info.get("grammarbook_link"):
-        st.markdown("**📘 Grammar Book:**")
-        st.markdown(
-            f"<iframe src='{day_info['grammarbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
-            unsafe_allow_html=True,
-        )
-        st.markdown(f"[🔍 Open Grammar Book in new tab]({day_info['grammarbook_link']})")
-    
-    # --- Workbook ---
-    if day_info.get("workbook_link"):
-        st.markdown("**📒 Workbook:**")
-        st.markdown(
-            f"<iframe src='{day_info['workbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
-            unsafe_allow_html=True,
-        )
-        st.markdown(f"[🔍 Open Workbook in new tab]({day_info['workbook_link']})")
+    # For A2/B1: Show at top level
+    if student_level in ["A2", "B1"]:
+        if day_info.get("video"):
+            st.video(day_info["video"])
+        if day_info.get("grammarbook_link"):
+            st.markdown("**📘 Grammar Book:**")
+            st.markdown(
+                f"<iframe src='{day_info['grammarbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(f"[🔍 Open Grammar Book in new tab]({day_info['grammarbook_link']})")
+        if day_info.get("workbook_link"):
+            st.markdown("**📒 Workbook:**")
+            st.markdown(
+                f"<iframe src='{day_info['workbook_link'].replace('/view','/preview')}' width='100%' height='410' style='border-radius:8px;border:1px solid #ccc'></iframe>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(f"[🔍 Open Workbook in new tab]({day_info['workbook_link']})")
 
     # --- Assignment Submission Section (WhatsApp) ---
     st.divider()
