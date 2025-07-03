@@ -130,7 +130,7 @@ if not st.session_state["logged_in"]:
             st.session_state["logged_in"] = True
             st.session_state["student_row"] = row
             st.success(f"Welcome, {row['Name']}! Login successful.")
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Login failed. Please check your Student Code or Email and try again.")
     st.stop()
