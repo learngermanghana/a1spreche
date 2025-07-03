@@ -1801,57 +1801,61 @@ if tab == "Schreiben Trainer":
             )
 
 if tab == "Course Book":
-    st.header("📖 Course Book & Assignments")
+    st.header("📖 Workbook, Grammar Book & Assignment Submission")
 
-    # --- List your chapters/assignments ---
+    # ---- Chapters setup (no 'book_pdf', only workbook and grammar) ----
     chapters = [
         {
-            "name": "Chapter 0.1 – Greetings",
-            "pdf": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/view?usp=sharing",
-            "video": "https://www.youtube.com/watch?v=8k2VKKjbekA",  # Or None
-            "assignment_pdf": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/view?usp=sharing."
+            "name": "Chapter 1 – Introductions",
+            "workbook_pdf": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/preview",  # Workbook for this chapter
+            "grammar_pdf": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/preview",     # Grammar book (can use same for all)
+            "video": None,   # Or YouTube link if you have, else None
         },
-        {
-            "name": "Chapter 1.1 – At the Café",
-            "pdf": "https://drive.google.com/file/d/your_pdf_id_2/preview",
-            "video": None,  # No video for this chapter
-            "assignment": "Write a short café conversation."
-        },
-        # ...add more chapters
+        # Add more chapters here if you want:
+        # {
+        #     "name": "Chapter 2 – Shopping",
+        #     "workbook_pdf": "https://drive.google.com/file/d/ANOTHER_WORKBOOK_ID/preview",
+        #     "grammar_pdf": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/preview",
+        #     "video": None,
+        # },
     ]
 
-    # --- Student info (auto-filled if available) ---
+    # Auto-fill student info if available
     student_name = st.session_state.get("student_name", "")
     student_code = st.session_state.get("student_code", "")
 
-    # --- Chapter selector ---
     chapter_titles = [c["name"] for c in chapters]
     sel_idx = st.selectbox("Select Chapter", range(len(chapter_titles)), format_func=lambda i: chapter_titles[i])
     chapter = chapters[sel_idx]
 
-    st.subheader(chapter["name"])
+    st.subheader(f"📝 {chapter['name']} Workbook")
 
-    # --- Show PDF for the chapter (embed or link) ---
+    # --- Show Workbook PDF (embedded) ---
     st.markdown(
-        f'<iframe src="{chapter["pdf"]}" width="700" height="900" allow="autoplay"></iframe>',
+        f'<iframe src="{chapter["workbook_pdf"]}" width="700" height="500" allow="autoplay"></iframe>',
         unsafe_allow_html=True
     )
 
-    # --- Optional: video ---
+    # --- Show Grammar Book PDF (embedded) ---
+    st.markdown("**Grammar Book:**")
+    st.markdown(
+        f'<iframe src="{chapter["grammar_pdf"]}" width="700" height="500" allow="autoplay"></iframe>',
+        unsafe_allow_html=True
+    )
+
+    # --- Optional: Video (if available) ---
     if chapter.get("video"):
         st.divider()
         st.subheader("🎬 Lecture Video")
         st.video(chapter["video"])
 
-    # --- Assignment section ---
+    # --- WhatsApp Assignment Submission ---
     st.divider()
-    st.subheader("📝 Assignment")
-    st.markdown(chapter.get("assignment", "No assignment for this chapter."))
+    st.subheader("Submit Assignment via WhatsApp")
 
-    # --- WhatsApp Submission Section ---
     student_name = st.text_input("Your Name", value=student_name)
     student_code = st.text_input("Student Code", value=student_code)
-    answer = st.text_area("Your Answer (leave blank if you will send a photo/file on WhatsApp)", height=120)
+    answer = st.text_area("Your Answer (leave blank if you are sending a file/photo on WhatsApp)", height=120)
 
     from datetime import datetime
     import urllib.parse
@@ -1859,7 +1863,6 @@ if tab == "Course Book":
 Name: {student_name}
 Code: {student_code}
 Chapter: {chapter['name']}
-Assignment: {chapter['assignment']}
 Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}
 Answer: {answer if answer.strip() else '[See attached file/photo]'}
 """
@@ -1871,9 +1874,9 @@ Answer: {answer if answer.strip() else '[See attached file/photo]'}
         st.text_area("WhatsApp Message (copy if needed):", wa_message, height=140)
 
     st.info("""
-- After clicking, WhatsApp will open with your assignment message already filled in.
-- **If you need to submit a file or photo**, paste the message in WhatsApp, then attach your file **before sending**.
-- Please always use your real name and student code for tracking!
+- WhatsApp will open with your assignment message pre-filled.
+- If submitting a file/photo, paste the message in WhatsApp, then attach your file/photo before sending.
+- Always use your real name and code for tracking!
 """)
 
 
