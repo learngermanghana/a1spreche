@@ -1813,7 +1813,7 @@ def get_a1_schedule():
             "goal": "You will learn to introduce yourself and greet others in German.",
             "instruction": "Watch the video, review grammar, do the workbook, submit assignment.",
             "lesen_hören": {
-                "video": "https://youtu.be/8k2VKKjbekA?si=cgYIJ2Di-OEmOpLJ",
+                "video": "",
                 "grammarbook_link": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/view?usp=sharing"
             }
@@ -1857,16 +1857,15 @@ def get_a1_schedule():
             ),
             "schreiben_sprechen": {
                 "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
+                "workbook_link": "https://drive.google.com/file/d/1GXWzy3cvbl_goP4-ymFuYDtX4X23D70j/view?usp=sharing"
             },
             "lesen_hören": [
                 {
                     "chapter": "1.2",
                     "video": "",
-                    "grammarbook_link": "",
-                    "workbook_link": "",
-                    "extra_resources": ""
+                    "grammarbook_link": "https://drive.google.com/file/d/1OUJT9aSU1XABi3cdZlstUvfBIndyEOwb/view?usp=sharing",
+                    "workbook_link": "https://drive.google.com/file/d/1Lubevhd7zMlbvPcvHHC1D0GzW7xqa4Mp/view?usp=sharing",
+                    "extra_resources": "https://www.youtube.com/watch?v=qdTEFPqjfkY&authuser=0"
                 }
             ]
         },
@@ -1875,12 +1874,12 @@ def get_a1_schedule():
             "day": 4,
             "topic": "Lesen & Hören",
             "chapter": "2",
-            "goal": "Learn numbers and telling the time.",
+            "goal": "Learn numbers from one to 10 thousand. Also know the difference between city and street",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
             "lesen_hören": {
                 "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
+                "grammarbook_link": "https://drive.google.com/file/d/1f2CJ492liO8ccudCadxHIISwGJkHP6st/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1C4VZDUj7VT27Qrn9vS5MNc3QfRqpmDGE/view?usp=sharing"
             }
         },
         # DAY 5
@@ -1892,7 +1891,7 @@ def get_a1_schedule():
             "instruction": "Use self-practice workbook and review answers for self-check.",
             "schreiben_sprechen": {
                 "video": "",
-                "workbook_link": ""
+                "workbook_link": "https://drive.google.com/file/d/1ojXvizvJz_qGes7I39pjdhnmlul7xhxB/view?usp=sharing"
             }
         },
         # DAY 6
@@ -1900,11 +1899,11 @@ def get_a1_schedule():
             "day": 6,
             "topic": "Schreiben & Sprechen",
             "chapter": "2.3",
-            "goal": "",
-            "instruction": "",
+            "goal": "Learn about family and expressing your hobby",
+            "instruction": "Use self-practice workbook and review answers for self-check.",
             "schreiben_sprechen": {
                 "video": "",
-                "workbook_link": ""
+                "workbook_link": "https://drive.google.com/file/d/1x_u_tyICY-8xFuxsuOW2tqTzs7g8TquM/view?usp=sharing"
             }
         },
         # DAY 7
@@ -1912,12 +1911,12 @@ def get_a1_schedule():
             "day": 7,
             "topic": "Lesen & Hören",
             "chapter": "3",
-            "goal": "",
-            "instruction": "",
+            "goal": "Know how to ask for a price and also the use of mogen and gern to express your hobby",
+            "instruction": "Do schreiben and sprechen 2.3 before this chapter for better understanding",
             "lesen_hören": {
                 "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
+                "grammarbook_link": "https://drive.google.com/file/d/1sCE5y8FVctySejSVNm9lrTG3slIucxqY/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1lL4yrZLMtKLnNuVTC2Sg_ayfkUZfIuak/view?usp=sharing"
             }
         },
         # DAY 8
@@ -1925,12 +1924,12 @@ def get_a1_schedule():
             "day": 8,
             "topic": "Lesen & Hören",
             "chapter": "4",
-            "goal": "",
-            "instruction": "",
+            "goal": "Learn about schon mal and noch nie, irregular verbs and all the personal pronouns",
+            "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
             "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
+                "video": "https://youtu.be/JfTc1G9mubs",
+                "grammarbook_link": "https://drive.google.com/file/d/1obsYT3dP3qT-i06SjXmqRzCT2pNoJJZp/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1woXksV9sTZ_8huXa8yf6QUQ8aUXPxVug/view?usp=sharing"
             }
         },
         # DAY 9
@@ -1938,12 +1937,12 @@ def get_a1_schedule():
             "day": 9,
             "topic": "Lesen & Hören",
             "chapter": "5",
-            "goal": "",
-            "instruction": "",
+            "goal": "Learn about the German articles and cases",
+            "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
             "lesen_hören": {
                 "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
+                "grammarbook_link": "https://drive.google.com/file/d/17y5fGW8nAbfeVgolV7tEW4BLiLXZDoO6/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1zjAqvQqNb7iKknuhJ79bUclimEaTg-mt/view?usp=sharing"
             }
         },
         # DAY 10
@@ -1955,8 +1954,8 @@ def get_a1_schedule():
             "instruction": "",
             "lesen_hören": {
                 "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
+                "grammarbook_link": "https://drive.google.com/file/d/1_qwG-6dSckoNt7G69_gGfwBH4o9HhETJ/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1Da1iw54oAqoaY-UIw6oyIn8tsDmIi1YR/view?usp=sharing"
             },
             "schreiben_sprechen": {
                 "video": "",
