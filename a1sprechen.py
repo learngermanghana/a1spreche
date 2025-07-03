@@ -1858,6 +1858,8 @@ if tab == "Course":
                 "video": "https://www.youtube.com/embed/EXAMPLE_VIDEO_ID"
             }
         },
+        # ...Add days 4 to 25, using same structure!
+    ]
     # ==== A2 SCHEDULE (simple, one workbook/grammarbook/video per day) ====
     a2_schedule = [
         {
