@@ -144,6 +144,39 @@ if row and not contract_active(row):
     st.error("⛔️ Your contract has expired. Please contact admin to renew your access.")
     st.stop()
 
+# Place this immediately after login (and contract check), e.g. after:
+# row = st.session_state["student_row"]
+
+st.markdown("### 📊 Student Dashboard")
+if not row:
+    st.warning("Student details not found.")
+else:
+    def show_val(key, icon=None, default="N/A"):
+        val = row.get(key, default)
+        if not val or str(val).strip().lower() in ["nan", "none"]:
+            val = default
+        if icon:
+            return f"{icon} {val}"
+        return val
+
+    col1, col2 = st.columns([2,1])
+    with col1:
+        st.markdown(f"""
+        <div style="font-size:1.08em;line-height:1.7">
+        <b>👤 Name:</b> {show_val('Name')}
+        <br><b>🏷️ Level:</b> {show_val('Level')}
+        <br><b>🔑 Code:</b> <code>{show_val('StudentCode')}</code>
+        <br><b>📧 Email:</b> {show_val('Email')}
+        <br><b>📱 Phone:</b> {show_val('Phone')}
+        <br><b>📍 Location:</b> {show_val('Location')}
+        <br><b>🗓️ Enroll Date:</b> {show_val('EnrollDate')}
+        <br><b>📄 Contract End:</b> {show_val('ContractEnd')}
+        <br><b>✅ Status:</b> {show_val('Status', default='Active')}
+        </div>
+        """, unsafe_allow_html=True)
+    with col2:
+        st.image("https://cdn-icons-png.flaticon.com/512/323/323329.png", width=90)
+
 # --- Log Out Button ---
 if st.button("🚪 Log Out"):
     st.session_state["logged_in"] = False
