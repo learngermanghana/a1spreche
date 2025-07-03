@@ -1820,7 +1820,7 @@ if tab == "Course":
             "day": 1,
             "topic": "Lesen & Hören",
             "chapter": "0.1",
-            "lesen_hoeren": {
+            "lesen_horen": {
                 "workbook_id": "1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ",   # Your sample workbook
                 "grammarbook_id": "1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_", # Your sample grammar book
                 "video": "https://www.youtube.com/embed/8k2VKKjbekA"
