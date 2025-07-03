@@ -1801,7 +1801,80 @@ if tab == "Schreiben Trainer":
                 f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                 unsafe_allow_html=True
             )
+            
 
+def get_a1_schedule():
+    return [
+        # DAY 1
+        {
+            "day": 1,
+            "topic": "Lesen & Hören",
+            "chapter": "0.1",
+            "goal": "You will learn to introduce yourself and greet others in German.",
+            "instruction": "Watch the video, review grammar, do the workbook, submit assignment.",
+            "lesen_hören": {
+                "video": "https://youtu.be/8k2VKKjbekA?si=cgYIJ2Di-OEmOpLJ",
+                "grammarbook_link": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/view?usp=sharing"
+            }
+        },
+        # DAY 2 – Multi chapter example
+        {
+            "day": 2,
+            "topic": "Lesen & Hören",
+            "chapter": "0.2_1.1",
+            "goal": "Understand the German alphabets and know the special characters called Umlaut.",
+            "instruction": "You are doing Lesen and Hören chapter 0.2 and 1.1. Make sure to follow up attentively.",
+            "lesen_hören": [
+                {
+                    "chapter": "0.2",
+                    "video": "",
+                    "grammarbook_link": "https://drive.google.com/file/d/1KtJCF15Ng4cLU88wdUCX5iumOLY7ZA0a/view?usp=sharing",
+                    "workbook_link": "https://drive.google.com/file/d/1R6PqzgsPm9f5iVn7JZXSNVa_NttoPU9Q/view?usp=sharing",
+                    "extra_resources": "https://youtu.be/wpBPaDI5IgI"
+                },
+                {
+                    "chapter": "1.1",
+                    "video": "",
+                    "grammarbook_link": "https://drive.google.com/file/d/1DKhyi-43HX1TNs8fxA9bgRvhylubilBf/view?usp=sharing",
+                    "workbook_link": "https://drive.google.com/file/d/1A1D1pAssnoncF1JY0v54XT2npPb6mQZv/view?usp=sharing",
+                    "extra_resources": "https://youtu.be/_Hy9_tDhgtc?si=xbfW31T4aUHeJNa_"
+                }
+            ]
+        },
+        
+        # Add more days...
+    ]
+
+def get_a2_schedule():
+    return [
+        {
+            "day": 1,
+            "topic": "Small Talk (Exercise)",
+            "chapter": "1.1",
+            "goal": "Practice basic greetings and small talk.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # Add more days...
+    ]
+
+def get_b1_schedule():
+    return [
+        {
+            "day": 1,
+            "topic": "Traumwelten (Übung)",
+            "chapter": "1.1",
+            "goal": "Talk about dream worlds and imagination.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # Add more days...
+    ]
 
 # --- FORCE A MOCK LOGIN FOR TESTING ---
 if "student_row" not in st.session_state:
@@ -1816,109 +1889,13 @@ if tab == "Course Book":
     import streamlit as st
     import datetime, urllib.parse
 
-    # ------- 1. DEFINE SCHEDULE DICTIONARY --------
-    def get_a1_schedule():
-        return [
-            # DAY 1
-            {
-                "day": 1,
-                "topic": "Lesen & Hören",
-                "chapter": "0.1",
-                "goal": "You will learn to introduce yourself and greet others in German.",
-                "instruction": "Watch the video, review grammar, do the workbook, submit assignment.",
-                "lesen_hören": {
-                    "video": "https://youtu.be/8k2VKKjbekA?si=cgYIJ2Di-OEmOpLJ",
-                    "grammarbook_link": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/view?usp=sharing",
-                    "workbook_link": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/view?usp=sharing"
-                }
-            },
-            # DAY 2 (multi chapter)
-            {
-                "day": 2,
-                "topic": "Lesen & Hören",
-                "chapter": "0.2_1.1",
-                "goal": "Understand the German alphabets and know the special characters called Umlaut.",
-                "instruction": "You are doing Lesen and Hören chapter 0.2 and 1.1. Make sure to follow up attentively.",
-                "lesen_hören": [
-                    {
-                        "chapter": "0.2",
-                        "video": "",
-                        "grammarbook_link": "https://drive.google.com/file/d/1KtJCF15Ng4cLU88wdUCX5iumOLY7ZA0a/view?usp=sharing",
-                        "workbook_link": "https://drive.google.com/file/d/1R6PqzgsPm9f5iVn7JZXSNVa_NttoPU9Q/view?usp=sharing",
-                        "extra_resources": "https://youtu.be/wpBPaDI5IgI"
-                    },
-                    {
-                        "chapter": "1.1",
-                        "video": "",
-                        "grammarbook_link": "https://drive.google.com/file/d/1DKhyi-43HX1TNs8fxA9bgRvhylubilBf/view?usp=sharing",
-                        "workbook_link": "https://drive.google.com/file/d/1A1D1pAssnoncF1JY0v54XT2npPb6mQZv/view?usp=sharing",
-                        "extra_resources": "https://youtu.be/_Hy9_tDhgtc?si=xbfW31T4aUHeJNa_"
-                    }
-                ]
-            },
-            # DAY 3 – Mixed S&S and L&H
-            {
-                "day": 3,
-                "topic": "Schreiben & Sprechen and Lesen & Hören",
-                "chapter": "1.1_1.2",
-                "goal": "Introduce others and talk about your family.",
-                "instruction": (
-                    "Begin with the practicals at **Schreiben & Sprechen** (writing & speaking). "
-                    "Then, move to **Lesen & Hören** (reading & listening). "
-                    "**Do assignments only at Lesen & Hören.**\n\n"
-                    "Schreiben & Sprechen activities are for self-practice and have answers provided for self-check. "
-                    "Main assignment to be marked is under Lesen & Hören below."
-                ),
-                "schreiben_sprechen": {
-                    "video": "",
-                    "grammarbook_link": "https://drive.google.com/file/d/1GXWzy3cvbl_goP4-ymFuYDtX4X23D70j/view?usp=sharing"
-                },
-                "lesen_hören": [
-                    {
-                        "chapter": "1.2",
-                        "video": "",
-                        "grammarbook_link": "https://drive.google.com/file/d/1OUJT9aSU1XABi3cdZlstUvfBIndyEOwb/view?usp=sharing",
-                        "workbook_link": "https://drive.google.com/file/d/1Lubevhd7zMlbvPcvHHC1D0GzW7xqa4Mp/view?usp=sharing",
-                        "extra_resources": "https://youtu.be/0LRs_M_BtsI?si=ChwjMGhSoD-NPjJq"
-                    }
-                ]
-            },
-            # DAY 4
-            {
-                "day": 4,
-                "topic": "Lesen & Hören",
-                "chapter": "2",
-                "goal": "Learn numbers and telling the time.",
-                "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
-                "lesen_hören": {
-                    "video": "",
-                    "grammarbook_link": "",
-                    "workbook_link": ""
-                }
-            },
-            # DAY 5 (Schreiben & Sprechen recap)
-            {
-                "day": 5,
-                "topic": "Schreiben & Sprechen (Recap)",
-                "chapter": "1.2",
-                "goal": "Consolidate your understanding of introductions.",
-                "instruction": "Use self-practice workbook and review answers for self-check.",
-                "schreiben_sprechen": {
-                    "video": "",
-                    "workbook_link": ""
-                }
-            },
-            # Add more days as needed!
-        ]
-    # -------- END OF SCHEDULE DEFINITION --------
-
-    # ------- 2. PICK LEVEL AND SCHEDULE ---------
+    # ---- Pick correct schedule for student ----
     student_row = st.session_state.get('student_row', {})
     student_level = student_row.get('Level', 'A1').upper()
     level_map = {
         "A1": get_a1_schedule(),
-        # "A2": get_a2_schedule(),   # Add when ready
-        # "B1": get_b1_schedule(),   # Add when ready
+        "A2": get_a2_schedule(),
+        "B1": get_b1_schedule(),
     }
     schedule = level_map.get(student_level, get_a1_schedule())
 
@@ -1933,15 +1910,13 @@ if tab == "Course Book":
     )
     day_info = schedule[selected_day_idx]
 
-    # ---------- 3. SHOW LESSON CONTENT ----------
     st.markdown(f"### Day {day_info['day']}: {day_info['topic']} (Chapter {day_info['chapter']})")
-
     if day_info.get("goal"):
         st.markdown(f"**🎯 Goal:** {day_info['goal']}")
     if day_info.get("instruction"):
         st.markdown(f"**📝 Instruction:** {day_info['instruction']}")
 
-    # For A1: Show Lesen & Hören (list or single)
+    # --- For A1: Show Lesen & Hören (list or single) ---
     if "lesen_hören" in day_info:
         lh_section = day_info["lesen_hören"]
         if isinstance(lh_section, list):
@@ -1997,7 +1972,7 @@ if tab == "Course Book":
                 else:
                     st.markdown(f"- [Resource Link]({extras})")
 
-    # For A1: Show Schreiben & Sprechen (if present)
+    # --- For A1: Show Schreiben & Sprechen (if present) ---
     if "schreiben_sprechen" in day_info:
         ss = day_info["schreiben_sprechen"]
         if ss.get("video"):
@@ -2018,7 +1993,7 @@ if tab == "Course Book":
             else:
                 st.markdown(f"- [Resource Link]({extras})")
 
-    # --- Assignment Submission Section (WhatsApp) ---
+    # Assignment Submission Section (WhatsApp)
     st.divider()
     st.subheader("📲 Submit Assignment (WhatsApp)")
     student_name = st.text_input("Your Name", value=student_row.get('Name', ''))
@@ -2049,6 +2024,7 @@ Answer: {answer if answer.strip() else '[See attached file/photo]'}
 - For file/photo: paste message in WhatsApp and attach before sending.
 - Always use your real name and code for tracking!
 """)
+
 
 #Myresults
 
