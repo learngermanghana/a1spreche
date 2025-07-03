@@ -1800,66 +1800,57 @@ if tab == "Schreiben Trainer":
                 unsafe_allow_html=True
             )
 
-if tab == "Course Book":
-    st.header("📖 Course Book")
+if tab == "Assignments":
+    st.header("📝 Assignment Submission")
 
-    # --- Table of Contents: add 'video' keys (None if not available) ---
-    toc = [
-        {
-            "chapter": "Chapter 0.1 – Greetings",
-            "page": 3,
-            "video": "https://www.youtube.com/watch?v=8k2VKKjbekA&feature=youtu.be"  
-        },
-        {
-            "chapter": "Chapter 0.2 – Introducing Yourself",
-            "page": 6,
-            "video": None  # No video yet
-        },
-        {
-            "chapter": "Chapter 1.1 – At the Café",
-            "page": 12,
-            "video": None
-        },
-        {
-            "chapter": "Chapter 1.2 – Shopping",
-            "page": 20,
-            "video": None
-        },
-        # Add more chapters as needed
+    # --- Example assignment list (edit as needed) ---
+    assignments = [
+        {"chapter": "Chapter 0.1 – Greetings", "assignment": "Write a greeting dialogue in German."},
+        {"chapter": "Chapter 1.1 – At the Café", "assignment": "Write a short café conversation."},
+        {"chapter": "Chapter 1.2 – Shopping", "assignment": "Describe your last shopping experience in German."},
+        # ...add more assignments!
     ]
 
-    # --- Your Google Drive PDF file ---
-    pdf_id = "14llTlqrTQav8mv6fayNXF1nnIrHHqVt7"
-    pdf_link = f"https://drive.google.com/file/d/{pdf_id}/preview"
+    # --- Student Information (auto-fill if possible) ---
+    student_name = st.session_state.get("student_name", "")
+    student_code = st.session_state.get("student_code", "")
 
-    # --- Chapter selection (dropdown) ---
-    chapter_titles = [entry["chapter"] for entry in toc]
-    selected_idx = st.selectbox(
-        "Select Chapter", range(len(chapter_titles)), format_func=lambda i: chapter_titles[i]
-    )
-    selected_chapter = toc[selected_idx]
+    student_name = st.text_input("Your Name", value=student_name)
+    student_code = st.text_input("Student Code", value=student_code)
 
-    st.subheader(selected_chapter["chapter"])
-    st.markdown(f"**Page:** {selected_chapter['page']}")
+    # --- Assignment Selector ---
+    chapter_titles = [a["chapter"] for a in assignments]
+    sel_idx = st.selectbox("Select Chapter", range(len(chapter_titles)), format_func=lambda i: chapter_titles[i])
+    sel_assignment = assignments[sel_idx]
+    st.markdown(f"**Assignment:** {sel_assignment['assignment']}")
 
-    st.divider()
-    st.subheader("📕 View in Course Book")
-    st.markdown(f"""
-    <iframe src="{pdf_link}" width="700" height="900" allow="autoplay"></iframe>
-    """, unsafe_allow_html=True)
-    st.info(f"Scroll to page {selected_chapter['page']} in the PDF above for this chapter.")
+    # --- Student's Answer (or file/photo by WhatsApp) ---
+    answer = st.text_area("Your Answer (leave blank if you want to send a photo/file on WhatsApp)", height=120)
 
-    # --- Video integration (if available) ---
-    if selected_chapter.get("video"):
-        st.divider()
-        st.subheader("🎬 Lecture Video")
-        st.video(selected_chapter["video"])
-    else:
-        st.warning("No video available for this chapter yet.")
+    # --- Prepare WhatsApp message ---
+    from datetime import datetime
+    import urllib.parse
+    wa_message = f"""Learn Language Education Academy – Assignment Submission
+Name: {student_name}
+Code: {student_code}
+Chapter: {sel_assignment['chapter']}
+Assignment: {sel_assignment['assignment']}
+Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+Answer: {answer if answer.strip() else '[See attached file/photo]'}
+"""
+    wa_url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(wa_message)
 
-    # --- Optional: Open full PDF in new tab ---
-    book_url = f"https://drive.google.com/file/d/{pdf_id}/view"
-    st.markdown(f"[🔗 Open Full Book in New Tab]({book_url})")
+    if st.button("Submit via WhatsApp"):
+        st.success("Now click below to send via WhatsApp. If you are submitting a file/photo, attach it after pasting the message.")
+        st.markdown(f"[📲 Send to Tutor on WhatsApp]({wa_url})")
+        st.text_area("WhatsApp Message (copy if needed):", wa_message, height=140)
+
+    st.info("""
+- After clicking, WhatsApp will open with your assignment message already filled in.
+- **If you need to submit a file or photo**, paste the message in WhatsApp, then attach your file **before sending**.
+- Please always use your real name and student code for tracking!
+""")
+
 
 
 #Myresults
