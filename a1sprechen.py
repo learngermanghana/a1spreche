@@ -426,67 +426,6 @@ c1_teil3_evaluations = [
     "Wie verändert sich die Familie?",
 ]
 
-# ==========================
-# 3. MAIN UI & LOGIN LOGIC
-# ==========================
-# — Streamlit page config —
-st.set_page_config(
-    page_title="Falowen – Your German Conversation Partner",
-    layout="centered",
-    initial_sidebar_state="expanded"
-)
-
-# — Header —
-st.markdown("""
-<div style='display:flex;align-items:center;gap:18px;margin-bottom:22px;'>
-  <img src='https://cdn-icons-png.flaticon.com/512/323/323329.png' width='50' 
-       style='border-radius:50%;border:2.5px solid #d2b431;box-shadow:0 2px 8px #e4c08d;'/>
-  <div>
-    <span style='font-size:2.0rem;font-weight:bold;color:#17617a;'>Falowen App 🇩🇪</span><br>
-    <span style='font-size:1.02rem;color:#ff9900;'>Learn Language Education Academy</span><br>
-    <span style='font-size:1.01rem;color:#268049;'>
-      Your All-in-One German Learning Platform
-    </span>
-  </div>
-</div>
-""", unsafe_allow_html=True)
-
-# — LOGIN SYSTEM —
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
-    st.session_state["student_row"] = None
-
-if not st.session_state["logged_in"]:
-    st.title("🔑 Student Login")
-    inp = st.text_input("Enter your Student Code or Email:").strip().lower()
-    if st.button("Login"):
-        df = load_student_data()
-        f  = df[(df["StudentCode"]==inp)|(df["Email"]==inp)]
-        if not f.empty:
-            row = f.iloc[0].to_dict()
-            if not contract_active(row):
-                st.error("⛔️ Contract expired. Contact admin.")
-                st.stop()
-            st.session_state["logged_in"]   = True
-            st.session_state["student_row"] = row
-            st.session_state["student_code"]= row["StudentCode"]
-            st.session_state["student_name"]= row["Name"]
-            st.success(f"Welcome, {row['Name']}!")
-            st.rerun()
-        else:
-            st.error("Login failed. Check code/email.")
-
-    st.stop()
-
-row = st.session_state["student_row"]
-if not row or not contract_active(row):
-    st.error("Access denied. Please log in with a valid, active contract.")
-    st.stop()
-
-# — Log out button —
-if st.button("🚪 Log Out"):
-    st.session_state.clear()
-    st.experimental_rerun()
 
 # — Main tab selector —
 student_code = row["StudentCode"]
