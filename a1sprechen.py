@@ -1895,9 +1895,6 @@ if "student_row" not in st.session_state:
 # --------------------------------------
 
 if tab == "Course Book":
-    import streamlit as st
-    import datetime, urllib.parse
-    from schedule_data import get_a1_schedule   # Or paste get_a1_schedule above
 
     # 1. Pick schedule based on student
     student_row = st.session_state.get('student_row', {})
