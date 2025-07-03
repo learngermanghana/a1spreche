@@ -2665,7 +2665,7 @@ Answer: {answer if answer.strip() else '[See attached file/photo]'}
 
 #Myresults
 
-if tab == "My Results and Resources":
+if tab == "My Results":
     # Always define these at the top
     student_code = st.session_state.get("student_code", "")
     student_name = st.session_state.get("student_name", "")
