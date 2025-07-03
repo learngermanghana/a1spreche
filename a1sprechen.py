@@ -25,6 +25,216 @@ if not OPENAI_API_KEY:
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY   # <- Set for OpenAI client!
 client = OpenAI()  # <-- Do NOT pass api_key here for openai>=1.0
 
+import os
+import random
+import difflib
+import sqlite3
+import atexit
+import json
+from datetime import date, datetime
+import pandas as pd
+import streamlit as st
+import urllib.parse
+import requests
+import io
+from openai import OpenAI
+from fpdf import FPDF
+from streamlit_encrypted_cookie_manager import EncryptedCookieManager  # <-- THIS IS CORRECT
+
+# ---- OpenAI Client Setup ----
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    st.error("Missing OpenAI API key. Please set OPENAI_API_KEY as an environment variable or in Streamlit secrets.")
+    st.stop()
+os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+client = OpenAI()  # for openai>=1.0, do NOT pass api_key here
+
+# ---- DB connection helper ----
+def get_connection():
+    if "conn" not in st.session_state:
+        st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
+        atexit.register(st.session_state["conn"].close)
+    return st.session_state["conn"]
+
+conn = get_connection()
+c = conn.cursor()
+
+# --- Create/verify tables if not exist ---
+def init_db():
+    c = conn.cursor()
+    # (Table creation code as before...)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS vocab_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            name TEXT,
+            level TEXT,
+            word TEXT,
+            student_answer TEXT,
+            is_correct INTEGER,
+            date TEXT
+        )
+    """)
+    # ... all other tables ...
+    conn.commit()
+init_db()
+
+# ------------------ DATA LOADING -----------------
+@st.cache_data
+def load_student_data():
+    GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
+    try:
+        response = requests.get(GOOGLE_SHEET_CSV, timeout=7)
+        response.raise_for_status()
+        df = pd.read_csv(io.StringIO(response.text), engine='python')
+        df.columns = [c.strip() for c in df.columns]
+        for col in ["StudentCode", "Email"]:
+            if col in df.columns:
+                df[col] = df[col].astype(str).str.strip().str.lower()
+        return df
+    except Exception as e:
+        st.warning(f"Could not load student data from Google Sheets: {e}")
+        return pd.DataFrame()
+
+def contract_active(row):
+    # Column can be ContractEnd or Contract_End_Date, change as needed
+    contract_end_str = row.get("ContractEnd") or row.get("Contract_End_Date")
+    if not contract_end_str:
+        return False
+    try:
+        contract_end = datetime.strptime(str(contract_end_str), "%Y-%m-%d").date()
+        return contract_end >= date.today()
+    except Exception:
+        return False
+
+# --- Streamlit page config ---
+st.set_page_config(
+    page_title="Falowen – Your German Conversation Partner",
+    layout="centered",
+    initial_sidebar_state="expanded"
+)
+
+# ---- LOGO/HEADER (OPTIONAL) ----
+st.markdown(
+    """
+    <div style='display:flex;align-items:center;gap:18px;margin-bottom:22px;'>
+        <img src='https://cdn-icons-png.flaticon.com/512/323/323329.png' width='50' style='border-radius:50%;border:2.5px solid #d2b431;box-shadow:0 2px 8px #e4c08d;'/>
+        <div>
+            <span style='font-size:2.0rem;font-weight:bold;color:#17617a;letter-spacing:2px;'>Falowen App</span>
+            <span style='font-size:1.6rem;margin-left:12px;'>🇩🇪</span>
+            <br>
+            <span style='font-size:1.02rem;color:#ff9900;font-weight:600;'>Learn Language Education Academy</span><br>
+            <span style='font-size:1.01rem;color:#268049;font-weight:400;'>
+                Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
+            </span>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# ------------------ LOGIN SYSTEM -----------------
+COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
+if not COOKIE_SECRET:
+    raise ValueError("COOKIE_SECRET environment variable not set")
+
+cookie_manager = EncryptedCookieManager(
+    prefix="falowen_",
+    password=COOKIE_SECRET
+)
+cookie_manager.ready()
+
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+if "student_row" not in st.session_state:
+    st.session_state["student_row"] = None
+if "student_code" not in st.session_state:
+    st.session_state["student_code"] = ""
+if "student_name" not in st.session_state:
+    st.session_state["student_name"] = ""
+
+# --- 1. Auto-login from cookie if exists ---
+code_from_cookie = cookie_manager.get("student_code")
+if not st.session_state.get("logged_in", False) and code_from_cookie:
+    df_students = load_student_data()
+    found = df_students[
+        (df_students["StudentCode"].astype(str).str.lower().str.strip() == code_from_cookie)
+    ]
+    if not found.empty:
+        row = found.iloc[0].to_dict()
+        if not contract_active(row):
+            st.session_state["logged_in"] = False
+            st.session_state["student_row"] = None
+            st.session_state["student_code"] = ""
+            st.session_state["student_name"] = ""
+            cookie_manager.pop("student_code", None)
+            cookie_manager.save()
+            st.error("⛔️ Your contract has expired. Please contact admin to renew your access.")
+            st.stop()
+        st.session_state["logged_in"] = True
+        st.session_state["student_row"] = row
+        st.session_state["student_code"] = row.get("StudentCode", "")
+        st.session_state["student_name"] = row.get("Name", "")
+
+# --- 2. If not logged in, show login form ---
+if not st.session_state["logged_in"]:
+    st.title("🔑 Student Login")
+    login_input = st.text_input(
+        "Enter your Student Code or Email to begin:",
+        value=code_from_cookie if code_from_cookie else ""
+    ).strip().lower()
+    if st.button("Login"):
+        df_students = load_student_data()
+        found = df_students[
+            (df_students["StudentCode"].astype(str).str.lower().str.strip() == login_input) |
+            (df_students["Email"].astype(str).str.lower().str.strip() == login_input)
+        ]
+        if not found.empty:
+            row = found.iloc[0].to_dict()
+            if not contract_active(row):
+                st.error("⛔️ Your contract has expired. Please contact admin to renew your access.")
+                st.stop()
+            st.session_state["logged_in"] = True
+            st.session_state["student_row"] = row
+            st.session_state["student_code"] = row.get("StudentCode", "")
+            st.session_state["student_name"] = row.get("Name", "")
+            cookie_manager["student_code"] = st.session_state["student_code"]
+            cookie_manager.save()
+            st.success(f"Welcome, {st.session_state['student_name']}! Login successful.")
+            st.rerun()
+        else:
+            st.error("Login failed. Please check your Student Code or Email and try again.")
+    st.stop()
+
+# --- 3. Universal contract guard for all tabs (add at top of every tab!) ---
+row = st.session_state.get("student_row")
+if row and not contract_active(row):
+    st.session_state["logged_in"] = False
+    st.session_state["student_row"] = None
+    st.session_state["student_code"] = ""
+    st.session_state["student_name"] = ""
+    cookie_manager.pop("student_code", None)
+    cookie_manager.save()
+    st.error("⛔️ Your contract has expired. Please contact admin to renew your access.")
+    st.stop()
+
+# ---- LOGOUT BUTTON (sidebar or top of page) ----
+if st.session_state.get("logged_in", False):
+    if st.button("🚪 Log Out", key="logout_btn"):
+        st.session_state["logged_in"] = False
+        st.session_state["student_row"] = None
+        st.session_state["student_code"] = ""
+        st.session_state["student_name"] = ""
+        cookie_manager.pop("student_code", None)
+        cookie_manager.save()
+        st.success("Logged out successfully.")
+        st.experimental_rerun()
+
+# -------------- The rest of your app logic here --------------
+# e.g. display tabs, student content, coursebook, etc.
+
+
+
 # ---- DB connection helper ----
 def get_connection():
     if "conn" not in st.session_state:
@@ -320,178 +530,6 @@ def save_progress(student_code, level, teil, remaining, used):
     conn.commit()
     
 
-# ------------------ DATA LOADING (no changes needed) -----------------
-@st.cache_data
-def load_student_data():
-    GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
-    import requests, io, pandas as pd
-
-    try:
-        response = requests.get(GOOGLE_SHEET_CSV, timeout=7)
-        response.raise_for_status()
-        df = pd.read_csv(io.StringIO(response.text), engine='python')
-        df.columns = [c.strip() for c in df.columns]
-        for col in ["StudentCode", "Email"]:
-            if col in df.columns:
-                df[col] = df[col].astype(str).str.strip().str.lower()
-        return df
-    except Exception as e:
-        st.warning(f"Could not load student data from Google Sheets: {e}")
-        return pd.DataFrame()
-
-# -------- CONTRACT CHECK --------
-def contract_active(row):
-    # Column name can be "ContractEnd" or adjust below
-    contract_end_str = row.get("ContractEnd") or row.get("Contract_End_Date")
-    if not contract_end_str:
-        # If missing, treat as expired (or return True for open access)
-        return False
-    try:
-        contract_end = datetime.datetime.strptime(str(contract_end_str), "%Y-%m-%d").date()
-        return contract_end >= datetime.date.today()
-    except Exception:
-        return False
-
-# ------------------ LOGIN SYSTEM -----------------
-
-# Use env/secret TOML
-COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
-if not COOKIE_SECRET:
-    raise ValueError("COOKIE_SECRET environment variable not set")
-
-cookie_manager = EncryptedCookieManager(
-    prefix="falowen_",
-    password=COOKIE_SECRET
-)
-cookie_manager.ready()
-
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
-if "student_row" not in st.session_state:
-    st.session_state["student_row"] = None
-if "student_code" not in st.session_state:
-    st.session_state["student_code"] = ""
-if "student_name" not in st.session_state:
-    st.session_state["student_name"] = ""
-
-# --- 1. Auto-login from cookie if exists ---
-code_from_cookie = cookie_manager.get("student_code")
-if not st.session_state.get("logged_in", False) and code_from_cookie:
-    df_students = load_student_data()
-    found = df_students[
-        (df_students["StudentCode"].astype(str).str.lower().str.strip() == code_from_cookie)
-    ]
-    if not found.empty:
-        row = found.iloc[0].to_dict()
-        # Contract check
-        if not contract_active(row):
-            st.session_state["logged_in"] = False
-            st.session_state["student_row"] = None
-            st.session_state["student_code"] = ""
-            st.session_state["student_name"] = ""
-            cookie_manager.pop("student_code", None)
-            cookie_manager.save()
-            st.error("⛔️ Your contract has expired. Please contact admin to renew your access.")
-            st.stop()
-        st.session_state["logged_in"] = True
-        st.session_state["student_row"] = row
-        st.session_state["student_code"] = row.get("StudentCode", "")
-        st.session_state["student_name"] = row.get("Name", "")
-
-# --- 2. If not logged in, show login form ---
-if not st.session_state["logged_in"]:
-    st.title("🔑 Student Login")
-    login_input = st.text_input(
-        "Enter your Student Code or Email to begin:",
-        value=code_from_cookie if code_from_cookie else ""
-    ).strip().lower()
-    if st.button("Login"):
-        df_students = load_student_data()
-        found = df_students[
-            (df_students["StudentCode"].astype(str).str.lower().str.strip() == login_input) |
-            (df_students["Email"].astype(str).str.lower().str.strip() == login_input)
-        ]
-        if not found.empty:
-            row = found.iloc[0].to_dict()
-            if not contract_active(row):
-                st.error("⛔️ Your contract has expired. Please contact admin to renew your access.")
-                st.stop()
-            st.session_state["logged_in"] = True
-            st.session_state["student_row"] = row
-            st.session_state["student_code"] = row.get("StudentCode", "")
-            st.session_state["student_name"] = row.get("Name", "")
-            cookie_manager["student_code"] = st.session_state["student_code"]
-            cookie_manager.save()
-            st.success(f"Welcome, {st.session_state['student_name']}! Login successful.")
-            st.rerun()
-        else:
-            st.error("Login failed. Please check your Student Code or Email and try again.")
-    st.stop()
-
-# --- 3. Universal contract guard for all tabs (add at top of every tab!) ---
-row = st.session_state.get("student_row")
-if row and not contract_active(row):
-    st.session_state["logged_in"] = False
-    st.session_state["student_row"] = None
-    st.session_state["student_code"] = ""
-    st.session_state["student_name"] = ""
-    cookie_manager.pop("student_code", None)
-    cookie_manager.save()
-    st.error("⛔️ Your contract has expired. Please contact admin to renew your access.")
-    st.stop()
-
-# ---- LOGOUT BUTTON (place at top of sidebar or page) ----
-if st.session_state.get("logged_in", False):
-    if st.button("🚪 Log Out", key="logout_btn"):
-        # Clear all session state and cookie
-        st.session_state["logged_in"] = False
-        st.session_state["student_row"] = None
-        st.session_state["student_code"] = ""
-        st.session_state["student_name"] = ""
-        cookie_manager.pop("student_code", None)
-        cookie_manager.save()
-        st.success("Logged out successfully.")
-        st.experimental_rerun()
-
-# ====================================
-# 4. FLEXIBLE ANSWER CHECKERS
-# ====================================
-
-def is_close_answer(student, correct):
-    student = student.strip().lower()
-    correct = correct.strip().lower()
-    if correct.startswith("to "):
-        correct = correct[3:]
-    if len(student) < 3 or len(student) < 0.6 * len(correct):
-        return False
-    similarity = difflib.SequenceMatcher(None, student, correct).ratio()
-    return similarity > 0.80
-
-def is_almost(student, correct):
-    student = student.strip().lower()
-    correct = correct.strip().lower()
-    if correct.startswith("to "):
-        correct = correct[3:]
-    similarity = difflib.SequenceMatcher(None, student, correct).ratio()
-    return 0.60 < similarity <= 0.80
-
-def validate_translation_openai(word, student_answer):
-    """Use OpenAI to verify if the student's answer is a valid translation."""
-    prompt = (
-        f"Is '{student_answer.strip()}' an accurate English translation of the German word '{word}'? "
-        "Reply with 'True' or 'False' only."
-    )
-    try:
-        resp = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=1,
-            temperature=0,
-        )
-        reply = resp.choices[0].message.content.strip().lower()
-        return reply.startswith("true")
-    except Exception:
-        return False
 
 
 # ====================================
