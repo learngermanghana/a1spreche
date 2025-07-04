@@ -3217,6 +3217,8 @@ if tab == "Grammar Help (AI)":
     st.info(
         "All explanations are in English, with simple German examples. To learn more, follow the provided link to the matching chapter in your course book."
 
+     )
+
     # Choose level (A1, A2, B1, B2)
     level = st.selectbox("Select your course level:", ["A1", "A2", "B1"])  # add "B2" if available
 
