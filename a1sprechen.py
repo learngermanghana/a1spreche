@@ -21,6 +21,12 @@ sa_info = json.loads(st.secrets["FIREBASE_SERVICE_ACCOUNT"])
 cred = credentials.Certificate(sa_info)
 firebase_admin.initialize_app(cred)
 
+sa_info = json.loads(st.secrets["FIREBASE_SERVICE_ACCOUNT"])
+cred    = credentials.Certificate(sa_info)
+firebase_admin.initialize_app(cred)
+db = firestore.client()
+
+
 # 3) Get your Firestore client
 db = firestore.client()
 
