@@ -14,6 +14,16 @@ from fpdf import FPDF
 import firebase_admin
 from firebase_admin import credentials, firestore
 
+# 1) Load your service‐account JSON from Streamlit secrets
+sa_info = json.loads(st.secrets["FIREBASE_SERVICE_ACCOUNT"])
+
+# 2) Turn it into a Credential and initialize the app
+cred = credentials.Certificate(sa_info)
+firebase_admin.initialize_app(cred)
+
+# 3) Get your Firestore client
+db = firestore.client()
+
 # ========== CONSTANTS ==========
 FALOWEN_DAILY_LIMIT   = 20
 VOCAB_DAILY_LIMIT     = 20
