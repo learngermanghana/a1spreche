@@ -2763,23 +2763,19 @@ def get_b1_schedule():
     ]
 
 
+import streamlit as st
+import datetime, urllib.parse, re
 
-# --------------------------------------
-
-# --- FORCE A MOCK LOGIN FOR TESTING ---
+# --------------- MOCK LOGIN FOR TESTING (remove/comment in production) ---------------
 if "student_row" not in st.session_state:
     st.session_state["student_row"] = {
         "Name": "Test Student",
         "Level": "A1",
         "StudentCode": "demo001"
     }
-# --------------------------------------
+# -------------------------------------------------------------------------------------
 
 if tab == "Course Book":
-
-    import streamlit as st
-    import datetime, urllib.parse
-
     # 1. Pick schedule based on student
     student_row = st.session_state.get('student_row', {})
     student_level = student_row.get('Level', 'A1').upper()
@@ -2787,13 +2783,13 @@ if tab == "Course Book":
         "A1": get_a1_schedule(),
         "A2": get_a2_schedule(),
         "B1": get_b1_schedule(),
+        # Add B2 if needed
     }
     schedule = level_map.get(student_level, get_a1_schedule())
 
     if not schedule:
         st.warning("No schedule found for your level. Please contact the admin.")
         st.stop()
-
 
     selected_day_idx = st.selectbox(
         "📅 Choose your lesson/day:",
@@ -2894,90 +2890,6 @@ if tab == "Course Book":
             else:
                 st.markdown(f"- [🔗 Extra Resource]({extras})")
 
-    st.info("""
-    - Tap the links above to open books on your phone...
-    """)
-    
-# -------------------------------------------
-# AI Grammar Helper – Ask a Grammar Question
-# -------------------------------------------
-
-# --- (OPTIONAL) Reset daily question count per student
-today = str(datetime.date.today())
-if st.session_state.get("ai_grammar_date") != today:
-    st.session_state["ai_grammar_tries"] = 0
-    st.session_state["ai_grammar_date"] = today
-
-GRAMMAR_DICT = {
-    "perfekt": "Perfekt is the present perfect tense used for completed actions. It is formed with 'haben' or 'sein' + past participle.",
-    "akkusativ": "Akkusativ is the direct object case. The article changes (der→den) for masculine nouns.",
-    "dativ": "Dativ is used for indirect objects. Articles change: der→dem, die→der, das→dem.",
-    "modal verbs": "Modal verbs like 'können', 'müssen', 'dürfen' modify the meaning of the main verb.",
-    "trennbare verben": "Separable verbs split up in the sentence. The prefix goes to the end. Example: 'aufstehen' – Ich stehe um 7 Uhr auf.",
-    # Add more as you wish!
-}
-
-st.divider()
-st.subheader("🤖 Ask the AI Grammar Helper")
-
-if "ai_grammar_tries" not in st.session_state:
-    st.session_state["ai_grammar_tries"] = 0
-if "last_ai_response" not in st.session_state:
-    st.session_state["last_ai_response"] = ""
-
-grammar_question = st.text_input(
-    "Ask a question about a German grammar topic (e.g., 'What is Perfekt?', 'How does Akkusativ work?')",
-    key="ai_grammar_question"
-).strip().lower()
-
-def match_grammar_dict(question):
-    for key in GRAMMAR_DICT:
-        if re.search(rf"\b{key}\b", question):
-            return GRAMMAR_DICT[key]
-    return None
-
-if st.button("Ask AI") and grammar_question:
-    if st.session_state["ai_grammar_tries"] >= 2:
-        st.info("Please read through the grammar book for more details. If you still have questions, ask your teacher.")
-    else:
-        dict_answer = match_grammar_dict(grammar_question)
-        if dict_answer:
-            st.session_state["last_ai_response"] = dict_answer
-        else:
-            if st.session_state["ai_grammar_tries"] < 1:
-                # Use your OpenAI key (ensure openai>=1.0.0 syntax)
-                import openai, os
-                client = openai.OpenAI(
-                    api_key=st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
-                )
-                prompt = (
-                    "You are a helpful but brief German grammar tutor. "
-                    "Answer the student's question in 2-3 sentences. "
-                    "If the topic is advanced or unclear, politely advise the student to check the grammar book and ask their teacher if they need more help.\n\n"
-                    f"Question: {grammar_question}"
-                )
-                try:
-                    response = client.chat.completions.create(
-                        model="gpt-3.5-turbo",
-                        messages=[{"role": "user", "content": prompt}],
-                        max_tokens=120,
-                        temperature=0.4
-                    )
-                    ai_reply = response.choices[0].message.content.strip()
-                    st.session_state["last_ai_response"] = ai_reply
-                except Exception as e:
-                    st.session_state["last_ai_response"] = f"AI error: {e}"
-            else:
-                st.session_state["last_ai_response"] = (
-                    "Please read through the grammar book for more details. If you still have questions, ask your teacher."
-                )
-        st.session_state["ai_grammar_tries"] += 1
-    st.rerun()
-
-if st.session_state.get("last_ai_response"):
-    st.markdown(f"**AI Response:** {st.session_state['last_ai_response']}")
-
-
     # --- Assignment Submission Section (WhatsApp) ---
     st.divider()
     st.subheader("📲 Submit Assignment (WhatsApp)")
@@ -3003,6 +2915,44 @@ Answer: {answer if answer.strip() else '[See attached file/photo]'}
             unsafe_allow_html=True
         )
         st.text_area("Message to Copy (if needed):", wa_message, height=70)
+
+    # ---------------------- AI GRAMMAR HELPER --------------------------
+    st.divider()
+    st.subheader("🤖 Ask a Grammar Question")
+
+    if "ai_grammar_uses" not in st.session_state:
+        st.session_state["ai_grammar_uses"] = 0
+
+    GRAMMAR_DICT = {
+        "perfekt": "Perfekt is the present perfect tense used for completed actions. It is formed with 'haben' or 'sein' + past participle.",
+        "akkusativ": "Akkusativ is the direct object case. The article changes (der→den) for masculine nouns.",
+        "dativ": "Dativ is used for indirect objects. Articles change: der→dem, die→der, das→dem.",
+        "modal verbs": "Modal verbs like 'können', 'müssen', 'dürfen' modify the meaning of the main verb.",
+        "trennbare verben": "Separable verbs split up in the sentence. The prefix goes to the end. Example: 'aufstehen' – Ich stehe um 7 Uhr auf.",
+        "konjunktiv": "Konjunktiv is used for indirect speech or wishes. Example: Ich würde gehen.",
+        "adjektivdeklination": "Adjektivdeklination is how adjectives change endings depending on the article and case.",
+        # ... add more as you need ...
+    }
+
+    def match_grammar_dict(question):
+        if not question or not isinstance(question, str):
+            return None
+        for key in GRAMMAR_DICT:
+            if re.search(rf"\b{re.escape(key)}\b", question, flags=re.IGNORECASE):
+                return GRAMMAR_DICT[key]
+        return None
+
+    if st.session_state["ai_grammar_uses"] < 2:
+        grammar_question = st.text_input("Ask any question about grammar (e.g., 'What is Perfekt?')", key="grammar_q")
+        if grammar_question:
+            dict_answer = match_grammar_dict(grammar_question)
+            st.session_state["ai_grammar_uses"] += 1
+            if dict_answer:
+                st.info(f"**AI:** {dict_answer}")
+            else:
+                st.info("Sorry, I couldn't find a direct answer. Please check the grammar book or rephrase your question.")
+    else:
+        st.warning("You've reached the maximum of 2 AI grammar questions for this session. Please check your grammar book for further help!")
 
     st.info("""
 - Tap the links above to open books on your phone. No PDF preview, all links open in a new tab.
