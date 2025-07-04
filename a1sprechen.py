@@ -3111,22 +3111,41 @@ How to prepare for your B1 oral exam.
         """
     )
 
-# 1) At the top of your file, add this stub:
+from rapidfuzz import process, fuzz
+
 def find_best_chapter(question: str, level: str):
-    # TODO: implement real lookup logic
+    """
+    Return the most relevant chapter dict for this question+level,
+    or None if no match passes the threshold.
+    """
+    # 1) Gather all topics for this level
+    topics = get_course_topics(level)  # each is {'topic','chapter','grammarbook_link',...}
+    if not topics:
+        return None
+
+    # 2) Build a list of strings to match against
+    choices = [t["topic"] for t in topics]
+
+    # 3) Fuzzy‐match the student’s question against those topics
+    best_match, score, idx = process.extractOne(
+        question, choices,
+        scorer=fuzz.partial_ratio,
+        score_cutoff=60  # only accept if >60% similar
+    ) or (None, 0, None)
+
+    if idx is not None:
+        return topics[idx]
     return None
 
-# 2) Replace your existing get_ai_grammar_answer with this:
+
 def get_ai_grammar_answer(question: str, level: str) -> str:
     """
     Ask the AI to explain a German grammar question in English,
-    include one simple German example, and then append a link
-    to the most relevant chapter in the course book (or a fallback note).
+    include one simple German example, and append either a matching
+    chapter link or a friendly “not found” note.
     """
-    # look up best chapter (may return None)
     chapter = find_best_chapter(question, level)
 
-    # build the suffix
     if chapter:
         chapter_str = (
             f"\n\nFor more practice, see **{chapter['topic']}** "
@@ -3138,19 +3157,15 @@ def get_ai_grammar_answer(question: str, level: str) -> str:
         )
     else:
         chapter_str = (
-            "\n\n*No matching chapter found — try rephrasing your question or "
-            "consult your course book’s index.*"
+            "\n\n*No matching chapter found — try rephrasing your question*"
         )
 
-    # AI instruction
     instruction = (
         "You are an A.I. German grammar assistant for language learners. "
         "Answer the user's question in English as simply as possible. "
         "Include one simple German example. "
         "At the end, refer the student to the most relevant chapter from their course book."
     )
-
-    # call OpenAI
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
@@ -3161,9 +3176,7 @@ def get_ai_grammar_answer(question: str, level: str) -> str:
         temperature=0.5,
     )
     answer = response.choices[0].message.content.strip()
-
     return answer + chapter_str
-
 
 # --- STREAMLIT TAB ---
 if tab == "Grammar Help (AI)":
