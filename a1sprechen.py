@@ -3123,68 +3123,41 @@ How to prepare for your B1 oral exam.
         """
     )
 
-
-# ── (2) Helpers for daily usage ──
+# ---- Daily Grammar Usage Helpers ----
 GRAMMAR_DAILY_LIMIT = 3
 
 def get_grammar_usage(student_code: str) -> int:
     today = date.today().isoformat()
     c = conn.cursor()
     c.execute(
-        "SELECT COUNT(*) FROM grammar_usage WHERE student_code=? AND date=?",
+        "SELECT count FROM grammar_usage WHERE student_code=? AND date=?",
         (student_code, today)
     )
     row = c.fetchone()
     return row[0] if row else 0
 
-def inc_grammar_usage(student_code: str, question: str):
+def inc_grammar_usage(student_code: str):
     today = date.today().isoformat()
     c = conn.cursor()
+    # Try update first
     c.execute(
-        "INSERT INTO grammar_usage (student_code, date, question) VALUES (?, ?, ?)",
-        (student_code, today, question)
+        "UPDATE grammar_usage SET count = count + 1 WHERE student_code=? AND date=?",
+        (student_code, today)
     )
-    conn.commit()
-
-# ── (3) Chapter-matching stub ──
-def find_best_chapter(question: str, level: str):
-    # TODO: use your chapter data/goals/instructions here for matching
-    return None
-
-# ── (4) Revised AI helper ──
-def get_ai_grammar_answer(question: str, level: str) -> str:
-    chapter = find_best_chapter(question, level)
-    chapter_str = ""
-    if chapter:
-        chapter_str = (
-            f"\n\n― See **{chapter['topic']}** (Chapter {chapter['chapter']})"
-            + (f" [Grammar Book]({chapter['grammarbook_link']})" if chapter.get("grammarbook_link") else "")
-            + (f", [Workbook]({chapter['workbook_link']})" if chapter.get("workbook_link") else "")
+    if c.rowcount == 0:
+        c.execute(
+            "INSERT INTO grammar_usage (student_code, date, count) VALUES (?, ?, 1)",
+            (student_code, today)
         )
-
-    instruction = (
-        "You are an AI German grammar assistant for beginner and intermediate learners. "
-        "Give a friendly, clear, and detailed explanation in English (not too technical), "
-        "include one simple German example, and make your answer long enough to discourage repeat questions. "
-        "If you know the related course chapter, mention it at the end. Always stay neutral and understanding."
-    )
-    resp = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": instruction},
-            {"role": "user",   "content": question},
-        ],
-        temperature=0.3,
-        max_tokens=600,
-    )
-    answer = resp.choices[0].message.content.strip()
-    return answer + chapter_str
-
+    conn.commit()
 
 if tab == "Grammar Help (AI)":
     st.header("🤖 Grammar Help (AI)")
 
-    # -- Enforce daily usage limit (3 per day) --
+    # ---- Get student_code from session or login (adjust as needed) ----
+    student_code = st.session_state.get("student_code", "demo-student")  # CHANGE if you use another method!
+
+    # enforce 3/day
     usage = get_grammar_usage(student_code)
     st.info(f"Today's questions: **{usage}** / **{GRAMMAR_DAILY_LIMIT}**")
     if usage >= GRAMMAR_DAILY_LIMIT:
@@ -3194,7 +3167,7 @@ if tab == "Grammar Help (AI)":
             For more practice, dive into your course book—  
             replay the recorded lectures, complete the workbook assignments,  
             and you’ll have plenty of solid examples to guide you.  
-            Come back tomorrow for fresh AI answers!
+            Come back tomorrow for fresh AI answers!  
             """
         )
         st.stop()
@@ -3209,20 +3182,14 @@ if tab == "Grammar Help (AI)":
         """
     )
 
-    # -- Get student level from session (set elsewhere in your app) --
-    student_level = st.session_state["student_row"]["Level"].upper()
+    # If you store student_level in session, use that. Otherwise set manually for now:
+    student_level = st.session_state.get("student_row", {}).get("Level", "A1").upper()
 
-    # -- Unique keys for widgets to prevent duplicate element error! --
-    question = st.text_area(
-        "Type your grammar question here…",
-        height=80,
-        key="grammar_ai_question"
-    )
-
+    question = st.text_area("Type your grammar question here…", height=80)
     if "last_answered_q" not in st.session_state:
         st.session_state["last_answered_q"] = ""
 
-    if st.button("Ask AI", key="grammar_ai_button"):
+    if st.button("Ask AI"):
         q = question.strip()
         if not q:
             st.warning("Please enter a grammar question.")
@@ -3236,3 +3203,4 @@ if tab == "Grammar Help (AI)":
 
             st.success("Here is your answer:")
             st.markdown(answer)
+
