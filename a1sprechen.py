@@ -3109,6 +3109,38 @@ How to prepare for your B1 oral exam.
         """
     )
 
+def get_ai_grammar_answer(question: str, level: str) -> str:
+    """
+    Ask the AI to explain a German grammar question in English,
+    include one simple German example, and then append a link
+    to the most relevant chapter from the student’s course book.
+    """
+    chapter = find_best_chapter(question, level)
+    chapter_str = ""
+    if chapter:
+        chapter_str = f"\n\nFor more practice, see **{chapter['topic']}** (Chapter {chapter['chapter']})"
+        if chapter.get("grammarbook_link"):
+            chapter_str += f" ([Grammarbook PDF]({chapter['grammarbook_link']}))"
+        if chapter.get("workbook_link"):
+            chapter_str += f" ([Workbook PDF]({chapter['workbook_link']}))"
+
+    instruction = (
+        "You are an A.I. German grammar assistant for language learners. "
+        "Answer the user's question in English as simply as possible. "
+        "Include one simple German example. "
+        "At the end, refer the student to the most relevant chapter from their course book."
+    )
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": instruction},
+            {"role": "user",   "content": question},
+        ],
+        max_tokens=400,
+        temperature=0.5,
+    )
+    answer = response.choices[0].message.content.strip()
+    return answer + chapter_str
 
 # --- STREAMLIT TAB ---
 if tab == "Grammar Help (AI)":
