@@ -3123,42 +3123,12 @@ How to prepare for your B1 oral exam.
         """
     )
 
-# ---- Daily Grammar Usage Helpers ----
-GRAMMAR_DAILY_LIMIT = 3
-
-def get_grammar_usage(student_code: str) -> int:
-    today = date.today().isoformat()
-    c = conn.cursor()
-    c.execute(
-        "SELECT count FROM grammar_usage WHERE student_code=? AND date=?",
-        (student_code, today)
-    )
-    row = c.fetchone()
-    return row[0] if row else 0
-
-def inc_grammar_usage(student_code: str):
-    today = date.today().isoformat()
-    c = conn.cursor()
-    # Try update first
-    c.execute(
-        "UPDATE grammar_usage SET count = count + 1 WHERE student_code=? AND date=?",
-        (student_code, today)
-    )
-    if c.rowcount == 0:
-        c.execute(
-            "INSERT INTO grammar_usage (student_code, date, count) VALUES (?, ?, 1)",
-            (student_code, today)
-        )
-    conn.commit()
-
+# ── (5) The “Grammar Help” tab with daily-limit & identifier ──
 if tab == "Grammar Help (AI)":
     st.header("🤖 Grammar Help (AI)")
 
-    # ---- Get student_code from session or login (adjust as needed) ----
-    student_code = st.session_state.get("student_code", "demo-student")  # CHANGE if you use another method!
-
-    # enforce 3/day
-    usage = get_grammar_usage(student_code)
+    student_id = get_student_identifier()
+    usage = get_grammar_usage(student_id)
     st.info(f"Today's questions: **{usage}** / **{GRAMMAR_DAILY_LIMIT}**")
     if usage >= GRAMMAR_DAILY_LIMIT:
         st.info(
@@ -3182,9 +3152,8 @@ if tab == "Grammar Help (AI)":
         """
     )
 
-    # If you store student_level in session, use that. Otherwise set manually for now:
+    # Guess level (fallback "A1")
     student_level = st.session_state.get("student_row", {}).get("Level", "A1").upper()
-
     question = st.text_area("Type your grammar question here…", height=80)
     if "last_answered_q" not in st.session_state:
         st.session_state["last_answered_q"] = ""
@@ -3198,9 +3167,81 @@ if tab == "Grammar Help (AI)":
         else:
             with st.spinner("AI is thinking…"):
                 answer = get_ai_grammar_answer(q, student_level)
-            inc_grammar_usage(student_code)
+            inc_grammar_usage(student_id)
             st.session_state["last_answered_q"] = q
 
             st.success("Here is your answer:")
             st.markdown(answer)
+
+# ── (1) Student ID fallback helper ──
+def get_student_identifier():
+    # Try several options in priority order
+    for key in ["student_code", "email", "name", "level"]:
+        val = st.session_state.get(key)
+        if val and isinstance(val, str) and val.strip():
+            return val.strip()
+    # If still nothing, fallback to "unknown"
+    return "unknown-student"
+
+# ── (2) Helpers for daily usage ──
+GRAMMAR_DAILY_LIMIT = 3
+
+def get_grammar_usage(student_id: str) -> int:
+    today = date.today().isoformat()
+    c = conn.cursor()
+    c.execute(
+        "SELECT count FROM grammar_usage WHERE student_id=? AND date=?",
+        (student_id, today)
+    )
+    row = c.fetchone()
+    return row[0] if row else 0
+
+def inc_grammar_usage(student_id: str):
+    today = date.today().isoformat()
+    c = conn.cursor()
+    # Try update first
+    c.execute(
+        "UPDATE grammar_usage SET count = count + 1 WHERE student_id=? AND date=?",
+        (student_id, today)
+    )
+    if c.rowcount == 0:
+        c.execute(
+            "INSERT INTO grammar_usage (student_id, date, count) VALUES (?, ?, 1)",
+            (student_id, today)
+        )
+    conn.commit()
+
+# ── (3) Chapter-matching stub ──
+def find_best_chapter(question: str, level: str):
+    # TODO: use your get_*_schedule() data, goals/instructions to pick best match
+    return None
+
+# ── (4) Revised AI helper ──
+def get_ai_grammar_answer(question: str, level: str) -> str:
+    chapter = find_best_chapter(question, level)
+    chapter_str = ""
+    if chapter:
+        chapter_str = (
+            f"\n\n― See **{chapter['topic']}** (Chapter {chapter['chapter']})"
+            + (f" [Grammar Book]({chapter['grammarbook_link']})" if chapter.get("grammarbook_link") else "")
+            + (f", [Workbook]({chapter['workbook_link']})" if chapter.get("workbook_link") else "")
+        )
+
+    instruction = (
+        "You are an A.I. German grammar assistant. "
+        "Provide a detailed, step-by-step explanation in English that is clear and neutral (never complex or too short), "
+        "include one simple German example, and be thorough enough to fully answer and discourage repeat questions. "
+        "If you have a matching chapter, mention it at the end."
+    )
+    resp = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": instruction},
+            {"role": "user",   "content": question},
+        ],
+        temperature=0.3,
+        max_tokens=700,
+    )
+    answer = resp.choices[0].message.content.strip()
+    return answer + chapter_str
 
