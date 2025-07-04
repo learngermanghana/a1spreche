@@ -2898,7 +2898,84 @@ if tab == "Course Book":
     - Tap the links above to open books on your phone...
     """)
     
-    # 👇 Paste the AI Grammar Helper code here
+# -------------------------------------------
+# AI Grammar Helper – Ask a Grammar Question
+# -------------------------------------------
+
+# --- (OPTIONAL) Reset daily question count per student
+today = str(datetime.date.today())
+if st.session_state.get("ai_grammar_date") != today:
+    st.session_state["ai_grammar_tries"] = 0
+    st.session_state["ai_grammar_date"] = today
+
+GRAMMAR_DICT = {
+    "perfekt": "Perfekt is the present perfect tense used for completed actions. It is formed with 'haben' or 'sein' + past participle.",
+    "akkusativ": "Akkusativ is the direct object case. The article changes (der→den) for masculine nouns.",
+    "dativ": "Dativ is used for indirect objects. Articles change: der→dem, die→der, das→dem.",
+    "modal verbs": "Modal verbs like 'können', 'müssen', 'dürfen' modify the meaning of the main verb.",
+    "trennbare verben": "Separable verbs split up in the sentence. The prefix goes to the end. Example: 'aufstehen' – Ich stehe um 7 Uhr auf.",
+    # Add more as you wish!
+}
+
+st.divider()
+st.subheader("🤖 Ask the AI Grammar Helper")
+
+if "ai_grammar_tries" not in st.session_state:
+    st.session_state["ai_grammar_tries"] = 0
+if "last_ai_response" not in st.session_state:
+    st.session_state["last_ai_response"] = ""
+
+grammar_question = st.text_input(
+    "Ask a question about a German grammar topic (e.g., 'What is Perfekt?', 'How does Akkusativ work?')",
+    key="ai_grammar_question"
+).strip().lower()
+
+def match_grammar_dict(question):
+    for key in GRAMMAR_DICT:
+        if re.search(rf"\b{key}\b", question):
+            return GRAMMAR_DICT[key]
+    return None
+
+if st.button("Ask AI") and grammar_question:
+    if st.session_state["ai_grammar_tries"] >= 2:
+        st.info("Please read through the grammar book for more details. If you still have questions, ask your teacher.")
+    else:
+        dict_answer = match_grammar_dict(grammar_question)
+        if dict_answer:
+            st.session_state["last_ai_response"] = dict_answer
+        else:
+            if st.session_state["ai_grammar_tries"] < 1:
+                # Use your OpenAI key (ensure openai>=1.0.0 syntax)
+                import openai, os
+                client = openai.OpenAI(
+                    api_key=st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+                )
+                prompt = (
+                    "You are a helpful but brief German grammar tutor. "
+                    "Answer the student's question in 2-3 sentences. "
+                    "If the topic is advanced or unclear, politely advise the student to check the grammar book and ask their teacher if they need more help.\n\n"
+                    f"Question: {grammar_question}"
+                )
+                try:
+                    response = client.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=[{"role": "user", "content": prompt}],
+                        max_tokens=120,
+                        temperature=0.4
+                    )
+                    ai_reply = response.choices[0].message.content.strip()
+                    st.session_state["last_ai_response"] = ai_reply
+                except Exception as e:
+                    st.session_state["last_ai_response"] = f"AI error: {e}"
+            else:
+                st.session_state["last_ai_response"] = (
+                    "Please read through the grammar book for more details. If you still have questions, ask your teacher."
+                )
+        st.session_state["ai_grammar_tries"] += 1
+    st.rerun()
+
+if st.session_state.get("last_ai_response"):
+    st.markdown(f"**AI Response:** {st.session_state['last_ai_response']}")
 
 
     # --- Assignment Submission Section (WhatsApp) ---
