@@ -3235,7 +3235,7 @@ if tab == "Grammar Help (AI)":
 if tab == "Grammar Help (AI)":
     st.header("🤖 Grammar Help (AI)")
 
-    # Show current usage
+    # -- Enforce daily usage limit (3 per day) --
     usage = get_grammar_usage(student_code)
     st.info(f"Today's questions: **{usage}** / **{GRAMMAR_DAILY_LIMIT}**")
     if usage >= GRAMMAR_DAILY_LIMIT:
@@ -3256,26 +3256,33 @@ if tab == "Grammar Help (AI)":
 
         You'll receive a clear English explanation,  
         one simple German example,  
-        and a pointer to the right chapter if available.
+        and a pointer to the right chapter.
         """
     )
 
-    # Use student level from session, no dropdown
+    # -- Get student level from session (set elsewhere in your app) --
     student_level = st.session_state["student_row"]["Level"].upper()
-    question = st.text_area("Type your grammar question here…", height=80, key="grammar_question_input")
+
+    # -- Unique keys for widgets to prevent duplicate element error! --
+    question = st.text_area(
+        "Type your grammar question here…",
+        height=80,
+        key="grammar_ai_question"
+    )
+
     if "last_answered_q" not in st.session_state:
         st.session_state["last_answered_q"] = ""
 
-    if st.button("Ask AI", key="ask_ai_button"):
+    if st.button("Ask AI", key="grammar_ai_button"):
         q = question.strip()
         if not q:
             st.warning("Please enter a grammar question.")
         elif q == st.session_state["last_answered_q"]:
             st.info("You've already asked that. Try a new one.")
         else:
-            with st.spinner("Herr Felix is thinking…"):
+            with st.spinner("AI is thinking…"):
                 answer = get_ai_grammar_answer(q, student_level)
-            inc_grammar_usage(student_code, q)
+            inc_grammar_usage(student_code)
             st.session_state["last_answered_q"] = q
 
             st.success("Here is your answer:")
