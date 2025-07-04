@@ -782,7 +782,7 @@ if st.session_state["logged_in"]:
             "Schreiben Trainer",
             "Course Book",
             "My Results and Resources",
-            "Admin"
+            "Grammar Help (AI)"
         ],
         key="main_tab_select"
     )
@@ -3069,124 +3069,211 @@ How to prepare for your B1 oral exam.
         """
     )
 
-
-if tab == "Admin":
-    # --- Admin Auth ---
-    if not st.session_state.get("is_admin", False):
-        admin_pw = st.text_input("Enter admin password:", type="password", key="admin_pw")
-        if st.button("Login as Admin"):
-            ADMIN_PASSWORD = "Felix029"
-            if admin_pw == ADMIN_PASSWORD:
-                st.session_state["is_admin"] = True
-                st.success("Welcome, Admin!")
-                st.rerun()
-            else:
-                st.error("Incorrect password.")
-        st.stop()
+def get_course_topics(level):
+    if level == "A1":
+        schedule = get_a1_schedule()
+    elif level == "A2":
+        schedule = get_a2_schedule()
+    elif level == "B1":
+        schedule = get_b1_schedule()
     else:
-        st.info("You are logged in as admin.")
+        return []
+    
+    topics = []
+    for day in schedule:
+        topics.append({
+            "topic": day.get("topic", ""),
+            "chapter": day.get("chapter", ""),
+            "goal": day.get("goal", ""),
+            "grammarbook_link": "",
+            "workbook_link": "",
+        })
+        # Get grammar book/workbook link, if any
+        lh = day.get("lesen_hören", None)
+        if isinstance(lh, dict):
+            topics[-1]["grammarbook_link"] = lh.get("grammarbook_link", "")
+            topics[-1]["workbook_link"] = lh.get("workbook_link", "")
+        elif isinstance(lh, list):
+            # If it's a list, just take the first (optional: improve this logic)
+            if lh and isinstance(lh[0], dict):
+                topics[-1]["grammarbook_link"] = lh[0].get("grammarbook_link", "")
+                topics[-1]["workbook_link"] = lh[0].get("workbook_link", "")
+        # For schreiben_sprechen if present
+        ss = day.get("schreiben_sprechen", None)
+        if ss and not topics[-1]["workbook_link"]:  # Use only if LH empty
+            topics[-1]["workbook_link"] = ss.get("workbook_link", "")
+    return topics
 
-        # --- Force Refresh Button ---
-        if st.button("🔄 Force Refresh All Data"):
-            st.cache_data.clear()
-            st.success("Cache cleared! Reloading…")
-            st.rerun()
+from rapidfuzz import process, fuzz
 
-#
+def find_best_chapter(question, level):
+    chapters = get_course_topics(level)
+    chapter_titles = [f"{c['topic']} ({c['chapter']})" for c in chapters]
+    best = process.extractOne(
+        question, chapter_titles, scorer=fuzz.token_sort_ratio
+    )
+    # Return the topic dict matching the best match
+    for c in chapters:
+        if f"{c['topic']} ({c['chapter']})" == best[0]:
+            return c
+    return None
+def get_ai_grammar_answer(question, level):
+    chapter = find_best_chapter(question, level)
+    chapter_str = ""
+    if chapter:
+        chapter_str = (
+            f"\n\nFor more practice, see **{chapter['topic']}** (Chapter {chapter['chapter']})"
+        )
+        if chapter.get("grammarbook_link"):
+            chapter_str += f" ([Grammarbook PDF]({chapter['grammarbook_link']}))"
+        if chapter.get("workbook_link"):
+            chapter_str += f" ([Workbook PDF]({chapter['workbook_link']}))"
+    instruction = (
+        "You are an A.I. German grammar assistant for language learners. "
+        "Answer the user's question in English as simply as possible. "
+        "Include one simple German example. "
+        "At the end, refer the student to the most relevant chapter from their course book."
+    )
+    prompt = f"{instruction}\n\nQuestion: {question}"
+    import openai
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": instruction},
+            {"role": "user", "content": question},
+        ],
+        max_tokens=350,
+        temperature=0.5
+    )
+    answer = response.choices[0].message.content.strip()
+    return answer + chapter_str
 
-        st.subheader("Student Data Backup & Restore")
 
-        # ===== Download/Backup Section =====
-        import pandas as pd
+# --- Helper: Collect all chapters by level, flatten multi-chapter days ---
+def build_chapter_index():
+    def extract(schedule, level):
+        chapters = []
+        for day in schedule:
+            def add_chap(topic, chapter, links):
+                if chapter:
+                    chapters.append({
+                        "level": level,
+                        "topic": topic,
+                        "chapter": chapter,
+                        "grammarbook_link": links.get("grammarbook_link", ""),
+                        "workbook_link": links.get("workbook_link", ""),
+                    })
 
-        # --- Student Scores Backup ---
-        st.markdown("### 📥 Download Backups")
+            if "lesen_hören" in day and isinstance(day["lesen_hören"], list):
+                for lh in day["lesen_hören"]:
+                    add_chap(day["topic"], lh.get("chapter", day["chapter"]), lh)
+            elif "lesen_hören" in day and isinstance(day["lesen_hören"], dict):
+                add_chap(day["topic"], day.get("chapter"), day["lesen_hören"])
+            if "schreiben_sprechen" in day:
+                add_chap(day["topic"], day.get("chapter"), day["schreiben_sprechen"])
+            # A2 style (single level keys)
+            if "grammarbook_link" in day:
+                add_chap(day["topic"], day.get("chapter"), day)
+        return chapters
 
-        # Scores (assignment marking) backup
-        try:
-            conn_scores = sqlite3.connect('scores.db')
-            df_scores = pd.read_sql_query("SELECT * FROM scores", conn_scores)
-            csv_scores = df_scores.to_csv(index=False).encode('utf-8')
-            st.download_button("⬇️ Download Scores Backup", csv_scores, file_name="scores_backup.csv", mime="text/csv")
-        except Exception as e:
-            st.warning(f"Could not load scores: {e}")
+    return (
+        extract(get_a1_schedule(), "A1") +
+        extract(get_a2_schedule(), "A2") +
+        extract(get_b1_schedule(), "B1")
+        # + extract(get_b2_schedule(), "B2")  # If you have B2
+    )
 
-        # Vocab Progress backup
-        try:
-            conn_vocab = sqlite3.connect('vocab_progress.db')
-            df_vocab = pd.read_sql_query("SELECT * FROM vocab_progress", conn_vocab)
-            csv_vocab = df_vocab.to_csv(index=False).encode('utf-8')
-            st.download_button("⬇️ Download Vocab Progress", csv_vocab, file_name="vocab_progress_backup.csv", mime="text/csv")
-        except Exception as e:
-            st.warning(f"Could not load vocab progress: {e}")
+CHAPTERS = build_chapter_index()
 
-        # Schreiben Progress backup
-        try:
-            conn_schreiben = sqlite3.connect('vocab_progress.db')
-            df_schreiben = pd.read_sql_query("SELECT * FROM schreiben_progress", conn_schreiben)
-            csv_schreiben = df_schreiben.to_csv(index=False).encode('utf-8')
-            st.download_button("⬇️ Download Schreiben Progress", csv_schreiben, file_name="schreiben_progress_backup.csv", mime="text/csv")
-        except Exception as e:
-            st.warning(f"Could not load schreiben progress: {e}")
+def search_chapter(question):
+    """Return the most relevant chapter(s) and links from the course book, based on the question."""
+    import difflib
+    question_lower = question.lower()
+    # Search for keyword in chapter/topic
+    for chap in CHAPTERS:
+        # Try to match by chapter, topic or rough string match
+        if any(k in question_lower for k in [chap['chapter'].lower(), chap['topic'].lower()]):
+            return chap
+        # Also fuzzy match (more advanced)
+        if difflib.SequenceMatcher(None, question_lower, chap["topic"].lower()).ratio() > 0.5:
+            return chap
+    # Fallback: first grammar chapter for A1
+    for chap in CHAPTERS:
+        if chap['level'] == 'A1' and chap['grammarbook_link']:
+            return chap
+    return None
 
-        # Sprechen Progress backup (if table exists)
-        try:
-            conn_sprechen = sqlite3.connect('vocab_progress.db')
-            df_sprechen = pd.read_sql_query("SELECT * FROM sprechen_progress", conn_sprechen)
-            csv_sprechen = df_sprechen.to_csv(index=False).encode('utf-8')
-            st.download_button("⬇️ Download Sprechen Progress", csv_sprechen, file_name="sprechen_progress_backup.csv", mime="text/csv")
-        except Exception as e:
-            st.info("No Sprechen Progress table found. (If not used, ignore this warning.)")
+# --- Streamlit Tab ---
+def grammar_help_tab():
+    st.header("🤖 Grammar Help (AI)")
+    st.markdown(
+        "Ask any German grammar question! You'll get a full explanation, a simple example, and the right chapter to read in your course book. "
+        "**Every answer is unique and only shown once per question.**"
+    )
+    st.info("All explanations are in English, with simple German examples. To learn more, follow the link to the relevant chapter in your course book.")
 
-        # ===== Upload/Restore Section =====
-        st.markdown("### 📤 Restore from Backup (Upload, overwrites current data)")
+    # Choose level (A1, A2, B1, B2)
+    level = st.selectbox("Select your course level:", ["A1", "A2", "B1"])  # add "B2" if available
 
-        # --- Scores Upload ---
-        uploaded_scores = st.file_uploader("Upload Scores CSV", type="csv", key="up_scores")
-        if uploaded_scores:
-            try:
-                df_new = pd.read_csv(uploaded_scores)
-                conn_scores = sqlite3.connect('scores.db')
-                df_new.to_sql('scores', conn_scores, if_exists='replace', index=False)
-                st.success("Scores data uploaded & replaced.")
-            except Exception as e:
-                st.error(f"Upload failed: {e}")
+    # Ask question
+    question = st.text_area("Type your grammar question here...", height=80)
+    if "last_answered_q" not in st.session_state:
+        st.session_state["last_answered_q"] = ""
+    if st.button("Ask AI"):
+        if not question.strip():
+            st.warning("Please enter a grammar question.")
+            return
 
-        # --- Vocab Progress Upload ---
-        uploaded_vocab = st.file_uploader("Upload Vocab Progress CSV", type="csv", key="up_vocab")
-        if uploaded_vocab:
-            try:
-                df_new = pd.read_csv(uploaded_vocab)
-                conn_vocab = sqlite3.connect('vocab_progress.db')
-                df_new.to_sql('vocab_progress', conn_vocab, if_exists='replace', index=False)
-                st.success("Vocab Progress uploaded & replaced.")
-            except Exception as e:
-                st.error(f"Upload failed: {e}")
+        # Only answer once per new question
+        if question.strip() == st.session_state["last_answered_q"]:
+            st.info("You've already asked this question. Please try a new one.")
+            return
 
-        # --- Schreiben Progress Upload ---
-        uploaded_schreiben = st.file_uploader("Upload Schreiben Progress CSV", type="csv", key="up_schreiben")
-        if uploaded_schreiben:
-            try:
-                df_new = pd.read_csv(uploaded_schreiben)
-                conn_schreiben = sqlite3.connect('vocab_progress.db')
-                df_new.to_sql('schreiben_progress', conn_schreiben, if_exists='replace', index=False)
-                st.success("Schreiben Progress uploaded & replaced.")
-            except Exception as e:
-                st.error(f"Upload failed: {e}")
+        # Get best chapter for this level
+        best_chapter = None
+        for chap in CHAPTERS:
+            if chap["level"] == level:
+                if chap["chapter"].lower() in question.lower() or chap["topic"].lower() in question.lower():
+                    best_chapter = chap
+                    break
+        if not best_chapter:
+            best_chapter = search_chapter(question)
 
-        # --- Sprechen Progress Upload ---
-        uploaded_sprechen = st.file_uploader("Upload Sprechen Progress CSV", type="csv", key="up_sprechen")
-        if uploaded_sprechen:
-            try:
-                df_new = pd.read_csv(uploaded_sprechen)
-                conn_sprechen = sqlite3.connect('vocab_progress.db')
-                df_new.to_sql('sprechen_progress', conn_sprechen, if_exists='replace', index=False)
-                st.success("Sprechen Progress uploaded & replaced.")
-            except Exception as e:
-                st.error(f"Upload failed: {e}")
+        # Compose prompt for AI
+        chapter_info = (
+            f"\n\nAfter your explanation and example, recommend this chapter for further reading:\n"
+            f"Chapter: {best_chapter['chapter']} ({best_chapter['topic']})\n"
+            f"Link: {best_chapter['grammarbook_link'] or best_chapter['workbook_link']}"
+        ) if best_chapter else ""
 
-        # --- Show all students table (as before) ---
-        st.markdown("---")
-        st.markdown("### 👀 View All Student Records")
-        df_students = load_student_data()
-        st.dataframe(df_students)
+        prompt = (
+            f"You are a German grammar teacher. "
+            f"Explain the following question in English, using simple words and at least one clear German example sentence. "
+            f"After your explanation, tell the student which chapter in their course book to read, and show the link. "
+            f"Only answer once per question. Here is the student's question:\n\n"
+            f"{question.strip()}"
+            f"{chapter_info}"
+        )
+
+        # Call OpenAI
+        with st.spinner("AI is thinking..."):
+            response = openai.ChatCompletion.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=400
+            )
+        answer = response['choices'][0]['message']['content']
+
+        # Show answer (only once)
+        st.session_state["last_answered_q"] = question.strip()
+        st.success("Here is your answer:")
+        st.markdown(answer)
+        # Optionally, show chapter link as a button:
+        if best_chapter:
+            st.markdown(
+                f"**Read more:** [{best_chapter['topic']} (Chapter {best_chapter['chapter']})]({best_chapter['grammarbook_link'] or best_chapter['workbook_link']})"
+            )
+
+# --- Usage in your main app ---
+# if tab == "Grammar Help (AI)":
+#     grammar_help_tab()
