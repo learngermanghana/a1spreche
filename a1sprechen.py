@@ -3118,65 +3118,63 @@ def find_best_chapter(question: str, level: str):
     Return the most relevant chapter dict for this question+level,
     or None if no match passes the threshold.
     """
-    # 1) Gather all topics for this level
-    topics = get_course_topics(level)  # each is {'topic','chapter','grammarbook_link',...}
+    topics = get_course_topics(level)  # your existing helper
     if not topics:
         return None
 
-    # 2) Build a list of strings to match against
     choices = [t["topic"] for t in topics]
-
-    # 3) Fuzzy‐match the student’s question against those topics
-    best_match, score, idx = process.extractOne(
+    match = process.extractOne(
         question, choices,
         scorer=fuzz.partial_ratio,
-        score_cutoff=60  # only accept if >60% similar
-    ) or (None, 0, None)
-
-    if idx is not None:
-        return topics[idx]
-    return None
+        score_cutoff=60
+    )
+    if not match:
+        return None
+    best_topic, score, idx = match
+    return topics[idx]
 
 
 def get_ai_grammar_answer(question: str, level: str) -> str:
     """
     Ask the AI to explain a German grammar question in English,
-    include one simple German example, and append either a matching
-    chapter link or a friendly “not found” note.
+    include one German example, and append a chapter referral
+    with goal & instruction for extra context.
     """
     chapter = find_best_chapter(question, level)
 
     if chapter:
-        chapter_str = (
-            f"\n\nFor more practice, see **{chapter['topic']}** "
-            f"(Chapter {chapter['chapter']})"
-            + (f" ([Grammarbook PDF]({chapter['grammarbook_link']}))" 
-               if chapter.get("grammarbook_link") else "")
-            + (f" ([Workbook PDF]({chapter['workbook_link']}))" 
-               if chapter.get("workbook_link") else "")
+        referral = (
+            f"\n\n---\n**Recommended Chapter:** {chapter['topic']} (#{chapter['chapter']})\n"
+            f"🎯 **Goal:** {chapter.get('goal','–')}\n"
+            f"📝 **Instruction:** {chapter.get('instruction','–')}\n"
         )
+        if chapter.get("grammarbook_link"):
+            referral += f"- [Grammarbook PDF]({chapter['grammarbook_link']})\n"
+        if chapter.get("workbook_link"):
+            referral += f"- [Workbook PDF]({chapter['workbook_link']})\n"
     else:
-        chapter_str = (
-            "\n\n*No matching chapter found — try rephrasing your question*"
-        )
+        referral = "\n\n*No close chapter match found — try rephrasing your question.*"
 
-    instruction = (
-        "You are an A.I. German grammar assistant for language learners. "
-        "Answer the user's question in English as simply as possible. "
-        "Include one simple German example. "
-        "At the end, refer the student to the most relevant chapter from their course book."
-    )
-    response = client.chat.completions.create(
+    system_prompt = """
+You are an A.I. German grammar assistant for language learners.
+Provide a **detailed**, self-contained explanation in **English** (at least 200 words) so the student rarely needs follow-ups.
+Include:
+1. A clear definition.
+2. One or two example sentences in German.
+3. Common pitfalls or related tips.
+"""
+
+    resp = client.chat.completions.create(
         model="gpt-4o",
         messages=[
-            {"role": "system", "content": instruction},
-            {"role": "user",   "content": question},
+            {"role":"system", "content": system_prompt},
+            {"role":"user",   "content": question},
         ],
-        max_tokens=400,
-        temperature=0.5,
+        max_tokens=700,
+        temperature=0.3,
     )
-    answer = response.choices[0].message.content.strip()
-    return answer + chapter_str
+    answer = resp.choices[0].message.content.strip()
+    return answer + referral
 
 # --- STREAMLIT TAB ---
 if tab == "Grammar Help (AI)":
