@@ -2765,6 +2765,7 @@ def get_b1_schedule():
 
 import streamlit as st
 import datetime, urllib.parse, re
+# import openai  # Uncomment if using OpenAI API
 
 # --------------- MOCK LOGIN FOR TESTING (remove/comment in production) ---------------
 if "student_row" not in st.session_state:
@@ -2776,14 +2777,13 @@ if "student_row" not in st.session_state:
 # -------------------------------------------------------------------------------------
 
 if tab == "Course Book":
-    # 1. Pick schedule based on student
+    # Get student info and schedule
     student_row = st.session_state.get('student_row', {})
     student_level = student_row.get('Level', 'A1').upper()
     level_map = {
         "A1": get_a1_schedule(),
         "A2": get_a2_schedule(),
         "B1": get_b1_schedule(),
-        # Add B2 if needed
     }
     schedule = level_map.get(student_level, get_a1_schedule())
 
@@ -2916,49 +2916,66 @@ Answer: {answer if answer.strip() else '[See attached file/photo]'}
         )
         st.text_area("Message to Copy (if needed):", wa_message, height=70)
 
-    # ---------------------- AI GRAMMAR HELPER --------------------------
-    st.divider()
-    st.subheader("🤖 Ask a Grammar Question")
-
-    if "ai_grammar_uses" not in st.session_state:
-        st.session_state["ai_grammar_uses"] = 0
-
-    GRAMMAR_DICT = {
-        "perfekt": "Perfekt is the present perfect tense used for completed actions. It is formed with 'haben' or 'sein' + past participle.",
-        "akkusativ": "Akkusativ is the direct object case. The article changes (der→den) for masculine nouns.",
-        "dativ": "Dativ is used for indirect objects. Articles change: der→dem, die→der, das→dem.",
-        "modal verbs": "Modal verbs like 'können', 'müssen', 'dürfen' modify the meaning of the main verb.",
-        "trennbare verben": "Separable verbs split up in the sentence. The prefix goes to the end. Example: 'aufstehen' – Ich stehe um 7 Uhr auf.",
-        "konjunktiv": "Konjunktiv is used for indirect speech or wishes. Example: Ich würde gehen.",
-        "adjektivdeklination": "Adjektivdeklination is how adjectives change endings depending on the article and case.",
-        # ... add more as you need ...
-    }
-
-    def match_grammar_dict(question):
-        if not question or not isinstance(question, str):
-            return None
-        for key in GRAMMAR_DICT:
-            if re.search(rf"\b{re.escape(key)}\b", question, flags=re.IGNORECASE):
-                return GRAMMAR_DICT[key]
-        return None
-
-    if st.session_state["ai_grammar_uses"] < 2:
-        grammar_question = st.text_input("Ask any question about grammar (e.g., 'What is Perfekt?')", key="grammar_q")
-        if grammar_question:
-            dict_answer = match_grammar_dict(grammar_question)
-            st.session_state["ai_grammar_uses"] += 1
-            if dict_answer:
-                st.info(f"**AI:** {dict_answer}")
-            else:
-                st.info("Sorry, I couldn't find a direct answer. Please check the grammar book or rephrase your question.")
-    else:
-        st.warning("You've reached the maximum of 2 AI grammar questions for this session. Please check your grammar book for further help!")
-
     st.info("""
 - Tap the links above to open books on your phone. No PDF preview, all links open in a new tab.
 - Submit only your main assignment below (if more than one, mention which).
 - Always use your real name and code for tracking!
 """)
+
+    # ================= AI GRAMMAR HELPER (connected to Course Book topics!) ================
+    st.divider()
+    st.subheader("🤖 Ask about Grammar")
+
+    # Map topics to (day, chapter) for fast lookup
+    topic_map = {}
+    for entry in schedule:
+        key = entry.get('topic', '').lower()
+        if key:
+            topic_map[key] = (entry['day'], entry['chapter'])
+
+    # Helper function: try to match question to any topic in schedule
+    def find_topic_in_schedule(question):
+        question = question.lower()
+        for topic in topic_map:
+            if topic in question:
+                return topic_map[topic], topic  # (day, chapter), topic name
+        return None, None
+
+    if "ai_grammar_uses" not in st.session_state:
+        st.session_state["ai_grammar_uses"] = 0
+
+    grammar_question = st.text_input(
+        "Ask about any grammar topic (e.g., 'Explain Perfekt', 'What is Modalverben?')",
+        key="grammar_q"
+    )
+    if grammar_question:
+        result, matched_topic = find_topic_in_schedule(grammar_question)
+        if result:
+            day, chapter = result
+            st.success(f"For **{matched_topic.title()}**, check Lesen & Hören: Day {day}, Chapter {chapter}. Go to your Course Book above for details!")
+        elif st.session_state["ai_grammar_uses"] < 2:
+            # Uncomment this block to use OpenAI (make sure openai is imported and secrets set!)
+            """
+            try:
+                openai.api_key = st.secrets["OPENAI_API_KEY"]
+                response = openai.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "You are a German grammar assistant for A1-A2 students. Explain simply."},
+                        {"role": "user", "content": grammar_question},
+                    ],
+                    max_tokens=140,
+                    temperature=0.3
+                )
+                answer = response.choices[0].message.content.strip()
+                st.info(f"**AI:** {answer}")
+            except Exception as e:
+                st.error(f"Sorry, the AI is not available right now: {e}")
+            """
+            st.session_state["ai_grammar_uses"] += 1
+            st.info("Sorry, this grammar topic was not found in your Course Book. Please check your grammar book for more help.")
+        else:
+            st.warning("You've reached the maximum of 2 AI grammar questions for this session. Please check your grammar book for further help!")
 
 
 #Myresults
