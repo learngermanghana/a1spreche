@@ -2762,187 +2762,183 @@ def get_b1_schedule():
         },
     ]
 
+
+
+# --------------------------------------
+
+# --- FORCE A MOCK LOGIN FOR TESTING ---
+if "student_row" not in st.session_state:
+    st.session_state["student_row"] = {
+        "Name": "Test Student",
+        "Level": "A1",
+        "StudentCode": "demo001"
+    }
+# --------------------------------------
+
 if tab == "Course Book":
 
     import streamlit as st
-    import datetime
-    import urllib.parse
-    import re
-    # Uncomment if you actually want to use OpenAI
-    # import openai
+    import datetime, urllib.parse
 
-    # --------------- MOCK LOGIN FOR TESTING (remove/comment in prod) ---------------
-    if "student_row" not in st.session_state:
-        st.session_state["student_row"] = {
-            "Name": "Test Student",
-            "Level": "A1",
-            "StudentCode": "demo001"
-        }
-    # -----------------------------------------------------------------------------
-
-    # 1. Load the schedule for this level
-    student_row = st.session_state["student_row"]
-    student_level = student_row.get("Level", "A1").upper()
-    schedule_map = {
+    # 1. Pick schedule based on student
+    student_row = st.session_state.get('student_row', {})
+    student_level = student_row.get('Level', 'A1').upper()
+    level_map = {
         "A1": get_a1_schedule(),
         "A2": get_a2_schedule(),
         "B1": get_b1_schedule(),
-        # Add B2/C1 as needed
     }
-    schedule = schedule_map.get(student_level, get_a1_schedule())
+    schedule = level_map.get(student_level, get_a1_schedule())
 
     if not schedule:
         st.warning("No schedule found for your level. Please contact the admin.")
         st.stop()
 
-    # 2. Let student pick a day
+
     selected_day_idx = st.selectbox(
         "📅 Choose your lesson/day:",
-        options=list(range(len(schedule))),
+        range(len(schedule)),
         format_func=lambda i: f"Day {schedule[i]['day']} – {schedule[i]['topic']}"
     )
     day_info = schedule[selected_day_idx]
 
-    # 3. Show day details
     st.markdown(f"### Day {day_info['day']}: {day_info['topic']} (Chapter {day_info['chapter']})")
+
     if day_info.get("goal"):
         st.markdown(f"**🎯 Goal:**<br>{day_info['goal']}", unsafe_allow_html=True)
     if day_info.get("instruction"):
         st.markdown(f"**📝 Instruction:**<br>{day_info['instruction']}", unsafe_allow_html=True)
 
-    # 4. Lesen & Hören
+    # --------- Show Lesen & Hören ----------
     def render_lh_section(lh, idx=None, total=None):
-        if idx is not None:
-            st.markdown(f"#### 📚 Assignment {idx+1}/{total}: Lesen & Hören – Chapter {lh.get('chapter','')}")
+        if idx is not None and total is not None:
+            st.markdown(
+                f"#### 📚 Assignment {idx+1} of {total}: Lesen & Hören – Chapter {lh.get('chapter','')}")
         if lh.get("video"):
             st.video(lh["video"])
         if lh.get("grammarbook_link"):
             st.markdown(
-                f"[📘 Open Grammar Book]({lh['grammarbook_link']})",
-                unsafe_allow_html=True
-            )
+                f"<a href='{lh['grammarbook_link']}' target='_blank' style='font-size:1.1em; color:#357ae8; font-weight:bold;'>📘 Open Grammar Book</a>",
+                unsafe_allow_html=True)
         if lh.get("workbook_link"):
             st.markdown(
-                f"[📒 Open Workbook]({lh['workbook_link']})",
-                unsafe_allow_html=True
-            )
-        extras = lh.get("extra_resources")
+                f"<a href='{lh['workbook_link']}' target='_blank' style='font-size:1.1em; color:#34a853; font-weight:bold;'>📒 Open Workbook</a>",
+                unsafe_allow_html=True)
+        extras = lh.get('extra_resources')
         if extras:
-            links = extras if isinstance(extras, list) else [extras]
-            for link in links:
-                st.markdown(f"- 🔗 [Extra Resource]({link})")
+            if isinstance(extras, list):
+                for link in extras:
+                    st.markdown(f"- [🔗 Extra Resource]({link})")
+            else:
+                st.markdown(f"- [🔗 Extra Resource]({extras})")
 
+    # Multi assignment note (clean, mobile-friendly)
     if "lesen_hören" in day_info:
-        lh = day_info["lesen_hören"]
-        if isinstance(lh, list):
-            for idx, item in enumerate(lh):
-                render_lh_section(item, idx, len(lh))
-        else:
-            render_lh_section(lh)
+        lh_section = day_info["lesen_hören"]
+        if isinstance(lh_section, list):
+            st.markdown(
+                """
+                <div style='padding:8px 12px; background:#eaf4ff; border-radius:7px; 
+                border-left:5px solid #357ae8; margin-bottom:12px; font-size:1.03em; line-height:1.3;'>
+                    <span style="font-weight:600; color:#357ae8;">ℹ️ This lesson has more than one Lesen & Hören assignment.<br>
+                    Do <u>all parts below</u> before you submit.</span>
+                </div>
+                """, unsafe_allow_html=True
+            )
+            for idx, chapter_lh in enumerate(lh_section):
+                render_lh_section(chapter_lh, idx, len(lh_section))
+        elif isinstance(lh_section, dict):
+            render_lh_section(lh_section)
 
-    # 5. Schreiben & Sprechen
+    # --- Show Schreiben & Sprechen (if present) ---
     if "schreiben_sprechen" in day_info:
         ss = day_info["schreiben_sprechen"]
         st.markdown("#### 📝 Schreiben & Sprechen")
         if ss.get("video"):
             st.video(ss["video"])
         if ss.get("grammarbook_link"):
-            st.markdown(f"[📘 Open Grammar Book]({ss['grammarbook_link']})", unsafe_allow_html=True)
+            st.markdown(
+                f"<a href='{ss['grammarbook_link']}' target='_blank' style='font-size:1.1em; color:#357ae8; font-weight:bold;'>📘 Open Grammar Book</a>",
+                unsafe_allow_html=True)
         if ss.get("workbook_link"):
-            st.markdown(f"[📒 Open Workbook]({ss['workbook_link']})", unsafe_allow_html=True)
+            st.markdown(
+                f"<a href='{ss['workbook_link']}' target='_blank' style='font-size:1.1em; color:#34a853; font-weight:bold;'>📒 Open Workbook</a>",
+                unsafe_allow_html=True)
+        extras = ss.get('extra_resources')
+        if extras:
+            if isinstance(extras, list):
+                for link in extras:
+                    st.markdown(f"- [🔗 Extra Resource]({link})")
+            else:
+                st.markdown(f"- [🔗 Extra Resource]({extras})")
 
-    # 6. Submission via WhatsApp
+    # ---------- For A2/B1/B2: Show all at top level ----------
+    if student_level in ["A2", "B1", "B2"]:
+        if day_info.get("video"):
+            st.video(day_info["video"])
+        if day_info.get("grammarbook_link"):
+            st.markdown(
+                f"<a href='{day_info['grammarbook_link']}' target='_blank' "
+                "style='font-size:1.1em; color:#357ae8; font-weight:bold;'>📘 Open Grammar Book</a>",
+                unsafe_allow_html=True)
+        if day_info.get("workbook_link"):
+            st.markdown(
+                f"<a href='{day_info['workbook_link']}' target='_blank' "
+                "style='font-size:1.1em; color:#34a853; font-weight:bold;'>📒 Open Workbook</a>",
+                unsafe_allow_html=True)
+        extras = day_info.get('extra_resources')
+        if extras:
+            if isinstance(extras, list):
+                for link in extras:
+                    st.markdown(f"- [🔗 Extra Resource]({link})")
+            else:
+                st.markdown(f"- [🔗 Extra Resource]({extras})")
+
+
+    # --- Assignment Submission Section (WhatsApp) ---
     st.divider()
     st.subheader("📲 Submit Assignment (WhatsApp)")
-    student_name = st.text_input("Your Name", value=student_row.get("Name",""))
-    student_code = st.text_input("Student Code", value=student_row.get("StudentCode",""))
-    answer = st.text_area("Your Answer (or leave blank if sending file/photo)", height=90)
+    student_name = st.text_input("Your Name", value=student_row.get('Name', ''))
+    student_code = st.text_input("Student Code", value=student_row.get('StudentCode', ''))
+    answer = st.text_area("Your Answer (leave blank if sending file/photo on WhatsApp)", height=90)
 
-    wa_msg = (
-        f"Learn Language Education Academy – Assignment Submission\n"
-        f"Name: {student_name}\n"
-        f"Code: {student_code}\n"
-        f"Level: {student_level}\n"
-        f"Day: {day_info['day']}\n"
-        f"Chapter: {day_info['chapter']}\n"
-        f"Date: {datetime.datetime.now():%Y-%m-%d %H:%M}\n"
-        f"Answer: {answer if answer.strip() else '[See attached]'}"
-    )
-    wa_url = "https://api.whatsapp.com/send?phone=233205706589&text="+urllib.parse.quote(wa_msg)
+    wa_message = f"""Learn Language Education Academy – Assignment Submission
+Name: {student_name}
+Code: {student_code}
+Level: {student_level}
+Day: {day_info['day']}
+Chapter: {day_info['chapter']}
+Date: {datetime.datetime.now():%Y-%m-%d %H:%M}
+Answer: {answer if answer.strip() else '[See attached file/photo]'}
+"""
+    wa_url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(wa_message)
 
     if st.button("📤 Submit via WhatsApp"):
         st.success("Click the link below to open WhatsApp and send your assignment!")
-        st.markdown(f"[Open WhatsApp]({wa_url})", unsafe_allow_html=True)
-        st.text_area("Message to Copy:", wa_msg, height=70)
+        st.markdown(
+            f"""<a href="{wa_url}" target="_blank" style="font-size:1.15em;font-weight:600;display:inline-block;background:#25D366;color:white;padding:12px 24px;border-radius:8px;margin:10px 0;">Open WhatsApp</a>""",
+            unsafe_allow_html=True
+        )
+        st.text_area("Message to Copy (if needed):", wa_message, height=70)
 
-    # 7. AI Grammar Helper
-    st.divider()
-    st.subheader("🤖 Ask a Grammar Question")
-    st.info(
-        "If you don't understand a grammar topic, type your question below.\n"
-        "First I'll check your Course Book (free!). If not found, I'll answer via AI (2 questions max per session)."
-    )
+    st.info("""
+- Tap the links above to open books on your phone. No PDF preview, all links open in a new tab.
+- Submit only your main assignment below (if more than one, mention which).
+- Always use your real name and code for tracking!
+""")
 
-    if "ai_grammar_uses" not in st.session_state:
-        st.session_state["ai_grammar_uses"] = 0
 
-    # Build a simple mapping of topic→(day,chapter)
-    topic_map = {}
-    for entry in schedule:
-        key = entry["topic"].lower()
-        topic_map[key] = (entry["day"], entry["chapter"])
-
-    def lookup_course(topic_query):
-        query = topic_query.lower()
-        for topic, (d, c) in topic_map.items():
-            if re.search(rf"\b{re.escape(topic)}\b", query):
-                return d, c, topic
-        return None, None, None
-
-    grammar_q = st.text_input("Your question about grammar:")
-    if grammar_q:
-        d, c, topic = lookup_course(grammar_q)
-        if topic:
-            st.success(
-                f"Your question matches **{topic.title()}** – see Day {d}, Chapter {c} in Lesen & Hören above."
-            )
-        elif st.session_state["ai_grammar_uses"] < 2:
-            # --- Uncomment to enable real AI answers ---
-            """
-            try:
-                import openai
-                openai.api_key = st.secrets["OPENAI_API_KEY"]
-                resp = openai.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {"role":"system","content":"You are a German grammar assistant for A1-A2 students. Explain simply."},
-                        {"role":"user","content":grammar_q},
-                    ],
-                    max_tokens=140, temperature=0.3
-                )
-                ai_answer = resp.choices[0].message.content.strip()
-                st.info(f"**AI:** {ai_answer}")
-            except Exception as e:
-                st.error(f"AI not available: {e}")
-            """
-            st.session_state["ai_grammar_uses"] += 1
-            st.info("Sorry, I couldn't find it in your Course Book. Please check your grammar book for more details.")
-        else:
-            st.warning(
-                "You've reached your 2-question limit. Please consult your grammar book or ask your tutor!"
-            )
-
-    # 8. Final Info
-    st.info(
-        "- Tap the links above to open books on your phone (they open in a new tab).\n"
-        "- Submit only the main assignment below (if multiple, specify).\n"
-        "- Always use your real name and code to track!"
-    )
 
 
 #Myresults
 
 if tab == "My Results and Resources":
+    # --- Refresh Button ---
+    if st.button("🔄 Refresh for your latest results"):
+        st.cache_data.clear()
+        st.success("Cache cleared! Reloading…")
+        st.rerun()
+
     # Always define these at the top
     student_code = st.session_state.get("student_code", "")
     student_name = st.session_state.get("student_name", "")
@@ -2956,6 +2952,7 @@ if tab == "My Results and Resources":
     import io
     import pandas as pd
     from fpdf import FPDF
+
 
     @st.cache_data
     def fetch_scores():
@@ -3071,6 +3068,8 @@ if tab == "Admin":
             st.success("Cache cleared! Reloading…")
             st.rerun()
 
+#
+
         st.subheader("Student Data Backup & Restore")
 
         # ===== Download/Backup Section =====
@@ -3167,4 +3166,3 @@ if tab == "Admin":
         st.markdown("### 👀 View All Student Records")
         df_students = load_student_data()
         st.dataframe(df_students)
-
