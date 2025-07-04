@@ -2894,64 +2894,12 @@ if tab == "Course Book":
             else:
                 st.markdown(f"- [🔗 Extra Resource]({extras})")
 
+    st.info("""
+    - Tap the links above to open books on your phone...
+    """)
+    
+    # 👇 Paste the AI Grammar Helper code here
 
-    # --- AI Grammar Helper Section ---
-    import openai
-    import os
-
-    st.divider()
-    st.subheader("🤖 AI Grammar Helper")
-
-    if "answer_for_ai" not in st.session_state:
-        st.session_state["answer_for_ai"] = ""
-
-    # Prefill with the answer they've typed so far
-    answer_for_ai = st.text_area(
-        "Paste your German answer here for grammar feedback (optional):",
-        value=st.session_state.get("answer_for_ai", ""),
-        height=90,
-        key="ai_grammar_input"
-    )
-
-    correction = ""
-    explanation = ""
-
-    if st.button("Check Grammar (AI)"):
-        if not answer_for_ai.strip():
-            st.warning("Please enter some text for grammar checking.")
-        else:
-            with st.spinner("Checking grammar..."):
-                openai.api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
-                prompt = (
-                    "Correct the following German text for grammar and spelling mistakes. "
-                    "Show the corrected version and briefly explain the main mistakes (in English, short). "
-                    f"\n\nText:\n{answer_for_ai}"
-                )
-                try:
-                    response = openai.ChatCompletion.create(
-                        model="gpt-3.5-turbo",
-                        messages=[{"role": "user", "content": prompt}],
-                        max_tokens=300
-                    )
-                    ai_reply = response['choices'][0]['message']['content'].strip()
-                    # Try to split into correction and explanation
-                    if "Explanation" in ai_reply:
-                        parts = ai_reply.split("Explanation", 1)
-                        correction = parts[0].replace("Corrected text:", "").strip()
-                        explanation = "Explanation" + parts[1]
-                    else:
-                        correction = ai_reply
-                        explanation = ""
-                    st.markdown("**✅ Corrected Text:**")
-                    st.code(correction)
-                    st.markdown("**💡 Explanation:**")
-                    st.write(explanation.strip())
-                    # Store for easy copy-paste
-                    st.session_state["answer_for_ai"] = correction
-                except Exception as e:
-                    st.error(f"AI error: {e}")
-
-    st.info("Paste your German answer above and click the button for instant grammar feedback before submitting your assignment!")
 
     # --- Assignment Submission Section (WhatsApp) ---
     st.divider()
