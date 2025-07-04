@@ -3111,38 +3111,48 @@ How to prepare for your B1 oral exam.
         """
     )
 
-# 1) Stub for chapter lookup (to avoid NameError)
+# 1) At the top of your file, add this stub:
 def find_best_chapter(question: str, level: str):
-    # TODO: implement real matching logic
+    # TODO: implement real lookup logic
     return None
 
-# 2) AI helper for grammar questions
+# 2) Replace your existing get_ai_grammar_answer with this:
 def get_ai_grammar_answer(question: str, level: str) -> str:
     """
     Ask the AI to explain a German grammar question in English,
-    include a simple German example, and then append a link
-    to the most relevant chapter in the course book (once implemented).
+    include one simple German example, and then append a link
+    to the most relevant chapter in the course book (or a fallback note).
     """
+    # look up best chapter (may return None)
     chapter = find_best_chapter(question, level)
-    chapter_str = ""
+
+    # build the suffix
     if chapter:
         chapter_str = (
-            f"\n\nFor more practice, see **{chapter['topic']}** (Chapter {chapter['chapter']})"
+            f"\n\nFor more practice, see **{chapter['topic']}** "
+            f"(Chapter {chapter['chapter']})"
+            + (f" ([Grammarbook PDF]({chapter['grammarbook_link']}))" 
+               if chapter.get("grammarbook_link") else "")
+            + (f" ([Workbook PDF]({chapter['workbook_link']}))" 
+               if chapter.get("workbook_link") else "")
         )
-        if chapter.get("grammarbook_link"):
-            chapter_str += f" ([Grammarbook PDF]({chapter['grammarbook_link']}))"
-        if chapter.get("workbook_link"):
-            chapter_str += f" ([Workbook PDF]({chapter['workbook_link']}))"
-        # TODO: append any additional links here
+    else:
+        chapter_str = (
+            "\n\n*No matching chapter found — try rephrasing your question or "
+            "consult your course book’s index.*"
+        )
 
+    # AI instruction
     instruction = (
         "You are an A.I. German grammar assistant for language learners. "
-        "Answer the user's question in English as simply as possible, "
-        "include one simple German example, and at the end refer the student "
-        "to the most relevant chapter from their course book."
+        "Answer the user's question in English as simply as possible. "
+        "Include one simple German example. "
+        "At the end, refer the student to the most relevant chapter from their course book."
     )
+
+    # call OpenAI
     response = client.chat.completions.create(
-        model="gpt-4o",   # or "gpt-4" if preferred
+        model="gpt-4o",
         messages=[
             {"role": "system", "content": instruction},
             {"role": "user",   "content": question},
@@ -3151,7 +3161,9 @@ def get_ai_grammar_answer(question: str, level: str) -> str:
         temperature=0.5,
     )
     answer = response.choices[0].message.content.strip()
+
     return answer + chapter_str
+
 
 # --- STREAMLIT TAB ---
 if tab == "Grammar Help (AI)":
