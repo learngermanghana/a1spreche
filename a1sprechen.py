@@ -2763,21 +2763,16 @@ def get_b1_schedule():
     ]
 
 
-import streamlit as st
-import datetime, urllib.parse, re
-# import openai  # Uncomment if using OpenAI API
-
-# --------------- MOCK LOGIN FOR TESTING (remove/comment in production) ---------------
-if "student_row" not in st.session_state:
-    st.session_state["student_row"] = {
-        "Name": "Test Student",
-        "Level": "A1",
-        "StudentCode": "demo001"
-    }
-# -------------------------------------------------------------------------------------
-
 if tab == "Course Book":
-    # Get student info and schedule
+
+    import streamlit as st
+    import datetime, urllib.parse
+    import re
+
+    # Example: Provide your own schedule functions and data structures!
+    # get_a1_schedule(), get_a2_schedule(), get_b1_schedule()
+
+    # 1. Pick schedule based on student
     student_row = st.session_state.get('student_row', {})
     student_level = student_row.get('Level', 'A1').upper()
     level_map = {
@@ -2790,6 +2785,73 @@ if tab == "Course Book":
     if not schedule:
         st.warning("No schedule found for your level. Please contact the admin.")
         st.stop()
+
+    # --- Grammar Helper Section ---
+    st.markdown("## 🤖 AI Grammar Helper")
+    st.info("If you don't understand a grammar topic, type your question below. The assistant will check your Course Book first, then answer using AI (2 questions per session max). For more, check your grammar book.")
+    if "ai_grammar_uses" not in st.session_state:
+        st.session_state["ai_grammar_uses"] = 0
+
+    # Create a simple lookup dictionary from schedule (for topic finding)
+    def create_topic_dict(schedule):
+        topic_dict = {}
+        for day in schedule:
+            chapter = day.get("chapter")
+            # Flatten Lesen & Hören topics
+            lh = day.get("lesen_hören", {})
+            if isinstance(lh, list):
+                for lh_item in lh:
+                    topic_dict[lh_item.get("topic", "").lower()] = (day["day"], chapter)
+            elif isinstance(lh, dict):
+                topic_dict[lh.get("topic", "").lower()] = (day["day"], chapter)
+            # Flatten Schreiben & Sprechen topics
+            ss = day.get("schreiben_sprechen", {})
+            if isinstance(ss, dict):
+                topic_dict[ss.get("topic", "").lower()] = (day["day"], chapter)
+        return topic_dict
+
+    topic_dict = create_topic_dict(schedule)
+
+    def find_topic_in_schedule(question):
+        # Try to match by keyword in question to topic_dict
+        question = question.lower()
+        for key in topic_dict:
+            if key and re.search(rf"\b{re.escape(key)}\b", question):
+                return topic_dict[key], key
+        return None, None
+
+    grammar_question = st.text_input("Ask a grammar question:")
+    if grammar_question:
+        result, matched_topic = find_topic_in_schedule(grammar_question)
+        if result:
+            day, chapter = result
+            st.success(f"For **{matched_topic.title()}**, check Lesen & Hören: Day {day}, Chapter {chapter}. Go to your Course Book above for details!")
+        elif st.session_state["ai_grammar_uses"] < 2:
+            # --- OPENAI API: respond with AI if not found in course book ---
+            try:
+                import openai
+                openai.api_key = st.secrets["OPENAI_API_KEY"]
+                response = openai.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "You are a German grammar assistant for A1-A2 students. Explain simply."},
+                        {"role": "user", "content": grammar_question},
+                    ],
+                    max_tokens=140,
+                    temperature=0.3
+                )
+                answer = response.choices[0].message.content.strip()
+                st.info(f"**AI:** {answer}")
+            except Exception as e:
+                st.error(f"Sorry, the AI is not available right now: {e}")
+            st.session_state["ai_grammar_uses"] += 1
+        else:
+            st.warning("You've reached the maximum of 2 AI grammar questions for this session. Please check your grammar book for further help!")
+
+    st.divider()
+    # ================================
+    # Existing Course Book code below
+    # ================================
 
     selected_day_idx = st.selectbox(
         "📅 Choose your lesson/day:",
@@ -2922,60 +2984,6 @@ Answer: {answer if answer.strip() else '[See attached file/photo]'}
 - Always use your real name and code for tracking!
 """)
 
-    # ================= AI GRAMMAR HELPER (connected to Course Book topics!) ================
-    st.divider()
-    st.subheader("🤖 Ask about Grammar")
-
-    # Map topics to (day, chapter) for fast lookup
-    topic_map = {}
-    for entry in schedule:
-        key = entry.get('topic', '').lower()
-        if key:
-            topic_map[key] = (entry['day'], entry['chapter'])
-
-    # Helper function: try to match question to any topic in schedule
-    def find_topic_in_schedule(question):
-        question = question.lower()
-        for topic in topic_map:
-            if topic in question:
-                return topic_map[topic], topic  # (day, chapter), topic name
-        return None, None
-
-    if "ai_grammar_uses" not in st.session_state:
-        st.session_state["ai_grammar_uses"] = 0
-
-    grammar_question = st.text_input(
-        "Ask about any grammar topic (e.g., 'Explain Perfekt', 'What is Modalverben?')",
-        key="grammar_q"
-    )
-    if grammar_question:
-        result, matched_topic = find_topic_in_schedule(grammar_question)
-        if result:
-            day, chapter = result
-            st.success(f"For **{matched_topic.title()}**, check Lesen & Hören: Day {day}, Chapter {chapter}. Go to your Course Book above for details!")
-        elif st.session_state["ai_grammar_uses"] < 2:
-            # Uncomment this block to use OpenAI (make sure openai is imported and secrets set!)
-            """
-            try:
-                openai.api_key = st.secrets["OPENAI_API_KEY"]
-                response = openai.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": "system", "content": "You are a German grammar assistant for A1-A2 students. Explain simply."},
-                        {"role": "user", "content": grammar_question},
-                    ],
-                    max_tokens=140,
-                    temperature=0.3
-                )
-                answer = response.choices[0].message.content.strip()
-                st.info(f"**AI:** {answer}")
-            except Exception as e:
-                st.error(f"Sorry, the AI is not available right now: {e}")
-            """
-            st.session_state["ai_grammar_uses"] += 1
-            st.info("Sorry, this grammar topic was not found in your Course Book. Please check your grammar book for more help.")
-        else:
-            st.warning("You've reached the maximum of 2 AI grammar questions for this session. Please check your grammar book for further help!")
 
 
 #Myresults
