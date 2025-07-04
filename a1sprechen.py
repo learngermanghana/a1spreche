@@ -3127,10 +3127,12 @@ if tab == "Grammar Help (AI)":
     )
 
     # Choose level (A1, A2, B1, ...)
-    level = st.selectbox("Select your course level:", ["A1", "A2", "B1"])  # Add "B2" if you have
+    level = st.selectbox("Select your course level:", ["A1", "A2", "B1"])  # extend as needed
 
     # Question input
     question = st.text_area("Type your grammar question here...", height=80)
+
+    # Prevent duplicate asks
     if "last_answered_q" not in st.session_state:
         st.session_state["last_answered_q"] = ""
 
@@ -3141,7 +3143,9 @@ if tab == "Grammar Help (AI)":
             st.info("You've already asked this question. Please try a new one.")
         else:
             with st.spinner("AI is thinking..."):
+                # This helper now correctly uses `client` under the hood
                 answer = get_ai_grammar_answer(question.strip(), level)
             st.session_state["last_answered_q"] = question.strip()
             st.success("Here is your answer:")
             st.markdown(answer)
+
