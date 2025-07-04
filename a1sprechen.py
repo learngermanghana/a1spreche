@@ -3129,6 +3129,44 @@ def get_ai_grammar_answer(question: str, level: str) -> str:
     answer = response.choices[0].message.content.strip()
     return answer + chapter_str
 
+# 1) Stub for chapter lookup (to avoid NameError)
+def find_best_chapter(question: str, level: str):
+    # TODO: implement real matching logic
+    return None
+
+# 2) AI helper for grammar questions
+def get_ai_grammar_answer(question: str, level: str) -> str:
+    """
+    Ask the AI to explain a German grammar question in English,
+    include a simple German example, and then append a link
+    to the most relevant chapter in the course book (once implemented).
+    """
+    chapter = find_best_chapter(question, level)
+    chapter_str = ""
+    if chapter:
+        chapter_str = f"\n\nFor more practice, see **{chapter['topic']}** (Chapter {chapter['chapter']})"
+        if chapter.get("grammarbook_link"):
+            chapter_str += f" ([Grammarbook PDF]({chapter['grammarbook_link']}))"
+        if chapter.get("workbook_link"):
+            chapter_str += f" ([Workbook PDF]({chapter['workbook_link']}))"
+
+    instruction = (
+        "You are an A.I. German grammar assistant for language learners. "
+        "Answer the user's question in English as simply as possible, include one simple German example, "
+        "and at the end refer the student to the most relevant chapter from their course book."
+    )
+    response = client.chat.completions.create(
+        model="gpt-4o",   # or "gpt-4" if you prefer
+        messages=[
+            {"role": "system", "content": instruction},
+            {"role": "user",   "content": question},
+        ],
+        max_tokens=400,
+        temperature=0.5,
+    )
+    answer = response.choices[0].message.content.strip()
+    return answer + chapter_str
+
 # --- STREAMLIT TAB ---
 if tab == "Grammar Help (AI)":
     st.header("🤖 Grammar Help (AI)")
@@ -3162,7 +3200,6 @@ if tab == "Grammar Help (AI)":
             st.info("You've already asked this question. Please try a new one.")
         else:
             with st.spinner("AI is thinking..."):
-                # This helper now correctly uses `client` under the hood
                 answer = get_ai_grammar_answer(question.strip(), level)
             st.session_state["last_answered_q"] = question.strip()
             st.success("Here is your answer:")
