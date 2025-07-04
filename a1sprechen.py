@@ -5,13 +5,16 @@ import sqlite3
 import atexit
 import json
 from datetime import date, datetime
+import io
+
 import pandas as pd
 import streamlit as st
 import requests
-import io
-from openai import OpenAI
+from openai import OpenAI  # Use 'import openai' if using openai.ChatCompletion.create
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
+from rapidfuzz import process, fuzz
+
 
 # ---- OpenAI Client Setup ----
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
@@ -3104,51 +3107,6 @@ def get_course_topics(level):
             topics[-1]["workbook_link"] = ss.get("workbook_link", "")
     return topics
 
-from rapidfuzz import process, fuzz
-
-def find_best_chapter(question, level):
-    chapters = get_course_topics(level)
-    chapter_titles = [f"{c['topic']} ({c['chapter']})" for c in chapters]
-    best = process.extractOne(
-        question, chapter_titles, scorer=fuzz.token_sort_ratio
-    )
-    # Return the topic dict matching the best match
-    for c in chapters:
-        if f"{c['topic']} ({c['chapter']})" == best[0]:
-            return c
-    return None
-def get_ai_grammar_answer(question, level):
-    chapter = find_best_chapter(question, level)
-    chapter_str = ""
-    if chapter:
-        chapter_str = (
-            f"\n\nFor more practice, see **{chapter['topic']}** (Chapter {chapter['chapter']})"
-        )
-        if chapter.get("grammarbook_link"):
-            chapter_str += f" ([Grammarbook PDF]({chapter['grammarbook_link']}))"
-        if chapter.get("workbook_link"):
-            chapter_str += f" ([Workbook PDF]({chapter['workbook_link']}))"
-    instruction = (
-        "You are an A.I. German grammar assistant for language learners. "
-        "Answer the user's question in English as simply as possible. "
-        "Include one simple German example. "
-        "At the end, refer the student to the most relevant chapter from their course book."
-    )
-    prompt = f"{instruction}\n\nQuestion: {question}"
-    import openai
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": instruction},
-            {"role": "user", "content": question},
-        ],
-        max_tokens=350,
-        temperature=0.5
-    )
-    answer = response.choices[0].message.content.strip()
-    return answer + chapter_str
-
-
 # --- Helper: Collect all chapters by level, flatten multi-chapter days ---
 def build_chapter_index():
     def extract(schedule, level):
@@ -3185,24 +3143,59 @@ def build_chapter_index():
 
 CHAPTERS = build_chapter_index()
 
+def find_best_chapter(question, level):
+    chapters = [c for c in CHAPTERS if c["level"] == level]
+    chapter_titles = [f"{c['topic']} ({c['chapter']})" for c in chapters]
+    best = process.extractOne(question, chapter_titles, scorer=fuzz.token_sort_ratio)
+    for c in chapters:
+        if f"{c['topic']} ({c['chapter']})" == best[0]:
+            return c
+    return None
+
 def search_chapter(question):
-    """Return the most relevant chapter(s) and links from the course book, based on the question."""
     import difflib
     question_lower = question.lower()
-    # Search for keyword in chapter/topic
     for chap in CHAPTERS:
-        # Try to match by chapter, topic or rough string match
         if any(k in question_lower for k in [chap['chapter'].lower(), chap['topic'].lower()]):
             return chap
-        # Also fuzzy match (more advanced)
         if difflib.SequenceMatcher(None, question_lower, chap["topic"].lower()).ratio() > 0.5:
             return chap
-    # Fallback: first grammar chapter for A1
     for chap in CHAPTERS:
         if chap['level'] == 'A1' and chap['grammarbook_link']:
             return chap
     return None
 
+def get_ai_grammar_answer(question, level):
+    chapter = find_best_chapter(question, level)
+    chapter_str = ""
+    if chapter:
+        chapter_str = (
+            f"\n\nFor more practice, see **{chapter['topic']}** (Chapter {chapter['chapter']})"
+        )
+        if chapter.get("grammarbook_link"):
+            chapter_str += f" ([Grammarbook PDF]({chapter['grammarbook_link']}))"
+        if chapter.get("workbook_link"):
+            chapter_str += f" ([Workbook PDF]({chapter['workbook_link']}))"
+    instruction = (
+        "You are an A.I. German grammar assistant for language learners. "
+        "Answer the user's question in English as simply as possible. "
+        "Include one simple German example. "
+        "At the end, refer the student to the most relevant chapter from their course book."
+    )
+    prompt = f"{instruction}\n\nQuestion: {question}"
+    response = openai.ChatCompletion.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": instruction},
+            {"role": "user", "content": question},
+        ],
+        max_tokens=400,
+        temperature=0.5
+    )
+    answer = response.choices[0].message.content.strip()
+    return answer + chapter_str
+
+# --- STREAMLIT TAB ---
 if tab == "Grammar Help (AI)":
     st.header("🤖 Grammar Help (AI)")
     st.markdown(
@@ -3216,69 +3209,24 @@ if tab == "Grammar Help (AI)":
     )
     st.info(
         "All explanations are in English, with simple German examples. To learn more, follow the provided link to the matching chapter in your course book."
+    )
 
-     )
+    # Choose level (A1, A2, B1, ...)
+    level = st.selectbox("Select your course level:", ["A1", "A2", "B1"])  # Add "B2" if you have
 
-    # Choose level (A1, A2, B1, B2)
-    level = st.selectbox("Select your course level:", ["A1", "A2", "B1"])  # add "B2" if available
-
-    # Ask question
+    # Question input
     question = st.text_area("Type your grammar question here...", height=80)
     if "last_answered_q" not in st.session_state:
         st.session_state["last_answered_q"] = ""
+
     if st.button("Ask AI"):
         if not question.strip():
             st.warning("Please enter a grammar question.")
-            return
-
-        # Only answer once per new question
-        if question.strip() == st.session_state["last_answered_q"]:
+        elif question.strip() == st.session_state["last_answered_q"]:
             st.info("You've already asked this question. Please try a new one.")
-            return
-
-        # Get best chapter for this level
-        best_chapter = None
-        for chap in CHAPTERS:
-            if chap["level"] == level:
-                if chap["chapter"].lower() in question.lower() or chap["topic"].lower() in question.lower():
-                    best_chapter = chap
-                    break
-        if not best_chapter:
-            best_chapter = search_chapter(question)
-
-        # Compose prompt for AI
-        chapter_info = (
-            f"\n\nAfter your explanation and example, recommend this chapter for further reading:\n"
-            f"Chapter: {best_chapter['chapter']} ({best_chapter['topic']})\n"
-            f"Link: {best_chapter['grammarbook_link'] or best_chapter['workbook_link']}"
-        ) if best_chapter else ""
-
-        prompt = (
-            f"You are a German grammar teacher. "
-            f"Explain the following question in English, using simple words and at least one clear German example sentence. "
-            f"After your explanation, tell the student which chapter in their course book to read, and show the link. "
-            f"Only answer once per question. Here is the student's question:\n\n"
-            f"{question.strip()}"
-            f"{chapter_info}"
-        )
-
-        # Call OpenAI
-        with st.spinner("AI is thinking..."):
-            response = openai.ChatCompletion.create(
-                model="gpt-4o",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=400
-            )
-        answer = response['choices'][0]['message']['content']
-
-        # Show answer (only once)
-        st.session_state["last_answered_q"] = question.strip()
-        st.success("Here is your answer:")
-        st.markdown(answer)
-        # Optionally, show chapter link as a button:
-        if best_chapter:
-            st.markdown(
-                f"**Read more:** [{best_chapter['topic']} (Chapter {best_chapter['chapter']})]({best_chapter['grammarbook_link'] or best_chapter['workbook_link']})"
-            )
-
-
+        else:
+            with st.spinner("AI is thinking..."):
+                answer = get_ai_grammar_answer(question.strip(), level)
+            st.session_state["last_answered_q"] = question.strip()
+            st.success("Here is your answer:")
+            st.markdown(answer)
