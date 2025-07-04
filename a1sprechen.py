@@ -3181,56 +3181,6 @@ def get_ai_grammar_answer(question: str, level: str) -> str:
     answer = resp.choices[0].message.content.strip()
     return answer + chapter_str
 
-# ── (5) The “Grammar Help (AI)” tab with daily usage enforcement and friendly message ──
-if tab == "Grammar Help (AI)":
-    st.header("🤖 Grammar Help (AI)")
-
-    # Usage logic
-    usage = get_grammar_usage(student_code)
-    st.info(f"Today's questions: **{usage}** / **{GRAMMAR_DAILY_LIMIT}**")
-    if usage >= GRAMMAR_DAILY_LIMIT:
-        st.info(
-            """
-            🌟 You’ve made great progress today!  
-            For more practice, dive into your course book—  
-            replay the recorded lectures, complete the workbook assignments,  
-            and you’ll have plenty of solid examples to guide you.  
-            Come back tomorrow for fresh AI answers!
-            """
-        )
-        st.stop()
-
-    st.markdown(
-        """
-        **Ask any German grammar question!**
-
-        You'll receive a clear English explanation,  
-        one simple German example,  
-        and a pointer to the right chapter if available.
-        """
-    )
-
-    # Use student level from session, no dropdown
-    student_level = st.session_state["student_row"]["Level"].upper()
-    question = st.text_area("Type your grammar question here…", height=80, key="grammar_question_input")
-    if "last_answered_q" not in st.session_state:
-        st.session_state["last_answered_q"] = ""
-
-    if st.button("Ask AI", key="ask_ai_button"):
-        q = question.strip()
-        if not q:
-            st.warning("Please enter a grammar question.")
-        elif q == st.session_state["last_answered_q"]:
-            st.info("You've already asked that. Try a new one.")
-        else:
-            with st.spinner("AI is thinking…"):
-                answer = get_ai_grammar_answer(q, student_level)
-            inc_grammar_usage(student_code, q)
-            st.session_state["last_answered_q"] = q
-
-            st.success("Here is your answer:")
-            st.markdown(answer)
-
 
 if tab == "Grammar Help (AI)":
     st.header("🤖 Grammar Help (AI)")
