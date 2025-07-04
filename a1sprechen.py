@@ -767,20 +767,25 @@ c1_teil3_evaluations = [
     "Wie verändert sich die Familie?",
 ]
 
-tab = st.radio(
-    "How do you want to practice?",
-    [
-        "Dashboard",
-        "Exams Mode & Custom Chat",
-        "Vocab Trainer",
-        "Schreiben Trainer",
-        "Course Book",
-        "My Results and Resources",
-        "Grammar Help (A1)"
-    ],
-    key="main_tab_select"
-)
+if st.session_state["logged_in"]:
+    # === Context: Always define at the top ===
+    student_code = st.session_state.get("student_code", "")
+    student_name = st.session_state.get("student_name", "")
 
+    # === MAIN TAB SELECTOR ===
+    tab = st.radio(
+        "How do you want to practice?",
+        [
+            "Dashboard",
+            "Exams Mode & Custom Chat",
+            "Vocab Trainer",
+            "Schreiben Trainer",
+            "Course Book",
+            "My Results and Resources",
+            "Grammar Help (A1)"
+        ],
+        key="main_tab_select"
+    )
 
     # --- DASHBOARD TAB ---
     if tab == "Dashboard":
