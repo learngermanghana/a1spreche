@@ -120,7 +120,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             student_code TEXT,
             date TEXT,
-            question TEXT
+            count INTEGER DEFAULT 0
         )
     """)
     conn.commit()
@@ -128,10 +128,6 @@ def init_db():
 # Call DB initialization ONCE after imports
 init_db()
 
-
-
-# Call DB initialization ONCE after imports
-init_db()
 
 # ====== DB HELPERS (for all tables) ======
 
