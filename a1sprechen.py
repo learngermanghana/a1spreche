@@ -3203,14 +3203,19 @@ def search_chapter(question):
             return chap
     return None
 
-# --- Streamlit Tab ---
-def grammar_help_tab():
+if tab == "Grammar Help (AI)":
     st.header("🤖 Grammar Help (AI)")
     st.markdown(
-        "Ask any German grammar question! You'll get a full explanation, a simple example, and the right chapter to read in your course book. "
-        "**Every answer is unique and only shown once per question.**"
+        """
+        **Ask any German grammar question!**
+
+        You'll receive a detailed explanation in English, a simple German example,  
+        and a direct reference to the most relevant chapter in your course book.  
+        _Every answer is unique and only shown once per question._
+        """
     )
-    st.info("All explanations are in English, with simple German examples. To learn more, follow the link to the relevant chapter in your course book.")
+    st.info(
+        "All explanations are in English, with simple German examples. To learn more, follow the provided link to the matching chapter in your course book."
 
     # Choose level (A1, A2, B1, B2)
     level = st.selectbox("Select your course level:", ["A1", "A2", "B1"])  # add "B2" if available
@@ -3274,6 +3279,4 @@ def grammar_help_tab():
                 f"**Read more:** [{best_chapter['topic']} (Chapter {best_chapter['chapter']})]({best_chapter['grammarbook_link'] or best_chapter['workbook_link']})"
             )
 
-# --- Usage in your main app ---
-# if tab == "Grammar Help (AI)":
-#     grammar_help_tab()
+
