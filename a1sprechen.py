@@ -39,6 +39,9 @@ c = conn.cursor()
 def init_db():
     conn = get_connection()
     c = conn.cursor()
+    # OPTIONAL: Uncomment and run ONCE to reset schema if errors from old grammar_usage table
+    # c.execute("DROP TABLE IF EXISTS grammar_usage")
+
     # Vocab Progress Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS vocab_progress (
