@@ -3111,24 +3111,6 @@ How to prepare for your B1 oral exam.
         """
     )
 
-# 1) Add this stub before the grammar-AI helper:
-def find_best_chapter(question: str, level: str):
-    # Placeholder: no chapter matching yet
-    return None
-
-def get_ai_grammar_answer(question: str, level: str) -> str:
-    """
-    Ask the AI to explain a German grammar question …
-    """
-    chapter = find_best_chapter(question, level)
-    chapter_str = ""
-    if chapter:
-        …  # your existing code to append links
-    instruction = "You are an A.I. German grammar assistant …"
-    # call OpenAI …
-    answer = response.choices[0].message.content.strip()
-    return answer + chapter_str
-
 # 1) Stub for chapter lookup (to avoid NameError)
 def find_best_chapter(question: str, level: str):
     # TODO: implement real matching logic
@@ -3144,19 +3126,23 @@ def get_ai_grammar_answer(question: str, level: str) -> str:
     chapter = find_best_chapter(question, level)
     chapter_str = ""
     if chapter:
-        chapter_str = f"\n\nFor more practice, see **{chapter['topic']}** (Chapter {chapter['chapter']})"
+        chapter_str = (
+            f"\n\nFor more practice, see **{chapter['topic']}** (Chapter {chapter['chapter']})"
+        )
         if chapter.get("grammarbook_link"):
             chapter_str += f" ([Grammarbook PDF]({chapter['grammarbook_link']}))"
         if chapter.get("workbook_link"):
             chapter_str += f" ([Workbook PDF]({chapter['workbook_link']}))"
+        # TODO: append any additional links here
 
     instruction = (
         "You are an A.I. German grammar assistant for language learners. "
-        "Answer the user's question in English as simply as possible, include one simple German example, "
-        "and at the end refer the student to the most relevant chapter from their course book."
+        "Answer the user's question in English as simply as possible, "
+        "include one simple German example, and at the end refer the student "
+        "to the most relevant chapter from their course book."
     )
     response = client.chat.completions.create(
-        model="gpt-4o",   # or "gpt-4" if you prefer
+        model="gpt-4o",   # or "gpt-4" if preferred
         messages=[
             {"role": "system", "content": instruction},
             {"role": "user",   "content": question},
