@@ -115,7 +115,22 @@ def init_db():
             date_added TEXT
         )
     """)
+def init_db():
+    conn = get_connection()
+    c = conn.cursor()
+    # … your existing CREATE TABLE statements …
+
+    # New table to track how many grammar questions each student asks per day
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS grammar_usage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            date TEXT,
+            question TEXT
+        )
+    """)
     conn.commit()
+
 
 # Call DB initialization ONCE after imports
 init_db()
@@ -3110,23 +3125,6 @@ A2-level speaking exam guide.
 How to prepare for your B1 oral exam.
         """
     )
-
-# ── (1) Ensure this runs after your other CREATE TABLEs ──
-def init_db():
-    conn = get_connection()
-    c = conn.cursor()
-    # … your existing table creation …
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS grammar_usage (
-            student_code TEXT,
-            date        TEXT,
-            count       INTEGER,
-            PRIMARY KEY (student_code, date)
-        )
-    """)
-    conn.commit()
-
-init_db()
 
 
 # ── (2) Helpers for daily usage ──
