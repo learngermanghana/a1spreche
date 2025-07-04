@@ -276,6 +276,130 @@ def get_vocab_streak(student_code):
             break
     return streak
 
+
+def get_course_topics(level):
+    if level == "A1":
+        schedule = get_a1_schedule()
+    elif level == "A2":
+        schedule = get_a2_schedule()
+    elif level == "B1":
+        schedule = get_b1_schedule()
+    else:
+        return []
+    
+    topics = []
+    for day in schedule:
+        topics.append({
+            "topic": day.get("topic", ""),
+            "chapter": day.get("chapter", ""),
+            "goal": day.get("goal", ""),
+            "grammarbook_link": "",
+            "workbook_link": "",
+        })
+        # Get grammar book/workbook link, if any
+        lh = day.get("lesen_hören", None)
+        if isinstance(lh, dict):
+            topics[-1]["grammarbook_link"] = lh.get("grammarbook_link", "")
+            topics[-1]["workbook_link"] = lh.get("workbook_link", "")
+        elif isinstance(lh, list):
+            # If it's a list, just take the first (optional: improve this logic)
+            if lh and isinstance(lh[0], dict):
+                topics[-1]["grammarbook_link"] = lh[0].get("grammarbook_link", "")
+                topics[-1]["workbook_link"] = lh[0].get("workbook_link", "")
+        # For schreiben_sprechen if present
+        ss = day.get("schreiben_sprechen", None)
+        if ss and not topics[-1]["workbook_link"]:  # Use only if LH empty
+            topics[-1]["workbook_link"] = ss.get("workbook_link", "")
+    return topics
+
+# --- Helper: Collect all chapters by level, flatten multi-chapter days ---
+def build_chapter_index():
+    def extract(schedule, level):
+        chapters = []
+        for day in schedule:
+            def add_chap(topic, chapter, links):
+                if chapter:
+                    chapters.append({
+                        "level": level,
+                        "topic": topic,
+                        "chapter": chapter,
+                        "grammarbook_link": links.get("grammarbook_link", ""),
+                        "workbook_link": links.get("workbook_link", ""),
+                    })
+
+            if "lesen_hören" in day and isinstance(day["lesen_hören"], list):
+                for lh in day["lesen_hören"]:
+                    add_chap(day["topic"], lh.get("chapter", day["chapter"]), lh)
+            elif "lesen_hören" in day and isinstance(day["lesen_hören"], dict):
+                add_chap(day["topic"], day.get("chapter"), day["lesen_hören"])
+            if "schreiben_sprechen" in day:
+                add_chap(day["topic"], day.get("chapter"), day["schreiben_sprechen"])
+            # A2 style (single level keys)
+            if "grammarbook_link" in day:
+                add_chap(day["topic"], day.get("chapter"), day)
+        return chapters
+
+    return (
+        extract(get_a1_schedule(), "A1") +
+        extract(get_a2_schedule(), "A2") +
+        extract(get_b1_schedule(), "B1")
+        # + extract(get_b2_schedule(), "B2")  # If you have B2
+    )
+
+CHAPTERS = build_chapter_index()
+
+def find_best_chapter(question, level):
+    chapters = [c for c in CHAPTERS if c["level"] == level]
+    chapter_titles = [f"{c['topic']} ({c['chapter']})" for c in chapters]
+    best = process.extractOne(question, chapter_titles, scorer=fuzz.token_sort_ratio)
+    for c in chapters:
+        if f"{c['topic']} ({c['chapter']})" == best[0]:
+            return c
+    return None
+
+def search_chapter(question):
+    import difflib
+    question_lower = question.lower()
+    for chap in CHAPTERS:
+        if any(k in question_lower for k in [chap['chapter'].lower(), chap['topic'].lower()]):
+            return chap
+        if difflib.SequenceMatcher(None, question_lower, chap["topic"].lower()).ratio() > 0.5:
+            return chap
+    for chap in CHAPTERS:
+        if chap['level'] == 'A1' and chap['grammarbook_link']:
+            return chap
+    return None
+
+def get_ai_grammar_answer(question, level):
+    chapter = find_best_chapter(question, level)
+    chapter_str = ""
+    if chapter:
+        chapter_str = (
+            f"\n\nFor more practice, see **{chapter['topic']}** (Chapter {chapter['chapter']})"
+        )
+        if chapter.get("grammarbook_link"):
+            chapter_str += f" ([Grammarbook PDF]({chapter['grammarbook_link']}))"
+        if chapter.get("workbook_link"):
+            chapter_str += f" ([Workbook PDF]({chapter['workbook_link']}))"
+    instruction = (
+        "You are an A.I. German grammar assistant for language learners. "
+        "Answer the user's question in English as simply as possible. "
+        "Include one simple German example. "
+        "At the end, refer the student to the most relevant chapter from their course book."
+    )
+    prompt = f"{instruction}\n\nQuestion: {question}"
+    response = openai.ChatCompletion.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": instruction},
+            {"role": "user", "content": question},
+        ],
+        max_tokens=400,
+        temperature=0.5
+    )
+    answer = response.choices[0].message.content.strip()
+    return answer + chapter_str
+
 # --- Streamlit page config ---
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
@@ -3072,128 +3196,6 @@ How to prepare for your B1 oral exam.
         """
     )
 
-def get_course_topics(level):
-    if level == "A1":
-        schedule = get_a1_schedule()
-    elif level == "A2":
-        schedule = get_a2_schedule()
-    elif level == "B1":
-        schedule = get_b1_schedule()
-    else:
-        return []
-    
-    topics = []
-    for day in schedule:
-        topics.append({
-            "topic": day.get("topic", ""),
-            "chapter": day.get("chapter", ""),
-            "goal": day.get("goal", ""),
-            "grammarbook_link": "",
-            "workbook_link": "",
-        })
-        # Get grammar book/workbook link, if any
-        lh = day.get("lesen_hören", None)
-        if isinstance(lh, dict):
-            topics[-1]["grammarbook_link"] = lh.get("grammarbook_link", "")
-            topics[-1]["workbook_link"] = lh.get("workbook_link", "")
-        elif isinstance(lh, list):
-            # If it's a list, just take the first (optional: improve this logic)
-            if lh and isinstance(lh[0], dict):
-                topics[-1]["grammarbook_link"] = lh[0].get("grammarbook_link", "")
-                topics[-1]["workbook_link"] = lh[0].get("workbook_link", "")
-        # For schreiben_sprechen if present
-        ss = day.get("schreiben_sprechen", None)
-        if ss and not topics[-1]["workbook_link"]:  # Use only if LH empty
-            topics[-1]["workbook_link"] = ss.get("workbook_link", "")
-    return topics
-
-# --- Helper: Collect all chapters by level, flatten multi-chapter days ---
-def build_chapter_index():
-    def extract(schedule, level):
-        chapters = []
-        for day in schedule:
-            def add_chap(topic, chapter, links):
-                if chapter:
-                    chapters.append({
-                        "level": level,
-                        "topic": topic,
-                        "chapter": chapter,
-                        "grammarbook_link": links.get("grammarbook_link", ""),
-                        "workbook_link": links.get("workbook_link", ""),
-                    })
-
-            if "lesen_hören" in day and isinstance(day["lesen_hören"], list):
-                for lh in day["lesen_hören"]:
-                    add_chap(day["topic"], lh.get("chapter", day["chapter"]), lh)
-            elif "lesen_hören" in day and isinstance(day["lesen_hören"], dict):
-                add_chap(day["topic"], day.get("chapter"), day["lesen_hören"])
-            if "schreiben_sprechen" in day:
-                add_chap(day["topic"], day.get("chapter"), day["schreiben_sprechen"])
-            # A2 style (single level keys)
-            if "grammarbook_link" in day:
-                add_chap(day["topic"], day.get("chapter"), day)
-        return chapters
-
-    return (
-        extract(get_a1_schedule(), "A1") +
-        extract(get_a2_schedule(), "A2") +
-        extract(get_b1_schedule(), "B1")
-        # + extract(get_b2_schedule(), "B2")  # If you have B2
-    )
-
-CHAPTERS = build_chapter_index()
-
-def find_best_chapter(question, level):
-    chapters = [c for c in CHAPTERS if c["level"] == level]
-    chapter_titles = [f"{c['topic']} ({c['chapter']})" for c in chapters]
-    best = process.extractOne(question, chapter_titles, scorer=fuzz.token_sort_ratio)
-    for c in chapters:
-        if f"{c['topic']} ({c['chapter']})" == best[0]:
-            return c
-    return None
-
-def search_chapter(question):
-    import difflib
-    question_lower = question.lower()
-    for chap in CHAPTERS:
-        if any(k in question_lower for k in [chap['chapter'].lower(), chap['topic'].lower()]):
-            return chap
-        if difflib.SequenceMatcher(None, question_lower, chap["topic"].lower()).ratio() > 0.5:
-            return chap
-    for chap in CHAPTERS:
-        if chap['level'] == 'A1' and chap['grammarbook_link']:
-            return chap
-    return None
-
-def get_ai_grammar_answer(question, level):
-    chapter = find_best_chapter(question, level)
-    chapter_str = ""
-    if chapter:
-        chapter_str = (
-            f"\n\nFor more practice, see **{chapter['topic']}** (Chapter {chapter['chapter']})"
-        )
-        if chapter.get("grammarbook_link"):
-            chapter_str += f" ([Grammarbook PDF]({chapter['grammarbook_link']}))"
-        if chapter.get("workbook_link"):
-            chapter_str += f" ([Workbook PDF]({chapter['workbook_link']}))"
-    instruction = (
-        "You are an A.I. German grammar assistant for language learners. "
-        "Answer the user's question in English as simply as possible. "
-        "Include one simple German example. "
-        "At the end, refer the student to the most relevant chapter from their course book."
-    )
-    prompt = f"{instruction}\n\nQuestion: {question}"
-    response = openai.ChatCompletion.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": instruction},
-            {"role": "user", "content": question},
-        ],
-        max_tokens=400,
-        temperature=0.5
-    )
-    answer = response.choices[0].message.content.strip()
-    return answer + chapter_str
 
 # --- STREAMLIT TAB ---
 if tab == "Grammar Help (AI)":
