@@ -4,7 +4,7 @@ import difflib
 import sqlite3
 import atexit
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import pandas as pd
 import streamlit as st
 import requests
@@ -23,12 +23,7 @@ if not OPENAI_API_KEY:
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY   # <- Set for OpenAI client!
 client = OpenAI()  # <-- Do NOT pass api_key here for openai>=1.0
 
-
-
-
 # ====== OTHER HELPERS (existing, no change) ======
-
-
 
 def get_falowen_usage(student_code):
     today_str = str(date.today())
@@ -49,72 +44,22 @@ def inc_falowen_usage(student_code):
 def has_falowen_quota(student_code):
     return get_falowen_usage(student_code) < FALOWEN_DAILY_LIMIT
 
-# --- 1. Overall Writing Stats ---
+# --- Writing Stats, Level Stats, Streaks: Placeholder for Baserow functions ---
+
 def get_writing_stats(student_code):
-    url = f"https://api.airtable.com/v0/{BASE_ID}/{WRITING_TABLE}"
-    params = {
-        "filterByFormula": f"{{Student Code}}='{student_code}'",
-        "pageSize": 100
-    }
-    response = requests.get(url, headers=headers, params=params)
-    data = response.json()
-    records = data.get("records", [])
-    attempted = len(records)
-    passed = sum(1 for rec in records if int(rec["fields"].get("Score", 0)) >= 17)
-    accuracy = round(100 * passed / attempted) if attempted > 0 else 0
-    return attempted, passed, accuracy
+    """Stub: Implement Baserow logic here if desired."""
+    # Example: return attempted, passed, accuracy
+    return 0, 0, 0
 
-# --- 2. Writing Stats per Level ---
 def get_student_stats(student_code):
-    url = f"https://api.airtable.com/v0/{BASE_ID}/{WRITING_TABLE}"
-    params = {
-        "filterByFormula": f"{{Student Code}}='{student_code}'",
-        "pageSize": 100
-    }
-    response = requests.get(url, headers=headers, params=params)
-    data = response.json()
-    records = data.get("records", [])
-    stats = {}
-    for rec in records:
-        level = rec["fields"].get("Level", "A1")
-        score = int(rec["fields"].get("Score", 0))
-        if level not in stats:
-            stats[level] = {"correct": 0, "attempted": 0}
-        stats[level]["attempted"] += 1
-        if score >= 17:
-            stats[level]["correct"] += 1
-    return stats
+    """Stub: Implement Baserow logic here if desired."""
+    # Example: return dict of {level: {"correct": X, "attempted": Y}}
+    return {}
 
-# --- 4. Vocab Streak (consecutive days practiced) ---
 def get_vocab_streak(student_code):
-    url = f"https://api.airtable.com/v0/{BASE_ID}/{VOCAB_TABLE}"
-    params = {
-        "filterByFormula": f"{{Student Code}}='{student_code}'",
-        "pageSize": 100
-    }
-    response = requests.get(url, headers=headers, params=params)
-    data = response.json()
-    records = data.get("records", [])
-
-    # Get all unique dates practiced
-    dates = set()
-    for rec in records:
-        dstr = rec["fields"].get("Date")
-        if dstr:
-            try:
-                d = date.fromisoformat(dstr)
-                dates.add(d)
-            except:
-                pass
-    if not dates:
-        return 0
-    streak = 0
-    today = date.today()
-    while today in dates:
-        streak += 1
-        today -= timedelta(days=1)
-    return streak
-
+    """Stub: Implement Baserow logic here if desired."""
+    # Example: return current streak count
+    return 0
 
 # --- Streamlit page config ---
 st.set_page_config(
@@ -142,7 +87,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# ==== 2) Helpers to load & save progress ====
+# ==== 2) Helpers to load & save progress (SQLite/local - unchanged) ====
 def load_progress(student_code, level, teil):
     c.execute(
         "SELECT remaining, used FROM exam_progress WHERE student_code=? AND level=? AND teil=?",
@@ -159,7 +104,9 @@ def save_progress(student_code, level, teil, remaining, used):
         (student_code, level, teil, json.dumps(remaining), json.dumps(used))
     )
     conn.commit()
-    
+
+# ========== END OF BLOCK ==========
+
 
 
 # ====================================
