@@ -1273,14 +1273,40 @@ if tab == "Exams Mode & Custom Chat":
 # =========================================
 
 # =========================================
-# VOCAB TRAINER TAB (A1–C1)
+# VOCAB TRAINER TAB (A1–C1) — MOBILE OPTIMIZED
 # =========================================
 
+# Your Google Sheets link
 sheet_id = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
 sheet_name = "Sheet1"
+
+# Get export CSV link
 csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={sheet_name}"
 
-@st.cache_data  # or st.cache, depending on your Streamlit version
+# ========== Mobile-friendly message bubble ==========
+BUBBLE_STYLE = (
+    "padding:6px 10px; border-radius:6px; max-width:98vw; "
+    "margin-bottom:8px; text-align:{align}; background:{bgcolor}; "
+    "font-size:1em; word-break:break-word;"
+)
+
+def render_message(role, msg):
+    align = "left" if role == "assistant" else "right"
+    bgcolor = "#f8f8ff" if role == "assistant" else "#e5ffe5"
+    label = "Herr Felix" if role == "assistant" else "You"
+    style = BUBBLE_STYLE.format(align=align, bgcolor=bgcolor)
+    st.markdown(
+        f"<div style='{style}'><b>{label}:</b> {msg}</div>",
+        unsafe_allow_html=True
+    )
+# ====================================================
+
+# Helper to normalize user input
+def clean_text(text):
+    return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
+
+# Load vocab lists once (cached)
+@st.cache_data
 def load_vocab_lists():
     df = pd.read_csv(csv_url)
     lists = {}
@@ -1291,27 +1317,9 @@ def load_vocab_lists():
 
 VOCAB_LISTS = load_vocab_lists()
 
+# --------- Main Vocab Trainer Tab logic -------------
 if tab == "Vocab Trainer":
     HERR_FELIX = "Herr Felix 👨‍🏫"
-    BUBBLE_STYLE = (
-        "padding:8px; border-radius:8px; max-width:90%; margin:5px 0;"
-        " text-align:{align}; background:{bgcolor}; font-size:1.05em;"
-    )
-
-    def clean_text(text):
-        return str(text).replace('the ', '').replace(',', '').replace('.', '').strip().lower()
-
-    def render_message(role, msg):
-        align = "left" if role == "assistant" else "right"
-        bgcolor = "#f0f0f0" if role == "assistant" else "#e8ffe8"
-        label = "Herr Felix" if role == "assistant" else "You"
-        style = BUBBLE_STYLE.format(align=align, bgcolor=bgcolor)
-        st.markdown(
-            f"<div style='{style}'><b>{label}:</b> {msg}</div>",
-            unsafe_allow_html=True
-        )
-
-    # Session state defaults
     defaults = {
         "vt_history": [],
         "vt_list": [],
@@ -1322,18 +1330,21 @@ if tab == "Vocab Trainer":
     for key, val in defaults.items():
         st.session_state.setdefault(key, val)
 
+    # Choose level
     level = st.selectbox("Choose level", list(VOCAB_LISTS.keys()), key="vt_level")
     vocab_items = VOCAB_LISTS.get(level, [])
     max_words = len(vocab_items)
 
     if max_words == 0:
-        st.warning(f"No vocabulary available for level {level}. Please add entries in your CSV.")
+        st.warning(f"No vocabulary available for level {level}. Please add entries in your sheet.")
         st.stop()
 
+    # Start new practice resets
     if st.button("🔁 Start New Practice", key="vt_reset"):
         for k in defaults:
             st.session_state[k] = defaults[k]
 
+    # Step 1: ask how many words to practice
     if st.session_state.vt_total is None:
         count = st.number_input(
             "How many words?",
@@ -1353,11 +1364,13 @@ if tab == "Vocab Trainer":
                 ("assistant", f"Hallo! Ich bin {HERR_FELIX}. Let's start with {count} words!")
             ]
 
+    # Display chat history
     if st.session_state.vt_history:
         st.markdown("### 🗨️ Practice Chat")
         for who, message in st.session_state.vt_history:
             render_message(who, message)
 
+    # Practice loop
     total = st.session_state.vt_total
     idx = st.session_state.vt_index
     if isinstance(total, int) and idx < total:
@@ -1375,12 +1388,14 @@ if tab == "Vocab Trainer":
             st.session_state.vt_history.append(("assistant", fb))
             st.session_state.vt_index += 1
 
+    # Show results when done
     if isinstance(total, int) and idx >= total:
         score = st.session_state.vt_score
         st.markdown(f"### 🏁 Finished! You got {score}/{total} correct.")
         if st.button("Practice Again", key="vt_again"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
+
 
 # ====================================
 # SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI)
