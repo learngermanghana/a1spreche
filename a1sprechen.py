@@ -1204,13 +1204,15 @@ if tab == "Vocab Trainer":
     if st.button("🔁 Start New Practice", key="vt_reset"):
         for k in defaults:
             st.session_state[k] = defaults[k]
+        # reset save flag as well
+        st.session_state["vt_saved_to_airtable"] = False
 
     st.info(f"There are {max_words} words available in {level}.")
 
     # Step 1: ask how many words to practice
     if st.session_state.vt_total is None:
         count = st.number_input(
-            "How many words can you practice today? You can also type the number.",
+            "How many words can you practice today?",
             min_value=1,
             max_value=max_words,
             value=min(7, max_words),
@@ -1233,20 +1235,13 @@ if tab == "Vocab Trainer":
         for who, message in st.session_state.vt_history:
             align = "left" if who == "assistant" else "right"
             bgcolor = "#FAFAFA" if who == "assistant" else "#D2F8D2"
-            textcolor = "#222"
-            bordcol = "#cccccc"
             label = "Herr Felix" if who == "assistant" else "You"
-            style = (
-                f"padding:14px 14px 12px 14px; border-radius:12px; max-width:96vw; "
-                f"margin:7px 0 7px 0; text-align:{align}; background:{bgcolor}; "
-                f"border:1px solid {bordcol}; color:{textcolor}; font-size:1.12em;"
-                "box-shadow: 0 2px 8px rgba(40,40,40,0.06);"
-                "word-break:break-word;"
-            )
             st.markdown(
-                f"<div style='{style}'><b>{label}:</b> {message}</div>",
+                f"<div style='text-align:{align}; background:{bgcolor}; padding:10px; border-radius:8px;'>"
+                f"<b>{label}:</b> {message}</div>",
                 unsafe_allow_html=True
             )
+
     # Practice loop
     total = st.session_state.vt_total
     idx = st.session_state.vt_index
@@ -1270,12 +1265,13 @@ if tab == "Vocab Trainer":
         score = st.session_state.vt_score
         st.markdown(f"### 🏁 Finished! You got {score}/{total} correct.")
 
+        # Practice Again button resets everything, including the save flag
         if st.button("Practice Again", key="vt_again"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
-            st.session_state["vt_saved_to_airtable"] = False  # Reset save flag for new session
+            st.session_state["vt_saved_to_airtable"] = False
 
-        # Ensure we only save once per completed session
+        # Only save once per completed session
         if "vt_saved_to_airtable" not in st.session_state:
             st.session_state["vt_saved_to_airtable"] = False
 
@@ -1294,7 +1290,6 @@ if tab == "Vocab Trainer":
             else:
                 st.warning("⚠️ Progress could not be saved. Please try again later.")
 
-#
 
 
 
