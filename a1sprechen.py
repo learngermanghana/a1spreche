@@ -23,33 +23,35 @@ if not OPENAI_API_KEY:
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY   # <- Set for OpenAI client!
 client = OpenAI()  # <-- Do NOT pass api_key here for openai>=1.0
 
-# ---- Airtable API Setup ----
-AIRTABLE_TOKEN = "patGF1Vvk4vfHSsb2.87da93119bf8c09068ae1b5b09b93254d343d7ffc475fdec595b388335588e45"
-BASE_ID        = "appqk6gYL2h6Jkxlg"
-VOCAB_TABLE    = "Students"    # your actual vocab‐progress table
+# Get secrets from st.secrets
+airtable_token = st.secrets["airtable_token"]
+base_id = st.secrets["base_id"]
+table_name = st.secrets["table_name"]
 
-headers = {
-    "Authorization": f"Bearer {AIRTABLE_TOKEN}",
-    "Content-Type":  "application/json"
-}
-
-def get_practiced_vocab(student_code):
-    # Read only this student's rows
-    url = f"https://api.airtable.com/v0/{BASE_ID}/{VOCAB_TABLE}"
-    params = {
-        "filterByFormula": f"{{Student Code}} = '{student_code}'"
+def add_student_to_airtable(name, email):
+    url = f"https://api.airtable.com/v0/{base_id}/{table_name}"
+    headers = {
+        "Authorization": f"Bearer {airtable_token}",
+        "Content-Type": "application/json"
     }
-    practiced_set = set()
-    try:
-        resp = requests.get(url, headers=headers, params=params)
-        data = resp.json()
-        for rec in data.get("records", []):
-            vocab_str = rec["fields"].get("PracticedVocab", "")
-            practiced_set.update([v.strip() for v in vocab_str.split(",") if v.strip()])
-    except Exception as e:
-        st.warning(f"Could not check practiced vocab: {e}")
-    return practiced_set
+    data = {
+        "fields": {
+            "Name": name,
+            "Email": email
+        }
+    }
+    response = requests.post(url, json=data, headers=headers)
+    return response.status_code, response.json()
 
+# Example usage in your Streamlit app
+name = st.text_input("Name")
+email = st.text_input("Email")
+if st.button("Add Student"):
+    status, result = add_student_to_airtable(name, email)
+    if status == 200 or status == 201:
+        st.success("Student added successfully!")
+    else:
+        st.error(f"Failed to add student: {result}")
 
 
 # ====== OTHER HELPERS (existing, no change) ======
