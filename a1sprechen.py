@@ -453,13 +453,19 @@ max_turns = 25
 
 
 
+@st.cache_data
+def load_student_data():
+    SHEET_ID = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
+    SHEET_NAME = "Sheet1"
+    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
+    df = pd.read_csv(csv_url)
+    df.columns = df.columns.str.strip().str.replace(" ", "")
+    return df
 
 if st.session_state["logged_in"]:
-    # === Context: Always define at the top ===
     student_code = st.session_state.get("student_code", "")
     student_name = st.session_state.get("student_name", "")
 
-    # === MAIN TAB SELECTOR ===
     tab = st.radio(
         "How do you want to practice?",
         [
@@ -473,122 +479,57 @@ if st.session_state["logged_in"]:
         key="main_tab_select"
     )
 
-# Airtable helpers: customize as needed
-def load_airtable_records(table, filter_formula=None):
-    url = f"https://api.airtable.com/v0/{BASE_ID}/{table}"
-    headers = {
-        "Authorization": f"Bearer {AIRTABLE_TOKEN}"
-    }
-    params = {"pageSize": 100}
-    if filter_formula:
-        params["filterByFormula"] = filter_formula
-    records = []
-    while url:
-        resp = requests.get(url, headers=headers, params=params)
-        data = resp.json()
-        records.extend(data.get("records", []))
-        url = data.get("offset")
-        if url:
-            url = f"https://api.airtable.com/v0/{BASE_ID}/{table}?offset={data['offset']}"
-        else:
-            url = None
-    return [r['fields'] for r in records]
+    # --- Always get these for Dashboard ---
+    df_students = load_student_data()
+    code = student_code.strip().lower()
+    matches = df_students[df_students["StudentCode"].str.lower() == code]
+    student_row = matches.iloc[0].to_dict() if not matches.empty else {}
 
-def get_vocab_progress_from_airtable(student_code):
-    records = load_airtable_records("VocabProgress", filter_formula=f"{{Student Code}} = '{student_code}'")
-    if not records:
-        return {"total_practiced": 0, "last_practice_date": None, "practiced_vocab": []}
-    records_df = pd.DataFrame(records)
-    records_df = records_df.sort_values("Date", ascending=False)
-    last_row = records_df.iloc[0]
-    practiced_vocab = last_row.get("PracticedVocab", "").split(",")
-    return {
-        "total_practiced": records_df["NumAttempted"].astype(int).sum(),
-        "last_practice_date": last_row.get("Date"),
-        "practiced_vocab": practiced_vocab,
-    }
+    vocab_stats = get_vocab_progress_from_airtable(student_code)
+    schreiben_stats = get_schreiben_progress_from_airtable(student_code)
 
-def get_schreiben_progress_from_airtable(student_code):
-    records = load_airtable_records("Schreiben", filter_formula=f"{{Student Code}} = '{student_code}'")
-    if not records:
-        return {"attempted": 0, "passed": 0, "accuracy": 0}
-    df = pd.DataFrame(records)
-    df["Score"] = pd.to_numeric(df.get("Score", 0), errors="coerce")
-    attempted = len(df)
-    passed = (df["Score"] >= 17).sum()
-    accuracy = round(100 * passed / attempted) if attempted > 0 else 0
-    return {
-        "attempted": attempted,
-        "passed": passed,
-        "accuracy": accuracy,
-    }
+    if tab == "Dashboard":
+        st.header("📊 Student Dashboard")
+        
+        # --- Student Info ---
+        st.markdown(f"### 👤 {student_row.get('Name', '')}")
+        st.markdown(
+            f"- **Level:** {student_row.get('Level', '')}\n"
+            f"- **Code:** `{student_row.get('StudentCode', '')}`\n"
+            f"- **Email:** {student_row.get('Email', '')}\n"
+            f"- **Phone:** {student_row.get('Phone', '')}\n"
+            f"- **Location:** {student_row.get('Location', '')}\n"
+            f"- **Contract:** {student_row.get('ContractStart', '')} ➔ {student_row.get('ContractEnd', '')}\n"
+            f"- **Enroll Date:** {student_row.get('EnrollDate', '')}\n"
+            f"- **Status:** {student_row.get('Status', '')}"
+        )
 
-# Inside your dashboard tab
-if tab == "Dashboard":
-    st.header("📊 Student Dashboard")
-    code = student_code
-
-    # --- Student Info ---
-    df_students = load_airtable_records("Students", filter_formula=f"{{StudentCode}} = '{code}'")
-    student_row = df_students[0] if df_students else {}
-
-    # --- Vocab Progress ---
-    vocab_stats = get_vocab_progress_from_airtable(code)
-    # --- Schreiben Progress ---
-    schreiben_stats = get_schreiben_progress_from_airtable(code)
-
-    st.markdown(f"### 👤 {student_row.get('Name', '')}")
-    st.markdown(
-        f"**Level:** {student_row.get('Level', '')}  \n"
-        f"**Code:** `{student_row.get('StudentCode', '')}`  \n"
-        f"**Email:** {student_row.get('Email', '')}  \n"
-        f"**Phone:** {student_row.get('Phone', '')}  \n"
-        f"**Location:** {student_row.get('Location', '')}  \n"
-        f"**Contract:** {student_row.get('ContractStart', '')} ➔ {student_row.get('ContractEnd', '')}  \n"
-        f"**Enroll Date:** {student_row.get('EnrollDate', '')}  \n"
-        f"**Status:** {student_row.get('Status', '')}"
-    )
-
-    # --- Payment info ---
-    balance = student_row.get('Balance', '0.0')
-    try:
-        balance_float = float(balance)
-    except Exception:
-        balance_float = 0.0
-    if balance_float > 0:
-        st.warning(f"💸 Balance to pay: **₵{balance_float:.2f}** (update when paid)")
-
-    # --- Contract End reminder ---
-    contract_end = student_row.get('ContractEnd')
-    if contract_end:
+        balance = student_row.get('Balance', 0.0)
         try:
-            contract_end_date = datetime.strptime(str(contract_end), "%Y-%m-%d")
-            days_left = (contract_end_date - datetime.now()).days
-            if 0 < days_left <= 30:
-                st.info(f"⚠️ Contract ends in {days_left} days. Please renew soon.")
-            elif days_left < 0:
-                st.error("⏰ Contract expired. Contact the office to renew.")
-        except Exception:
+            bal = float(balance)
+            if bal > 0:
+                st.warning(f"💸 Balance to pay: **₵{bal:.2f}**")
+        except:
             pass
 
-    # --- Vocab Progress ---
-    st.markdown(f"🔥 **Vocab Practice**")
-    st.markdown(
-        f"- **Words practiced:** {vocab_stats['total_practiced']}  \n"
-        f"- **Last practiced:** {vocab_stats['last_practice_date'] or 'Never'}"
-    )
-    if vocab_stats["practiced_vocab"]:
-        st.markdown(f"- **Last session:** {', '.join(vocab_stats['practiced_vocab'])}")
-
-    # --- Schreiben Progress ---
-    st.markdown(f"**📝 Letters submitted:** {schreiben_stats['attempted']}  \n"
-                f"**✅ Passed (score ≥17):** {schreiben_stats['passed']}  \n"
-                f"**🏅 Pass rate:** {schreiben_stats['accuracy']}%")
-
-    # --- UPCOMING EXAMS (dashboard only) ---
-    with st.expander("📅 Upcoming Goethe Exams & Registration (Tap for details)", expanded=True):
+        # --- Vocab Progress ---
+        st.markdown(f"🔥 **Vocab Practice**")
         st.markdown(
-            """
+            f"- **Words practiced:** {vocab_stats['total_practiced']}  \n"
+            f"- **Last practiced:** {vocab_stats['last_practice_date'] or 'Never'}"
+        )
+        if vocab_stats["practiced_vocab"]:
+            st.markdown(f"- **Last session:** {', '.join(vocab_stats['practiced_vocab'])}")
+
+        # --- Schreiben Progress ---
+        st.markdown(f"**📝 Letters submitted:** {schreiben_stats['attempted']}  \n"
+                    f"**✅ Passed (score ≥17):** {schreiben_stats['passed']}  \n"
+                    f"**🏅 Pass rate:** {schreiben_stats['accuracy']}%")
+
+        # --- UPCOMING EXAMS (dashboard only) ---
+        with st.expander("📅 Upcoming Goethe Exams & Registration (Tap for details)", expanded=True):
+            st.markdown(
+                """
 **Registration for Aug./Sept. 2025 Exams:**
 
 | Level | Date       | Fee (GHS) | Per Module (GHS) |
@@ -618,9 +559,9 @@ Account Name: **GOETHE-INSTITUT GHANA**
 Account No.: **1441 001 701 903**  
 Branch: **Ring Road Central**  
 SWIFT: **ECOCGHAC**
-            """,
-            unsafe_allow_html=True,
-        )
+                """,
+                unsafe_allow_html=True,
+            )
 
 
 # ================================
