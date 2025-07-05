@@ -1276,32 +1276,35 @@ if tab == "Exams Mode & Custom Chat":
 # VOCAB TRAINER TAB (A1–C1)
 # =========================================
 
+import random
+import pandas as pd
+import streamlit as st
+
 # 1) Point this at your “export to CSV” URL:
 VOCAB_CSV_URL = (
     "https://docs.google.com/spreadsheets/d/"
     "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
-    "/gviz/tq?tqx=out:csv"
+    "/export?format=csv&gid=0"
 )
 
 @st.cache_data(show_spinner=False)
 def load_vocab_lists():
+    # Load CSV and normalize column names
     df = pd.read_csv(VOCAB_CSV_URL)
-    df.columns = [c.strip() for c in df.columns]
+    df.columns = [c.strip().capitalize() for c in df.columns]
     lists = {}
     for lvl in ["A1", "A2", "B1", "B2", "C1"]:
-        sub = df[df.get("Level", df.get("level", None)) == lvl]
-        if "Word" in sub.columns and "Translation" in sub.columns:
-            pairs = list(zip(sub["Word"], sub["Translation"]))
-        else:
-            pairs = list(zip(sub.get("word", []), sub.get("translation", [])))
+        sub = df[df.get("Level", df.get("level", "")) == lvl]
+        words = sub.get("Word", sub.get("word", []))
+        trans = sub.get("Translation", sub.get("translation", []))
+        pairs = list(zip(words.tolist(), trans.tolist()))
         lists[lvl] = pairs
     return lists
 
+# Load vocab lists once
 VOCAB_LISTS = load_vocab_lists()
 
 if tab == "Vocab Trainer":
-    import random
-
     HERR_FELIX = "Herr Felix 👨‍🏫"
     BUBBLE_STYLE = (
         "padding:8px; border-radius:8px; max-width:90%; margin:5px 0;"
@@ -1321,6 +1324,7 @@ if tab == "Vocab Trainer":
             unsafe_allow_html=True
         )
 
+    # Initialize session state
     defaults = {
         "vt_history": [],
         "vt_list": [],
@@ -1331,6 +1335,7 @@ if tab == "Vocab Trainer":
     for key, val in defaults.items():
         st.session_state.setdefault(key, val)
 
+    # Level selection
     level = st.selectbox("Choose level", list(VOCAB_LISTS.keys()), key="vt_level")
     vocab_items = VOCAB_LISTS.get(level, [])
     max_words = len(vocab_items)
@@ -1340,10 +1345,12 @@ if tab == "Vocab Trainer":
         st.warning(f"No vocabulary available for level {level}. Please choose another level.")
         st.stop()
 
+    # Reset button
     if st.button("🔁 Start New Practice", key="vt_reset"):
         for k in defaults:
             st.session_state[k] = defaults[k]
 
+    # Prompt how many words
     if st.session_state.vt_total is None:
         count = st.number_input(
             "How many words?", min_value=1, max_value=max_words,
@@ -1353,21 +1360,23 @@ if tab == "Vocab Trainer":
             st.session_state.vt_total = int(count)
             shuffled = vocab_items.copy()
             random.shuffle(shuffled)
-            st.session_state.vt_list = shuffled[:count]
+            st.session_state.vt_list = shuffled[:st.session_state.vt_total]
             st.session_state.vt_index = 0
             st.session_state.vt_score = 0
             st.session_state.vt_history = [
                 ("assistant", f"Hallo! Ich bin {HERR_FELIX}. Let's start with {count} words!")
             ]
 
+    # Display chat history
     if st.session_state.vt_history:
         st.markdown("### 🗨️ Practice Chat")
         for who, message in st.session_state.vt_history:
             render_message(who, message)
 
+    # Practice loop
     total = st.session_state.vt_total
     idx = st.session_state.vt_index
-    if isinstance(total, int) and 0 <= idx < total and len(st.session_state.vt_list) >= total:
+    if isinstance(total, int) and idx < total:
         word, answer = st.session_state.vt_list[idx]
         user_input = st.text_input(f"{word} = ?", key=f"vt_input_{idx}")
         if user_input and st.button("Check", key=f"vt_check_{idx}"):
@@ -1382,6 +1391,7 @@ if tab == "Vocab Trainer":
             st.session_state.vt_history.append(("assistant", fb))
             st.session_state.vt_index += 1
 
+    # Show results
     if isinstance(total, int) and idx >= total:
         score = st.session_state.vt_score
         st.markdown(f"### 🏁 Finished! You got {score}/{total} correct.")
