@@ -29,7 +29,7 @@ base_id = st.secrets["base_id"]
 table_name = st.secrets["table_name"]
 
 def add_student_to_airtable(name, email):
-    url = f"https://api.airtable.com/v0/{base_id}/{table_name}"
+    url = f"https://api.airtable.com/v0/{base_id}/{table_name}"   # <--- use base_id here
     headers = {
         "Authorization": f"Bearer {airtable_token}",
         "Content-Type": "application/json"
@@ -43,15 +43,6 @@ def add_student_to_airtable(name, email):
     response = requests.post(url, json=data, headers=headers)
     return response.status_code, response.json()
 
-# Example usage in your Streamlit app
-name = st.text_input("Name")
-email = st.text_input("Email")
-if st.button("Add Student"):
-    status, result = add_student_to_airtable(name, email)
-    if status == 200 or status == 201:
-        st.success("Student added successfully!")
-    else:
-        st.error(f"Failed to add student: {result}")
 
 
 # ====== OTHER HELPERS (existing, no change) ======
