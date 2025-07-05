@@ -1259,35 +1259,33 @@ if tab == "Vocab Trainer":
         if st.button("Practice Again", key="vt_again"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
-                
+
         # --- Airtable Progress Saving (NEW) ---
-    # Get student code from login/session (update as needed!)
-    student_code = st.session_state.get("student_code", "unknown")
+        student_code = st.session_state.get("student_code", "unknown")
+        practiced_vocab = [item[0] for item in st.session_state.vt_list]  # Just German words
+        practiced_vocab_str = ",".join(practiced_vocab)
 
-    # Which words did they practice?
-    practiced_vocab = [item[0] for item in st.session_state.vt_list]  # Just German words
-    practiced_vocab_str = ",".join(practiced_vocab)
-
-    # Prepare data for Airtable
-    data = {
-        "fields": {
-            "Student Code": student_code,
-            "PracticedVocab": practiced_vocab_str,
-            "NumAttempted": total,
-            "NumCorrect": score,
-            "LastLevel": level
+        data = {
+            "fields": {
+                "Student Code": student_code,
+                "PracticedVocab": practiced_vocab_str,
+                "NumAttempted": total,
+                "NumCorrect": score,
+                "LastLevel": level
+            }
         }
-    }
-    url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_NAME}"
+        url = f"https://api.airtable.com/v0/{BASE_ID}/VocabProgress"  # use correct table name
 
-    try:
-        response = requests.post(url, headers=headers, json=data)
-        if response.status_code in (200, 201):
-            st.success("✅ Your progress was saved!")
-        else:
-            st.warning("⚠️ Progress could not be saved. Please try again later.")
-    except Exception as e:
-        st.warning("⚠️ Error saving progress: " + str(e))
+        try:
+            response = requests.post(url, headers=headers, json=data)
+            if response.status_code in (200, 201):
+                st.success("✅ Your progress was saved!")
+            else:
+                st.warning("⚠️ Progress could not be saved. Please try again later.")
+        except Exception as e:
+            st.warning("⚠️ Error saving progress: " + str(e))
+
+#
 
 
 
