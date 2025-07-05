@@ -5,15 +5,13 @@ import sqlite3
 import atexit
 import json
 from datetime import date, datetime
-import io
-
 import pandas as pd
 import streamlit as st
 import requests
-from openai import OpenAI  # Use 'import openai' if using openai.ChatCompletion.create
+import io
+from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
-from rapidfuzz import process, fuzz
 
 # ---- OpenAI Client Setup ----
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
@@ -39,9 +37,6 @@ c = conn.cursor()
 def init_db():
     conn = get_connection()
     c = conn.cursor()
-    # OPTIONAL: Uncomment and run ONCE to reset schema if errors from old grammar_usage table
-    # c.execute("DROP TABLE IF EXISTS grammar_usage")
-
     # Vocab Progress Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS vocab_progress (
@@ -117,20 +112,10 @@ def init_db():
             date_added TEXT
         )
     """)
-    # Grammar Usage Table (to limit daily grammar AI use)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS grammar_usage (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            date TEXT,
-            count INTEGER DEFAULT 0
-        )
-    """)
     conn.commit()
 
 # Call DB initialization ONCE after imports
 init_db()
-
 
 # ====== DB HELPERS (for all tables) ======
 
@@ -287,43 +272,6 @@ def get_vocab_streak(student_code):
         else:
             break
     return streak
-
-
-def get_course_topics(level):
-    if level == "A1":
-        schedule = get_a1_schedule()
-    elif level == "A2":
-        schedule = get_a2_schedule()
-    elif level == "B1":
-        schedule = get_b1_schedule()
-    else:
-        return []
-    
-    topics = []
-    for day in schedule:
-        topics.append({
-            "topic": day.get("topic", ""),
-            "chapter": day.get("chapter", ""),
-            "goal": day.get("goal", ""),
-            "grammarbook_link": "",
-            "workbook_link": "",
-        })
-        # Get grammar book/workbook link, if any
-        lh = day.get("lesen_hören", None)
-        if isinstance(lh, dict):
-            topics[-1]["grammarbook_link"] = lh.get("grammarbook_link", "")
-            topics[-1]["workbook_link"] = lh.get("workbook_link", "")
-        elif isinstance(lh, list):
-            # If it's a list, just take the first (optional: improve this logic)
-            if lh and isinstance(lh[0], dict):
-                topics[-1]["grammarbook_link"] = lh[0].get("grammarbook_link", "")
-                topics[-1]["workbook_link"] = lh[0].get("workbook_link", "")
-        # For schreiben_sprechen if present
-        ss = day.get("schreiben_sprechen", None)
-        if ss and not topics[-1]["workbook_link"]:  # Use only if LH empty
-            topics[-1]["workbook_link"] = ss.get("workbook_link", "")
-    return topics
-
 
 # --- Streamlit page config ---
 st.set_page_config(
@@ -527,111 +475,6 @@ SCHREIBEN_DAILY_LIMIT = 5
 max_turns = 25
 
 
-# --- Vocab lists for all levels ---
-
-a1_vocab = [
-    ("Südseite", "south side"), ("3. Stock", "third floor"), ("Geschenk", "present/gift"),
-    ("Buslinie", "bus line"), ("Ruhetag", "rest day (closed)"), ("Heizung", "heating"),
-    ("Hälfte", "half"), ("die Wohnung", "apartment"), ("das Zimmer", "room"), ("die Miete", "rent"),
-    ("der Balkon", "balcony"), ("der Garten", "garden"), ("das Schlafzimmer", "bedroom"),
-    ("das Wohnzimmer", "living room"), ("das Badezimmer", "bathroom"), ("die Garage", "garage"),
-    ("der Tisch", "table"), ("der Stuhl", "chair"), ("der Schrank", "cupboard"), ("die Tür", "door"),
-    ("das Fenster", "window"), ("der Boden", "floor"), ("die Wand", "wall"), ("die Lampe", "lamp"),
-    ("der Fernseher", "television"), ("das Bett", "bed"), ("die Küche", "kitchen"), ("die Toilette", "toilet"),
-    ("die Dusche", "shower"), ("das Waschbecken", "sink"), ("der Ofen", "oven"),
-    ("der Kühlschrank", "refrigerator"), ("die Mikrowelle", "microwave"), ("die Waschmaschine", "washing machine"),
-    ("die Spülmaschine", "dishwasher"), ("das Haus", "house"), ("die Stadt", "city"), ("das Land", "country"),
-    ("die Straße", "street"), ("der Weg", "way"), ("der Park", "park"), ("die Ecke", "corner"),
-    ("die Bank", "bank"), ("der Supermarkt", "supermarket"), ("die Apotheke", "pharmacy"),
-    ("die Schule", "school"), ("die Universität", "university"), ("das Geschäft", "store"),
-    ("der Markt", "market"), ("der Flughafen", "airport"), ("der Bahnhof", "train station"),
-    ("die Haltestelle", "bus stop"), ("die Fahrt", "ride"), ("das Ticket", "ticket"), ("der Zug", "train"),
-    ("der Bus", "bus"), ("das Taxi", "taxi"), ("das Auto", "car"), ("die Ampel", "traffic light"),
-    ("die Kreuzung", "intersection"), ("der Parkplatz", "parking lot"), ("der Fahrplan", "schedule"),
-    ("zumachen", "to close"), ("aufmachen", "to open"), ("ausmachen", "to turn off"),
-    ("übernachten", "to stay overnight"), ("anfangen", "to begin"), ("vereinbaren", "to arrange"),
-    ("einsteigen", "to get in / board"), ("umsteigen", "to change (trains)"), ("aussteigen", "to get out / exit"),
-    ("anschalten", "to switch on"), ("ausschalten", "to switch off"), ("Anreisen", "to arrive"), ("Ankommen", "to arrive"),
-    ("Abreisen", "to depart"), ("Absagen", "to cancel"), ("Zusagen", "to agree"), ("günstig", "cheap"),
-    ("billig", "inexpensive")
-]
-
-a2_vocab = [
-    ("die Verantwortung", "responsibility"), ("die Besprechung", "meeting"), ("die Überstunden", "overtime"),
-    ("laufen", "to run"), ("das Fitnessstudio", "gym"), ("die Entspannung", "relaxation"),
-    ("der Müll", "waste, garbage"), ("trennen", "to separate"), ("der Umweltschutz", "environmental protection"),
-    ("der Abfall", "waste, rubbish"), ("der Restmüll", "residual waste"), ("die Anweisung", "instruction"),
-    ("die Gemeinschaft", "community"), ("der Anzug", "suit"), ("die Beförderung", "promotion"),
-    ("die Abteilung", "department"), ("drinnen", "indoors"), ("die Vorsorgeuntersuchung", "preventive examination"),
-    ("die Mahlzeit", "meal"), ("behandeln", "to treat"), ("Hausmittel", "home remedies"),
-    ("Salbe", "ointment"), ("Tropfen", "drops"), ("nachhaltig", "sustainable"),
-    ("berühmt / bekannt", "famous / well-known"), ("einleben", "to settle in"), ("sich stören", "to be bothered"),
-    ("liefern", "to deliver"), ("zum Mitnehmen", "to take away"), ("erreichbar", "reachable"),
-    ("bedecken", "to cover"), ("schwanger", "pregnant"), ("die Impfung", "vaccination"),
-    ("am Fluss", "by the river"), ("das Guthaben", "balance / credit"), ("kostenlos", "free of charge"),
-    ("kündigen", "to cancel / to terminate"), ("der Anbieter", "provider"), ("die Bescheinigung", "certificate / confirmation"),
-    ("retten", "rescue"), ("die Falle", "trap"), ("die Feuerwehr", "fire department"),
-    ("der Schreck", "shock, fright"), ("schwach", "weak"), ("verletzt", "injured"),
-    ("der Wildpark", "wildlife park"), ("die Akrobatik", "acrobatics"), ("bauen", "to build"),
-    ("extra", "especially"), ("der Feriengruß", "holiday greeting"), ("die Pyramide", "pyramid"),
-    ("regnen", "to rain"), ("schicken", "to send"), ("das Souvenir", "souvenir"),
-    ("wahrscheinlich", "probably"), ("das Chaos", "chaos"), ("deutlich", "clearly"),
-    ("der Ohrring", "earring"), ("verlieren", "to lose"), ("der Ärger", "trouble"),
-    ("besorgt", "worried"), ("deprimiert", "depressed"), ("der Streit", "argument"),
-    ("sich streiten", "to argue"), ("dagegen sein", "to be against"), ("egal", "doesn't matter"),
-    ("egoistisch", "selfish"), ("kennenlernen", "to get to know"), ("nicht leiden können", "to dislike"),
-    ("der Mädchentag", "girls' day"), ("der Ratschlag", "advice"), ("tun", "to do"),
-    ("zufällig", "by chance"), ("ansprechen", "to approach"), ("plötzlich", "suddenly"),
-    ("untrennbar", "inseparable"), ("sich verabreden", "to make an appointment"),
-    ("versprechen", "to promise"), ("weglaufen", "to run away"), ("ab (+ Dativ)", "from, starting from"),
-    ("das Aquarium", "aquarium"), ("der Flohmarkt", "flea market"), ("der Jungentag", "boys' day"),
-    ("kaputt", "broken"), ("kostenlos", "free"), ("präsentieren", "to present"),
-    ("das Quiz", "quiz"), ("schwitzen", "to sweat"), ("das Straßenfest", "street festival"),
-    ("täglich", "daily"), ("vorschlagen", "to suggest"), ("wenn", "if, when"),
-    ("die Bühne", "stage"), ("dringend", "urgently"), ("die Reaktion", "reaction"),
-    ("unterwegs", "on the way"), ("vorbei", "over, past"), ("die Bauchschmerzen", "stomach ache"),
-    ("der Busfahrer", "bus driver"), ("die Busfahrerin", "female bus driver"),
-    ("der Fahrplan", "schedule"), ("der Platten", "flat tire"), ("die Straßenbahn", "tram"),
-    ("streiken", "to strike"), ("der Unfall", "accident"), ("die Ausrede", "excuse"),
-    ("baden", "to bathe"), ("die Grillwurst", "grilled sausage"), ("klingeln", "to ring"),
-    ("die Mitternacht", "midnight"), ("der Nachbarhund", "neighbor's dog"),
-    ("verbieten", "to forbid"), ("wach", "awake"), ("der Wecker", "alarm clock"),
-    ("die Wirklichkeit", "reality"), ("zuletzt", "lastly, finally"), ("das Bandmitglied", "band member"),
-    ("loslassen", "to let go"), ("der Strumpf", "stocking"), ("anprobieren", "to try on"),
-    ("aufdecken", "to uncover / flip over"), ("behalten", "to keep"), ("der Wettbewerb", "competition"),
-    ("schmutzig", "dirty"), ("die Absperrung", "barricade"), ("böse", "angry, evil"),
-    ("trocken", "dry"), ("aufbleiben", "to stay up"), ("hässlich", "ugly"),
-    ("ausweisen", "to identify"), ("erfahren", "to learn, find out"), ("entdecken", "to discover"),
-    ("verbessern", "to improve"), ("aufstellen", "to set up"), ("die Notaufnahme", "emergency department"),
-    ("das Arzneimittel", "medication"), ("die Diagnose", "diagnosis"), ("die Therapie", "therapy"),
-    ("die Rehabilitation", "rehabilitation"), ("der Chirurg", "surgeon"), ("die Anästhesie", "anesthesia"),
-    ("die Infektion", "infection"), ("die Entzündung", "inflammation"), ("die Unterkunft", "accommodation"),
-    ("die Sehenswürdigkeit", "tourist attraction"), ("die Ermäßigung", "discount"), ("die Verspätung", "delay"),
-    ("die Quittung", "receipt"), ("die Veranstaltung", "event"), ("die Bewerbung", "application")
-]
-
-# --- Short starter lists for B1/B2/C1 (add more later as you wish) ---
-b1_vocab = [
-    "Fortschritt", "Eindruck", "Unterschied", "Vorschlag", "Erfahrung", "Ansicht", "Abschluss", "Entscheidung"
-]
-
-b2_vocab = [
-    "Umwelt", "Entwicklung", "Auswirkung", "Verhalten", "Verhältnis", "Struktur", "Einfluss", "Kritik"
-]
-
-c1_vocab = [
-    "Ausdruck", "Beziehung", "Erkenntnis", "Verfügbarkeit", "Bereich", "Perspektive", "Relevanz", "Effizienz"
-]
-
-# --- Vocab list dictionary for your app ---
-VOCAB_LISTS = {
-    "A1": a1_vocab,
-    "A2": a2_vocab,
-    "B1": b1_vocab,
-    "B2": b2_vocab,
-    "C1": c1_vocab
-}
-
 # Exam topic lists
 # --- A1 Exam Topic Lists (Teil 1, 2, 3) ---
 
@@ -819,8 +662,6 @@ c1_teil3_evaluations = [
     "Wie verändert sich die Familie?",
 ]
 
-
-    
 if st.session_state["logged_in"]:
     # === Context: Always define at the top ===
     student_code = st.session_state.get("student_code", "")
@@ -835,8 +676,7 @@ if st.session_state["logged_in"]:
             "Vocab Trainer",
             "Schreiben Trainer",
             "Course Book",
-            "My Results and Resources",
-            "Grammar Help (AI)"
+            "My Results and Resources"
         ],
         key="main_tab_select"
     )
@@ -1432,229 +1272,126 @@ if tab == "Exams Mode & Custom Chat":
 #End
 # =========================================
 
-
 # =========================================
-# VOCAB TRAINER TAB (A1–C1) + MY VOCAB
+# VOCAB TRAINER TAB (A1–C1)
 # =========================================
 
+# 1) Point this at your “export to CSV” URL:
+VOCAB_CSV_URL = (
+    "https://docs.google.com/spreadsheets/d/"
+    "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
+    "/gviz/tq?tqx=out:csv"
+)
+
+@st.cache_data(show_spinner=False)
+def load_vocab_lists():
+    df = pd.read_csv(VOCAB_CSV_URL)
+    # assume your sheet has columns: Level, Word, Translation
+    df.columns = [c.strip() for c in df.columns]
+    lists = {}
+    for lvl in ["A1", "A2", "B1", "B2", "C1"]:
+        sub = df[df.Level == lvl]
+        lists[lvl] = list(zip(sub.Word, sub.Translation))
+    return lists
+
+VOCAB_LISTS = load_vocab_lists()
+
+
+# Render only when the Vocab Trainer tab is active
 if tab == "Vocab Trainer":
-    # Always define tab_mode at the top!
-    tab_mode = st.radio("Choose mode:", ["Practice", "My Vocab"], horizontal=True)
-    
-    # ---- SAFE INITIALIZATION of session state keys ----
-    st.session_state.setdefault("vocab_feedback", "")
-    st.session_state.setdefault("show_next_button", False)
-    st.session_state.setdefault("last_was_correct", False)
-    st.session_state.setdefault("current_vocab_idx", None)
-    st.session_state.setdefault("vocab_completed", set())
-    
-    def ai_vocab_feedback(word, student, correct):
-        """Direct match and fallback to AI for nuanced feedback."""
-        student_ans = student.strip().lower()
-        if correct is not None:
-            valid = ([c.strip().lower() for c in correct]
-                    if isinstance(correct, (list, tuple))
-                    else [correct.strip().lower()])
-            if student_ans in valid:
-                return "<span style='color:green;font-weight:bold'>✅ Correct!</span>", True, False
-        # Fallback to AI
-        target = correct or word
-        prompt = (
-            f"The student answered '{student.strip()}' for the German word '{word.strip()}'. "
-            f"The expected answer is '{target.strip()}'.\n"
-            "1. Reply 'True' or 'False' on the first line if the student's answer is correct.\n"
-            "2. If False, write: 'Correct answer: {target}'.\n"
-            "3. If the student's answer is close, include 'You were close!'."
+    HERR_FELIX = "Herr Felix 👨‍🏫"
+
+    # Centralized bubble style template
+    BUBBLE_STYLE = (
+        "padding:8px; border-radius:8px; max-width:90%; margin:5px 0;"
+        "text-align:{align}; background:{bgcolor}; font-size:1.05em;"
+    )
+
+    # Normalize user input for comparison
+    def clean_text(text):
+        return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
+
+    # Consistent chat-bubble rendering using centralized style
+    def render_message(role, msg):
+        align = "left" if role == "assistant" else "right"
+        bgcolor = "#f0f0f0" if role == "assistant" else "#e8ffe8"
+        label = "Herr Felix" if role == "assistant" else "You"
+        style = BUBBLE_STYLE.format(align=align, bgcolor=bgcolor)
+        st.markdown(
+            f"<div style='{style}'><b>{label}:</b> {msg}</div>",
+            unsafe_allow_html=True
         )
-        try:
-            client = OpenAI()
-            resp = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=100,
-                temperature=0.2,
-            )
-            reply = resp.choices[0].message.content.strip()
-            lines = reply.splitlines()
-            is_correct = lines[0].strip().lower().startswith("true")
-            is_close = "close" in reply.lower()
-            if is_correct:
-                prefix = "<span style='color:green;font-weight:bold'>✅ Correct!</span>\n\n"
-            elif is_close:
-                prefix = "<span style='color:orange;font-weight:bold'>⚠️ You were close!</span>\n\n"
+
+    # Initialize session state defaults once
+    defaults = {
+        "vt_history": [],
+        "vt_list": [],
+        "vt_index": 0,
+        "vt_score": 0,
+        "vt_total": None,
+    }
+    for key, val in defaults.items():
+        st.session_state.setdefault(key, val)
+
+    # Level selection and word bank
+    level = st.selectbox("Choose level", list(VOCAB_LISTS.keys()), key="vt_level")
+    vocab_items = VOCAB_LISTS.get(level, [])  # guard against missing
+    max_words = len(vocab_items)
+
+    # Start new practice resets all state
+    if st.button("🔁 Start New Practice", key="vt_reset"):
+        for k, v in defaults.items():
+            st.session_state[k] = v
+
+    # Step 1: ask how many words to practice
+    if st.session_state.vt_total is None:
+        count = st.number_input(
+            "How many words?", min_value=1, max_value=max_words,
+            value=min(7, max_words), key="vt_count"
+        )
+        if st.button("Start Practice", key="vt_start"):
+            st.session_state.vt_total = count
+            shuffled = vocab_items.copy()
+            random.shuffle(shuffled)
+            st.session_state.vt_list = shuffled[:count]
+            st.session_state.vt_index = 0
+            st.session_state.vt_score = 0
+            st.session_state.vt_history = [
+                ("assistant", f"Hallo! Ich bin {HERR_FELIX}. Let's start with {count} words!")
+            ]
+
+    # Display chat history
+    if st.session_state.vt_history:
+        st.markdown("### 🗨️ Practice Chat")
+        for who, message in st.session_state.vt_history:
+            render_message(who, message)
+
+    # Step 2: practice loop
+    total = st.session_state.vt_total
+    idx = st.session_state.vt_index
+    if isinstance(total, int) and 0 <= idx < total and len(st.session_state.vt_list) >= total:
+        word, answer = st.session_state.vt_list[idx]
+        user_input = st.text_input(f"{word} = ?", key=f"vt_input_{idx}")
+        if user_input and st.button("Check", key=f"vt_check_{idx}"):
+            st.session_state.vt_history.append(("user", user_input))
+            given = clean_text(user_input)
+            correct = clean_text(answer)
+            if given == correct:
+                st.session_state.vt_score += 1
+                fb = f"✅ Correct! '{word}' = '{answer}'"
             else:
-                prefix = "<span style='color:red;font-weight:bold'>❌ Not quite.</span>\n\n"
-            feedback = prefix + "\n".join(lines[1:])
-            return feedback, is_correct, is_close
-        except Exception as e:
-            return f"<span style='color:red'>AI check failed: {e}</span>", False, False
+                fb = f"❌ Not quite. '{word}' = '{answer}'"
+            st.session_state.vt_history.append(("assistant", fb))
+            st.session_state.vt_index += 1
 
-    student_code = st.session_state.get("student_code", "demo")
-    student_name = st.session_state.get("student_name", "Demo")
-    today_str = date.today().isoformat()
-
-    level_opts = ["A1", "A2", "B1", "B2", "C1"]
-    selected = st.selectbox("Choose level", level_opts, key="vocab_level_select")
-    if selected != st.session_state.get("vocab_level", "A1"):
-        st.session_state["vocab_level"] = selected
-        st.session_state["vocab_feedback"] = ""
-        st.session_state["show_next_button"] = False
-        st.session_state["vocab_completed"] = set()
-        st.session_state["current_vocab_idx"] = None
-
-    def count_level_vocab(level):
-        return len(VOCAB_LISTS.get(level, []))
-
-    def count_practiced(level):
-        conn = get_connection()
-        c = conn.cursor()
-        c.execute("SELECT COUNT(DISTINCT word) FROM vocab_progress WHERE student_code=? AND level=?", (student_code, level))
-        return c.fetchone()[0]
-
-    def count_completed(level):
-        practiced = set()
-        conn = get_connection()
-        c = conn.cursor()
-        c.execute("SELECT word FROM vocab_progress WHERE student_code=? AND level=? AND is_correct=1", (student_code, level))
-        for row in c.fetchall():
-            practiced.add(row[0])
-        return len(practiced)
-
-    personal_stats = get_personal_vocab_stats(student_code)
-    st.subheader("📊 Your Vocabulary Stats")
-    cols = st.columns(4)
-    cols[0].info(f"**Masterlist ({selected})**\n\n{count_level_vocab(selected)} words")
-    cols[1].success(f"**Practiced**\n\n{count_practiced(selected)} words")
-    cols[2].warning(f"**Completed**\n\n{count_completed(selected)} words")
-    cols[3].info(f"**My Vocab ({selected})**\n\n{personal_stats.get(selected,0)} saved")
-    # =============== PRACTICE MODE ===============
-
-    if tab_mode == "Practice":
-        st.header("🧠 Vocabulary Practice")
-        vocab_list = VOCAB_LISTS.get(selected, [])
-        is_tuple = bool(vocab_list and isinstance(vocab_list[0], (list, tuple)))
-        completed = st.session_state.get("vocab_completed", set())
-        if not isinstance(completed, set):
-            completed = set(completed)
-            st.session_state["vocab_completed"] = completed
-        pending_idxs = [i for i in range(len(vocab_list)) if i not in completed]
-
-        st.progress(
-            min(count_practiced(selected), len(vocab_list))/max(1, len(vocab_list)),
-            text=f"{count_practiced(selected)}/{len(vocab_list)} practiced today"
-        )
-
-        if st.button("🔄 Reset Progress"):
-            st.session_state["vocab_completed"] = set()
-            st.session_state["vocab_feedback"] = ""
-            st.session_state["show_next_button"] = False
-            st.session_state["current_vocab_idx"] = None
-            st.session_state["last_was_correct"] = False
-            st.session_state.pop("vocab_answer_box", None)
-            st.rerun()
-
-        # If feedback exists and waiting for Next:
-        if st.session_state["vocab_feedback"] and st.session_state["show_next_button"]:
-            st.markdown(st.session_state["vocab_feedback"], unsafe_allow_html=True)
-            if st.button("➡️ Next"):
-                if st.session_state["last_was_correct"]:
-                    st.session_state["vocab_completed"].add(st.session_state["current_vocab_idx"])
-                # Reset for next round
-                st.session_state["vocab_feedback"] = ""
-                st.session_state["show_next_button"] = False
-                st.session_state["current_vocab_idx"] = None
-                st.session_state["last_was_correct"] = False
-                st.session_state.pop("vocab_answer_box", None)
-                st.rerun()
-            st.stop()  # Don't show input again until Next is pressed
-
-        if pending_idxs:
-            idx = st.session_state.get("current_vocab_idx")
-            if idx is None or idx not in pending_idxs:
-                idx = random.choice(pending_idxs)
-                st.session_state["current_vocab_idx"] = idx
-                st.session_state.pop("vocab_answer_box", None)
-            word = vocab_list[idx][0] if is_tuple else vocab_list[idx]
-            corr = vocab_list[idx][1] if is_tuple else None
-
-            st.markdown(f"**Translate:** {word}")
-            ans = st.text_input("Your answer:", key="vocab_answer_box")
-            # Show "Check" only if no feedback is waiting
-            if not st.session_state["show_next_button"]:
-                if st.button("Check", key=f"check_{idx}_{selected}"):
-                    fb, correct, close = ai_vocab_feedback(word, ans, corr)
-                    st.session_state["vocab_feedback"] = fb
-                    st.session_state["show_next_button"] = True
-                    st.session_state["last_was_correct"] = correct
-                    if correct or close:
-                        save_vocab_submission(
-                            student_code, student_name, selected, word, ans, correct
-                        )
-                    st.rerun()
-        else:
-            st.success("🎉 All words completed for this level!")
-
-
-
-
-    # =============== MY VOCAB MODE ===============
-    if tab_mode == "My Vocab":
-        st.header("📝 My Personal Vocabulary List")
-        st.write("Add words you want to remember, delete any, and download your full list as PDF.")
-        with st.form("add_my_vocab_form", clear_on_submit=True):
-            new_word = st.text_input("German Word", key="my_vocab_word")
-            new_translation = st.text_input("Translation (English or other)", key="my_vocab_translation")
-            submitted = st.form_submit_button("Add to My Vocab")
-            if submitted and new_word.strip() and new_translation.strip():
-                add_my_vocab(student_code, selected, new_word.strip(), new_translation.strip())
-                st.success(f"Added '{new_word.strip()}' → '{new_translation.strip()}' to your list.")
-                st.rerun()
-        rows = get_my_vocab(student_code, selected)
-        if rows:
-            for row in rows:
-                col1, col2, col3 = st.columns([4,4,1])
-                col1.markdown(f"**{row[1]}**")
-                col2.markdown(f"{row[2]}")
-                if col3.button("🗑️", key=f"del_{row[0]}"):
-                    delete_my_vocab(row[0], student_code)
-                    st.rerun()
-            if st.button("📄 Download My Vocab as PDF"):
-                pdf = FPDF()
-                pdf.add_page()
-                pdf.set_font("Arial", size=11)
-                title = f"My Personal Vocab – {selected} ({student_name})"
-                pdf.cell(0, 8, title, ln=1)
-                pdf.ln(3)
-
-                # Table headers
-                pdf.set_font("Arial", "B", 10)
-                pdf.cell(50, 8, "German", border=1)
-                pdf.cell(60, 8, "Translation", border=1)
-                pdf.cell(30, 8, "Date", border=1)
-                pdf.ln()
-                pdf.set_font("Arial", "", 10)
-
-                for row in rows:
-                    pdf.cell(50, 8, str(row[1]), border=1)
-                    pdf.cell(60, 8, str(row[2]), border=1)
-                    pdf.cell(30, 8, str(row[3]), border=1)
-                    pdf.ln()
-
-                pdf_bytes = pdf.output(dest="S").encode("latin1", "replace")
-                st.download_button(
-                    label="Download PDF",
-                    data=pdf_bytes,
-                    file_name=f"{student_code}_my_vocab_{selected}.pdf",
-                    mime="application/pdf"
-                )
-        else:
-            st.info("No personal vocab saved yet for this level.")
-
-
-# ===================
-# END OF VOCAB TRAINER TAB
-# ===================
-
+    # Step 3: show results when done
+    if isinstance(total, int) and idx >= total:
+        score = st.session_state.vt_score
+        st.markdown(f"### 🏁 Finished! You got {score}/{total} correct.")
+        if st.button("Practice Again", key="vt_again"):
+            for k, v in defaults.items():
+                st.session_state[k] = v
+            # Streamlit will automatically rerun on interaction
 
 
 # ====================================
@@ -1873,10 +1610,9 @@ def get_a1_schedule():
             "lesen_hören": [
                 {
                     "chapter": "1.2",
-                    "video": "",
+                    "video": "https://youtu.be/NVCN4fZXEk0",
                     "grammarbook_link": "https://drive.google.com/file/d/1OUJT9aSU1XABi3cdZlstUvfBIndyEOwb/view?usp=sharing",
                     "workbook_link": "https://drive.google.com/file/d/1Lubevhd7zMlbvPcvHHC1D0GzW7xqa4Mp/view?usp=sharing",
-                    "extra_resources": "https://www.youtube.com/watch?v=qdTEFPqjfkY&authuser=0"
                 }
             ]
         },
@@ -1925,7 +1661,7 @@ def get_a1_schedule():
             "goal": "Know how to ask for a price and also the use of mogen and gern to express your hobby",
             "instruction": "Do schreiben and sprechen 2.3 before this chapter for better understanding",
             "lesen_hören": {
-                "video": "",
+                "video": "https://youtu.be/dGIj1GbK4sI",
                 "grammarbook_link": "https://drive.google.com/file/d/1sCE5y8FVctySejSVNm9lrTG3slIucxqY/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1lL4yrZLMtKLnNuVTC2Sg_ayfkUZfIuak/view?usp=sharing"
             }
@@ -1951,7 +1687,7 @@ def get_a1_schedule():
             "goal": "Learn about the German articles and cases",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
             "lesen_hören": {
-                "video": "",
+                "video": "https://youtu.be/Yi5ZA-XD-GY?si=nCX_pceEYgAL-FU0",
                 "grammarbook_link": "https://drive.google.com/file/d/17y5fGW8nAbfeVgolV7tEW4BLiLXZDoO6/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1zjAqvQqNb7iKknuhJ79bUclimEaTg-mt/view?usp=sharing"
             }
@@ -1961,16 +1697,16 @@ def get_a1_schedule():
             "day": 10,
             "topic": "Lesen & Hören and Schreiben & Sprechen",
             "chapter": "6_2.4",
-            "goal": "",
-            "instruction": "",
+            "goal": "Understand Possessive Determiners and its usage in connection with nouns",
+            "instruction": "The assignment is the lesen and horen chapter 6 but you must also go through schreiben and sprechnen 2.4 for full understanding",
             "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "https://drive.google.com/file/d/1_qwG-6dSckoNt7G69_gGfwBH4o9HhETJ/view?usp=sharing",
+                "video": "https://youtu.be/SXwDqcwrR3k",
+                "grammarbook_link": "https://drive.google.com/file/d/1Fy4bKhaHHb4ahS2xIumrLtuqdQ0YAFB4/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1Da1iw54oAqoaY-UIw6oyIn8tsDmIi1YR/view?usp=sharing"
             },
             "schreiben_sprechen": {
-                "video": "",
-                "workbook_link": ""
+                "video": "https://youtu.be/5qnB2Gocp8s",
+                "workbook_link": "https://drive.google.com/file/d/1GbIc44ToWh2upnHv6eX3ZjFrvnf4fcEM/view?usp=sharing"
             }
         },
         # DAY 11
@@ -1978,12 +1714,12 @@ def get_a1_schedule():
             "day": 11,
             "topic": "Lesen & Hören",
             "chapter": "7",
-            "goal": "",
-            "instruction": "",
+            "goal": "Understand the 12 hour clock system",
+            "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
             "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
+                "video": "https://youtu.be/uyvXoCoqjiE",
+                "grammarbook_link": "https://drive.google.com/file/d/1pSaloRhfh8eTKK_r9mzwp6xkbfdkCVox/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1QyDdRae_1qv_umRb15dCJZTPdXi7zPWd/view?usp=sharing"
             }
         },
         # DAY 12
@@ -1991,10 +1727,10 @@ def get_a1_schedule():
             "day": 12,
             "topic": "Lesen & Hören",
             "chapter": "8",
-            "goal": "",
-            "instruction": "",
+            "goal": "Understand the 24 hour clock and date system in German",
+            "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
             "lesen_hören": {
-                "video": "",
+                "video": "https://youtu.be/aWvIHjV3e_I",
                 "grammarbook_link": "",
                 "workbook_link": ""
             }
@@ -2004,11 +1740,11 @@ def get_a1_schedule():
             "day": 13,
             "topic": "Schreiben & Sprechen",
             "chapter": "3.5",
-            "goal": "",
-            "instruction": "",
+            "goal": "Recap from the lesen and horen. Understand numbers, time, asking of price and how to formulate statements in German",
+            "instruction": "Use the statement rule to talk about your weekly routine using the activities listed. Share with your tutor when done",
             "schreiben_sprechen": {
                 "video": "",
-                "workbook_link": ""
+                "workbook_link": "https://drive.google.com/file/d/12oFKrKrHBwSpSnzxLX_e-cjPSiYtCFVs/view?usp=sharing"
             }
         },
         # DAY 14
@@ -2020,7 +1756,7 @@ def get_a1_schedule():
             "instruction": "",
             "schreiben_sprechen": {
                 "video": "",
-                "workbook_link": ""
+                "workbook_link": "https://drive.google.com/file/d/1wnZehLNfkjgKMFw1V3BX8V399rZg6XLv/view?usp=sharing"
             }
         },
         # DAY 15
@@ -2040,42 +1776,60 @@ def get_a1_schedule():
             "day": 16,
             "topic": "Lesen & Hören",
             "chapter": "9_10",
-            "goal": "",
-            "instruction": "",
-            "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
-            }
+            "goal": "Understand how to negate statements using nicht,kein and nein",
+            "instruction": "This chapter has two assignments. Do the assignments for chapter 9 and after chapter 10. Chapter 10 has no grammar",
+            "lesen_hören": [
+                {
+                    "chapter": "9",
+                    "video": "https://youtu.be/MrB3BPtQN6A",
+                    "grammarbook_link": "https://drive.google.com/file/d/1g-qLEH1ZDnFZCT83TW-MPLxNt2nO7UAv/view?usp=sharing",
+                    "workbook_link": "https://drive.google.com/file/d/1hKtQdXg5y3yJyFBQsCMr7fZ11cYbuG7D/view?usp=sharing"
+                },
+                {
+                    "chapter": "10",
+                    "video": "",
+                    "grammarbook_link": "",
+                    "workbook_link": "https://drive.google.com/file/d/1rJXshXQSS5Or4ipv1VmUMsoB0V1Vx4VK/view?usp=sharing"
+                }
+            ]
         },
         # DAY 17
         {
             "day": 17,
             "topic": "Lesen & Hören",
             "chapter": "11",
-            "goal": "",
+            "goal": "Understand instructions and request in German using the Imperative rule",
             "instruction": "",
             "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
+                "video": "https://youtu.be/k2ZC3rXPe1k",
+                "grammarbook_link": "https://drive.google.com/file/d/1lMzZrM4aAItO8bBmehODvT6gG7dz8I9s/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/17FNSfHBxyga9sKxzicT_qkP7PA4vB5-A/view?usp=sharing"
             }
         },
         # DAY 18
         {
             "day": 18,
             "topic": "Lesen & Hören and Schreiben & Sprechen (including 5.8)",
-            "chapter": "12.1",
-            "goal": "",
-            "instruction": "",
-            "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
-            },
+            "chapter": "12.1_12.2",
+            "goal": "Learn about German professions and how to use two-way prepositions",
+            "instruction": "This lesson has two Lesen & Hören assignments (12.1 and 12.2) and one Schreiben & Sprechen practice (5.8)",
+            "lesen_hören": [
+                {
+                    "chapter": "12.1",
+                    "video": "",
+                    "grammarbook_link": "https://drive.google.com/file/d/1wdWYVxBhu4QtRoETDpDww-LjjzsGDYva/view?usp=sharing",
+                    "workbook_link": "https://drive.google.com/file/d/1A0NkFl1AG68jHeqSytI3ygJ0k7H74AEX/view?usp=sharing"
+                },
+                {
+                    "chapter": "12.2",
+                    "video": "",
+                    "grammarbook_link": "",
+                    "workbook_link": "https://drive.google.com/file/d/1xojH7Tgb5LeJj3nzNSATUVppWnJgJLEF/view?usp=sharing"
+                }
+            ],
             "schreiben_sprechen": {
                 "video": "",
-                "workbook_link": ""
+                "workbook_link": "https://drive.google.com/file/d/1iyYBuxu3bBEovxz0j9QeSu_1URX92fvN/view?usp=sharing"
             }
         },
         # DAY 19
@@ -2083,11 +1837,11 @@ def get_a1_schedule():
             "day": 19,
             "topic": "Schreiben & Sprechen",
             "chapter": "5.9",
-            "goal": "",
+            "goal": "Understand the difference between Erlaubt and Verboten and how to use it in the exams hall",
             "instruction": "",
             "schreiben_sprechen": {
                 "video": "",
-                "workbook_link": ""
+                "workbook_link": "https://drive.google.com/file/d/1-bbY9zoos62U5jUAFrYCyxay_cvbk65N/view?usp=sharing"
             }
         },
         # DAY 20
@@ -2095,11 +1849,11 @@ def get_a1_schedule():
             "day": 20,
             "topic": "Schreiben & Sprechen (Intro to letter writing)",
             "chapter": "6.10",
-            "goal": "",
-            "instruction": "",
+            "goal": "Practice how to write both formal and informal letters",
+            "instruction": "Write all the two letters in this document and send to your tutor for corrections",
             "schreiben_sprechen": {
                 "video": "",
-                "workbook_link": ""
+                "workbook_link": "https://drive.google.com/file/d/1SjaDH1bYR7O-BnIbM2N82XOEjeLCfPFb/view?usp=sharing"
             }
         },
         # DAY 21
@@ -2178,7 +1932,6 @@ def get_a1_schedule():
             }
         }
     ]
-
 
 def get_a2_schedule():
     return [
@@ -2827,6 +2580,12 @@ if "student_row" not in st.session_state:
         "Level": "A1",
         "StudentCode": "demo001"
     }
+
+# --------------------------------------
+# Shared at top so all tabs can access
+student_row = st.session_state.get('student_row', {})
+student_level = student_row.get('Level', 'A1').upper()
+
 # --------------------------------------
 
 if tab == "Course Book":
@@ -2834,129 +2593,128 @@ if tab == "Course Book":
     import streamlit as st
     import datetime, urllib.parse
 
-    # 1. Pick schedule based on student
-    student_row = st.session_state.get('student_row', {})
-    student_level = student_row.get('Level', 'A1').upper()
-    level_map = {
+    # --------------------------------------
+    # Compute level schedule mapping once at module load for efficiency
+    # --------------------------------------
+    LEVEL_SCHEDULES = {
         "A1": get_a1_schedule(),
         "A2": get_a2_schedule(),
         "B1": get_b1_schedule(),
     }
-    schedule = level_map.get(student_level, get_a1_schedule())
+
+    # 1. Pick schedule based on student (cache avoids repeated calls)
+    student_row = st.session_state.get('student_row', {})
+    student_level = student_row.get('Level', 'A1').upper()
+    schedule = LEVEL_SCHEDULES.get(student_level, LEVEL_SCHEDULES['A1'])
 
     if not schedule:
         st.warning("No schedule found for your level. Please contact the admin.")
         st.stop()
 
-
     selected_day_idx = st.selectbox(
-        "📅 Choose your lesson/day:",
+        "Choose your lesson/day:",
         range(len(schedule)),
-        format_func=lambda i: f"Day {schedule[i]['day']} – {schedule[i]['topic']}"
+        format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
     )
     day_info = schedule[selected_day_idx]
 
     st.markdown(f"### Day {day_info['day']}: {day_info['topic']} (Chapter {day_info['chapter']})")
 
+    # Display optional metadata
     if day_info.get("goal"):
         st.markdown(f"**🎯 Goal:**<br>{day_info['goal']}", unsafe_allow_html=True)
     if day_info.get("instruction"):
         st.markdown(f"**📝 Instruction:**<br>{day_info['instruction']}", unsafe_allow_html=True)
 
     # --------- Show Lesen & Hören ----------
-    def render_lh_section(lh, idx=None, total=None):
-        if idx is not None and total is not None:
-            st.markdown(
-                f"#### 📚 Assignment {idx+1} of {total}: Lesen & Hören – Chapter {lh.get('chapter','')}")
-        if lh.get("video"):
-            st.video(lh["video"])
-        if lh.get("grammarbook_link"):
-            st.markdown(
-                f"<a href='{lh['grammarbook_link']}' target='_blank' style='font-size:1.1em; color:#357ae8; font-weight:bold;'>📘 Open Grammar Book</a>",
-                unsafe_allow_html=True)
-        if lh.get("workbook_link"):
-            st.markdown(
-                f"<a href='{lh['workbook_link']}' target='_blank' style='font-size:1.1em; color:#34a853; font-weight:bold;'>📒 Open Workbook</a>",
-                unsafe_allow_html=True)
-        extras = lh.get('extra_resources')
+    def render_lh_section(item, idx=None, total=None):
+        """
+        Renders a single Lesen & Hören assignment with optional numbering.
+        """
+        # Title for multi-part lessons
+        if idx is not None and total and total > 1:
+            st.markdown(f"#### 📚 Assignment {idx+1} of {total}: Chapter {item.get('chapter','')}")
+        # Video
+        if item.get('video'):
+            st.video(item['video'])
+        # Link rendering util avoids duplication
+        def link(label, url):
+            st.markdown(f"- [{label}]({url})")
+        # Grammar book
+        if item.get('grammarbook_link'):
+            link('📘 Grammar Book', item['grammarbook_link'])
+        # Workbook
+        if item.get('workbook_link'):
+            link('📒 Workbook', item['workbook_link'])
+        # Extras
+        extras = item.get('extra_resources')
         if extras:
             if isinstance(extras, list):
-                for link in extras:
-                    st.markdown(f"- [🔗 Extra Resource]({link})")
+                for ex in extras:
+                    link('🔗 Extra', ex)
             else:
-                st.markdown(f"- [🔗 Extra Resource]({extras})")
+                link('🔗 Extra', extras)
 
-    # Multi assignment note (clean, mobile-friendly)
-    if "lesen_hören" in day_info:
-        lh_section = day_info["lesen_hören"]
-        if isinstance(lh_section, list):
+    # Normalize and render Lesen & Hören to always use list format
+    if 'lesen_hören' in day_info:
+        lh = day_info['lesen_hören']
+        lh_items = lh if isinstance(lh, list) else [lh]
+        if len(lh_items) > 1:
             st.markdown(
-                """
-                <div style='padding:8px 12px; background:#eaf4ff; border-radius:7px; 
-                border-left:5px solid #357ae8; margin-bottom:12px; font-size:1.03em; line-height:1.3;'>
-                    <span style="font-weight:600; color:#357ae8;">ℹ️ This lesson has more than one Lesen & Hören assignment.<br>
-                    Do <u>all parts below</u> before you submit.</span>
-                </div>
-                """, unsafe_allow_html=True
+                '<div style="padding:8px; background:#f8f9fa; border-left:4px solid #007bff; margin:8px 0;">'
+                '<strong>Note:</strong> Multiple Lesen & Hören tasks below. Complete all before submitting.'
+                '</div>', unsafe_allow_html=True
             )
-            for idx, chapter_lh in enumerate(lh_section):
-                render_lh_section(chapter_lh, idx, len(lh_section))
-        elif isinstance(lh_section, dict):
-            render_lh_section(lh_section)
+        for i, part in enumerate(lh_items):
+            render_lh_section(part, idx=i, total=len(lh_items))
 
     # --- Show Schreiben & Sprechen (if present) ---
-    if "schreiben_sprechen" in day_info:
-        ss = day_info["schreiben_sprechen"]
-        st.markdown("#### 📝 Schreiben & Sprechen")
-        if ss.get("video"):
-            st.video(ss["video"])
-        if ss.get("grammarbook_link"):
-            st.markdown(
-                f"<a href='{ss['grammarbook_link']}' target='_blank' style='font-size:1.1em; color:#357ae8; font-weight:bold;'>📘 Open Grammar Book</a>",
-                unsafe_allow_html=True)
-        if ss.get("workbook_link"):
-            st.markdown(
-                f"<a href='{ss['workbook_link']}' target='_blank' style='font-size:1.1em; color:#34a853; font-weight:bold;'>📒 Open Workbook</a>",
-                unsafe_allow_html=True)
+    if 'schreiben_sprechen' in day_info:
+        ss = day_info['schreiben_sprechen']
+        st.markdown('#### 📝 Schreiben & Sprechen')
+        if ss.get('video'):
+            st.video(ss['video'])
+        def sp_link(label, url): st.markdown(f"- [{label}]({url})")
+        if ss.get('grammarbook_link'):
+            sp_link('📘 Grammar Book', ss['grammarbook_link'])
+        if ss.get('workbook_link'):
+            sp_link('📒 Workbook', ss['workbook_link'])
         extras = ss.get('extra_resources')
         if extras:
             if isinstance(extras, list):
-                for link in extras:
-                    st.markdown(f"- [🔗 Extra Resource]({link})")
-            else:
-                st.markdown(f"- [🔗 Extra Resource]({extras})")
+                for ex in extras: sp_link('🔗 Extra', ex)
+            else: sp_link('🔗 Extra', extras)
 
-    # ---------- For A2/B1/B2: Show all at top level ----------
-    if student_level in ["A2", "B1", "B2"]:
-        if day_info.get("video"):
-            st.video(day_info["video"])
-        if day_info.get("grammarbook_link"):
-            st.markdown(
-                f"<a href='{day_info['grammarbook_link']}' target='_blank' "
-                "style='font-size:1.1em; color:#357ae8; font-weight:bold;'>📘 Open Grammar Book</a>",
-                unsafe_allow_html=True)
-        if day_info.get("workbook_link"):
-            st.markdown(
-                f"<a href='{day_info['workbook_link']}' target='_blank' "
-                "style='font-size:1.1em; color:#34a853; font-weight:bold;'>📒 Open Workbook</a>",
-                unsafe_allow_html=True)
-        extras = day_info.get('extra_resources')
-        if extras:
-            if isinstance(extras, list):
-                for link in extras:
-                    st.markdown(f"- [🔗 Extra Resource]({link})")
-            else:
-                st.markdown(f"- [🔗 Extra Resource]({extras})")
-
+    # ---------- Top-level resources for A2/B1/B2 ----------
+    if student_level in ['A2','B1','B2']:
+        for res in ['video','grammarbook_link','workbook_link','extra_resources']:
+            if day_info.get(res):
+                url = day_info[res]
+                # choose label based on key
+                label = (
+                    '🎥 Video' if res=='video' else
+                    '📘 Grammar' if 'grammar' in res else
+                    '📒 Workbook' if 'workbook' in res else
+                    '🔗 Extra'
+                )
+                if res == 'video':
+                    st.video(url)
+                else:
+                    st.markdown(f"- [{label}]({url})", unsafe_allow_html=True)
 
     # --- Assignment Submission Section (WhatsApp) ---
     st.divider()
-    st.subheader("📲 Submit Assignment (WhatsApp)")
-    student_name = st.text_input("Your Name", value=student_row.get('Name', ''))
-    student_code = st.text_input("Student Code", value=student_row.get('StudentCode', ''))
-    answer = st.text_area("Your Answer (leave blank if sending file/photo on WhatsApp)", height=90)
+    st.markdown("## 📲 Submit Assignment (WhatsApp)")
 
-    wa_message = f"""Learn Language Education Academy – Assignment Submission
+    with st.container():
+        student_name = st.text_input("👤 Your Name", value=student_row.get('Name', ''))
+        student_code = st.text_input("🆔 Student Code", value=student_row.get('StudentCode', ''))
+
+        # Wider mobile-friendly text area
+        st.markdown("#### ✍️ Your Answer")
+        answer = st.text_area("Type your answer here (leave blank if sending a file/photo on WhatsApp)", height=400, label_visibility="collapsed")
+
+        wa_message = f"""Learn Language Education Academy – Assignment Submission
 Name: {student_name}
 Code: {student_code}
 Level: {student_level}
@@ -2965,23 +2723,21 @@ Chapter: {day_info['chapter']}
 Date: {datetime.datetime.now():%Y-%m-%d %H:%M}
 Answer: {answer if answer.strip() else '[See attached file/photo]'}
 """
-    wa_url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(wa_message)
+        wa_url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(wa_message)
 
-    if st.button("📤 Submit via WhatsApp"):
-        st.success("Click the link below to open WhatsApp and send your assignment!")
-        st.markdown(
-            f"""<a href="{wa_url}" target="_blank" style="font-size:1.15em;font-weight:600;display:inline-block;background:#25D366;color:white;padding:12px 24px;border-radius:8px;margin:10px 0;">Open WhatsApp</a>""",
-            unsafe_allow_html=True
-        )
-        st.text_area("Message to Copy (if needed):", wa_message, height=70)
+        if st.button("📤 Submit via WhatsApp"):
+            st.success("✅ Now click the button below to open WhatsApp and send your assignment.")
+            st.markdown(
+                f"""<a href="{wa_url}" target="_blank" style="display:block; text-align:center; font-size:1.15em; font-weight:600; background:#25D366; color:white; padding:14px; border-radius:10px; margin-top:10px;">📨 Open WhatsApp</a>""",
+                unsafe_allow_html=True
+            )
+            st.text_area("📋 Copy this message if needed:", wa_message, height=400, label_visibility="visible")
 
     st.info("""
-- Tap the links above to open books on your phone. No PDF preview, all links open in a new tab.
-- Submit only your main assignment below (if more than one, mention which).
-- Always use your real name and code for tracking!
-""")
-
-
+    - Tap the links above to open books in a new tab (no in-app preview).
+    - If multiple tasks are assigned, mention which one you're submitting.
+    - Always use your correct name and student code!
+    """)
 
 
 #Myresults
@@ -3123,125 +2879,4 @@ How to prepare for your B1 oral exam.
         """
     )
 
-# ── (5) The “Grammar Help” tab with daily-limit & identifier ──
-if tab == "Grammar Help (AI)":
-    st.header("🤖 Grammar Help (AI)")
-
-    student_id = get_student_identifier()
-    usage = get_grammar_usage(student_id)
-    st.info(f"Today's questions: **{usage}** / **{GRAMMAR_DAILY_LIMIT}**")
-    if usage >= GRAMMAR_DAILY_LIMIT:
-        st.info(
-            """
-            🌟 You’ve made great progress today!  
-            For more practice, dive into your course book—  
-            replay the recorded lectures, complete the workbook assignments,  
-            and you’ll have plenty of solid examples to guide you.  
-            Come back tomorrow for fresh AI answers!  
-            """
-        )
-        st.stop()
-
-    st.markdown(
-        """
-        **Ask any German grammar question!**
-
-        You'll receive a clear English explanation,  
-        one simple German example,  
-        and a pointer to the right chapter.
-        """
-    )
-
-    # Guess level (fallback "A1")
-    student_level = st.session_state.get("student_row", {}).get("Level", "A1").upper()
-    question = st.text_area("Type your grammar question here…", height=80)
-    if "last_answered_q" not in st.session_state:
-        st.session_state["last_answered_q"] = ""
-
-    if st.button("Ask AI"):
-        q = question.strip()
-        if not q:
-            st.warning("Please enter a grammar question.")
-        elif q == st.session_state["last_answered_q"]:
-            st.info("You've already asked that. Try a new one.")
-        else:
-            with st.spinner("AI is thinking…"):
-                answer = get_ai_grammar_answer(q, student_level)
-            inc_grammar_usage(student_id)
-            st.session_state["last_answered_q"] = q
-
-            st.success("Here is your answer:")
-            st.markdown(answer)
-
-# ── (1) Student ID fallback helper ──
-def get_student_identifier():
-    # Try several options in priority order
-    for key in ["student_code", "email", "name", "level"]:
-        val = st.session_state.get(key)
-        if val and isinstance(val, str) and val.strip():
-            return val.strip()
-    # If still nothing, fallback to "unknown"
-    return "unknown-student"
-
-# ── (2) Helpers for daily usage ──
-GRAMMAR_DAILY_LIMIT = 3
-
-def get_grammar_usage(student_id: str) -> int:
-    today = date.today().isoformat()
-    c = conn.cursor()
-    c.execute(
-        "SELECT count FROM grammar_usage WHERE student_id=? AND date=?",
-        (student_id, today)
-    )
-    row = c.fetchone()
-    return row[0] if row else 0
-
-def inc_grammar_usage(student_id: str):
-    today = date.today().isoformat()
-    c = conn.cursor()
-    # Try update first
-    c.execute(
-        "UPDATE grammar_usage SET count = count + 1 WHERE student_id=? AND date=?",
-        (student_id, today)
-    )
-    if c.rowcount == 0:
-        c.execute(
-            "INSERT INTO grammar_usage (student_id, date, count) VALUES (?, ?, 1)",
-            (student_id, today)
-        )
-    conn.commit()
-
-# ── (3) Chapter-matching stub ──
-def find_best_chapter(question: str, level: str):
-    # TODO: use your get_*_schedule() data, goals/instructions to pick best match
-    return None
-
-# ── (4) Revised AI helper ──
-def get_ai_grammar_answer(question: str, level: str) -> str:
-    chapter = find_best_chapter(question, level)
-    chapter_str = ""
-    if chapter:
-        chapter_str = (
-            f"\n\n― See **{chapter['topic']}** (Chapter {chapter['chapter']})"
-            + (f" [Grammar Book]({chapter['grammarbook_link']})" if chapter.get("grammarbook_link") else "")
-            + (f", [Workbook]({chapter['workbook_link']})" if chapter.get("workbook_link") else "")
-        )
-
-    instruction = (
-        "You are an A.I. German grammar assistant. "
-        "Provide a detailed, step-by-step explanation in English that is clear and neutral (never complex or too short), "
-        "include one simple German example, and be thorough enough to fully answer and discourage repeat questions. "
-        "If you have a matching chapter, mention it at the end."
-    )
-    resp = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": instruction},
-            {"role": "user",   "content": question},
-        ],
-        temperature=0.3,
-        max_tokens=700,
-    )
-    answer = resp.choices[0].message.content.strip()
-    return answer + chapter_str
 
