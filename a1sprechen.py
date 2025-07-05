@@ -870,16 +870,13 @@ if tab == "Exams Mode & Custom Chat":
 #End
 # =========================================
 
-import streamlit as st
-import requests
-import random
 
 # ========== BASEROW SETTINGS ==========
 API_TOKEN = "itdTVpCYfsZSCxm5jGMrmneReLzkGndD"
 TABLE_ID = 597466
-LEVEL_FIELD = "field_4836599"
-GERMAN_FIELD = "field_4836600"
-ENGLISH_FIELD = "field_4836601"
+LEVEL_FIELD = "level"     # lowercase field names!
+GERMAN_FIELD = "german"
+ENGLISH_FIELD = "english"
 
 # ========== BASEROW FETCH ALL ROWS ==========
 def fetch_all_baserow_rows():
@@ -899,6 +896,7 @@ def fetch_all_baserow_rows():
 @st.cache_data
 def load_vocab_lists_baserow():
     rows = fetch_all_baserow_rows()
+    st.write("DEBUG: RAW ROWS FROM BASEROW", rows)   # Remove or comment out for production
     lists = {}
     for row in rows:
         lvl = row.get(LEVEL_FIELD, "Unknown")
@@ -913,7 +911,7 @@ def clean_text(text):
 
 # ========== LOAD VOCAB FROM BASEROW ==========
 VOCAB_LISTS = load_vocab_lists_baserow()
-st.write("DEBUG: VOCAB_LISTS", VOCAB_LISTS)  # Remove or comment out when live
+st.write("DEBUG: VOCAB_LISTS", VOCAB_LISTS)  # Remove or comment out for production
 
 # ========== VOCAB TRAINER TAB ==========
 def vocab_trainer_tab():
@@ -1009,13 +1007,11 @@ def vocab_trainer_tab():
                 st.session_state[k] = defaults[k]
             st.session_state["vt_saved_to_baserow"] = False
 
-# =================== USAGE ===================
+# ========== USAGE ==========
 # To display in your app:
 if __name__ == "__main__" or "Vocab Trainer" in st.session_state.get("current_tab", "Vocab Trainer"):
     vocab_trainer_tab()
 
-
-# ====================================
 # SCHREIBEN TRAINER TAB (Airtable only, Daily Limit, Mobile UI)
 # ====================================
 import urllib.parse
