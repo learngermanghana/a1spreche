@@ -870,9 +870,9 @@ if tab == "Exams Mode & Custom Chat":
 #End
 # =========================================
 
-
-
-
+import streamlit as st
+import requests
+import random
 
 # ========== BASEROW SETTINGS ==========
 API_TOKEN = "itdTVpCYfsZSCxm5jGMrmneReLzkGndD"
@@ -881,7 +881,7 @@ LEVEL_FIELD = "field_4836599"
 GERMAN_FIELD = "field_4836600"
 ENGLISH_FIELD = "field_4836601"
 
-# ========== BASEROW VOCAB LOADER ==========
+# ========== BASEROW FETCH ALL ROWS ==========
 def fetch_all_baserow_rows():
     url = f"https://api.baserow.io/api/database/rows/table/{TABLE_ID}/?user_field_names=true&size=200"
     headers = {"Authorization": f"Token {API_TOKEN}"}
@@ -890,10 +890,10 @@ def fetch_all_baserow_rows():
         response = requests.get(url, headers=headers)
         if response.status_code != 200:
             st.error(f"Error fetching from Baserow: {response.status_code} - {response.text}")
-            break
+            return []
         data = response.json()
         all_rows.extend(data.get("results", []))
-        url = data.get("next", None)  # Baserow gives you the next page URL
+        url = data.get("next", None)
     return all_rows
 
 @st.cache_data
@@ -906,15 +906,17 @@ def load_vocab_lists_baserow():
         eng = row.get(ENGLISH_FIELD, "")
         if lvl and ger and eng:
             lists.setdefault(lvl, []).append((ger, eng))
-    if not lists:
-        st.warning("No vocab found in Baserow. Please check your table, field IDs, and data.")
     return lists
 
+def clean_text(text):
+    return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
+
+# ========== LOAD VOCAB FROM BASEROW ==========
+VOCAB_LISTS = load_vocab_lists_baserow()
+st.write("DEBUG: VOCAB_LISTS", VOCAB_LISTS)  # Remove or comment out when live
 
 # ========== VOCAB TRAINER TAB ==========
-tab = "Vocab Trainer"  # Remove or modify if you're using st.tabs
-
-if tab == "Vocab Trainer":
+def vocab_trainer_tab():
     HERR_FELIX = "Herr Felix 👨‍🏫"
     defaults = {
         "vt_history": [],
@@ -926,8 +928,11 @@ if tab == "Vocab Trainer":
     for key, val in defaults.items():
         st.session_state.setdefault(key, val)
 
-    # Choose level
-    level = st.selectbox("Choose level", list(VOCAB_LISTS.keys()), key="vt_level")
+    levels = list(VOCAB_LISTS.keys()) if VOCAB_LISTS else []
+    if not levels:
+        st.warning("No vocab levels found! Please check your Baserow data and field IDs.")
+        st.stop()
+    level = st.selectbox("Choose level", levels, key="vt_level")
     vocab_items = VOCAB_LISTS.get(level, [])
     max_words = len(vocab_items)
 
@@ -1004,6 +1009,10 @@ if tab == "Vocab Trainer":
                 st.session_state[k] = defaults[k]
             st.session_state["vt_saved_to_baserow"] = False
 
+# =================== USAGE ===================
+# To display in your app:
+if __name__ == "__main__" or "Vocab Trainer" in st.session_state.get("current_tab", "Vocab Trainer"):
+    vocab_trainer_tab()
 
 
 # ====================================
