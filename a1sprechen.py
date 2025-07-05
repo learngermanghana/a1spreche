@@ -1286,19 +1286,28 @@ VOCAB_CSV_URL = (
 @st.cache_data(show_spinner=False)
 def load_vocab_lists():
     df = pd.read_csv(VOCAB_CSV_URL)
-    # assume your sheet has columns: Level, Word, Translation
+    # Trim whitespace from column names
     df.columns = [c.strip() for c in df.columns]
+    # Build dict per level
     lists = {}
     for lvl in ["A1", "A2", "B1", "B2", "C1"]:
-        sub = df[df.Level == lvl]
-        lists[lvl] = list(zip(sub.Word, sub.Translation))
+        # Use bracket indexing to avoid AttributeError
+        sub = df[df.get("Level", df.get("level", None)) == lvl]
+        # Choose header casing dynamically
+        if "Word" in sub.columns and "Translation" in sub.columns:
+            pairs = list(zip(sub["Word"], sub["Translation"]))
+        else:
+            # fallback to lowercase names
+            pairs = list(zip(sub.get("word", []), sub.get("translation", [])))
+        lists[lvl] = pairs
     return lists
 
 VOCAB_LISTS = load_vocab_lists()
 
-
 # Render only when the Vocab Trainer tab is active
 if tab == "Vocab Trainer":
+    import random
+
     HERR_FELIX = "Herr Felix 👨‍🏫"
 
     # Centralized bubble style template
@@ -1311,7 +1320,7 @@ if tab == "Vocab Trainer":
     def clean_text(text):
         return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
 
-    # Consistent chat-bubble rendering using centralized style
+    # Consistent chat-bubble rendering
     def render_message(role, msg):
         align = "left" if role == "assistant" else "right"
         bgcolor = "#f0f0f0" if role == "assistant" else "#e8ffe8"
