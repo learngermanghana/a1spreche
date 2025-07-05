@@ -265,55 +265,6 @@ SCHREIBEN_DAILY_LIMIT = 5
 max_turns = 25
 
 
-def load_airtable_records(table, filter_formula=None):
-    url = f"https://api.airtable.com/v0/{BASE_ID}/{table}"
-    headers = {
-        "Authorization": f"Bearer {AIRTABLE_TOKEN}"
-    }
-    params = {"pageSize": 100}
-    if filter_formula:
-        params["filterByFormula"] = filter_formula
-    records = []
-    while url:
-        resp = requests.get(url, headers=headers, params=params)
-        data = resp.json()
-        records.extend(data.get("records", []))
-        url = data.get("offset")
-        if url:
-            url = f"https://api.airtable.com/v0/{BASE_ID}/{table}?offset={data['offset']}"
-        else:
-            url = None
-    return [r['fields'] for r in records]
-
-def get_vocab_progress_from_airtable(student_code):
-    records = load_airtable_records("VocabProgress", filter_formula=f"{{Student Code}} = '{student_code}'")
-    if not records:
-        return {"total_practiced": 0, "last_practice_date": None, "practiced_vocab": []}
-    records_df = pd.DataFrame(records)
-    records_df = records_df.sort_values("Date", ascending=False)
-    last_row = records_df.iloc[0]
-    practiced_vocab = last_row.get("PracticedVocab", "").split(",")
-    return {
-        "total_practiced": records_df["NumAttempted"].astype(int).sum(),
-        "last_practice_date": last_row.get("Date"),
-        "practiced_vocab": practiced_vocab,
-    }
-
-def get_schreiben_progress_from_airtable(student_code):
-    records = load_airtable_records("Schreiben", filter_formula=f"{{Student Code}} = '{student_code}'")
-    if not records:
-        return {"attempted": 0, "passed": 0, "accuracy": 0}
-    df = pd.DataFrame(records)
-    df["Score"] = pd.to_numeric(df.get("Score", 0), errors="coerce")
-    attempted = len(df)
-    passed = (df["Score"] >= 17).sum()
-    accuracy = round(100 * passed / attempted) if attempted > 0 else 0
-    return {
-        "attempted": attempted,
-        "passed": passed,
-        "accuracy": accuracy,
-    }
-
 
 @st.cache_data
 def load_student_data():
@@ -347,8 +298,6 @@ if st.session_state["logged_in"]:
     matches = df_students[df_students["StudentCode"].str.lower() == code]
     student_row = matches.iloc[0].to_dict() if not matches.empty else {}
 
-    vocab_stats = get_vocab_progress_from_airtable(student_code)
-    schreiben_stats = get_schreiben_progress_from_airtable(student_code)
 
     if tab == "Dashboard":
         st.header("📊 Student Dashboard")
