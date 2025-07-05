@@ -23,26 +23,6 @@ if not OPENAI_API_KEY:
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY   # <- Set for OpenAI client!
 client = OpenAI()  # <-- Do NOT pass api_key here for openai>=1.0
 
-# Get secrets from st.secrets
-airtable_token = st.secrets["airtable_token"]
-base_id = st.secrets["base_id"]
-table_name = st.secrets["table_name"]
-
-def load_airtable_records(table, filter_formula=None):
-    url = f"https://api.airtable.com/v0/{base_id}/{table}"
-    headers = {
-        "Authorization": f"Bearer {airtable_token}",
-        "Content-Type": "application/json"
-    }
-    params = {}
-    if filter_formula:
-        params["filterByFormula"] = filter_formula
-    response = requests.get(url, headers=headers, params=params)
-    if response.status_code == 200:
-        return response.json()["records"]
-    else:
-        st.error(f"Failed to load records from Airtable: {response.text}")
-        return []
 
 
 
@@ -1008,52 +988,42 @@ if tab == "Exams Mode & Custom Chat":
 # =========================================
 
 
-def upsert_student_vocab_progress(student_code, practiced_vocab_list, num_attempted, num_correct):
-    url    = f"https://api.airtable.com/v0/{BASE_ID}/{VOCAB_TABLE}"
-    params = {"filterByFormula": f"{{Student Code}} = '{student_code}'"}
-    r1     = requests.get(url, headers=headers, params=params)
-    st.write("GET→", r1.status_code, r1.text)
-
-    fields = {
-      "Student Code":   student_code,
-      "PracticedVocab": ",".join(practiced_vocab_list),
-      "NumAttempted":   num_attempted,
-      "NumCorrect":     num_correct,
-      "LastPracticed":  str(date.today())
-    }
-    data = {"fields": fields}
-
-    if recs := r1.json().get("records", []):
-        rec_id = recs[0]["id"]
-        r2     = requests.patch(f"{url}/{rec_id}", headers=headers, json=data)
-        st.write("PATCH→", r2.status_code, r2.text)
-        return r2.status_code in (200,201)
-    else:
-        r3 = requests.post(url, headers=headers, json=data)
-        st.write("POST→", r3.status_code, r3.text)
-        return r3.status_code in (200,201)
 
 
 
-# ========== VOCAB TRAINER TAB ==========
+# ========== BASEROW SETTINGS ==========
+API_TOKEN = "itdTVpCYfsZSCxm5jGMrmneReLzkGndD"
+TABLE_ID = 597466
+LEVEL_FIELD = "field_4836599"
+GERMAN_FIELD = "field_4836600"
+ENGLISH_FIELD = "field_4836601"
 
-sheet_id = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
-sheet_name = "Sheet1"
-csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={sheet_name}"
+# ========== BASEROW VOCAB LOADER ==========
+@st.cache_data
+def load_vocab_lists_baserow():
+    url = f"https://api.baserow.io/api/database/rows/table/{TABLE_ID}/"
+    headers = {"Authorization": f"Token {API_TOKEN}"}
+    params = {"user_field_names": True, "size": 500}
+    response = requests.get(url, headers=headers, params=params)
+    data = response.json()
+    rows = data.get("results", [])
+    lists = {}
+    for row in rows:
+        lvl = row.get(LEVEL_FIELD, "Unknown")
+        ger = row.get(GERMAN_FIELD, "")
+        eng = row.get(ENGLISH_FIELD, "")
+        if lvl not in lists:
+            lists[lvl] = []
+        lists[lvl].append((ger, eng))
+    return lists
 
 def clean_text(text):
     return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
 
-@st.cache_data
-def load_vocab_lists():
-    df = pd.read_csv(csv_url)
-    lists = {}
-    for lvl in df['Level'].unique():
-        sub = df[df['Level'] == lvl]
-        lists[lvl] = list(zip(sub['German'], sub['English']))
-    return lists
+VOCAB_LISTS = load_vocab_lists_baserow()
 
-VOCAB_LISTS = load_vocab_lists()
+# ========== VOCAB TRAINER TAB ==========
+tab = "Vocab Trainer"  # Remove or modify if you're using st.tabs
 
 if tab == "Vocab Trainer":
     HERR_FELIX = "Herr Felix 👨‍🏫"
@@ -1073,14 +1043,13 @@ if tab == "Vocab Trainer":
     max_words = len(vocab_items)
 
     if max_words == 0:
-        st.warning(f"No vocabulary available for level {level}. Please add entries in your sheet.")
+        st.warning(f"No vocabulary available for level {level}. Please add entries in your Baserow table.")
         st.stop()
 
     if st.button("🔁 Start New Practice", key="vt_reset"):
         for k in defaults:
             st.session_state[k] = defaults[k]
-        # reset save flag as well
-        st.session_state["vt_saved_to_airtable"] = False
+        st.session_state["vt_saved_to_baserow"] = False
 
     st.info(f"There are {max_words} words available in {level}.")
 
@@ -1140,31 +1109,11 @@ if tab == "Vocab Trainer":
         score = st.session_state.vt_score
         st.markdown(f"### 🏁 Finished! You got {score}/{total} correct.")
 
-        # Practice Again button resets everything, including the save flag
+        # Practice Again button resets everything
         if st.button("Practice Again", key="vt_again"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
-            st.session_state["vt_saved_to_airtable"] = False
-
-        # Only save once per completed session
-        if "vt_saved_to_airtable" not in st.session_state:
-            st.session_state["vt_saved_to_airtable"] = False
-
-        if not st.session_state["vt_saved_to_airtable"]:
-            student_code = st.session_state.get("student_code", "unknown")
-            practiced_vocab = [item[0] for item in st.session_state.vt_list]
-            update_success = upsert_student_vocab_progress(
-                student_code=student_code,
-                practiced_vocab_list=practiced_vocab,
-                num_attempted=total,
-                num_correct=score
-            )
-            if update_success:
-                st.success("✅ Your progress was saved!")
-                st.session_state["vt_saved_to_airtable"] = True
-            else:
-                st.warning("⚠️ Progress could not be saved. Please try again later.")
-
+            st.session_state["vt_saved_to_baserow"] = False
 
 
 
