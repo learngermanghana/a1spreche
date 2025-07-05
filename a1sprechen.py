@@ -1286,41 +1286,31 @@ VOCAB_CSV_URL = (
 @st.cache_data(show_spinner=False)
 def load_vocab_lists():
     df = pd.read_csv(VOCAB_CSV_URL)
-    # Trim whitespace from column names
     df.columns = [c.strip() for c in df.columns]
-    # Build dict per level
     lists = {}
     for lvl in ["A1", "A2", "B1", "B2", "C1"]:
-        # Use bracket indexing to avoid AttributeError
         sub = df[df.get("Level", df.get("level", None)) == lvl]
-        # Choose header casing dynamically
         if "Word" in sub.columns and "Translation" in sub.columns:
             pairs = list(zip(sub["Word"], sub["Translation"]))
         else:
-            # fallback to lowercase names
             pairs = list(zip(sub.get("word", []), sub.get("translation", [])))
         lists[lvl] = pairs
     return lists
 
 VOCAB_LISTS = load_vocab_lists()
 
-# Render only when the Vocab Trainer tab is active
 if tab == "Vocab Trainer":
     import random
 
     HERR_FELIX = "Herr Felix 👨‍🏫"
-
-    # Centralized bubble style template
     BUBBLE_STYLE = (
         "padding:8px; border-radius:8px; max-width:90%; margin:5px 0;"
         "text-align:{align}; background:{bgcolor}; font-size:1.05em;"
     )
 
-    # Normalize user input for comparison
     def clean_text(text):
         return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
 
-    # Consistent chat-bubble rendering
     def render_message(role, msg):
         align = "left" if role == "assistant" else "right"
         bgcolor = "#f0f0f0" if role == "assistant" else "#e8ffe8"
@@ -1331,7 +1321,6 @@ if tab == "Vocab Trainer":
             unsafe_allow_html=True
         )
 
-    # Initialize session state defaults once
     defaults = {
         "vt_history": [],
         "vt_list": [],
@@ -1342,24 +1331,26 @@ if tab == "Vocab Trainer":
     for key, val in defaults.items():
         st.session_state.setdefault(key, val)
 
-    # Level selection and word bank
     level = st.selectbox("Choose level", list(VOCAB_LISTS.keys()), key="vt_level")
-    vocab_items = VOCAB_LISTS.get(level, [])  # guard against missing
+    vocab_items = VOCAB_LISTS.get(level, [])
     max_words = len(vocab_items)
 
-    # Start new practice resets all state
-    if st.button("🔁 Start New Practice", key="vt_reset"):
-        for k, v in defaults.items():
-            st.session_state[k] = v
+    # Guard against empty lists
+    if max_words == 0:
+        st.warning(f"No vocabulary available for level {level}. Please choose another level.")
+        st.stop()
 
-    # Step 1: ask how many words to practice
+    if st.button("🔁 Start New Practice", key="vt_reset"):
+        for k in defaults:
+            st.session_state[k] = defaults[k]
+
     if st.session_state.vt_total is None:
         count = st.number_input(
             "How many words?", min_value=1, max_value=max_words,
             value=min(7, max_words), key="vt_count"
         )
         if st.button("Start Practice", key="vt_start"):
-            st.session_state.vt_total = count
+            st.session_state.vt_total = int(count)
             shuffled = vocab_items.copy()
             random.shuffle(shuffled)
             st.session_state.vt_list = shuffled[:count]
@@ -1369,13 +1360,11 @@ if tab == "Vocab Trainer":
                 ("assistant", f"Hallo! Ich bin {HERR_FELIX}. Let's start with {count} words!")
             ]
 
-    # Display chat history
     if st.session_state.vt_history:
         st.markdown("### 🗨️ Practice Chat")
         for who, message in st.session_state.vt_history:
             render_message(who, message)
 
-    # Step 2: practice loop
     total = st.session_state.vt_total
     idx = st.session_state.vt_index
     if isinstance(total, int) and 0 <= idx < total and len(st.session_state.vt_list) >= total:
@@ -1393,15 +1382,12 @@ if tab == "Vocab Trainer":
             st.session_state.vt_history.append(("assistant", fb))
             st.session_state.vt_index += 1
 
-    # Step 3: show results when done
     if isinstance(total, int) and idx >= total:
         score = st.session_state.vt_score
         st.markdown(f"### 🏁 Finished! You got {score}/{total} correct.")
         if st.button("Practice Again", key="vt_again"):
-            for k, v in defaults.items():
-                st.session_state[k] = v
-            # Streamlit will automatically rerun on interaction
-
+            for k in defaults:
+                st.session_state[k] = defaults[k]
 
 # ====================================
 # SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI)
