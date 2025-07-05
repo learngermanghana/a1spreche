@@ -25,15 +25,13 @@ client = OpenAI()  # <-- Do NOT pass api_key here for openai>=1.0
 
 # ---- Airtable API Setup ----
 AIRTABLE_TOKEN = "patGF1Vvk4vfHSsb2.87da93119bf8c09068ae1b5b09b93254d343d7ffc475fdec595b388335588e45"
-BASE_ID         = "appqk6gYL2h6Jkxlg"
-VOCAB_TABLE     = "Students"    # your actual vocab‐progress table
-
+BASE_ID        = "appqk6gYL2h6Jkxlg"
+VOCAB_TABLE    = "Students"    # your actual vocab‐progress table
 
 headers = {
     "Authorization": f"Bearer {AIRTABLE_TOKEN}",
-    "Content-Type": "application/json"
+    "Content-Type":  "application/json"
 }
-
 
 def get_practiced_vocab(student_code):
     # Read only this student's rows
