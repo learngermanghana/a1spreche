@@ -1121,51 +1121,46 @@ if tab == "Exams Mode & Custom Chat":
 #End
 # =========================================
 
-# =========================================
-# VOCAB TRAINER TAB (A1–C1) — MOBILE OPTIMIZED
-# =========================================
+# === Airtable PATCH helper ===
+def update_student_vocab_progress(student_code, practiced_vocab_list, num_attempted, num_correct):
+    AIRTABLE_TOKEN = "YOUR_AIRTABLE_TOKEN"
+    BASE_ID = "YOUR_BASE_ID"
+    TABLE_NAME = "Students"
+    headers = {
+        "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_NAME}"
+    params = {
+        "filterByFormula": f"{{StudentCode}} = '{student_code}'"
+    }
+    response = requests.get(url, headers=headers, params=params)
+    records = response.json().get("records", [])
+    if records:
+        record_id = records[0]["id"]
+        data = {
+            "fields": {
+                "PracticedVocab": ",".join(practiced_vocab_list),
+                "NumAttempted": num_attempted,
+                "NumCorrect": num_correct,
+                "LastPracticed": str(datetime.today().date())
+            }
+        }
+        patch_url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_NAME}/{record_id}"
+        patch_resp = requests.patch(patch_url, headers=headers, json=data)
+        return patch_resp.status_code in (200, 201)
+    else:
+        return False
 
-# Your Google Sheets link
+# ========== VOCAB TRAINER TAB ==========
+
 sheet_id = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
 sheet_name = "Sheet1"
-
-# Get export CSV link
 csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={sheet_name}"
 
-# ========== Mobile-friendly message bubble ==========
-BUBBLE_STYLE = (
-    "padding:6px 10px; border-radius:6px; max-width:98vw; "
-    "margin-bottom:8px; text-align:{align}; background:{bgcolor}; "
-    "font-size:1em; word-break:break-word;"
-)
-
-def render_message(role, msg):
-    # Improved style for mobile readability!
-    align = "left" if role == "assistant" else "right"
-    # High-contrast light bubble for both themes
-    bgcolor = "#FAFAFA" if role == "assistant" else "#D2F8D2"
-    textcolor = "#222"  # nearly black text
-    bordcol = "#cccccc"
-    label = "Herr Felix" if role == "assistant" else "You"
-    style = (
-        f"padding:14px 14px 12px 14px; border-radius:12px; max-width:96vw; "
-        f"margin:7px 0 7px 0; text-align:{align}; background:{bgcolor}; "
-        f"border:1px solid {bordcol}; color:{textcolor}; font-size:1.12em;"
-        "box-shadow: 0 2px 8px rgba(40,40,40,0.06);"
-        "word-break:break-word;"
-    )
-    st.markdown(
-        f"<div style='{style}'><b>{label}:</b> {msg}</div>",
-        unsafe_allow_html=True
-    )
-
-# ====================================================
-
-# Helper to normalize user input
 def clean_text(text):
     return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
 
-# Load vocab lists once (cached)
 @st.cache_data
 def load_vocab_lists():
     df = pd.read_csv(csv_url)
@@ -1177,7 +1172,6 @@ def load_vocab_lists():
 
 VOCAB_LISTS = load_vocab_lists()
 
-# --------- Main Vocab Trainer Tab logic -------------
 if tab == "Vocab Trainer":
     HERR_FELIX = "Herr Felix 👨‍🏫"
     defaults = {
@@ -1199,19 +1193,16 @@ if tab == "Vocab Trainer":
         st.warning(f"No vocabulary available for level {level}. Please add entries in your sheet.")
         st.stop()
 
-    # Start new practice resets
     if st.button("🔁 Start New Practice", key="vt_reset"):
         for k in defaults:
             st.session_state[k] = defaults[k]
 
-    
-    # Show number of available words for the selected level
     st.info(f"There are {max_words} words available in {level}.")
 
     # Step 1: ask how many words to practice
     if st.session_state.vt_total is None:
         count = st.number_input(
-            "How many words can you practice today. You can also type the number?",
+            "How many words can you practice today? You can also type the number.",
             min_value=1,
             max_value=max_words,
             value=min(7, max_words),
@@ -1232,7 +1223,22 @@ if tab == "Vocab Trainer":
     if st.session_state.vt_history:
         st.markdown("### 🗨️ Practice Chat")
         for who, message in st.session_state.vt_history:
-            render_message(who, message)
+            align = "left" if who == "assistant" else "right"
+            bgcolor = "#FAFAFA" if who == "assistant" else "#D2F8D2"
+            textcolor = "#222"
+            bordcol = "#cccccc"
+            label = "Herr Felix" if who == "assistant" else "You"
+            style = (
+                f"padding:14px 14px 12px 14px; border-radius:12px; max-width:96vw; "
+                f"margin:7px 0 7px 0; text-align:{align}; background:{bgcolor}; "
+                f"border:1px solid {bordcol}; color:{textcolor}; font-size:1.12em;"
+                "box-shadow: 0 2px 8px rgba(40,40,40,0.06);"
+                "word-break:break-word;"
+            )
+            st.markdown(
+                f"<div style='{style}'><b>{label}:</b> {message}</div>",
+                unsafe_allow_html=True
+            )
 
     # Practice loop
     total = st.session_state.vt_total
@@ -1260,33 +1266,19 @@ if tab == "Vocab Trainer":
             for k in defaults:
                 st.session_state[k] = defaults[k]
 
-        # --- Airtable Progress Saving (NEW) ---
+        # --- Airtable Progress Saving (PATCH, not POST!) ---
         student_code = st.session_state.get("student_code", "unknown")
-        practiced_vocab = [item[0] for item in st.session_state.vt_list]  # Just German words
-        practiced_vocab_str = ",".join(practiced_vocab)
-
-        data = {
-            "fields": {
-                "Student Code": student_code,
-                "PracticedVocab": practiced_vocab_str,
-                "NumAttempted": total,
-                "NumCorrect": score,
-                "LastLevel": level
-            }
-        }
-        url = f"https://api.airtable.com/v0/{BASE_ID}/VocabProgress"  # use correct table name
-
-        try:
-            response = requests.post(url, headers=headers, json=data)
-            if response.status_code in (200, 201):
-                st.success("✅ Your progress was saved!")
-            else:
-                st.warning("⚠️ Progress could not be saved. Please try again later.")
-        except Exception as e:
-            st.warning("⚠️ Error saving progress: " + str(e))
-
-#
-
+        practiced_vocab = [item[0] for item in st.session_state.vt_list]
+        update_success = update_student_vocab_progress(
+            student_code=student_code,
+            practiced_vocab_list=practiced_vocab,
+            num_attempted=total,
+            num_correct=score
+        )
+        if update_success:
+            st.success("✅ Your progress was saved!")
+        else:
+            st.warning("⚠️ Progress could not be saved. Please try again later.")
 
 
 # ====================================
