@@ -882,10 +882,12 @@ ENGLISH_FIELD = "english"
 # ========== BASEROW FETCH ALL ROWS ==========
 def fetch_all_baserow_rows():
     url = f"https://api.baserow.io/api/database/rows/table/{TABLE_ID}/?user_field_names=true&size=200"
-    headers = {"Authorization": f"Token {API_TOKEN}"}
+    headers = {"Authorization": f"Token {API_TOKEN}"}  # <--- THIS MUST BE HERE!
     all_rows = []
     while url:
         response = requests.get(url, headers=headers)
+        st.write("DEBUG: RESPONSE STATUS", response.status_code)
+        st.write("DEBUG: RESPONSE TEXT", response.text)
         if response.status_code != 200:
             st.error(f"Error fetching from Baserow: {response.status_code} - {response.text}")
             return []
@@ -894,9 +896,6 @@ def fetch_all_baserow_rows():
         url = data.get("next", None)
     return all_rows
 
-response = requests.get(url, headers=headers)
-st.write("DEBUG: RESPONSE STATUS", response.status_code)
-st.write("DEBUG: RESPONSE TEXT", response.text)
 
 
 @st.cache_data
