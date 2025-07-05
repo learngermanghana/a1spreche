@@ -1291,14 +1291,25 @@ BUBBLE_STYLE = (
 )
 
 def render_message(role, msg):
+    # Improved style for mobile readability!
     align = "left" if role == "assistant" else "right"
-    bgcolor = "#f8f8ff" if role == "assistant" else "#e5ffe5"
+    # High-contrast light bubble for both themes
+    bgcolor = "#FAFAFA" if role == "assistant" else "#D2F8D2"
+    textcolor = "#222"  # nearly black text
+    bordcol = "#cccccc"
     label = "Herr Felix" if role == "assistant" else "You"
-    style = BUBBLE_STYLE.format(align=align, bgcolor=bgcolor)
+    style = (
+        f"padding:14px 14px 12px 14px; border-radius:12px; max-width:96vw; "
+        f"margin:7px 0 7px 0; text-align:{align}; background:{bgcolor}; "
+        f"border:1px solid {bordcol}; color:{textcolor}; font-size:1.12em;"
+        "box-shadow: 0 2px 8px rgba(40,40,40,0.06);"
+        "word-break:break-word;"
+    )
     st.markdown(
         f"<div style='{style}'><b>{label}:</b> {msg}</div>",
         unsafe_allow_html=True
     )
+
 # ====================================================
 
 # Helper to normalize user input
@@ -1347,7 +1358,7 @@ if tab == "Vocab Trainer":
     # Step 1: ask how many words to practice
     if st.session_state.vt_total is None:
         count = st.number_input(
-            "How many words?",
+            "How many words. You can also type the number?",
             min_value=1,
             max_value=max_words,
             value=min(7, max_words),
