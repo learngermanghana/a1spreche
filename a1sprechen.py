@@ -37,12 +37,9 @@ headers = {
 
 def get_practiced_vocab(student_code):
     # Read only this student's rows
-    url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_NAME}"
+    url = f"https://api.airtable.com/v0/{BASE_ID}/{VOCAB_TABLE}"
     params = {
-        "filterByFormula": f"{{Student Code}}='{student_code}'"
-    }
-    headers = {
-        "Authorization": f"Bearer {AIRTABLE_TOKEN}"
+        "filterByFormula": f"{{Student Code}} = '{student_code}'"
     }
     practiced_set = set()
     try:
@@ -79,17 +76,6 @@ def inc_falowen_usage(student_code):
 
 def has_falowen_quota(student_code):
     return get_falowen_usage(student_code) < FALOWEN_DAILY_LIMIT
-
-# --- Airtable Settings ---
-AIRTABLE_TOKEN = "YOUR_AIRTABLE_TOKEN"
-BASE_ID = "YOUR_AIRTABLE_BASE_ID"
-WRITING_TABLE = "Schreiben"    # Change if needed
-VOCAB_TABLE = "VocabProgress"  # Change if needed
-
-headers = {
-    "Authorization": f"Bearer {AIRTABLE_TOKEN}",
-    "Content-Type": "application/json"
-}
 
 # --- 1. Overall Writing Stats ---
 def get_writing_stats(student_code):
