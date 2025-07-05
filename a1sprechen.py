@@ -585,10 +585,10 @@ if tab == "Dashboard":
                 f"**✅ Passed (score ≥17):** {schreiben_stats['passed']}  \n"
                 f"**🏅 Pass rate:** {schreiben_stats['accuracy']}%")
 
-        # --- UPCOMING EXAMS (dashboard only) ---
-        with st.expander("📅 Upcoming Goethe Exams & Registration (Tap for details)", expanded=True):
-            st.markdown(
-                """
+    # --- UPCOMING EXAMS (dashboard only) ---
+    with st.expander("📅 Upcoming Goethe Exams & Registration (Tap for details)", expanded=True):
+        st.markdown(
+            """
 **Registration for Aug./Sept. 2025 Exams:**
 
 | Level | Date       | Fee (GHS) | Per Module (GHS) |
@@ -618,9 +618,10 @@ Account Name: **GOETHE-INSTITUT GHANA**
 Account No.: **1441 001 701 903**  
 Branch: **Ring Road Central**  
 SWIFT: **ECOCGHAC**
-                """,
-                unsafe_allow_html=True,
-            )
+            """,
+            unsafe_allow_html=True,
+        )
+
 
 # ================================
 # 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
