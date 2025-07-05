@@ -23,6 +23,34 @@ if not OPENAI_API_KEY:
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY   # <- Set for OpenAI client!
 client = OpenAI()  # <-- Do NOT pass api_key here for openai>=1.0
 
+
+
+AIRTABLE_TOKEN = "patGF1Vvk4vfHSsb2.87da93119bf8c09068ae1b5b09b93254d343d7ffc475fdec595b388335588e45"
+BASE_ID = "appqk6gYL2h6Jkxlg"
+TABLE_NAME = "Students"  # Change this to match your table name exactly!
+
+headers = {
+    "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+    "Content-Type": "application/json"
+}
+
+data = {
+    "fields": {
+        "Student Code": "portia1",
+        "PracticedVocab": "Apfel,Auto,Buch",
+        "LettersAttempted": "3",
+        "SprechenDone": "2"
+    }
+}
+
+url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_NAME}"
+
+response = requests.post(url, headers=headers, json=data)
+
+print(response.status_code)
+print(response.json())
+
+
 # ---- DB connection helper ----
 def get_connection():
     if "conn" not in st.session_state:
