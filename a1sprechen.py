@@ -25,8 +25,9 @@ client = OpenAI()  # <-- Do NOT pass api_key here for openai>=1.0
 
 # ---- Airtable API Setup ----
 AIRTABLE_TOKEN = "patGF1Vvk4vfHSsb2.87da93119bf8c09068ae1b5b09b93254d343d7ffc475fdec595b388335588e45"
-BASE_ID = "appqk6gYL2h6Jkxlg"
-TABLE_NAME = "Students"  # Or another table for progress if you prefer
+BASE_ID         = "appqk6gYL2h6Jkxlg"
+VOCAB_TABLE     = "Students"    # your actual vocab‐progress table
+WRITING_TABLE   = "Schreiben"   # keep if you use it elsewhere
 
 headers = {
     "Authorization": f"Bearer {AIRTABLE_TOKEN}",
@@ -53,99 +54,6 @@ def get_practiced_vocab(student_code):
     except Exception as e:
         st.warning(f"Could not check practiced vocab: {e}")
     return practiced_set
-
-
-# ---- DB connection helper ----
-def get_connection():
-    if "conn" not in st.session_state:
-        st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
-        atexit.register(st.session_state["conn"].close)
-    return st.session_state["conn"]
-
-conn = get_connection()
-c = conn.cursor()
-
-# --- Create/verify tables if not exist (run once per app startup) ---
-def init_db():
-    conn = get_connection()
-    c = conn.cursor()
-    # Vocab Progress Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS vocab_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            word TEXT,
-            student_answer TEXT,
-            is_correct INTEGER,
-            date TEXT
-        )
-    """)
-    # Schreiben Progress Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS schreiben_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            essay TEXT,
-            score INTEGER,
-            feedback TEXT,
-            date TEXT
-        )
-    """)
-    # Sprechen Progress Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS sprechen_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            teil TEXT,
-            message TEXT,
-            score INTEGER,
-            feedback TEXT,
-            date TEXT
-        )
-    """)
-    # Scores Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS scores (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            assignment TEXT,
-            score REAL,
-            comments TEXT,
-            date TEXT,
-            level TEXT
-        )
-    """)
-    # Exam Progress Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS exam_progress (
-            student_code TEXT,
-            level        TEXT,
-            teil         TEXT,
-            remaining    TEXT,    -- JSON list of topics still to do
-            used         TEXT,    -- JSON list of already done
-            PRIMARY KEY (student_code, level, teil)
-        )
-    """)
-    # My Vocab Table (STUDENT PERSONAL VOCAB)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS my_vocab (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            level TEXT,
-            word TEXT,
-            translation TEXT,
-            date_added TEXT
-        )
-    """)
-    conn.commit()
-
 
 
 
@@ -1123,8 +1031,7 @@ if tab == "Exams Mode & Custom Chat":
 
 
 def upsert_student_vocab_progress(student_code, practiced_vocab_list, num_attempted, num_correct):
-
-    url    = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_NAME}"
+    url    = f"https://api.airtable.com/v0/{BASE_ID}/{VOCAB_TABLE}"
     params = {"filterByFormula": f"{{Student Code}} = '{student_code}'"}
     r1     = requests.get(url, headers=headers, params=params)
     st.write("GET→", r1.status_code, r1.text)
@@ -1147,6 +1054,7 @@ def upsert_student_vocab_progress(student_code, practiced_vocab_list, num_attemp
         r3 = requests.post(url, headers=headers, json=data)
         st.write("POST→", r3.status_code, r3.text)
         return r3.status_code in (200,201)
+
 
 
 # ========== VOCAB TRAINER TAB ==========
