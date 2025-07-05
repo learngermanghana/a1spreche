@@ -872,11 +872,27 @@ if tab == "Exams Mode & Custom Chat":
 
 
 # ========== BASEROW SETTINGS ==========
+# ========== BASEROW SETTINGS ==========
 API_TOKEN = "itdTVpCYfsZSCxm5jGMrmneReLzkGndD"
 TABLE_ID = 597466
 LEVEL_FIELD = "level"     # lowercase field names!
 GERMAN_FIELD = "german"
 ENGLISH_FIELD = "english"
+
+# ========== BASEROW FETCH ALL ROWS ==========
+def fetch_all_baserow_rows():
+    url = f"https://api.baserow.io/api/database/rows/table/{TABLE_ID}/?user_field_names=true&size=200"
+    headers = {"Authorization": f"Token {API_TOKEN}"}
+    all_rows = []
+    while url:
+        response = requests.get(url, headers=headers)
+        if response.status_code != 200:
+            st.error(f"Error fetching from Baserow: {response.status_code} - {response.text}")
+            return []
+        data = response.json()
+        all_rows.extend(data.get("results", []))
+        url = data.get("next", None)
+    return all_rows
 
 @st.cache_data
 def load_vocab_lists_baserow():
@@ -884,21 +900,21 @@ def load_vocab_lists_baserow():
         rows = fetch_all_baserow_rows()
         lists = {}
         for row in rows:
-            lvl = row.get("level", "Unknown")
-            ger = row.get("german", "")
-            eng = row.get("english", "")
+            lvl = row.get(LEVEL_FIELD, "Unknown")
+            ger = row.get(GERMAN_FIELD, "")
+            eng = row.get(ENGLISH_FIELD, "")
             if lvl and ger and eng:
                 lists.setdefault(lvl, []).append((ger, eng))
-        st.write("DEBUG: VOCAB_LISTS", lists)
         return lists
     except Exception as e:
         st.error(f"Error loading vocab: {e}")
-        return {}  # Always return a dictionary!
+        return {}
 
-
+def clean_text(text):
+    return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
 
 # ========== VOCAB TRAINER TAB ==========
-def vocab_trainer_tab():
+def vocab_trainer_tab(VOCAB_LISTS):
     HERR_FELIX = "Herr Felix 👨‍🏫"
     defaults = {
         "vt_history": [],
@@ -910,7 +926,7 @@ def vocab_trainer_tab():
     for key, val in defaults.items():
         st.session_state.setdefault(key, val)
 
-    levels = list(VOCAB_LISTS.keys()) if VOCAB_LISTS else []
+    levels = list(VOCAB_LISTS.keys()) if isinstance(VOCAB_LISTS, dict) else []
     if not levels:
         st.warning("No vocab levels found! Please check your Baserow data and field IDs.")
         st.stop()
@@ -991,10 +1007,10 @@ def vocab_trainer_tab():
                 st.session_state[k] = defaults[k]
             st.session_state["vt_saved_to_baserow"] = False
 
-# ========== USAGE ==========
-# To display in your app:
+# ========== APP USAGE ==========
 if __name__ == "__main__" or "Vocab Trainer" in st.session_state.get("current_tab", "Vocab Trainer"):
-    vocab_trainer_tab()
+    VOCAB_LISTS = load_vocab_lists_baserow()
+    vocab_trainer_tab(VOCAB_LISTS)
 
 # SCHREIBEN TRAINER TAB (Airtable only, Daily Limit, Mobile UI)
 # ====================================
