@@ -1276,46 +1276,19 @@ if tab == "Exams Mode & Custom Chat":
 # VOCAB TRAINER TAB (A1–C1)
 # =========================================
 
-import random
-import pandas as pd
-import streamlit as st
+sheet_id = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
+sheet_name = "Sheet1"
+csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={sheet_name}"
 
-# 1) Point this at your “export to CSV” URL:
-VOCAB_CSV_URL = (
-    "https://docs.google.com/spreadsheets/d/"
-    "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
-    "/export?format=csv&gid=0"
-)
-
-@st.cache_data(show_spinner=False)
+@st.cache_data  # or st.cache, depending on your Streamlit version
 def load_vocab_lists():
-    # Caching the CSV load and grouping once for performance
-    df = pd.read_csv(VOCAB_CSV_URL)
-    df.columns = df.columns.str.strip().str.capitalize()
-    # Make sure 'Level' column is uppercase for matching
-    if 'Level' in df.columns:
-        df['Level_Upper'] = df['Level'].astype(str).str.upper()
-    else:
-        # Fallback: assume first column holds level info
-        df['Level_Upper'] = df.iloc[:, 0].astype(str).str.upper()
-    grouped = df.groupby('Level_Upper')
-
+    df = pd.read_csv(csv_url)
     lists = {}
-    for lvl in ['A1', 'A2', 'B1', 'B2', 'C1']:
-        if lvl in grouped.groups:
-            sub = grouped.get_group(lvl)
-        else:
-            sub = pd.DataFrame(columns=df.columns)
-        if 'Word' in sub.columns and 'Translation' in sub.columns:
-            # Preserve order and ensure strings
-            words = sub['Word'].astype(str).tolist()
-            trans = sub['Translation'].astype(str).tolist()
-            lists[lvl] = list(zip(words, trans))
-        else:
-            lists[lvl] = []
+    for lvl in df['Level'].unique():
+        sub = df[df['Level'] == lvl]
+        lists[lvl] = list(zip(sub['German'], sub['English']))
     return lists
 
-# Load vocab lists once (cached)
 VOCAB_LISTS = load_vocab_lists()
 
 if tab == "Vocab Trainer":
@@ -1326,8 +1299,7 @@ if tab == "Vocab Trainer":
     )
 
     def clean_text(text):
-        # Normalize for robust comparison
-        return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
+        return str(text).replace('the ', '').replace(',', '').replace('.', '').strip().lower()
 
     def render_message(role, msg):
         align = "left" if role == "assistant" else "right"
@@ -1350,22 +1322,18 @@ if tab == "Vocab Trainer":
     for key, val in defaults.items():
         st.session_state.setdefault(key, val)
 
-    # Choose level
     level = st.selectbox("Choose level", list(VOCAB_LISTS.keys()), key="vt_level")
     vocab_items = VOCAB_LISTS.get(level, [])
     max_words = len(vocab_items)
 
-    # If no vocab, show warning and halt
     if max_words == 0:
         st.warning(f"No vocabulary available for level {level}. Please add entries in your CSV.")
         st.stop()
 
-    # Start new practice resets
     if st.button("🔁 Start New Practice", key="vt_reset"):
         for k in defaults:
             st.session_state[k] = defaults[k]
 
-    # Step 1: ask how many words to practice
     if st.session_state.vt_total is None:
         count = st.number_input(
             "How many words?",
@@ -1385,13 +1353,11 @@ if tab == "Vocab Trainer":
                 ("assistant", f"Hallo! Ich bin {HERR_FELIX}. Let's start with {count} words!")
             ]
 
-    # Display chat history
     if st.session_state.vt_history:
         st.markdown("### 🗨️ Practice Chat")
         for who, message in st.session_state.vt_history:
             render_message(who, message)
 
-    # Practice loop
     total = st.session_state.vt_total
     idx = st.session_state.vt_index
     if isinstance(total, int) and idx < total:
@@ -1409,14 +1375,12 @@ if tab == "Vocab Trainer":
             st.session_state.vt_history.append(("assistant", fb))
             st.session_state.vt_index += 1
 
-    # Show results when done
     if isinstance(total, int) and idx >= total:
         score = st.session_state.vt_score
         st.markdown(f"### 🏁 Finished! You got {score}/{total} correct.")
         if st.button("Practice Again", key="vt_again"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
-
 
 # ====================================
 # SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI)
