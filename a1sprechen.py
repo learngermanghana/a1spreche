@@ -878,34 +878,23 @@ LEVEL_FIELD = "level"     # lowercase field names!
 GERMAN_FIELD = "german"
 ENGLISH_FIELD = "english"
 
-def fetch_all_baserow_rows():
-    url = f"https://api.baserow.io/api/database/rows/table/597466/?user_field_names=true&size=200"
-    headers = {"Authorization": f"Token itdTVpCYfsZSCxm5jGMrmneReLzkGndD"}
-    all_rows = []
-    while url:
-        response = requests.get(url, headers=headers)
-        st.write("DEBUG: RESPONSE TEXT", response.text)  # See raw API output
-        if response.status_code != 200:
-            st.error(f"Error fetching from Baserow: {response.status_code} - {response.text}")
-            return []
-        data = response.json()
-        all_rows.extend(data.get("results", []))
-        url = data.get("next", None)
-    st.write("DEBUG: RAW ROWS FROM BASEROW", all_rows)
-    return all_rows
-
 @st.cache_data
 def load_vocab_lists_baserow():
-    rows = fetch_all_baserow_rows()
-    lists = {}
-    for row in rows:
-        lvl = row.get("level", "Unknown")
-        ger = row.get("german", "")
-        eng = row.get("english", "")
-        if lvl and ger and eng:
-            lists.setdefault(lvl, []).append((ger, eng))
-    st.write("DEBUG: VOCAB_LISTS", lists)
-    return lists
+    try:
+        rows = fetch_all_baserow_rows()
+        lists = {}
+        for row in rows:
+            lvl = row.get("level", "Unknown")
+            ger = row.get("german", "")
+            eng = row.get("english", "")
+            if lvl and ger and eng:
+                lists.setdefault(lvl, []).append((ger, eng))
+        st.write("DEBUG: VOCAB_LISTS", lists)
+        return lists
+    except Exception as e:
+        st.error(f"Error loading vocab: {e}")
+        return {}  # Always return a dictionary!
+
 
 
 # ========== VOCAB TRAINER TAB ==========
