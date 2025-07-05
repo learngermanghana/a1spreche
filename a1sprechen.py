@@ -34,6 +34,27 @@ headers = {
 }
 
 
+def get_practiced_vocab(student_code):
+    # Read only this student's rows
+    url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_NAME}"
+    params = {
+        "filterByFormula": f"{{Student Code}}='{student_code}'"
+    }
+    headers = {
+        "Authorization": f"Bearer {AIRTABLE_TOKEN}"
+    }
+    practiced_set = set()
+    try:
+        resp = requests.get(url, headers=headers, params=params)
+        data = resp.json()
+        for rec in data.get("records", []):
+            vocab_str = rec["fields"].get("PracticedVocab", "")
+            practiced_set.update([v.strip() for v in vocab_str.split(",") if v.strip()])
+    except Exception as e:
+        st.warning(f"Could not check practiced vocab: {e}")
+    return practiced_set
+
+
 # ---- DB connection helper ----
 def get_connection():
     if "conn" not in st.session_state:
@@ -125,122 +146,12 @@ def init_db():
     """)
     conn.commit()
 
-# Call DB initialization ONCE after imports
-init_db()
 
-# ====== DB HELPERS (for all tables) ======
 
-def save_vocab_submission(student_code, name, level, word, student_answer, is_correct):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO vocab_progress (student_code, name, level, word, student_answer, is_correct, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (student_code, name, level, word, student_answer, int(is_correct), str(date.today()))
-    )
-    conn.commit()
-
-def save_schreiben_submission(student_code, name, level, essay, score, feedback):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO schreiben_progress (student_code, name, level, essay, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (student_code, name, level, essay, score, feedback, str(date.today()))
-    )
-    conn.commit()
-
-def save_sprechen_submission(student_code, name, level, teil, message, score, feedback):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO sprechen_progress (student_code, name, level, teil, message, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (student_code, name, level, teil, message, score, feedback, str(date.today()))
-    )
-    conn.commit()
-
-# ====== PERSONAL VOCAB HELPERS ======
-def get_personal_vocab_stats(student_code):
-    """
-    Returns a dict: {level: count} for all levels where this student has personal vocab,
-    and total.
-    """
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "SELECT level, COUNT(*) FROM my_vocab WHERE student_code=? GROUP BY level",
-        (student_code,)
-    )
-    rows = c.fetchall()
-    stats = {row[0]: row[1] for row in rows}
-    stats['total'] = sum(stats.values())
-    return stats
-
-def add_my_vocab(student_code, level, word, translation):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO my_vocab (student_code, level, word, translation, date_added) VALUES (?, ?, ?, ?, ?)",
-        (student_code, level, word, translation, str(date.today()))
-    )
-    conn.commit()
-
-def get_my_vocab(student_code, level=None):
-    conn = get_connection()
-    c = conn.cursor()
-    if level:
-        c.execute(
-            "SELECT id, word, translation, date_added FROM my_vocab WHERE student_code=? AND level=? ORDER BY date_added DESC",
-            (student_code, level)
-        )
-    else:
-        c.execute(
-            "SELECT id, word, translation, date_added FROM my_vocab WHERE student_code=? ORDER BY date_added DESC",
-            (student_code,)
-        )
-    return c.fetchall()
-
-def delete_my_vocab(vocab_id, student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("DELETE FROM my_vocab WHERE id=? AND student_code=?", (vocab_id, student_code))
-    conn.commit()
-
-def count_my_vocab(student_code, level=None):
-    conn = get_connection()
-    c = conn.cursor()
-    if level:
-        c.execute("SELECT COUNT(*) FROM my_vocab WHERE student_code=? AND level=?", (student_code, level))
-    else:
-        c.execute("SELECT COUNT(*) FROM my_vocab WHERE student_code=?", (student_code,))
-    return c.fetchone()[0]
 
 # ====== OTHER HELPERS (existing, no change) ======
 
-def get_writing_stats(student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT COUNT(*), SUM(score>=17) FROM schreiben_progress WHERE student_code=?
-    """, (student_code,))
-    result = c.fetchone()
-    attempted = result[0] or 0
-    passed = result[1] if result[1] is not None else 0
-    accuracy = round(100 * passed / attempted) if attempted > 0 else 0
-    return attempted, passed, accuracy
 
-def get_student_stats(student_code):
-    """Return writing stats per level for a student."""
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT level, SUM(score >= 17), COUNT(*) 
-        FROM schreiben_progress 
-        WHERE student_code=?
-        GROUP BY level
-    """, (student_code,))
-    stats = {}
-    for level, correct, attempted in c.fetchall():
-        stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
-    return stats
 
 def get_falowen_usage(student_code):
     today_str = str(date.today())
@@ -261,28 +172,83 @@ def inc_falowen_usage(student_code):
 def has_falowen_quota(student_code):
     return get_falowen_usage(student_code) < FALOWEN_DAILY_LIMIT
 
+# --- Airtable Settings ---
+AIRTABLE_TOKEN = "YOUR_AIRTABLE_TOKEN"
+BASE_ID = "YOUR_AIRTABLE_BASE_ID"
+WRITING_TABLE = "Schreiben"    # Change if needed
+VOCAB_TABLE = "VocabProgress"  # Change if needed
+
+headers = {
+    "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+    "Content-Type": "application/json"
+}
+
+# --- 1. Overall Writing Stats ---
+def get_writing_stats(student_code):
+    url = f"https://api.airtable.com/v0/{BASE_ID}/{WRITING_TABLE}"
+    params = {
+        "filterByFormula": f"{{Student Code}}='{student_code}'",
+        "pageSize": 100
+    }
+    response = requests.get(url, headers=headers, params=params)
+    data = response.json()
+    records = data.get("records", [])
+    attempted = len(records)
+    passed = sum(1 for rec in records if int(rec["fields"].get("Score", 0)) >= 17)
+    accuracy = round(100 * passed / attempted) if attempted > 0 else 0
+    return attempted, passed, accuracy
+
+# --- 2. Writing Stats per Level ---
+def get_student_stats(student_code):
+    url = f"https://api.airtable.com/v0/{BASE_ID}/{WRITING_TABLE}"
+    params = {
+        "filterByFormula": f"{{Student Code}}='{student_code}'",
+        "pageSize": 100
+    }
+    response = requests.get(url, headers=headers, params=params)
+    data = response.json()
+    records = data.get("records", [])
+    stats = {}
+    for rec in records:
+        level = rec["fields"].get("Level", "A1")
+        score = int(rec["fields"].get("Score", 0))
+        if level not in stats:
+            stats[level] = {"correct": 0, "attempted": 0}
+        stats[level]["attempted"] += 1
+        if score >= 17:
+            stats[level]["correct"] += 1
+    return stats
+
+# --- 4. Vocab Streak (consecutive days practiced) ---
 def get_vocab_streak(student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "SELECT DISTINCT date FROM vocab_progress WHERE student_code=? ORDER BY date DESC",
-        (student_code,),
-    )
-    rows = c.fetchall()
-    if not rows:
+    url = f"https://api.airtable.com/v0/{BASE_ID}/{VOCAB_TABLE}"
+    params = {
+        "filterByFormula": f"{{Student Code}}='{student_code}'",
+        "pageSize": 100
+    }
+    response = requests.get(url, headers=headers, params=params)
+    data = response.json()
+    records = data.get("records", [])
+
+    # Get all unique dates practiced
+    dates = set()
+    for rec in records:
+        dstr = rec["fields"].get("Date")
+        if dstr:
+            try:
+                d = date.fromisoformat(dstr)
+                dates.add(d)
+            except:
+                pass
+    if not dates:
         return 0
-    dates = [date.fromisoformat(r[0]) for r in rows]
-    if (date.today() - dates[0]).days > 1:
-        return 0
-    streak = 1
-    prev = dates[0]
-    for d in dates[1:]:
-        if (prev - d).days == 1:
-            streak += 1
-            prev = d
-        else:
-            break
+    streak = 0
+    today = date.today()
+    while today in dates:
+        streak += 1
+        today -= timedelta(days=1)
     return streak
+
 
 # --- Streamlit page config ---
 st.set_page_config(
@@ -1290,21 +1256,48 @@ if tab == "Vocab Trainer":
     except Exception as e:
         st.warning("⚠️ Error saving progress: " + str(e))
 
-#
-
-
-#
 
 
 # ====================================
-# SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI)
+# SCHREIBEN TRAINER TAB (Airtable only, Daily Limit, Mobile UI)
 # ====================================
 import urllib.parse
+
+# Airtable constants (set at top of your script, not inside the tab)
+# AIRTABLE_TOKEN = "..."
+# BASE_ID = "..."
+WRITING_TABLE = "Schreiben"
+
+headers = {
+    "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+    "Content-Type": "application/json"
+}
+
+def save_schreiben_submission_airtable(student_code, name, level, essay, score, feedback):
+    url = f"https://api.airtable.com/v0/{BASE_ID}/{WRITING_TABLE}"
+    data = {
+        "fields": {
+            "Student Code": student_code,
+            "Name": name,
+            "Level": level,
+            "Essay": essay,
+            "Score": score,
+            "Feedback": feedback,
+            "Date": str(date.today()),
+        }
+    }
+    try:
+        r = requests.post(url, headers=headers, json=data)
+        if r.status_code in (200, 201):
+            return True
+    except Exception as e:
+        print("Airtable schreiben error:", e)
+    return False
 
 if tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer (Writing Practice)")
 
-    # 1. Choose Level (remember previous)
+    # 1. Choose Level
     schreiben_levels = ["A1", "A2", "B1", "B2"]
     prev_level = st.session_state.get("schreiben_level", "A1")
     schreiben_level = st.selectbox(
@@ -1325,7 +1318,7 @@ if tab == "Schreiben Trainer":
     st.session_state["schreiben_usage"].setdefault(limit_key, 0)
     daily_so_far = st.session_state["schreiben_usage"][limit_key]
 
-    # 3. Show overall writing performance (DB-driven, mobile-first)
+    # 3. Show overall writing performance (Airtable-driven)
     attempted, passed, accuracy = get_writing_stats(student_code)
     st.markdown(f"""**📝 Your Overall Writing Performance**
 - 📨 **Submitted:** {attempted}
@@ -1334,7 +1327,7 @@ if tab == "Schreiben Trainer":
 - 📅 **Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}
 """)
 
-    # 4. Level-Specific Stats (optional)
+    # 4. Level-Specific Stats (Airtable-driven)
     stats = get_student_stats(student_code)
     lvl_stats = stats.get(schreiben_level, {}) if stats else {}
     if lvl_stats and lvl_stats["attempted"]:
@@ -1397,7 +1390,6 @@ if tab == "Schreiben Trainer":
         if feedback:
             # === Extract score and check if passed ===
             import re
-            # Robust regex for score detection
             score_match = re.search(
                 r"score\s*(?:[:=]|is)?\s*(\d+)\s*/\s*25",
                 feedback,
@@ -1411,9 +1403,9 @@ if tab == "Schreiben Trainer":
                 st.warning("Could not detect a score in the AI feedback.")
                 score = 0
 
-            # === Update usage and save to DB ===
+            # === Update usage and save to Airtable ===
             st.session_state["schreiben_usage"][limit_key] += 1
-            save_schreiben_submission(
+            saved = save_schreiben_submission_airtable(
                 student_code, student_name, schreiben_level, user_letter, score, feedback
             )
 
