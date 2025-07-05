@@ -28,20 +28,21 @@ airtable_token = st.secrets["airtable_token"]
 base_id = st.secrets["base_id"]
 table_name = st.secrets["table_name"]
 
-def add_student_to_airtable(name, email):
-    url = f"https://api.airtable.com/v0/{base_id}/{table_name}"   # <--- use base_id here
+def load_airtable_records(table, filter_formula=None):
+    url = f"https://api.airtable.com/v0/{base_id}/{table}"
     headers = {
         "Authorization": f"Bearer {airtable_token}",
         "Content-Type": "application/json"
     }
-    data = {
-        "fields": {
-            "Name": name,
-            "Email": email
-        }
-    }
-    response = requests.post(url, json=data, headers=headers)
-    return response.status_code, response.json()
+    params = {}
+    if filter_formula:
+        params["filterByFormula"] = filter_formula
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code == 200:
+        return response.json()["records"]
+    else:
+        st.error(f"Failed to load records from Airtable: {response.text}")
+        return []
 
 
 
