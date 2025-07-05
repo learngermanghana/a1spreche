@@ -888,6 +888,9 @@ def load_vocab_lists_baserow():
     headers = {"Authorization": f"Token {API_TOKEN}"}
     params = {"user_field_names": True, "size": 500}
     response = requests.get(url, headers=headers, params=params)
+    if response.status_code != 200:
+        st.error(f"Error fetching from Baserow: {response.status_code} - {response.text}")
+        return {}
     data = response.json()
     rows = data.get("results", [])
     lists = {}
@@ -895,13 +898,15 @@ def load_vocab_lists_baserow():
         lvl = row.get(LEVEL_FIELD, "Unknown")
         ger = row.get(GERMAN_FIELD, "")
         eng = row.get(ENGLISH_FIELD, "")
-        if lvl not in lists:
-            lists[lvl] = []
-        lists[lvl].append((ger, eng))
+        # Only add if all fields are present
+        if lvl and ger and eng:
+            lists.setdefault(lvl, []).append((ger, eng))
+    if not lists:
+        st.warning("No vocab found in Baserow. Please check your table, field IDs, and data.")
     return lists
 
-def clean_text(text):
-    return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
+VOCAB_LISTS = load_vocab_lists_baserow()
+st.write("DEBUG: VOCAB_LISTS", VOCAB_LISTS)  # Show what is loaded
 
 VOCAB_LISTS = load_vocab_lists_baserow()
 
