@@ -1355,6 +1355,10 @@ if tab == "Vocab Trainer":
         for k in defaults:
             st.session_state[k] = defaults[k]
 
+    
+    # Show number of available words for the selected level
+    st.info(f"There are {max_words} words available in {level}.")
+
     # Step 1: ask how many words to practice
     if st.session_state.vt_total is None:
         count = st.number_input(
@@ -1406,6 +1410,8 @@ if tab == "Vocab Trainer":
         if st.button("Practice Again", key="vt_again"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
+
+#
 
 
 # ====================================
