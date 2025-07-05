@@ -323,14 +323,7 @@ if st.session_state["logged_in"]:
         except:
             pass
 
-        # --- Vocab Progress ---
-        st.markdown(f"🔥 **Vocab Practice**")
-        st.markdown(
-            f"- **Words practiced:** {vocab_stats['total_practiced']}  \n"
-            f"- **Last practiced:** {vocab_stats['last_practice_date'] or 'Never'}"
-        )
-        if vocab_stats["practiced_vocab"]:
-            st.markdown(f"- **Last session:** {', '.join(vocab_stats['practiced_vocab'])}")
+
 
         # --- Schreiben Progress ---
         st.markdown(f"**📝 Letters submitted:** {schreiben_stats['attempted']}  \n"
