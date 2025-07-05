@@ -894,6 +894,11 @@ def fetch_all_baserow_rows():
         url = data.get("next", None)
     return all_rows
 
+response = requests.get(url, headers=headers)
+st.write("DEBUG: RESPONSE STATUS", response.status_code)
+st.write("DEBUG: RESPONSE TEXT", response.text)
+
+
 @st.cache_data
 def load_vocab_lists_baserow():
     try:
