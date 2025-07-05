@@ -1362,7 +1362,7 @@ if tab == "Vocab Trainer":
     # Step 1: ask how many words to practice
     if st.session_state.vt_total is None:
         count = st.number_input(
-            "How many words. You can also type the number?",
+            "How many words can you practice today. You can also type the number?",
             min_value=1,
             max_value=max_words,
             value=min(7, max_words),
