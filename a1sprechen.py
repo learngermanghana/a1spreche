@@ -324,12 +324,6 @@ if st.session_state["logged_in"]:
             pass
 
 
-
-        # --- Schreiben Progress ---
-        st.markdown(f"**📝 Letters submitted:** {schreiben_stats['attempted']}  \n"
-                    f"**✅ Passed (score ≥17):** {schreiben_stats['passed']}  \n"
-                    f"**🏅 Pass rate:** {schreiben_stats['accuracy']}%")
-
         # --- UPCOMING EXAMS (dashboard only) ---
         with st.expander("📅 Upcoming Goethe Exams & Registration (Tap for details)", expanded=True):
             st.markdown(
