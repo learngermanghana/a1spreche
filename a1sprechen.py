@@ -1289,39 +1289,44 @@ VOCAB_CSV_URL = (
 
 @st.cache_data(show_spinner=False)
 def load_vocab_lists():
-    # Load CSV and normalize column names
+    # Caching the CSV load and grouping once for performance
     df = pd.read_csv(VOCAB_CSV_URL)
-    # Make header keys uniform
     df.columns = df.columns.str.strip().str.capitalize()
+    # Make sure 'Level' column is uppercase for matching
+    if 'Level' in df.columns:
+        df['Level_Upper'] = df['Level'].astype(str).str.upper()
+    else:
+        # Fallback: assume first column holds level info
+        df['Level_Upper'] = df.iloc[:, 0].astype(str).str.upper()
+    grouped = df.groupby('Level_Upper')
+
     lists = {}
-    for lvl in ["A1", "A2", "B1", "B2", "C1"]:
-        # Filter rows for this level
-        if "Level" in df.columns:
-            sub = df[df["Level"] == lvl]
+    for lvl in ['A1', 'A2', 'B1', 'B2', 'C1']:
+        if lvl in grouped.groups:
+            sub = grouped.get_group(lvl)
         else:
-            sub = df[df.iloc[:,0] == lvl]
-        # Extract word and translation columns if present
-        if "Word" in sub.columns and "Translation" in sub.columns:
-            # Use list(...) for general iterables
-            words = list(sub["Word"].astype(str))
-            trans = list(sub["Translation"].astype(str))
-            pairs = list(zip(words, trans))
+            sub = pd.DataFrame(columns=df.columns)
+        if 'Word' in sub.columns and 'Translation' in sub.columns:
+            # Preserve order and ensure strings
+            words = sub['Word'].astype(str).tolist()
+            trans = sub['Translation'].astype(str).tolist()
+            lists[lvl] = list(zip(words, trans))
         else:
-            pairs = []
-        lists[lvl] = pairs
+            lists[lvl] = []
     return lists
 
-# Load vocab lists once
+# Load vocab lists once (cached)
 VOCAB_LISTS = load_vocab_lists()
 
 if tab == "Vocab Trainer":
     HERR_FELIX = "Herr Felix 👨‍🏫"
     BUBBLE_STYLE = (
         "padding:8px; border-radius:8px; max-width:90%; margin:5px 0;"
-        "text-align:{align}; background:{bgcolor}; font-size:1.05em;"
+        " text-align:{align}; background:{bgcolor}; font-size:1.05em;"
     )
 
     def clean_text(text):
+        # Normalize for robust comparison
         return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
 
     def render_message(role, msg):
@@ -1334,7 +1339,7 @@ if tab == "Vocab Trainer":
             unsafe_allow_html=True
         )
 
-    # Initialize session state
+    # Session state defaults
     defaults = {
         "vt_history": [],
         "vt_list": [],
@@ -1345,32 +1350,35 @@ if tab == "Vocab Trainer":
     for key, val in defaults.items():
         st.session_state.setdefault(key, val)
 
-    # Level selection
+    # Choose level
     level = st.selectbox("Choose level", list(VOCAB_LISTS.keys()), key="vt_level")
     vocab_items = VOCAB_LISTS.get(level, [])
     max_words = len(vocab_items)
 
-    # Guard against empty lists
+    # If no vocab, show warning and halt
     if max_words == 0:
-        st.warning(f"No vocabulary available for level {level}. Please choose another level.")
+        st.warning(f"No vocabulary available for level {level}. Please add entries in your CSV.")
         st.stop()
 
-    # Reset button
+    # Start new practice resets
     if st.button("🔁 Start New Practice", key="vt_reset"):
         for k in defaults:
             st.session_state[k] = defaults[k]
 
-    # Prompt how many words
+    # Step 1: ask how many words to practice
     if st.session_state.vt_total is None:
         count = st.number_input(
-            "How many words?", min_value=1, max_value=max_words,
-            value=min(7, max_words), key="vt_count"
+            "How many words?",
+            min_value=1,
+            max_value=max_words,
+            value=min(7, max_words),
+            key="vt_count"
         )
         if st.button("Start Practice", key="vt_start"):
-            st.session_state.vt_total = int(count)
             shuffled = vocab_items.copy()
             random.shuffle(shuffled)
-            st.session_state.vt_list = shuffled[:st.session_state.vt_total]
+            st.session_state.vt_list = shuffled[:int(count)]
+            st.session_state.vt_total = int(count)
             st.session_state.vt_index = 0
             st.session_state.vt_score = 0
             st.session_state.vt_history = [
@@ -1401,13 +1409,14 @@ if tab == "Vocab Trainer":
             st.session_state.vt_history.append(("assistant", fb))
             st.session_state.vt_index += 1
 
-    # Show results
+    # Show results when done
     if isinstance(total, int) and idx >= total:
         score = st.session_state.vt_score
         st.markdown(f"### 🏁 Finished! You got {score}/{total} correct.")
         if st.button("Practice Again", key="vt_again"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
+
 
 # ====================================
 # SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI)
