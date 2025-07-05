@@ -882,33 +882,34 @@ GERMAN_FIELD = "field_4836600"
 ENGLISH_FIELD = "field_4836601"
 
 # ========== BASEROW VOCAB LOADER ==========
+def fetch_all_baserow_rows():
+    url = f"https://api.baserow.io/api/database/rows/table/{TABLE_ID}/?user_field_names=true&size=200"
+    headers = {"Authorization": f"Token {API_TOKEN}"}
+    all_rows = []
+    while url:
+        response = requests.get(url, headers=headers)
+        if response.status_code != 200:
+            st.error(f"Error fetching from Baserow: {response.status_code} - {response.text}")
+            break
+        data = response.json()
+        all_rows.extend(data.get("results", []))
+        url = data.get("next", None)  # Baserow gives you the next page URL
+    return all_rows
+
 @st.cache_data
 def load_vocab_lists_baserow():
-    url = f"https://api.baserow.io/api/database/rows/table/{TABLE_ID}/"
-    headers = {"Authorization": f"Token {API_TOKEN}"}
-    params = {"user_field_names": True, "size": 500}
-    response = requests.get(url, headers=headers, params=params)
-    if response.status_code != 200:
-        st.error(f"Error fetching from Baserow: {response.status_code} - {response.text}")
-        return {}
-    data = response.json()
-    rows = data.get("results", [])
+    rows = fetch_all_baserow_rows()
     lists = {}
     for row in rows:
         lvl = row.get(LEVEL_FIELD, "Unknown")
         ger = row.get(GERMAN_FIELD, "")
         eng = row.get(ENGLISH_FIELD, "")
-        # Only add if all fields are present
         if lvl and ger and eng:
             lists.setdefault(lvl, []).append((ger, eng))
     if not lists:
         st.warning("No vocab found in Baserow. Please check your table, field IDs, and data.")
     return lists
 
-VOCAB_LISTS = load_vocab_lists_baserow()
-st.write("DEBUG: VOCAB_LISTS", VOCAB_LISTS)  # Show what is loaded
-
-VOCAB_LISTS = load_vocab_lists_baserow()
 
 # ========== VOCAB TRAINER TAB ==========
 tab = "Vocab Trainer"  # Remove or modify if you're using st.tabs
