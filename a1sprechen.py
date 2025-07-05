@@ -1291,13 +1291,23 @@ VOCAB_CSV_URL = (
 def load_vocab_lists():
     # Load CSV and normalize column names
     df = pd.read_csv(VOCAB_CSV_URL)
-    df.columns = [c.strip().capitalize() for c in df.columns]
+    # Make header keys uniform
+    df.columns = df.columns.str.strip().str.capitalize()
     lists = {}
     for lvl in ["A1", "A2", "B1", "B2", "C1"]:
-        sub = df[df.get("Level", df.get("level", "")) == lvl]
-        words = sub.get("Word", sub.get("word", []))
-        trans = sub.get("Translation", sub.get("translation", []))
-        pairs = list(zip(words.tolist(), trans.tolist()))
+        # Filter rows for this level
+        if "Level" in df.columns:
+            sub = df[df["Level"] == lvl]
+        else:
+            sub = df[df.iloc[:,0] == lvl]
+        # Extract word and translation columns if present
+        if "Word" in sub.columns and "Translation" in sub.columns:
+            # Use list(...) for general iterables
+            words = list(sub["Word"].astype(str))
+            trans = list(sub["Translation"].astype(str))
+            pairs = list(zip(words, trans))
+        else:
+            pairs = []
         lists[lvl] = pairs
     return lists
 
