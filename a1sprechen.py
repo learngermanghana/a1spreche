@@ -1122,7 +1122,8 @@ if tab == "Exams Mode & Custom Chat":
 # =========================================
 
 
-def upsert_student_vocab_progress(...):
+def upsert_student_vocab_progress(student_code, practiced_vocab_list, num_attempted, num_correct):
+
     url    = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_NAME}"
     params = {"filterByFormula": f"{{Student Code}} = '{student_code}'"}
     r1     = requests.get(url, headers=headers, params=params)
