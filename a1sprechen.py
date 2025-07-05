@@ -1122,44 +1122,30 @@ if tab == "Exams Mode & Custom Chat":
 # =========================================
 
 
-def upsert_student_vocab_progress(student_code, practiced_vocab_list, num_attempted, num_correct):
-    AIRTABLE_TOKEN = "patGF1Vvk4vfHSsb2.87da93119bf8c09068ae1b5b09b93254d343d7ffc475fdec595b388335588e45"
-    BASE_ID = "appqk6gYL2h6Jkxlg"
-    TABLE_NAME = "Students"
-    headers = {
-        "Authorization": f"Bearer {AIRTABLE_TOKEN}",
-        "Content-Type": "application/json"
-    }
+def upsert_student_vocab_progress(...):
+    url    = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_NAME}"
+    params = {"filterByFormula": f"{{Student Code}} = '{student_code}'"}
+    r1     = requests.get(url, headers=headers, params=params)
+    st.write("GET→", r1.status_code, r1.text)
 
-    # 1) Find existing record by filtering on the EXACT Airtable field name "Student Code"
-    url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_NAME}"
-    params = {
-        "filterByFormula": f"{{Student Code}} = '{student_code}'"
+    fields = {
+      "Student Code":   student_code,
+      "PracticedVocab": ",".join(practiced_vocab_list),
+      "NumAttempted":   num_attempted,
+      "NumCorrect":     num_correct,
+      "LastPracticed":  str(date.today())
     }
-    resp = requests.get(url, headers=headers, params=params)
-    records = resp.json().get("records", [])
+    data = {"fields": fields}
 
-    # 2) Prepare your payload, making sure to use the exact field names:
-    data = {
-        "fields": {
-            "Student Code": student_code,
-            "PracticedVocab": ",".join(practiced_vocab_list),
-            "NumAttempted": num_attempted,
-            "NumCorrect": num_correct,
-            "LastPracticed": str(datetime.today().date())
-        }
-    }
-
-    if records:
-        # PATCH the first matching record
-        record_id = records[0]["id"]
-        patch_url = f"{url}/{record_id}"
-        patch = requests.patch(patch_url, headers=headers, json=data)
-        return patch.status_code in (200, 201)
+    if recs := r1.json().get("records", []):
+        rec_id = recs[0]["id"]
+        r2     = requests.patch(f"{url}/{rec_id}", headers=headers, json=data)
+        st.write("PATCH→", r2.status_code, r2.text)
+        return r2.status_code in (200,201)
     else:
-        # No record yet: POST a new one
-        post = requests.post(url, headers=headers, json=data)
-        return post.status_code in (200, 201)
+        r3 = requests.post(url, headers=headers, json=data)
+        st.write("POST→", r3.status_code, r3.text)
+        return r3.status_code in (200,201)
 
 
 # ========== VOCAB TRAINER TAB ==========
