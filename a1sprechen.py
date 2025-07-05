@@ -1121,8 +1121,9 @@ if tab == "Exams Mode & Custom Chat":
 #End
 # =========================================
 
-# === Airtable PATCH helper ===
-def update_student_vocab_progress(student_code, practiced_vocab_list, num_attempted, num_correct):
+
+# === Airtable UPSERT Helper (copy this in) ===
+def upsert_student_vocab_progress(student_code, practiced_vocab_list, num_attempted, num_correct):
     AIRTABLE_TOKEN = "patGF1Vvk4vfHSsb2.87da93119bf8c09068ae1b5b09b93254d343d7ffc475fdec595b388335588e45"
     BASE_ID = "appqk6gYL2h6Jkxlg"
     TABLE_NAME = "Students"
@@ -1136,21 +1137,28 @@ def update_student_vocab_progress(student_code, practiced_vocab_list, num_attemp
     }
     response = requests.get(url, headers=headers, params=params)
     records = response.json().get("records", [])
-    if records:
-        record_id = records[0]["id"]
-        data = {
-            "fields": {
-                "PracticedVocab": ",".join(practiced_vocab_list),
-                "NumAttempted": num_attempted,
-                "NumCorrect": num_correct,
-                "LastPracticed": str(datetime.today().date())
-            }
+    data = {
+        "fields": {
+            "StudentCode": student_code,
+            "PracticedVocab": ",".join(practiced_vocab_list),
+            "NumAttempted": num_attempted,
+            "NumCorrect": num_correct,
+            "LastPracticed": str(datetime.today().date())
         }
+    }
+    if records:
+        # PATCH (update)
+        record_id = records[0]["id"]
         patch_url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_NAME}/{record_id}"
         patch_resp = requests.patch(patch_url, headers=headers, json=data)
+        print("PATCH response:", patch_resp.status_code, patch_resp.text)
         return patch_resp.status_code in (200, 201)
     else:
-        return False
+        # POST (create)
+        post_resp = requests.post(url, headers=headers, json=data)
+        print("POST response:", post_resp.status_code, post_resp.text)
+        return post_resp.status_code in (200, 201)
+
 
 # ========== VOCAB TRAINER TAB ==========
 
@@ -1261,19 +1269,20 @@ if tab == "Vocab Trainer":
     if isinstance(total, int) and idx >= total:
         score = st.session_state.vt_score
         st.markdown(f"### 🏁 Finished! You got {score}/{total} correct.")
+
         if st.button("Practice Again", key="vt_again"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
+            st.session_state["vt_saved_to_airtable"] = False  # Reset save flag for new session
 
-        # Airtable PATCH Progress (save **only once** after session is done)
-        # Avoid calling update on every rerun: use a "has_saved" state flag
+        # Ensure we only save once per completed session
         if "vt_saved_to_airtable" not in st.session_state:
             st.session_state["vt_saved_to_airtable"] = False
 
         if not st.session_state["vt_saved_to_airtable"]:
             student_code = st.session_state.get("student_code", "unknown")
             practiced_vocab = [item[0] for item in st.session_state.vt_list]
-            update_success = update_student_vocab_progress(
+            update_success = upsert_student_vocab_progress(
                 student_code=student_code,
                 practiced_vocab_list=practiced_vocab,
                 num_attempted=total,
@@ -1286,6 +1295,7 @@ if tab == "Vocab Trainer":
                 st.warning("⚠️ Progress could not be saved. Please try again later.")
 
 #
+
 
 
 # ====================================
