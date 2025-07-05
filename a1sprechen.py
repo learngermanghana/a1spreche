@@ -1123,8 +1123,8 @@ if tab == "Exams Mode & Custom Chat":
 
 # === Airtable PATCH helper ===
 def update_student_vocab_progress(student_code, practiced_vocab_list, num_attempted, num_correct):
-    AIRTABLE_TOKEN = "YOUR_AIRTABLE_TOKEN"
-    BASE_ID = "YOUR_BASE_ID"
+    AIRTABLE_TOKEN = "patGF1Vvk4vfHSsb2.87da93119bf8c09068ae1b5b09b93254d343d7ffc475fdec595b388335588e45"
+    BASE_ID = "appqk6gYL2h6Jkxlg"
     TABLE_NAME = "Students"
     headers = {
         "Authorization": f"Bearer {AIRTABLE_TOKEN}",
@@ -1239,7 +1239,6 @@ if tab == "Vocab Trainer":
                 f"<div style='{style}'><b>{label}:</b> {message}</div>",
                 unsafe_allow_html=True
             )
-
     # Practice loop
     total = st.session_state.vt_total
     idx = st.session_state.vt_index
@@ -1266,19 +1265,27 @@ if tab == "Vocab Trainer":
             for k in defaults:
                 st.session_state[k] = defaults[k]
 
-        # --- Airtable Progress Saving (PATCH, not POST!) ---
-        student_code = st.session_state.get("student_code", "unknown")
-        practiced_vocab = [item[0] for item in st.session_state.vt_list]
-        update_success = update_student_vocab_progress(
-            student_code=student_code,
-            practiced_vocab_list=practiced_vocab,
-            num_attempted=total,
-            num_correct=score
-        )
-        if update_success:
-            st.success("✅ Your progress was saved!")
-        else:
-            st.warning("⚠️ Progress could not be saved. Please try again later.")
+        # Airtable PATCH Progress (save **only once** after session is done)
+        # Avoid calling update on every rerun: use a "has_saved" state flag
+        if "vt_saved_to_airtable" not in st.session_state:
+            st.session_state["vt_saved_to_airtable"] = False
+
+        if not st.session_state["vt_saved_to_airtable"]:
+            student_code = st.session_state.get("student_code", "unknown")
+            practiced_vocab = [item[0] for item in st.session_state.vt_list]
+            update_success = update_student_vocab_progress(
+                student_code=student_code,
+                practiced_vocab_list=practiced_vocab,
+                num_attempted=total,
+                num_correct=score
+            )
+            if update_success:
+                st.success("✅ Your progress was saved!")
+                st.session_state["vt_saved_to_airtable"] = True
+            else:
+                st.warning("⚠️ Progress could not be saved. Please try again later.")
+
+#
 
 
 # ====================================
