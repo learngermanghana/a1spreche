@@ -1286,37 +1286,6 @@ if tab == "Vocab Trainer":
 # ====================================
 import urllib.parse
 
-# Airtable constants (set at top of your script, not inside the tab)
-# AIRTABLE_TOKEN = "..."
-# BASE_ID = "..."
-WRITING_TABLE = "Schreiben"
-
-headers = {
-    "Authorization": f"Bearer {AIRTABLE_TOKEN}",
-    "Content-Type": "application/json"
-}
-
-def save_schreiben_submission_airtable(student_code, name, level, essay, score, feedback):
-    url = f"https://api.airtable.com/v0/{BASE_ID}/{WRITING_TABLE}"
-    data = {
-        "fields": {
-            "Student Code": student_code,
-            "Name": name,
-            "Level": level,
-            "Essay": essay,
-            "Score": score,
-            "Feedback": feedback,
-            "Date": str(date.today()),
-        }
-    }
-    try:
-        r = requests.post(url, headers=headers, json=data)
-        if r.status_code in (200, 201):
-            return True
-    except Exception as e:
-        print("Airtable schreiben error:", e)
-    return False
-
 if tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer (Writing Practice)")
 
