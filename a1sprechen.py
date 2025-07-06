@@ -2189,10 +2189,6 @@ if tab == "Custom Chat":
 
 if tab == "Vocab Trainer":
 
-    import requests
-    import random
-    from datetime import date
-
     API_TOKEN = st.secrets["BASEROW_API_TOKEN"]
     VOCAB_TABLE_ID = 597466
     LEVEL_FIELD = "Level"
@@ -2293,6 +2289,10 @@ if tab == "Vocab Trainer":
 
         practiced_norm = set(normalize(x) for x in practiced)
         level_words_norm = set(normalize(w[0]) for w in vocab_items)
+
+        st.write("Practiced words (normalized):", practiced_norm)
+        st.write("Level words (normalized):", level_words_norm)
+
         num_practiced = len(practiced_norm & level_words_norm)
         num_total = len(level_words_norm)
 
