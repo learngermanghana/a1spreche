@@ -134,6 +134,81 @@ def load_exam_progress(student_code, level, teil, mode):
     return None, None
 
 
+# --- Helper Functions for Baserow Integration ---
+
+BASEROW_URL = "https://api.baserow.io/api/database/rows/table/597719/"
+BASEROW_TOKEN = st.secrets["BASEROW_TOKEN"]
+BASEROW_HEADERS = {
+    "Authorization": f"Token {BASEROW_TOKEN}",
+    "Content-Type": "application/json"
+}
+
+def save_schreiben_submission_baserow(student_code, student_name, level, letter, score, feedback):
+    """
+    Save the Schreiben submission to Baserow.
+    """
+    now = datetime.datetime.now()
+    passed = score >= 17
+    percentage = round((score / 25) * 100, 2)
+    payload = {
+        "student_code": student_code,
+        "student_name": student_name,
+        "level": level,
+        "letter": letter,
+        "score": score,
+        "feedback": feedback,
+        "date": now.strftime("%Y-%m-%d %H:%M"),
+        "passed": passed,
+        "percentage": percentage
+    }
+    try:
+        resp = requests.post(BASEROW_URL, headers=BASEROW_HEADERS, json=payload)
+        return resp.status_code == 201
+    except Exception as e:
+        st.error(f"Error saving submission: {e}")
+        return False
+
+def get_writing_stats_baserow(student_code):
+    """
+    Get the overall stats for a student: attempted, passed, accuracy (%).
+    """
+    params = {"user_field_names": "true", "filter__student_code__equal": student_code}
+    try:
+        resp = requests.get(BASEROW_URL, headers=BASEROW_HEADERS, params=params)
+        if resp.status_code != 200:
+            return 0, 0, 0
+        data = resp.json()["results"]
+        attempted = len(data)
+        passed = sum(1 for row in data if row.get("passed"))
+        accuracy = round((passed / attempted) * 100, 1) if attempted else 0
+        return attempted, passed, accuracy
+    except Exception as e:
+        return 0, 0, 0
+
+def get_student_level_stats_baserow(student_code):
+    """
+    Get per-level stats for a student as a dict, e.g. {'A1': {...}, 'A2': {...}}
+    """
+    params = {"user_field_names": "true", "filter__student_code__equal": student_code}
+    levels = ["A1", "A2", "B1", "B2"]
+    stats = {lvl: {"attempted": 0, "correct": 0} for lvl in levels}
+    try:
+        resp = requests.get(BASEROW_URL, headers=BASEROW_HEADERS, params=params)
+        if resp.status_code != 200:
+            return stats
+        data = resp.json()["results"]
+        for row in data:
+            lvl = row.get("level")
+            if lvl in stats:
+                stats[lvl]["attempted"] += 1
+                if row.get("passed"):
+                    stats[lvl]["correct"] += 1
+        return stats
+    except Exception as e:
+        return stats
+
+
+
     
 # --- Fuzzy-match helper (used by Vocab Trainer) ---
 def is_close_answer(student, correct, threshold=0.80):
@@ -2422,78 +2497,5 @@ if tab == "Schreiben Trainer":
                 f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                 unsafe_allow_html=True
             )
-
-# --- Helper Functions for Baserow Integration ---
-
-BASEROW_URL = "https://api.baserow.io/api/database/rows/table/597719/"
-BASEROW_TOKEN = st.secrets["BASEROW_TOKEN"]
-BASEROW_HEADERS = {
-    "Authorization": f"Token {BASEROW_TOKEN}",
-    "Content-Type": "application/json"
-}
-
-def save_schreiben_submission_baserow(student_code, student_name, level, letter, score, feedback):
-    """
-    Save the Schreiben submission to Baserow.
-    """
-    now = datetime.datetime.now()
-    passed = score >= 17
-    percentage = round((score / 25) * 100, 2)
-    payload = {
-        "student_code": student_code,
-        "student_name": student_name,
-        "level": level,
-        "letter": letter,
-        "score": score,
-        "feedback": feedback,
-        "date": now.strftime("%Y-%m-%d %H:%M"),
-        "passed": passed,
-        "percentage": percentage
-    }
-    try:
-        resp = requests.post(BASEROW_URL, headers=BASEROW_HEADERS, json=payload)
-        return resp.status_code == 201
-    except Exception as e:
-        st.error(f"Error saving submission: {e}")
-        return False
-
-def get_writing_stats_baserow(student_code):
-    """
-    Get the overall stats for a student: attempted, passed, accuracy (%).
-    """
-    params = {"user_field_names": "true", "filter__student_code__equal": student_code}
-    try:
-        resp = requests.get(BASEROW_URL, headers=BASEROW_HEADERS, params=params)
-        if resp.status_code != 200:
-            return 0, 0, 0
-        data = resp.json()["results"]
-        attempted = len(data)
-        passed = sum(1 for row in data if row.get("passed"))
-        accuracy = round((passed / attempted) * 100, 1) if attempted else 0
-        return attempted, passed, accuracy
-    except Exception as e:
-        return 0, 0, 0
-
-def get_student_level_stats_baserow(student_code):
-    """
-    Get per-level stats for a student as a dict, e.g. {'A1': {...}, 'A2': {...}}
-    """
-    params = {"user_field_names": "true", "filter__student_code__equal": student_code}
-    levels = ["A1", "A2", "B1", "B2"]
-    stats = {lvl: {"attempted": 0, "correct": 0} for lvl in levels}
-    try:
-        resp = requests.get(BASEROW_URL, headers=BASEROW_HEADERS, params=params)
-        if resp.status_code != 200:
-            return stats
-        data = resp.json()["results"]
-        for row in data:
-            lvl = row.get("level")
-            if lvl in stats:
-                stats[lvl]["attempted"] += 1
-                if row.get("passed"):
-                    stats[lvl]["correct"] += 1
-        return stats
-    except Exception as e:
-        return stats
 
 
