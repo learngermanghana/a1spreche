@@ -522,6 +522,29 @@ def validate_translation_openai(word, student_answer):
     except Exception:
         return False
 
+ad_images = [
+    "https://drive.google.com/uc?export=view&id=1mf5MN5xrPwcSQmxtfnXdCqoxittc56Dx",
+    "https://drive.google.com/uc?export=view&id=1XnwdPKtQPbq8_J0J0oe_TxtioJUmLhR1",
+    "https://drive.google.com/uc?export=view&id=1FU6ugEZN50CxQ0Ks8L30gnUTADE1MOIA",
+    "https://drive.google.com/uc?export=view&id=1FMMoGjprYr-2L6p-T4jVXOjxQFOWEv3h",
+]
+ad_captions = [
+    "🎉 July Promo: Refer a friend, get 10% off!",
+    "📢 Exam Prep: Free mock every Saturday!",
+    "🚀 New: A2 and B1 Intensive classes starting soon!",
+    "🌟 Join our German Club: Meetups every Friday!"
+]
+
+if "ad_idx" not in st.session_state:
+    st.session_state["ad_idx"] = 0
+
+col1, col2 = st.columns([10, 1])
+with col1:
+    st.image(ad_images[st.session_state["ad_idx"]], caption=ad_captions[st.session_state["ad_idx"]], use_column_width=True)
+with col2:
+    if st.button("➡️"):
+        st.session_state["ad_idx"] = (st.session_state["ad_idx"] + 1) % len(ad_images)
+
 
 # ====================================
 # 3. MAIN DASHBOARD & TABS
