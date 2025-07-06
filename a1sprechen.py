@@ -589,16 +589,14 @@ if tab == "Dashboard":
     # --- Auto-Rotating Announcements & Ads ---
     st.markdown("### 🖼️ Announcements & Ads")
     ad_images = [
-        "https://i.imgur.com/gCQAWA1.jpg",
         "https://i.imgur.com/9hLAScD.jpg",
         "https://i.imgur.com/2PzOOvn.jpg",
         "https://i.imgur.com/Q9mpvRY.jpg",
     ]
     ad_captions = [
-        "Join our A1 Fast Track—Guaranteed Pass!",
         "New A2 Classes—Limited Seats!",
-        "Congrats to our May Exam Stars!",
-        "Refer a friend & get discounts!",
+        "New B1 Classes—Limited Seats!",
+        "Join our classes live in person or online!",
     ]
     if "ad_idx" not in st.session_state:
         st.session_state["ad_idx"] = 0
@@ -645,7 +643,7 @@ if tab == "Dashboard":
         if now - st.session_state["rev_last_time"] > ROTATE_REV_SEC:
             st.session_state["rev_idx"] = (st.session_state["rev_idx"] + 1) % len(rev_list)
             st.session_state["rev_last_time"] = now
-            st.experimental_rerun()
+            st.rerun()
 
         r = rev_list[st.session_state["rev_idx"]]
         stars = "★" * int(r["rating"]) + "☆" * (5 - int(r["rating"]))
