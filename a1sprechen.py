@@ -2187,24 +2187,27 @@ if tab == "Custom Chat":
             st.session_state["custom_chat_history"] = []
             st.rerun()
 
-            
 if tab == "Vocab Trainer":
     import streamlit as st
-    import requests, random
+    import requests
+    import random
+    from datetime import date
 
-    API_TOKEN = st.secrets["BASEROW_API_TOKEN"]
-    VOCAB_TABLE_ID = 597466
-    LEVEL_FIELD = "Level"
-    GERMAN_FIELD = "German"
-    ENGLISH_FIELD = "English"
+    # --- CONFIG ---
+    API_TOKEN        = st.secrets["BASEROW_API_TOKEN"]
+    VOCAB_TABLE_ID   = 597466
+    LEVEL_FIELD      = "Level"         # name of the level column
+    GERMAN_FIELD     = "German"
+    ENGLISH_FIELD    = "English"
 
     PROGRESS_TABLE_ID = 597671
-    STUDENT_FIELD = "field_4838052"
-    VOCAB_FIELD = "field_4838053"
-    ATTEMPTED_FIELD = "field_4838054"
-    CORRECT_FIELD = "field_4838057"
+    STUDENT_FIELD     = "Field Name"     # actual column name for student_code
+    LEVEL_PROGRESS    = "Level"          # same “Level” column in progress table
+    VOCAB_FIELD       = "Type"           # column where you stored practiced vocab CSV
+    ATTEMPTED_FIELD   = "Example value"  # column where you stored attempted count
+    CORRECT_FIELD     = "Notes"          # column where you stored correct count
 
-    @st.cache_data(ttl=3600)
+    @st.cache_data
     def load_vocab_lists_baserow():
         url = f"https://api.baserow.io/api/database/rows/table/{VOCAB_TABLE_ID}/"
         headers = {"Authorization": f"Token {API_TOKEN}"}
@@ -2217,115 +2220,168 @@ if tab == "Vocab Trainer":
                 return {}
             data = resp.json()
             rows.extend(data.get("results", []))
-            url = data.get("next")
-            params = {}
-        lists = {}
-        for row in rows:
-            lvl = row.get(LEVEL_FIELD, "Unknown")
-            ger = row.get(GERMAN_FIELD, "").strip()
-            eng = row.get(ENGLISH_FIELD, "").strip()
+            url = data.get("next")  # pagination
+            params = {}             # only needed on first request
+        by_level = {}
+        for r in rows:
+            lvl = r.get(LEVEL_FIELD, "").strip()
+            ger = r.get(GERMAN_FIELD, "").strip()
+            eng = r.get(ENGLISH_FIELD, "").strip()
             if lvl and ger and eng:
-                lists.setdefault(lvl, []).append((ger, eng))
-        return lists
+                by_level.setdefault(lvl, []).append((ger, eng))
+        return by_level
 
-    @st.cache_data(ttl=3600)
-    def get_practiced_vocab(student_code):
+    # normalize once
+    def normalize(word: str) -> str:
+        return word.strip().lower()
+
+    def get_practiced_vocab(student_code: str, level: str) -> set[str]:
+        """Fetch all practiced German words for this student+level."""
         url = f"https://api.baserow.io/api/database/rows/table/{PROGRESS_TABLE_ID}/"
         headers = {"Authorization": f"Token {API_TOKEN}"}
-        params = {"user_field_names": True, f"filter__{STUDENT_FIELD}__equal": student_code}
+        params = {
+            "user_field_names": True,
+            f"filter__{STUDENT_FIELD}__equal": student_code,
+            f"filter__{LEVEL_PROGRESS}__equal": level
+        }
         resp = requests.get(url, headers=headers, params=params)
-        if resp.status_code != 200:
+        if not resp.ok:
             return set()
         practiced = set()
         for row in resp.json().get("results", []):
             csv = row.get(VOCAB_FIELD, "")
-            practiced.update(x.strip() for x in csv.split(",") if x.strip())
+            for w in csv.split(","):
+                w2 = normalize(w)
+                if w2:
+                    practiced.add(w2)
         return practiced
 
-    def normalize(word):
-        return word.strip().lower()
-
-    def clean_text(text):
-        return text.replace(',', '').replace('.', '').strip().lower()
-
-    def save_progress_to_baserow(student_code, practiced_list, num_attempted, num_correct):
+    def save_progress_to_baserow(student_code, level, practiced_list, attempted, correct):
         url = f"https://api.baserow.io/api/database/rows/table/{PROGRESS_TABLE_ID}/"
-        headers = {"Authorization": f"Token {API_TOKEN}", "Content-Type": "application/json"}
-        payload = {
-            STUDENT_FIELD: student_code,
-            VOCAB_FIELD: ",".join(practiced_list),
-            ATTEMPTED_FIELD: num_attempted,
-            CORRECT_FIELD: num_correct,
+        headers = {
+            "Authorization": f"Token {API_TOKEN}",
+            "Content-Type": "application/json"
         }
-        resp = requests.post(url, headers=headers, json=payload)
-        if resp.status_code not in (200, 201):
-            st.warning(f"Failed to save progress ({resp.status_code}): {resp.text}")
-            return False
-        return True
+        payload = {
+            STUDENT_FIELD:     student_code,
+            LEVEL_PROGRESS:    level,
+            VOCAB_FIELD:       ",".join(practiced_list),
+            ATTEMPTED_FIELD:   attempted,
+            CORRECT_FIELD:     correct,
+            # If you have a date column, add it here:
+            # "Date": date.today().isoformat()
+        }
+        r = requests.post(url, headers=headers, json=payload)
+        return r.status_code in (200, 201)
 
-    st.header("Vocab Trainer")
-    vocab_lists = load_vocab_lists_baserow()
-    levels = list(vocab_lists.keys())
+    # --- UI ---
+    st.header("🧠 Vocab Trainer – Practice and Progress")
+
+    # 1. load
+    VOCAB_LISTS = load_vocab_lists_baserow()
+    levels = sorted(VOCAB_LISTS.keys())
     if not levels:
-        st.error("No vocab levels found. Please check Baserow configuration.")
+        st.error("No vocab levels found in Baserow. Please check your table.")
         st.stop()
 
-    student_code = st.session_state.get("student_code", "").strip()
-    level = st.selectbox("Choose level", levels)
-    items = vocab_lists[level]
-    review_all = st.checkbox("Review all words", value=False)
+    student_code = st.session_state.get("student_code", "").strip().lower() or "unknown"
+    level = st.selectbox("Choose level:", levels, key="vt_level")
+    vocab_items = VOCAB_LISTS[level]
+    total_words = len(vocab_items)
 
-    if not review_all and student_code:
-        practiced = get_practiced_vocab(student_code)
-        norm_practiced = {normalize(w) for w in practiced}
-        norm_all = {normalize(w[0]) for w in items}
-        num_prac = len(norm_practiced & norm_all)
-        total = len(norm_all)
-        st.markdown(f"**Words practiced so far:** {num_prac} / {total}")
-        st.progress(num_prac / total if total else 1.0)
-        to_show = [w for w in items if normalize(w[0]) not in norm_practiced]
-        if not to_show:
-            st.success("🎉 All words practiced!")
+    review_all = st.checkbox("🔍 Review all words (ignore progress)", value=False)
+
+    # 2. progress bar
+    if not review_all and student_code != "unknown":
+        practiced = get_practiced_vocab(student_code, level)
+        num_practiced = len(practiced & {normalize(w) for w, _ in vocab_items})
+        st.markdown(f"**Words practiced so far:** {num_practiced} / {total_words}")
+        st.progress(num_practiced / total_words if total_words else 1.0)
+
+        # remove already practiced from the pool
+        words_to_practice = [
+            (g, e) for g, e in vocab_items if normalize(g) not in practiced
+        ]
+        if not words_to_practice:
+            st.success("🎉 You’ve practiced every word in this level!")
+            # optional reset button...
             st.stop()
     else:
-        to_show = items
+        words_to_practice = vocab_items
 
-    defaults = {"vt_history": [], "vt_list": [], "vt_index": 0, "vt_score": 0, "vt_total": None, "vt_saved": False}
-    for k, v in defaults.items(): st.session_state.setdefault(k, v)
+    # 3. practice UI state
+    defaults = dict(
+        vt_list=[],
+        vt_index=0,
+        vt_score=0,
+        vt_total=None,
+        vt_history=[]
+    )
+    for k, v in defaults.items():
+        st.session_state.setdefault(k, v)
 
+    # 4. start session
     if st.session_state.vt_total is None:
-        cnt = st.number_input("How many words?", min_value=1, max_value=len(to_show), value=min(7, len(to_show)))
-        if st.button("Start Practice"):
-            lst = to_show.copy(); random.shuffle(lst)
-            st.session_state.vt_list = lst[:cnt]; st.session_state.vt_total = cnt
-            st.session_state.vt_history = [("assistant", f"Let's practice {cnt} words!")]
-    else:
+        cnt = st.number_input(
+            "How many words to practice this session?",
+            min_value=1,
+            max_value=len(words_to_practice),
+            value=min(7, len(words_to_practice)),
+            key="vt_count"
+        )
+        if st.button("🚀 Start Practice"):
+            lst = words_to_practice.copy()
+            random.shuffle(lst)
+            chosen = lst[:cnt]
+            st.session_state.vt_list = chosen
+            st.session_state.vt_total = cnt
+            st.session_state.vt_index = 0
+            st.session_state.vt_score = 0
+            st.session_state.vt_history = [("assistant", f"Let’s go: {cnt} words!")]
+
+    # 5. chat interface
+    if st.session_state.vt_history:
+        st.markdown("### Chat")
         for who, msg in st.session_state.vt_history:
             align = "left" if who=="assistant" else "right"
-            st.markdown(f"<div style='text-align:{align};'>{msg}</div>", unsafe_allow_html=True)
-        idx = st.session_state.vt_index
-        if idx < st.session_state.vt_total:
-            word, ans = st.session_state.vt_list[idx]
-            inp = st.text_input(f"{word} = ?", key=f"inp{idx}")
-            if inp and st.button("Check", key=f"chk{idx}"):
-                st.session_state.vt_history.append(("user", inp))
-                correct = clean_text(ans)
-                if clean_text(inp)==correct:
-                    st.session_state.vt_score += 1; fb = "✅ Correct"
-                else:
-                    fb = f"❌ Wrong: {ans}"
-                st.session_state.vt_history.append(("assistant", fb))
-                st.session_state.vt_index += 1
-        else:
-            score = st.session_state.vt_score; total = st.session_state.vt_total
-            st.markdown(f"### Done: {score}/{total}")
-            if not st.session_state.vt_saved:
-                pract = [w[0] for w in st.session_state.vt_list]
-                if save_progress_to_baserow(student_code, pract, total, score): st.success("Saved!")
-                st.session_state.vt_saved = True
+            color = "#FAFAFA" if who=="assistant" else "#D2F8D2"
+            label = "Herr Felix" if who=="assistant" else "You"
+            st.markdown(f"<div style='text-align:{align};background:{color};padding:8px;border-radius:6px;'><b>{label}:</b> {msg}</div>", unsafe_allow_html=True)
 
+    # 6. practice loop
+    idx = st.session_state.vt_index
+    total = st.session_state.vt_total
+    if isinstance(total, int) and idx < total:
+        german, english = st.session_state.vt_list[idx]
+        ans = st.text_input(f"{english} → ?", key=f"vt_in_{idx}")
+        if ans and st.button("Check", key=f"vt_chk_{idx}"):
+            st.session_state.vt_history.append(("user", ans))
+            if normalize(ans) == normalize(german):
+                st.session_state.vt_score += 1
+                fb = f"✅ Correct! {german}"
+            else:
+                fb = f"❌ Nope. It’s {german}"
+            st.session_state.vt_history.append(("assistant", fb))
+            st.session_state.vt_index += 1
 
-
+    # 7. results & save
+    if isinstance(total, int) and idx >= total:
+        score = st.session_state.vt_score
+        st.markdown(f"### 🏁 Done: {score}/{total} correct")
+        if st.button("🔄 Practice again"):
+            for k in defaults:
+                st.session_state[k] = defaults[k]
+        # only save once
+        if not st.session_state.get("vt_saved"):
+            practiced_now = [normalize(w) for w,_ in st.session_state.vt_list]
+            ok = save_progress_to_baserow(
+                student_code, level, practiced_now, total, score
+            )
+            if ok:
+                st.success("Progress saved! ✅")
+            else:
+                st.error("Failed to save progress.")
+            st.session_state.vt_saved = True
 
 
 if tab == "Schreiben Trainer":
