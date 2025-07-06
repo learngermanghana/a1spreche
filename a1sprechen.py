@@ -672,17 +672,37 @@ SWIFT: **ECOCGHAC**
                 unsafe_allow_html=True,
             )
 
+    # --- Rotating Student Reviews (only on Dashboard) ---
+    import time
 
-    # --- Student Reviews (no dates) ---
     st.markdown("### 🗣️ What Our Students Say")
-    reviews = load_reviews()
-    if not reviews.empty:
-        sample = reviews.sample(min(3, len(reviews)), random_state=42)
-        for _, r in sample.iterrows():
-            stars = "★"*int(r["rating"]) + "☆"*(5-int(r["rating"]))
-            st.markdown(f"> {r['review_text']}\n> — **{r['student_name']}**  \n> {stars}")
-    else:
+    reviews = load_reviews()  # make sure this is defined above
+    if reviews.empty:
         st.info("No reviews yet. Be the first to share your experience!")
+    else:
+        rev_list = reviews.to_dict("records")
+
+        # Initialize rotation state
+        if "rev_idx" not in st.session_state:
+            st.session_state["rev_idx"] = 0
+            st.session_state["rev_last_time"] = time.time()
+
+        # Auto-rotate every 5 seconds
+        ROTATE_REV_SEC = 5
+        now = time.time()
+        if now - st.session_state["rev_last_time"] > ROTATE_REV_SEC:
+            st.session_state["rev_idx"] = (st.session_state["rev_idx"] + 1) % len(rev_list)
+            st.session_state["rev_last_time"] = now
+            st.experimental_rerun()
+
+        # Display the current review
+        r = rev_list[st.session_state["rev_idx"]]
+        stars = "★" * int(r["rating"]) + "☆" * (5 - int(r["rating"]))
+        st.markdown(
+            f"> {r['review_text']}\n"
+            f"> — **{r['student_name']}**  \n"
+            f"> {stars}"
+        )
 
 
 def get_a1_schedule():
