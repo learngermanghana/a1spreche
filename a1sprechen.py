@@ -510,22 +510,51 @@ def load_reviews():
     return df
 
 # ======= Dashboard Code =======
-if st.session_state.get("logged_in"):
-    student_code = st.session_state.get("student_code", "").strip().lower()
+if st.session_state["logged_in"]:
+    # --- Context/Student Info ---
+    student_code = st.session_state.get("student_code", "")
     student_name = st.session_state.get("student_name", "")
 
-    # --- Main tab selector
-    tab = st.radio(
-        "How do you want to practice?",
-        [
-            "Dashboard",
-            "Course Book",
-            "My Results and Resources",
-            "Exams Mode & Custom Chat",
-            "Vocab Trainer",
-            "Schreiben Trainer",
-        ],
-        key="main_tab_select"
+    # --- Data ---
+    df_students = load_student_data()
+    df_stats = load_stats_data()
+
+    code = student_code.strip().lower()
+    found = df_students[df_students["StudentCode"].str.lower().str.strip() == code]
+    student_row = found.iloc[0].to_dict() if not found.empty else {}
+
+    # --- Results for first-time check ---
+    student_results = df_stats[df_stats["studentcode"].astype(str).str.lower() == code]
+    is_first_time = student_results.empty
+
+    # --- Time-based greeting ---
+    from datetime import datetime
+    hour = datetime.now().hour
+    if hour < 12:
+        greet = "Guten Morgen"
+    elif hour < 18:
+        greet = "Guten Tag"
+    else:
+        greet = "Guten Abend"
+
+    # --- Display Name (first name if available) ---
+    display_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
+
+    # --- Greeting message ---
+    if is_first_time:
+        greeting = f"{greet}, {display_name}! 👋 Welcome to your student dashboard. Let's get started with your first activity!"
+    else:
+        greeting = f"{greet}, {display_name}! 👋 Welcome back to your dashboard. Keep up your great progress!"
+
+    # --- Show greeting at top ---
+    st.markdown(
+        f"""
+        <div style='padding:14px; border-radius:8px; background-color:#f1faee; margin-bottom:18px; font-size:1.05rem'>
+        {greeting}
+        </div>
+        """, unsafe_allow_html=True
+    )
+
     )
 
 import time
