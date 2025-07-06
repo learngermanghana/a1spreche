@@ -155,35 +155,36 @@ def save_schreiben_submission_baserow(student_code, student_name, level, letter,
 
 # --- Baserow helpers ---
 def save_vocab_progress(student_code, level, remaining, used, score):
-    if not BASEROW_API_TOKEN:
-        st.warning("⚠️ Baserow API token is missing — progress won’t be saved.")
-        return
-
-    url = f"https://api.baserow.io/api/database/rows/table/{BASEROW_TABLE_ID}/?user_field_names=true"
+    create_url = f"https://api.baserow.io/api/database/rows/table/{BASEROW_TABLE_ID}/?user_field_names=true"
     params = {"filter__student_code__equal": student_code, "filter__level__equal": level}
-    resp = requests.get(url, headers=BASEROW_HEADERS, params=params)
-
-    progress_data = json.dumps({
-        "remaining": remaining,
-        "used": used,
-        "score": score
-    })
+    # First, list existing rows
+    resp = requests.get(create_url, headers=BASEROW_HEADERS, params=params)
     payload = {
         "student_code": student_code,
         "level": level,
-        "progress_data": progress_data
+        "progress_data": json.dumps({
+            "remaining": remaining,
+            "used": used,
+            "score": score
+        })
     }
 
-    try:
-        if resp.ok and resp.json().get("results"):
-            row_id = resp.json()["results"][0]["id"]
-            patch_url = (
-                f"https://api.baserow.io/api/database/rows/table/"
-                f"{BASEROW_TABLE_ID}/{row_id}/?user_field_names=true"
-            )
-            r = requests.patch(patch_url, headers=BASEROW_HEADERS, json=payload)
-        else:
-            r = requests.post(url, headers=BASEROW_HEADERS, json=payload)
+    if resp.ok and resp.json().get("results"):
+        row_id = resp.json()["results"][0]["id"]
+        update_url = f"https://api.baserow.io/api/database/rows/table/{BASEROW_TABLE_ID}/{row_id}/?user_field_names=true"
+
+        # Try PATCH first
+        r = requests.patch(update_url, headers=BASEROW_HEADERS, json=payload)
+        if r.status_code == 405:
+            # Fall back to PUT if PATCH not allowed
+            r = requests.put(update_url, headers=BASEROW_HEADERS, json=payload)
+    else:
+        # No existing row → create
+        r = requests.post(create_url, headers=BASEROW_HEADERS, json=payload)
+
+    if not r.ok:
+        st.error(f"Could not save your vocab progress on Baserow: {r.status_code} {r.text}")
+
 
         r.raise_for_status()
     except Exception as e:
