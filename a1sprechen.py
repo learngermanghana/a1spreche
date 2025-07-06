@@ -160,62 +160,72 @@ def is_close_answer(student, correct, threshold=0.80):
     correct = correct.strip().lower()
     return difflib.SequenceMatcher(None, student, correct).ratio() >= threshold
 
-# --- Baserow helpers ---
-def save_vocab_progress(student_code, level, practiced_vocab, attempted, correct):
-    if not BASEROW_API_TOKEN:
-        st.info("🔒 No Baserow token; skipping save.")
-        return
+# ==== BASEROW CONFIG ====
+API_TOKEN = st.secrets["BASEROW_API_TOKEN"]  # <-- Load from secrets, not in code!
 
-    url    = f"https://api.baserow.io/api/database/rows/table/{BASEROW_TABLE_ID}/?user_field_names=true"
-    params = {"filter__StudentCode__equal": student_code}
-    payload = {
-        "StudentCode":     student_code,
-        "Level":           level,
-        "PracticedVocab":  ",".join(item["german"] for item in practiced_vocab),
-        "NumAttempted":    attempted,
-        "NumCorrect":      correct,
-        "Date":            pd.Timestamp.today().strftime("%Y-%m-%d")
+# Table for vocabulary
+VOCAB_TABLE_ID = 597466
+LEVEL_FIELD = "Level"        # field name (not ID) as Baserow returns user_field_names
+GERMAN_FIELD = "German"
+ENGLISH_FIELD = "English"
+
+# Table for progress
+PROGRESS_TABLE_ID = 597671
+STUDENT_FIELD = "field_4838052"      # Student Code
+VOCAB_FIELD = "field_4838053"        # Practiced Vocab (as CSV)
+ATTEMPTED_FIELD = "field_4838054"    # Attempted (number)
+CORRECT_FIELD = "field_4838057"      # Correct (number)
+# Add a date field if you want to save the date as well
+
+# ==== LOAD VOCAB FROM BASEROW ====
+@st.cache_data
+def load_vocab_lists_baserow():
+    url = f"https://api.baserow.io/api/database/rows/table/{VOCAB_TABLE_ID}/"
+    headers = {"Authorization": f"Token {API_TOKEN}"}
+    params = {"user_field_names": True, "size": 200}
+    rows = []
+    # Paging: get all records in batches of 200
+    while url:
+        response = requests.get(url, headers=headers, params=params)
+        if response.status_code != 200:
+            st.error(f"Baserow error {response.status_code}: {response.text}")
+            return {}
+        data = response.json()
+        rows.extend(data.get("results", []))
+        url = data.get("next")  # None if done
+        params = {}  # only needed for the first request
+    lists = {}
+    for row in rows:
+        lvl = row.get(LEVEL_FIELD, "Unknown")
+        ger = row.get(GERMAN_FIELD, "")
+        eng = row.get(ENGLISH_FIELD, "")
+        if lvl and ger and eng:
+            lists.setdefault(lvl, []).append((ger, eng))
+    return lists
+
+def clean_text(text):
+    return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
+
+def save_progress_to_baserow(student_code, practiced_vocab_list, num_attempted, num_correct):
+    url = f"https://api.baserow.io/api/database/rows/table/{PROGRESS_TABLE_ID}/"
+    headers = {
+        "Authorization": f"Token {API_TOKEN}",
+        "Content-Type": "application/json"
     }
-
-    # 1) see what’s already there
-    resp = requests.get(url, headers=BASEROW_HEADERS, params=params)
-    resp.raise_for_status()
-    results = resp.json().get("results", [])
-
-    if results:
-        row_id   = results[0]["id"]
-        patch_url = url + f"&user_field_names=true&row_id={row_id}"
-        r = requests.patch(patch_url, headers=BASEROW_HEADERS, json=payload)
+    payload = {
+        STUDENT_FIELD: student_code,
+        VOCAB_FIELD: ",".join(practiced_vocab_list),
+        ATTEMPTED_FIELD: num_attempted,
+        CORRECT_FIELD: num_correct,
+        # If you have a date field, add it here, e.g.
+        # "field_xxxxxxxx": str(date.today()),
+    }
+    response = requests.post(url, headers=headers, json=payload)
+    if response.status_code in (200, 201):
+        return True
     else:
-        r = requests.post(url, headers=BASEROW_HEADERS, json=payload)
-
-    if not r.ok:
-        st.error(f"Baserow save failed ({r.status_code}): {r.text}")
-
-
-def load_vocab_progress(student_code, level, vocab_list):
-    if not BASEROW_API_TOKEN:
-        return None, None, 0, 0
-
-    url = f"https://api.baserow.io/api/database/rows/table/{BASEROW_TABLE_ID}/?user_field_names=true"
-    params = {"filter__StudentCode__equal": student_code, "filter__Level__equal": level}
-    try:
-        resp = requests.get(url, headers=BASEROW_HEADERS, params=params, timeout=5)
-        resp.raise_for_status()
-        results = resp.json().get("results", [])
-        if results:
-            row = results[0]
-            practiced_vocab = row.get("PracticedVocab", "")
-            practiced_words = [w.strip() for w in practiced_vocab.split(",") if w.strip()]
-            used = [item for item in vocab_list if item["german"] in practiced_words]
-            remaining = [item for item in vocab_list if item["german"] not in practiced_words]
-            score = int(row.get("NumCorrect", 0))
-            attempted = int(row.get("NumAttempted", 0))
-            return remaining, used, score, attempted
-    except Exception:
-        pass
-
-    return None, None, 0, 0
+        st.warning(f"Failed to save progress! {response.status_code}: {response.text}")
+        return False
 
 
 
@@ -2150,219 +2160,192 @@ if tab == "Custom Chat":
             st.session_state["custom_chat_history"] = []
             st.rerun()
 
-if tab == "Vocab Trainer":
-    import requests, io, pandas as pd, json, random, difflib, os
 
-    st.header("🧠 Vocab Trainer – Practice and Progress (Baserow Version)")
 
-    # --- Config ---
-    BASEROW_VOCAB_TABLE_ID = 597466    # <-- Vocab table
-    BASEROW_PROGRESS_TABLE_ID = 597671 # <-- Progress table
-    BASEROW_API_TOKEN = os.getenv("BASEROW_API_TOKEN") or st.secrets.get("BASEROW_API_TOKEN")
-    BASEROW_HEADERS = {
-        "Authorization": f"Token {BASEROW_API_TOKEN}",
-        "Content-Type": "application/json"
-    }
+if tab == "Vocab":
+    import streamlit as st
+    import requests
+    import random
+    from datetime import date
 
-    # --- Load vocab from Baserow ---
-    @st.cache_data(ttl=900)
-    def load_vocab_from_baserow():
-        url = f"https://api.baserow.io/api/database/rows/table/{BASEROW_VOCAB_TABLE_ID}/?user_field_names=true"
-        out = []
-        try:
-            resp = requests.get(url, headers=BASEROW_HEADERS, timeout=10)
-            resp.raise_for_status()
-            data = resp.json().get("results", [])
-            for row in data:
-                # Check for all fields; skip blank entries
-                if not all(k in row for k in ("German", "English", "Level")):
-                    continue
-                g, e, l = row["German"], row["English"], row["Level"]
-                if pd.isna(g) or pd.isna(e) or pd.isna(l):
-                    continue
-                out.append({
-                    "german": str(g).strip(),
-                    "english": str(e).strip(),
-                    "level": str(l).strip().upper()
-                })
-        except Exception as e:
-            st.error(f"Error loading vocab from Baserow: {e}")
-        return out
+    # ==== BASEROW CONFIG ====
+    API_TOKEN = st.secrets["BASEROW_API_TOKEN"]
+    VOCAB_TABLE_ID = 597466
+    LEVEL_FIELD = "Level"        # field name (not ID)
+    GERMAN_FIELD = "German"
+    ENGLISH_FIELD = "English"
 
-    vocab_list = load_vocab_from_baserow()
-    if not vocab_list:
-        st.stop()
+    PROGRESS_TABLE_ID = 597671
+    STUDENT_FIELD = "field_4838052"      # Student Code
+    VOCAB_FIELD = "field_4838053"        # Practiced Vocab (as CSV)
+    ATTEMPTED_FIELD = "field_4838054"    # Attempted (number)
+    CORRECT_FIELD = "field_4838057"      # Correct (number)
 
-    df_vocab = pd.DataFrame(vocab_list)
-    levels = sorted(df_vocab["level"].unique())
-    student_level = st.session_state.get("student_level", "A1").upper()
-    student_code = st.session_state.get("student_code", "").strip().lower()
+    # ==== LOAD VOCAB FROM BASEROW ====
+    @st.cache_data
+    def load_vocab_lists_baserow():
+        url = f"https://api.baserow.io/api/database/rows/table/{VOCAB_TABLE_ID}/"
+        headers = {"Authorization": f"Token {API_TOKEN}"}
+        params = {"user_field_names": True, "size": 200}
+        rows = []
+        while url:
+            response = requests.get(url, headers=headers, params=params)
+            if response.status_code != 200:
+                st.error(f"Baserow error {response.status_code}: {response.text}")
+                return {}
+            data = response.json()
+            rows.extend(data.get("results", []))
+            url = data.get("next")
+            params = {}
+        lists = {}
+        for row in rows:
+            lvl = row.get(LEVEL_FIELD, "Unknown")
+            ger = row.get(GERMAN_FIELD, "")
+            eng = row.get(ENGLISH_FIELD, "")
+            if lvl and ger and eng:
+                lists.setdefault(lvl, []).append((ger, eng))
+        return lists
 
-    user_level = st.selectbox(
-        "Choose level:", levels, index=levels.index(student_level) if student_level in levels else 0
-    )
+    def clean_text(text):
+        return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
 
-    df_level = df_vocab[df_vocab["level"] == user_level]
-    level_vocab = df_level[["german", "english"]].to_dict("records")
-
-    # --- Fuzzy-match helper ---
-    def is_close_answer(student, correct, threshold=0.80):
-        student = student.strip().lower()
-        correct = correct.strip().lower()
-        return difflib.SequenceMatcher(None, student, correct).ratio() >= threshold
-
-    # --- Progress Save/Load helpers (to Baserow) ---
-    def save_vocab_progress(student_code, level, remaining, used, score, attempted):
-        if not BASEROW_API_TOKEN:
-            st.info("🔒 Baserow token missing: progress will not be saved.")
-            return
-
-        url = f"https://api.baserow.io/api/database/rows/table/{BASEROW_PROGRESS_TABLE_ID}/?user_field_names=true"
-        params = {"filter__StudentCode__equal": student_code, "filter__Level__equal": level}
-
-        practiced = ",".join([item["german"] for item in used])
+    def save_progress_to_baserow(student_code, practiced_vocab_list, num_attempted, num_correct):
+        url = f"https://api.baserow.io/api/database/rows/table/{PROGRESS_TABLE_ID}/"
+        headers = {
+            "Authorization": f"Token {API_TOKEN}",
+            "Content-Type": "application/json"
+        }
         payload = {
-            "StudentCode": student_code,
-            "Level": level,
-            "PracticedVocab": practiced,
-            "NumAttempted": attempted,
-            "NumCorrect": score,
-            "Date": pd.Timestamp.today().strftime("%Y-%m-%d")
+            STUDENT_FIELD: student_code,
+            VOCAB_FIELD: ",".join(practiced_vocab_list),
+            ATTEMPTED_FIELD: num_attempted,
+            CORRECT_FIELD: num_correct,
+            # Optionally add date here if you have a date field in Baserow
+            # "field_xxxxxxxx": str(date.today()),
         }
+        response = requests.post(url, headers=headers, json=payload)
+        if response.status_code in (200, 201):
+            return True
+        else:
+            st.warning(f"Failed to save progress! {response.status_code}: {response.text}")
+            return False
 
-        try:
-            resp = requests.get(url, headers=BASEROW_HEADERS, params=params, timeout=5)
-            resp.raise_for_status()
-            results = resp.json().get("results", [])
-            if results:
-                row_id = results[0]["id"]
-                patch_url = f"https://api.baserow.io/api/database/rows/table/{BASEROW_PROGRESS_TABLE_ID}/{row_id}/?user_field_names=true"
-                r = requests.patch(patch_url, headers=BASEROW_HEADERS, json=payload, timeout=5)
-            else:
-                r = requests.post(url, headers=BASEROW_HEADERS, json=payload, timeout=5)
-            r.raise_for_status()
-        except Exception as e:
-            st.warning(f"⚠️ Could not update your vocab progress on Baserow: {e}")
+    # ==== VOCAB TRAINER UI ====
+    st.header("Vocab Trainer")
 
-    def load_vocab_progress(student_code, level, vocab_list):
-        if not BASEROW_API_TOKEN:
-            return None, None, 0, 0
+    # -- Load Vocab Lists --
+    VOCAB_LISTS = load_vocab_lists_baserow()
+    levels = list(VOCAB_LISTS.keys()) if VOCAB_LISTS else []
 
-        url = f"https://api.baserow.io/api/database/rows/table/{BASEROW_PROGRESS_TABLE_ID}/?user_field_names=true"
-        params = {"filter__StudentCode__equal": student_code, "filter__Level__equal": level}
-        try:
-            resp = requests.get(url, headers=BASEROW_HEADERS, params=params, timeout=5)
-            resp.raise_for_status()
-            results = resp.json().get("results", [])
-            if results:
-                row = results[0]
-                practiced_vocab = row.get("PracticedVocab", "")
-                practiced_words = [w.strip() for w in practiced_vocab.split(",") if w.strip()]
-                used = [item for item in vocab_list if item["german"] in practiced_words]
-                remaining = [item for item in vocab_list if item["german"] not in practiced_words]
-                score = int(row.get("NumCorrect", 0))
-                attempted = int(row.get("NumAttempted", 0))
-                return remaining, used, score, attempted
-        except Exception:
-            pass
-
-        return None, None, 0, 0
-
-    # --- Session State for progress ---
-    key = f"vocab_{student_code}_{user_level}"
-    if key not in st.session_state:
-        remaining, used, score, attempted = load_vocab_progress(student_code, user_level, level_vocab)
-        if used is None:
-            used = []
-        if remaining is None:
-            quiz = level_vocab.copy()
-            random.shuffle(quiz)
-            remaining = quiz
-        if attempted is None:
-            attempted = 0
-        if score is None:
-            score = 0
-        st.session_state[key] = {
-            "practiced_vocab": used,
-            "remaining": remaining,
-            "idx": len(used),
-            "attempted": attempted,
-            "correct": score
-        }
-
-    state = st.session_state[key]
-
-    # --- Quiz loop ---
-    if not state.get("remaining"):
-        st.success(f"🎉 Practice complete! Score: {state.get('correct', 0)} / {state.get('attempted', 0)}")
-        if st.button("🔄 Restart Practice"):
-            quiz = level_vocab.copy()
-            random.shuffle(quiz)
-            st.session_state[key] = {
-                "practiced_vocab": [],
-                "remaining": quiz,
-                "idx": 0,
-                "attempted": 0,
-                "correct": 0
-            }
-            save_vocab_progress(student_code, user_level, quiz, [], 0, 0)
-            st.experimental_rerun()
+    if not levels:
+        st.error("No vocab levels found! Please check your Baserow data and field IDs.")
         st.stop()
 
-    item = state["remaining"][0]
-    st.markdown(
-        "**Translate into German:**  \n"
-        f"<span style='font-size:1.3em; color:#1976d2'><b>{item['english']}</b></span>",
-        unsafe_allow_html=True
-    )
-    ans = st.text_input("Your answer (in German)", key=f"vocab_in_{state['idx']}")
-    if st.button("Submit", key=f"vocab_submit_{state['idx']}") and ans:
-        state["attempted"] += 1
+    defaults = {
+        "vt_history": [],
+        "vt_list": [],
+        "vt_index": 0,
+        "vt_score": 0,
+        "vt_total": None,
+        "vt_saved_to_baserow": False,
+    }
+    for key, val in defaults.items():
+        st.session_state.setdefault(key, val)
 
-        correct = (
-            ans.strip().lower() == item["german"].strip().lower()
-            or is_close_answer(ans, item["german"])
+    # --- Level select ---
+    level = st.selectbox("Choose level", levels, key="vt_level")
+    vocab_items = VOCAB_LISTS.get(level, [])
+    max_words = len(vocab_items)
+    if max_words == 0:
+        st.warning(f"No vocabulary available for level {level}. Please add entries in your Baserow table.")
+        st.stop()
+
+    if st.button("🔁 Start New Practice", key="vt_reset"):
+        for k in defaults:
+            st.session_state[k] = defaults[k]
+        st.session_state["vt_saved_to_baserow"] = False
+
+    st.info(f"There are {max_words} words available in {level}.")
+
+    # Step 1: ask how many words to practice
+    if st.session_state.vt_total is None:
+        count = st.number_input(
+            "How many words can you practice today?",
+            min_value=1,
+            max_value=max_words,
+            value=min(7, max_words),
+            key="vt_count"
         )
-        if correct:
-            state["correct"] += 1
-            st.success("Correct! ✅")
-        else:
-            st.error(f"Incorrect. Correct answer: **{item['german']}**")
+        if st.button("Start Practice", key="vt_start"):
+            shuffled = vocab_items.copy()
+            random.shuffle(shuffled)
+            st.session_state.vt_list = shuffled[:int(count)]
+            st.session_state.vt_total = int(count)
+            st.session_state.vt_index = 0
+            st.session_state.vt_score = 0
+            st.session_state.vt_history = [
+                ("assistant", f"Let's start with {count} words!")
+            ]
 
-        if "practiced_vocab" not in state or state["practiced_vocab"] is None:
-            state["practiced_vocab"] = []
-        state["practiced_vocab"].append(item)
-
-        state["remaining"] = state["remaining"][1:]
-        state["idx"] += 1
-
-        try:
-            save_vocab_progress(
-                student_code,
-                user_level,
-                state["remaining"],
-                state["practiced_vocab"],
-                state["correct"],
-                state["attempted"]
+    # Display chat history
+    if st.session_state.vt_history:
+        st.markdown("### 🗨️ Practice Chat")
+        for who, message in st.session_state.vt_history:
+            align = "left" if who == "assistant" else "right"
+            bgcolor = "#FAFAFA" if who == "assistant" else "#D2F8D2"
+            label = "Herr Felix" if who == "assistant" else "You"
+            st.markdown(
+                f"<div style='text-align:{align}; background:{bgcolor}; padding:10px; border-radius:8px;'>"
+                f"<b>{label}:</b> {message}</div>",
+                unsafe_allow_html=True
             )
-        except Exception as e:
-            st.warning(f"⚠️ Could not update your vocab progress on Baserow: {e}")
 
-        st.rerun()
+    # Practice loop
+    total = st.session_state.vt_total
+    idx = st.session_state.vt_index
+    if isinstance(total, int) and idx < total:
+        word, answer = st.session_state.vt_list[idx]
+        user_input = st.text_input(f"{word} = ?", key=f"vt_input_{idx}")
+        if user_input and st.button("Check", key=f"vt_check_{idx}"):
+            st.session_state.vt_history.append(("user", user_input))
+            given = clean_text(user_input)
+            correct = clean_text(answer)
+            if given == correct:
+                st.session_state.vt_score += 1
+                fb = f"✅ Correct! '{word}' = '{answer}'"
+            else:
+                fb = f"❌ Not quite. '{word}' = '{answer}'"
+            st.session_state.vt_history.append(("assistant", fb))
+            st.session_state.vt_index += 1
 
-    # --- Progress / Score display ---
-    practiced = state.get("practiced_vocab", state.get("used", []))
-    remaining = state.get("remaining", [])
-    total = len(practiced) + len(remaining)
-    st.progress(state.get("idx", 0) / total if total > 0 else 1.0)
-    st.write(f"**Progress:** {state.get('idx', 0) + 1} / {total + 1}")
-    st.write(f"**Score:** {state.get('correct', 0)} / {state.get('attempted', 0)}")
+    # Show results when done
+    if isinstance(total, int) and idx >= total:
+        score = st.session_state.vt_score
+        st.markdown(f"### 🏁 Finished! You got {score}/{total} correct.")
 
-    st.divider()
-    with st.expander("📋 View all words for this level"):
-        st.dataframe(df_level[["german", "english"]].reset_index(drop=True), use_container_width=True)
+        # Practice Again button resets everything
+        if st.button("Practice Again", key="vt_again"):
+            for k in defaults:
+                st.session_state[k] = defaults[k]
+            st.session_state["vt_saved_to_baserow"] = False
 
-#
+        if "vt_saved_to_baserow" not in st.session_state:
+            st.session_state["vt_saved_to_baserow"] = False
+
+        if not st.session_state["vt_saved_to_baserow"]:
+            student_code = st.session_state.get("student_code", "unknown")
+            practiced_vocab = [item[0] for item in st.session_state.vt_list]
+            update_success = save_progress_to_baserow(
+                student_code=student_code,
+                practiced_vocab_list=practiced_vocab,
+                num_attempted=total,
+                num_correct=score
+            )
+            if update_success:
+                st.success("✅ Your progress was saved!")
+                st.session_state["vt_saved_to_baserow"] = True
+            else:
+                st.warning("⚠️ Progress could not be saved. Please try again later.")
 
 
 
