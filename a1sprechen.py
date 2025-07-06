@@ -9,6 +9,7 @@ import pandas as pd
 import streamlit as st
 import requests
 import datetime
+import urllib.parse
 import io
 from openai import OpenAI
 from fpdf import FPDF
