@@ -186,90 +186,110 @@ def get_practiced_vocab_all(student_code, level):
     return all_practiced
 
 
+# Baserow configuration
+API_TOKEN   = st.secrets["BASEROW_API_TOKEN"]
+VOCAB_TABLE = 597466
+PROG_TABLE  = 597671
 
+# Vocab table field names (user_field_names)
+VF_LEVEL   = "Level"
+VF_GERMAN  = "German"
+VF_ENGLISH = "English"
 
+# Progress table field names
+PF_STUDENT   = "StudentCode"
+PF_LEVEL     = "Level"
+PF_VOCAB     = "PracticedVocab"
+PF_ATTEMPTED = "NumAttempted"
+PF_CORRECT   = "NumCorrect"
 
-API_TOKEN = st.secrets["BASEROW_API_TOKEN"]
-VOCAB_TABLE_ID = 597466
-PROGRESS_TABLE_ID = 597671
-LEVEL_FIELD = "Level"
-GERMAN_FIELD = "German"
-ENGLISH_FIELD = "English"
-STUDENT_FIELD = "field_4838052"
-LEVEL_PROGRESS_FIELD = "Level"
-VOCAB_FIELD = "field_4838053"
-ATTEMPTED_FIELD = "field_4838054"
-CORRECT_FIELD = "field_4838057"
-
-@st.cache_data(show_spinner=False)
-def load_vocab_lists_baserow():
-    url = f"https://api.baserow.io/api/database/rows/table/{VOCAB_TABLE_ID}/"
+@st.cache_data(ttl=600)
+def load_vocab():
+    """Fetch all vocabulary from Baserow and group by level."""
+    url     = f"https://api.baserow.io/api/database/rows/table/{VOCAB_TABLE}/"
     headers = {"Authorization": f"Token {API_TOKEN}"}
-    params = {"user_field_names": True, "size": 200}
-    rows = []
+    params  = {"user_field_names": True, "size": 200}
+    rows, vocab_by_level = [], {}
+
     while url:
-        res = requests.get(url, headers=headers, params=params)
-        if not res.ok:
-            st.error(f"Baserow error {res.status_code}")
-            return {}
-        data = res.json()
-        rows.extend(data.get("results", []))
+        r = requests.get(url, headers=headers, params=params)
+        r.raise_for_status()
+        data = r.json()
+        rows.extend(data["results"])
         url = data.get("next")
-        params = {}
-    vocab = {}
-    for row in rows:
-        lvl = row.get(LEVEL_FIELD)
-        ger = row.get(GERMAN_FIELD)
-        eng = row.get(ENGLISH_FIELD)
+        params.clear()
+
+    for rec in rows:
+        lvl = rec.get(VF_LEVEL)
+        ger = rec.get(VF_GERMAN)
+        eng = rec.get(VF_ENGLISH)
         if lvl and ger and eng:
-            vocab.setdefault(lvl, []).append((ger, eng))
-    return vocab
+            vocab_by_level.setdefault(lvl, []).append((ger, eng))
+
+    return vocab_by_level
 
 
-def normalize(text: str) -> str:
-    return text.strip().lower()
+def normalize(word: str) -> str:
+    return word.strip().lower()
 
-@st.cache_data(show_spinner=False)
-def get_practiced_vocab(student_code: str, level: str) -> set:
-    url = f"https://api.baserow.io/api/database/rows/table/{PROGRESS_TABLE_ID}/"
+
+def load_progress(student: str, level: str):
+    """Load a student's practiced vocab, attempted and correct counts, and record id."""
+    url     = f"https://api.baserow.io/api/database/rows/table/{PROG_TABLE}/"
     headers = {"Authorization": f"Token {API_TOKEN}"}
-    params = {
+    params  = {
         "user_field_names": True,
-        f"filter__{STUDENT_FIELD}__equal": student_code,
-        f"filter__{LEVEL_PROGRESS_FIELD}__equal": level
+        f"filter__{PF_STUDENT}__equal": student,
+        f"filter__{PF_LEVEL}__equal": level,
     }
-    res = requests.get(url, headers=headers, params=params)
-    if not res.ok:
-        return set()
-    practiced = set()
-    for row in res.json().get("results", []):
-        for w in row.get(VOCAB_FIELD, "").split(","):
-            nw = normalize(w)
-            if nw:
-                practiced.add(nw)
-    return practiced
+    r = requests.get(url, headers=headers, params=params)
+    r.raise_for_status()
+    results = r.json().get("results", [])
+    if not results:
+        return set(), 0, 0, None
+
+    rec = results[0]
+    practiced = {
+        normalize(w) for w in rec.get(PF_VOCAB, "").split(",") if w.strip()
+    }
+    return (
+        practiced,
+        int(rec.get(PF_ATTEMPTED, 0)),
+        int(rec.get(PF_CORRECT, 0)),
+        rec.get("id")
+    )
 
 
-def save_progress(student_code: str, level: str, practiced_list: list, attempted: int, correct: int) -> bool:
-    url = f"https://api.baserow.io/api/database/rows/table/{PROGRESS_TABLE_ID}/"
-    headers = {"Authorization": f"Token {API_TOKEN}", "Content-Type": "application/json"}
+def save_progress(
+    student: str,
+    level: str,
+    practiced: set,
+    attempted: int,
+    correct: int,
+    row_id: int = None
+):
+    """Create or update a progress record in Baserow."""
+    base_url = f"https://api.baserow.io/api/database/rows/table/{PROG_TABLE}/"
+    headers  = {
+        "Authorization": f"Token {API_TOKEN}",
+        "Content-Type": "application/json"
+    }
     payload = {
-        STUDENT_FIELD: student_code,
-        LEVEL_PROGRESS_FIELD: level,
-        VOCAB_FIELD: ",".join(practiced_list),
-        ATTEMPTED_FIELD: attempted,
-        CORRECT_FIELD: correct
+        PF_STUDENT:   student,
+        PF_LEVEL:     level,
+        PF_VOCAB:     ",".join(sorted(practiced)),
+        PF_ATTEMPTED: attempted,
+        PF_CORRECT:   correct,
+        "Date":      date.today().isoformat()
     }
-    res = requests.post(url, headers=headers, json=payload)
-    return res.status_code in (200, 201)
-
-
-def init_session_state(keys: dict):
-    for k, v in keys.items():
-        if k not in st.session_state:
-            st.session_state[k] = v
-
-
+    if row_id:
+        url = base_url + f"{row_id}/?user_field_names=true"
+        r = requests.patch(url, headers=headers, json=payload)
+    else:
+        url = base_url + "?user_field_names=true"
+        r = requests.post(url, headers=headers, json=payload)
+    r.raise_for_status()
+    return r.json().get("id")
 
 
 # === STREAMLIT PAGE CONFIGURATION ===
@@ -2202,116 +2222,19 @@ if tab == "Custom Chat":
             st.session_state["custom_chat_history"] = []
             st.rerun()
 
-# === VOCAB TRAINER TAB ===
+# === VOCAB TRAINER UI ===
 if tab == "Vocab Trainer":
     st.header("🧠 Vocab Trainer – Practice and Progress")
 
-    # --- CONFIG ---
-    API_TOKEN      = st.secrets["BASEROW_API_TOKEN"]
-    VOCAB_TABLE    = 597466
-    PROG_TABLE     = 597671
-
-    # these must match your *user_field_names* exactly
-    VF_LEVEL       = "Level"
-    VF_GERMAN      = "German"
-    VF_ENGLISH     = "English"
-
-    PF_STUDENT     = "StudentCode"
-    PF_LEVEL       = "Level"
-    PF_VOCAB       = "PracticedVocab"
-    PF_ATTEMPTED   = "NumAttempted"
-    PF_CORRECT     = "NumCorrect"
-
-    # --- HELPERS ---
-    @st.cache_data(ttl=600)
-    def load_vocab():
-        url     = f"https://api.baserow.io/api/database/rows/table/{VOCAB_TABLE}/"
-        headers = {"Authorization": f"Token {API_TOKEN}"}
-        params  = {"user_field_names": True, "size": 200}
-        lists, rows = {}, []
-
-        while url:
-            r = requests.get(url, headers=headers, params=params)
-            r.raise_for_status()
-            data = r.json()
-            rows.extend(data["results"])
-            url = data.get("next")
-            params = {}
-
-        for rec in rows:
-            lvl = rec.get(VF_LEVEL)
-            ger = rec.get(VF_GERMAN)
-            eng = rec.get(VF_ENGLISH)
-            if lvl and ger and eng:
-                lists.setdefault(lvl, []).append((ger, eng))
-        return lists
-
-    def normalize(w: str) -> str:
-        return w.strip().lower()
-
-    def load_progress(student: str, level: str):
-        url     = f"https://api.baserow.io/api/database/rows/table/{PROG_TABLE}/"
-        headers = {"Authorization": f"Token {API_TOKEN}"}
-        params  = {
-            "user_field_names": True,
-            f"filter__{PF_STUDENT}__equal": student,
-            f"filter__{PF_LEVEL}__equal": level
-        }
-        r = requests.get(url, headers=headers, params=params)
-        r.raise_for_status()
-        results = r.json().get("results", [])
-        if not results:
-            return set(), 0, 0, None
-        rec = results[0]
-        practiced = {
-            normalize(w)
-            for w in rec.get(PF_VOCAB, "").split(",")
-            if w.strip()
-        }
-        return (
-            practiced,
-            int(rec.get(PF_ATTEMPTED, 0)),
-            int(rec.get(PF_CORRECT, 0)),
-            rec["id"]
-        )
-
-    def save_progress(
-        student: str, level: str,
-        practiced: set, attempted: int,
-        correct: int, row_id: int = None
-    ):
-        base_url = f"https://api.baserow.io/api/database/rows/table/{PROG_TABLE}/"
-        headers  = {
-            "Authorization": f"Token {API_TOKEN}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            PF_STUDENT:   student,
-            PF_LEVEL:     level,
-            PF_VOCAB:     ",".join(sorted(practiced)),
-            PF_ATTEMPTED: attempted,
-            PF_CORRECT:   correct,
-            "Date":       date.today().isoformat()
-        }
-        if row_id:
-            url = base_url + f"{row_id}/?user_field_names=true"
-            r = requests.patch(url, headers=headers, json=payload)
-        else:
-            url = base_url + "?user_field_names=true"
-            r = requests.post(url, headers=headers, json=payload)
-        r.raise_for_status()
-        return r.json().get("id")
-
-    # --- LOAD DATA & SETUP UI ---
     student = st.session_state.get("student_code", "").strip()
     if not student:
-        st.error("Please log in first.")
+        st.error("Please log in to track your progress.")
         st.stop()
 
     vocab_by_level = load_vocab()
     levels = sorted(vocab_by_level.keys())
     if not levels:
-        st.error("No vocab found in Baserow.")
+        st.error("No vocabulary found. Check your Baserow data.")
         st.stop()
 
     level      = st.selectbox("Choose level:", levels)
@@ -2332,7 +2255,7 @@ if tab == "Vocab Trainer":
                 st.experimental_rerun()
             st.stop()
 
-    # --- SESSION STATE DEFAULTS ---
+    # initialize session state
     defaults = {
         "vt_list":      [],
         "vt_index":     0,
@@ -2343,7 +2266,7 @@ if tab == "Vocab Trainer":
     for k, v in defaults.items():
         st.session_state.setdefault(k, v)
 
-    # --- START PRACTICE ---
+    # start practice
     if st.session_state.vt_total is None:
         n = st.number_input(
             "How many words today?",
@@ -2359,7 +2282,7 @@ if tab == "Vocab Trainer":
             st.session_state.vt_score     = 0
             st.session_state.vt_practiced = set(practiced)
 
-    # --- PRACTICE LOOP ---
+    # practice loop
     if st.session_state.vt_total:
         idx = st.session_state.vt_index
         if idx < st.session_state.vt_total:
@@ -2367,8 +2290,8 @@ if tab == "Vocab Trainer":
             inp = st.text_input(f"Translate **{eng}** →", key=f"vt_in_{idx}")
             if st.button("Check", key=f"vt_ch_{idx}") and inp:
                 ok = normalize(inp) == normalize(ger)
-                st.session_state.vt_score += int(ok)
                 st.success("✅ Correct!") if ok else st.error(f"❌ {ger}")
+                st.session_state.vt_score += int(ok)
                 st.session_state.vt_practiced.add(normalize(ger))
                 st.session_state.vt_index += 1
                 row_id = save_progress(
@@ -2380,13 +2303,13 @@ if tab == "Vocab Trainer":
                 )
                 st.rerun()
         else:
-            sc  = st.session_state.vt_score
-            tot = st.session_state.vt_total
+            sc, tot = st.session_state.vt_score, st.session_state.vt_total
             st.success(f"🏁 Done: {sc}/{tot} correct.")
             if st.button("Practice Again"):
-                for key in ("vt_list","vt_index","vt_score","vt_total"):
-                    st.session_state[key] = None if key=="vt_total" else [] 
-                st.rerun()
+                for key in ("vt_list","vt_index","vt_score","vt_total"):                 
+                    st.session_state[key] = None if key=="vt_total" else []
+                st.experimental_rerun()
+
                 
 if tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer (Writing Practice)")
