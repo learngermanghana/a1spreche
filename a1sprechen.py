@@ -532,6 +532,18 @@ import time
 
 if tab == "Dashboard":
     st.header("📊 Student Dashboard")
+    
+    # --- Friendly, universal message ---
+    st.markdown(
+        f"""
+        <div style='padding: 14px; background-color: #d0f5e8; border-radius: 10px; margin-bottom: 18px; font-size: 1.1em;'>
+            👋 <b>Welcome back, {student_row.get('Name', student_name).split()[0].title()}!</b><br>
+            Every step counts—keep moving forward!
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
 
     # --- Student Info & Balance ---
     df_students = load_student_data()
