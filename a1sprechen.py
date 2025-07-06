@@ -2,6 +2,7 @@
 import os
 import random
 import difflib
+import re
 import json
 from datetime import date, datetime, timedelta
 import pandas as pd
@@ -154,6 +155,70 @@ def save_schreiben_submission_baserow(student_code, student_name, level, letter,
         return False
     return True
 
+def get_writing_stats_baserow(student_code):
+    """Return total submissions, number passed and pass rate for a student."""
+    if not BASEROW_API_TOKEN:
+        return 0, 0, 0.0
+
+    url = "https://api.baserow.io/api/database/rows/table/597719/"
+    headers = {"Authorization": f"Token {BASEROW_API_TOKEN}"}
+    params = {"user_field_names": True, "size": 200,
+              "filter__student_code__equal": student_code}
+
+    attempted = passed = 0
+    while url:
+        resp = requests.get(url, headers=headers, params=params)
+        if not resp.ok:
+            break
+        data = resp.json()
+        for row in data.get("results", []):
+            attempted += 1
+            try:
+                score = int(row.get("score", 0))
+            except (TypeError, ValueError):
+                score = 0
+            if score >= 17:
+                passed += 1
+        url = data.get("next")
+        params = {}
+
+    accuracy = round(passed / attempted * 100, 2) if attempted else 0.0
+    return attempted, passed, accuracy
+
+
+def get_student_level_stats_baserow(student_code):
+    """Return a dict of level -> {'attempted': X, 'correct': Y}."""
+    if not BASEROW_API_TOKEN:
+        return {}
+
+    url = "https://api.baserow.io/api/database/rows/table/597719/"
+    headers = {"Authorization": f"Token {BASEROW_API_TOKEN}"}
+    params = {"user_field_names": True, "size": 200,
+              "filter__student_code__equal": student_code}
+
+    stats = {}
+    while url:
+        resp = requests.get(url, headers=headers, params=params)
+        if not resp.ok:
+            break
+        data = resp.json()
+        for row in data.get("results", []):
+            level = row.get("level")
+            if not level:
+                continue
+            stats.setdefault(level, {"attempted": 0, "correct": 0})
+            stats[level]["attempted"] += 1
+            try:
+                score = int(row.get("score", 0))
+            except (TypeError, ValueError):
+                score = 0
+            if score >= 17:
+                stats[level]["correct"] += 1
+        url = data.get("next")
+        params = {}
+
+    return stats
+    
 # --- Fuzzy-match helper (used by Vocab Trainer) ---
 def is_close_answer(student, correct, threshold=0.80):
     import difflib
@@ -233,7 +298,7 @@ def normalize(word: str) -> str:
     return word.strip().lower()
 
 
-def load_progress(student: str, level: str):
+def load_vocab_progress(student: str, level: str):
     """Load a student's practiced vocab, attempted and correct counts, and record id."""
     url     = f"https://api.baserow.io/api/database/rows/table/{PROG_TABLE}/"
     headers = {"Authorization": f"Token {API_TOKEN}"}
@@ -461,15 +526,6 @@ def validate_translation_openai(word, student_answer):
         return reply.startswith("true")
     except Exception:
         return False
-
-# ====================================
-# 5. CONSTANTS & VOCAB LISTS
-# ====================================
-
-FALOWEN_DAILY_LIMIT = 20
-VOCAB_DAILY_LIMIT = 20
-SCHREIBEN_DAILY_LIMIT = 5
-max_turns = 25
 
 
 # ====================================
@@ -1997,7 +2053,7 @@ if tab == "Exams Mode":
             topic_ids = [f"{row['Topic']}|{row.get('Keyword','')}" for row in topics]
             random.shuffle(topic_ids)
             # Try to load progress, else start new
-            remaining, used = load_progress(student_code, sel_level, teil_id, mode="exam")
+            remaining, used = load_exam_progress(student_code, sel_level, teil_id, mode="exam")
             if remaining is None or used is None:
                 remaining = topic_ids.copy()
                 used = []
@@ -2240,7 +2296,7 @@ if tab == "Vocab Trainer":
     level      = st.selectbox("Choose level:", levels)
     review_all = st.checkbox("Review all words (ignore past progress)", value=False)
 
-    practiced, attempted, correct, row_id = load_progress(student, level)
+    practiced, attempted, correct, row_id = load_vocab_progress(student, level)
     total_words = len(vocab_by_level[level])
     st.markdown(f"**Words practiced so far:** {len(practiced)} / {total_words}")
     st.progress(len(practiced) / total_words if total_words else 1.0)
