@@ -58,6 +58,7 @@ def has_falowen_quota(student_code):
 BASEROW_API_TOKEN = os.getenv("BASEROW_API_TOKEN") or st.secrets.get("BASEROW_API_TOKEN")
 BASEROW_TABLE_ID = 597685  # Update to your real table id
 BASEROW_URL = "https://api.baserow.io/api/database"
+SCHREIBEN_TABLE_ID = 597719
 
 BASEROW_HEADERS = {
     "Authorization": f"Token {BASEROW_API_TOKEN}",
@@ -138,7 +139,6 @@ def load_exam_progress(student_code, level, teil, mode):
 
 # --- Helper Functions for Baserow Integration ---
 
-schreiben_submissions = 597719
 
 
 
