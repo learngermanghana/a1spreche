@@ -455,7 +455,7 @@ if tab == "My Results and Resources":
     st.markdown("View and download your assignment history. All results are private and only visible to you.")
 
     # === LIVE GOOGLE SHEETS CSV LINK ===
-    GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
+    GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4e9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
 
     @st.cache_data
     def fetch_scores():
@@ -463,19 +463,28 @@ if tab == "My Results and Resources":
         response.raise_for_status()
         df = pd.read_csv(io.StringIO(response.text), engine='python')
 
-        # Clean and validate columns (normalize: lower/strip/underscores)
+        # normalize column names
         df.columns = [col.strip().replace(' ', '_').lower() for col in df.columns]
 
-        # Drop rows with missing required fields
+        # ensure required columns exist
         required_cols = ["student_code", "name", "assignment", "score", "date", "level"]
+        missing = [c for c in required_cols if c not in df.columns]
+        if missing:
+            st.error(f"Data format error: missing columns {missing} in your Google Sheet.")
+            return pd.DataFrame(columns=required_cols)
+
+        # now it's safe to drop rows with missing values
         df = df.dropna(subset=required_cols)
         return df
 
     df_scores = fetch_scores()
     required_cols = {"student_code", "name", "assignment", "score", "date", "level"}
+    if df_scores.empty:
+        st.info("No data available yet.")
+        st.stop()
     if not required_cols.issubset(df_scores.columns):
-        st.error("Data format error. Please contact support.")
-        st.write("Columns found:", df_scores.columns.tolist())  # Debug info
+        st.error("Unexpected data structure. Please contact support.")
+        st.write("Found columns:", df_scores.columns.tolist())
         st.stop()
 
     # --- Filter for this student ---
@@ -503,7 +512,7 @@ if tab == "My Results and Resources":
     col3.metric("Average Score", f"{avg_score:.1f}")
     col4.metric("Best Score", best_score)
 
-    # --- Detailed results (expandable)
+    # --- Detailed results (expandable) ---
     with st.expander("See detailed results", expanded=False):
         df_display = (
             df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
@@ -512,7 +521,7 @@ if tab == "My Results and Resources":
         )
         st.table(df_display)
 
-    # --- PDF download
+    # --- PDF download ---
     if st.button("⬇️ Download PDF Summary"):
         pdf = FPDF()
         pdf.add_page()
@@ -545,6 +554,7 @@ if tab == "My Results and Resources":
             file_name=f"{student_code}_results_{level}.pdf",
             mime="application/pdf"
         )
+
 
     # --- Resources Section ---
     st.markdown("---")
