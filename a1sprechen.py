@@ -547,9 +547,10 @@ if tab == "Dashboard":
     else:
         first_name = "Student"
 
+    # --- Friendly, simple greeting (mobile-friendly style) ---
     st.markdown(
         f"""
-        <div style='padding:12px; background:#e2f6e9; border-radius:10px; margin-bottom:10px; font-size:1em; text-align:left;'>
+        <div style='padding:12px; background:#f7fafd; border-radius:10px; margin-bottom:10px; font-size:1em; color:#222; text-align:left;'>
             👋 <b>Hello, {first_name}!</b><br>
             Great to see you. Let’s keep learning!
         </div>
