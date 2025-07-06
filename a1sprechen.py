@@ -693,7 +693,7 @@ SWIFT: **ECOCGHAC**
         if now - st.session_state["rev_last_time"] > ROTATE_REV_SEC:
             st.session_state["rev_idx"] = (st.session_state["rev_idx"] + 1) % len(rev_list)
             st.session_state["rev_last_time"] = now
-            st.experimental_rerun()
+            st.rerun()
 
         # Display the current review
         r = rev_list[st.session_state["rev_idx"]]
