@@ -160,6 +160,26 @@ def is_close_answer(student, correct, threshold=0.80):
     correct = correct.strip().lower()
     return difflib.SequenceMatcher(None, student, correct).ratio() >= threshold
 
+def get_practiced_vocab(student_code, level):
+    url = f"https://api.baserow.io/api/database/rows/table/{PROGRESS_TABLE_ID}/"
+    headers = {"Authorization": f"Token {API_TOKEN}"}
+    params = {
+        "user_field_names": True,
+        "filter__field_4838052__equal": student_code,
+        "filter__Level__equal": level,   # Only count this level
+    }
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code != 200:
+        return set()
+    results = response.json().get("results", [])
+    practiced = set()
+    for row in results:
+        practiced_vocab = row.get(VOCAB_FIELD, "")
+        if practiced_vocab:
+            practiced.update([x.strip() for x in practiced_vocab.split(",") if x.strip()])
+    return practiced
+
+
 # ==== BASEROW CONFIG ====
 API_TOKEN = st.secrets["BASEROW_API_TOKEN"]  # <-- Load from secrets, not in code!
 
