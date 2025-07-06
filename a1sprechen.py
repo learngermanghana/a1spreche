@@ -2209,7 +2209,7 @@ if tab == "Vocab Trainer":
         state["remaining"] = state["remaining"][1:]
         state["idx"] += 1
         save_vocab_progress(student_code, user_level, state["remaining"], state["used"], state["score"])
-        st.experimental_rerun()
+        st.rerun()
 
     # --- Progress Bar and Info ---
     total = state["idx"] + len(state["remaining"])
