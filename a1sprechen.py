@@ -61,7 +61,7 @@ BASEROW_HEADERS = {
     "Content-Type": "application/json",
 }
 
-def save_progress(student_code, level, teil, mode, remaining, used):
+def save_exam_progress(student_code, level, teil, mode, remaining, used):
     """
     Save progress to Baserow for a given student, level, teil, and mode.
 
@@ -101,8 +101,8 @@ def save_progress(student_code, level, teil, mode, remaining, used):
         r = requests.post(url, headers=BASEROW_HEADERS, json=payload)
         if not r.ok:
             st.warning("Could not save your progress on Baserow.")
-
-def load_progress(student_code, level, teil, mode):
+            
+def load_exam_progress(student_code, level, teil, mode):
     """
     Load progress from Baserow for a given student, level, teil, and mode.
 
@@ -2057,7 +2057,7 @@ if tab == "Exams Mode":
             if remaining is None or used is None:
                 remaining = topic_ids.copy()
                 used = []
-                save_progress(student_code, sel_level, teil_id, "exam", remaining, used)
+                save_exam_progress(student_code, sel_level, teil_id, "exam", remaining, used)
             st.session_state.update({
                 "exam_stage": 2,
                 "exam_level": sel_level,
@@ -2143,7 +2143,7 @@ if tab == "Exams Mode":
         if st.button("✅ Mark Topic as Done / Next", key=f"next_{curr_id}"):
             used.append(curr_id)
             remaining = [t for t in remaining if t != curr_id]
-            save_progress(student_code, level, teil, "exam", remaining, used)
+            save_exam_progress(student_code, level, teil, "exam", remaining, used)
             st.session_state["exam_remaining"] = remaining
             st.session_state["exam_used"] = used
             # Optionally: clear chat
