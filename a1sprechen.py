@@ -549,9 +549,9 @@ if tab == "Dashboard":
 
     st.markdown(
         f"""
-        <div style='padding: 14px; background-color: #d0f5e8; border-radius: 10px; margin-bottom: 18px; font-size: 1.1em;'>
-            👋 <b>Welcome back, {first_name}!</b><br>
-            Every step counts—keep moving forward!
+        <div style='padding:12px; background:#e2f6e9; border-radius:10px; margin-bottom:10px; font-size:1em; text-align:left;'>
+            👋 <b>Hello, {first_name}!</b><br>
+            Great to see you. Let’s keep learning!
         </div>
         """,
         unsafe_allow_html=True
