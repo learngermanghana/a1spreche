@@ -607,7 +607,7 @@ if tab == "Dashboard":
     if now - st.session_state["ad_last_time"] > ROTATE_AD_SEC:
         st.session_state["ad_idx"] = (st.session_state["ad_idx"] + 1) % len(ad_images)
         st.session_state["ad_last_time"] = now
-        st.experimental_rerun()
+        st.rerun()
 
     idx = st.session_state["ad_idx"]
     st.image(ad_images[idx], caption=ad_captions[idx], use_container_width=True)
