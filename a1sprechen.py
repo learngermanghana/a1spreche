@@ -180,6 +180,7 @@ def get_practiced_vocab(student_code, level):
     return practiced
 
 
+
 # ==== BASEROW CONFIG ====
 API_TOKEN = st.secrets["BASEROW_API_TOKEN"]  # <-- Load from secrets, not in code!
 
@@ -226,7 +227,7 @@ def load_vocab_lists_baserow():
 def clean_text(text):
     return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
 
-def save_progress_to_baserow(student_code, practiced_vocab_list, num_attempted, num_correct):
+def save_progress_to_baserow(student_code, practiced_vocab_list, num_attempted, num_correct, level):
     url = f"https://api.baserow.io/api/database/rows/table/{PROGRESS_TABLE_ID}/"
     headers = {
         "Authorization": f"Token {API_TOKEN}",
@@ -237,8 +238,7 @@ def save_progress_to_baserow(student_code, practiced_vocab_list, num_attempted, 
         VOCAB_FIELD: ",".join(practiced_vocab_list),
         ATTEMPTED_FIELD: num_attempted,
         CORRECT_FIELD: num_correct,
-        # If you have a date field, add it here, e.g.
-        # "field_xxxxxxxx": str(date.today()),
+        "Level": level,   # <-- Add this line!
     }
     response = requests.post(url, headers=headers, json=payload)
     if response.status_code in (200, 201):
@@ -246,6 +246,7 @@ def save_progress_to_baserow(student_code, practiced_vocab_list, num_attempted, 
     else:
         st.warning(f"Failed to save progress! {response.status_code}: {response.text}")
         return False
+
 
 
 
