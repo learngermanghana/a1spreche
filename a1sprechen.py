@@ -2307,7 +2307,11 @@ if tab == "Vocab Trainer":
         else:
             st.error(f"Incorrect. Correct answer: **{item['german']}**")
 
+        # -- Make sure practiced_vocab exists --
+        if "practiced_vocab" not in state or state["practiced_vocab"] is None:
+            state["practiced_vocab"] = []
         state["practiced_vocab"].append(item)
+
         state["remaining"] = state["remaining"][1:]
         state["idx"] += 1
 
@@ -2323,7 +2327,8 @@ if tab == "Vocab Trainer":
         except Exception as e:
             st.warning(f"⚠️ Could not update your vocab progress on Baserow: {e}")
 
-        st.experimental_rerun()
+        st.rerun()
+
 
     # --- Progress / Score display ---
     practiced = state.get("practiced_vocab", state.get("used", []))
