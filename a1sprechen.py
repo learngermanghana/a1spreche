@@ -2149,16 +2149,14 @@ if tab == "Custom Chat":
             st.session_state["custom_topic"] = ""
             st.session_state["custom_chat_history"] = []
             st.rerun()
-
 if tab == "Vocab Trainer":
     import requests, io, pandas as pd, json, random, difflib, os
-    from datetime import date
 
     st.header("🧠 Vocab Trainer – Practice and Progress")
 
     # --- Config ---
     VOCAB_CSV_URL = "https://docs.google.com/spreadsheets/d/1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU/gviz/tq?tqx=out:csv"
-    BASEROW_TABLE_ID = 597671  # Your VocabProgress table ID
+    BASEROW_TABLE_ID = 597671  # <-- your Baserow vocab progress table id
     BASEROW_API_TOKEN = os.getenv("BASEROW_API_TOKEN") or st.secrets.get("BASEROW_API_TOKEN")
     BASEROW_HEADERS = {
         "Authorization": f"Token {BASEROW_API_TOKEN}",
@@ -2172,28 +2170,28 @@ if tab == "Vocab Trainer":
         return difflib.SequenceMatcher(None, student, correct).ratio() >= threshold
 
     # --- Baserow helpers ---
-    def save_vocab_progress(student_code, level, practiced_vocab, num_attempted, num_correct):
-        """Save student vocab progress in Baserow."""
+    def save_vocab_progress(student_code, level, remaining, practiced_vocab, attempted, correct):
         if not BASEROW_API_TOKEN:
             st.info("🔒 Baserow token missing: progress will not be saved.")
             return
 
         url = f"https://api.baserow.io/api/database/rows/table/{BASEROW_TABLE_ID}/?user_field_names=true"
-        params = {"filter__StudentCode__equal": student_code, "filter__Level__equal": level}
+        params = {"filter__student_code__equal": student_code, "filter__level__equal": level}
 
         try:
-            # See if there's an existing row
             resp = requests.get(url, headers=BASEROW_HEADERS, params=params, timeout=5)
             resp.raise_for_status()
             results = resp.json().get("results", [])
 
             payload = {
-                "StudentCode": student_code,
-                "Level": level,
-                "PracticedVocab": ', '.join(practiced_vocab),
-                "NumAttempted": num_attempted,
-                "NumCorrect": num_correct,
-                "Date": str(date.today())
+                "student_code": student_code,
+                "level": level,
+                "progress_data": json.dumps({
+                    "practiced_vocab": practiced_vocab,
+                    "remaining": remaining,
+                    "attempted": attempted,
+                    "correct": correct
+                })
             }
 
             if results:
@@ -2208,32 +2206,25 @@ if tab == "Vocab Trainer":
             st.warning(f"⚠️ Could not update your vocab progress on Baserow: {e}")
 
     def load_vocab_progress(student_code, level, vocab_list):
-        """Load student vocab progress from Baserow."""
         if not BASEROW_API_TOKEN:
-            return [], 0, 0  # practiced_vocab, attempted, correct
-
+            return None, None, 0, 0
         url = f"https://api.baserow.io/api/database/rows/table/{BASEROW_TABLE_ID}/?user_field_names=true"
-        params = {"filter__StudentCode__equal": student_code, "filter__Level__equal": level}
-
+        params = {"filter__student_code__equal": student_code, "filter__level__equal": level}
         try:
             resp = requests.get(url, headers=BASEROW_HEADERS, params=params, timeout=5)
             resp.raise_for_status()
             results = resp.json().get("results", [])
             if results:
-                row = results[0]
-                practiced_vocab = [w.strip() for w in row.get("PracticedVocab", "").split(",") if w.strip()]
-                num_attempted = int(row.get("NumAttempted", 0))
-                num_correct = int(row.get("NumCorrect", 0))
-                # Restore only remaining vocab not in practiced list
-                remaining = [v for v in vocab_list if v["german"] not in practiced_vocab]
-                return practiced_vocab, remaining, num_attempted, num_correct
+                prog = json.loads(results[0]["progress_data"])
+                # Recover all keys with fallback
+                practiced_vocab = prog.get("practiced_vocab", [])
+                remaining = prog.get("remaining", [])
+                attempted = prog.get("attempted", 0)
+                correct = prog.get("correct", 0)
+                return practiced_vocab, remaining, attempted, correct
         except Exception:
             pass
-
-        # Default: start fresh
-        quiz = vocab_list.copy()
-        random.shuffle(quiz)
-        return [], quiz, 0, 0
+        return [], vocab_list.copy(), 0, 0
 
     # --- Load vocab from Google Sheet ---
     @st.cache_data(ttl=900)
@@ -2259,18 +2250,20 @@ if tab == "Vocab Trainer":
     key = f"vocab_{student_code}_{user_level}"
     if key not in st.session_state:
         practiced_vocab, remaining, attempted, correct = load_vocab_progress(student_code, user_level, vocab_list)
-        if not remaining:
+        if remaining is None or len(remaining) == 0:
             quiz = vocab_list.copy()
             random.shuffle(quiz)
-            st.session_state[key] = {"practiced_vocab": [], "remaining": quiz, "idx": 0, "attempted": 0, "correct": 0}
-        else:
-            st.session_state[key] = {
-                "practiced_vocab": practiced_vocab,
-                "remaining": remaining,
-                "idx": 0,
-                "attempted": attempted,
-                "correct": correct
-            }
+            practiced_vocab = []
+            remaining = quiz
+            attempted = 0
+            correct = 0
+        st.session_state[key] = {
+            "practiced_vocab": practiced_vocab if practiced_vocab is not None else [],
+            "remaining": remaining if remaining is not None else [],
+            "idx": 0,
+            "attempted": attempted if attempted is not None else 0,
+            "correct": correct if correct is not None else 0
+        }
 
     state = st.session_state[key]
 
@@ -2281,7 +2274,7 @@ if tab == "Vocab Trainer":
             quiz = vocab_list.copy()
             random.shuffle(quiz)
             st.session_state[key] = {"practiced_vocab": [], "remaining": quiz, "idx": 0, "attempted": 0, "correct": 0}
-            save_vocab_progress(student_code, user_level, [], 0, 0)
+            save_vocab_progress(student_code, user_level, quiz, [], 0, 0)
             st.experimental_rerun()
         st.stop()
 
@@ -2295,20 +2288,25 @@ if tab == "Vocab Trainer":
     if st.button("Submit", key=f"vocab_submit_{state['idx']}") and ans:
         state["attempted"] += 1
 
-        if ans.strip().lower() == item["german"].strip().lower() or is_close_answer(ans, item["german"]):
+        correct = (
+            ans.strip().lower() == item["german"].strip().lower()
+            or is_close_answer(ans, item["german"])
+        )
+        if correct:
             state["correct"] += 1
             st.success("Correct! ✅")
         else:
             st.error(f"Incorrect. Correct answer: **{item['german']}**")
 
-        state["practiced_vocab"].append(item["german"])
+        state["practiced_vocab"].append(item)
         state["remaining"] = state["remaining"][1:]
         state["idx"] += 1
 
-        # Save progress in Baserow
+        # save & rerun
         save_vocab_progress(
             student_code,
             user_level,
+            state["remaining"],
             state["practiced_vocab"],
             state["attempted"],
             state["correct"]
@@ -2317,13 +2315,14 @@ if tab == "Vocab Trainer":
 
     # --- Progress / Score display ---
     total = len(state["practiced_vocab"]) + len(state["remaining"])
-    st.progress(len(state["practiced_vocab"]) / total if total > 0 else 1.0)
-    st.write(f"**Progress:** {len(state['practiced_vocab']) + 1} / {total + 1}")
+    st.progress(state["idx"] / total if total > 0 else 1.0)
+    st.write(f"**Progress:** {state['idx'] + 1} / {total + 1}")
     st.write(f"**Score:** {state['correct']} / {state['attempted']}")
 
     st.divider()
     with st.expander("📋 View all words for this level"):
         st.dataframe(df_level[["german", "english"]].reset_index(drop=True), use_container_width=True)
+
 
 
 if tab == "Schreiben Trainer":
