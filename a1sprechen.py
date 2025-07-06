@@ -522,34 +522,48 @@ def validate_translation_openai(word, student_answer):
         return reply.startswith("true")
     except Exception:
 
+import streamlit as st
+import time
 
-# Your image URLs and captions
+# Example: Place this block inside your Dashboard tab
+
+st.markdown("### 🖼️ Announcements & Ads")
+
 image_urls = [
-    "https://i.imgur.com/gCQAWA1.jpg",
-    "https://i.imgur.com/9hLAScD.jpg",
-    "https://i.imgur.com/2PzOOvn.jpg",
-    "https://i.imgur.com/Q9mpvRY.jpg"
+    ("https://i.imgur.com/gCQAWA1.jpg", "Speak German with Confidence – Join Our Next Batch!"),
+    ("https://i.imgur.com/9hLAScD.jpg", "Learn Anywhere: In-Person and Online Classes Available"),
+    ("https://i.imgur.com/2PzOOvn.jpg", "Success Stories: Our Students Pass Their Goethe Exams"),
+    ("https://i.imgur.com/Q9mpvRY.jpg", "Affordable Payment Plans – Enroll Today!"),
 ]
 
-captions = [
-    "🌟 German Class in Session! Join us and learn fast.",
-    "📝 Exam Prep Made Easy – See your results on your dashboard.",
-    "🎯 Personal Progress Tracking for Every Student.",
-    "🚀 Start Your Language Journey with Us Today!"
-]
+# Use session_state to store the current image index
+if "banner_index" not in st.session_state:
+    st.session_state["banner_index"] = 0
 
-# Autoplaying image rotator
-if "img_idx" not in st.session_state:
-    st.session_state.img_idx = 0
+def next_image():
+    st.session_state["banner_index"] = (st.session_state["banner_index"] + 1) % len(image_urls)
 
-# Display image and caption
-st.image(image_urls[st.session_state.img_idx], use_container_width=True)
-st.markdown(f"<div style='text-align:center; font-size:1.2em; padding: 8px 0;'>{captions[st.session_state.img_idx]}</div>", unsafe_allow_html=True)
+def prev_image():
+    st.session_state["banner_index"] = (st.session_state["banner_index"] - 1) % len(image_urls)
 
-# Auto-rotate
-time.sleep(3)
-st.session_state.img_idx = (st.session_state.img_idx + 1) % len(image_urls)
-st.experimental_rerun()
+col1, col2, col3 = st.columns([1,6,1])
+with col1:
+    st.button("⏮️", on_click=prev_image)
+with col2:
+    url, caption = image_urls[st.session_state["banner_index"]]
+    try:
+        st.image(url, caption=caption, use_container_width=True)
+    except:
+        pass
+with col3:
+    st.button("⏭️", on_click=next_image)
+
+# Optional: auto-rotate every 8 seconds (uncomment to use, but this only works with streamlit-autorefresh or a timer hack)
+# st_autorefresh = st.experimental_rerun if hasattr(st, "experimental_rerun") else lambda: None
+# time.sleep(8)
+# next_image()
+# st_autorefresh()
+
 
 
 
