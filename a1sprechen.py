@@ -536,11 +536,12 @@ def load_student_data():
     df.columns = df.columns.str.strip().str.replace(" ", "")
     return df
 
+import matplotlib.pyplot as plt
+
 if st.session_state["logged_in"]:
     student_code = st.session_state.get("student_code", "")
     student_name = st.session_state.get("student_name", "")
 
-    # Optional: Show a tip for recommended flow
     st.markdown(
         """
         <div style='padding: 10px; background-color: #f1faee; border-radius: 8px; margin-bottom: 16px;'>
@@ -554,16 +555,14 @@ if st.session_state["logged_in"]:
         "How do you want to practice?",
         [
             "Dashboard",
-            "My Results and Resources",
             "Course Book",
-            "Exams Mode",
-            "Custom Chat",
+            "My Results and Resources",
+            "Exams Mode & Custom Chat",
             "Vocab Trainer",
-            "Schreiben Trainer"
+            "Schreiben Trainer",
         ],
         key="main_tab_select"
     )
-
 
     # --- Always get these for Dashboard ---
     df_students = load_student_data()
@@ -595,7 +594,64 @@ if st.session_state["logged_in"]:
         except:
             pass
 
-        # --- UPCOMING EXAMS (dashboard only) ---
+        # === New Progress Stats Section (from assignment data sheet) ===
+        def load_stats_data():
+            # Your assignment/stats sheet ID & sheet name here:
+            SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
+            SHEET_NAME = "Sheet1"
+            csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
+            df = pd.read_csv(csv_url)
+            # Clean headers (removes spaces, lowercase, etc)
+            df.columns = df.columns.str.strip().str.lower()
+            return df
+
+        df_stats = load_stats_data()
+        level = student_row.get("Level", "").strip().upper()
+        LEVEL_TOTALS = {"A1": 18, "A2": 28, "B1": 29}
+        total_assignments = LEVEL_TOTALS.get(level, 18)  # Default to 18 if unknown
+
+        # Only use student's stats for their level
+        student_stats = df_stats[df_stats["studentcode"].astype(str).str.lower() == code]
+        if not student_stats.empty:
+            student_stats = student_stats[student_stats["level"].astype(str).str.upper() == level]
+
+        total_submitted = len(student_stats)
+        completion_rate = (total_submitted / total_assignments) * 100 if total_assignments else 0
+
+        # Most recent assignment & score
+        if not student_stats.empty:
+            student_stats_sorted = student_stats.sort_values("date", ascending=False)
+            last_row = student_stats_sorted.iloc[0]
+            last_assignment = last_row["assignment"]
+            last_score = last_row["score"]
+        else:
+            last_assignment, last_score = "-", "-"
+
+        # Number passed (score >= 80)
+        num_passed = (student_stats["score"].astype(float) >= 80).sum()
+        # Last 10 assignment scores
+        last_scores = student_stats_sorted.head(10)[["assignment", "score"]][::-1] if not student_stats.empty else None
+
+        st.markdown("### 📈 Progress Stats")
+        st.markdown(
+            f"- **Assignments Submitted:** {total_submitted} / {total_assignments} ({completion_rate:.0f}%)\n"
+            f"- **Most Recent Assignment:** {last_assignment} (Score: {last_score})\n"
+            f"- **Number Passed (≥80):** {num_passed}\n"
+        )
+
+        # Improvement Trend Chart
+        if last_scores is not None and not last_scores.empty:
+            st.markdown("**Improvement Trend (Last 10):**")
+            fig, ax = plt.subplots()
+            ax.plot(last_scores["assignment"], last_scores["score"], marker="o")
+            ax.set_xlabel("Assignment")
+            ax.set_ylabel("Score")
+            ax.set_title("Last 10 Assignment Scores")
+            ax.set_ylim(0, 100)
+            plt.xticks(rotation=45)
+            st.pyplot(fig)
+
+        # --- UPCOMING EXAMS ---
         with st.expander("📅 Upcoming Goethe Exams & Registration (Tap for details)", expanded=True):
             st.markdown(
                 """
