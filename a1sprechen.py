@@ -133,92 +133,7 @@ def load_exam_progress(student_code, level, teil, mode):
             return prog.get("remaining"), prog.get("used")
     return None, None
 
-def save_schreiben_submission_baserow(student_code, student_name, level, letter, score, feedback):
-    BASEROW_API_URL = "https://api.baserow.io/api/database/rows/table/597719/?user_field_names=true"
-    BASEROW_API_TOKEN = os.getenv("BASEROW_API_TOKEN") or st.secrets.get("BASEROW_API_TOKEN")
-    BASEROW_HEADERS = {
-        "Authorization": f"Token {BASEROW_API_TOKEN}",
-        "Content-Type": "application/json",
-    }
-    import datetime
-    payload = {
-        "student_code": student_code,
-        "student_name": student_name,
-        "level": level,
-        "letter": letter,
-        "score": score,
-        "feedback": feedback,
-        "date": datetime.date.today().isoformat()
-    }
-    resp = requests.post(BASEROW_API_URL, headers=BASEROW_HEADERS, json=payload)
-    if not resp.ok:
-        st.warning("Could not save your submission to Baserow.")
-        return False
-    return True
 
-def get_writing_stats_baserow(student_code):
-    """Return total submissions, number passed and pass rate for a student."""
-    if not BASEROW_API_TOKEN:
-        return 0, 0, 0.0
-
-    url = "https://api.baserow.io/api/database/rows/table/597719/"
-    headers = {"Authorization": f"Token {BASEROW_API_TOKEN}"}
-    params = {"user_field_names": True, "size": 200,
-              "filter__student_code__equal": student_code}
-
-    attempted = passed = 0
-    while url:
-        resp = requests.get(url, headers=headers, params=params)
-        if not resp.ok:
-            break
-        data = resp.json()
-        for row in data.get("results", []):
-            attempted += 1
-            try:
-                score = int(row.get("score", 0))
-            except (TypeError, ValueError):
-                score = 0
-            if score >= 17:
-                passed += 1
-        url = data.get("next")
-        params = {}
-
-    accuracy = round(passed / attempted * 100, 2) if attempted else 0.0
-    return attempted, passed, accuracy
-
-
-def get_student_level_stats_baserow(student_code):
-    """Return a dict of level -> {'attempted': X, 'correct': Y}."""
-    if not BASEROW_API_TOKEN:
-        return {}
-
-    url = "https://api.baserow.io/api/database/rows/table/597719/"
-    headers = {"Authorization": f"Token {BASEROW_API_TOKEN}"}
-    params = {"user_field_names": True, "size": 200,
-              "filter__student_code__equal": student_code}
-
-    stats = {}
-    while url:
-        resp = requests.get(url, headers=headers, params=params)
-        if not resp.ok:
-            break
-        data = resp.json()
-        for row in data.get("results", []):
-            level = row.get("level")
-            if not level:
-                continue
-            stats.setdefault(level, {"attempted": 0, "correct": 0})
-            stats[level]["attempted"] += 1
-            try:
-                score = int(row.get("score", 0))
-            except (TypeError, ValueError):
-                score = 0
-            if score >= 17:
-                stats[level]["correct"] += 1
-        url = data.get("next")
-        params = {}
-
-    return stats
     
 # --- Fuzzy-match helper (used by Vocab Trainer) ---
 def is_close_answer(student, correct, threshold=0.80):
@@ -2368,11 +2283,10 @@ if tab == "Vocab Trainer":
                 st.rerun()
 
 
-                
+# --- Main Schreiben Trainer Block ---
 if tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer (Writing Practice)")
 
-    # 1. Choose Level
     schreiben_levels = ["A1", "A2", "B1", "B2"]
     prev_level = st.session_state.get("schreiben_level", "A1")
     schreiben_level = st.selectbox(
@@ -2383,17 +2297,16 @@ if tab == "Schreiben Trainer":
     )
     st.session_state["schreiben_level"] = schreiben_level
 
-    # 2. Daily limit tracking (by student & date)
     student_code = st.session_state.get("student_code", "demo")
     student_name = st.session_state.get("student_name", "")
-    today_str = str(datetime.date.today())
+    today_str = str(date.today())
+    SCHREIBEN_DAILY_LIMIT = 3
     limit_key = f"{student_code}_schreiben_{today_str}"
     if "schreiben_usage" not in st.session_state:
         st.session_state["schreiben_usage"] = {}
     st.session_state["schreiben_usage"].setdefault(limit_key, 0)
     daily_so_far = st.session_state["schreiben_usage"][limit_key]
 
-    # 3. Show overall writing performance (Baserow)
     attempted, passed, accuracy = get_writing_stats_baserow(student_code)
     st.markdown(f"""**📝 Your Overall Writing Performance**
 - 📨 **Submitted:** {attempted}
@@ -2402,7 +2315,6 @@ if tab == "Schreiben Trainer":
 - 📅 **Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}
 """)
 
-    # 4. Level-Specific Stats (Baserow)
     stats = get_student_level_stats_baserow(student_code)
     lvl_stats = stats.get(schreiben_level, {}) if stats else {}
     if lvl_stats and lvl_stats["attempted"]:
@@ -2414,7 +2326,6 @@ if tab == "Schreiben Trainer":
 
     st.divider()
 
-    # 5. Input Box (disabled if limit reached)
     user_letter = st.text_area(
         "Paste or type your German letter/essay here.",
         key="schreiben_input",
@@ -2422,8 +2333,10 @@ if tab == "Schreiben Trainer":
         height=180,
         placeholder="Write your German letter here..."
     )
+    words, letters = count_letters_words(user_letter)
+    if user_letter.strip():
+        st.info(f"**Letter Length:** {letters} characters, {words} words")
 
-    # 6. AI prompt (always define before calling the API)
     ai_prompt = (
         f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
         f"The student has submitted a {schreiben_level} German letter or essay. "
@@ -2440,7 +2353,6 @@ if tab == "Schreiben Trainer":
         "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score."
     )
 
-    # 7. Submit & AI Feedback
     feedback = ""
     submit_disabled = daily_so_far >= SCHREIBEN_DAILY_LIMIT or not user_letter.strip()
     if submit_disabled and daily_so_far >= SCHREIBEN_DAILY_LIMIT:
@@ -2463,12 +2375,8 @@ if tab == "Schreiben Trainer":
                 feedback = None
 
         if feedback:
-            # === Extract score and check if passed ===
-            score_match = re.search(
-                r"score\s*(?:[:=]|is)?\s*(\d+)\s*/\s*25",
-                feedback,
-                re.IGNORECASE,
-            )
+            import re
+            score_match = re.search(r"score\s*(?:[:=]|is)?\s*(\d+)\s*/\s*25", feedback, re.IGNORECASE)
             if not score_match:
                 score_match = re.search(r"Score[:\s]+(\d+)\s*/\s*25", feedback, re.IGNORECASE)
             if score_match:
@@ -2477,18 +2385,16 @@ if tab == "Schreiben Trainer":
                 st.warning("Could not detect a score in the AI feedback.")
                 score = 0
 
-            # === Update usage and save to Baserow ===
             st.session_state["schreiben_usage"][limit_key] += 1
             saved = save_schreiben_submission_baserow(
                 student_code, student_name, schreiben_level, user_letter, score, feedback
             )
 
-            # --- Show Feedback ---
             st.markdown("---")
             st.markdown("#### 📝 Feedback from Herr Felix")
             st.markdown(feedback)
 
-            # === Download as PDF ===
+            # PDF
             pdf = FPDF()
             pdf.add_page()
             pdf.set_font("Arial", size=12)
@@ -2505,7 +2411,7 @@ if tab == "Schreiben Trainer":
             )
             os.remove(pdf_output)
 
-            # === WhatsApp Share ===
+            # WhatsApp Share
             wa_message = f"Hi, here is my German letter and AI feedback:\n\n{user_letter}\n\nFeedback:\n{feedback}"
             wa_url = (
                 "https://api.whatsapp.com/send"
@@ -2516,4 +2422,78 @@ if tab == "Schreiben Trainer":
                 f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                 unsafe_allow_html=True
             )
+
+# --- Helper Functions for Baserow Integration ---
+
+BASEROW_URL = "https://api.baserow.io/api/database/rows/table/597719/"
+BASEROW_TOKEN = st.secrets["BASEROW_TOKEN"]
+BASEROW_HEADERS = {
+    "Authorization": f"Token {BASEROW_TOKEN}",
+    "Content-Type": "application/json"
+}
+
+def save_schreiben_submission_baserow(student_code, student_name, level, letter, score, feedback):
+    """
+    Save the Schreiben submission to Baserow.
+    """
+    now = datetime.datetime.now()
+    passed = score >= 17
+    percentage = round((score / 25) * 100, 2)
+    payload = {
+        "student_code": student_code,
+        "student_name": student_name,
+        "level": level,
+        "letter": letter,
+        "score": score,
+        "feedback": feedback,
+        "date": now.strftime("%Y-%m-%d %H:%M"),
+        "passed": passed,
+        "percentage": percentage
+    }
+    try:
+        resp = requests.post(BASEROW_URL, headers=BASEROW_HEADERS, json=payload)
+        return resp.status_code == 201
+    except Exception as e:
+        st.error(f"Error saving submission: {e}")
+        return False
+
+def get_writing_stats_baserow(student_code):
+    """
+    Get the overall stats for a student: attempted, passed, accuracy (%).
+    """
+    params = {"user_field_names": "true", "filter__student_code__equal": student_code}
+    try:
+        resp = requests.get(BASEROW_URL, headers=BASEROW_HEADERS, params=params)
+        if resp.status_code != 200:
+            return 0, 0, 0
+        data = resp.json()["results"]
+        attempted = len(data)
+        passed = sum(1 for row in data if row.get("passed"))
+        accuracy = round((passed / attempted) * 100, 1) if attempted else 0
+        return attempted, passed, accuracy
+    except Exception as e:
+        return 0, 0, 0
+
+def get_student_level_stats_baserow(student_code):
+    """
+    Get per-level stats for a student as a dict, e.g. {'A1': {...}, 'A2': {...}}
+    """
+    params = {"user_field_names": "true", "filter__student_code__equal": student_code}
+    levels = ["A1", "A2", "B1", "B2"]
+    stats = {lvl: {"attempted": 0, "correct": 0} for lvl in levels}
+    try:
+        resp = requests.get(BASEROW_URL, headers=BASEROW_HEADERS, params=params)
+        if resp.status_code != 200:
+            return stats
+        data = resp.json()["results"]
+        for row in data:
+            lvl = row.get("level")
+            if lvl in stats:
+                stats[lvl]["attempted"] += 1
+                if row.get("passed"):
+                    stats[lvl]["correct"] += 1
+        return stats
+    except Exception as e:
+        return stats
+
 
