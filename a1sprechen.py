@@ -580,140 +580,6 @@ How to prepare for your B1 oral exam.
     )
 
 
-if tab == "Course Book":
-    import datetime, urllib.parse
-
-    # ---- Map levels to their schedules
-    LEVEL_SCHEDULES = {
-        "A1": get_a1_schedule(),
-        "A2": get_a2_schedule(),
-        "B1": get_b1_schedule(),
-    }
-    # --- Get student info
-    student_row = st.session_state.get('student_row', {})
-    student_level = student_row.get('Level', 'A1').upper()
-    schedule = LEVEL_SCHEDULES.get(student_level, LEVEL_SCHEDULES['A1'])
-
-    if not schedule:
-        st.warning("No schedule found for your level. Please contact the admin.")
-        st.stop()
-
-    selected_day_idx = st.selectbox(
-        "Choose your lesson/day:",
-        range(len(schedule)),
-        format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
-    )
-    day_info = schedule[selected_day_idx]
-    st.markdown(f"### Day {day_info['day']}: {day_info['topic']} (Chapter {day_info['chapter']})")
-
-    # ---- Goal & Instruction
-    if day_info.get("goal"):
-        st.markdown(f"**🎯 Goal:**<br>{day_info['goal']}", unsafe_allow_html=True)
-    if day_info.get("instruction"):
-        st.markdown(f"**📝 Instruction:**<br>{day_info['instruction']}", unsafe_allow_html=True)
-
-    # ---- Lesen & Hören ----
-    def render_lh_section(item, idx=None, total=None):
-        if idx is not None and total and total > 1:
-            st.markdown(f"#### 📚 Assignment {idx+1} of {total}: Chapter {item.get('chapter','')}")
-        if item.get('video'):
-            st.video(item['video'])
-        def link(label, url):
-            st.markdown(f"- [{label}]({url})")
-        if item.get('grammarbook_link'):
-            link('📘 Grammar Book', item['grammarbook_link'])
-        if item.get('workbook_link'):
-            link('📒 Workbook', item['workbook_link'])
-        extras = item.get('extra_resources')
-        if extras:
-            if isinstance(extras, list):
-                for ex in extras:
-                    link('🔗 Extra', ex)
-            else:
-                link('🔗 Extra', extras)
-
-    if 'lesen_hören' in day_info:
-        lh = day_info['lesen_hören']
-        lh_items = lh if isinstance(lh, list) else [lh]
-        if len(lh_items) > 1:
-            st.markdown(
-                '<div style="padding:8px; background:#f8f9fa; border-left:4px solid #007bff; margin:8px 0;">'
-                '<strong>Note:</strong> Multiple Lesen & Hören tasks below. Complete all before submitting.'
-                '</div>', unsafe_allow_html=True
-            )
-        for i, part in enumerate(lh_items):
-            render_lh_section(part, idx=i, total=len(lh_items))
-
-    # ---- Schreiben & Sprechen ----
-    if 'schreiben_sprechen' in day_info:
-        ss = day_info['schreiben_sprechen']
-        st.markdown('#### 📝 Schreiben & Sprechen')
-        if ss.get('video'):
-            st.video(ss['video'])
-        def sp_link(label, url): st.markdown(f"- [{label}]({url})")
-        if ss.get('grammarbook_link'):
-            sp_link('📘 Grammar Book', ss['grammarbook_link'])
-        if ss.get('workbook_link'):
-            sp_link('📒 Workbook', ss['workbook_link'])
-        extras = ss.get('extra_resources')
-        if extras:
-            if isinstance(extras, list):
-                for ex in extras: sp_link('🔗 Extra', ex)
-            else: sp_link('🔗 Extra', extras)
-
-    # --- A2/B1/B2 Top-level resources
-    if student_level in ['A2','B1','B2']:
-        for res in ['video','grammarbook_link','workbook_link','extra_resources']:
-            if day_info.get(res):
-                url = day_info[res]
-                label = (
-                    '🎥 Video' if res=='video' else
-                    '📘 Grammar' if 'grammar' in res else
-                    '📒 Workbook' if 'workbook' in res else
-                    '🔗 Extra'
-                )
-                if res == 'video':
-                    st.video(url)
-                else:
-                    st.markdown(f"- [{label}]({url})", unsafe_allow_html=True)
-
-    # ---- WhatsApp Submission Section ----
-    st.divider()
-    st.markdown("## 📲 Submit Assignment (WhatsApp)")
-    with st.container():
-        student_name = st.text_input("👤 Your Name", value=student_row.get('Name', ''))
-        student_code = st.text_input("🆔 Student Code", value=student_row.get('StudentCode', ''))
-        st.markdown("#### ✍️ Your Answer")
-        answer = st.text_area(
-            "Type your answer here (leave blank if sending a file/photo on WhatsApp)",
-            height=400, label_visibility="collapsed"
-        )
-
-        wa_message = f"""Learn Language Education Academy – Assignment Submission
-Name: {student_name}
-Code: {student_code}
-Level: {student_level}
-Day: {day_info['day']}
-Chapter: {day_info['chapter']}
-Date: {datetime.datetime.now():%Y-%m-%d %H:%M}
-Answer: {answer if answer.strip() else '[See attached file/photo]'}
-"""
-        wa_url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(wa_message)
-
-        if st.button("📤 Submit via WhatsApp"):
-            st.success("✅ Now click the button below to open WhatsApp and send your assignment.")
-            st.markdown(
-                f"""<a href="{wa_url}" target="_blank" style="display:block; text-align:center; font-size:1.15em; font-weight:600; background:#25D366; color:white; padding:14px; border-radius:10px; margin-top:10px;">📨 Open WhatsApp</a>""",
-                unsafe_allow_html=True
-            )
-            st.text_area("📋 Copy this message if needed:", wa_message, height=400, label_visibility="visible")
-
-    st.info("""
-    - Tap the links above to open books in a new tab (no in-app preview).
-    - If multiple tasks are assigned, mention which one you're submitting.
-    - Always use your correct name and student code!
-    """)
-
 def get_a1_schedule():
     return [
         # DAY 1
@@ -1751,17 +1617,21 @@ student_level = student_row.get('Level', 'A1').upper()
 
 # --------------------------------------
 
-
 if tab == "Course Book":
+
+    import streamlit as st
     import datetime, urllib.parse
 
-    # ---- Map levels to their schedules
+    # --------------------------------------
+    # Compute level schedule mapping once at module load for efficiency
+    # --------------------------------------
     LEVEL_SCHEDULES = {
         "A1": get_a1_schedule(),
         "A2": get_a2_schedule(),
         "B1": get_b1_schedule(),
     }
-    # --- Get student info
+
+    # 1. Pick schedule based on student (cache avoids repeated calls)
     student_row = st.session_state.get('student_row', {})
     student_level = student_row.get('Level', 'A1').upper()
     schedule = LEVEL_SCHEDULES.get(student_level, LEVEL_SCHEDULES['A1'])
@@ -1776,26 +1646,36 @@ if tab == "Course Book":
         format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
     )
     day_info = schedule[selected_day_idx]
+
     st.markdown(f"### Day {day_info['day']}: {day_info['topic']} (Chapter {day_info['chapter']})")
 
-    # ---- Goal & Instruction
+    # Display optional metadata
     if day_info.get("goal"):
         st.markdown(f"**🎯 Goal:**<br>{day_info['goal']}", unsafe_allow_html=True)
     if day_info.get("instruction"):
         st.markdown(f"**📝 Instruction:**<br>{day_info['instruction']}", unsafe_allow_html=True)
 
-    # ---- Lesen & Hören ----
+    # --------- Show Lesen & Hören ----------
     def render_lh_section(item, idx=None, total=None):
+        """
+        Renders a single Lesen & Hören assignment with optional numbering.
+        """
+        # Title for multi-part lessons
         if idx is not None and total and total > 1:
             st.markdown(f"#### 📚 Assignment {idx+1} of {total}: Chapter {item.get('chapter','')}")
+        # Video
         if item.get('video'):
             st.video(item['video'])
+        # Link rendering util avoids duplication
         def link(label, url):
             st.markdown(f"- [{label}]({url})")
+        # Grammar book
         if item.get('grammarbook_link'):
             link('📘 Grammar Book', item['grammarbook_link'])
+        # Workbook
         if item.get('workbook_link'):
             link('📒 Workbook', item['workbook_link'])
+        # Extras
         extras = item.get('extra_resources')
         if extras:
             if isinstance(extras, list):
@@ -1804,6 +1684,7 @@ if tab == "Course Book":
             else:
                 link('🔗 Extra', extras)
 
+    # Normalize and render Lesen & Hören to always use list format
     if 'lesen_hören' in day_info:
         lh = day_info['lesen_hören']
         lh_items = lh if isinstance(lh, list) else [lh]
@@ -1816,7 +1697,7 @@ if tab == "Course Book":
         for i, part in enumerate(lh_items):
             render_lh_section(part, idx=i, total=len(lh_items))
 
-    # ---- Schreiben & Sprechen ----
+    # --- Show Schreiben & Sprechen (if present) ---
     if 'schreiben_sprechen' in day_info:
         ss = day_info['schreiben_sprechen']
         st.markdown('#### 📝 Schreiben & Sprechen')
@@ -1833,11 +1714,12 @@ if tab == "Course Book":
                 for ex in extras: sp_link('🔗 Extra', ex)
             else: sp_link('🔗 Extra', extras)
 
-    # --- A2/B1/B2 Top-level resources
+    # ---------- Top-level resources for A2/B1/B2 ----------
     if student_level in ['A2','B1','B2']:
         for res in ['video','grammarbook_link','workbook_link','extra_resources']:
             if day_info.get(res):
                 url = day_info[res]
+                # choose label based on key
                 label = (
                     '🎥 Video' if res=='video' else
                     '📘 Grammar' if 'grammar' in res else
@@ -1849,17 +1731,17 @@ if tab == "Course Book":
                 else:
                     st.markdown(f"- [{label}]({url})", unsafe_allow_html=True)
 
-    # ---- WhatsApp Submission Section ----
+    # --- Assignment Submission Section (WhatsApp) ---
     st.divider()
     st.markdown("## 📲 Submit Assignment (WhatsApp)")
+
     with st.container():
         student_name = st.text_input("👤 Your Name", value=student_row.get('Name', ''))
         student_code = st.text_input("🆔 Student Code", value=student_row.get('StudentCode', ''))
+
+        # Wider mobile-friendly text area
         st.markdown("#### ✍️ Your Answer")
-        answer = st.text_area(
-            "Type your answer here (leave blank if sending a file/photo on WhatsApp)",
-            height=400, label_visibility="collapsed"
-        )
+        answer = st.text_area("Type your answer here (leave blank if sending a file/photo on WhatsApp)", height=400, label_visibility="collapsed")
 
         wa_message = f"""Learn Language Education Academy – Assignment Submission
 Name: {student_name}
@@ -1885,7 +1767,6 @@ Answer: {answer if answer.strip() else '[See attached file/photo]'}
     - If multiple tasks are assigned, mention which one you're submitting.
     - Always use your correct name and student code!
     """)
-
 
 # ========== EXAMS MODE TAB ==========
 # Configs
