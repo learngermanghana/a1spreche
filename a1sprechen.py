@@ -449,90 +449,80 @@ if tab == "My Results and Resources":
         st.success("Cache cleared! Reloading…")
         st.rerun()
 
-    student_code = st.session_state.get("student_code", "").lower().strip()
+    # Always define these at the top
+    student_code = st.session_state.get("student_code", "")
     student_name = st.session_state.get("student_name", "")
-
     st.header("📈 My Results and Resources Hub")
     st.markdown("View and download your assignment history. All results are private and only visible to you.")
 
-    # --- LIVE GOOGLE SHEETS CSV LINK (first sheet, gid=0) ---
-    GOOGLE_SHEET_CSV = (
-        "https://docs.google.com/spreadsheets/d/"
-        "1BRb8p3Rq0VpFCLSwL4e9tSgXBo9hSWzfW_J_7W36NQ"
-        "/export?format=csv&gid=0"
-    )
+    # === LIVE GOOGLE SHEETS CSV LINK ===
+    GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
+
+    import requests
+    import io
+    import pandas as pd
+    from fpdf import FPDF
+
 
     @st.cache_data
     def fetch_scores():
-        try:
-            resp = requests.get(GOOGLE_SHEET_CSV, timeout=7)
-            resp.raise_for_status()
-        except requests.exceptions.HTTPError as e:
-            st.warning(f"⚠️ Could not fetch your results sheet: {e}")
-            return pd.DataFrame()
-        except Exception as e:
-            st.warning(f"⚠️ Unexpected error loading results: {e}")
-            return pd.DataFrame()
+        response = requests.get(GOOGLE_SHEET_CSV, timeout=7)
+        response.raise_for_status()
+        df = pd.read_csv(io.StringIO(response.text), engine='python')
 
-        try:
-            df = pd.read_csv(io.StringIO(resp.text), engine='python')
-        except Exception as e:
-            st.warning(f"⚠️ Error parsing CSV: {e}")
-            return pd.DataFrame()
+        # Clean and validate columns
+        df.columns = [col.strip().lower().replace('studentcode', 'student_code') for col in df.columns]
 
-        # normalize column names
-        df.columns = [col.strip().replace(' ', '_').lower() for col in df.columns]
-
-        # required fields
-        required = {"student_code", "name", "assignment", "score", "date", "level"}
-        if not required.issubset(set(df.columns)):
-            st.error("Data format error. Please contact support.")
-            st.write("Columns found:", df.columns.tolist())
-            return pd.DataFrame()
+        # Drop rows with missing *required* fields
+        required_cols = ["student_code", "name", "assignment", "score", "date", "level"]
+        df = df.dropna(subset=required_cols)
 
         return df
 
     df_scores = fetch_scores()
-    if df_scores.empty:
-        st.info("No results available. Make sure your sheet is published to the web and publicly accessible.")
+    required_cols = {"student_code", "name", "assignment", "score", "date", "level"}
+    if not required_cols.issubset(df_scores.columns):
+        st.error("Data format error. Please contact support.")
+        st.write("Columns found:", df_scores.columns.tolist())  # <-- for debugging
         st.stop()
 
-    # --- Filter for this student ---
-    df_user = df_scores[df_scores.student_code.str.lower().str.strip() == student_code]
+    # Filter for current student
+    code = st.session_state.get("student_code", "").lower().strip()
+    df_user = df_scores[df_scores.student_code.str.lower().str.strip() == code]
     if df_user.empty:
         st.info("No results yet. Complete an assignment to see your scores!")
         st.stop()
 
-    # --- Level selection ---
+    # Choose level
     df_user['level'] = df_user.level.str.upper().str.strip()
     levels = sorted(df_user['level'].unique())
     level = st.selectbox("Select level:", levels)
     df_lvl = df_user[df_user.level == level]
 
-    # --- Summary metrics
+    # Summary metrics
     totals = {"A1": 18, "A2": 28, "B1": 26, "B2": 24}
     total = totals.get(level, 0)
     completed = df_lvl.assignment.nunique()
     avg_score = df_lvl.score.mean() or 0
     best_score = df_lvl.score.max() or 0
 
+    # Display metrics in columns
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Assignments", total)
     col2.metric("Completed", completed)
     col3.metric("Average Score", f"{avg_score:.1f}")
     col4.metric("Best Score", best_score)
 
-    # --- Detailed results (expandable) ---
+    # Detailed results
     with st.expander("See detailed results", expanded=False):
         df_display = (
-            df_lvl
-            .sort_values(['assignment', 'score'], ascending=[True, False])
-            [['assignment', 'score', 'date']]
-            .reset_index(drop=True)
+            df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
+                 [['assignment', 'score', 'date']]
+                 .reset_index(drop=True)
         )
         st.table(df_display)
 
-    # --- PDF download ---
+    # Download PDF summary
     if st.button("⬇️ Download PDF Summary"):
         pdf = FPDF()
         pdf.add_page()
@@ -543,7 +533,7 @@ if tab == "My Results and Resources":
         pdf.multi_cell(
             0, 8,
             f"Name: {df_user.name.iloc[0]}\n"
-            f"Code: {student_code}\n"
+            f"Code: {code}\n"
             f"Level: {level}\n"
             f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"
         )
@@ -562,20 +552,30 @@ if tab == "My Results and Resources":
         st.download_button(
             label="Download PDF",
             data=pdf_bytes,
-            file_name=f"{student_code}_results_{level}.pdf",
+            file_name=f"{code}_results_{level}.pdf",
             mime="application/pdf"
         )
 
-    # --- Resources Section ---
+            # --- Resources Section ---
     st.markdown("---")
     st.subheader("📚 Useful Resources")
+
     st.markdown(
         """
-- **[A1 Schreiben Practice Questions](https://drive.google.com/file/d/1X_PFF2AnBXSrGkqpfrArvAnEIhqdF6fv/view?usp=sharing)**  
-- **[A1 Exams Sprechen Guide](https://drive.google.com/file/d/1UWvbCCCcrW3_j9x7pOuWug6_Odvzcvaa/view?usp=sharing)**  
-- **[German Writing Rules](https://drive.google.com/file/d/1o7_ez3WSNgpgxU_nEtp6EO1PXDyi3K3b/view?usp=sharing)**  
-- **[A2 Sprechen Guide](https://drive.google.com/file/d/1TZecDTjNwRYtZXpEeshbWnN8gCftryhI/view?usp=sharing)**  
-- **[B1 Sprechen Guide](https://drive.google.com/file/d/1snk4mL_Q9-xTBXSRfgiZL_gYRI9tya8F/view?usp=sharing)**  
+**1. [A1 Schreiben Practice Questions](https://drive.google.com/file/d/1X_PFF2AnBXSrGkqpfrArvAnEIhqdF6fv/view?usp=sharing)**  
+Practice writing tasks and sample questions for A1.
+
+**2. [A1 Exams Sprechen Guide](https://drive.google.com/file/d/1UWvbCCCcrW3_j9x7pOuWug6_Odvzcvaa/view?usp=sharing)**  
+Step-by-step guide to the A1 speaking exam.
+
+**3. [German Writing Rules](https://drive.google.com/file/d/1o7_ez3WSNgpgxU_nEtp6EO1PXDyi3K3b/view?usp=sharing)**  
+Tips and grammar rules for better writing.
+
+**4. [A2 Sprechen Guide](https://drive.google.com/file/d/1TZecDTjNwRYtZXpEeshbWnN8gCftryhI/view?usp=sharing)**  
+A2-level speaking exam guide.
+
+**5. [B1 Sprechen Guide](https://drive.google.com/file/d/1snk4mL_Q9-xTBXSRfgiZL_gYRI9tya8F/view?usp=sharing)**  
+How to prepare for your B1 oral exam.
         """
     )
 
