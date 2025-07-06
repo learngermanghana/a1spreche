@@ -2308,7 +2308,7 @@ if tab == "Vocab Trainer":
             if st.button("Practice Again"):
                 for key in ("vt_list","vt_index","vt_score","vt_total"):                 
                     st.session_state[key] = None if key=="vt_total" else []
-                st.experimental_rerun()
+                st.rerun()
 
                 
 if tab == "Schreiben Trainer":
