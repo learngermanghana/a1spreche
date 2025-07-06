@@ -520,31 +520,37 @@ def validate_translation_openai(word, student_answer):
         reply = resp.choices[0].message.content.strip().lower()
         return reply.startswith("true")
     except Exception:
-        return False
 
+import time
 
-import streamlit as st
-
-img_urls = [
+# Your image URLs and captions
+image_urls = [
     "https://i.imgur.com/gCQAWA1.jpg",
     "https://i.imgur.com/9hLAScD.jpg",
     "https://i.imgur.com/2PzOOvn.jpg",
     "https://i.imgur.com/Q9mpvRY.jpg"
 ]
 
-# Use session state to keep track of current image
-if "img_idx" not in st.session_state:
-    st.session_state["img_idx"] = 0
+captions = [
+    "🌟 German Class in Session! Join us and learn fast.",
+    "📝 Exam Prep Made Easy – See your results on your dashboard.",
+    "🎯 Personal Progress Tracking for Every Student.",
+    "🚀 Start Your Language Journey with Us Today!"
+]
 
-col1, col2, col3 = st.columns([1,5,1])
-with col2:
-    st.image(img_urls[st.session_state["img_idx"]], use_container_width=True)
-with col1:
-    if st.button("◀️", key="prev"):
-        st.session_state["img_idx"] = (st.session_state["img_idx"] - 1) % len(img_urls)
-with col3:
-    if st.button("▶️", key="next"):
-        st.session_state["img_idx"] = (st.session_state["img_idx"] + 1) % len(img_urls)
+# Autoplaying image rotator
+if "img_idx" not in st.session_state:
+    st.session_state.img_idx = 0
+
+# Display image and caption
+st.image(image_urls[st.session_state.img_idx], use_container_width=True)
+st.markdown(f"<div style='text-align:center; font-size:1.2em; padding: 8px 0;'>{captions[st.session_state.img_idx]}</div>", unsafe_allow_html=True)
+
+# Auto-rotate
+time.sleep(3)
+st.session_state.img_idx = (st.session_state.img_idx + 1) % len(image_urls)
+st.experimental_rerun()
+
 
 
 
