@@ -2164,8 +2164,6 @@ if tab == "Custom Chat":
 
 if tab == "Vocab Trainer":
 
-
-    # ==== BASEROW CONFIG ====
     API_TOKEN = st.secrets["BASEROW_API_TOKEN"]
     VOCAB_TABLE_ID = 597466
     LEVEL_FIELD = "Level"
@@ -2174,11 +2172,10 @@ if tab == "Vocab Trainer":
 
     PROGRESS_TABLE_ID = 597671
     STUDENT_FIELD = "field_4838052"
-    VOCAB_FIELD = "field_4838053"       # Practiced Vocab (as CSV)
+    VOCAB_FIELD = "field_4838053"
     ATTEMPTED_FIELD = "field_4838054"
     CORRECT_FIELD = "field_4838057"
 
-    # ==== LOAD VOCAB FROM BASEROW ====
     @st.cache_data
     def load_vocab_lists_baserow():
         url = f"https://api.baserow.io/api/database/rows/table/{VOCAB_TABLE_ID}/"
@@ -2203,56 +2200,49 @@ if tab == "Vocab Trainer":
                 lists.setdefault(lvl, []).append((ger, eng))
         return lists
 
-    # === Get student's vocab history from Baserow ===
-    def fetch_practiced_vocab(student_code, level):
-        url = f"https://api.baserow.io/api/database/rows/table/{PROGRESS_TABLE_ID}/"
-        headers = {"Authorization": f"Token {API_TOKEN}"}
-        params = {"user_field_names": True, STUDENT_FIELD: student_code}
-        resp = requests.get(url, headers=headers, params=params)
-        if resp.status_code != 200:
-            return set()
-        results = resp.json().get("results", [])
-        # Find the row with matching level
-        for row in results:
-            # You might want to store level in the progress table; if not, just use the first row
-            vocab_csv = row.get(VOCAB_FIELD, "")
-            practiced = set([w.strip() for w in vocab_csv.split(",") if w.strip()])
-            return practiced
-        return set()
+    def clean_text(text):
+        return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
 
-    def save_practiced_vocab(student_code, practiced_vocab_set, num_attempted, num_correct):
+    def save_progress_to_baserow(student_code, practiced_vocab_list, num_attempted, num_correct):
         url = f"https://api.baserow.io/api/database/rows/table/{PROGRESS_TABLE_ID}/"
         headers = {
             "Authorization": f"Token {API_TOKEN}",
             "Content-Type": "application/json"
         }
-        # Always just 1 row per student, so check if exists
-        params = {"user_field_names": True, STUDENT_FIELD: student_code}
-        get_resp = requests.get(url, headers=headers, params=params)
-        exists = get_resp.json().get("results", [])
         payload = {
             STUDENT_FIELD: student_code,
-            VOCAB_FIELD: ",".join(sorted(practiced_vocab_set)),
+            VOCAB_FIELD: ",".join(practiced_vocab_list),
             ATTEMPTED_FIELD: num_attempted,
             CORRECT_FIELD: num_correct,
-            # "field_xxxxxxxx": str(date.today()), # add date if wanted
         }
-        if exists:
-            row_id = exists[0]["id"]
-            patch_url = f"{url}{row_id}/?user_field_names=true"
-            resp = requests.patch(patch_url, headers=headers, json=payload)
+        response = requests.post(url, headers=headers, json=payload)
+        if response.status_code in (200, 201):
+            return True
         else:
-            resp = requests.post(url, headers=headers, json=payload)
-        return resp.status_code in (200, 201)
+            st.warning(f"Failed to save progress! {response.status_code}: {response.text}")
+            return False
 
-    def clean_text(text):
-        return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
+    def get_practiced_vocab(student_code, level):
+        url = f"https://api.baserow.io/api/database/rows/table/{PROGRESS_TABLE_ID}/"
+        headers = {"Authorization": f"Token {API_TOKEN}"}
+        params = {"user_field_names": True, "filter__field_4838052__equal": student_code}
+        response = requests.get(url, headers=headers, params=params)
+        if response.status_code != 200:
+            return set()
+        results = response.json().get("results", [])
+        practiced = set()
+        for row in results:
+            practiced_vocab = row.get(VOCAB_FIELD, "")
+            if practiced_vocab:
+                practiced.update([x.strip() for x in practiced_vocab.split(",") if x.strip()])
+        return practiced
 
+    # ==== VOCAB TRAINER UI ====
     st.header("Vocab Trainer")
 
-    # -- Load Vocab Lists --
     VOCAB_LISTS = load_vocab_lists_baserow()
     levels = list(VOCAB_LISTS.keys()) if VOCAB_LISTS else []
+
     if not levels:
         st.error("No vocab levels found! Please check your Baserow data and field IDs.")
         st.stop()
@@ -2260,22 +2250,32 @@ if tab == "Vocab Trainer":
     student_code = st.session_state.get("student_code", "unknown").strip()
     level = st.selectbox("Choose level", levels, key="vt_level")
     vocab_items = VOCAB_LISTS.get(level, [])
-    all_words = set(w[0] for w in vocab_items)
-    max_words = len(all_words)
-    if max_words == 0:
-        st.warning(f"No vocabulary available for level {level}. Please add entries in your Baserow table.")
-        st.stop()
+    max_words = len(vocab_items)
 
-    # --- Fetch unique practiced words for this student/level ---
-    practiced_words = fetch_practiced_vocab(student_code, level)
-    remaining_words = [pair for pair in vocab_items if pair[0] not in practiced_words]
-    n_practiced = len(practiced_words)
-    n_total = len(all_words)
+    review_all = st.checkbox("Review all words (including already practiced)", value=False)
 
-    st.info(f"**You have practiced {n_practiced} out of {n_total} words so far at {level}.**")
-    st.info(f"{len(remaining_words)} words remaining to practice.")
+    # Progress summary (for default mode)
+    if not review_all and student_code != "unknown":
+        practiced = get_practiced_vocab(student_code, level)
+        unpracticed = [item for item in vocab_items if item[0] not in practiced]
+        words_to_show = unpracticed
+        num_practiced = len(practiced & set(w[0] for w in vocab_items))
+        num_total = len(vocab_items)
+        st.markdown(
+            f"**Words practiced so far:** {num_practiced} / {num_total}"
+        )
+        st.progress(num_practiced / num_total if num_total > 0 else 1.0)
+        if not words_to_show:
+            st.success("🎉 You have practiced all words for this level!")
+            if st.button("Reset all progress for this level"):
+                st.warning("Reset not implemented in this example.")
+            st.stop()
+    else:
+        words_to_show = vocab_items
+        num_practiced = None
+        num_total = len(words_to_show)
+        # No overall progress bar in review mode (could add one for session if wanted)
 
-    # --- Default state per session ---
     defaults = {
         "vt_history": [],
         "vt_list": [],
@@ -2287,38 +2287,38 @@ if tab == "Vocab Trainer":
     for key, val in defaults.items():
         st.session_state.setdefault(key, val)
 
-    # --- Reset/Restart ---
     if st.button("🔁 Start New Practice", key="vt_reset"):
         for k in defaults:
             st.session_state[k] = defaults[k]
         st.session_state["vt_saved_to_baserow"] = False
 
-    # Step 1: ask how many to practice (only from remaining)
+    st.info(f"There are {len(words_to_show)} words available in {level}.")
+
+    # Step 1: ask how many words to practice
     if st.session_state.vt_total is None:
-        if len(remaining_words) == 0:
-            st.success("🎉 You have practiced all words for this level! Click below to reset and start again.")
-            if st.button("Reset Progress", key="vt_reset_full"):
-                practiced_words = set()
-                save_practiced_vocab(student_code, practiced_words, 0, 0)
-                st.success("Progress reset! Reload page and start new session.")
-            st.stop()
         count = st.number_input(
-            "How many *new* words do you want to practice today?",
+            "How many words can you practice today?",
             min_value=1,
-            max_value=len(remaining_words),
-            value=min(7, len(remaining_words)),
+            max_value=len(words_to_show),
+            value=min(7, len(words_to_show)),
             key="vt_count"
         )
         if st.button("Start Practice", key="vt_start"):
-            shuffled = remaining_words.copy()
+            shuffled = words_to_show.copy()
             random.shuffle(shuffled)
             st.session_state.vt_list = shuffled[:int(count)]
             st.session_state.vt_total = int(count)
             st.session_state.vt_index = 0
             st.session_state.vt_score = 0
             st.session_state.vt_history = [
-                ("assistant", f"Let's start with {count} new words!")
+                ("assistant", f"Let's start with {count} words!")
             ]
+
+    # Per-session progress bar (during practice)
+    total = st.session_state.vt_total
+    idx = st.session_state.vt_index
+    if isinstance(total, int) and total > 0 and idx < total:
+        st.progress(idx / total)
 
     # Display chat history
     if st.session_state.vt_history:
@@ -2334,8 +2334,6 @@ if tab == "Vocab Trainer":
             )
 
     # Practice loop
-    total = st.session_state.vt_total
-    idx = st.session_state.vt_index
     if isinstance(total, int) and idx < total:
         word, answer = st.session_state.vt_list[idx]
         user_input = st.text_input(f"{word} = ?", key=f"vt_input_{idx}")
@@ -2346,8 +2344,6 @@ if tab == "Vocab Trainer":
             if given == correct:
                 st.session_state.vt_score += 1
                 fb = f"✅ Correct! '{word}' = '{answer}'"
-                # Add to practiced vocab
-                practiced_words.add(word)
             else:
                 fb = f"❌ Not quite. '{word}' = '{answer}'"
             st.session_state.vt_history.append(("assistant", fb))
@@ -2358,19 +2354,21 @@ if tab == "Vocab Trainer":
         score = st.session_state.vt_score
         st.markdown(f"### 🏁 Finished! You got {score}/{total} correct.")
 
-        # Save progress to Baserow only once per session
+        if st.button("Practice Again", key="vt_again"):
+            for k in defaults:
+                st.session_state[k] = defaults[k]
+            st.session_state["vt_saved_to_baserow"] = False
+
         if "vt_saved_to_baserow" not in st.session_state:
             st.session_state["vt_saved_to_baserow"] = False
+
         if not st.session_state["vt_saved_to_baserow"]:
-            student_code = st.session_state.get("student_code", "unknown")
-            # Add just practiced words from this session to all-time
-            session_words = [item[0] for item in st.session_state.vt_list]
-            practiced_words.update(session_words)
-            update_success = save_practiced_vocab(
+            practiced_vocab = [item[0] for item in st.session_state.vt_list]
+            update_success = save_progress_to_baserow(
                 student_code=student_code,
-                practiced_vocab_set=practiced_words,
-                num_attempted=n_practiced + total,
-                num_correct=score # you could add to total all-time score if wanted
+                practiced_vocab_list=practiced_vocab,
+                num_attempted=total,
+                num_correct=score
             )
             if update_success:
                 st.success("✅ Your progress was saved!")
@@ -2378,17 +2376,6 @@ if tab == "Vocab Trainer":
             else:
                 st.warning("⚠️ Progress could not be saved. Please try again later.")
 
-        # Practice Again button resets everything (but not all-time history)
-        if st.button("Practice Again", key="vt_again"):
-            for k in defaults:
-                st.session_state[k] = defaults[k]
-            st.session_state["vt_saved_to_baserow"] = False
-
-        # Option to reset all-time history and start fresh
-        if st.button("Reset All Progress For This Level", key="vt_reset_all"):
-            practiced_words = set()
-            save_practiced_vocab(student_code, practiced_words, 0, 0)
-            st.success("Progress reset! Reload page to start new session.")
 
 
 
