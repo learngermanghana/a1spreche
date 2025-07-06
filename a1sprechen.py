@@ -139,15 +139,9 @@ def load_exam_progress(student_code, level, teil, mode):
 
 # --- Helper Functions for Baserow Integration ---
 
-
-
-
 def save_schreiben_submission_baserow(student_code, student_name, level, letter, score, feedback):
     url = f"{BASEROW_URL}/rows/table/{SCHREIBEN_TABLE_ID}/?user_field_names=true"
-    headers = {
-        "Authorization": f"Token {BASEROW_TOKEN}",
-        "Content-Type": "application/json"
-    }
+    headers = {"Authorization": f"Token {BASEROW_TOKEN}"}
     data = {
         "student_code": student_code,
         "student_name": student_name,
@@ -155,20 +149,19 @@ def save_schreiben_submission_baserow(student_code, student_name, level, letter,
         "letter": letter,
         "score": score,
         "feedback": feedback,
-        "date": str(date.today()),
-        "passed": score >= 17,
-        "percentage": int(round(score / 25 * 100)),
+        "date": str(datetime.today().date()),
+        "passed": bool(score >= 17),
+        "percentage": round(score / 25 * 100, 1)
     }
     try:
-        response = requests.post(url, headers=headers, json=data)
-        print("Baserow response:", response.status_code, response.text)  # <--- ADD THIS
-        if response.status_code == 201:
+        r = requests.post(url, headers=headers, json=data)
+        if r.status_code == 201:
             return True
         else:
-            st.error(f"Error saving to Baserow: {response.text}")
+            st.warning(f"Failed to save to Baserow. Status: {r.status_code}, {r.text}")
             return False
     except Exception as e:
-        st.error(f"Error saving submission: {e}")
+        st.error(f"Error saving to Baserow: {e}")
         return False
 
 
