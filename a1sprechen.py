@@ -528,137 +528,125 @@ if st.session_state.get("logged_in"):
         key="main_tab_select"
     )
 
-    # --- DASHBOARD TAB ---
-    if tab == "Dashboard":
-        st.header("📊 Student Dashboard")
+import time
 
-        # --- Student Info from main sheet
-        df_students = load_student_data()
-        found = df_students[df_students["StudentCode"].str.lower().str.strip() == student_code]
-        student_row = found.iloc[0].to_dict() if not found.empty else {}
+if tab == "Dashboard":
+    st.header("📊 Student Dashboard")
 
-        st.markdown(f"### 👤 {student_row.get('Name', '')}")
+    # --- Student Info & Balance ---
+    df_students = load_student_data()
+    row = df_students[df_students["StudentCode"].str.lower().str.strip() == student_code]
+    student = row.iloc[0].to_dict() if not row.empty else {}
+    st.markdown(f"### 👤 {student.get('Name','')}")
+    st.markdown(
+        f"- **Level:** {student.get('Level','')}\n"
+        f"- **Code:** `{student.get('StudentCode','')}`\n"
+        f"- **Email:** {student.get('Email','')}\n"
+        f"- **Phone:** {student.get('Phone','')}"
+    )
+    try:
+        bal = float(student.get("Balance", 0))
+        if bal > 0:
+            st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
+    except:
+        pass
+
+    # --- Progress Stats ---
+    df_stats = load_stats_data()
+    stats = df_stats[df_stats["studentcode"].astype(str).str.lower() == student_code]
+    level = student.get("Level","").upper()
+    TOTALS = {"A1":18, "A2":28, "B1":29}
+    total_assign = TOTALS.get(level, 18)
+
+    submitted = len(stats)
+    rate = (submitted / total_assign) * 100 if total_assign else 0
+
+    if not stats.empty:
+        sorted_stats = stats.sort_values("date", ascending=False)
+        last = sorted_stats.iloc[0]
+        last_asg, last_score = last["assignment"], last["score"]
+    else:
+        sorted_stats = pd.DataFrame()
+        last_asg, last_score = "-", "-"
+
+    passed = (stats["score"].astype(float) >= 80).sum()
+
+    st.markdown("### 📈 Progress Stats")
+    st.markdown(
+        f"- **Submitted:** {submitted}/{total_assign} ({rate:.0f}%)\n"
+        f"- **Last Assignment:** {last_asg} (Score: {last_score})\n"
+        f"- **Passed (≥80):** {passed}"
+    )
+
+    if not sorted_stats.empty:
+        trend = sorted_stats.head(10)[["assignment","score"]][::-1]
+        fig, ax = plt.subplots()
+        ax.plot(trend["assignment"], trend["score"], marker="o")
+        ax.set_ylim(0,100)
+        plt.xticks(rotation=45)
+        st.pyplot(fig)
+
+    # --- Auto-Rotating Announcements & Ads ---
+    st.markdown("### 🖼️ Announcements & Ads")
+    ad_images = [
+        "https://i.imgur.com/gCQAWA1.jpg",
+        "https://i.imgur.com/9hLAScD.jpg",
+        "https://i.imgur.com/2PzOOvn.jpg",
+        "https://i.imgur.com/Q9mpvRY.jpg",
+    ]
+    ad_captions = [
+        "Join our A1 Fast Track—Guaranteed Pass!",
+        "New A2 Classes—Limited Seats!",
+        "Congrats to our May Exam Stars!",
+        "Refer a friend & get discounts!",
+    ]
+    if "ad_idx" not in st.session_state:
+        st.session_state["ad_idx"] = 0
+        st.session_state["ad_last_time"] = time.time()
+
+    ROTATE_AD_SEC = 5
+    now = time.time()
+    if now - st.session_state["ad_last_time"] > ROTATE_AD_SEC:
+        st.session_state["ad_idx"] = (st.session_state["ad_idx"] + 1) % len(ad_images)
+        st.session_state["ad_last_time"] = now
+        st.experimental_rerun()
+
+    idx = st.session_state["ad_idx"]
+    st.image(ad_images[idx], caption=ad_captions[idx], use_container_width=True)
+
+    # --- Upcoming Goethe Exams ---
+    with st.expander("📅 Upcoming Goethe Exams & Registration", expanded=True):
         st.markdown(
-            f"- **Level:** {student_row.get('Level', '')}\n"
-            f"- **Code:** `{student_row.get('StudentCode', '')}`\n"
-            f"- **Email:** {student_row.get('Email', '')}\n"
-            f"- **Phone:** {student_row.get('Phone', '')}\n"
-            f"- **Location:** {student_row.get('Location', '')}\n"
-            f"- **Contract:** {student_row.get('ContractStart', '')} ➔ {student_row.get('ContractEnd', '')}\n"
-            f"- **Enroll Date:** {student_row.get('EnrollDate', '')}\n"
-            f"- **Status:** {student_row.get('Status', '')}"
+            """
+| Level | Date       |
+|-------|------------|
+| A1    | 21.07.2025 |
+| A2    | 22.07.2025 |
+| B1    | 23.07.2025 |
+| B2    | 24.07.2025 |
+| C1    | 25.07.2025 |
+            """,
+            unsafe_allow_html=True
         )
 
-        balance = student_row.get('Balance', 0.0)
-        try:
-            bal = float(balance)
-            if bal > 0:
-                st.warning(f"💸 Balance to pay: **₵{bal:.2f}**")
-        except:
-            pass  # Make sure we don't crash if balance is invalid
-
-        import time
-
-        # --- Rotating Ads/Announcements (with text)
-        st.markdown("### 🖼️ Announcements & Ads")
-
-        image_urls = [
-            "https://imgur.com/9hLAScD.png",
-            "https://imgur.com/2PzOOvn.png",
-            "https://imgur.com/Q9mpvRY.png"
-        ]
-        captions = [
-            "New A2 Classes—Limited Seats!",
-            "New B1 Classes—Limited Seats!!",
-            "Join our hybrid classes live in person or online!"
-        ]
-
-        # Session variable to keep current ad index
-        if "ad_index" not in st.session_state:
-            st.session_state["ad_index"] = 0
-
-        col1, col2 = st.columns([3,1])
-        with col1:
-            st.image(image_urls[st.session_state["ad_index"]], use_container_width=True, caption=captions[st.session_state["ad_index"]])
-        with col2:
-            if st.button("Next Ad"):
-                st.session_state["ad_index"] = (st.session_state["ad_index"] + 1) % len(image_urls)
-            if st.button("Previous Ad"):
-                st.session_state["ad_index"] = (st.session_state["ad_index"] - 1) % len(image_urls)
-
-        # --- Progress Stats from assignment sheet
-        df_stats = load_stats_data()
-        code = student_code
-        level = student_row.get('Level', '').strip().lower()
-
-        # Map level to total assignments
-        level_assignment_count = {'a1': 18, 'a2': 28, 'b1': 29}
-        TOTAL_ASSIGNMENTS = level_assignment_count.get(level, 12)
-
-        student_stats = df_stats[df_stats["studentcode"].astype(str).str.lower() == code]
-        total_submitted = len(student_stats)
-
-        completion_rate = (total_submitted / TOTAL_ASSIGNMENTS) * 100 if TOTAL_ASSIGNMENTS else 0
-
-        # Most Recent Assignment & Score
-        if not student_stats.empty:
-            student_stats_sorted = student_stats.sort_values("date", ascending=False)
-            last_row = student_stats_sorted.iloc[0]
-            last_assignment = last_row["assignment"]
-            last_score = last_row["score"]
-        else:
-            last_assignment, last_score = "-", "-"
-
-        # Number of Assignments Passed (score >= 80)
-        num_passed = (student_stats["score"].astype(float) >= 80).sum()
-
-        # Improvement Trend (last 10)
-        last_scores = student_stats_sorted.head(10)[["assignment", "score"]][::-1] if not student_stats.empty else pd.DataFrame()
-
-        # === Show Stats ===
-        st.markdown("### 📈 Progress Stats")
-        st.markdown(
-            f"- **Assignments Submitted:** {total_submitted} / {TOTAL_ASSIGNMENTS} ({completion_rate:.0f}%)\n"
-            f"- **Most Recent Assignment:** {last_assignment} (Score: {last_score})\n"
-            f"- **Number Passed (≥80):** {num_passed}\n"
-        )
-
-        # Improvement Trend Chart
-        if not last_scores.empty:
-            st.markdown("**Improvement Trend (Last 10):**")
-            fig, ax = plt.subplots()
-            ax.plot(last_scores["assignment"], last_scores["score"], marker="o")
-            ax.set_xlabel("Assignment")
-            ax.set_ylabel("Score")
-            ax.set_title("Last 10 Assignment Scores")
-            ax.set_ylim(0, 100)
-            plt.xticks(rotation=45)
-            st.pyplot(fig)
-
-            # --- Rotating Student Reviews (only on Dashboard) ---
-    import time
-
+    # --- Auto-Rotating Student Reviews ---
     st.markdown("### 🗣️ What Our Students Say")
-    reviews = load_reviews()  # make sure this is defined above
+    reviews = load_reviews()
     if reviews.empty:
         st.info("No reviews yet. Be the first to share your experience!")
     else:
         rev_list = reviews.to_dict("records")
-
-        # Initialize rotation state
         if "rev_idx" not in st.session_state:
             st.session_state["rev_idx"] = 0
             st.session_state["rev_last_time"] = time.time()
 
-        # Auto-rotate every 5 seconds
         ROTATE_REV_SEC = 5
         now = time.time()
         if now - st.session_state["rev_last_time"] > ROTATE_REV_SEC:
             st.session_state["rev_idx"] = (st.session_state["rev_idx"] + 1) % len(rev_list)
             st.session_state["rev_last_time"] = now
-            st.rerun()
+            st.experimental_rerun()
 
-        # Display the current review
         r = rev_list[st.session_state["rev_idx"]]
         stars = "★" * int(r["rating"]) + "☆" * (5 - int(r["rating"]))
         st.markdown(
@@ -666,45 +654,6 @@ if st.session_state.get("logged_in"):
             f"> — **{r['student_name']}**  \n"
             f"> {stars}"
         )
-
-        # --- UPCOMING EXAMS (dashboard only) ---
-        with st.expander("📅 Upcoming Goethe Exams & Registration (Tap for details)", expanded=True):
-            st.markdown(
-                """
-**Registration for Aug./Sept. 2025 Exams:**
-
-| Level | Date       | Fee (GHS) | Per Module (GHS) |
-|-------|------------|-----------|------------------|
-| A1    | 21.07.2025 | 2,850     | —                |
-| A2    | 22.07.2025 | 2,400     | —                |
-| B1    | 23.07.2025 | 2,750     | 880              |
-| B2    | 24.07.2025 | 2,500     | 840              |
-| C1    | 25.07.2025 | 2,450     | 700              |
-
----
-
-### 📝 Registration Steps
-
-1. [**Register Here (9–10am, keep checking!)**](https://www.goethe.de/ins/gh/en/spr/prf/anm.html)
-2. Fill the form and choose **extern**
-3. Submit and get payment confirmation
-4. Pay by Mobile Money or Ecobank (**use full name as reference**)
-    - Email proof to: [registrations-accra@goethe.de](mailto:registrations-accra@goethe.de)
-5. Wait for response. If not, send polite reminders by email.
-
----
-
-**Payment Details:**  
-**Ecobank Ghana**  
-Account Name: **GOETHE-INSTITUT GHANA**  
-Account No.: **1441 001 701 903**  
-Branch: **Ring Road Central**  
-SWIFT: **ECOCGHAC**
-                """,
-                unsafe_allow_html=True,
-            )
-
-
 
 
 def get_a1_schedule():
