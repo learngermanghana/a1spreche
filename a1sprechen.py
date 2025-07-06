@@ -521,35 +521,31 @@ def validate_translation_openai(word, student_answer):
         return reply.startswith("true")
     except Exception:
         return False
+
+
 import streamlit as st
 
-# --- Image banner section ---
-ad_images = [
-    "https://drive.google.com/uc?id=1mf5MN5xrPwcSQmxtfnXdCqoxittc56Dx",
-    "https://drive.google.com/uc?id=1XnwdPKtQPbq8_J0J0oe_TxtioJUmLhR1",
-    "https://drive.google.com/uc?id=1FU6ugEZN50CxQ0Ks8L30gnUTADE1MOIA",
-    "https://drive.google.com/uc?id=1FMMoGjprYr-2L6p-T4jVXOjxQFOWEv3h"
-]
-ad_captions = [
-    "Learn Language - Your Path to Success!",
-    "Join our A1-B2 German Courses Today!",
-    "Pass Goethe Exams with Confidence.",
-    "Enroll Now - Start Speaking German!"
+img_urls = [
+    "https://i.imgur.com/gCQAWA1.jpg",
+    "https://i.imgur.com/9hLAScD.jpg",
+    "https://i.imgur.com/2PzOOvn.jpg",
+    "https://i.imgur.com/Q9mpvRY.jpg"
 ]
 
-if "ad_idx" not in st.session_state:
-    st.session_state["ad_idx"] = 0
+# Use session state to keep track of current image
+if "img_idx" not in st.session_state:
+    st.session_state["img_idx"] = 0
 
-col1, col2 = st.columns([5, 1])
-with col1:
-    st.image(
-        ad_images[st.session_state["ad_idx"]],
-        caption=ad_captions[st.session_state["ad_idx"]],
-        use_container_width=True
-    )
+col1, col2, col3 = st.columns([1,5,1])
 with col2:
-    if st.button("Next Ad"):
-        st.session_state["ad_idx"] = (st.session_state["ad_idx"] + 1) % len(ad_images)
+    st.image(img_urls[st.session_state["img_idx"]], use_container_width=True)
+with col1:
+    if st.button("◀️", key="prev"):
+        st.session_state["img_idx"] = (st.session_state["img_idx"] - 1) % len(img_urls)
+with col3:
+    if st.button("▶️", key="next"):
+        st.session_state["img_idx"] = (st.session_state["img_idx"] + 1) % len(img_urls)
+
 
 
 # ====================================
