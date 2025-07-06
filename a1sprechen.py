@@ -2250,30 +2250,39 @@ if tab == "Vocab Trainer":
     key = f"vocab_{student_code}_{user_level}"
     if key not in st.session_state:
         practiced_vocab, remaining, attempted, correct = load_vocab_progress(student_code, user_level, vocab_list)
-        if remaining is None or len(remaining) == 0:
+        if not practiced_vocab:
+            practiced_vocab = []
+        if not remaining:
             quiz = vocab_list.copy()
             random.shuffle(quiz)
-            practiced_vocab = []
             remaining = quiz
+        if attempted is None:
             attempted = 0
+        if correct is None:
             correct = 0
         st.session_state[key] = {
-            "practiced_vocab": practiced_vocab if practiced_vocab is not None else [],
-            "remaining": remaining if remaining is not None else [],
-            "idx": 0,
-            "attempted": attempted if attempted is not None else 0,
-            "correct": correct if correct is not None else 0
+            "practiced_vocab": practiced_vocab,
+            "remaining": remaining,
+            "idx": len(practiced_vocab),
+            "attempted": attempted,
+            "correct": correct
         }
 
     state = st.session_state[key]
 
     # --- Quiz loop ---
-    if not state["remaining"]:
-        st.success(f"🎉 Practice complete! Score: {state['correct']} / {state['attempted']}")
+    if not state.get("remaining"):
+        st.success(f"🎉 Practice complete! Score: {state.get('correct', 0)} / {state.get('attempted', 0)}")
         if st.button("🔄 Restart Practice"):
             quiz = vocab_list.copy()
             random.shuffle(quiz)
-            st.session_state[key] = {"practiced_vocab": [], "remaining": quiz, "idx": 0, "attempted": 0, "correct": 0}
+            st.session_state[key] = {
+                "practiced_vocab": [],
+                "remaining": quiz,
+                "idx": 0,
+                "attempted": 0,
+                "correct": 0
+            }
             save_vocab_progress(student_code, user_level, quiz, [], 0, 0)
             st.experimental_rerun()
         st.stop()
@@ -2302,26 +2311,34 @@ if tab == "Vocab Trainer":
         state["remaining"] = state["remaining"][1:]
         state["idx"] += 1
 
-        # save & rerun
-        save_vocab_progress(
-            student_code,
-            user_level,
-            state["remaining"],
-            state["practiced_vocab"],
-            state["attempted"],
-            state["correct"]
-        )
+        try:
+            save_vocab_progress(
+                student_code,
+                user_level,
+                state["remaining"],
+                state["practiced_vocab"],
+                state["attempted"],
+                state["correct"]
+            )
+        except Exception as e:
+            st.warning(f"⚠️ Could not update your vocab progress on Baserow: {e}")
+
         st.experimental_rerun()
 
     # --- Progress / Score display ---
-    total = len(state["practiced_vocab"]) + len(state["remaining"])
-    st.progress(state["idx"] / total if total > 0 else 1.0)
-    st.write(f"**Progress:** {state['idx'] + 1} / {total + 1}")
-    st.write(f"**Score:** {state['correct']} / {state['attempted']}")
+    practiced = state.get("practiced_vocab", state.get("used", []))
+    remaining = state.get("remaining", [])
+    total = len(practiced) + len(remaining)
+    st.progress(state.get("idx", 0) / total if total > 0 else 1.0)
+    st.write(f"**Progress:** {state.get('idx', 0) + 1} / {total + 1}")
+    st.write(f"**Score:** {state.get('correct', 0)} / {state.get('attempted', 0)}")
 
     st.divider()
     with st.expander("📋 View all words for this level"):
         st.dataframe(df_level[["german", "english"]].reset_index(drop=True), use_container_width=True)
+
+#
+
 
 
 
