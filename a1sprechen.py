@@ -533,11 +533,19 @@ import time
 if tab == "Dashboard":
     st.header("📊 Student Dashboard")
     
+    # --- Safe name logic ---
+    display_name = student_row.get('Name') or student_name or "Student"
+    display_name = str(display_name).strip()
+    if display_name:
+        first_name = display_name.split()[0].title()
+    else:
+        first_name = "Student"
+
     # --- Friendly, universal message ---
     st.markdown(
         f"""
         <div style='padding: 14px; background-color: #d0f5e8; border-radius: 10px; margin-bottom: 18px; font-size: 1.1em;'>
-            👋 <b>Welcome back, {student_row.get('Name', student_name).split()[0].title()}!</b><br>
+            👋 <b>Welcome back, {first_name}!</b><br>
             Every step counts—keep moving forward!
         </div>
         """,
