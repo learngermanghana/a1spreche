@@ -555,8 +555,6 @@ if st.session_state["logged_in"]:
         """, unsafe_allow_html=True
     )
 
-    )
-
 import time
 
 if tab == "Dashboard":
