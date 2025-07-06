@@ -137,10 +137,6 @@ def load_exam_progress(student_code, level, teil, mode):
 # --- Helper Functions for Baserow Integration ---
 
 BASEROW_URL = "https://api.baserow.io/api/database/rows/table/597719/"
-BASEROW_TOKEN = st.secrets["BASEROW_TOKEN"]
-BASEROW_HEADERS = {
-    "Authorization": f"Token {BASEROW_TOKEN}",
-    "Content-Type": "application/json"
 }
 
 def save_schreiben_submission_baserow(student_code, student_name, level, letter, score, feedback):
