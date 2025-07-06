@@ -497,6 +497,18 @@ def load_stats_data():
     df.columns = df.columns.str.strip().str.lower()
     return df
 
+@st.cache_data
+def load_reviews():
+    SHEET_ID   = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
+    SHEET_NAME = "Sheet1"
+    url = (
+        f"https://docs.google.com/spreadsheets/d/{SHEET_ID}"
+        f"/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
+    )
+    df = pd.read_csv(url)
+    df.columns = df.columns.str.strip().str.lower()
+    return df
+
 # ======= Dashboard Code =======
 if st.session_state.get("logged_in"):
     student_code = st.session_state.get("student_code", "").strip().lower()
@@ -659,6 +671,18 @@ SWIFT: **ECOCGHAC**
                 """,
                 unsafe_allow_html=True,
             )
+
+
+    # --- Student Reviews (no dates) ---
+    st.markdown("### 🗣️ What Our Students Say")
+    reviews = load_reviews()
+    if not reviews.empty:
+        sample = reviews.sample(min(3, len(reviews)), random_state=42)
+        for _, r in sample.iterrows():
+            stars = "★"*int(r["rating"]) + "☆"*(5-int(r["rating"]))
+            st.markdown(f"> {r['review_text']}\n> — **{r['student_name']}**  \n> {stars}")
+    else:
+        st.info("No reviews yet. Be the first to share your experience!")
 
 
 def get_a1_schedule():
