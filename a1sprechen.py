@@ -523,11 +523,6 @@ def validate_translation_openai(word, student_answer):
     except Exception:
 
 
-import streamlit as st
-import pandas as pd
-from datetime import datetime, date
-import matplotlib.pyplot as plt
-
 # ---- LOAD DATA FUNCTIONS ----
 @st.cache_data
 def load_student_data():
