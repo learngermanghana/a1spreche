@@ -459,32 +459,31 @@ if tab == "My Results and Resources":
 
     @st.cache_data
     def fetch_scores():
-        response = requests.get(GOOGLE_SHEET_CSV, timeout=7)
-        response.raise_for_status()
-        df = pd.read_csv(io.StringIO(response.text), engine='python')
+        required_cols = ["student_code", "name", "assignment", "score", "date", "level"]
+        try:
+            resp = requests.get(GOOGLE_SHEET_CSV, timeout=7)
+            resp.raise_for_status()
+            df = pd.read_csv(io.StringIO(resp.text), engine='python')
+        except Exception as e:
+            st.warning(f"⚠️ Could not fetch your results sheet: {e}")
+            # return empty with right columns so downstream logic still works
+            return pd.DataFrame(columns=[c.replace("_", " ").title().replace(" ", "_").lower() for c in required_cols])
 
         # normalize column names
         df.columns = [col.strip().replace(' ', '_').lower() for col in df.columns]
 
-        # ensure required columns exist
-        required_cols = ["student_code", "name", "assignment", "score", "date", "level"]
+        # check required columns
         missing = [c for c in required_cols if c not in df.columns]
         if missing:
-            st.error(f"Data format error: missing columns {missing} in your Google Sheet.")
+            st.warning(f"⚠️ Your sheet is missing these columns: {missing}")
             return pd.DataFrame(columns=required_cols)
 
-        # now it's safe to drop rows with missing values
-        df = df.dropna(subset=required_cols)
-        return df
+        # drop incomplete rows
+        return df.dropna(subset=required_cols)
 
     df_scores = fetch_scores()
-    required_cols = {"student_code", "name", "assignment", "score", "date", "level"}
     if df_scores.empty:
-        st.info("No data available yet.")
-        st.stop()
-    if not required_cols.issubset(df_scores.columns):
-        st.error("Unexpected data structure. Please contact support.")
-        st.write("Found columns:", df_scores.columns.tolist())
+        st.info("No results available (check your sheet or data).")
         st.stop()
 
     # --- Filter for this student ---
