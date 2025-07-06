@@ -2162,11 +2162,7 @@ if tab == "Custom Chat":
 
 
 
-if tab == "Vocab":
-    import streamlit as st
-    import requests
-    import random
-    from datetime import date
+if tab == "Vocab Trainer":
 
     # ==== BASEROW CONFIG ====
     API_TOKEN = st.secrets["BASEROW_API_TOKEN"]
