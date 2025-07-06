@@ -161,37 +161,37 @@ def is_close_answer(student, correct, threshold=0.80):
     return difflib.SequenceMatcher(None, student, correct).ratio() >= threshold
 
 # --- Baserow helpers ---
-def save_vocab_progress(student_code, level, remaining, used, score, attempted):
+def save_vocab_progress(student_code, level, practiced_vocab, attempted, correct):
     if not BASEROW_API_TOKEN:
-        st.info("🔒 Baserow token missing: progress will not be saved.")
+        st.info("🔒 No Baserow token; skipping save.")
         return
 
-    url = f"https://api.baserow.io/api/database/rows/table/{BASEROW_TABLE_ID}/?user_field_names=true"
-    params = {"filter__StudentCode__equal": student_code, "filter__Level__equal": level}
-
-    practiced = ",".join([item["german"] for item in used])
+    url    = f"https://api.baserow.io/api/database/rows/table/{BASEROW_TABLE_ID}/?user_field_names=true"
+    params = {"filter__StudentCode__equal": student_code}
     payload = {
-        "StudentCode": student_code,
-        "Level": level,
-        "PracticedVocab": practiced,
-        "NumAttempted": attempted,
-        "NumCorrect": score,
-        "Date": pd.Timestamp.today().strftime("%Y-%m-%d")
+        "StudentCode":     student_code,
+        "Level":           level,
+        "PracticedVocab":  ",".join(item["german"] for item in practiced_vocab),
+        "NumAttempted":    attempted,
+        "NumCorrect":      correct,
+        "Date":            pd.Timestamp.today().strftime("%Y-%m-%d")
     }
 
-    try:
-        resp = requests.get(url, headers=BASEROW_HEADERS, params=params, timeout=5)
-        resp.raise_for_status()
-        results = resp.json().get("results", [])
-        if results:
-            row_id = results[0]["id"]
-            patch_url = f"https://api.baserow.io/api/database/rows/table/{BASEROW_TABLE_ID}/{row_id}/?user_field_names=true"
-            r = requests.patch(patch_url, headers=BASEROW_HEADERS, json=payload, timeout=5)
-        else:
-            r = requests.post(url, headers=BASEROW_HEADERS, json=payload, timeout=5)
-        r.raise_for_status()
-    except Exception as e:
-        st.warning(f"⚠️ Could not update your vocab progress on Baserow: {e}")
+    # 1) see what’s already there
+    resp = requests.get(url, headers=BASEROW_HEADERS, params=params)
+    resp.raise_for_status()
+    results = resp.json().get("results", [])
+
+    if results:
+        row_id   = results[0]["id"]
+        patch_url = url + f"&user_field_names=true&row_id={row_id}"
+        r = requests.patch(patch_url, headers=BASEROW_HEADERS, json=payload)
+    else:
+        r = requests.post(url, headers=BASEROW_HEADERS, json=payload)
+
+    if not r.ok:
+        st.error(f"Baserow save failed ({r.status_code}): {r.text}")
+
 
 def load_vocab_progress(student_code, level, vocab_list):
     if not BASEROW_API_TOKEN:
