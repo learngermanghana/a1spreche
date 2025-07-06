@@ -143,29 +143,34 @@ schreiben_submissions = 597719
 
 
 def save_schreiben_submission_baserow(student_code, student_name, level, letter, score, feedback):
-    """
-    Save the Schreiben submission to Baserow.
-    """
-    now = datetime.datetime.now()
-    passed = score >= 17
-    percentage = round((score / 25) * 100, 2)
-    payload = {
+    url = f"{BASEROW_URL}/rows/table/{SCHREIBEN_TABLE_ID}/?user_field_names=true"
+    headers = {
+        "Authorization": f"Token {BASEROW_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    data = {
         "student_code": student_code,
         "student_name": student_name,
         "level": level,
         "letter": letter,
         "score": score,
         "feedback": feedback,
-        "date": now.strftime("%Y-%m-%d %H:%M"),
-        "passed": passed,
-        "percentage": percentage
+        "date": str(date.today()),
+        "passed": score >= 17,
+        "percentage": int(round(score / 25 * 100)),
     }
     try:
-        resp = requests.post(BASEROW_URL, headers=BASEROW_HEADERS, json=payload)
-        return resp.status_code == 201
+        response = requests.post(url, headers=headers, json=data)
+        print("Baserow response:", response.status_code, response.text)  # <--- ADD THIS
+        if response.status_code == 201:
+            return True
+        else:
+            st.error(f"Error saving to Baserow: {response.text}")
+            return False
     except Exception as e:
         st.error(f"Error saving submission: {e}")
         return False
+
 
 def get_writing_stats_baserow(student_code):
     """
