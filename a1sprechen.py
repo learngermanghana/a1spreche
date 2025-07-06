@@ -557,20 +557,20 @@ if st.session_state.get("logged_in"):
         except:
             pass  # Make sure we don't crash if balance is invalid
 
+        import time
+
         # --- Rotating Ads/Announcements (with text)
         st.markdown("### 🖼️ Announcements & Ads")
 
         image_urls = [
-            "https://imgur.com/gCQAWA1.png",
             "https://imgur.com/9hLAScD.png",
             "https://imgur.com/2PzOOvn.png",
             "https://imgur.com/Q9mpvRY.png"
         ]
         captions = [
-            "Join our A1 Fast Track—Guaranteed Pass!",
             "New A2 Classes—Limited Seats!",
-            "Congrats to our May Exam Stars!",
-            "Refer a friend & get discounts!"
+            "New B1 Classes—Limited Seats!!",
+            "Join our hybrid classes live in person or online!"
         ]
 
         # Session variable to keep current ad index
