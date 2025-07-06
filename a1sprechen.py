@@ -2286,21 +2286,26 @@ if tab == "Vocab Trainer":
     # PROGRESS: summary and bar
     if not review_all and student_code != "unknown":
         practiced = get_practiced_vocab(student_code, level)
-        level_words = set(w[0] for w in vocab_items)
-        num_practiced = len(practiced & level_words)
-        num_total = len(level_words)
+
+        # --- Normalize for accurate comparison ---
+        def normalize(word):
+            return word.strip().lower()
+
+        practiced_norm = set(normalize(x) for x in practiced)
+        level_words_norm = set(normalize(w[0]) for w in vocab_items)
+        num_practiced = len(practiced_norm & level_words_norm)
+        num_total = len(level_words_norm)
+
         st.markdown(f"**Words practiced so far:** {num_practiced} / {num_total}")
         st.progress(num_practiced / num_total if num_total > 0 else 1.0)
+
         # Only show unpracticed
-        words_to_show = [item for item in vocab_items if item[0] not in practiced]
+        words_to_show = [item for item in vocab_items if normalize(item[0]) not in practiced_norm]
         if not words_to_show:
             st.success("🎉 You have practiced all words for this level!")
             if st.button("Reset all progress for this level"):
                 st.warning("Reset not implemented in this example.")
             st.stop()
-    else:
-        words_to_show = vocab_items
-        # (If you want, add a progress bar for session review here.)
 
     defaults = {
         "vt_history": [],
