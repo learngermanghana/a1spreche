@@ -2084,148 +2084,169 @@ if tab == "Custom Chat":
             st.rerun()
 
 if tab == "Vocab Trainer":
-    import requests, io, json, random, difflib
-    import pandas as pd
+    import requests, io, pandas as pd, json, random
 
     st.header("🧠 Vocab Trainer – Practice and Progress")
 
     # --- Config ---
     VOCAB_CSV_URL = "https://docs.google.com/spreadsheets/d/1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU/gviz/tq?tqx=out:csv"
-    BASEROW_TABLE_ID = 597671
+    BASEROW_TABLE_ID = 597671  # <-- your vocab progress table id
     BASEROW_API_TOKEN = os.getenv("BASEROW_API_TOKEN") or st.secrets.get("BASEROW_API_TOKEN")
     BASEROW_HEADERS = {
         "Authorization": f"Token {BASEROW_API_TOKEN}",
         "Content-Type": "application/json"
     }
 
-    # --- Flexible answer checker ---
-    def is_close_or_article(answer: str, correct: str) -> bool:
-        a = answer.strip().lower()
-        c = correct.strip().lower()
-        # strip German articles
-        for art in ("der ", "die ", "das "):
-            if a.startswith(art):
-                a = a[len(art):]
-                break
-        if a == c:
-            return True
-        # fallback fuzzy match
-        return difflib.SequenceMatcher(None, a, c).ratio() > 0.80
-
-    # --- Baserow helpers with error checking ---
+    # --- Baserow helpers ---
     def save_vocab_progress(student_code, level, remaining, used, score):
         url = f"https://api.baserow.io/api/database/rows/table/{BASEROW_TABLE_ID}/?user_field_names=true"
         params = {"filter__student_code__equal": student_code, "filter__level__equal": level}
         resp = requests.get(url, headers=BASEROW_HEADERS, params=params)
-        resp.raise_for_status()
-        data = resp.json().get("results", [])
-        payload = {
-            "student_code": student_code,
-            "level": level,
-            "progress_data": json.dumps({
-                "remaining": remaining,
-                "used": used,
-                "score": score
-            })
-        }
-        if data:
-            row_id = data[0]["id"]
-            patch_url = f"https://api.baserow.io/api/database/rows/table/{BASEROW_TABLE_ID}/{row_id}/?user_field_names=true"
+        progress_data = json.dumps({"remaining": remaining, "used": used, "score": score})
+        payload = {"student_code": student_code, "level": level, "progress_data": progress_data}
+
+        if resp.ok and resp.json().get("results"):
+            row_id = resp.json()["results"][0]["id"]
+            patch_url = (
+                f"https://api.baserow.io/api/database/rows/table/"
+                f"{BASEROW_TABLE_ID}/{row_id}/?user_field_names=true"
+            )
             r = requests.patch(patch_url, headers=BASEROW_HEADERS, json=payload)
         else:
             r = requests.post(url, headers=BASEROW_HEADERS, json=payload)
-        r.raise_for_status()
+
+        if not r.ok:
+            raise Exception(r.text)
 
     def load_vocab_progress(student_code, level):
         url = f"https://api.baserow.io/api/database/rows/table/{BASEROW_TABLE_ID}/?user_field_names=true"
         params = {"filter__student_code__equal": student_code, "filter__level__equal": level}
         resp = requests.get(url, headers=BASEROW_HEADERS, params=params)
-        resp.raise_for_status()
-        results = resp.json().get("results", [])
-        if results:
-            prog = json.loads(results[0]["progress_data"])
+        if resp.ok and resp.json().get("results"):
+            pdict = resp.json()["results"][0]
+            prog = json.loads(pdict["progress_data"])
             return prog.get("remaining", []), prog.get("used", []), prog.get("score", 0)
         return None, None, 0
 
-    # --- Load vocab list ---
+    # --- Load vocab from Google Sheet ---
     @st.cache_data(ttl=900)
     def load_vocab(url):
-        txt = requests.get(url, timeout=7).text
-        df = pd.read_csv(io.StringIO(txt))
+        text = requests.get(url, timeout=7).text
+        df = pd.read_csv(io.StringIO(text))
         df.columns = [c.lower().strip() for c in df.columns]
-        return df.dropna(subset=["german", "english", "level"])
+        df = df.dropna(subset=["german", "english", "level"])
+        return df
 
     df_vocab = load_vocab(VOCAB_CSV_URL)
-    levels = sorted(df_vocab["level"].str.upper().unique())
+    available_levels = sorted(df_vocab["level"].str.upper().unique())
     student_level = st.session_state.get("student_level", "A1").upper()
     student_code = st.session_state.get("student_code", "").strip().lower()
-    user_level = st.selectbox("Choose level:", levels, index=levels.index(student_level) if student_level in levels else 0)
+    user_level = st.selectbox(
+        "Choose level:",
+        available_levels,
+        index=available_levels.index(student_level) if student_level in available_levels else 0
+    )
 
+    # --- Filter vocab for this level ---
     df_level = df_vocab[df_vocab["level"].str.upper() == user_level]
     vocab_list = df_level[["german", "english"]].to_dict("records")
 
-    # --- Initialize or load progress ---
-    key = f"vocab_{student_code}_{user_level}"
-    if key not in st.session_state:
-        rem, used, score = load_vocab_progress(student_code, user_level)
-        if rem is None:
-            random.shuffle(vocab_list)
-            st.session_state[key] = {"remaining": vocab_list.copy(), "used": [], "idx": 0, "score": 0, "attempted": 0}
+    # --- Initialize or load progress from Baserow ---
+    session_key = f"vocab_{student_code}_{user_level}"
+    if session_key not in st.session_state:
+        remaining, used, score = load_vocab_progress(student_code, user_level)
+        if remaining is None or used is None:
+            quiz_list = vocab_list.copy()
+            random.shuffle(quiz_list)
+            st.session_state[session_key] = {
+                "remaining": quiz_list,
+                "used": [],
+                "idx": 0,
+                "score": 0,
+                "attempted": 0
+            }
         else:
-            st.session_state[key] = {"remaining": rem, "used": used, "idx": 0, "score": score, "attempted": len(used)}
-    state = st.session_state[key]
+            st.session_state[session_key] = {
+                "remaining": remaining,
+                "used": used,
+                "idx": 0,
+                "score": score,
+                "attempted": len(used)
+            }
 
-    # --- Quiz logic ---
+    state = st.session_state[session_key]
+
+    # --- Quiz flow ---
     if not state["remaining"]:
         st.success(f"Practice complete! Score: {state['score']} / {state['attempted']}")
         if st.button("Restart Practice"):
-            new_list = vocab_list.copy()
-            random.shuffle(new_list)
-            st.session_state[key] = {"remaining": new_list, "used": [], "idx": 0, "score": 0, "attempted": 0}
+            quiz_list = vocab_list.copy()
+            random.shuffle(quiz_list)
+            st.session_state[session_key] = {
+                "remaining": quiz_list,
+                "used": [],
+                "idx": 0,
+                "score": 0,
+                "attempted": 0
+            }
             try:
-                save_vocab_progress(student_code, user_level, new_list, [], 0)
+                save_vocab_progress(student_code, user_level, quiz_list, [], 0)
             except Exception as e:
-                st.warning("Could not update your vocab progress on Baserow:", e)
+                st.warning(f"Could not update your vocab progress on Baserow: {e}")
             st.experimental_rerun()
         st.stop()
 
     item = state["remaining"][0]
     st.markdown(
-        f"**Translate into German:** <br>"
-        f"<span style='font-size:1.3em; color:#1976d2'><b>{item['english']}</b></span>",
+        f"**Translate into German:**  \n"
+        f"<span style='font-size:1.3em; color:#1976d2'><b>{item['english']}</b></span>", 
         unsafe_allow_html=True
     )
 
     ans = st.text_input("Your answer (in German)", key=f"vocab_{state['idx']}")
     if st.button("Submit", key=f"vocab_submit_{state['idx']}") and ans:
         state["attempted"] += 1
-        correct = item["german"]
-        if is_close_or_article(ans, correct):
-            state["score"] += 1
-            st.success("✅ Correct!")
-        else:
-            st.error(f"❌ Incorrect. Correct answer: **{correct}**")
 
+        # exact match?
+        correct_german = item["german"].strip().lower()
+        student_ans = ans.strip().lower()
+
+        if student_ans == correct_german:
+            state["score"] += 1
+            st.success("Correct! ✅")
+        # close-match?
+        elif is_close_answer(student_ans, correct_german):
+            state["score"] += 1
+            st.info(f"Almost exact match—accepted! You wrote: “{ans}”")
+        else:
+            st.error(f"Incorrect. Correct answer: **{item['german']}**")
+
+        # move on
         state["used"].append(item)
-        state["remaining"].pop(0)
+        state["remaining"] = state["remaining"][1:]
         state["idx"] += 1
 
+        # save progress
         try:
-            save_vocab_progress(student_code, user_level, state["remaining"], state["used"], state["score"])
+            save_vocab_progress(
+                student_code, user_level,
+                state["remaining"], state["used"], state["score"]
+            )
         except Exception as e:
-            st.warning("Could not update your vocab progress on Baserow:", e)
+            st.warning(f"Could not update your vocab progress on Baserow: {e}")
 
         st.experimental_rerun()
 
-    # --- Progress bar & details ---
+    # --- Progress bar + metrics ---
     total = state["idx"] + len(state["remaining"])
-    st.progress(state["idx"] / total if total > 0 else 1.0)
-    st.write(f"**Progress:** {state['idx']} / {total}")
+    st.progress(state["idx"] / total if total else 1.0)
+    st.write(f"**Progress:** {state['idx'] + 1} / {total + 1}")
     st.write(f"**Score:** {state['score']} / {state['attempted']}")
 
     st.divider()
     with st.expander("📋 View all words for this level"):
         st.dataframe(df_level[["german", "english"]].reset_index(drop=True), use_container_width=True)
+
 
 
 
