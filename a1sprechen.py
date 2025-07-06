@@ -522,8 +522,6 @@ def validate_translation_openai(word, student_answer):
         return reply.startswith("true")
     except Exception:
 
-import streamlit as st
-import time
 
 # Example: Place this block inside your Dashboard tab
 
