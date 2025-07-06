@@ -138,6 +138,8 @@ def load_exam_progress(student_code, level, teil, mode):
 # --- Helper Functions for Baserow Integration ---
 
 schreiben_submissions = 597719
+BASEROW_URL = "https://api.baserow.io/api/database"
+
 
 def save_schreiben_submission_baserow(student_code, student_name, level, letter, score, feedback):
     """
