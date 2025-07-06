@@ -2293,6 +2293,7 @@ if tab == "Vocab Trainer":
 
 
 
+
 if tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer (Writing Practice)")
 
