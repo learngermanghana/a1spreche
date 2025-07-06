@@ -533,29 +533,22 @@ import time
 if tab == "Dashboard":
     st.header("📊 Student Dashboard")
 
-    # --- Get student_row first ---
-    df_students = load_student_data()
-    code = student_code.strip().lower()
-    matches = df_students[df_students["StudentCode"].str.lower() == code]
-    student_row = matches.iloc[0].to_dict() if not matches.empty else {}
+    # Fetch student info (as per your logic)
+    display_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
 
-    # --- Friendly welcome logic ---
-    display_name = student_row.get('Name') or student_name or "Student"
-    display_name = str(display_name).strip()
-    if display_name:
-        first_name = display_name.split()[0].title()
-    else:
-        first_name = "Student"
+    # --- Custom Welcome Greeting: Choose any style below (swap out the div block) ---
 
+    # Example 1: Friendly & Personal
     st.markdown(
         f"""
-        <div style='padding: 14px; background-color: #d0f5e8; border-radius: 10px; margin-bottom: 18px; font-size: 1.1em;'>
-            👋 <b>Welcome back, {first_name}!</b><br>
-            Every step counts—keep moving forward!
+        <div style='padding: 14px; background-color: #ffe3c6; border-radius: 10px; margin-bottom: 18px; font-size: 1.1em;'>
+            😊 <b>Hello, {display_name}!</b><br>
+            Great to see you back. Keep up the good work!
         </div>
         """,
         unsafe_allow_html=True
     )
+
 
     # --- Student Info & Balance ---
     df_students = load_student_data()
