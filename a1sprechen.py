@@ -202,6 +202,13 @@ def get_student_level_stats_baserow(student_code):
     except Exception as e:
         return stats
 
+def count_letters_words(text):
+    # Remove whitespace for letter count, split by whitespace for word count
+    words = len(text.split())
+    letters = len([c for c in text if c.isalpha()])
+    return words, letters
+
+
 
 
     
