@@ -451,39 +451,50 @@ if tab == "My Results and Resources":
 
     student_code = st.session_state.get("student_code", "").lower().strip()
     student_name = st.session_state.get("student_name", "")
+
     st.header("📈 My Results and Resources Hub")
     st.markdown("View and download your assignment history. All results are private and only visible to you.")
 
-    # === LIVE GOOGLE SHEETS CSV LINK ===
-    GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4e9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
+    # --- LIVE GOOGLE SHEETS CSV LINK (first sheet, gid=0) ---
+    GOOGLE_SHEET_CSV = (
+        "https://docs.google.com/spreadsheets/d/"
+        "1BRb8p3Rq0VpFCLSwL4e9tSgXBo9hSWzfW_J_7W36NQ"
+        "/export?format=csv&gid=0"
+    )
 
     @st.cache_data
     def fetch_scores():
-        required_cols = ["student_code", "name", "assignment", "score", "date", "level"]
         try:
             resp = requests.get(GOOGLE_SHEET_CSV, timeout=7)
             resp.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            st.warning(f"⚠️ Could not fetch your results sheet: {e}")
+            return pd.DataFrame()
+        except Exception as e:
+            st.warning(f"⚠️ Unexpected error loading results: {e}")
+            return pd.DataFrame()
+
+        try:
             df = pd.read_csv(io.StringIO(resp.text), engine='python')
         except Exception as e:
-            st.warning(f"⚠️ Could not fetch your results sheet: {e}")
-            # return empty with right columns so downstream logic still works
-            return pd.DataFrame(columns=[c.replace("_", " ").title().replace(" ", "_").lower() for c in required_cols])
+            st.warning(f"⚠️ Error parsing CSV: {e}")
+            return pd.DataFrame()
 
         # normalize column names
         df.columns = [col.strip().replace(' ', '_').lower() for col in df.columns]
 
-        # check required columns
-        missing = [c for c in required_cols if c not in df.columns]
-        if missing:
-            st.warning(f"⚠️ Your sheet is missing these columns: {missing}")
-            return pd.DataFrame(columns=required_cols)
+        # required fields
+        required = {"student_code", "name", "assignment", "score", "date", "level"}
+        if not required.issubset(set(df.columns)):
+            st.error("Data format error. Please contact support.")
+            st.write("Columns found:", df.columns.tolist())
+            return pd.DataFrame()
 
-        # drop incomplete rows
-        return df.dropna(subset=required_cols)
+        return df
 
     df_scores = fetch_scores()
     if df_scores.empty:
-        st.info("No results available (check your sheet or data).")
+        st.info("No results available. Make sure your sheet is published to the web and publicly accessible.")
         st.stop()
 
     # --- Filter for this student ---
@@ -514,9 +525,10 @@ if tab == "My Results and Resources":
     # --- Detailed results (expandable) ---
     with st.expander("See detailed results", expanded=False):
         df_display = (
-            df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
-                 [['assignment', 'score', 'date']]
-                 .reset_index(drop=True)
+            df_lvl
+            .sort_values(['assignment', 'score'], ascending=[True, False])
+            [['assignment', 'score', 'date']]
+            .reset_index(drop=True)
         )
         st.table(df_display)
 
@@ -554,28 +566,19 @@ if tab == "My Results and Resources":
             mime="application/pdf"
         )
 
-
     # --- Resources Section ---
     st.markdown("---")
     st.subheader("📚 Useful Resources")
     st.markdown(
         """
 - **[A1 Schreiben Practice Questions](https://drive.google.com/file/d/1X_PFF2AnBXSrGkqpfrArvAnEIhqdF6fv/view?usp=sharing)**  
-  Practice writing tasks and sample questions for A1.
-
 - **[A1 Exams Sprechen Guide](https://drive.google.com/file/d/1UWvbCCCcrW3_j9x7pOuWug6_Odvzcvaa/view?usp=sharing)**  
-  Step-by-step guide to the A1 speaking exam.
-
 - **[German Writing Rules](https://drive.google.com/file/d/1o7_ez3WSNgpgxU_nEtp6EO1PXDyi3K3b/view?usp=sharing)**  
-  Tips and grammar rules for better writing.
-
 - **[A2 Sprechen Guide](https://drive.google.com/file/d/1TZecDTjNwRYtZXpEeshbWnN8gCftryhI/view?usp=sharing)**  
-  A2-level speaking exam guide.
-
 - **[B1 Sprechen Guide](https://drive.google.com/file/d/1snk4mL_Q9-xTBXSRfgiZL_gYRI9tya8F/view?usp=sharing)**  
-  How to prepare for your B1 oral exam.
         """
     )
+
 
 if tab == "Course Book":
     import datetime, urllib.parse
