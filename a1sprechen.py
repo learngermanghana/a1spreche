@@ -7,6 +7,7 @@ import json
 from datetime import date, datetime, timedelta
 import pandas as pd
 import streamlit as st
+import time
 import requests
 import datetime
 import urllib.parse
@@ -521,7 +522,6 @@ def validate_translation_openai(word, student_answer):
         return reply.startswith("true")
     except Exception:
 
-import time
 
 # Your image URLs and captions
 image_urls = [
