@@ -160,24 +160,30 @@ def is_close_answer(student, correct, threshold=0.80):
     correct = correct.strip().lower()
     return difflib.SequenceMatcher(None, student, correct).ratio() >= threshold
 
-def get_practiced_vocab(student_code, level):
+def get_practiced_vocab_all(student_code, level):
     url = f"https://api.baserow.io/api/database/rows/table/{PROGRESS_TABLE_ID}/"
     headers = {"Authorization": f"Token {API_TOKEN}"}
     params = {
         "user_field_names": True,
-        "filter__field_4838052__equal": student_code,
-        "filter__Level__equal": level,   # Only count this level
+        "filter__StudentCode__equal": student_code,
+        "filter__Level__equal": level,
+        "size": 200,
     }
-    response = requests.get(url, headers=headers, params=params)
-    if response.status_code != 200:
-        return set()
-    results = response.json().get("results", [])
-    practiced = set()
-    for row in results:
-        practiced_vocab = row.get(VOCAB_FIELD, "")
-        if practiced_vocab:
-            practiced.update([x.strip() for x in practiced_vocab.split(",") if x.strip()])
-    return practiced
+    all_practiced = set()
+    while url:
+        resp = requests.get(url, headers=headers, params=params)
+        if resp.status_code != 200:
+            break
+        results = resp.json().get("results", [])
+        for row in results:
+            vocab_field = row.get("practicedVocab", "")
+            if vocab_field:
+                words = [x.strip() for x in vocab_field.split(",") if x.strip()]
+                all_practiced.update(words)
+        url = resp.json().get("next", None)
+        params = {}  # Only for first call
+    return all_practiced
+
 
 
 
@@ -2181,9 +2187,11 @@ if tab == "Custom Chat":
             st.session_state["custom_chat_history"] = []
             st.rerun()
 
-
-
 if tab == "Vocab Trainer":
+
+    import requests
+    import random
+    from datetime import date
 
     API_TOKEN = st.secrets["BASEROW_API_TOKEN"]
     VOCAB_TABLE_ID = 597466
@@ -2275,17 +2283,16 @@ if tab == "Vocab Trainer":
 
     review_all = st.checkbox("Review all words (including already practiced)", value=False)
 
-    # Progress summary (for default mode)
+    # PROGRESS: summary and bar
     if not review_all and student_code != "unknown":
         practiced = get_practiced_vocab(student_code, level)
-        unpracticed = [item for item in vocab_items if item[0] not in practiced]
-        words_to_show = unpracticed
-        num_practiced = len(practiced & set(w[0] for w in vocab_items))
-        num_total = len(vocab_items)
-        st.markdown(
-            f"**Words practiced so far:** {num_practiced} / {num_total}"
-        )
+        level_words = set(w[0] for w in vocab_items)
+        num_practiced = len(practiced & level_words)
+        num_total = len(level_words)
+        st.markdown(f"**Words practiced so far:** {num_practiced} / {num_total}")
         st.progress(num_practiced / num_total if num_total > 0 else 1.0)
+        # Only show unpracticed
+        words_to_show = [item for item in vocab_items if item[0] not in practiced]
         if not words_to_show:
             st.success("🎉 You have practiced all words for this level!")
             if st.button("Reset all progress for this level"):
@@ -2293,9 +2300,7 @@ if tab == "Vocab Trainer":
             st.stop()
     else:
         words_to_show = vocab_items
-        num_practiced = None
-        num_total = len(words_to_show)
-        # No overall progress bar in review mode (could add one for session if wanted)
+        # (If you want, add a progress bar for session review here.)
 
     defaults = {
         "vt_history": [],
@@ -2307,6 +2312,7 @@ if tab == "Vocab Trainer":
     }
     for key, val in defaults.items():
         st.session_state.setdefault(key, val)
+
 
     if st.button("🔁 Start New Practice", key="vt_reset"):
         for k in defaults:
