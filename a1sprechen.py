@@ -1,96 +1,86 @@
 import streamlit as st
-import random
 import requests
+import random
 from datetime import date
 
-# ------------- BASEROW SETTINGS -------------
-BASEROW_API_TOKEN = "itdTVpCYfsZSCxm5jGMrmneReLzkGndD"
-VOCAB_TABLE_ID = 597466
-RESULTS_TABLE_ID = 597671
+# ==== BASEROW CONFIG ====
+API_TOKEN = "itdTVpCYfsZSCxm5jGMrmneReLzkGndD"
 
-# Field names in your vocab table (MUST MATCH exactly)
-LEVEL_FIELD = "Level"
+# Table for vocabulary
+VOCAB_TABLE_ID = 597466
+LEVEL_FIELD = "Level"        # field name (not ID) as Baserow returns user_field_names
 GERMAN_FIELD = "German"
 ENGLISH_FIELD = "English"
 
-# Field names in your results table (MUST MATCH exactly)
-RESULT_FIELDS = {
-    "StudentCode": "StudentCode",
-    "Level": "Level",
-    "PracticedVocab": "PracticedVocab",
-    "NumAttempted": "NumAttempted",
-    "NumCorrect": "NumCorrect",
-    "Date": "Date"
-}
+# Table for progress
+PROGRESS_TABLE_ID = 597671
+STUDENT_FIELD = "field_4838052"      # Student Code
+VOCAB_FIELD = "field_4838053"        # Practiced Vocab (as CSV)
+ATTEMPTED_FIELD = "field_4838054"    # Attempted (number)
+CORRECT_FIELD = "field_4838057"      # Correct (number)
+# Add a date field if you want to save the date as well
 
-# ------------- LOAD VOCAB FROM BASEROW -------------
+# ==== LOAD VOCAB FROM BASEROW ====
 @st.cache_data
 def load_vocab_lists_baserow():
     url = f"https://api.baserow.io/api/database/rows/table/{VOCAB_TABLE_ID}/"
-    headers = {"Authorization": f"Token {BASEROW_API_TOKEN}"}
+    headers = {"Authorization": f"Token {API_TOKEN}"}
     params = {"user_field_names": True, "size": 200}
-    all_rows = []
+    rows = []
+    # Paging: get all records in batches of 200
     while url:
         response = requests.get(url, headers=headers, params=params)
         if response.status_code != 200:
-            st.error(f"Error fetching vocab: {response.status_code} - {response.text}")
+            st.error(f"Baserow error {response.status_code}: {response.text}")
             return {}
         data = response.json()
-        all_rows.extend(data.get("results", []))
-        url = data.get("next")  # Handle pagination
-        params = None  # Only needed for first call
+        rows.extend(data.get("results", []))
+        url = data.get("next")  # None if done
+        params = {}  # only needed for the first request
     lists = {}
-    for row in all_rows:
+    for row in rows:
         lvl = row.get(LEVEL_FIELD, "Unknown")
         ger = row.get(GERMAN_FIELD, "")
         eng = row.get(ENGLISH_FIELD, "")
         if lvl and ger and eng:
-            if lvl not in lists:
-                lists[lvl] = []
-            lists[lvl].append((ger.strip(), eng.strip()))
+            lists.setdefault(lvl, []).append((ger, eng))
     return lists
 
 def clean_text(text):
     return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
 
-# ------------- SAVE RESULTS TO BASEROW -------------
-def save_vocab_result_to_baserow(student_code, level, practiced_vocab, num_attempted, num_correct):
-    url = f"https://api.baserow.io/api/database/rows/table/{RESULTS_TABLE_ID}/"
+def save_progress_to_baserow(student_code, practiced_vocab_list, num_attempted, num_correct):
+    url = f"https://api.baserow.io/api/database/rows/table/{PROGRESS_TABLE_ID}/"
     headers = {
-        "Authorization": f"Token {BASEROW_API_TOKEN}",
+        "Authorization": f"Token {API_TOKEN}",
         "Content-Type": "application/json"
     }
     payload = {
-        RESULT_FIELDS["StudentCode"]: student_code,
-        RESULT_FIELDS["Level"]: level,
-        RESULT_FIELDS["PracticedVocab"]: ", ".join(practiced_vocab),
-        RESULT_FIELDS["NumAttempted"]: num_attempted,
-        RESULT_FIELDS["NumCorrect"]: num_correct,
-        RESULT_FIELDS["Date"]: str(date.today())
+        STUDENT_FIELD: student_code,
+        VOCAB_FIELD: ",".join(practiced_vocab_list),
+        ATTEMPTED_FIELD: num_attempted,
+        CORRECT_FIELD: num_correct,
+        # If you have a date field, add it here, e.g.
+        # "field_xxxxxxxx": str(date.today()),
     }
     response = requests.post(url, headers=headers, json=payload)
-    if response.status_code != 201:
+    if response.status_code in (200, 201):
+        return True
+    else:
         st.warning(f"Failed to save progress! {response.status_code}: {response.text}")
         return False
-    return True
 
-# ------------- VOCAB TRAINER UI -------------
+# ==== VOCAB TRAINER TAB ====
 def vocab_trainer_tab():
     st.header("Vocab Trainer")
-    st.info("Practice German vocabulary by level. Your progress will be saved automatically.")
 
-    # Login field for student code
-    student_code = st.text_input("Enter your student code:", key="student_code").strip().lower()
-    if not student_code:
-        st.warning("Please enter your student code to continue.")
-        st.stop()
-
-    # Load vocab lists
+    # -- Load Vocab Lists --
     VOCAB_LISTS = load_vocab_lists_baserow()
     levels = list(VOCAB_LISTS.keys()) if VOCAB_LISTS else []
+
     if not levels:
-        st.error("No vocab levels found! Please check your Baserow data and field names.")
-        st.stop()
+        st.error("No vocab levels found! Please check your Baserow data and field IDs.")
+        return
 
     defaults = {
         "vt_history": [],
@@ -98,17 +88,17 @@ def vocab_trainer_tab():
         "vt_index": 0,
         "vt_score": 0,
         "vt_total": None,
+        "vt_saved_to_baserow": False,
     }
     for key, val in defaults.items():
         st.session_state.setdefault(key, val)
 
-    # Choose level
+    # --- Level select ---
     level = st.selectbox("Choose level", levels, key="vt_level")
     vocab_items = VOCAB_LISTS.get(level, [])
     max_words = len(vocab_items)
-
     if max_words == 0:
-        st.warning(f"No vocabulary available for level {level}.")
+        st.warning(f"No vocabulary available for level {level}. Please add entries in your Baserow table.")
         st.stop()
 
     if st.button("🔁 Start New Practice", key="vt_reset"):
@@ -169,34 +159,35 @@ def vocab_trainer_tab():
             st.session_state.vt_history.append(("assistant", fb))
             st.session_state.vt_index += 1
 
-    # Show results when done and SAVE to Baserow
+    # Show results when done
     if isinstance(total, int) and idx >= total:
         score = st.session_state.vt_score
         st.markdown(f"### 🏁 Finished! You got {score}/{total} correct.")
 
-        if "vt_saved_to_baserow" not in st.session_state:
-            st.session_state["vt_saved_to_baserow"] = False
-
-        if not st.session_state["vt_saved_to_baserow"]:
-            practiced_vocab = [item[0] for item in st.session_state.vt_list]
-            update_success = save_vocab_result_to_baserow(
-                student_code=student_code,
-                level=level,
-                practiced_vocab=practiced_vocab,
-                num_attempted=total,
-                num_correct=score
-            )
-            if update_success:
-                st.success("✅ Your progress was saved to Baserow!")
-                st.session_state["vt_saved_to_baserow"] = True
-            else:
-                st.warning("⚠️ Progress could not be saved. Please try again later.")
-
+        # Practice Again button resets everything
         if st.button("Practice Again", key="vt_again"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
             st.session_state["vt_saved_to_baserow"] = False
 
-# ------------- RUN APP -------------
+        if "vt_saved_to_baserow" not in st.session_state:
+            st.session_state["vt_saved_to_baserow"] = False
+
+        if not st.session_state["vt_saved_to_baserow"]:
+            student_code = st.session_state.get("student_code", "unknown")
+            practiced_vocab = [item[0] for item in st.session_state.vt_list]
+            update_success = save_progress_to_baserow(
+                student_code=student_code,
+                practiced_vocab_list=practiced_vocab,
+                num_attempted=total,
+                num_correct=score
+            )
+            if update_success:
+                st.success("✅ Your progress was saved!")
+                st.session_state["vt_saved_to_baserow"] = True
+            else:
+                st.warning("⚠️ Progress could not be saved. Please try again later.")
+
+# ==== MAIN APP ====
 if __name__ == "__main__" or True:
     vocab_trainer_tab()
