@@ -532,8 +532,14 @@ import time
 
 if tab == "Dashboard":
     st.header("📊 Student Dashboard")
-    
-    # --- Safe name logic ---
+
+    # --- Get student_row first ---
+    df_students = load_student_data()
+    code = student_code.strip().lower()
+    matches = df_students[df_students["StudentCode"].str.lower() == code]
+    student_row = matches.iloc[0].to_dict() if not matches.empty else {}
+
+    # --- Friendly welcome logic ---
     display_name = student_row.get('Name') or student_name or "Student"
     display_name = str(display_name).strip()
     if display_name:
@@ -541,7 +547,6 @@ if tab == "Dashboard":
     else:
         first_name = "Student"
 
-    # --- Friendly, universal message ---
     st.markdown(
         f"""
         <div style='padding: 14px; background-color: #d0f5e8; border-radius: 10px; margin-bottom: 18px; font-size: 1.1em;'>
@@ -551,7 +556,6 @@ if tab == "Dashboard":
         """,
         unsafe_allow_html=True
     )
-
 
     # --- Student Info & Balance ---
     df_students = load_student_data()
