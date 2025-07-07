@@ -18,106 +18,112 @@ from streamlit_cookies_manager import EncryptedCookieManager
 import streamlit as st
 import time
 
-# --- Static Data ---
+# ==== AD/REVIEW DATA (move to module constants in prod) ====
 AD_IMAGES = [
     ("https://i.imgur.com/9hLAScD.jpg", "Live & Online Classes"),
     ("https://i.imgur.com/2PzOOvn.jpg", "Learn German in Accra or Online"),
     ("https://i.imgur.com/Q9mpvRY.jpg", "New B1 Group – Join Now"),
 ]
 REVIEWS = [
-    {"text": "I passed A1 with Falowen’s help!", "name": "Anita, Accra", "rating": 5},
-    {"text": "Simple, practical app for self-study.", "name": "Michael, Kumasi", "rating": 5},
-    {"text": "Loved the weekly progress tracking.", "name": "Emilia, Cape Coast", "rating": 4}
+    {"student_name": "Anita, Accra", "review_text": "I passed A1 with Falowen’s help!", "rating": 5},
+    {"student_name": "Michael, Kumasi", "review_text": "Simple, practical app for self-study.", "rating": 5},
+    {"student_name": "Emilia, Cape Coast", "review_text": "Loved the weekly progress tracking.", "rating": 4},
 ]
 
 def landing_page():
-    st.markdown(
-        """
-        <div style='text-align:center; margin-bottom: 1.3em;'>
-            <span style='font-size:2.1em; font-weight:700;'>🇩🇪 Falowen</span><br>
-            <span style='font-size:1.16em; color:#17617a;'><b>Your German Progress Partner</b></span>
-        </div>
-        """, unsafe_allow_html=True
-    )
+    # ---- Title & Tagline ----
+    st.markdown("""
+    <div style='text-align:center; margin-bottom: 1.1em;'>
+        <span style='font-size:2.3em; font-weight:bold;'>🇩🇪 Falowen</span><br>
+        <span style='font-size:1.2em; color:#0a4c85;'><b>Your German Progress Partner</b></span>
+    </div>
+    """, unsafe_allow_html=True)
 
-    st.markdown(
-        "<div style='background:#e5f6f2; padding:1em; border-radius:12px; text-align:center; margin-bottom:1em;'>"
-        "<b>Practice. Track. Pass.<br>For Goethe/ÖSD exams or everyday German.<br><span style='color:#616161;'>A1–C1 | Online or Accra</span></b>"
-        "</div>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("""
+    <div style='background:#e9f7ef; padding:1.0em 1.0em; border-radius:13px; margin-bottom:1.1em; text-align:center;'>
+        <span style='font-size:1.05em;'><b>Practice. Track. Pass.</b></span><br>
+        <span style='color:#616161;'>From A1 to C1 – Study at your own pace!</span>
+    </div>
+    """, unsafe_allow_html=True)
 
+    # ---- CTA Buttons ----
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("Start Practicing", use_container_width=True):
-            st.session_state["logged_in"] = True
+        st.button("Start Practicing", use_container_width=True, key="start_practicing")
     with c2:
         st.link_button("WhatsApp Support", "https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0", use_container_width=True)
 
-    st.markdown("---")
+    st.markdown("")
 
-    # Auto-Rotating Announcements
+    # ---- AD Rotator ----
     if "landing_ad_idx" not in st.session_state:
         st.session_state["landing_ad_idx"] = 0
+    if "landing_ad_last" not in st.session_state:
         st.session_state["landing_ad_last"] = time.time()
+
+    # Auto-rotate every 5 seconds on rerun
     if time.time() - st.session_state["landing_ad_last"] > 5:
         st.session_state["landing_ad_idx"] = (st.session_state["landing_ad_idx"] + 1) % len(AD_IMAGES)
         st.session_state["landing_ad_last"] = time.time()
     img_url, caption = AD_IMAGES[st.session_state["landing_ad_idx"]]
     st.image(img_url, caption=caption, use_container_width=True)
+    st.button("Next Announcement", key="next_announcement", use_container_width=True, on_click=lambda: st.session_state.update({
+        "landing_ad_idx": (st.session_state["landing_ad_idx"] + 1) % len(AD_IMAGES),
+        "landing_ad_last": time.time()
+    }))
+
     st.markdown("")
 
-    # Features
-    st.markdown(
-        "<div style='font-size:1.07em; text-align:center; color:#195068;'>"
-        "🚦 Track progress & pass faster &nbsp; | &nbsp; 💬 AI feedback &nbsp; | &nbsp; 🤳 Mobile or Desktop<br>"
-        "</div>",
-        unsafe_allow_html=True
-    )
-    st.markdown("---")
+    # ---- Features Row ----
+    st.info("""
+- 🚦 *Track your progress, get instant feedback*
+- 💬 *AI-powered speaking & writing feedback*
+- 📝 *Mock exams, vocab & grammar trainer*
+- 🤳 *Works on mobile or computer, anytime*
+    """)
 
-    # Rotating Reviews
+    # ---- Testimonials Rotator ----
     if "landing_rev_idx" not in st.session_state:
         st.session_state["landing_rev_idx"] = 0
+    if "landing_rev_last" not in st.session_state:
         st.session_state["landing_rev_last"] = time.time()
-    if time.time() - st.session_state["landing_rev_last"] > 6:
+    if time.time() - st.session_state["landing_rev_last"] > 7:
         st.session_state["landing_rev_idx"] = (st.session_state["landing_rev_idx"] + 1) % len(REVIEWS)
         st.session_state["landing_rev_last"] = time.time()
     r = REVIEWS[st.session_state["landing_rev_idx"]]
     stars = "★" * r["rating"] + "☆" * (5 - r["rating"])
-    st.markdown(
-        f"<div style='background:#f9fafb; border-radius:9px; padding:11px; text-align:center;'>"
-        f"<span style='font-size:1.08em;'>&ldquo;{r['text']}&rdquo;</span><br>"
-        f"<b>{r['name']}</b><br>"
-        f"<span style='color:#f8ba08;'>{stars}</span>"
-        "</div>", unsafe_allow_html=True
-    )
+    st.markdown(f"""
+    <div style='background:#f9fafb; border-radius:9px; padding:10px; margin-top:6px; margin-bottom:8px; font-size:1.01em;'>
+        <span style='font-size:1.09em;'>&ldquo;{r['review_text']}&rdquo;</span>
+        <br><b>{r['student_name']}</b><br>
+        <span style='color:#f8ba08;'>{stars}</span>
+    </div>
+    """, unsafe_allow_html=True)
+    st.button("Next Review", key="next_review", use_container_width=True, on_click=lambda: st.session_state.update({
+        "landing_rev_idx": (st.session_state["landing_rev_idx"] + 1) % len(REVIEWS),
+        "landing_rev_last": time.time()
+    }))
 
-    st.markdown("---")
+    # ---- How it Works ----
+    st.markdown("#### How it works:")
+    st.markdown("1. **Register or login** with your student code")
+    st.markdown("2. **Choose a module** (vocab, course book, speaking, writing)")
+    st.markdown("3. **Practice and track your progress**")
+    st.markdown("4. **Get instant feedback and tips, or chat with a tutor**")
 
-    st.markdown(
-        """
-        <span style='font-size:1.12em; font-weight:600;'>How it works:</span><br>
-        <ul style='font-size:1.03em;'>
-            <li>Register or login with your student code</li>
-            <li>Choose a module: vocab, course book, speaking, writing</li>
-            <li>Practice and track your progress</li>
-            <li>Get feedback, tips, and chat with a tutor</li>
-        </ul>
-        """,
-        unsafe_allow_html=True,
-    )
+    # ---- Footer/contact ----
+    st.markdown("""
+---
+Falowen by Learn Language Education Academy  
+Contact: [WhatsApp](https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0)  
+[Instagram](https://www.instagram.com/learngermanghana?igsh=eWxnbGRleGJ2ODY5)
+    """)
 
-    st.caption(
-        "Falowen by Learn Language Education Academy  |  "
-        "[WhatsApp](https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0)  |  "
-        "[Instagram](https://www.instagram.com/learngermanghana?igsh=eWxnbGRleGJ2ODY5)"
-    )
-
-# =============== HOW TO USE ===============
+# --- Show landing page if not logged in
 if not st.session_state.get("logged_in"):
     landing_page()
-    st.stop()  # You can REMOVE this line if you want dashboard to show underneath!
+    st.stop()
+
 
 
 
