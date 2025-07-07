@@ -17,109 +17,128 @@ from streamlit_cookies_manager import EncryptedCookieManager
 
 import streamlit as st
 import time
+import pandas as pd
 
-# ==== AD/REVIEW DATA (move to module constants in prod) ====
+# ===== Module-Level Constants =====
 AD_IMAGES = [
     ("https://i.imgur.com/9hLAScD.jpg", "Live & Online Classes"),
     ("https://i.imgur.com/2PzOOvn.jpg", "Learn German in Accra or Online"),
     ("https://i.imgur.com/Q9mpvRY.jpg", "New B1 Group – Join Now"),
 ]
-REVIEWS = [
-    {"student_name": "Anita, Accra", "review_text": "I passed A1 with Falowen’s help!", "rating": 5},
-    {"student_name": "Michael, Kumasi", "review_text": "Simple, practical app for self-study.", "rating": 5},
-    {"student_name": "Emilia, Cape Coast", "review_text": "Loved the weekly progress tracking.", "rating": 4},
+FEATURES = [
+    "🚦 Progress Tracker",
+    "💬 AI Feedback",
+    "📝 Mock Exams",
+    "🤳 Mobile Friendly"
+]
+STEPS = [
+    "Register or login with your student code",
+    "Choose a module: vocab, course book, speaking, writing",
+    "Practice and track your progress",
+    "Get instant feedback or chat with a tutor"
 ]
 
+@st.cache_data
+def load_reviews():
+    SHEET_ID = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
+    SHEET_NAME = "Sheet1"
+    url = (
+        f"https://docs.google.com/spreadsheets/d/{SHEET_ID}"
+        f"/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
+    )
+    try:
+        df = pd.read_csv(url)
+        df.columns = df.columns.str.strip().str.lower()
+        # Expect columns: student_name, review_text, rating
+        df = df.dropna(subset=["student_name", "review_text", "rating"])
+        df["rating"] = df["rating"].astype(int)
+        return df.to_dict("records")
+    except Exception:
+        return []
+
 def landing_page():
-    # ---- Title & Tagline ----
-    st.markdown("""
-    <div style='text-align:center; margin-bottom: 1.1em;'>
-        <span style='font-size:2.3em; font-weight:bold;'>🇩🇪 Falowen</span><br>
-        <span style='font-size:1.2em; color:#0a4c85;'><b>Your German Progress Partner</b></span>
-    </div>
-    """, unsafe_allow_html=True)
+    # Title and Subheading
+    st.markdown(
+        """
+        <div style='text-align:center; margin-bottom: 1.5em;'>
+            <span style='font-size:2.5em; font-weight:bold;'>🇩🇪 Falowen</span><br>
+            <span style='font-size:1.3em; color:#0a4c85;'><b>Your German Progress Partner</b></span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-    st.markdown("""
-    <div style='background:#e9f7ef; padding:1.0em 1.0em; border-radius:13px; margin-bottom:1.1em; text-align:center;'>
-        <span style='font-size:1.05em;'><b>Practice. Track. Pass.</b></span><br>
-        <span style='color:#616161;'>From A1 to C1 – Study at your own pace!</span>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div style='background:#e9f7ef; padding:1.1em 1.3em; border-radius:14px; margin-bottom:1.2em; text-align:center;'>
+            <span style='font-size:1.12em;'><b>Practice. Track. Pass.<br>
+            For Goethe/ÖSD exams or everyday German.</b></span>
+            <br><span style='color:#616161;'>A1 to C1 – Study at your own pace!</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-    # ---- CTA Buttons ----
-    c1, c2 = st.columns(2)
-    with c1:
-        st.button("Start Practicing", use_container_width=True, key="start_practicing")
-    with c2:
-        st.link_button("WhatsApp Support", "https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0", use_container_width=True)
+    # CTA Buttons
+    st.link_button("Start Practicing", "https://falowen.streamlit.app", use_container_width=True)
+    st.link_button("WhatsApp Support", "https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0", use_container_width=True)
 
-    st.markdown("")
+    # Features Row
+    st.markdown(" ")
+    for feat in FEATURES:
+        st.markdown(f"- {feat}")
 
-    # ---- AD Rotator ----
+    # Promo Carousel (auto-rotating images)
     if "landing_ad_idx" not in st.session_state:
         st.session_state["landing_ad_idx"] = 0
-    if "landing_ad_last" not in st.session_state:
         st.session_state["landing_ad_last"] = time.time()
-
-    # Auto-rotate every 5 seconds on rerun
     if time.time() - st.session_state["landing_ad_last"] > 5:
         st.session_state["landing_ad_idx"] = (st.session_state["landing_ad_idx"] + 1) % len(AD_IMAGES)
         st.session_state["landing_ad_last"] = time.time()
+        st.rerun()
     img_url, caption = AD_IMAGES[st.session_state["landing_ad_idx"]]
     st.image(img_url, caption=caption, use_container_width=True)
-    st.button("Next Announcement", key="next_announcement", use_container_width=True, on_click=lambda: st.session_state.update({
-        "landing_ad_idx": (st.session_state["landing_ad_idx"] + 1) % len(AD_IMAGES),
-        "landing_ad_last": time.time()
-    }))
 
-    st.markdown("")
+    # Testimonials (auto-rotating reviews from Google Sheet)
+    st.markdown("---")
+    st.subheader("What Our Students Say")
+    reviews = load_reviews()
+    if not reviews:
+        st.info("No reviews available yet.")
+    else:
+        if "landing_rev_idx" not in st.session_state:
+            st.session_state["landing_rev_idx"] = 0
+            st.session_state["landing_rev_last"] = time.time()
+        if time.time() - st.session_state["landing_rev_last"] > 7:
+            st.session_state["landing_rev_idx"] = (st.session_state["landing_rev_idx"] + 1) % len(reviews)
+            st.session_state["landing_rev_last"] = time.time()
+            st.rerun()
+        r = reviews[st.session_state["landing_rev_idx"]]
+        stars = "★" * r["rating"] + "☆" * (5 - r["rating"])
+        st.markdown(
+            f"""
+            <div style='background:#f9fafb; border-radius:10px; padding:12px; margin-top:8px; margin-bottom:10px; font-size:1.05em; text-align:center;'>
+                <span style='font-size:1.1em;'>&ldquo;{r['review_text']}&rdquo;</span>
+                <br><b>{r['student_name']}</b><br>
+                <span style='color:#f8ba08;'>{stars}</span>
+            </div>
+            """, unsafe_allow_html=True)
 
-    # ---- Features Row ----
-    st.info("""
-- 🚦 *Track your progress, get instant feedback*
-- 💬 *AI-powered speaking & writing feedback*
-- 📝 *Mock exams, vocab & grammar trainer*
-- 🤳 *Works on mobile or computer, anytime*
-    """)
+    # How it works
+    st.markdown("---")
+    st.subheader("How it works:")
+    for i, step in enumerate(STEPS, 1):
+        st.markdown(f"{i}. {step}")
 
-    # ---- Testimonials Rotator ----
-    if "landing_rev_idx" not in st.session_state:
-        st.session_state["landing_rev_idx"] = 0
-    if "landing_rev_last" not in st.session_state:
-        st.session_state["landing_rev_last"] = time.time()
-    if time.time() - st.session_state["landing_rev_last"] > 7:
-        st.session_state["landing_rev_idx"] = (st.session_state["landing_rev_idx"] + 1) % len(REVIEWS)
-        st.session_state["landing_rev_last"] = time.time()
-    r = REVIEWS[st.session_state["landing_rev_idx"]]
-    stars = "★" * r["rating"] + "☆" * (5 - r["rating"])
-    st.markdown(f"""
-    <div style='background:#f9fafb; border-radius:9px; padding:10px; margin-top:6px; margin-bottom:8px; font-size:1.01em;'>
-        <span style='font-size:1.09em;'>&ldquo;{r['review_text']}&rdquo;</span>
-        <br><b>{r['student_name']}</b><br>
-        <span style='color:#f8ba08;'>{stars}</span>
-    </div>
-    """, unsafe_allow_html=True)
-    st.button("Next Review", key="next_review", use_container_width=True, on_click=lambda: st.session_state.update({
-        "landing_rev_idx": (st.session_state["landing_rev_idx"] + 1) % len(REVIEWS),
-        "landing_rev_last": time.time()
-    }))
+    # Footer
+    st.markdown("---")
+    st.caption(
+        "Falowen by Learn Language Education Academy  |  "
+        "[WhatsApp Support](https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0)  |  "
+        "[Instagram](https://www.instagram.com/learngermanghana?igsh=eWxnbGRleGJ2ODY5)"
+    )
 
-    # ---- How it Works ----
-    st.markdown("#### How it works:")
-    st.markdown("1. **Register or login** with your student code")
-    st.markdown("2. **Choose a module** (vocab, course book, speaking, writing)")
-    st.markdown("3. **Practice and track your progress**")
-    st.markdown("4. **Get instant feedback and tips, or chat with a tutor**")
-
-    # ---- Footer/contact ----
-    st.markdown("""
----
-Falowen by Learn Language Education Academy  
-Contact: [WhatsApp](https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0)  
-[Instagram](https://www.instagram.com/learngermanghana?igsh=eWxnbGRleGJ2ODY5)
-    """)
-
-# --- Show landing page if not logged in
+# ======= SHOW LANDING PAGE IF NOT LOGGED IN =======
 if not st.session_state.get("logged_in"):
     landing_page()
     st.stop()
