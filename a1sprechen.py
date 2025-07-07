@@ -1715,13 +1715,20 @@ if "student_row" not in st.session_state:
 student_row = st.session_state.get('student_row', {})
 student_level = student_row.get('Level', 'A1').upper()
 
-
 if tab == "Course Book":
     import datetime, urllib.parse
 
-    # --------------------------------------
-    # Compute level schedule mapping once at module load for efficiency
-    # --------------------------------------
+    # --- Get Query Params For Direct Linking ---
+    query_params = st.experimental_get_query_params()
+    preselect_level = query_params.get("level", [None])[0]
+    preselect_day = query_params.get("day", [None])[0]
+    if preselect_day is not None:
+        try:
+            preselect_day = int(preselect_day)
+        except:
+            preselect_day = None
+
+    # --- Compute Level Schedule Mapping ---
     LEVEL_SCHEDULES = {
         "A1": get_a1_schedule(),
         "A2": get_a2_schedule(),
@@ -1729,11 +1736,13 @@ if tab == "Course Book":
     }
 
     student_row = st.session_state.get('student_row', {})
-    student_level = student_row.get('Level', 'A1').upper()
+    student_level = (preselect_level or student_row.get('Level', 'A1')).upper()
     schedule = LEVEL_SCHEDULES.get(student_level, LEVEL_SCHEDULES['A1'])
 
     # 1️⃣ SEARCH BAR
     search_query = st.text_input("🔍 Search for a topic, chapter, or keyword:")
+
+    # --- Handle selection ---
     selected_day_idx = 0
 
     if search_query:
@@ -1759,9 +1768,17 @@ if tab == "Course Book":
             st.warning("No matching lessons found.")
             st.stop()
     else:
+        # Preselect day if in URL
+        initial_idx = 0
+        if preselect_day:
+            for i, d in enumerate(schedule):
+                if str(d.get("day", "")) == str(preselect_day):
+                    initial_idx = i
+                    break
         selected_day_idx = st.selectbox(
             "Choose your lesson/day:",
             range(len(schedule)),
+            index=initial_idx,
             format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
         )
 
@@ -1769,7 +1786,7 @@ if tab == "Course Book":
 
     st.markdown(f"### Day {day_info['day']}: {day_info['topic']} (Chapter {day_info['chapter']})")
 
-    # Display optional metadata
+    # Optional metadata
     if day_info.get("goal"):
         st.markdown(f"**🎯 Goal:**<br>{day_info['goal']}", unsafe_allow_html=True)
     if day_info.get("instruction"):
