@@ -15,110 +15,104 @@ from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
-import streamlit as st
-
 def landing_page():
-    st.markdown(
-        """
-        <div style='text-align:center; margin-bottom: 1.5em;'>
-            <span style='font-size:2.5em; font-weight:bold;'>🇩🇪 Falowen</span><br>
-            <span style='font-size:1.3em; color:#0a4c85;'><b>Your German Progress Partner</b></span>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    st.markdown(
-        """
-        <div style='background:#e9f7ef; padding:1.1em 1.3em; border-radius:14px; margin-bottom:1.2em; text-align:center;'>
-            <span style='font-size:1.1em;'><b>Practice. Track. Pass.<br>
-            For Goethe/ÖSD exams or everyday German.</b></span>
-            <br><span style='color:#616161;'>From A1 to C1 – Study at your own pace!</span>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    # Hero CTA
-    c1, c2 = st.columns(2)
-    with c1:
-        st.button("Start Practicing", use_container_width=True, type="primary", on_click=lambda: st.session_state.update({"page":"dashboard"}))
-    with c2:
-        st.link_button("WhatsApp Support", "https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0", use_container_width=True)
+    # --- Hero ---
+    st.markdown("""
+    <div style='text-align:center; margin-bottom:1.2em;'>
+      <span style='font-size:2.2em; font-weight:bold;'>🇩🇪 Falowen</span><br>
+      <span style='font-size:1.1em; color:#0a4c85;'><b>Your German Progress Partner</b></span>
+    </div>
+    """, unsafe_allow_html=True)
 
-    st.markdown("")
+    # --- Tagline Box ---
+    st.markdown("""
+    <div style='background:#e9f7ef; padding:1em; border-radius:12px; margin-bottom:1.2em; text-align:center;'>
+      <b>Practice. Track. Pass.</b><br>
+      For Goethe/ÖSD exams or everyday German (A1–C1)
+    </div>
+    """, unsafe_allow_html=True)
 
-    # --- Promo carousel: Manual Next Button (no rerun) ---
+    # --- Start / Support Buttons ---
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Start Practicing", use_container_width=True):
+            st.session_state["logged_in"] = True
+            # next run will bypass landing_page
+    with col2:
+        st.markdown(
+            "[💬 WhatsApp Support](https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0){: .button }",
+            unsafe_allow_html=True
+        )
+
+    st.markdown("---")
+
+    # --- Promo Carousel ---
     ad_images = [
         ("https://i.imgur.com/9hLAScD.jpg", "Live Classes & Online Options"),
         ("https://i.imgur.com/2PzOOvn.jpg", "Learn German in Accra or Online"),
         ("https://i.imgur.com/Q9mpvRY.jpg", "New B1 Group – Register Now!"),
     ]
-    if "landing_ad_idx" not in st.session_state:
-        st.session_state["landing_ad_idx"] = 0
-
-    img_url, caption = ad_images[st.session_state["landing_ad_idx"]]
+    idx = st.session_state.get("landing_ad_idx", 0)
+    img_url, caption = ad_images[idx]
     st.image(img_url, caption=caption, use_container_width=True)
-    c1, c2, c3 = st.columns([1,3,1])
-    with c2:
-        if st.button("Next Announcement"):
-            st.session_state["landing_ad_idx"] = (st.session_state["landing_ad_idx"] + 1) % len(ad_images)
-            st.rerun()  # Use rerun here only for button, not timer!
+    if st.button("Next Announcement"):
+        st.session_state["landing_ad_idx"] = (idx + 1) % len(ad_images)
 
-    st.markdown("")
+    st.markdown("---")
 
-    # --- Unique features ---
-    st.info("""
-- 🚦 *Personal progress tracker: Know exactly where you stand*
-- 💬 *AI-powered speaking & writing feedback*
-- 📝 *Mock exams, vocab & grammar trainer*
-- 🤳 *Works on mobile or computer, anytime*
-- 💡 *Ghana-based, African support team*
+    # --- Features List ---
+    st.markdown("""
+- 🚦 Personal progress tracker  
+- 💬 AI-powered speaking & writing feedback  
+- 📝 Mock exams, vocab & grammar trainer  
+- 🤳 Mobile + desktop support  
+- 💡 Ghana-based support team
     """)
 
-    # --- Reviews: Manual Next Button ---
-    reviews = [
-        {"text": "I passed A1 with Falowen’s help!", "name": "Anita, Accra", "rating": 5},
-        {"text": "Simple, practical app for self-study.", "name": "Michael, Kumasi", "rating": 5},
-        {"text": "Loved the weekly progress tracking.", "name": "Emilia, Cape Coast", "rating": 4}
-    ]
-    if "landing_rev_idx" not in st.session_state:
-        st.session_state["landing_rev_idx"] = 0
+    st.markdown("---")
 
-    r = reviews[st.session_state["landing_rev_idx"]]
-    stars = "★" * r["rating"] + "☆" * (5 - r["rating"])
+    # --- Testimonials Carousel ---
+    reviews = [
+        ("I passed A1 with Falowen’s help!", "Anita, Accra", 5),
+        ("Simple, practical app for self-study.", "Michael, Kumasi", 5),
+        ("Loved the weekly progress tracking.", "Emilia, Cape Coast", 4),
+    ]
+    ridx = st.session_state.get("landing_rev_idx", 0)
+    text, author, rating = reviews[ridx]
+    stars = "★" * rating + "☆" * (5 - rating)
     st.markdown(f"""
-<div style='background:#f9fafb; border-radius:10px; padding:12px; margin-top:8px; margin-bottom:10px; font-size:1.05em;'>
-    <span style='font-size:1.1em;'>&ldquo;{r['text']}&rdquo;</span>
-    <br><b>{r['name']}</b><br>
-    <span style='color:#f8ba08;'>{stars}</span>
+<div style='background:#f9fafb; padding:1em; border-radius:8px;'>
+  “{text}”  
+  **— {author}**  
+  {stars}
 </div>
     """, unsafe_allow_html=True)
-    c1, c2, c3 = st.columns([1,3,1])
-    with c2:
-        if st.button("Next Review"):
-            st.session_state["landing_rev_idx"] = (st.session_state["landing_rev_idx"] + 1) % len(reviews)
-            st.experimental_rerun()  # Use rerun here only for button!
+    if st.button("Next Review"):
+        st.session_state["landing_rev_idx"] = (ridx + 1) % len(reviews)
 
-    # --- How it works ---
+    st.markdown("---")
+
+    # --- How It Works ---
     st.markdown("""
-#### How it works:
-1. **Register or login** with your student code  
-2. **Choose a module** (vocab, course book, speaking, writing)  
-3. **Practice and track your progress**  
-4. **Get instant feedback and tips, or chat with a tutor**  
+**How it works:**
+1. Register/login with your student code  
+2. Choose a module (vocab, course book, speaking, writing)  
+3. Practice and track your progress  
+4. Get instant feedback or chat with a tutor
     """)
+
+    st.markdown("---")
+
     # --- Footer ---
     st.markdown("""
----
 Falowen by Learn Language Education Academy  
-Contact: [WhatsApp](https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0)  
-[Instagram](https://www.instagram.com/learngermanghana?igsh=eWxnbGRleGJ2ODY5)
-    """)
+[💬 WhatsApp](https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0) • [📸 Instagram](https://www.instagram.com/learngermanghana?igsh=eWxnbGRleGJ2ODY5)
+    """, unsafe_allow_html=True)
 
-# Use at the top of your app, before other content:
+# Only show landing page if not logged in:
 if not st.session_state.get("logged_in"):
     landing_page()
     st.stop()
-
 
 
 # ---- OpenAI Client Setup ----
