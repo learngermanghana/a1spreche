@@ -1736,14 +1736,16 @@ if tab == "Course Book":
     selected_day_idx = 0
 
     if search_query:
-        # Case-insensitive search in all main fields
+        sq = search_query.strip().lower()
         results = [
             (i, d)
             for i, d in enumerate(schedule)
-            if search_query.lower() in str(d.get("topic", "")).lower()
-            or search_query.lower() in str(d.get("chapter", "")).lower()
-            or search_query.lower() in str(d.get("goal", "")).lower()
-            or search_query.lower() in str(d.get("instruction", "")).lower()
+            if sq in str(d.get("topic", "")).lower()
+            or sq in str(d.get("chapter", "")).lower()
+            or sq in str(d.get("goal", "")).lower()
+            or sq in str(d.get("instruction", "")).lower()
+            or sq in f"day {d.get('day','')}".lower()
+            or sq == str(d.get("day", "")).strip()
         ]
         if results:
             st.info(f"Found {len(results)} result(s). Click to view lesson:")
@@ -1771,6 +1773,7 @@ if tab == "Course Book":
         st.markdown(f"**🎯 Goal:**<br>{day_info['goal']}", unsafe_allow_html=True)
     if day_info.get("instruction"):
         st.markdown(f"**📝 Instruction:**<br>{day_info['instruction']}", unsafe_allow_html=True)
+
 
 
     # --------- Show Lesen & Hören ----------
