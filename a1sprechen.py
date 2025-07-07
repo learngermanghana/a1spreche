@@ -15,6 +15,8 @@ from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
+import streamlit as st
+
 def landing_page():
     st.markdown(
         """
@@ -44,7 +46,7 @@ def landing_page():
 
     st.markdown("")
 
-    # Promo carousel (manual, rotates every 4s)
+    # --- Promo carousel: Manual Next Button (no rerun) ---
     ad_images = [
         ("https://i.imgur.com/9hLAScD.jpg", "Live Classes & Online Options"),
         ("https://i.imgur.com/2PzOOvn.jpg", "Learn German in Accra or Online"),
@@ -52,16 +54,18 @@ def landing_page():
     ]
     if "landing_ad_idx" not in st.session_state:
         st.session_state["landing_ad_idx"] = 0
-        st.session_state["landing_ad_last"] = time.time()
-    if time.time() - st.session_state["landing_ad_last"] > 4:
-        st.session_state["landing_ad_idx"] = (st.session_state["landing_ad_idx"] + 1) % len(ad_images)
-        st.session_state["landing_ad_last"] = time.time()
-        st.experimental_rerun()
+
     img_url, caption = ad_images[st.session_state["landing_ad_idx"]]
     st.image(img_url, caption=caption, use_container_width=True)
+    c1, c2, c3 = st.columns([1,3,1])
+    with c2:
+        if st.button("Next Announcement"):
+            st.session_state["landing_ad_idx"] = (st.session_state["landing_ad_idx"] + 1) % len(ad_images)
+            st.experimental_rerun()  # Use rerun here only for button, not timer!
+
     st.markdown("")
 
-    # What makes Falowen different?
+    # --- Unique features ---
     st.info("""
 - 🚦 *Personal progress tracker: Know exactly where you stand*
 - 💬 *AI-powered speaking & writing feedback*
@@ -70,7 +74,7 @@ def landing_page():
 - 💡 *Ghana-based, African support team*
     """)
 
-    # Testimonials (rotates)
+    # --- Reviews: Manual Next Button ---
     reviews = [
         {"text": "I passed A1 with Falowen’s help!", "name": "Anita, Accra", "rating": 5},
         {"text": "Simple, practical app for self-study.", "name": "Michael, Kumasi", "rating": 5},
@@ -78,11 +82,7 @@ def landing_page():
     ]
     if "landing_rev_idx" not in st.session_state:
         st.session_state["landing_rev_idx"] = 0
-        st.session_state["landing_rev_last"] = time.time()
-    if time.time() - st.session_state["landing_rev_last"] > 6:
-        st.session_state["landing_rev_idx"] = (st.session_state["landing_rev_idx"] + 1) % len(reviews)
-        st.session_state["landing_rev_last"] = time.time()
-        st.experimental_rerun()
+
     r = reviews[st.session_state["landing_rev_idx"]]
     stars = "★" * r["rating"] + "☆" * (5 - r["rating"])
     st.markdown(f"""
@@ -92,8 +92,13 @@ def landing_page():
     <span style='color:#f8ba08;'>{stars}</span>
 </div>
     """, unsafe_allow_html=True)
+    c1, c2, c3 = st.columns([1,3,1])
+    with c2:
+        if st.button("Next Review"):
+            st.session_state["landing_rev_idx"] = (st.session_state["landing_rev_idx"] + 1) % len(reviews)
+            st.experimental_rerun()  # Use rerun here only for button!
 
-    # How it works
+    # --- How it works ---
     st.markdown("""
 #### How it works:
 1. **Register or login** with your student code  
@@ -101,7 +106,7 @@ def landing_page():
 3. **Practice and track your progress**  
 4. **Get instant feedback and tips, or chat with a tutor**  
     """)
-    # Footer/contact
+    # --- Footer ---
     st.markdown("""
 ---
 Falowen by Learn Language Education Academy  
@@ -109,7 +114,7 @@ Contact: [WhatsApp](https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&a
 [Instagram](https://www.instagram.com/learngermanghana?igsh=eWxnbGRleGJ2ODY5)
     """)
 
-# Place this right after your imports, before all logic!
+# Use at the top of your app, before other content:
 if not st.session_state.get("logged_in"):
     landing_page()
     st.stop()
