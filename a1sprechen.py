@@ -1715,6 +1715,7 @@ if "student_row" not in st.session_state:
 student_row = st.session_state.get('student_row', {})
 student_level = student_row.get('Level', 'A1').upper()
 
+
 if tab == "Course Book":
     import datetime, urllib.parse
 
@@ -1756,7 +1757,7 @@ if tab == "Course Book":
             selected_day_idx = results[idx][0]
         else:
             st.warning("No matching lessons found.")
-            st.stop()  # Stop here so you don't try to access non-existent result
+            st.stop()
     else:
         selected_day_idx = st.selectbox(
             "Choose your lesson/day:",
@@ -1773,6 +1774,23 @@ if tab == "Course Book":
         st.markdown(f"**🎯 Goal:**<br>{day_info['goal']}", unsafe_allow_html=True)
     if day_info.get("instruction"):
         st.markdown(f"**📝 Instruction:**<br>{day_info['instruction']}", unsafe_allow_html=True)
+
+    # --------------- SHARE LESSON LINK (NEW SECTION) ---------------
+    base_url = "https://falowen.streamlit.app"
+    params = {
+        "level": student_level,
+        "day": day_info["day"]
+    }
+    lesson_link = f"{base_url}/?{urllib.parse.urlencode(params)}"
+    st.markdown("**🔗 Share this lesson:**")
+    st.code(lesson_link, language=None)
+    st.caption("Copy and share this link with classmates or your teacher!")
+
+    # WhatsApp share button
+    wa_text = urllib.parse.quote(f"Check out this lesson (Level {student_level}, Day {day_info['day']}): {lesson_link}")
+    wa_url = f"https://api.whatsapp.com/send?text={wa_text}"
+    st.markdown(f"[📲 Share via WhatsApp]({wa_url})")
+    # --------------- END SHARE SECTION -----------------------------
 
 
 
