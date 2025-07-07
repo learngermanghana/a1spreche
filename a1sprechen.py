@@ -15,111 +15,106 @@ from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
-def landing_page():
-    # --- Subtle background pattern ---
-    st.markdown("""
-        <style>
-        .stApp {
-            background-image: url("https://www.transparenttextures.com/patterns/cubes.png");
-            background-size: auto;
-        }
-        /* Mobile greeting box fix */
-        .stMarkdown > div { font-size: 1.07em !important; }
-        </style>
-    """, unsafe_allow_html=True)
+import streamlit as st
+import time
 
-    # --- Header & Tagline ---
+def landing_page():
     st.markdown(
         """
-        <div style='padding:18px 12px 10px 12px;text-align:center;'>
-            <img src="https://i.imgur.com/9hLAScD.jpg" width="150" style="border-radius:22px;box-shadow:0 2px 6px #aaa;">
-            <h1 style='margin-bottom:0;font-size:2.1em;'>Falowen</h1>
-            <div style='font-size:1.12em;color:#444;font-weight:500; margin-bottom:3px;'>
-                Learn German from A1 to C1—your journey starts here!
-            </div>
+        <div style='text-align:center; margin-bottom: 1.5em;'>
+            <span style='font-size:2.5em; font-weight:bold;'>🇩🇪 Falowen</span><br>
+            <span style='font-size:1.3em; color:#0a4c85;'><b>Your German Progress Partner</b></span>
         </div>
         """,
         unsafe_allow_html=True
     )
-
-    # --- Student Trust & Logos ---
-    st.markdown("""
-    <div style='padding: 10px; border-radius: 10px; background: #e3fcec; margin-bottom: 12px; text-align: center; font-size: 1.07em'>
-        <b>Trusted by 500+ students</b><br>
-        <img src='https://upload.wikimedia.org/wikipedia/commons/6/66/Goethe-Institut_Logo_2011.svg' height='28' style='margin:8px 4px;vertical-align:middle'>
-        <img src='https://upload.wikimedia.org/wikipedia/commons/3/3a/TELC_logo.svg' height='24' style='margin:8px 4px;vertical-align:middle'>
-        <img src='https://yali.state.gov/wp-content/uploads/2016/09/YALI_Logo.jpg' height='28' style='margin:8px 4px;vertical-align:middle'>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # --- Rotating Testimonials ---
-    testimonials = [
-        ("This platform helped me pass my A2 exam!", "Sarah, Accra", 5),
-        ("Very interactive and useful—Ich spreche jetzt besser Deutsch!", "Kwame, Kumasi", 4),
-        ("Best German course online in Ghana!", "Ama, Takoradi", 5),
-        ("Flexible lessons—helped me at every step.", "Moses, Tamale", 4),
-    ]
-    if "landing_testimonial_idx" not in st.session_state:
-        st.session_state["landing_testimonial_idx"] = 0
-        st.session_state["landing_testimonial_last"] = time.time()
-    ROTATE_T_SEC = 5
-    now = time.time()
-    if now - st.session_state["landing_testimonial_last"] > ROTATE_T_SEC:
-        st.session_state["landing_testimonial_idx"] = (st.session_state["landing_testimonial_idx"] + 1) % len(testimonials)
-        st.session_state["landing_testimonial_last"] = now
-        st.experimental_rerun()
-    msg, author, stars = testimonials[st.session_state["landing_testimonial_idx"]]
-    star_string = "★" * stars + "☆" * (5 - stars)
-    st.markdown(
-        f"""
-        <div style='background:#fffbe6;padding:14px 16px 9px 16px;border-radius:10px;margin-bottom:12px;box-shadow:0 2px 6px #eee;'>
-            <span style='font-size:1.08em'>{msg}</span> <br>
-            <span style='color:#666'><b>{author}</b></span><br>
-            <span style='color:#f5b201;font-size:1.05em'>{star_string}</span>
-        </div>
-        """, unsafe_allow_html=True
-    )
-
-    # --- Quick Features/Benefits ---
     st.markdown(
         """
-        <ul style='font-size:1.05em; margin-bottom:10px;'>
-            <li>📚 Courses from A1 to C1—self-paced & live</li>
-            <li>👩🏽‍🏫 Practice writing, speaking, listening & reading</li>
-            <li>🔑 Track your progress & get instant feedback</li>
-            <li>💡 Past exam-style questions and resources</li>
-            <li>🟢 Try for free—no card needed</li>
-        </ul>
-        """, unsafe_allow_html=True
+        <div style='background:#e9f7ef; padding:1.1em 1.3em; border-radius:14px; margin-bottom:1.2em; text-align:center;'>
+            <span style='font-size:1.1em;'><b>Practice. Track. Pass.<br>
+            For Goethe/ÖSD exams or everyday German.</b></span>
+            <br><span style='color:#616161;'>From A1 to B1 – Study at your own pace!</span>
+        </div>
+        """,
+        unsafe_allow_html=True
     )
+    # Hero CTA
+    c1, c2 = st.columns(2)
+    with c1:
+        st.button("Start Practicing", use_container_width=True, type="primary", on_click=lambda: st.session_state.update({"page":"dashboard"}))
+    with c2:
+        st.link_button("WhatsApp Support", "https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0", use_container_width=True)
 
-    # --- Social Media / Contact Buttons ---
-    st.markdown("""
-    <div style='text-align:center; margin:10px 0 18px 0;'>
-        <a href='https://www.instagram.com/learngermanghana?igsh=eWxnbGRleGJ2ODY5' target='_blank' style='margin:0 10px;text-decoration:none;'>
-            <img src='https://cdn-icons-png.flaticon.com/512/2111/2111463.png' height='32' style='vertical-align:middle;'> Instagram
-        </a>
-        <a href='https://wa.me/233205706589' target='_blank' style='margin:0 10px;text-decoration:none;'>
-            <img src='https://cdn-icons-png.flaticon.com/512/124/124034.png' height='32' style='vertical-align:middle;'> WhatsApp
-        </a>
-    </div>
+    st.markdown("")
+
+    # Promo carousel (manual for now, rotates every 4s)
+    ad_images = [
+        ("https://i.imgur.com/9hLAScD.jpg", "Live Classes & Online Options"),
+        ("https://i.imgur.com/2PzOOvn.jpg", "Learn German in Accra or Online"),
+        ("https://i.imgur.com/Q9mpvRY.jpg", "New B1 Group – Register Now!"),
+    ]
+    if "landing_ad_idx" not in st.session_state:
+        st.session_state["landing_ad_idx"] = 0
+        st.session_state["landing_ad_last"] = time.time()
+    if time.time() - st.session_state["landing_ad_last"] > 4:
+        st.session_state["landing_ad_idx"] = (st.session_state["landing_ad_idx"] + 1) % len(ad_images)
+        st.session_state["landing_ad_last"] = time.time()
+        st.experimental_rerun()
+    img_url, caption = ad_images[st.session_state["landing_ad_idx"]]
+    st.image(img_url, caption=caption, use_column_width=True)
+    st.markdown("")
+
+    # What makes Falowen different?
+    st.info("""
+- 🚦 *Personal progress tracker: Know exactly where you stand*
+- 💬 *AI-powered speaking & writing feedback*
+- 📝 *Mock exams, vocab & grammar trainer*
+- 🤳 *Works on mobile or computer, anytime*
+- 💡 *Ghana-based, African support team*
+    """)
+
+    # Testimonials (rotates)
+    reviews = [
+        {"text": "I passed A1 with Falowen’s help!", "name": "Anita, Accra", "rating": 5},
+        {"text": "Simple, practical app for self-study.", "name": "Michael, Kumasi", "rating": 5},
+        {"text": "Loved the weekly progress tracking.", "name": "Emilia, Cape Coast", "rating": 4}
+    ]
+    if "landing_rev_idx" not in st.session_state:
+        st.session_state["landing_rev_idx"] = 0
+        st.session_state["landing_rev_last"] = time.time()
+    if time.time() - st.session_state["landing_rev_last"] > 6:
+        st.session_state["landing_rev_idx"] = (st.session_state["landing_rev_idx"] + 1) % len(reviews)
+        st.session_state["landing_rev_last"] = time.time()
+        st.experimental_rerun()
+    r = reviews[st.session_state["landing_rev_idx"]]
+    stars = "★" * r["rating"] + "☆" * (5 - r["rating"])
+    st.markdown(f"""
+<div style='background:#f9fafb; border-radius:10px; padding:12px; margin-top:8px; margin-bottom:10px; font-size:1.05em;'>
+    <span style='font-size:1.1em;'>&ldquo;{r['text']}&rdquo;</span>
+    <br><b>{r['name']}</b><br>
+    <span style='color:#f8ba08;'>{stars}</span>
+</div>
     """, unsafe_allow_html=True)
 
-    # --- Call to Action Button ---
+    # How it works
     st.markdown("""
-        <div style='text-align:center;'>
-            <a href='#' style='background:#177245;color:#fff;padding:14px 34px 13px 34px;border-radius:6px;
-                font-size:1.15em;text-decoration:none;font-weight:600;box-shadow:0 2px 8px #b4e5b6;'>
-                Get Started &rarr;
-            </a>
-        </div>
-        """, unsafe_allow_html=True
-    )
-
-# --- Call landing page if not logged in ---
+#### How it works:
+1. **Register or login** with your student code
+2. **Choose a module** (vocab, course book, speaking, writing)
+3. **Practice and track your progress**
+4. **Get instant feedback and tips, or chat with a tutor
+    """)
+    # Footer/contact
+    st.markdown("""
+---
+Falowen by Learn Language Education Academy  
+Contact: [WhatsApp](https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0)
+    """)
+    
+# To show the landing page, use this in your app:
 if not st.session_state.get("logged_in"):
     landing_page()
-
+    st.stop()
 
 
 # ---- OpenAI Client Setup ----
