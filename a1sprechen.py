@@ -15,69 +15,111 @@ from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
-
-import streamlit as st
-
 def landing_page():
-    # --- Hero Banner Image (change the URL to your logo/hero image) ---
-    st.image(
-        "https://i.imgur.com/9hLAScD.jpg",
-        caption=None,
-        use_container_width=True,
-    )
+    # --- Subtle background pattern ---
+    st.markdown("""
+        <style>
+        .stApp {
+            background-image: url("https://www.transparenttextures.com/patterns/cubes.png");
+            background-size: auto;
+        }
+        /* Mobile greeting box fix */
+        .stMarkdown > div { font-size: 1.07em !important; }
+        </style>
+    """, unsafe_allow_html=True)
 
-    # --- Main Heading and Slogan ---
+    # --- Header & Tagline ---
     st.markdown(
         """
-        <div style='text-align:center; margin-top:20px;'>
-            <h1 style='font-size:2.4em; margin-bottom:0;'>Falowen</h1>
-            <p style='font-size:1.15em; color:#00695c;'>Your Modern German Learning Platform <br> A1 – C1, AI-powered and Community Supported</p>
+        <div style='padding:18px 12px 10px 12px;text-align:center;'>
+            <img src="https://i.imgur.com/9hLAScD.jpg" width="150" style="border-radius:22px;box-shadow:0 2px 6px #aaa;">
+            <h1 style='margin-bottom:0;font-size:2.1em;'>Falowen</h1>
+            <div style='font-size:1.12em;color:#444;font-weight:500; margin-bottom:3px;'>
+                Learn German from A1 to C1—your journey starts here!
+            </div>
         </div>
         """,
         unsafe_allow_html=True
     )
 
-    # --- Benefits / Features ---
+    # --- Student Trust & Logos ---
+    st.markdown("""
+    <div style='padding: 10px; border-radius: 10px; background: #e3fcec; margin-bottom: 12px; text-align: center; font-size: 1.07em'>
+        <b>Trusted by 500+ students</b><br>
+        <img src='https://upload.wikimedia.org/wikipedia/commons/6/66/Goethe-Institut_Logo_2011.svg' height='28' style='margin:8px 4px;vertical-align:middle'>
+        <img src='https://upload.wikimedia.org/wikipedia/commons/3/3a/TELC_logo.svg' height='24' style='margin:8px 4px;vertical-align:middle'>
+        <img src='https://yali.state.gov/wp-content/uploads/2016/09/YALI_Logo.jpg' height='28' style='margin:8px 4px;vertical-align:middle'>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # --- Rotating Testimonials ---
+    testimonials = [
+        ("This platform helped me pass my A2 exam!", "Sarah, Accra", 5),
+        ("Very interactive and useful—Ich spreche jetzt besser Deutsch!", "Kwame, Kumasi", 4),
+        ("Best German course online in Ghana!", "Ama, Takoradi", 5),
+        ("Flexible lessons—helped me at every step.", "Moses, Tamale", 4),
+    ]
+    if "landing_testimonial_idx" not in st.session_state:
+        st.session_state["landing_testimonial_idx"] = 0
+        st.session_state["landing_testimonial_last"] = time.time()
+    ROTATE_T_SEC = 5
+    now = time.time()
+    if now - st.session_state["landing_testimonial_last"] > ROTATE_T_SEC:
+        st.session_state["landing_testimonial_idx"] = (st.session_state["landing_testimonial_idx"] + 1) % len(testimonials)
+        st.session_state["landing_testimonial_last"] = now
+        st.experimental_rerun()
+    msg, author, stars = testimonials[st.session_state["landing_testimonial_idx"]]
+    star_string = "★" * stars + "☆" * (5 - stars)
+    st.markdown(
+        f"""
+        <div style='background:#fffbe6;padding:14px 16px 9px 16px;border-radius:10px;margin-bottom:12px;box-shadow:0 2px 6px #eee;'>
+            <span style='font-size:1.08em'>{msg}</span> <br>
+            <span style='color:#666'><b>{author}</b></span><br>
+            <span style='color:#f5b201;font-size:1.05em'>{star_string}</span>
+        </div>
+        """, unsafe_allow_html=True
+    )
+
+    # --- Quick Features/Benefits ---
     st.markdown(
         """
-        <ul style='font-size:1.06em;'>
-            <li>🇩🇪 Full German Levels: <b>A1 to C1</b></li>
-            <li>🤖 Practice Speaking, Writing, and Grammar with instant feedback</li>
-            <li>📱 Mobile Friendly — Learn anywhere, anytime</li>
-            <li>📚 Real teacher support & smart, interactive tools</li>
-            <li>🌎 Perfect for Goethe, Telc, or your next trip!</li>
+        <ul style='font-size:1.05em; margin-bottom:10px;'>
+            <li>📚 Courses from A1 to C1—self-paced & live</li>
+            <li>👩🏽‍🏫 Practice writing, speaking, listening & reading</li>
+            <li>🔑 Track your progress & get instant feedback</li>
+            <li>💡 Past exam-style questions and resources</li>
+            <li>🟢 Try for free—no card needed</li>
         </ul>
-        """,
-        unsafe_allow_html=True
+        """, unsafe_allow_html=True
     )
 
-    # --- Call To Action ---
-    st.markdown(
-        """
-        <div style='text-align:center; margin:30px 0 10px 0;'>
-            <span style='font-size:1.2em;'>Ready to begin?</span><br>
+    # --- Social Media / Contact Buttons ---
+    st.markdown("""
+    <div style='text-align:center; margin:10px 0 18px 0;'>
+        <a href='https://www.instagram.com/learngermanghana?igsh=eWxnbGRleGJ2ODY5' target='_blank' style='margin:0 10px;text-decoration:none;'>
+            <img src='https://cdn-icons-png.flaticon.com/512/2111/2111463.png' height='32' style='vertical-align:middle;'> Instagram
+        </a>
+        <a href='https://wa.me/233205706589' target='_blank' style='margin:0 10px;text-decoration:none;'>
+            <img src='https://cdn-icons-png.flaticon.com/512/124/124034.png' height='32' style='vertical-align:middle;'> WhatsApp
+        </a>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # --- Call to Action Button ---
+    st.markdown("""
+        <div style='text-align:center;'>
+            <a href='#' style='background:#177245;color:#fff;padding:14px 34px 13px 34px;border-radius:6px;
+                font-size:1.15em;text-decoration:none;font-weight:600;box-shadow:0 2px 8px #b4e5b6;'>
+                Get Started &rarr;
+            </a>
         </div>
-        """,
-        unsafe_allow_html=True
+        """, unsafe_allow_html=True
     )
 
-    # --- Login / Start Button ---
-    c1, c2, c3 = st.columns([2,3,2])
-    with c2:
-        if st.button("🚀 Login / Start Learning"):
-            st.session_state["logged_in"] = True
-            st.experimental_rerun()
-
-    # --- Small Note at Bottom ---
-    st.markdown(
-        "<hr><div style='font-size:0.92em; color:gray; text-align:center;'>Built for African learners — Trusted by 500+ students since 2023</div>",
-        unsafe_allow_html=True
-    )
-
-# --- Show landing page if not logged in ---
+# --- Call landing page if not logged in ---
 if not st.session_state.get("logged_in"):
     landing_page()
-    st.stop()
+
 
 
 # ---- OpenAI Client Setup ----
