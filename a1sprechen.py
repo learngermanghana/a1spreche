@@ -15,104 +15,114 @@ from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
+
+# ===== Module-Level Constants =====
+AD_IMAGES = [
+    ("https://i.imgur.com/9hLAScD.jpg", "Live & Online Classes"),
+    ("https://i.imgur.com/2PzOOvn.jpg", "Learn German in Accra or Online"),
+    ("https://i.imgur.com/Q9mpvRY.jpg", "New B1 Group – Join Now"),
+]
+FEATURES = ["🚦 Progress Tracker", "💬 AI Feedback", "📝 Mock Exams", "🤳 Mobile Friendly"]
+STEPS = [
+    "Register or login with your student code",
+    "Choose a module: vocab, course book, speaking, writing",
+    "Practice and track your progress",
+    "Get instant feedback or chat with a tutor"
+]
+
+# ===== Reviews Loader =====
+@st.cache_data
+def load_reviews():
+    SHEET_ID = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
+    CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv"
+    try:
+        df = pd.read_csv(CSV_URL)
+        # Expect columns: student_name, review_text, rating
+        df = df.dropna(subset=["student_name", "review_text", "rating"]).
+               assign(rating=lambda d: d["rating"].astype(int))
+        return df.to_dict("records")
+    except Exception:
+        return []
+
+# ===== Landing Page =====
 def landing_page():
-    # --- Hero ---
-    st.markdown("""
-    <div style='text-align:center; margin-bottom:1.2em;'>
-      <span style='font-size:2.2em; font-weight:bold;'>🇩🇪 Falowen</span><br>
-      <span style='font-size:1.1em; color:#0a4c85;'><b>Your German Progress Partner</b></span>
-    </div>
-    """, unsafe_allow_html=True)
+    # Hero Section
+    st.title("🇩🇪 Falowen")
+    st.subheader("Your Modern German Progress Partner")
+    st.markdown("---")
 
-    # --- Tagline Box ---
-    st.markdown("""
-    <div style='background:#e9f7ef; padding:1em; border-radius:12px; margin-bottom:1.2em; text-align:center;'>
-      <b>Practice. Track. Pass.</b><br>
-      For Goethe/ÖSD exams or everyday German (A1–C1)
-    </div>
-    """, unsafe_allow_html=True)
+    # Tagline
+    st.info(
+        "**Practice · Track · Pass**  
+        For Goethe/ÖSD exams or everyday German (A1–C1)"
+    )
 
-    # --- Start / Support Buttons ---
-    col1, col2 = st.columns(2)
-    with col1:
+    # CTA Buttons
+    c1, c2 = st.columns(2)
+    with c1:
         if st.button("Start Practicing", use_container_width=True):
             st.session_state["logged_in"] = True
-            # next run will bypass landing_page
-    with col2:
-        st.markdown(
-            "[💬 WhatsApp Support](https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0){: .button }",
-            unsafe_allow_html=True
-        )
+    with c2:
+        if st.button("WhatsApp Support", use_container_width=True):
+            st.write("Contact us on WhatsApp: +233205706589")
 
     st.markdown("---")
 
-    # --- Promo Carousel ---
-    ad_images = [
-        ("https://i.imgur.com/9hLAScD.jpg", "Live Classes & Online Options"),
-        ("https://i.imgur.com/2PzOOvn.jpg", "Learn German in Accra or Online"),
-        ("https://i.imgur.com/Q9mpvRY.jpg", "New B1 Group – Register Now!"),
-    ]
+    # Features Row
+    cols = st.columns(len(FEATURES))
+    for col, feature in zip(cols, FEATURES):
+        col.write(feature)
+
+    st.markdown("---")
+
+    # Promo Carousel
     idx = st.session_state.get("landing_ad_idx", 0)
-    img_url, caption = ad_images[idx]
+    img_url, caption = AD_IMAGES[idx]
     st.image(img_url, caption=caption, use_container_width=True)
-    if st.button("Next Announcement"):
-        st.session_state["landing_ad_idx"] = (idx + 1) % len(ad_images)
+    if st.button("Next Announcement", key="next_ad", use_container_width=True):
+        st.session_state["landing_ad_idx"] = (idx + 1) % len(AD_IMAGES)
 
     st.markdown("---")
 
-    # --- Features List ---
-    st.markdown("""
-- 🚦 Personal progress tracker  
-- 💬 AI-powered speaking & writing feedback  
-- 📝 Mock exams, vocab & grammar trainer  
-- 🤳 Mobile + desktop support  
-- 💡 Ghana-based support team
-    """)
+    # Testimonials from Google Sheet
+    st.header("What Our Students Say")
+    reviews = load_reviews()
+    if not reviews:
+        st.info("No reviews available yet.")
+    else:
+        ridx = st.session_state.get("landing_rev_idx", 0)
+        rev = reviews[ridx]
+        stars = "★" * rev["rating"] + "☆" * (5 - rev["rating"])
+        with st.container():
+            st.write(f"\"{rev['review_text']}\"")
+            st.write(f"— **{rev['student_name']}**")
+            st.write(stars)
+        if st.button("Next Review", key="next_rev", use_container_width=True):
+            st.session_state["landing_rev_idx"] = (ridx + 1) % len(reviews)
 
     st.markdown("---")
 
-    # --- Testimonials Carousel ---
-    reviews = [
-        ("I passed A1 with Falowen’s help!", "Anita, Accra", 5),
-        ("Simple, practical app for self-study.", "Michael, Kumasi", 5),
-        ("Loved the weekly progress tracking.", "Emilia, Cape Coast", 4),
-    ]
-    ridx = st.session_state.get("landing_rev_idx", 0)
-    text, author, rating = reviews[ridx]
-    stars = "★" * rating + "☆" * (5 - rating)
-    st.markdown(f"""
-<div style='background:#f9fafb; padding:1em; border-radius:8px;'>
-  “{text}”  
-  **— {author}**  
-  {stars}
-</div>
-    """, unsafe_allow_html=True)
-    if st.button("Next Review"):
-        st.session_state["landing_rev_idx"] = (ridx + 1) % len(reviews)
+    # How It Works
+    st.subheader("How it works:")
+    for i, step in enumerate(STEPS, 1):
+        st.write(f"{i}. {step}")
 
     st.markdown("---")
 
-    # --- How It Works ---
-    st.markdown("""
-**How it works:**
-1. Register/login with your student code  
-2. Choose a module (vocab, course book, speaking, writing)  
-3. Practice and track your progress  
-4. Get instant feedback or chat with a tutor
-    """)
+    # Footer
+    st.caption(
+        "Falowen by Learn Language Education Academy  |  "
+        "[WhatsApp Support](https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0)  |  "
+        "[Instagram](https://www.instagram.com/learngermanghana?igsh=eWxnbGRleGJ2ODY5)"
+    )
 
-    st.markdown("---")
-
-    # --- Footer ---
-    st.markdown("""
-Falowen by Learn Language Education Academy  
-[💬 WhatsApp](https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0) • [📸 Instagram](https://www.instagram.com/learngermanghana?igsh=eWxnbGRleGJ2ODY5)
-    """, unsafe_allow_html=True)
-
-# Only show landing page if not logged in:
+# Show landing page only when not logged in
 if not st.session_state.get("logged_in"):
     landing_page()
     st.stop()
+
+# ─── Main app (dashboard, tabs, etc.) continues here ───
+
 
 
 # ---- OpenAI Client Setup ----
