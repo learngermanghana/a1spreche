@@ -16,67 +16,129 @@ from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
 import streamlit as st
+import time
 
 def landing_page():
-    # --- Hero Banner Image (change the URL to your logo/hero image) ---
-    st.image(
-        "https://i.imgur.com/9hLAScD.jpg",
-        caption=None,
-        use_container_width=True,
-    )
-
-    # --- Main Heading and Slogan ---
     st.markdown(
         """
-        <div style='text-align:center; margin-top:20px;'>
-            <h1 style='font-size:2.4em; margin-bottom:0;'>Falowen</h1>
-            <p style='font-size:1.15em; color:#00695c;'>Your Modern German Learning Platform <br> A1 – C1, AI-powered and Community Supported</p>
+        <div style='text-align:center; margin-bottom: 1.2em;'>
+            <span style='font-size:2.2em; font-weight:bold;'>🇩🇪 Falowen</span><br>
+            <span style='font-size:1.14em; color:#185496;'>Your German Progress Partner</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    # Trust/Badge row
+    st.markdown(
+        """
+        <div style='text-align:center; margin-bottom:8px;'>
+            <span style='background:#e3fcec; color:#126132; padding:4px 12px; border-radius:7px; font-size:1.05em;'>500+ students, 3 countries</span>
+            <img src='https://upload.wikimedia.org/wikipedia/commons/6/66/Goethe-Institut_Logo_2011.svg' height='24' style='vertical-align:middle;margin-left:10px;'>
+            <img src='https://upload.wikimedia.org/wikipedia/commons/3/3a/TELC_logo.svg' height='19' style='vertical-align:middle;margin-left:7px;'>
         </div>
         """,
         unsafe_allow_html=True
     )
 
-    # --- Benefits / Features ---
     st.markdown(
         """
-        <ul style='font-size:1.06em;'>
-            <li>🇩🇪 Full German Levels: <b>A1 to C1</b></li>
-            <li>🤖 Practice Speaking, Writing, and Grammar with instant feedback</li>
-            <li>📱 Mobile Friendly — Learn anywhere, anytime</li>
-            <li>📚 Real teacher support & smart, interactive tools</li>
-            <li>🌎 Perfect for Goethe, Telc, or your next trip!</li>
-        </ul>
-        """,
-        unsafe_allow_html=True
-    )
-
-    # --- Call To Action ---
-    st.markdown(
-        """
-        <div style='text-align:center; margin:30px 0 10px 0;'>
-            <span style='font-size:1.2em;'>Ready to begin?</span><br>
+        <div style='background:#e9f7ef; padding:1em 1em 0.7em 1em; border-radius:14px; margin-bottom:1.2em; text-align:center;'>
+            <span style='font-size:1.07em;'><b>Practice. Track. Pass.<br>
+            For Goethe/ÖSD exams or everyday German.</b></span>
+            <br><span style='color:#616161; font-size:0.98em;'>A1 – C1 • Study at your own pace • Ghana, Africa & beyond</span>
         </div>
         """,
         unsafe_allow_html=True
     )
 
-    # --- Login / Start Button ---
-    c1, c2, c3 = st.columns([2,3,2])
+    # Action buttons
+    c1, c2 = st.columns(2)
+    with c1:
+        st.button("Start Practicing", use_container_width=True, type="primary", on_click=lambda: st.session_state.update({"page":"dashboard"}))
     with c2:
-        if st.button("🚀 Login / Start Learning"):
-            st.session_state["logged_in"] = True
-            st.rerun()
+        st.link_button("WhatsApp Support", "https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0", use_container_width=True)
 
-    # --- Small Note at Bottom ---
-    st.markdown(
-        "<hr><div style='font-size:0.92em; color:gray; text-align:center;'>Built for African learners — Trusted by 500+ students since 2023</div>",
-        unsafe_allow_html=True
-    )
+    # Auto-rotating promo images (with size control)
+    st.markdown("")
+    ad_images = [
+        ("https://i.imgur.com/9hLAScD.jpg", "Live Classes & Online Options"),
+        ("https://i.imgur.com/2PzOOvn.jpg", "Learn German in Accra or Online"),
+        ("https://i.imgur.com/Q9mpvRY.jpg", "New B1 Group – Register Now!"),
+    ]
+    if "landing_ad_idx" not in st.session_state:
+        st.session_state["landing_ad_idx"] = 0
+        st.session_state["landing_ad_last"] = time.time()
+    if time.time() - st.session_state["landing_ad_last"] > 4:
+        st.session_state["landing_ad_idx"] = (st.session_state["landing_ad_idx"] + 1) % len(ad_images)
+        st.session_state["landing_ad_last"] = time.time()
+        st.experimental_rerun()
+    img_url, caption = ad_images[st.session_state["landing_ad_idx"]]
+    st.image(img_url, caption=caption, use_container_width=True, output_format="JPEG", width=310)
 
-# --- Show landing page if not logged in ---
+    # Features
+    st.markdown("""
+**What makes Falowen different?**
+
+- 🚦 *See your level and weekly progress*
+- 💬 *AI-powered feedback for speaking & writing*
+- 📝 *Mock exams, vocab, and grammar practice*
+- 🤳 *Mobile/desktop support, easy to use*
+- 🇬🇭 *Africa-based support team*
+    """)
+
+    # Rotating Testimonials
+    reviews = [
+        {"text": "I passed A1 with Falowen’s help!", "name": "Anita, Accra", "rating": 5},
+        {"text": "Simple, practical app for self-study.", "name": "Michael, Kumasi", "rating": 5},
+        {"text": "Loved the weekly progress tracking.", "name": "Emilia, Cape Coast", "rating": 4}
+    ]
+    if "landing_rev_idx" not in st.session_state:
+        st.session_state["landing_rev_idx"] = 0
+        st.session_state["landing_rev_last"] = time.time()
+    if time.time() - st.session_state["landing_rev_last"] > 6:
+        st.session_state["landing_rev_idx"] = (st.session_state["landing_rev_idx"] + 1) % len(reviews)
+        st.session_state["landing_rev_last"] = time.time()
+        st.experimental_rerun()
+    r = reviews[st.session_state["landing_rev_idx"]]
+    stars = "★" * r["rating"] + "☆" * (5 - r["rating"])
+    st.markdown(f"""
+<div style='background:#f9fafb; border-radius:10px; padding:10px; margin-top:7px; margin-bottom:9px; font-size:1.04em;'>
+    <span style='font-size:1.1em;'>&ldquo;{r['text']}&rdquo;</span>
+    <br><b>{r['name']}</b><br>
+    <span style='color:#f8ba08;'>{stars}</span>
+</div>
+    """, unsafe_allow_html=True)
+
+    # How it works
+    st.markdown("""
+**How it works:**
+1. Register or login with your student code
+2. Choose a module (vocab, course book, speaking, writing)
+3. Practice and track your progress
+4. Get feedback and chat with a tutor
+    """)
+    # Socials row (tighter layout)
+    st.markdown("""
+    <div style='text-align:center; margin-top:9px;'>
+        <a href='https://www.instagram.com/learngermanghana?igsh=eWxnbGRleGJ2ODY5' target='_blank' style='margin:0 10px; text-decoration:none;'>
+            <img src='https://cdn-icons-png.flaticon.com/512/2111/2111463.png' height='26' style='vertical-align:middle;'> Instagram
+        </a>
+        <a href='https://wa.me/233205706589' target='_blank' style='margin:0 10px; text-decoration:none;'>
+            <img src='https://cdn-icons-png.flaticon.com/512/124/124034.png' height='26' style='vertical-align:middle;'> WhatsApp
+        </a>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("""
+---
+Falowen by Learn Language Education Academy  
+Contact: [WhatsApp](https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0)
+    """)
+
+# --- Only call landing page if NOT logged in ---
 if not st.session_state.get("logged_in"):
     landing_page()
     st.stop()
+
 
 
 # ---- OpenAI Client Setup ----
@@ -572,12 +634,14 @@ def load_reviews():
     df.columns = df.columns.str.strip().str.lower()
     return df
 
+import time
+import matplotlib.pyplot as plt
+
 # ======= Dashboard Code =======
 if st.session_state.get("logged_in"):
     student_code = st.session_state.get("student_code", "").strip().lower()
     student_name = st.session_state.get("student_name", "")
 
-    # --- Main tab selector
     tab = st.radio(
         "How do you want to practice?",
         [
@@ -591,166 +655,147 @@ if st.session_state.get("logged_in"):
         key="main_tab_select"
     )
 
-import time
+    if tab == "Dashboard":
+        st.header("📊 Student Dashboard")
 
-if tab == "Dashboard":
-    st.header("📊 Student Dashboard")
+        # --- Get student_row first ---
+        df_students = load_student_data()
+        matches = df_students[df_students["StudentCode"].str.lower() == student_code]
+        student_row = matches.iloc[0].to_dict() if not matches.empty else {}
 
-    # --- Get student_row first ---
-    df_students = load_student_data()
-    code = student_code.strip().lower()
-    matches = df_students[df_students["StudentCode"].str.lower() == code]
-    student_row = matches.iloc[0].to_dict() if not matches.empty else {}
+        display_name = student_row.get('Name') or student_name or "Student"
+        first_name = str(display_name).strip().split()[0].title() if display_name else "Student"
 
-    display_name = student_row.get('Name') or student_name or "Student"
-    display_name = str(display_name).strip()
-    if display_name:
-        first_name = display_name.split()[0].title()
-    else:
-        first_name = "Student"
+        # --- Minimal, super-visible greeting for mobile ---
+        st.success(f"Hello, {first_name}! 👋")
+        st.info("Great to see you. Let's keep learning!")
 
-    # --- Minimal, super-visible greeting for mobile ---
-    st.success(f"Hello, {first_name}! 👋")
-    st.info("Great to see you. Let's keep learning!")
-
-    # --- Student Info & Balance ---
-    df_students = load_student_data()
-    row = df_students[df_students["StudentCode"].str.lower().str.strip() == student_code]
-    student = row.iloc[0].to_dict() if not row.empty else {}
-    st.markdown(f"### 👤 {student.get('Name','')}")
-    st.markdown(
-        f"- **Level:** {student.get('Level','')}\n"
-        f"- **Code:** `{student.get('StudentCode','')}`\n"
-        f"- **Email:** {student.get('Email','')}\n"
-        f"- **Phone:** {student.get('Phone','')}"
-    )
-    try:
-        bal = float(student.get("Balance", 0))
-        if bal > 0:
-            st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
-    except:
-        pass
-
-    # --- Progress Stats ---
-    df_stats = load_stats_data()
-    stats = df_stats[df_stats["studentcode"].astype(str).str.lower() == student_code]
-    level = student.get("Level","").upper()
-    TOTALS = {"A1":18, "A2":28, "B1":29}
-    total_assign = TOTALS.get(level, 18)
-
-    submitted = len(stats)
-    rate = (submitted / total_assign) * 100 if total_assign else 0
-
-    if not stats.empty:
-        sorted_stats = stats.sort_values("date", ascending=False)
-        last = sorted_stats.iloc[0]
-        last_asg, last_score = last["assignment"], last["score"]
-    else:
-        sorted_stats = pd.DataFrame()
-        last_asg, last_score = "-", "-"
-
-    passed = (stats["score"].astype(float) >= 80).sum()
-
-    st.markdown("### 📈 Progress Stats")
-    st.markdown(
-        f"- **Submitted:** {submitted}/{total_assign} ({rate:.0f}%)\n"
-        f"- **Last Assignment:** {last_asg} (Score: {last_score})\n"
-        f"- **Passed (≥80):** {passed}"
-    )
-
-    if not sorted_stats.empty:
-        trend = sorted_stats.head(10)[["assignment","score"]][::-1]
-        fig, ax = plt.subplots()
-        ax.plot(trend["assignment"], trend["score"], marker="o")
-        ax.set_ylim(0,100)
-        plt.xticks(rotation=45)
-        st.pyplot(fig)
-
-    # --- Auto-Rotating Announcements & Ads ---
-    st.markdown("### 🖼️ Announcements & Ads")
-    ad_images = [
-        "https://i.imgur.com/9hLAScD.jpg",
-        "https://i.imgur.com/2PzOOvn.jpg",
-        "https://i.imgur.com/Q9mpvRY.jpg",
-    ]
-    ad_captions = [
-        "New A2 Classes—Limited Seats!",
-        "New B1 Classes—Limited Seats!",
-        "Join our classes live in person or online!",
-    ]
-    if "ad_idx" not in st.session_state:
-        st.session_state["ad_idx"] = 0
-        st.session_state["ad_last_time"] = time.time()
-
-    ROTATE_AD_SEC = 5
-    now = time.time()
-    if now - st.session_state["ad_last_time"] > ROTATE_AD_SEC:
-        st.session_state["ad_idx"] = (st.session_state["ad_idx"] + 1) % len(ad_images)
-        st.session_state["ad_last_time"] = now
-        st.rerun()
-
-    idx = st.session_state["ad_idx"]
-    st.image(ad_images[idx], caption=ad_captions[idx], use_container_width=True)
-
-    # --- Upcoming Goethe Exams ---
-    with st.expander("📅 Upcoming Goethe Exams & Registration", expanded=True):
+        # --- Student Info & Balance ---
+        st.markdown(f"### 👤 {student_row.get('Name','')}")
         st.markdown(
-            """
-| Level | Date       | Fee (GHS) | Per Module (GHS) |
-|-------|------------|-----------|------------------|
-| A1    | 21.07.2025 | 2,850     | —                |
-| A2    | 22.07.2025 | 2,400     | —                |
-| B1    | 23.07.2025 | 2,750     | 880              |
-| B2    | 24.07.2025 | 2,500     | 840              |
-| C1    | 25.07.2025 | 2,450     | 700              |
-
----
-
-### 📝 Registration Steps
-
-1. [**Register Here (9–10am, keep checking!)**](https://www.goethe.de/ins/gh/en/spr/prf/anm.html)
-2. Fill the form and choose **extern**
-3. Submit and get payment confirmation
-4. Pay by Mobile Money or Ecobank (**use full name as reference**)
-    - Email proof to: [registrations-accra@goethe.de](mailto:registrations-accra@goethe.de)
-5. Wait for response. If not, send polite reminders by email.
-
----
-
-**Payment Details:**  
-**Ecobank Ghana**  
-Account Name: **GOETHE-INSTITUT GHANA**  
-Account No.: **1441 001 701 903**  
-Branch: **Ring Road Central**  
-SWIFT: **ECOCGHAC**
-            """,
-            unsafe_allow_html=True
+            f"- **Level:** {student_row.get('Level','')}\n"
+            f"- **Code:** `{student_row.get('StudentCode','')}`\n"
+            f"- **Email:** {student_row.get('Email','')}\n"
+            f"- **Phone:** {student_row.get('Phone','')}\n"
+            f"- **Location:** {student_row.get('Location','')}\n"
+            f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}\n"
+            f"- **Enroll Date:** {student_row.get('EnrollDate','')}\n"
+            f"- **Status:** {student_row.get('Status','')}"
         )
-    # --- Auto-Rotating Student Reviews ---
-    st.markdown("### 🗣️ What Our Students Say")
-    reviews = load_reviews()
-    if reviews.empty:
-        st.info("No reviews yet. Be the first to share your experience!")
-    else:
-        rev_list = reviews.to_dict("records")
-        if "rev_idx" not in st.session_state:
-            st.session_state["rev_idx"] = 0
-            st.session_state["rev_last_time"] = time.time()
+        try:
+            bal = float(student_row.get("Balance", 0))
+            if bal > 0:
+                st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
+        except:
+            pass
 
-        ROTATE_REV_SEC = 5
+        # --- Progress Stats ---
+        df_stats = load_stats_data()
+        stats = df_stats[df_stats["studentcode"].astype(str).str.lower() == student_code]
+        level = student_row.get("Level","").upper()
+        TOTALS = {"A1":18, "A2":28, "B1":29}
+        total_assign = TOTALS.get(level, 18)
+
+        submitted = len(stats)
+        rate = (submitted / total_assign) * 100 if total_assign else 0
+
+        if not stats.empty:
+            sorted_stats = stats.sort_values("date", ascending=False)
+            last = sorted_stats.iloc[0]
+            last_asg, last_score = last["assignment"], last["score"]
+        else:
+            sorted_stats = pd.DataFrame()
+            last_asg, last_score = "-", "-"
+
+        passed = (stats["score"].astype(float) >= 80).sum()
+
+        st.markdown("### 📈 Progress Stats")
+        st.markdown(
+            f"- **Submitted:** {submitted}/{total_assign} ({rate:.0f}%)\n"
+            f"- **Last Assignment:** {last_asg} (Score: {last_score})\n"
+            f"- **Passed (≥80):** {passed}"
+        )
+
+        if not sorted_stats.empty:
+            trend = sorted_stats.head(10)[["assignment","score"]][::-1]
+            fig, ax = plt.subplots(figsize=(3.2,2.2))  # compact chart for mobile
+            ax.plot(trend["assignment"], trend["score"], marker="o")
+            ax.set_ylim(0,100)
+            ax.set_ylabel("Score")
+            ax.set_xlabel("Assignment")
+            plt.xticks(rotation=30)
+            st.pyplot(fig)
+
+        # --- Announcements & Ads (auto-rotating, reduced size) ---
+        st.markdown("### 🖼️ Announcements & Ads")
+        ad_images = [
+            "https://i.imgur.com/9hLAScD.jpg",
+            "https://i.imgur.com/2PzOOvn.jpg",
+            "https://i.imgur.com/Q9mpvRY.jpg",
+        ]
+        ad_captions = [
+            "New A2 Classes—Limited Seats!",
+            "New B1 Classes—Limited Seats!",
+            "Join our classes live in person or online!",
+        ]
+        if "ad_idx" not in st.session_state:
+            st.session_state["ad_idx"] = 0
+            st.session_state["ad_last_time"] = time.time()
+
+        ROTATE_AD_SEC = 6
         now = time.time()
-        if now - st.session_state["rev_last_time"] > ROTATE_REV_SEC:
-            st.session_state["rev_idx"] = (st.session_state["rev_idx"] + 1) % len(rev_list)
-            st.session_state["rev_last_time"] = now
+        if now - st.session_state["ad_last_time"] > ROTATE_AD_SEC:
+            st.session_state["ad_idx"] = (st.session_state["ad_idx"] + 1) % len(ad_images)
+            st.session_state["ad_last_time"] = now
             st.rerun()
 
-        r = rev_list[st.session_state["rev_idx"]]
-        stars = "★" * int(r["rating"]) + "☆" * (5 - int(r["rating"]))
-        st.markdown(
-            f"> {r['review_text']}\n"
-            f"> — **{r['student_name']}**  \n"
-            f"> {stars}"
-        )
+        idx = st.session_state["ad_idx"]
+        st.image(ad_images[idx], caption=ad_captions[idx], width=400)  # change width if needed
+
+        # --- Simple Goethe Exam Section ---
+        with st.expander("📅 Goethe Exam Dates & Fees", expanded=True):
+            st.markdown(
+                """
+| Level | Date       | Fee (GHS) |
+|-------|------------|-----------|
+| A1    | 21.07.25   | 2,850     |
+| A2    | 22.07.25   | 2,400     |
+| B1    | 23.07.25   | 2,750     |
+| B2    | 24.07.25   | 2,500     |
+| C1    | 25.07.25   | 2,450     |
+
+- [Register here](https://www.goethe.de/ins/gh/en/spr/prf/anm.html)
+- After paying, send proof to registrations-accra@goethe.de
+- Pay by Mobile Money or Ecobank (use your full name as reference)
+                """,
+                unsafe_allow_html=True
+            )
+
+        # --- Auto-Rotating Student Reviews ---
+        st.markdown("### 🗣️ What Our Students Say")
+        reviews = load_reviews()
+        if reviews.empty:
+            st.info("No reviews yet. Be the first to share your experience!")
+        else:
+            rev_list = reviews.to_dict("records")
+            if "rev_idx" not in st.session_state:
+                st.session_state["rev_idx"] = 0
+                st.session_state["rev_last_time"] = time.time()
+
+            ROTATE_REV_SEC = 8
+            now = time.time()
+            if now - st.session_state["rev_last_time"] > ROTATE_REV_SEC:
+                st.session_state["rev_idx"] = (st.session_state["rev_idx"] + 1) % len(rev_list)
+                st.session_state["rev_last_time"] = now
+                st.rerun()
+
+            r = rev_list[st.session_state["rev_idx"]]
+            stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
+            st.markdown(
+                f"> {r.get('review_text','')}\n"
+                f"> — **{r.get('student_name','')}**  \n"
+                f"> {stars}"
+            )
 
 def get_a1_schedule():
     return [
@@ -965,11 +1010,11 @@ def get_a1_schedule():
             "day": 15,
             "topic": "Schreiben & Sprechen",
             "chapter": "4.7",
-            "goal": "",
-            "instruction": "",
+            "goal": "Understand imperative statements and learn how to use them in your Sprechen exams, especially in Teil 3.",
+            "instruction": "After completing this chapter, go to the Falowen Exam Chat Mode, select A1 Teil 3, and start practicing",
             "schreiben_sprechen": {
                 "video": "",
-                "workbook_link": ""
+                "workbook_link": "https://drive.google.com/file/d/1953B01hB9Ex7LXXU0qIaGU8xgCDjpSm4/view?usp=sharing"
             }
         },
         # DAY 16
@@ -2886,5 +2931,4 @@ if tab == "Schreiben Trainer":
                 f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                 unsafe_allow_html=True
             )
-
 
