@@ -15,8 +15,6 @@ from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
-import streamlit as st
-import time
 
 def landing_page():
     st.markdown(
