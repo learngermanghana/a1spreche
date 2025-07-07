@@ -15,8 +15,7 @@ from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
-import streamlit as st
-import time
+
 
 def landing_page():
     st.markdown(
@@ -98,7 +97,7 @@ def landing_page():
     if time.time() - st.session_state["landing_rev_last"] > 6:
         st.session_state["landing_rev_idx"] = (st.session_state["landing_rev_idx"] + 1) % len(reviews)
         st.session_state["landing_rev_last"] = time.time()
-        st.experimental_rerun()
+        st.rerun()
     r = reviews[st.session_state["landing_rev_idx"]]
     stars = "★" * r["rating"] + "☆" * (5 - r["rating"])
     st.markdown(f"""
