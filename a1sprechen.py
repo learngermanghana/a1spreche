@@ -15,50 +15,36 @@ from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
-
-
 def landing_page():
     st.markdown(
         """
-        <div style='text-align:center; margin-bottom: 1.2em;'>
-            <span style='font-size:2.2em; font-weight:bold;'>🇩🇪 Falowen</span><br>
-            <span style='font-size:1.14em; color:#185496;'>Your German Progress Partner</span>
+        <div style='text-align:center; margin-bottom: 1.5em;'>
+            <span style='font-size:2.5em; font-weight:bold;'>🇩🇪 Falowen</span><br>
+            <span style='font-size:1.3em; color:#0a4c85;'><b>Your German Progress Partner</b></span>
         </div>
         """,
         unsafe_allow_html=True
     )
-    # Trust/Badge row
     st.markdown(
         """
-        <div style='text-align:center; margin-bottom:8px;'>
-            <span style='background:#e3fcec; color:#126132; padding:4px 12px; border-radius:7px; font-size:1.05em;'>500+ students, 3 countries</span>
-            <img src='https://upload.wikimedia.org/wikipedia/commons/6/66/Goethe-Institut_Logo_2011.svg' height='24' style='vertical-align:middle;margin-left:10px;'>
-            <img src='https://upload.wikimedia.org/wikipedia/commons/3/3a/TELC_logo.svg' height='19' style='vertical-align:middle;margin-left:7px;'>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        """
-        <div style='background:#e9f7ef; padding:1em 1em 0.7em 1em; border-radius:14px; margin-bottom:1.2em; text-align:center;'>
-            <span style='font-size:1.07em;'><b>Practice. Track. Pass.<br>
+        <div style='background:#e9f7ef; padding:1.1em 1.3em; border-radius:14px; margin-bottom:1.2em; text-align:center;'>
+            <span style='font-size:1.1em;'><b>Practice. Track. Pass.<br>
             For Goethe/ÖSD exams or everyday German.</b></span>
-            <br><span style='color:#616161; font-size:0.98em;'>A1 – C1 • Study at your own pace • Ghana, Africa & beyond</span>
+            <br><span style='color:#616161;'>From A1 to C1 – Study at your own pace!</span>
         </div>
         """,
         unsafe_allow_html=True
     )
-
-    # Action buttons
+    # Hero CTA
     c1, c2 = st.columns(2)
     with c1:
         st.button("Start Practicing", use_container_width=True, type="primary", on_click=lambda: st.session_state.update({"page":"dashboard"}))
     with c2:
         st.link_button("WhatsApp Support", "https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0", use_container_width=True)
 
-    # Auto-rotating promo images (with size control)
     st.markdown("")
+
+    # Promo carousel (manual, rotates every 4s)
     ad_images = [
         ("https://i.imgur.com/9hLAScD.jpg", "Live Classes & Online Options"),
         ("https://i.imgur.com/2PzOOvn.jpg", "Learn German in Accra or Online"),
@@ -72,20 +58,19 @@ def landing_page():
         st.session_state["landing_ad_last"] = time.time()
         st.experimental_rerun()
     img_url, caption = ad_images[st.session_state["landing_ad_idx"]]
-    st.image(img_url, caption=caption, use_container_width=True, output_format="JPEG", width=310)
+    st.image(img_url, caption=caption, use_container_width=True)
+    st.markdown("")
 
-    # Features
-    st.markdown("""
-**What makes Falowen different?**
-
-- 🚦 *See your level and weekly progress*
-- 💬 *AI-powered feedback for speaking & writing*
-- 📝 *Mock exams, vocab, and grammar practice*
-- 🤳 *Mobile/desktop support, easy to use*
-- 🇬🇭 *Africa-based support team*
+    # What makes Falowen different?
+    st.info("""
+- 🚦 *Personal progress tracker: Know exactly where you stand*
+- 💬 *AI-powered speaking & writing feedback*
+- 📝 *Mock exams, vocab & grammar trainer*
+- 🤳 *Works on mobile or computer, anytime*
+- 💡 *Ghana-based, African support team*
     """)
 
-    # Rotating Testimonials
+    # Testimonials (rotates)
     reviews = [
         {"text": "I passed A1 with Falowen’s help!", "name": "Anita, Accra", "rating": 5},
         {"text": "Simple, practical app for self-study.", "name": "Michael, Kumasi", "rating": 5},
@@ -97,11 +82,11 @@ def landing_page():
     if time.time() - st.session_state["landing_rev_last"] > 6:
         st.session_state["landing_rev_idx"] = (st.session_state["landing_rev_idx"] + 1) % len(reviews)
         st.session_state["landing_rev_last"] = time.time()
-        st.rerun()
+        st.experimental_rerun()
     r = reviews[st.session_state["landing_rev_idx"]]
     stars = "★" * r["rating"] + "☆" * (5 - r["rating"])
     st.markdown(f"""
-<div style='background:#f9fafb; border-radius:10px; padding:10px; margin-top:7px; margin-bottom:9px; font-size:1.04em;'>
+<div style='background:#f9fafb; border-radius:10px; padding:12px; margin-top:8px; margin-bottom:10px; font-size:1.05em;'>
     <span style='font-size:1.1em;'>&ldquo;{r['text']}&rdquo;</span>
     <br><b>{r['name']}</b><br>
     <span style='color:#f8ba08;'>{stars}</span>
@@ -110,30 +95,21 @@ def landing_page():
 
     # How it works
     st.markdown("""
-**How it works:**
-1. Register or login with your student code
-2. Choose a module (vocab, course book, speaking, writing)
-3. Practice and track your progress
-4. Get feedback and chat with a tutor
+#### How it works:
+1. **Register or login** with your student code  
+2. **Choose a module** (vocab, course book, speaking, writing)  
+3. **Practice and track your progress**  
+4. **Get instant feedback and tips, or chat with a tutor**  
     """)
-    # Socials row (tighter layout)
-    st.markdown("""
-    <div style='text-align:center; margin-top:9px;'>
-        <a href='https://www.instagram.com/learngermanghana?igsh=eWxnbGRleGJ2ODY5' target='_blank' style='margin:0 10px; text-decoration:none;'>
-            <img src='https://cdn-icons-png.flaticon.com/512/2111/2111463.png' height='26' style='vertical-align:middle;'> Instagram
-        </a>
-        <a href='https://wa.me/233205706589' target='_blank' style='margin:0 10px; text-decoration:none;'>
-            <img src='https://cdn-icons-png.flaticon.com/512/124/124034.png' height='26' style='vertical-align:middle;'> WhatsApp
-        </a>
-    </div>
-    """, unsafe_allow_html=True)
+    # Footer/contact
     st.markdown("""
 ---
 Falowen by Learn Language Education Academy  
-Contact: [WhatsApp](https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0)
+Contact: [WhatsApp](https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0)  
+[Instagram](https://www.instagram.com/learngermanghana?igsh=eWxnbGRleGJ2ODY5)
     """)
 
-# --- Only call landing page if NOT logged in ---
+# Place this right after your imports, before all logic!
 if not st.session_state.get("logged_in"):
     landing_page()
     st.stop()
