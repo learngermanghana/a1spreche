@@ -15,6 +15,108 @@ from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
+import streamlit as st
+import time
+
+def landing_page():
+    st.markdown(
+        """
+        <div style='text-align:center; margin-bottom: 1.5em;'>
+            <span style='font-size:2.5em; font-weight:bold;'>🇩🇪 Falowen</span><br>
+            <span style='font-size:1.3em; color:#0a4c85;'><b>Your German Progress Partner</b></span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        """
+        <div style='background:#e9f7ef; padding:1.1em 1.3em; border-radius:14px; margin-bottom:1.2em; text-align:center;'>
+            <span style='font-size:1.1em;'><b>Practice. Track. Pass.<br>
+            For Goethe/ÖSD exams or everyday German.</b></span>
+            <br><span style='color:#616161;'>From A1 to B1 – Study at your own pace!</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    # Hero CTA
+    c1, c2 = st.columns(2)
+    with c1:
+        st.button("Start Practicing", use_container_width=True, type="primary", on_click=lambda: st.session_state.update({"page":"dashboard"}))
+    with c2:
+        st.link_button("WhatsApp Support", "https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0", use_container_width=True)
+
+    st.markdown("")
+
+    # Promo carousel (manual for now, rotates every 4s)
+    ad_images = [
+        ("https://i.imgur.com/9hLAScD.jpg", "Live Classes & Online Options"),
+        ("https://i.imgur.com/2PzOOvn.jpg", "Learn German in Accra or Online"),
+        ("https://i.imgur.com/Q9mpvRY.jpg", "New B1 Group – Register Now!"),
+    ]
+    if "landing_ad_idx" not in st.session_state:
+        st.session_state["landing_ad_idx"] = 0
+        st.session_state["landing_ad_last"] = time.time()
+    if time.time() - st.session_state["landing_ad_last"] > 4:
+        st.session_state["landing_ad_idx"] = (st.session_state["landing_ad_idx"] + 1) % len(ad_images)
+        st.session_state["landing_ad_last"] = time.time()
+        st.experimental_rerun()
+    img_url, caption = ad_images[st.session_state["landing_ad_idx"]]
+    st.image(img_url, caption=caption, use_column_width=True)
+    st.markdown("")
+
+    # What makes Falowen different?
+    st.info("""
+- 🚦 *Personal progress tracker: Know exactly where you stand*
+- 💬 *AI-powered speaking & writing feedback*
+- 📝 *Mock exams, vocab & grammar trainer*
+- 🤳 *Works on mobile or computer, anytime*
+- 💡 *Ghana-based, African support team*
+    """)
+
+    # Testimonials (rotates)
+    reviews = [
+        {"text": "I passed A1 with Falowen’s help!", "name": "Anita, Accra", "rating": 5},
+        {"text": "Simple, practical app for self-study.", "name": "Michael, Kumasi", "rating": 5},
+        {"text": "Loved the weekly progress tracking.", "name": "Emilia, Cape Coast", "rating": 4}
+    ]
+    if "landing_rev_idx" not in st.session_state:
+        st.session_state["landing_rev_idx"] = 0
+        st.session_state["landing_rev_last"] = time.time()
+    if time.time() - st.session_state["landing_rev_last"] > 6:
+        st.session_state["landing_rev_idx"] = (st.session_state["landing_rev_idx"] + 1) % len(reviews)
+        st.session_state["landing_rev_last"] = time.time()
+        st.experimental_rerun()
+    r = reviews[st.session_state["landing_rev_idx"]]
+    stars = "★" * r["rating"] + "☆" * (5 - r["rating"])
+    st.markdown(f"""
+<div style='background:#f9fafb; border-radius:10px; padding:12px; margin-top:8px; margin-bottom:10px; font-size:1.05em;'>
+    <span style='font-size:1.1em;'>&ldquo;{r['text']}&rdquo;</span>
+    <br><b>{r['name']}</b><br>
+    <span style='color:#f8ba08;'>{stars}</span>
+</div>
+    """, unsafe_allow_html=True)
+
+    # How it works
+    st.markdown("""
+#### How it works:
+1. **Register or login** with your student code
+2. **Choose a module** (vocab, course book, speaking, writing)
+3. **Practice and track your progress**
+4. **Get instant feedback and tips, or chat with a tutor
+    """)
+    # Footer/contact
+    st.markdown("""
+---
+Falowen by Learn Language Education Academy  
+Contact: [WhatsApp](https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0)
+    """)
+    
+# To show the landing page, use this in your app:
+if not st.session_state.get("logged_in"):
+    landing_page()
+    st.stop()
+
+
 
 # ---- OpenAI Client Setup ----
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
