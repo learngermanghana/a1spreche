@@ -1855,6 +1855,8 @@ if tab == "Course Book":
 
     # 1️⃣ SEARCH BAR
     search_query = st.text_input("🔍 Search for a topic, chapter, or keyword:")
+    selected_day_idx = 0
+
     if search_query:
         # Case-insensitive search in all main fields
         results = [
@@ -1874,7 +1876,7 @@ if tab == "Course Book":
             selected_day_idx = results[idx][0]
         else:
             st.warning("No matching lessons found.")
-            selected_day_idx = 0
+            st.stop()  # Stop here so you don't try to access non-existent result
     else:
         selected_day_idx = st.selectbox(
             "Choose your lesson/day:",
@@ -1891,6 +1893,7 @@ if tab == "Course Book":
         st.markdown(f"**🎯 Goal:**<br>{day_info['goal']}", unsafe_allow_html=True)
     if day_info.get("instruction"):
         st.markdown(f"**📝 Instruction:**<br>{day_info['instruction']}", unsafe_allow_html=True)
+
 
     # --------- Show Lesen & Hören ----------
     def render_lh_section(item, idx=None, total=None):
