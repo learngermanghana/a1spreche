@@ -16,104 +16,68 @@ from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
 
+import streamlit as st
+
 def landing_page():
+    # --- Hero Banner Image (change the URL to your logo/hero image) ---
+    st.image(
+        "https://i.imgur.com/9hLAScD.jpg",
+        caption=None,
+        use_container_width=True,
+    )
+
+    # --- Main Heading and Slogan ---
     st.markdown(
         """
-        <div style='text-align:center; margin-bottom: 1.5em;'>
-            <span style='font-size:2.5em; font-weight:bold;'>🇩🇪 Falowen</span><br>
-            <span style='font-size:1.3em; color:#0a4c85;'><b>Your German Progress Partner</b></span>
+        <div style='text-align:center; margin-top:20px;'>
+            <h1 style='font-size:2.4em; margin-bottom:0;'>Falowen</h1>
+            <p style='font-size:1.15em; color:#00695c;'>Your Modern German Learning Platform <br> A1 – C1, AI-powered and Community Supported</p>
         </div>
         """,
         unsafe_allow_html=True
     )
+
+    # --- Benefits / Features ---
     st.markdown(
         """
-        <div style='background:#e9f7ef; padding:1.1em 1.3em; border-radius:14px; margin-bottom:1.2em; text-align:center;'>
-            <span style='font-size:1.1em;'><b>Practice. Track. Pass.<br>
-            For Goethe/ÖSD exams or everyday German.</b></span>
-            <br><span style='color:#616161;'>From A1 to B1 – Study at your own pace!</span>
+        <ul style='font-size:1.06em;'>
+            <li>🇩🇪 Full German Levels: <b>A1 to C1</b></li>
+            <li>🤖 Practice Speaking, Writing, and Grammar with instant feedback</li>
+            <li>📱 Mobile Friendly — Learn anywhere, anytime</li>
+            <li>📚 Real teacher support & smart, interactive tools</li>
+            <li>🌎 Perfect for Goethe, Telc, or your next trip!</li>
+        </ul>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # --- Call To Action ---
+    st.markdown(
+        """
+        <div style='text-align:center; margin:30px 0 10px 0;'>
+            <span style='font-size:1.2em;'>Ready to begin?</span><br>
         </div>
         """,
         unsafe_allow_html=True
     )
-    # Hero CTA
-    c1, c2 = st.columns(2)
-    with c1:
-        st.button("Start Practicing", use_container_width=True, type="primary", on_click=lambda: st.session_state.update({"page":"dashboard"}))
+
+    # --- Login / Start Button ---
+    c1, c2, c3 = st.columns([2,3,2])
     with c2:
-        st.link_button("WhatsApp Support", "https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0", use_container_width=True)
+        if st.button("🚀 Login / Start Learning"):
+            st.session_state["logged_in"] = True
+            st.experimental_rerun()
 
-    st.markdown("")
+    # --- Small Note at Bottom ---
+    st.markdown(
+        "<hr><div style='font-size:0.92em; color:gray; text-align:center;'>Built for African learners — Trusted by 500+ students since 2023</div>",
+        unsafe_allow_html=True
+    )
 
-    # Promo carousel (manual for now, rotates every 4s)
-    ad_images = [
-        ("https://i.imgur.com/9hLAScD.jpg", "Live Classes & Online Options"),
-        ("https://i.imgur.com/2PzOOvn.jpg", "Learn German in Accra or Online"),
-        ("https://i.imgur.com/Q9mpvRY.jpg", "New B1 Group – Register Now!"),
-    ]
-    if "landing_ad_idx" not in st.session_state:
-        st.session_state["landing_ad_idx"] = 0
-        st.session_state["landing_ad_last"] = time.time()
-    if time.time() - st.session_state["landing_ad_last"] > 4:
-        st.session_state["landing_ad_idx"] = (st.session_state["landing_ad_idx"] + 1) % len(ad_images)
-        st.session_state["landing_ad_last"] = time.time()
-        st.experimental_rerun()
-    img_url, caption = ad_images[st.session_state["landing_ad_idx"]]
-    st.image(img_url, caption=caption, use_column_width=True)
-    st.markdown("")
-
-    # What makes Falowen different?
-    st.info("""
-- 🚦 *Personal progress tracker: Know exactly where you stand*
-- 💬 *AI-powered speaking & writing feedback*
-- 📝 *Mock exams, vocab & grammar trainer*
-- 🤳 *Works on mobile or computer, anytime*
-- 💡 *Ghana-based, African support team*
-    """)
-
-    # Testimonials (rotates)
-    reviews = [
-        {"text": "I passed A1 with Falowen’s help!", "name": "Anita, Accra", "rating": 5},
-        {"text": "Simple, practical app for self-study.", "name": "Michael, Kumasi", "rating": 5},
-        {"text": "Loved the weekly progress tracking.", "name": "Emilia, Cape Coast", "rating": 4}
-    ]
-    if "landing_rev_idx" not in st.session_state:
-        st.session_state["landing_rev_idx"] = 0
-        st.session_state["landing_rev_last"] = time.time()
-    if time.time() - st.session_state["landing_rev_last"] > 6:
-        st.session_state["landing_rev_idx"] = (st.session_state["landing_rev_idx"] + 1) % len(reviews)
-        st.session_state["landing_rev_last"] = time.time()
-        st.experimental_rerun()
-    r = reviews[st.session_state["landing_rev_idx"]]
-    stars = "★" * r["rating"] + "☆" * (5 - r["rating"])
-    st.markdown(f"""
-<div style='background:#f9fafb; border-radius:10px; padding:12px; margin-top:8px; margin-bottom:10px; font-size:1.05em;'>
-    <span style='font-size:1.1em;'>&ldquo;{r['text']}&rdquo;</span>
-    <br><b>{r['name']}</b><br>
-    <span style='color:#f8ba08;'>{stars}</span>
-</div>
-    """, unsafe_allow_html=True)
-
-    # How it works
-    st.markdown("""
-#### How it works:
-1. **Register or login** with your student code
-2. **Choose a module** (vocab, course book, speaking, writing)
-3. **Practice and track your progress**
-4. **Get instant feedback and tips, or chat with a tutor
-    """)
-    # Footer/contact
-    st.markdown("""
----
-Falowen by Learn Language Education Academy  
-Contact: [WhatsApp](https://api.whatsapp.com/message/EYMY3524WL6IC1?autoload=1&app_absent=0)
-    """)
-    
-# To show the landing page, use this in your app:
+# --- Show landing page if not logged in ---
 if not st.session_state.get("logged_in"):
     landing_page()
     st.stop()
-
 
 
 # ---- OpenAI Client Setup ----
