@@ -61,7 +61,7 @@ def landing_page():
     with c2:
         if st.button("Next Announcement"):
             st.session_state["landing_ad_idx"] = (st.session_state["landing_ad_idx"] + 1) % len(ad_images)
-            st.experimental_rerun()  # Use rerun here only for button, not timer!
+            st.rerun()  # Use rerun here only for button, not timer!
 
     st.markdown("")
 
