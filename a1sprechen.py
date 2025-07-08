@@ -1644,6 +1644,8 @@ def get_b1_schedule():
             "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/15fjOKp_u75GfcbvRJVbR8UbHg-cgrgWL/view?usp=sharing"
         },
+        # DAY 28
+        {
             "day": 28,
             "topic": "Abschlussprüfungsvorbereitung",
             "chapter": "10.1",
