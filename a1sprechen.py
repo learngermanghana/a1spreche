@@ -2005,24 +2005,26 @@ if tab == "My Results and Resources":
             st.table(df_display)
 
     # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
-    # 1. Get completed chapters as set of chapter numbers
-    def extract_chapter_numbers(txt):
-        """Find all chapter numbers like 2.4, 3.7 etc in a string"""
-        return re.findall(r"\d+\.\d+", str(txt))
 
-    completed_chapters = set()
+    def extract_all_numbers(txt):
+        """Extract all numbers: both integers and decimals, as floats."""
+        matches = re.findall(r"\d+(?:\.\d+)?", str(txt))
+        return set(float(m) for m in matches)
+
+    # Build set of all chapter numbers the student has completed
+    completed_numbers = set()
     for assignment in df_lvl['assignment']:
-        completed_chapters.update(extract_chapter_numbers(assignment))
+        completed_numbers.update(extract_all_numbers(assignment))
 
+    # Scan through schedule to find first assignment not completed
     schedule = LEVEL_SCHEDULES.get(level, [])
     next_assignment = None
     for lesson in schedule:
-        lesson_chapters = extract_chapter_numbers(lesson.get("chapter", ""))
-        # If lesson_chapters is empty, skip
-        if not lesson_chapters:
+        lesson_numbers = extract_all_numbers(lesson.get("chapter", ""))
+        # If all numbers in this lesson are in completed_numbers, skip
+        if not lesson_numbers:
             continue
-        # If any lesson chapter is not in completed, this is the next
-        if any(ch not in completed_chapters for ch in lesson_chapters):
+        if not lesson_numbers.issubset(completed_numbers):
             next_assignment = lesson
             break
 
@@ -2035,6 +2037,7 @@ if tab == "My Results and Resources":
         )
     else:
         st.info("🎉 You have completed all available assignments for this level!")
+
 
 
 
