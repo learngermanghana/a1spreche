@@ -1976,31 +1976,7 @@ if tab == "My Results and Resources":
     col3.metric("Average Score", f"{avg_score:.1f}")
     col4.metric("Best Score", best_score)
 
-        # ========== BADGES & TROPHIES ==========
-    st.markdown("### 🏅 Badges & Trophies")
-    badge_count = 0
-
-    if completed >= total and total > 0:
-        st.success("🏆 **Congratulations!** You have completed all assignments for this level!")
-        badge_count += 1
-
-    if avg_score >= 90:
-        st.info("🥇 **Gold Badge:** Average score above 90!")
-        badge_count += 1
-    elif avg_score >= 75:
-        st.info("🥈 **Silver Badge:** Average score above 75!")
-        badge_count += 1
-    elif avg_score >= 60:
-        st.info("🥉 **Bronze Badge:** Average score above 60!")
-        badge_count += 1
-
-    if best_score >= 95:
-        st.info("🌟 **Star Performer:** You scored 95 or above on an assignment!")
-        badge_count += 1
-
-    if badge_count == 0:
-        st.warning("No badges yet. Complete more assignments to earn badges!")
-
+    
 
 
 
@@ -2043,27 +2019,32 @@ if tab == "My Results and Resources":
             )
             st.table(df_display)
 
-    # ========== TOP IMPROVED ASSIGNMENTS ==========
-    st.markdown("### 📈 Top Improved Assignments")
-    # Check if there are repeated assignments
-    improvements = {}
-    if df_lvl['assignment'].duplicated().any():
-        for assignment in df_lvl['assignment'].unique():
-            scores = df_lvl[df_lvl['assignment'] == assignment]['score'].sort_values()
-            if len(scores) > 1:
-                improvement = scores.iloc[-1] - scores.iloc[0]
-                if improvement > 0:
-                    improvements[assignment] = improvement
-        if improvements:
-            top_improved = sorted(improvements.items(), key=lambda x: x[1], reverse=True)[:3]
-            st.write("These are the assignments you improved on the most:")
-            for assignment, imp in top_improved:
-                st.markdown(f"- **{assignment}** (Improved by {imp} points)")
-        else:
-            st.info("No significant improvements detected yet. Try retaking assignments to track your progress!")
-    else:
-        st.info("Complete or retry assignments multiple times to see improvements here.")
 
+
+        # ========== BADGES & TROPHIES ==========
+    st.markdown("### 🏅 Badges & Trophies")
+    badge_count = 0
+
+    if completed >= total and total > 0:
+        st.success("🏆 **Congratulations!** You have completed all assignments for this level!")
+        badge_count += 1
+
+    if avg_score >= 90:
+        st.info("🥇 **Gold Badge:** Average score above 90!")
+        badge_count += 1
+    elif avg_score >= 75:
+        st.info("🥈 **Silver Badge:** Average score above 75!")
+        badge_count += 1
+    elif avg_score >= 60:
+        st.info("🥉 **Bronze Badge:** Average score above 60!")
+        badge_count += 1
+
+    if best_score >= 95:
+        st.info("🌟 **Star Performer:** You scored 95 or above on an assignment!")
+        badge_count += 1
+
+    if badge_count == 0:
+        st.warning("No badges yet. Complete more assignments to earn badges!")
 
 
     # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
