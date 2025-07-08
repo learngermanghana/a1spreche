@@ -502,17 +502,45 @@ if st.session_state.get("logged_in"):
     if tab == "Dashboard":
         st.header("📊 Student Dashboard")
 
-        # Greeting
+        # Minimal greeting
         display_name = student_row.get('Name') or student_name or "Student"
         first_name = str(display_name).strip().split()[0].title() if display_name else "Student"
         st.success(f"Hello, {first_name}! 👋")
 
-        # Compact essential info
-        level = student_row.get("Level","").upper()
+        # Level display
+        level = student_row.get("Level", "").upper()
         st.markdown(f"**Level:** {level}")
 
-        # Expand for details
-        with st.expander("👤 Profile & Enrollment Details"):
+        # --- PROGRESS (Compact row) ---
+        df_stats = load_stats_data()
+        stats = df_stats[df_stats["studentcode"].astype(str).str.lower() == student_code]
+        TOTALS = {"A1": 18, "A2": 28, "B1": 28, "B2": 24, "C1": 24}
+        total_assign = TOTALS.get(level, 18)
+        submitted = len(stats)
+        passed = (stats["score"].astype(float) >= 80).sum()
+        last_asg = stats.sort_values("date", ascending=False).iloc[0]["assignment"] if not stats.empty else "-"
+        last_score = stats.sort_values("date", ascending=False).iloc[0]["score"] if not stats.empty else "-"
+
+        col1, col2, col3 = st.columns(3)
+        col1.metric("✅ Submitted", submitted)
+        col2.metric("🏆 Passed", passed)
+        col3.metric("📝 Last", f"{last_asg} ({last_score})")
+
+        # Trend chart in expander
+        with st.expander("📈 Assignment Trend (last 10)", expanded=False):
+            if not stats.empty:
+                trend = stats.sort_values("date").tail(10)
+                fig, ax = plt.subplots(figsize=(3.5, 2.2))
+                ax.plot(trend["assignment"], trend["score"], marker="o", linewidth=2)
+                ax.set_ylim(0, 105)
+                ax.set_ylabel("Score")
+                plt.xticks(rotation=25, fontsize=9)
+                st.pyplot(fig)
+            else:
+                st.info("Do some assignments to see your progress chart!")
+
+        # --- Profile & Balance in expander (hidden by default) ---
+        with st.expander("👤 Profile & Enrollment Details", expanded=False):
             st.markdown(
                 f"- **Name:** {student_row.get('Name','')}\n"
                 f"- **Code:** `{student_row.get('StudentCode','')}`\n"
@@ -530,35 +558,7 @@ if st.session_state.get("logged_in"):
             except:
                 pass
 
-        # --- PROGRESS (Simple row) ---
-        df_stats = load_stats_data()
-        stats = df_stats[df_stats["studentcode"].astype(str).str.lower() == student_code]
-        TOTALS = {"A1":18, "A2":28, "B1":28}
-        total_assign = TOTALS.get(level, 18)
-        submitted = len(stats)
-        passed = (stats["score"].astype(float) >= 80).sum()
-        last_asg = stats.sort_values("date", ascending=False).iloc[0]["assignment"] if not stats.empty else "-"
-        last_score = stats.sort_values("date", ascending=False).iloc[0]["score"] if not stats.empty else "-"
-
-        col1, col2, col3 = st.columns(3)
-        col1.metric("✅ Submitted", submitted)
-        col2.metric("🏆 Passed", passed)
-        col3.metric("📝 Last", f"{last_asg} ({last_score})")
-
-        # Trend chart in expander
-        with st.expander("📈 Assignment Trend (last 10)", expanded=False):
-            if not stats.empty:
-                trend = stats.sort_values("date").tail(10)
-                fig, ax = plt.subplots(figsize=(3.5,2.2))
-                ax.plot(trend["assignment"], trend["score"], marker="o", linewidth=2)
-                ax.set_ylim(0, 105)
-                ax.set_ylabel("Score")
-                plt.xticks(rotation=25, fontsize=9)
-                st.pyplot(fig)
-            else:
-                st.info("Do some assignments to see your progress chart!")
-
-        # --- Ads and Reviews at the bottom in expanders ---
+        # --- Announcements/Ads ---
         with st.expander("🖼️ Announcements & Ads", expanded=False):
             ad_images = [
                 "https://i.imgur.com/9hLAScD.jpg",
@@ -573,19 +573,24 @@ if st.session_state.get("logged_in"):
             idx = st.session_state.get("ad_idx", 0)
             st.image(ad_images[idx], caption=ad_captions[idx], width=400)
 
+        # --- Student Reviews ---
         with st.expander("🗣️ Student Reviews", expanded=False):
             reviews = load_reviews()
             if reviews.empty:
-                st.info("No reviews yet. Be the first to share your experience!")
+                st.info("No reviews yet. Student feedback will appear here!")
             else:
                 r = reviews.sample(1).iloc[0]
                 stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
                 st.markdown(
-                    f"> {r.get('review_text','')}\n"
-                    f"> — **{r.get('student_name','')}**  \n"
-                    f"> {stars}"
+                    f"<div style='font-size:1.05em;line-height:1.5;color:#232323;background:#f7f7f7;border-left:4px solid #37a;"
+                    f"padding:10px 16px;margin:8px 0 14px 0;border-radius:7px;'>"
+                    f"<b>“{r.get('review_text','')[:240]}”</b><br>"
+                    f"<span style='color:#666;font-size:0.98em;'>— {r.get('student_name','')} &nbsp; {stars}</span>"
+                    f"</div>",
+                    unsafe_allow_html=True
                 )
 
+        # --- Exam Dates (hide by default) ---
         with st.expander("📅 Goethe Exam Dates & Fees", expanded=False):
             st.markdown(
                 """
