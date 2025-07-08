@@ -2043,18 +2043,28 @@ if tab == "My Results and Resources":
             )
             st.table(df_display)
 
-    # ========== COMMON FEEDBACK TOPICS ==========
-    all_feedback = " ".join([str(c) for c in df_lvl['comments'].dropna() if str(c).strip() and str(c).lower().strip() != "nan"])
-    keywords = re.findall(r"\b[a-zA-Z]{4,}\b", all_feedback.lower())
-    ignore_words = {"your", "this", "with", "that", "have", "were", "from", "like", "just", "good", "well", "very", "also"}
-    filtered = [w for w in keywords if w not in ignore_words]
-    most_common = Counter(filtered).most_common(5)
-    if most_common:
-        st.markdown("### 🔎 Common Feedback Topics")
-        st.write("These are the most common words mentioned in your feedback:")
-        for word, count in most_common:
-            st.markdown(f"- **{word.capitalize()}** (_{count} times_)")
-    st.markdown("---")
+    # ========== TOP IMPROVED ASSIGNMENTS ==========
+    st.markdown("### 📈 Top Improved Assignments")
+    # Check if there are repeated assignments
+    improvements = {}
+    if df_lvl['assignment'].duplicated().any():
+        for assignment in df_lvl['assignment'].unique():
+            scores = df_lvl[df_lvl['assignment'] == assignment]['score'].sort_values()
+            if len(scores) > 1:
+                improvement = scores.iloc[-1] - scores.iloc[0]
+                if improvement > 0:
+                    improvements[assignment] = improvement
+        if improvements:
+            top_improved = sorted(improvements.items(), key=lambda x: x[1], reverse=True)[:3]
+            st.write("These are the assignments you improved on the most:")
+            for assignment, imp in top_improved:
+                st.markdown(f"- **{assignment}** (Improved by {imp} points)")
+        else:
+            st.info("No significant improvements detected yet. Try retaking assignments to track your progress!")
+    else:
+        st.info("Complete or retry assignments multiple times to see improvements here.")
+
+
 
     # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
     def extract_chapter_num(chapter):
