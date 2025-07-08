@@ -1934,57 +1934,61 @@ if tab == "My Results and Resources":
             return df_ref
 
         df_ref = fetch_references()
+        st.write("Reference columns:", df_ref.columns.tolist())
+        st.write("First 2 rows:", df_ref.head())
 
-        df_display = (
-            df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
-                 [['assignment', 'score', 'date', 'comments']]
-                 .reset_index(drop=True)
-        )
-        # Find all reference answer columns
-        answer_cols = [col for col in df_ref.columns if col.startswith('answer')]
-
-        for idx, row in df_display.iterrows():
-            st.markdown(
-                f"""
-                **{row['assignment']}**  
-                Score: **{row['score']}**  
-                Date: {row['date']}  
-                <div style='margin:10px 0; padding:14px 16px; background:#e8f0fe; border-left:5px solid #007bff; border-radius:8px; font-size:1.13em; color:#222;'>
-                    <b>📝 Feedback:</b><br>
-                    <span style='color:#222'>{row['comments'] or "*No comment*"}</span>
-                </div>
-                """,
-                unsafe_allow_html=True
+        if 'assignment' not in df_ref.columns:
+            st.error("Reference answers sheet did not load the 'assignment' column. Check your Google Sheet or CSV formatting.")
+        else:
+            df_display = (
+                df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
+                    [['assignment', 'score', 'date', 'comments']]
+                    .reset_index(drop=True)
             )
-            # --- Reference answers if available ---
-            ref_match = df_ref[
-                df_ref['assignment'].str.lower().str.strip() == str(row['assignment']).lower().strip()
-            ]
-            if not ref_match.empty:
-                with st.expander("📘 Show Reference Answers"):
-                    ref_row = ref_match.iloc[0]
-                    answers = []
-                    for col in answer_cols:
-                        answer_text = str(ref_row[col]).strip()
-                        if answer_text and answer_text.lower() != "nan":
-                            answers.append(answer_text)
-                    if answers:
-                        st.markdown("**Reference Answers:**")
-                        st.markdown(
-                            "<ol style='padding-left:22px; color:#222;'>"
-                            + "".join(
-                                f"<li style='margin-bottom:7px'>{a}</li>" for a in answers
+            answer_cols = [col for col in df_ref.columns if col.startswith('answer')]
+
+            for idx, row in df_display.iterrows():
+                st.markdown(
+                    f"""
+                    **{row['assignment']}**  
+                    Score: **{row['score']}**  
+                    Date: {row['date']}  
+                    <div style='margin:10px 0; padding:14px 16px; background:#e8f0fe; border-left:5px solid #007bff; border-radius:8px; font-size:1.13em; color:#222;'>
+                        <b>📝 Feedback:</b><br>
+                        <span style='color:#222'>{row['comments'] or "*No comment*"}</span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+                ref_match = df_ref[
+                    df_ref['assignment'].astype(str).str.lower().str.strip() == str(row['assignment']).lower().strip()
+                ]
+                if not ref_match.empty:
+                    with st.expander("📘 Show Reference Answers"):
+                        ref_row = ref_match.iloc[0]
+                        answers = []
+                        for col in answer_cols:
+                            answer_text = str(ref_row[col]).strip()
+                            if answer_text and answer_text.lower() != "nan":
+                                answers.append(answer_text)
+                        if answers:
+                            st.markdown("**Reference Answers:**")
+                            st.markdown(
+                                "<ol style='padding-left:22px; color:#222;'>"
+                                + "".join(
+                                    f"<li style='margin-bottom:7px'>{a}</li>" for a in answers
+                                )
+                                + "</ol>",
+                                unsafe_allow_html=True
                             )
-                            + "</ol>",
-                            unsafe_allow_html=True
-                        )
-                    else:
-                        st.markdown(
-                            "<i>No reference answers available for this assignment.</i>",
-                            unsafe_allow_html=True
-                        )
-            st.divider()
-        
+                        else:
+                            st.markdown(
+                                "<i>No reference answers available for this assignment.</i>",
+                                unsafe_allow_html=True
+                            )
+                st.divider()
+              
+#
 
     # Download PDF summary
     if st.button("⬇️ Download PDF Summary"):
