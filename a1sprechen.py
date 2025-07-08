@@ -2097,6 +2097,7 @@ if tab == "My Results and Resources":
         )
         # Manual fallback download
         st.markdown(get_pdf_download_link(pdf_bytes, f"{code}_results_{level}.pdf"), unsafe_allow_html=True)
+        st.info("If the PDF doesn't download automatically, **right-click the blue link above and select 'Save Link As...' to save the file** to your device. On mobile, press and hold the link to save.")
 
     # --- Resources Section ---
     st.markdown("---")
