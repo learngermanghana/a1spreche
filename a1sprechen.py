@@ -1704,7 +1704,7 @@ def get_c1_schedule():
             "grammarbook_link": "",
             "workbook_link": ""
         }
-        # Add more C1 days as needed!
+        # You can add more C1 lessons here in the future
     ]
 
 
