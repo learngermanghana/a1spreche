@@ -1934,13 +1934,15 @@ if tab == "My Results and Resources":
                 **{row['assignment']}**  
                 Score: **{row['score']}**  
                 Date: {row['date']}  
-                <div style='margin:8px 0; padding:8px 14px; background:#f8f9fa; border-left:4px solid #007bff; border-radius:6px;'>
-                <b>Feedback:</b> {row['comments'] or "*No comment*"}
+                <div style='margin:10px 0; padding:14px 16px; background:#e8f0fe; border-left:5px solid #007bff; border-radius:8px; font-size:1.13em; color:#222;">
+                    <b>📝 Feedback:</b><br>
+                    {row['comments'] or "*No comment*"}
                 </div>
                 """,
                 unsafe_allow_html=True
             )
             st.divider()
+          
 
 
     # Download PDF summary
