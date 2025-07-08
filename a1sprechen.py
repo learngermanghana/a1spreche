@@ -1887,110 +1887,59 @@ if tab == "My Results and Resources":
 
         return df
 
-    df_scores = fetch_scores()
-    required_cols = {"student_code", "name", "assignment", "score", "date", "level"}
-    if not required_cols.issubset(df_scores.columns):
-        st.error("Data format error. Please contact support.")
-        st.write("Columns found:", df_scores.columns.tolist())  # <-- for debugging
-        st.stop()
+    df_ref = fetch_references()
+    st.write("Reference columns:", df_ref.columns.tolist())
+    st.write("First 2 rows:", df_ref.head())
 
-    # Filter for current student
-    code = st.session_state.get("student_code", "").lower().strip()
-    df_user = df_scores[df_scores.student_code.str.lower().str.strip() == code]
-    if df_user.empty:
-        st.info("No results yet. Complete an assignment to see your scores!")
-        st.stop()
+    df_display = (
+        df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
+             [['assignment', 'score', 'date', 'comments']]
+             .reset_index(drop=True)
+    )
+    st.write("Results columns:", df_display.columns.tolist())
+    st.write("First 2 student results:", df_display.head())
 
-    # Choose level
-    df_user['level'] = df_user.level.str.upper().str.strip()
-    levels = sorted(df_user['level'].unique())
-    level = st.selectbox("Select level:", levels)
-    df_lvl = df_user[df_user.level == level]
+    answer_cols = [col for col in df_ref.columns if col.lower().startswith('answer')]
 
-    # Summary metrics
-    totals = {"A1": 18, "A2": 28, "B1": 28, "B2": 24}
-    total = totals.get(level, 0)
-    completed = df_lvl.assignment.nunique()
-    avg_score = df_lvl.score.mean() or 0
-    best_score = df_lvl.score.max() or 0
-
-    # Display metrics in columns
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Assignments", total)
-    col2.metric("Completed", completed)
-    col3.metric("Average Score", f"{avg_score:.1f}")
-    col4.metric("Best Score", best_score)
-
-    # Detailed results
-    with st.expander("See detailed results", expanded=False):
-        REFERENCE_CSV = "https://docs.google.com/spreadsheets/d/1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo/gviz/tq?tqx=out:csv"
-
-        @st.cache_data
-        def fetch_references():
-            import requests, io
-            ref = requests.get(REFERENCE_CSV).content
-            df_ref = pd.read_csv(io.StringIO(ref.decode()))
-            df_ref.columns = [c.strip().lower().replace(' ', '_') for c in df_ref.columns]
-            return df_ref
-
-        df_ref = fetch_references()
-        st.write("Reference columns:", df_ref.columns.tolist())
-        st.write("First 2 rows:", df_ref.head())
-
-        # Display student results columns and sample as well
-        df_display = (
-            df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
-                 [['assignment', 'score', 'date', 'comments']]
-                 .reset_index(drop=True)
+    for idx, row in df_display.iterrows():
+        st.markdown(
+            f"""**{row['assignment']}**  
+            Score: **{row['score']}**  
+            Date: {row['date']}  
+            <div style='margin:10px 0; padding:14px 16px; background:#e8f0fe; border-left:5px solid #007bff; border-radius:8px; font-size:1.13em; color:#222;'>
+                <b>📝 Feedback:</b><br>
+                <span style='color:#222'>{row['comments'] or "*No comment*"}</span>
+            </div>""",
+            unsafe_allow_html=True
         )
-        st.write("Results columns:", df_display.columns.tolist())
-        st.write("First 2 student results:", df_display.head())
+        ref_match = df_ref[
+            df_ref['assignment'].astype(str).str.lower().str.strip() == str(row['assignment']).lower().strip()
+        ]
+        if not ref_match.empty:
+            with st.expander("📘 Show Reference Answers"):
+                ref_row = ref_match.iloc[0]
+                answers = []
+                for col in answer_cols:
+                    answer_text = str(ref_row[col]).strip()
+                    if answer_text and answer_text.lower() != "nan":
+                        answers.append(answer_text)
+                if answers:
+                    st.markdown("**Reference Answers:**")
+                    st.markdown(
+                        "<ol style='padding-left:22px; color:#222;'>"
+                        + "".join(
+                            f"<li style='margin-bottom:7px'>{a}</li>" for a in answers
+                        )
+                        + "</ol>",
+                        unsafe_allow_html=True
+                    )
+                else:
+                    st.markdown(
+                        "<i>No reference answers available for this assignment.</i>",
+                        unsafe_allow_html=True
+                    )
+        st.divider()
 
-        # Only proceed if both have 'assignment' column
-        if 'assignment' not in df_ref.columns:
-            st.error("Reference sheet is missing the 'assignment' column!")
-        elif 'assignment' not in df_display.columns:
-            st.error("Student results are missing the 'assignment' column!")
-        else:
-            answer_cols = [col for col in df_ref.columns if col.startswith('answer')]
-            for idx, row in df_display.iterrows():
-                st.markdown(
-                    f"""**{row['assignment']}**  
-                    Score: **{row['score']}**  
-                    Date: {row['date']}  
-                    <div style='margin:10px 0; padding:14px 16px; background:#e8f0fe; border-left:5px solid #007bff; border-radius:8px; font-size:1.13em; color:#222;'>
-                        <b>📝 Feedback:</b><br>
-                        <span style='color:#222'>{row['comments'] or "*No comment*"}</span>
-                    </div>""",
-                    unsafe_allow_html=True
-                )
-                ref_match = df_ref[
-                    df_ref['assignment'].astype(str).str.lower().str.strip() == str(row['assignment']).lower().strip()
-                ]
-                if not ref_match.empty:
-                    with st.expander("📘 Show Reference Answers"):
-                        ref_row = ref_match.iloc[0]
-                        answers = []
-                        for col in answer_cols:
-                            answer_text = str(ref_row[col]).strip()
-                            if answer_text and answer_text.lower() != "nan":
-                                answers.append(answer_text)
-                        if answers:
-                            st.markdown("**Reference Answers:**")
-                            st.markdown(
-                                "<ol style='padding-left:22px; color:#222;'>"
-                                + "".join(
-                                    f"<li style='margin-bottom:7px'>{a}</li>" for a in answers
-                                )
-                                + "</ol>",
-                                unsafe_allow_html=True
-                            )
-                        else:
-                            st.markdown(
-                                "<i>No reference answers available for this assignment.</i>",
-                                unsafe_allow_html=True
-                            )
-                st.divider()
 
 
     # Download PDF summary
