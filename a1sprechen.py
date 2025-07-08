@@ -347,12 +347,13 @@ def is_contract_expired(row):
         st.write("DEBUG: Expiry date parse failed!")
         return True
 
-    today = datetime.date.today()
+    today = date.today()
     expiry_date_only = expiry_date.date()
 
     st.write("DEBUG: Parsed expiry date:", expiry_date_only, "Today:", today)
 
     return expiry_date_only < today  # True if expired, False if still valid
+
 
 
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
