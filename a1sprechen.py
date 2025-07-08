@@ -1923,16 +1923,33 @@ if tab == "My Results and Resources":
     # 5. Highlight Repeated Mistakes (Feedback Analysis)
     all_feedback = " ".join([str(c) for c in df_lvl['comments'].dropna()])
     keywords = re.findall(r"\b[a-zA-Z]{4,}\b", all_feedback.lower())
-    ignore_words = {"your", "this", "with", "that", "have", "were", "from", "like", "just", "good", "well", "very", "also"}
+    ignore_words = {
+        "your", "this", "with", "that", "have", "were", "from", "like", "just",
+        "good", "well", "very", "also", "letter", "okay", "before", "please",
+        "pay", "see", "make", "some", "sure", "paste", "will", "but", "comments",
+        "thanks", "thank", "great", "nice", "better", "and", "then", "they", "them",
+        "than", "only", "each"
+    }
     filtered = [w for w in keywords if w not in ignore_words]
-    most_common = Counter(filtered).most_common(5)
+    min_count = 2
+    most_common = [x for x in Counter(filtered).most_common(10) if x[1] >= min_count]
+
     if most_common:
         st.markdown("### 🔎 Common Feedback Topics")
-        st.write("These are the most common topics mentioned in your feedback:")
-        for word, count in most_common:
-            st.markdown(f"- **{word.capitalize()}** (_{count} times_)")
+        st.write("These are the most repeated topics mentioned in your feedback:")
+        # Show as badges
+        st.markdown(
+            " ".join([
+                f"<span style='display:inline-block;background:#dbeafe;color:#0f172a;padding:4px 12px;border-radius:12px;margin:2px 2px;font-size:1.04em;font-weight:600;'>{word.capitalize()} ({count})</span>"
+                for word, count in most_common
+            ]),
+            unsafe_allow_html=True
+        )
+    else:
+        st.info("No repeated feedback topics yet. Keep submitting assignments!")
 
     st.markdown("---")
+
 
     # 8. Days Since Last Assignment
     if not df_lvl.empty:
