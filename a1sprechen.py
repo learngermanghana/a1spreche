@@ -1707,13 +1707,7 @@ def get_c1_schedule():
         # Add more C1 days as needed!
     ]
 
-LEVEL_SCHEDULES = {
-    "A1": get_a1_schedule(),
-    "A2": get_a2_schedule(),
-    "B1": get_b1_schedule(),
-    "B2": get_b2_schedule(),
-    "C1": get_c1_schedule(),
-}
+
 
 # --------------------------------------
 
@@ -1903,6 +1897,15 @@ Answer: {answer if answer.strip() else '[See attached file/photo]'}
     - Always use your correct name and student code!
     """)
 
+
+# ========== Register level schedules ==========
+LEVEL_SCHEDULES = {
+    "A1": get_a1_schedule(),
+    "A2": get_a2_schedule(),
+    "B1": get_b1_schedule(),
+    "B2": get_b2_schedule(),
+    "C1": get_c1_schedule(),
+}
 
 if tab == "My Results and Resources":
     import requests, io, pandas as pd, re, base64
