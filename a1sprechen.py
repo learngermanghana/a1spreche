@@ -1874,16 +1874,21 @@ if tab == "My Results and Resources":
         response = requests.get(GOOGLE_SHEET_CSV, timeout=7)
         response.raise_for_status()
         df = pd.read_csv(io.StringIO(response.text), engine='python')
+
+        # Clean and validate columns
         df.columns = [col.strip().lower().replace('studentcode', 'student_code') for col in df.columns]
+
+        # Drop rows with missing *required* fields
         required_cols = ["student_code", "name", "assignment", "score", "date", "level"]
         df = df.dropna(subset=required_cols)
+
         return df
 
     df_scores = fetch_scores()
     required_cols = {"student_code", "name", "assignment", "score", "date", "level"}
     if not required_cols.issubset(df_scores.columns):
         st.error("Data format error. Please contact support.")
-        st.write("Columns found:", df_scores.columns.tolist())
+        st.write("Columns found:", df_scores.columns.tolist())  # <-- for debugging
         st.stop()
 
     # Filter for current student
@@ -1897,7 +1902,7 @@ if tab == "My Results and Resources":
     df_user['level'] = df_user.level.str.upper().str.strip()
     levels = sorted(df_user['level'].unique())
     level = st.selectbox("Select level:", levels)
-    df_lvl = df_user[df_user.level == level]
+    df_lvl = df_user[df_user.level == level].copy()
 
     # Summary metrics
     totals = {"A1": 18, "A2": 28, "B1": 28, "B2": 24}
@@ -1906,138 +1911,93 @@ if tab == "My Results and Resources":
     avg_score = df_lvl.score.mean() or 0
     best_score = df_lvl.score.max() or 0
 
-    # Metrics in columns
+    # Display metrics in columns
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Assignments", total)
     col2.metric("Completed", completed)
     col3.metric("Average Score", f"{avg_score:.1f}")
     col4.metric("Best Score", best_score)
 
-    # Detailed results directly after metrics
-    with st.expander("See detailed results", expanded=False):
+    # --------------- DETAILED RESULTS -----------------
+    with st.expander("See detailed results", expanded=True):
+        # Show assignment, score, date, comments
+        display_cols = ['assignment', 'score', 'date']
+        if 'comments' in df_lvl.columns:
+            display_cols.append('comments')
         df_display = (
             df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
-            [['assignment', 'score', 'date', 'comments']]
-            .reset_index(drop=True)
+                 [display_cols]
+                 .reset_index(drop=True)
         )
+        # Pretty print (with feedback block if comments)
         for idx, row in df_display.iterrows():
             st.markdown(
                 f"""
                 **{row['assignment']}**  
                 Score: **{row['score']}**  
                 Date: {row['date']}  
-                <div style='margin:8px 0; padding:8px 14px; background:#e0e7ff; border-left:4px solid #6366f1; border-radius:6px;'>
-                <b>Feedback:</b> {row['comments'] or "*No comment*"}
+                <div style='margin:8px 0; padding:10px 15px; background:#e5e8f0; color:#1c1c1c; border-left:4px solid #0084d6; border-radius:6px; font-size:1.02em;'>
+                <b>Feedback:</b> {row.get('comments') or "<i>No comment</i>"}
                 </div>
                 """,
                 unsafe_allow_html=True
             )
             st.divider()
 
-    st.markdown("---")
-
-    # 5. Highlight Repeated Mistakes (Feedback Analysis)
-    all_feedback = " ".join([str(c) for c in df_lvl['comments'].dropna()])
+    # --------------- COMMON FEEDBACK TOPICS --------------
+    all_feedback = " ".join([str(c) for c in df_lvl['comments'].dropna()]) if 'comments' in df_lvl.columns else ""
     keywords = re.findall(r"\b[a-zA-Z]{4,}\b", all_feedback.lower())
-    ignore_words = {
-        "your", "this", "with", "that", "have", "were", "from", "like", "just",
-        "good", "well", "very", "also", "letter", "okay", "before", "please",
-        "pay", "see", "make", "some", "sure", "paste", "will", "but", "comments",
-        "thanks", "thank", "great", "nice", "better", "and", "then", "they", "them",
-        "than", "only", "each"
-    }
+    ignore_words = {"your", "this", "with", "that", "have", "were", "from", "like", "just", "good", "well", "very", "also"}
     filtered = [w for w in keywords if w not in ignore_words]
-    min_count = 2
-    most_common = [x for x in Counter(filtered).most_common(10) if x[1] >= min_count]
-
+    most_common = Counter(filtered).most_common(5)
     if most_common:
         st.markdown("### 🔎 Common Feedback Topics")
-        st.write("These are the most repeated topics mentioned in your feedback:")
-        st.markdown(
-            " ".join([
-                f"<span style='display:inline-block;background:#dbeafe;color:#0f172a;padding:4px 12px;border-radius:12px;margin:2px 2px;font-size:1.04em;font-weight:600;'>{word.capitalize()} ({count})</span>"
-                for word, count in most_common
-            ]),
-            unsafe_allow_html=True
-        )
-    else:
-        st.info("No repeated feedback topics yet. Keep submitting assignments!")
+        st.write("These are the most common topics mentioned in your feedback:")
+        for word, count in most_common:
+            st.markdown(f"- **{word.capitalize()}** (_{count} times_)")
+        st.markdown("---")
 
-    st.markdown("---")
+    # ------------- NEXT ASSIGNMENT SUGGESTION ---------------
+    def extract_chapter_num(chapter):
+        import re
+        match = re.search(r"(\d+(\.\d+)?)", str(chapter))
+        return float(match.group(1)) if match else None
 
-    # 8. Days Since Last Assignment
-    try:
-        last_date = pd.to_datetime(df_lvl['date'], errors='coerce').max()
-        days_since = (datetime.datetime.now() - last_date).days
-        if days_since == 0:
-            msg = "You submitted an assignment today!"
-        elif days_since == 1:
-            msg = "Last assignment submitted yesterday."
-        elif days_since > 1:
-            msg = f"Days since last assignment: **{days_since} days**"
-        else:
-            msg = "Assignment submission date not found."
-        st.markdown(f"📆 **{msg}**")
-    except Exception:
-        st.info("No valid dates found in your results.")
+    # Your schedule dictionaries
+    LEVEL_SCHEDULES = {
+        "A1": get_a1_schedule(),
+        "A2": get_a2_schedule(),
+        "B1": get_b1_schedule(),
+    }
+    schedule = LEVEL_SCHEDULES.get(level, [])
 
-    st.markdown("---")
+    # Track the highest completed chapter
+    completed_chapters = [
+        extract_chapter_num(row['assignment']) for idx, row in df_lvl.iterrows() if extract_chapter_num(row['assignment']) is not None
+    ]
+    last_num = max(completed_chapters) if completed_chapters else 0
 
-    # 9. Predict Next Assignment from Schedule (with fuzzy matching)
-    student_level = level.upper()
-    if student_level == "A1":
-        schedule = get_a1_schedule()
-    elif student_level == "A2":
-        schedule = get_a2_schedule()
-    elif student_level == "B1":
-        schedule = get_b1_schedule()
-    else:
-        schedule = get_a1_schedule()  # fallback
-
-    done_assignments = set(str(a).strip().lower() for a in df_lvl['assignment'].unique())
-
-    def is_done_by_fuzzy(chapter, topic, done_list, threshold=85):
-        for done in done_list:
-            if chapter and process.extractOne(chapter, [done])[1] >= threshold:
-                return True
-            if topic and process.extractOne(topic, [done])[1] >= threshold:
-                return True
-        return False
-
-    next_lesson = None
+    next_assignment = None
     for lesson in schedule:
-        lesson_chapters = []
-        if "lesen_hören" in lesson:
-            lh = lesson["lesen_hören"]
-            if isinstance(lh, list):
-                lesson_chapters.extend(str(item.get("chapter", "")).strip().lower() for item in lh)
-            else:
-                lesson_chapters.append(str(lh.get("chapter", "")).strip().lower())
-        if "chapter" in lesson:
-            lesson_chapters.append(str(lesson.get("chapter", "")).strip().lower())
-        lesson_topic = lesson.get("topic", "").strip().lower()
-        completed = False
-        for chapter in lesson_chapters:
-            if is_done_by_fuzzy(chapter, lesson_topic, done_assignments):
-                completed = True
-                break
-        if not completed:
-            next_lesson = lesson
+        chap_num = extract_chapter_num(lesson.get("chapter", ""))
+        if chap_num and chap_num > last_num:
+            next_assignment = lesson
             break
 
-    if next_lesson:
-        st.markdown("### 🚀 Your Next Assignment")
+    if next_assignment:
         st.success(
-            f"**Day {next_lesson['day']}: {next_lesson['topic']} (Chapter {next_lesson['chapter']})**  \n"
-            f"_{next_lesson.get('goal','')}_"
+            f"🎯 Your next recommended assignment: **Day {next_assignment['day']} – {next_assignment['topic']} (Chapter {next_assignment['chapter']})**"
         )
-        st.info(next_lesson.get("instruction", ""))
+        if next_assignment.get('instruction'):
+            st.markdown(f"**Instructions:** {next_assignment['instruction']}")
     else:
-        st.success("🏆 Congratulations! You have completed all lessons in the course schedule.")
+        st.info("🎉 You've completed all assignments for this level! If you need more, contact your tutor.")
 
-    st.markdown("---")
+    # --------------- PDF DOWNLOAD OPTIONS ----------------
+    def get_pdf_download_link(pdf_bytes, filename="results.pdf"):
+        b64 = base64.b64encode(pdf_bytes).decode()
+        return f'<a href="data:application/pdf;base64,{b64}" download="{filename}" style="font-size:1.1em;font-weight:600;color:#2563eb;">📥 Click here to download PDF (manual)</a>'
 
-    # Download PDF summary
     if st.button("⬇️ Download PDF Summary"):
         pdf = FPDF()
         pdf.add_page()
@@ -2063,10 +2023,9 @@ if tab == "My Results and Resources":
         pdf.set_font("Arial", '', 10)
         for _, row in df_display.iterrows():
             pdf.cell(0, 7, f"{row['assignment']}: {row['score']} ({row['date']})", ln=1)
-            # Add feedback if exists
-            if row['comments']:
+            if 'comments' in row and str(row['comments']).strip():
                 pdf.set_font("Arial", 'I', 9)
-                pdf.multi_cell(0, 6, f"Feedback: {row['comments']}")
+                pdf.multi_cell(0, 6, f"   Feedback: {row['comments']}")
                 pdf.set_font("Arial", '', 10)
         pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
         st.download_button(
@@ -2075,11 +2034,13 @@ if tab == "My Results and Resources":
             file_name=f"{code}_results_{level}.pdf",
             mime="application/pdf"
         )
+        # Show manual link for devices where download_button may fail
+        st.markdown(get_pdf_download_link(pdf_bytes, f"{code}_results_{level}.pdf"), unsafe_allow_html=True)
+        st.info("If the main download does not work on your device, use the manual link. On iPhone/Safari, you may need to long-press and choose 'Download Linked File'.")
 
     # --- Resources Section ---
     st.markdown("---")
     st.subheader("📚 Useful Resources")
-
     st.markdown(
         """
 **1. [A1 Schreiben Practice Questions](https://drive.google.com/file/d/1X_PFF2AnBXSrGkqpfrArvAnEIhqdF6fv/view?usp=sharing)**  
@@ -2098,6 +2059,7 @@ A2-level speaking exam guide.
 How to prepare for your B1 oral exam.
         """
     )
+
 
 
 # ================================
