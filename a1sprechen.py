@@ -502,96 +502,91 @@ if st.session_state.get("logged_in"):
     if tab == "Dashboard":
         st.header("📊 Student Dashboard")
 
-        # Minimal greeting
+        # --- Get student_row first ---
+        df_students = load_student_data()
+        matches = df_students[df_students["StudentCode"].str.lower() == student_code]
+        student_row = matches.iloc[0].to_dict() if not matches.empty else {}
+
         display_name = student_row.get('Name') or student_name or "Student"
         first_name = str(display_name).strip().split()[0].title() if display_name else "Student"
+
+        # --- Minimal, super-visible greeting for mobile ---
         st.success(f"Hello, {first_name}! 👋")
+        st.info("Great to see you. Let's keep learning!")
 
-        # Level display
-        level = student_row.get("Level", "").upper()
-        st.markdown(f"**Level:** {level}")
+        # --- Student Info & Balance ---
+        st.markdown(f"### 👤 {student_row.get('Name','')}")
+        st.markdown(
+            f"- **Level:** {student_row.get('Level','')}\n"
+            f"- **Code:** `{student_row.get('StudentCode','')}`\n"
+            f"- **Email:** {student_row.get('Email','')}\n"
+            f"- **Phone:** {student_row.get('Phone','')}\n"
+            f"- **Location:** {student_row.get('Location','')}\n"
+            f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}\n"
+            f"- **Enroll Date:** {student_row.get('EnrollDate','')}\n"
+            f"- **Status:** {student_row.get('Status','')}"
+        )
+        try:
+            bal = float(student_row.get("Balance", 0))
+            if bal > 0:
+                st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
+        except:
+            pass
 
-        # --- PROGRESS (Compact row) ---
+        # --- PROGRESS TIMELINE ---
+        st.markdown("### ⏳ Assignment Progress Timeline")
         df_stats = load_stats_data()
         stats = df_stats[df_stats["studentcode"].astype(str).str.lower() == student_code]
-        TOTALS = {"A1": 18, "A2": 28, "B1": 28, "B2": 24, "C1": 24}
-        total_assign = TOTALS.get(level, 18)
-        submitted = len(stats)
-        passed = (stats["score"].astype(float) >= 80).sum()
-        last_asg = stats.sort_values("date", ascending=False).iloc[0]["assignment"] if not stats.empty else "-"
-        last_score = stats.sort_values("date", ascending=False).iloc[0]["score"] if not stats.empty else "-"
+        level = student_row.get("Level","").upper()
 
-        col1, col2, col3 = st.columns(3)
-        col1.metric("✅ Submitted", submitted)
-        col2.metric("🏆 Passed", passed)
-        col3.metric("📝 Last", f"{last_asg} ({last_score})")
+        # Provide your assignment list for each level, e.g.:
+        LEVEL_ASSIGNMENTS = {
+            "A1": ["0.1", "1.2", "2", "3", "4", "6", "7", "8"],
+            "A2": ["1.1", "1.2", "1.3", "2.4", "2.5", "3.6", "3.7", "3.8"],
+            "B1": ["1", "2", "3", "4", "5", "6", "7", "8"],
+        }
+        assignments = LEVEL_ASSIGNMENTS.get(level, [])
 
-        # Trend chart in expander
-        with st.expander("📈 Assignment Trend (last 10)", expanded=False):
-            if not stats.empty:
-                trend = stats.sort_values("date").tail(10)
-                fig, ax = plt.subplots(figsize=(3.5, 2.2))
-                ax.plot(trend["assignment"], trend["score"], marker="o", linewidth=2)
-                ax.set_ylim(0, 105)
-                ax.set_ylabel("Score")
-                plt.xticks(rotation=25, fontsize=9)
-                st.pyplot(fig)
+        completed = set(stats["assignment"].astype(str))
+        timeline_display = ""
+        for asg in assignments:
+            if asg in completed:
+                timeline_display += f"🟩 **{asg}** → "
             else:
-                st.info("Do some assignments to see your progress chart!")
+                timeline_display += f"⬜️ {asg} → "
+        timeline_display = timeline_display.rstrip("→ ")
 
-        # --- Profile & Balance in expander (hidden by default) ---
-        with st.expander("👤 Profile & Enrollment Details", expanded=False):
-            st.markdown(
-                f"- **Name:** {student_row.get('Name','')}\n"
-                f"- **Code:** `{student_row.get('StudentCode','')}`\n"
-                f"- **Email:** {student_row.get('Email','')}\n"
-                f"- **Phone:** {student_row.get('Phone','')}\n"
-                f"- **Location:** {student_row.get('Location','')}\n"
-                f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}\n"
-                f"- **Enroll Date:** {student_row.get('EnrollDate','')}\n"
-                f"- **Status:** {student_row.get('Status','')}"
-            )
-            try:
-                bal = float(student_row.get("Balance", 0))
-                if bal > 0:
-                    st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
-            except:
-                pass
+        st.markdown(timeline_display)
+        st.caption("🟩 = Completed | ⬜️ = Pending")
 
-        # --- Announcements/Ads ---
-        with st.expander("🖼️ Announcements & Ads", expanded=False):
-            ad_images = [
-                "https://i.imgur.com/9hLAScD.jpg",
-                "https://i.imgur.com/2PzOOvn.jpg",
-                "https://i.imgur.com/Q9mpvRY.jpg",
-            ]
-            ad_captions = [
-                "New A2 Classes—Limited Seats!",
-                "New B1 Classes—Limited Seats!",
-                "Join our classes live in person or online!",
-            ]
-            idx = st.session_state.get("ad_idx", 0)
-            st.image(ad_images[idx], caption=ad_captions[idx], width=400)
+        # --- Announcements & Ads (auto-rotating, reduced size) ---
+        st.markdown("### 🖼️ Announcements & Ads")
+        ad_images = [
+            "https://i.imgur.com/9hLAScD.jpg",
+            "https://i.imgur.com/2PzOOvn.jpg",
+            "https://i.imgur.com/Q9mpvRY.jpg",
+        ]
+        ad_captions = [
+            "New A2 Classes—Limited Seats!",
+            "New B1 Classes—Limited Seats!",
+            "Join our classes live in person or online!",
+        ]
+        if "ad_idx" not in st.session_state:
+            st.session_state["ad_idx"] = 0
+            st.session_state["ad_last_time"] = time.time()
 
-        # --- Student Reviews ---
-        with st.expander("🗣️ Student Reviews", expanded=False):
-            reviews = load_reviews()
-            if reviews.empty:
-                st.info("No reviews yet. Student feedback will appear here!")
-            else:
-                r = reviews.sample(1).iloc[0]
-                stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
-                st.markdown(
-                    f"<div style='font-size:1.05em;line-height:1.5;color:#232323;background:#f7f7f7;border-left:4px solid #37a;"
-                    f"padding:10px 16px;margin:8px 0 14px 0;border-radius:7px;'>"
-                    f"<b>“{r.get('review_text','')[:240]}”</b><br>"
-                    f"<span style='color:#666;font-size:0.98em;'>— {r.get('student_name','')} &nbsp; {stars}</span>"
-                    f"</div>",
-                    unsafe_allow_html=True
-                )
+        ROTATE_AD_SEC = 6
+        now = time.time()
+        if now - st.session_state["ad_last_time"] > ROTATE_AD_SEC:
+            st.session_state["ad_idx"] = (st.session_state["ad_idx"] + 1) % len(ad_images)
+            st.session_state["ad_last_time"] = now
+            st.rerun()
 
-        # --- Exam Dates (hide by default) ---
-        with st.expander("📅 Goethe Exam Dates & Fees", expanded=False):
+        idx = st.session_state["ad_idx"]
+        st.image(ad_images[idx], caption=ad_captions[idx], width=400)  # change width if needed
+
+        # --- Simple Goethe Exam Section ---
+        with st.expander("📅 Goethe Exam Dates & Fees", expanded=True):
             st.markdown(
                 """
 | Level | Date       | Fee (GHS) |
@@ -608,6 +603,35 @@ if st.session_state.get("logged_in"):
                 """,
                 unsafe_allow_html=True
             )
+
+        # --- Auto-Rotating Student Reviews ---
+        st.markdown("### 🗣️ What Our Students Say")
+        reviews = load_reviews()
+        if not reviews.empty:
+            rev_list = reviews.to_dict("records")
+            if "rev_idx" not in st.session_state:
+                st.session_state["rev_idx"] = 0
+                st.session_state["rev_last_time"] = time.time()
+
+            ROTATE_REV_SEC = 8
+            now = time.time()
+            if now - st.session_state["rev_last_time"] > ROTATE_REV_SEC:
+                st.session_state["rev_idx"] = (st.session_state["rev_idx"] + 1) % len(rev_list)
+                st.session_state["rev_last_time"] = now
+                st.rerun()
+
+            r = rev_list[st.session_state["rev_idx"]]
+            stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
+            st.markdown(
+                f"> {r.get('review_text','')}\n"
+                f"> — **{r.get('student_name','')}**  \n"
+                f"> {stars}"
+            )
+        else:
+            st.info("No reviews yet.")
+
+#
+
 
 
 def get_a1_schedule():
