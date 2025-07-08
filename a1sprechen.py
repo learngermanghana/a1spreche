@@ -2004,27 +2004,60 @@ if tab == "My Results and Resources":
             )
             st.table(df_display)
 
+    # ========== DETAILED RESULTS (with comments) ==========
+    with st.expander("See detailed results", expanded=False):
+        if 'comments' in df_lvl.columns:
+            df_display = (
+                df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
+                [['assignment', 'score', 'date', 'comments']]
+                .reset_index(drop=True)
+            )
+            for idx, row in df_display.iterrows():
+                st.markdown(
+                    f"""
+                    <div style="margin-bottom: 18px;">
+                    <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span>  
+                    <br>Score: <b>{row['score']}</b> | Date: {row['date']}<br>
+                    <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
+                    <b>Feedback:</b> {row['comments'] or "<i>No comment</i>"}
+                    </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+                st.divider()
+        else:
+            df_display = (
+                df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
+                [['assignment', 'score', 'date']]
+                .reset_index(drop=True)
+            )
+            st.table(df_display)
+
     # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
+    import re
+    def extract_chapter_num(chapter):
+        """Extracts the largest number (integer or decimal) from a chapter string."""
+        nums = re.findall(r"\d+(?:\.\d+)?", str(chapter))
+        if not nums:
+            return None
+        # Convert all to float and pick the largest (handles '3', '1.3', '0.2_1.1')
+        return max(float(n) for n in nums)
 
-    def extract_all_numbers(txt):
-        """Extract all numbers: both integers and decimals, as floats."""
-        matches = re.findall(r"\d+(?:\.\d+)?", str(txt))
-        return set(float(m) for m in matches)
-
-    # Build set of all chapter numbers the student has completed
-    completed_numbers = set()
+    # Get highest completed chapter number (including fallback numbers)
+    completed_chapters = []
     for assignment in df_lvl['assignment']:
-        completed_numbers.update(extract_all_numbers(assignment))
+        num = extract_chapter_num(assignment)
+        if num is not None:
+            completed_chapters.append(num)
+    last_num = max(completed_chapters) if completed_chapters else 0
 
-    # Scan through schedule to find first assignment not completed
+    # LEVEL_SCHEDULES should be defined outside this tab, as a dictionary {"A1": get_a1_schedule(), "A2": get_a2_schedule(), ...}
     schedule = LEVEL_SCHEDULES.get(level, [])
     next_assignment = None
     for lesson in schedule:
-        lesson_numbers = extract_all_numbers(lesson.get("chapter", ""))
-        # If all numbers in this lesson are in completed_numbers, skip
-        if not lesson_numbers:
-            continue
-        if not lesson_numbers.issubset(completed_numbers):
+        chap_num = extract_chapter_num(lesson.get("chapter", ""))
+        if chap_num and chap_num > last_num:
             next_assignment = lesson
             break
 
@@ -2037,7 +2070,6 @@ if tab == "My Results and Resources":
         )
     else:
         st.info("🎉 You have completed all available assignments for this level!")
-
 
 
 
