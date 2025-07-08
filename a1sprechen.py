@@ -324,6 +324,7 @@ def save_progress(student_code, level, teil, remaining, used):
 # ====================================
 # 1. Load student data from Google Sheet
 # ====================================
+
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
 
 def load_student_data():
@@ -332,9 +333,10 @@ def load_student_data():
     return df
 
 def is_contract_expired(row):
-    expiry_str = str(row.get("ContractExpiry", "")).strip()
+    expiry_str = str(row.get("ContractEnd", "")).strip()
+    st.write("DEBUG: ContractEnd value is:", expiry_str)  # For troubleshooting; remove or comment out later
     if not expiry_str:
-        return True
+        return True  # No date = treat as expired
     try:
         expiry_date = pd.to_datetime(expiry_str, format='%m/%d/%Y', errors='coerce').date()
         if pd.isnull(expiry_date):
@@ -344,9 +346,6 @@ def is_contract_expired(row):
     except Exception:
         return True
 
-# ====================================
-# 2. STUDENT LOGIN LOGIC
-# ====================================
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 if not COOKIE_SECRET:
     raise ValueError("COOKIE_SECRET environment variable not set")
@@ -357,12 +356,10 @@ cookie_manager = EncryptedCookieManager(
 )
 cookie_manager.ready()
 
-# -- SAFETY CHECK: COOKIES READY? --
 if not cookie_manager.ready():
     st.warning("Cookies are not ready. Please refresh the page.")
     st.stop()
 
-# --- Session State Initialization ---
 for k, v in [
     ("logged_in", False), 
     ("student_row", None), 
@@ -372,7 +369,6 @@ for k, v in [
     if k not in st.session_state:
         st.session_state[k] = v
 
-# --- Safe Cookie Read ---
 code_from_cookie = cookie_manager.get("student_code") or ""
 if not isinstance(code_from_cookie, str):
     code_from_cookie = str(code_from_cookie or "")
@@ -394,7 +390,6 @@ if not st.session_state["logged_in"] and code_from_cookie:
         st.session_state["student_name"] = student_row["Name"]
         st.session_state["logged_in"] = True
 
-# --- Login UI (only if not logged in) ---
 if not st.session_state["logged_in"]:
     st.title("🔑 Student Login")
     login_input = st.text_input(
@@ -424,11 +419,9 @@ if not st.session_state["logged_in"]:
             st.error("Login failed. Please check your Student Code or Email and try again.")
     st.stop()
 
-# --- Log out button (visible when logged in) ---
 if st.session_state["logged_in"]:
     st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
     if st.button("Log out"):
-        # Clear cookie and session
         cookie_manager["student_code"] = ""
         cookie_manager.save()
         for k in ["logged_in", "student_row", "student_code", "student_name"]:
