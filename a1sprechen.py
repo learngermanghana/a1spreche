@@ -6,7 +6,6 @@ import atexit
 import json
 from datetime import date, datetime
 import pandas as pd
-import base64
 import streamlit as st
 import matplotlib.pyplot as plt
 import time
@@ -1657,6 +1656,58 @@ def get_b1_schedule():
             "workbook_link": "https://drive.google.com/file/d/1iBeZHMDq_FnusY4kkRwRQvyOfm51-COU/view?usp=sharing"
         },
     ]
+# === B2 Schedule Template ===
+def get_b2_schedule():
+    return [
+        {
+            "day": 1,
+            "topic": "B2 Welcome & Orientation",
+            "chapter": "0.0",
+            "goal": "Get familiar with the B2 curriculum and course expectations.",
+            "instruction": "Read the course orientation material and introduce yourself in the chat.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        {
+            "day": 2,
+            "topic": "B2 Diagnostic Test (Optional)",
+            "chapter": "0.1",
+            "goal": "Assess your current level before starting.",
+            "instruction": "Take the B2 diagnostic or placement test if available.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        }
+        # You can add more B2 lessons here in the future
+    ]
+
+# === C1 Schedule Template ===
+def get_c1_schedule():
+    return [
+        {
+            "day": 1,
+            "topic": "C1 Welcome & Orientation",
+            "chapter": "0.0",
+            "goal": "Get familiar with the C1 curriculum and expectations.",
+            "instruction": "Read the C1 orientation, join the forum, and write a short self-intro.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        {
+            "day": 2,
+            "topic": "C1 Diagnostic Writing",
+            "chapter": "0.1",
+            "goal": "Write a sample essay for initial assessment.",
+            "instruction": "Write and upload a short essay on the assigned topic.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        }
+        # You can add more C1 lessons here in the future
+    ]
+
 
 
 
