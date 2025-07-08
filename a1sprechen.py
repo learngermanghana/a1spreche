@@ -334,17 +334,26 @@ def load_student_data():
 
 def is_contract_expired(row):
     expiry_str = str(row.get("ContractEnd", "")).strip()
-    st.write("DEBUG: ContractEnd value is:", expiry_str)  # For troubleshooting; remove or comment out later
+    st.write("DEBUG: ContractEnd value is:", expiry_str)  # Keep for now
+
     if not expiry_str:
-        return True  # No date = treat as expired
-    try:
-        expiry_date = pd.to_datetime(expiry_str, format='%m/%d/%Y', errors='coerce').date()
-        if pd.isnull(expiry_date):
-            return True
-        today = datetime.date.today()
-        return expiry_date < today
-    except Exception:
+        return True  # No date means expired
+
+    # Parse the date
+    expiry_date = pd.to_datetime(expiry_str, format='%m/%d/%Y', errors='coerce')
+
+    # If parsing failed, expiry_date is NaT
+    if pd.isnull(expiry_date):
+        st.write("DEBUG: Expiry date parse failed!")
         return True
+
+    today = datetime.date.today()
+    expiry_date_only = expiry_date.date()
+
+    st.write("DEBUG: Parsed expiry date:", expiry_date_only, "Today:", today)
+
+    return expiry_date_only < today  # True if expired, False if still valid
+
 
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 if not COOKIE_SECRET:
