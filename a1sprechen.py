@@ -1644,8 +1644,6 @@ def get_b1_schedule():
             "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/15fjOKp_u75GfcbvRJVbR8UbHg-cgrgWL/view?usp=sharing"
         },
-        # DAY 28
-        {
             "day": 28,
             "topic": "Abschlussprüfungsvorbereitung",
             "chapter": "10.1",
@@ -1656,6 +1654,7 @@ def get_b1_schedule():
             "workbook_link": "https://drive.google.com/file/d/1iBeZHMDq_FnusY4kkRwRQvyOfm51-COU/view?usp=sharing"
         },
     ]
+
 # === B2 Schedule Template ===
 def get_b2_schedule():
     return [
@@ -1705,11 +1704,16 @@ def get_c1_schedule():
             "grammarbook_link": "",
             "workbook_link": ""
         }
-        # You can add more C1 lessons here in the future
+        # Add more C1 days as needed!
     ]
 
-
-
+LEVEL_SCHEDULES = {
+    "A1": get_a1_schedule(),
+    "A2": get_a2_schedule(),
+    "B1": get_b1_schedule(),
+    "B2": get_b2_schedule(),
+    "C1": get_c1_schedule(),
+}
 
 # --------------------------------------
 
