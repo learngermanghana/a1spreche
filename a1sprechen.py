@@ -6,6 +6,7 @@ import atexit
 import json
 from datetime import date, datetime
 import pandas as pd
+import base64
 import streamlit as st
 import matplotlib.pyplot as plt
 import time
