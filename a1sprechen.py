@@ -2031,11 +2031,9 @@ if tab == "My Results and Resources":
 
     # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
     def extract_chapter_num(chapter):
-        # Prefer numbers like '1.3', but if just '3' or '10' that's fine too.
         nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
         if not nums:
             return None
-        # Find highest numeric value in the chapter string (handles both '1.3' and '3')
         return max(float(n) for n in nums)
 
     completed_chapters = []
@@ -2053,6 +2051,11 @@ if tab == "My Results and Resources":
             next_assignment = lesson
             break
 
+    # --- Completion check uses chapter numbers ---
+    expected_chapters = [lesson.get("chapter") for lesson in schedule]
+    expected_chapter_nums = set(filter(None, [extract_chapter_num(ch) for ch in expected_chapters]))
+    completed_chapter_nums = set(filter(None, completed_chapters))
+
     if next_assignment:
         st.success(
             f"**Your next recommended assignment:**\n\n"
@@ -2060,10 +2063,12 @@ if tab == "My Results and Resources":
             f"**Goal:** {next_assignment.get('goal','')}\n\n"
             f"**Instruction:** {next_assignment.get('instruction','')}"
         )
-    elif completed >= total and total > 0:
+    elif expected_chapter_nums.issubset(completed_chapter_nums) and len(expected_chapter_nums) > 0:
         st.info("🎉 You have completed all available assignments for this level!")
     else:
         st.info("No further assignments found in your schedule. Please contact your tutor if this seems wrong.")
+
+
 
 
     # ========== DOWNLOAD PDF SUMMARY ==========
