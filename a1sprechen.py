@@ -2005,26 +2005,24 @@ if tab == "My Results and Resources":
             st.table(df_display)
 
     # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
-    def extract_chapter_num(chapter):
-        match = re.search(r"(\d+(?:\.\d+)?)", str(chapter))
-        if match:
-            return float(match.group(1))
-        return None
+    # 1. Get completed chapters as set of chapter numbers
+    def extract_chapter_numbers(txt):
+        """Find all chapter numbers like 2.4, 3.7 etc in a string"""
+        return re.findall(r"\d+\.\d+", str(txt))
 
-    # Get highest completed chapter number
-    completed_chapters = []
+    completed_chapters = set()
     for assignment in df_lvl['assignment']:
-        num = extract_chapter_num(assignment)
-        if num is not None:
-            completed_chapters.append(num)
-    last_num = max(completed_chapters) if completed_chapters else 0
+        completed_chapters.update(extract_chapter_numbers(assignment))
 
-    # LEVEL_SCHEDULES should be defined outside this tab, as a dictionary {"A1": get_a1_schedule(), "A2": get_a2_schedule(), ...}
     schedule = LEVEL_SCHEDULES.get(level, [])
     next_assignment = None
     for lesson in schedule:
-        chap_num = extract_chapter_num(lesson.get("chapter", ""))
-        if chap_num and chap_num > last_num:
+        lesson_chapters = extract_chapter_numbers(lesson.get("chapter", ""))
+        # If lesson_chapters is empty, skip
+        if not lesson_chapters:
+            continue
+        # If any lesson chapter is not in completed, this is the next
+        if any(ch not in completed_chapters for ch in lesson_chapters):
             next_assignment = lesson
             break
 
@@ -2037,6 +2035,8 @@ if tab == "My Results and Resources":
         )
     else:
         st.info("🎉 You have completed all available assignments for this level!")
+
+
 
     # ========== COMMON FEEDBACK TOPICS ==========
     all_feedback = " ".join([str(c) for c in df_lvl['comments'].dropna() if isinstance(c, str)])
