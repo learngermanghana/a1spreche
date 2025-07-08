@@ -15,14 +15,6 @@ from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
-import streamlit as st
-import time
-import pandas as pd
-
-
-
-
-
 
 # ---- OpenAI Client Setup ----
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
@@ -330,31 +322,38 @@ def save_progress(student_code, level, teil, remaining, used):
     
 
 
-# ====================================
-# 1. STUDENT DATA LOADING
-# ====================================
+import os
+import datetime
+import pandas as pd
+import streamlit as st
+from st_cookies_manager import EncryptedCookieManager  # or your custom import
 
-@st.cache_data
+# ====================================
+# 1. Load student data from Google Sheet
+# ====================================
+GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
+
 def load_student_data():
-    GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
-    import requests, io, pandas as pd
+    df = pd.read_csv(GOOGLE_SHEET_CSV)
+    df.columns = [c.strip() for c in df.columns]
+    return df
+
+def is_contract_expired(row):
+    expiry_str = str(row.get("ContractExpiry", "")).strip()
+    if not expiry_str:
+        return True
     try:
-        response = requests.get(GOOGLE_SHEET_CSV, timeout=7)
-        response.raise_for_status()
-        df = pd.read_csv(io.StringIO(response.text), engine='python')
-        df.columns = [c.strip() for c in df.columns]
-        for col in ["StudentCode", "Email"]:
-            if col in df.columns:
-                df[col] = df[col].astype(str).str.strip().str.lower()
-        return df
-    except Exception as e:
-        st.warning(f"Could not load student data from Google Sheets: {e}")
-        return pd.DataFrame()
+        expiry_date = pd.to_datetime(expiry_str, format='%m/%d/%Y', errors='coerce').date()
+        if pd.isnull(expiry_date):
+            return True
+        today = datetime.date.today()
+        return expiry_date < today
+    except Exception:
+        return True
 
 # ====================================
 # 2. STUDENT LOGIN LOGIC
 # ====================================
-
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 if not COOKIE_SECRET:
     raise ValueError("COOKIE_SECRET environment variable not set")
@@ -389,11 +388,17 @@ code_from_cookie = code_from_cookie.strip().lower()
 # --- Auto-login via Cookie ---
 if not st.session_state["logged_in"] and code_from_cookie:
     df_students = load_student_data()
-    found = df_students[df_students["StudentCode"] == code_from_cookie]
+    found = df_students[df_students["StudentCode"].str.lower() == code_from_cookie]
     if not found.empty:
-        st.session_state["student_row"] = found.iloc[0].to_dict()
-        st.session_state["student_code"] = found.iloc[0]["StudentCode"].lower()
-        st.session_state["student_name"] = found.iloc[0]["Name"]
+        student_row = found.iloc[0]
+        if is_contract_expired(student_row):
+            st.error("Your contract has expired. Please contact the office for renewal.")
+            cookie_manager["student_code"] = ""
+            cookie_manager.save()
+            st.stop()
+        st.session_state["student_row"] = student_row.to_dict()
+        st.session_state["student_code"] = student_row["StudentCode"].lower()
+        st.session_state["student_name"] = student_row["Name"]
         st.session_state["logged_in"] = True
 
 # --- Login UI (only if not logged in) ---
@@ -406,14 +411,18 @@ if not st.session_state["logged_in"]:
     if st.button("Login"):
         df_students = load_student_data()
         found = df_students[
-            (df_students["StudentCode"] == login_input) | 
-            (df_students["Email"] == login_input)
+            (df_students["StudentCode"].str.lower() == login_input) | 
+            (df_students["Email"].str.lower() == login_input)
         ]
         if not found.empty:
+            student_row = found.iloc[0]
+            if is_contract_expired(student_row):
+                st.error("Your contract has expired. Please contact the office for renewal.")
+                st.stop()
             st.session_state["logged_in"] = True
-            st.session_state["student_row"] = found.iloc[0].to_dict()
-            st.session_state["student_code"] = found.iloc[0]["StudentCode"].lower()
-            st.session_state["student_name"] = found.iloc[0]["Name"]
+            st.session_state["student_row"] = student_row.to_dict()
+            st.session_state["student_code"] = student_row["StudentCode"].lower()
+            st.session_state["student_name"] = student_row["Name"]
             cookie_manager["student_code"] = st.session_state["student_code"]
             cookie_manager.save()
             st.success(f"Welcome, {st.session_state['student_name']}! Login successful.")
@@ -434,46 +443,6 @@ if st.session_state["logged_in"]:
         st.success("You have been logged out.")
         st.rerun()
 
-
-# ====================================
-# 4. FLEXIBLE ANSWER CHECKERS
-# ====================================
-
-def is_close_answer(student, correct):
-    student = student.strip().lower()
-    correct = correct.strip().lower()
-    if correct.startswith("to "):
-        correct = correct[3:]
-    if len(student) < 3 or len(student) < 0.6 * len(correct):
-        return False
-    similarity = difflib.SequenceMatcher(None, student, correct).ratio()
-    return similarity > 0.80
-
-def is_almost(student, correct):
-    student = student.strip().lower()
-    correct = correct.strip().lower()
-    if correct.startswith("to "):
-        correct = correct[3:]
-    similarity = difflib.SequenceMatcher(None, student, correct).ratio()
-    return 0.60 < similarity <= 0.80
-
-def validate_translation_openai(word, student_answer):
-    """Use OpenAI to verify if the student's answer is a valid translation."""
-    prompt = (
-        f"Is '{student_answer.strip()}' an accurate English translation of the German word '{word}'? "
-        "Reply with 'True' or 'False' only."
-    )
-    try:
-        resp = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=1,
-            temperature=0,
-        )
-        reply = resp.choices[0].message.content.strip().lower()
-        return reply.startswith("true")
-    except Exception:
-        return False
 
 
 # ====================================
@@ -576,7 +545,7 @@ if st.session_state.get("logged_in"):
         df_stats = load_stats_data()
         stats = df_stats[df_stats["studentcode"].astype(str).str.lower() == student_code]
         level = student_row.get("Level","").upper()
-        TOTALS = {"A1":18, "A2":28, "B1":29}
+        TOTALS = {"A1":18, "A2":28, "B1":28}
         total_assign = TOTALS.get(level, 18)
 
         submitted = len(stats)
@@ -700,7 +669,7 @@ def get_a1_schedule():
             "day": 2,
             "topic": "Lesen & Hören",
             "chapter": "0.2_1.1",
-            "goal": "Understand the German alphabets and know the special characters called Umlaut.",
+            "goal": "Understand the German alphabets, personal pronouns and verb conjugation in German.",
             "instruction": "You are doing Lesen and Hören chapter 0.2 and 1.1. Make sure to follow up attentively.",
             "lesen_hören": [
                 {
@@ -708,14 +677,12 @@ def get_a1_schedule():
                     "video": "",
                     "grammarbook_link": "https://drive.google.com/file/d/1KtJCF15Ng4cLU88wdUCX5iumOLY7ZA0a/view?usp=sharing",
                     "workbook_link": "https://drive.google.com/file/d/1R6PqzgsPm9f5iVn7JZXSNVa_NttoPU9Q/view?usp=sharing",
-                    "extra_resources": "https://youtu.be/wpBPaDI5IgI"
                 },
                 {
                     "chapter": "1.1",
-                    "video": "",
+                    "video": "https://youtu.be/rNxu2uQZ_lc",
                     "grammarbook_link": "https://drive.google.com/file/d/1DKhyi-43HX1TNs8fxA9bgRvhylubilBf/view?usp=sharing",
                     "workbook_link": "https://drive.google.com/file/d/1A1D1pAssnoncF1JY0v54XT2npPb6mQZv/view?usp=sharing",
-                    "extra_resources": "https://youtu.be/_Hy9_tDhgtc?si=xbfW31T4aUHeJNa_"
                 }
             ]
         },
@@ -753,7 +720,7 @@ def get_a1_schedule():
             "goal": "Learn numbers from one to 10 thousand. Also know the difference between city and street",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
             "lesen_hören": {
-                "video": "",
+                "video": "https://youtu.be/BzI2n4A8Oak",
                 "grammarbook_link": "https://drive.google.com/file/d/1f2CJ492liO8ccudCadxHIISwGJkHP6st/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1C4VZDUj7VT27Qrn9vS5MNc3QfRqpmDGE/view?usp=sharing"
             }
@@ -881,10 +848,10 @@ def get_a1_schedule():
             "day": 14,
             "topic": "Schreiben & Sprechen",
             "chapter": "3.6",
-            "goal": "",
-            "instruction": "",
+            "goal": "Understand how to use modal verbs with main verbs and separable verbs",
+            "instruction": "This is a practical exercise. All the answers are included in the document except for the last paragraph. You can send a screenshot of that to your tutor",
             "schreiben_sprechen": {
-                "video": "",
+                "video": "https://youtu.be/XwFPjLjvDog",
                 "workbook_link": "https://drive.google.com/file/d/1wnZehLNfkjgKMFw1V3BX8V399rZg6XLv/view?usp=sharing"
             }
         },
@@ -896,7 +863,7 @@ def get_a1_schedule():
             "goal": "Understand imperative statements and learn how to use them in your Sprechen exams, especially in Teil 3.",
             "instruction": "After completing this chapter, go to the Falowen Exam Chat Mode, select A1 Teil 3, and start practicing",
             "schreiben_sprechen": {
-                "video": "",
+                "video": "https://youtu.be/IVtUc9T3o0Y",
                 "workbook_link": "https://drive.google.com/file/d/1953B01hB9Ex7LXXU0qIaGU8xgCDjpSm4/view?usp=sharing"
             }
         },
@@ -1153,9 +1120,9 @@ def get_a2_schedule():
             "chapter": "3.7",
             "goal": "Practice searching for an apartment.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
-            "video": "",
+            "video": "https://youtu.be/ScU6w8VQgNg",
             "grammarbook_link": "https://drive.google.com/file/d/1clWbDAvLlXpgWx7pKc71Oq3H2p0_GZnV/view?usp=sharing",
-            "workbook_link": "https://drive.google.com/file/d/16UfBIrL0jxCqWtqqZaLhKWflosNQkwF4/view?usp=sharing"
+            "workbook_link": "https://drive.google.com/file/d/1EF87TdHa6Y-qgLFUx8S6GAom9g5EBQNP/view?usp=sharing"
         },
         # DAY 8
         {
@@ -1650,7 +1617,7 @@ def get_b1_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
-            "workbook_link": ""
+            "workbook_link": "https://drive.google.com/file/d/1x8IM6xcjR2hv3jbnnNudjyxLWPiT0-VL/view?usp=sharing"
         },
         # DAY 25
         {
@@ -1661,7 +1628,7 @@ def get_b1_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
-            "workbook_link": ""
+            "workbook_link": "https://drive.google.com/file/d/1If0R3cIT8KwjeXjouWlQ-VT03QGYOSZz/view?usp=sharing"
         },
         # DAY 26
         {
@@ -1672,7 +1639,7 @@ def get_b1_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
-            "workbook_link": ""
+            "workbook_link": "https://drive.google.com/file/d/1BMwDDkfPJVEhL3wHNYqGMAvjOts9tv24/view?usp=sharing"
         },
         # DAY 27
         {
@@ -1683,7 +1650,7 @@ def get_b1_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
-            "workbook_link": ""
+            "workbook_link": "https://drive.google.com/file/d/15fjOKp_u75GfcbvRJVbR8UbHg-cgrgWL/view?usp=sharing"
         },
         # DAY 28
         {
@@ -1694,7 +1661,7 @@ def get_b1_schedule():
             "instruction": "Review all topics, watch the revision video, and complete your mock exam.",
             "video": "",
             "grammarbook_link": "",
-            "workbook_link": ""
+            "workbook_link": "https://drive.google.com/file/d/1iBeZHMDq_FnusY4kkRwRQvyOfm51-COU/view?usp=sharing"
         },
     ]
 
@@ -1718,17 +1685,9 @@ student_level = student_row.get('Level', 'A1').upper()
 if tab == "Course Book":
     import datetime, urllib.parse
 
-    # --- Get Query Params For Direct Linking ---
-    query_params = st.experimental_get_query_params()
-    preselect_level = query_params.get("level", [None])[0]
-    preselect_day = query_params.get("day", [None])[0]
-    if preselect_day is not None:
-        try:
-            preselect_day = int(preselect_day)
-        except:
-            preselect_day = None
-
-    # --- Compute Level Schedule Mapping ---
+    # --------------------------------------
+    # Compute level schedule mapping once at module load for efficiency
+    # --------------------------------------
     LEVEL_SCHEDULES = {
         "A1": get_a1_schedule(),
         "A2": get_a2_schedule(),
@@ -1736,13 +1695,11 @@ if tab == "Course Book":
     }
 
     student_row = st.session_state.get('student_row', {})
-    student_level = (preselect_level or student_row.get('Level', 'A1')).upper()
+    student_level = student_row.get('Level', 'A1').upper()
     schedule = LEVEL_SCHEDULES.get(student_level, LEVEL_SCHEDULES['A1'])
 
     # 1️⃣ SEARCH BAR
     search_query = st.text_input("🔍 Search for a topic, chapter, or keyword:")
-
-    # --- Handle selection ---
     selected_day_idx = 0
 
     if search_query:
@@ -1766,19 +1723,11 @@ if tab == "Course Book":
             selected_day_idx = results[idx][0]
         else:
             st.warning("No matching lessons found.")
-            st.stop()
+            st.stop()  # Stop here so you don't try to access non-existent result
     else:
-        # Preselect day if in URL
-        initial_idx = 0
-        if preselect_day:
-            for i, d in enumerate(schedule):
-                if str(d.get("day", "")) == str(preselect_day):
-                    initial_idx = i
-                    break
         selected_day_idx = st.selectbox(
             "Choose your lesson/day:",
             range(len(schedule)),
-            index=initial_idx,
             format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
         )
 
@@ -1786,29 +1735,11 @@ if tab == "Course Book":
 
     st.markdown(f"### Day {day_info['day']}: {day_info['topic']} (Chapter {day_info['chapter']})")
 
-    # Optional metadata
+    # Display optional metadata
     if day_info.get("goal"):
         st.markdown(f"**🎯 Goal:**<br>{day_info['goal']}", unsafe_allow_html=True)
     if day_info.get("instruction"):
         st.markdown(f"**📝 Instruction:**<br>{day_info['instruction']}", unsafe_allow_html=True)
-
-    # --------------- SHARE LESSON LINK (NEW SECTION) ---------------
-    base_url = "https://falowen.streamlit.app"
-    params = {
-        "level": student_level,
-        "day": day_info["day"]
-    }
-    lesson_link = f"{base_url}/?{urllib.parse.urlencode(params)}"
-    st.markdown("**🔗 Share this lesson:**")
-    st.code(lesson_link, language=None)
-    st.caption("Copy and share this link with classmates or your teacher!")
-
-    # WhatsApp share button
-    wa_text = urllib.parse.quote(f"Check out this lesson (Level {student_level}, Day {day_info['day']}): {lesson_link}")
-    wa_url = f"https://api.whatsapp.com/send?text={wa_text}"
-    st.markdown(f"[📲 Share via WhatsApp]({wa_url})")
-    # --------------- END SHARE SECTION -----------------------------
-
 
 
     # --------- Show Lesen & Hören ----------
@@ -1985,7 +1916,7 @@ if tab == "My Results and Resources":
     df_lvl = df_user[df_user.level == level]
 
     # Summary metrics
-    totals = {"A1": 18, "A2": 28, "B1": 26, "B2": 24}
+    totals = {"A1": 18, "A2": 28, "B1": 28, "B2": 24}
     total = totals.get(level, 0)
     completed = df_lvl.assignment.nunique()
     avg_score = df_lvl.score.mean() or 0
