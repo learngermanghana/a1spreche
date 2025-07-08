@@ -1937,27 +1937,31 @@ if tab == "My Results and Resources":
         st.write("Reference columns:", df_ref.columns.tolist())
         st.write("First 2 rows:", df_ref.head())
 
-        if 'assignment' not in df_ref.columns:
-            st.error("Reference answers sheet did not load the 'assignment' column. Check your Google Sheet or CSV formatting.")
-        else:
-            df_display = (
-                df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
-                    [['assignment', 'score', 'date', 'comments']]
-                    .reset_index(drop=True)
-            )
-            answer_cols = [col for col in df_ref.columns if col.startswith('answer')]
+        # Display student results columns and sample as well
+        df_display = (
+            df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
+                 [['assignment', 'score', 'date', 'comments']]
+                 .reset_index(drop=True)
+        )
+        st.write("Results columns:", df_display.columns.tolist())
+        st.write("First 2 student results:", df_display.head())
 
+        # Only proceed if both have 'assignment' column
+        if 'assignment' not in df_ref.columns:
+            st.error("Reference sheet is missing the 'assignment' column!")
+        elif 'assignment' not in df_display.columns:
+            st.error("Student results are missing the 'assignment' column!")
+        else:
+            answer_cols = [col for col in df_ref.columns if col.startswith('answer')]
             for idx, row in df_display.iterrows():
                 st.markdown(
-                    f"""
-                    **{row['assignment']}**  
+                    f"""**{row['assignment']}**  
                     Score: **{row['score']}**  
                     Date: {row['date']}  
                     <div style='margin:10px 0; padding:14px 16px; background:#e8f0fe; border-left:5px solid #007bff; border-radius:8px; font-size:1.13em; color:#222;'>
                         <b>📝 Feedback:</b><br>
                         <span style='color:#222'>{row['comments'] or "*No comment*"}</span>
-                    </div>
-                    """,
+                    </div>""",
                     unsafe_allow_html=True
                 )
                 ref_match = df_ref[
@@ -1987,8 +1991,7 @@ if tab == "My Results and Resources":
                                 unsafe_allow_html=True
                             )
                 st.divider()
-              
-#
+
 
     # Download PDF summary
     if st.button("⬇️ Download PDF Summary"):
