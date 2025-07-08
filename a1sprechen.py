@@ -2052,6 +2052,7 @@ if tab == "My Results and Resources":
         if chap_num and chap_num > last_num:
             next_assignment = lesson
             break
+
     if next_assignment:
         st.success(
             f"**Your next recommended assignment:**\n\n"
@@ -2059,8 +2060,11 @@ if tab == "My Results and Resources":
             f"**Goal:** {next_assignment.get('goal','')}\n\n"
             f"**Instruction:** {next_assignment.get('instruction','')}"
         )
-    else:
+    elif completed >= total and total > 0:
         st.info("🎉 You have completed all available assignments for this level!")
+    else:
+        st.info("No further assignments found in your schedule. Please contact your tutor if this seems wrong.")
+
 
     # ========== DOWNLOAD PDF SUMMARY ==========
     if st.button("⬇️ Download PDF Summary"):
