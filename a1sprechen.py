@@ -1940,6 +1940,9 @@ if tab == "My Results and Resources":
                  [['assignment', 'score', 'date', 'comments']]
                  .reset_index(drop=True)
         )
+        # Find all reference answer columns
+        answer_cols = [col for col in df_ref.columns if col.startswith('answer')]
+
         for idx, row in df_display.iterrows():
             st.markdown(
                 f"""
@@ -1953,19 +1956,33 @@ if tab == "My Results and Resources":
                 """,
                 unsafe_allow_html=True
             )
-            # --- Reference answer if available ---
+            # --- Reference answers if available ---
             ref_match = df_ref[
                 df_ref['assignment'].str.lower().str.strip() == str(row['assignment']).lower().strip()
             ]
-            if not ref_match.empty and 'reference_answer' in ref_match.columns:
-                reference_text = ref_match.iloc[0]['reference_answer']
-                st.markdown(
-                    f"""<div style='margin:6px 0 14px 0; padding:12px 16px; background:#fffbe6; border-left:4px solid #fbbf24; border-radius:6px; color:#222;'>
-                    <b>📘 Reference Answer:</b><br>
-                    <span style='color:#222'>{reference_text}</span>
-                    </div>""",
-                    unsafe_allow_html=True
-                )
+            if not ref_match.empty:
+                with st.expander("📘 Show Reference Answers"):
+                    ref_row = ref_match.iloc[0]
+                    answers = []
+                    for col in answer_cols:
+                        answer_text = str(ref_row[col]).strip()
+                        if answer_text and answer_text.lower() != "nan":
+                            answers.append(answer_text)
+                    if answers:
+                        st.markdown("**Reference Answers:**")
+                        st.markdown(
+                            "<ol style='padding-left:22px; color:#222;'>"
+                            + "".join(
+                                f"<li style='margin-bottom:7px'>{a}</li>" for a in answers
+                            )
+                            + "</ol>",
+                            unsafe_allow_html=True
+                        )
+                    else:
+                        st.markdown(
+                            "<i>No reference answers available for this assignment.</i>",
+                            unsafe_allow_html=True
+                        )
             st.divider()
         
 
