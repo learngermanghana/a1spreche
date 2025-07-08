@@ -2064,16 +2064,30 @@ if tab == "My Results and Resources":
         st.success("🎉 You have completed all available assignments for this level!")
 
     # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
-    last_num = max(completed_chapter_nums) if completed_chapter_nums else 0
+    def extract_chapter_num(chapter):
+        # Prefer numbers like '1.3', but if just '3' or '10' that's fine too.
+        nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
+        if not nums:
+            return None
+        # Find highest numeric value in the chapter string (handles both '1.3' and '3')
+        return max(float(n) for n in nums)
+
+    completed_chapters = []
+    for assignment in df_lvl['assignment']:
+        num = extract_chapter_num(assignment)
+        if num is not None:
+            completed_chapters.append(num)
+    last_num = max(completed_chapters) if completed_chapters else 0
+
+    schedule = LEVEL_SCHEDULES.get(level, [])
     next_assignment = None
     for lesson in schedule:
         chap_num = extract_chapter_num(lesson.get("chapter", ""))
-        if chap_num and chap_num > last_num and chap_num in missing_chapter_nums:
+        if chap_num and chap_num > last_num:
             next_assignment = lesson
             break
-    if not missing_chapter_nums:
-        st.success("🎉 You have completed all available assignments for this level!")
-    elif next_assignment:
+
+    if next_assignment:
         st.success(
             f"**Your next recommended assignment:**\n\n"
             f"**Day {next_assignment['day']}: {next_assignment['chapter']} – {next_assignment['topic']}**\n\n"
@@ -2081,9 +2095,10 @@ if tab == "My Results and Resources":
             f"**Instruction:** {next_assignment.get('instruction','')}"
         )
     else:
-        st.info("No further assignments found in your schedule. Please contact your tutor if this seems wrong.")
-
-
+        if completed < total:
+            st.warning("You have not completed all assignments yet! Check if some assignments were skipped or misnamed.")
+        else:
+            st.info("🎉 You have completed all available assignments for this level!")
 
 
     # ========== DOWNLOAD PDF SUMMARY ==========
