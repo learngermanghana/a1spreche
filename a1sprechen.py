@@ -1121,7 +1121,7 @@ def get_a2_schedule():
             "day": 8,
             "topic": "Rezepte und Essen (Exercise)",
             "chapter": "3.8",
-            "goal": "Learn about recipes and food.",
+            "goal": "Learn about recipes and food. Practice using sequence words like zuerst', 'nachdem', and 'außerdem' to organize your letter.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/16lh8sPl_IDZ3dLwYNvL73PqOFCixidrI/view?usp=sharing",
@@ -1925,10 +1925,23 @@ if tab == "My Results and Resources":
     with st.expander("See detailed results", expanded=False):
         df_display = (
             df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
-                 [['assignment', 'score', 'date']]
+                 [['assignment', 'score', 'date', 'comments']]
                  .reset_index(drop=True)
         )
-        st.table(df_display)
+        for idx, row in df_display.iterrows():
+            st.markdown(
+                f"""
+                **{row['assignment']}**  
+                Score: **{row['score']}**  
+                Date: {row['date']}  
+                <div style='margin:8px 0; padding:8px 14px; background:#f8f9fa; border-left:4px solid #007bff; border-radius:6px;'>
+                <b>Feedback:</b> {row['comments'] or "*No comment*"}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            st.divider()
+
 
     # Download PDF summary
     if st.button("⬇️ Download PDF Summary"):
@@ -2793,4 +2806,3 @@ if tab == "Schreiben Trainer":
                 f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                 unsafe_allow_html=True
             )
-
