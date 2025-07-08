@@ -2002,8 +2002,7 @@ if tab == "My Results and Resources":
             st.table(df_display)
     st.markdown("---")
 
-
-        # ========== BADGES & TROPHIES ==========
+    # ========== BADGES & TROPHIES ==========
     st.markdown("### 🏅 Badges & Trophies")
     badge_count = 0
 
@@ -2028,43 +2027,59 @@ if tab == "My Results and Resources":
     if badge_count == 0:
         st.warning("No badges yet. Complete more assignments to earn badges!")
 
-
-    # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
+    # ========== MISSING ASSIGNMENTS (NEW BLOCK) ==========
     def extract_chapter_num(chapter):
+        # Prefer numbers like '1.3', but if just '3' or '10' that's fine too.
         nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
         if not nums:
             return None
+        # Find highest numeric value in the chapter string (handles both '1.3' and '3')
         return max(float(n) for n in nums)
 
-    completed_chapters = []
+    schedule = LEVEL_SCHEDULES.get(level, [])
+    expected_chapter_nums = set()
+    for lesson in schedule:
+        num = extract_chapter_num(lesson.get("chapter", ""))
+        if num is not None:
+            expected_chapter_nums.add(num)
+    completed_chapter_nums = set()
     for assignment in df_lvl['assignment']:
         num = extract_chapter_num(assignment)
         if num is not None:
-            completed_chapters.append(num)
-    last_num = max(completed_chapters) if completed_chapters else 0
+            completed_chapter_nums.add(num)
 
-    schedule = LEVEL_SCHEDULES.get(level, [])
+    missing_chapter_nums = expected_chapter_nums - completed_chapter_nums
+    if missing_chapter_nums:
+        missing_lessons = [
+            lesson for lesson in schedule
+            if extract_chapter_num(lesson.get("chapter", "")) in missing_chapter_nums
+        ]
+        st.warning("You still have assignments to complete for this level! Here are the chapters you have not yet done:")
+        for lesson in missing_lessons:
+            st.markdown(
+                f"- **Day {lesson['day']}: {lesson['chapter']} – {lesson['topic']}**"
+            )
+        st.info("Complete the above assignments to finish this level.")
+    else:
+        st.success("🎉 You have completed all available assignments for this level!")
+
+    # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
+    last_num = max(completed_chapter_nums) if completed_chapter_nums else 0
     next_assignment = None
     for lesson in schedule:
         chap_num = extract_chapter_num(lesson.get("chapter", ""))
-        if chap_num and chap_num > last_num:
+        if chap_num and chap_num > last_num and chap_num in missing_chapter_nums:
             next_assignment = lesson
             break
-
-    # --- Completion check uses chapter numbers ---
-    expected_chapters = [lesson.get("chapter") for lesson in schedule]
-    expected_chapter_nums = set(filter(None, [extract_chapter_num(ch) for ch in expected_chapters]))
-    completed_chapter_nums = set(filter(None, completed_chapters))
-
-    if next_assignment:
+    if not missing_chapter_nums:
+        st.success("🎉 You have completed all available assignments for this level!")
+    elif next_assignment:
         st.success(
             f"**Your next recommended assignment:**\n\n"
             f"**Day {next_assignment['day']}: {next_assignment['chapter']} – {next_assignment['topic']}**\n\n"
             f"**Goal:** {next_assignment.get('goal','')}\n\n"
             f"**Instruction:** {next_assignment.get('instruction','')}"
         )
-    elif expected_chapter_nums.issubset(completed_chapter_nums) and len(expected_chapter_nums) > 0:
-        st.info("🎉 You have completed all available assignments for this level!")
     else:
         st.info("No further assignments found in your schedule. Please contact your tutor if this seems wrong.")
 
