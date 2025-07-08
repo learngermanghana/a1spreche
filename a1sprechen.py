@@ -1923,6 +1923,18 @@ if tab == "My Results and Resources":
 
     # Detailed results
     with st.expander("See detailed results", expanded=False):
+        REFERENCE_CSV = "https://docs.google.com/spreadsheets/d/1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo/gviz/tq?tqx=out:csv"
+
+        @st.cache_data
+        def fetch_references():
+            import requests, io
+            ref = requests.get(REFERENCE_CSV).content
+            df_ref = pd.read_csv(io.StringIO(ref.decode()))
+            df_ref.columns = [c.strip().lower().replace(' ', '_') for c in df_ref.columns]
+            return df_ref
+
+        df_ref = fetch_references()
+
         df_display = (
             df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
                  [['assignment', 'score', 'date', 'comments']]
@@ -1941,6 +1953,19 @@ if tab == "My Results and Resources":
                 """,
                 unsafe_allow_html=True
             )
+            # --- Reference answer if available ---
+            ref_match = df_ref[
+                df_ref['assignment'].str.lower().str.strip() == str(row['assignment']).lower().strip()
+            ]
+            if not ref_match.empty and 'reference_answer' in ref_match.columns:
+                reference_text = ref_match.iloc[0]['reference_answer']
+                st.markdown(
+                    f"""<div style='margin:6px 0 14px 0; padding:12px 16px; background:#fffbe6; border-left:4px solid #fbbf24; border-radius:6px; color:#222;'>
+                    <b>📘 Reference Answer:</b><br>
+                    <span style='color:#222'>{reference_text}</span>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
             st.divider()
         
 
