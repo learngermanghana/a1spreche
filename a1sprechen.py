@@ -321,13 +321,6 @@ def save_progress(student_code, level, teil, remaining, used):
     conn.commit()
     
 
-
-import os
-import datetime
-import pandas as pd
-import streamlit as st
-from st_cookies_manager import EncryptedCookieManager  # or your custom import
-
 # ====================================
 # 1. Load student data from Google Sheet
 # ====================================
