@@ -1736,9 +1736,12 @@ def render_assignment_reminder():
         '<strong>⬆️ Your Assignment:</strong> Complete the exercises in your <em>workbook</em> for this chapter.'
         '</div>', unsafe_allow_html=True
     )
-
 if tab == "Course Book":
     import datetime, urllib.parse
+
+    # Add Course Book header at the top
+    st.markdown("📈 **Course Book**")
+    st.divider()
 
     # Compute level schedule mapping once at module load for efficiency
     LEVEL_SCHEDULES = {
