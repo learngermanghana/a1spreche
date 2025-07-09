@@ -1732,6 +1732,26 @@ student_level = student_row.get('Level', 'A1').upper()
 # --- Assignment Reminder Helper ---
 def render_assignment_reminder():
     st.markdown(
+        '''
+        <div style="
+            width:100%;
+            padding:12px;
+            background:#fff3cd;
+            border-left:5px solid #ffeeba;
+            margin:8px 0;
+            border-radius:6px;
+            font-size:1.15rem;
+            line-height:1.4rem;
+            text-align:center;
+            word-wrap:break-word;
+        ">
+            ⬆️ <strong>Your Assignment:</strong><br>
+            Complete the exercises in your <em>workbook</em> for this chapter.
+        </div>
+        ''',
+        unsafe_allow_html=True
+    ):
+    st.markdown(
         '<div style="padding:10px; background:#fff3cd; border-left:5px solid #ffeeba; margin:10px 0; border-radius:4px;">'
         '<strong>⬆️ Your Assignment:</strong> Complete the exercises in your <em>workbook</em> for this chapter.'
         '</div>', unsafe_allow_html=True
