@@ -533,32 +533,52 @@ if st.session_state.get("logged_in"):
         except:
             pass
 
-        # --- PROGRESS TIMELINE ---
-        st.markdown("### ⏳ Assignment Progress Timeline")
-        df_stats = load_stats_data()
-        stats = df_stats[df_stats["studentcode"].astype(str).str.lower() == student_code]
-        level = student_row.get("Level","").upper()
+        # === Accurate PROGRESS using Course Structure ===
+        import re
 
-        # Provide your assignment list for each level, e.g.:
-        LEVEL_ASSIGNMENTS = {
-            "A1": ["0.1", "1.2", "2", "3", "4", "6", "7", "8"],
-            "A2": ["1.1", "1.2", "1.3", "2.4", "2.5", "3.6", "3.7", "3.8"],
-            "B1": ["1", "2", "3", "4", "5", "6", "7", "8"],
-        }
-        assignments = LEVEL_ASSIGNMENTS.get(level, [])
+        # 1. Get official assignments list from LEVEL_SCHEDULES (or your structure dict)
+        level = student_row.get("Level", "").upper()
+        official_list = LEVEL_SCHEDULES.get(level, [])
+        official_chapters = []
+        for a in official_list:
+            chap = str(a.get("chapter", "")).strip()
+            if chap: official_chapters.append(chap)
 
-        completed = set(stats["assignment"].astype(str))
-        timeline_display = ""
-        for asg in assignments:
-            if asg in completed:
-                timeline_display += f"🟩 **{asg}** → "
+        # 2. Get student's submitted assignments
+        df_scores = load_stats_data()
+        student_scores = df_scores[df_scores["studentcode"].astype(str).str.lower() == student_code]
+        # Extract numbers for reliable matching
+        def extract_numbers(s):
+            return set(re.findall(r"\d+(?:\.\d+)?", str(s)))
+        submitted_chapters = set()
+        for asg in student_scores["assignment"]:
+            nums = extract_numbers(asg)
+            if nums:
+                submitted_chapters |= nums
+
+        # 3. Mark which official assignments are completed (by number matching)
+        completed = 0
+        pending_chapters = []
+        for chap in official_chapters:
+            nums = extract_numbers(chap)
+            if nums & submitted_chapters:
+                completed += 1
             else:
-                timeline_display += f"⬜️ {asg} → "
-        timeline_display = timeline_display.rstrip("→ ")
+                pending_chapters.append(chap)
 
-        st.markdown(timeline_display)
-        st.caption("🟩 = Completed | ⬜️ = Pending")
+        total = len(official_chapters)
+        progress = completed / total if total else 0
 
+        # --- Show Progress Bar and List ---
+        st.markdown("### ⏳ Official Assignment Progress")
+        st.progress(progress)
+        st.write(f"**Completed:** {completed} / {total}")
+
+        if pending_chapters:
+            st.info(f"Pending assignments: {', '.join(pending_chapters)}")
+        else:
+            st.success("🎉 All official assignments completed!")
+            
         # --- Announcements & Ads (auto-rotating, reduced size) ---
         st.markdown("### 🖼️ Announcements & Ads")
         ad_images = [
@@ -607,7 +627,9 @@ if st.session_state.get("logged_in"):
         # --- Auto-Rotating Student Reviews ---
         st.markdown("### 🗣️ What Our Students Say")
         reviews = load_reviews()
-        if not reviews.empty:
+        if reviews.empty:
+            st.info("No reviews yet. Be the first to share your experience!")
+        else:
             rev_list = reviews.to_dict("records")
             if "rev_idx" not in st.session_state:
                 st.session_state["rev_idx"] = 0
@@ -627,12 +649,6 @@ if st.session_state.get("logged_in"):
                 f"> — **{r.get('student_name','')}**  \n"
                 f"> {stars}"
             )
-        else:
-            st.info("No reviews yet.")
-
-#
-
-
 
 def get_a1_schedule():
     return [
@@ -1969,6 +1985,7 @@ if tab == "My Results and Resources":
     col3.metric("Average Score", f"{avg_score:.1f}")
     col4.metric("Best Score", best_score)
 
+
     # ========== DETAILED RESULTS (with comments) ==========
     st.markdown("---")
     st.info("🔎 **Scroll down and expand the box below to see your full assignment history and feedback!**")
@@ -2027,10 +2044,10 @@ if tab == "My Results and Resources":
         st.markdown(
             """
             - 🏆 **Completion Trophy**: Finish all assignments for your level.
-            - 🥇 **Gold Badge**: Maintain an average score above 90.
-            - 🥈 **Silver Badge**: Average score above 75.
+            - 🥇 **Gold Badge**: Maintain an average score above 80.
+            - 🥈 **Silver Badge**: Average score above 70.
             - 🥉 **Bronze Badge**: Average score above 60.
-            - 🌟 **Star Performer**: Score 95 or higher on any assignment.
+            - 🌟 **Star Performer**: Score 85 or higher on any assignment.
             """
         )
 
@@ -2057,7 +2074,6 @@ if tab == "My Results and Resources":
     if badge_count == 0:
         st.warning("No badges yet. Complete more assignments to earn badges!")
 
-
     # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
     def extract_chapter_num(chapter):
         # Prefer numbers like '1.3', but if just '3' or '10' that's fine too.
@@ -2081,7 +2097,6 @@ if tab == "My Results and Resources":
         if chap_num and chap_num > last_num:
             next_assignment = lesson
             break
-
     if next_assignment:
         st.success(
             f"**Your next recommended assignment:**\n\n"
@@ -2090,11 +2105,7 @@ if tab == "My Results and Resources":
             f"**Instruction:** {next_assignment.get('instruction','')}"
         )
     else:
-        if completed < total:
-            st.warning("You have not completed all assignments yet! Check if some assignments were skipped or misnamed.")
-        else:
-            st.info("🎉 You have completed all available assignments for this level!")
-
+        st.info("🎉 Great Job!")
 
     # ========== DOWNLOAD PDF SUMMARY ==========
     if st.button("⬇️ Download PDF Summary"):
