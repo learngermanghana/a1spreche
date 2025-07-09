@@ -1723,6 +1723,12 @@ if "student_row" not in st.session_state:
         "StudentCode": "demo001"
     }
 
+# --------------------------------------
+# Shared imports and context
+from datetime import datetime
+import urllib.parse
+import streamlit as st
+
 student_row = st.session_state.get("student_row", {})
 student_level = student_row.get("Level", "A1").upper()
 
