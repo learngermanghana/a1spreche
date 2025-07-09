@@ -1749,19 +1749,20 @@ def load_level_schedules():
 
 def render_assignment_reminder():
     """
-    Render a mobile-friendly assignment reminder box pointing up to the workbook link.
+    Render a responsive, mobile-friendly assignment reminder box.
     """
     st.markdown(
         '''
         <div style="
-            width: 100%;
-            padding: 12px;
+            box-sizing: border-box;
+            max-width: 100%;
+            padding: 16px;
             background: #fff3cd;
-            border-left: 5px solid #ffeeba;
-            margin: 8px 0;
-            border-radius: 6px;
-            font-size: 1rem;
-            line-height: 1.4;
+            border-left: 6px solid #ffeeba;
+            margin: 12px auto;
+            border-radius: 8px;
+            font-size: 1.2rem;
+            line-height: 1.5;
             text-align: center;
             word-break: break-word;
         ">
@@ -1769,7 +1770,7 @@ def render_assignment_reminder():
             Complete the exercises in your <em>workbook</em> for this chapter.
         </div>
         ''', unsafe_allow_html=True
-    )
+    ):
 
 # Reusable link helper
 
