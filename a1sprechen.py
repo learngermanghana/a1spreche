@@ -7,6 +7,7 @@ import json
 from datetime import date, datetime
 import pandas as pd
 import streamlit as st
+import re
 import matplotlib.pyplot as plt
 import time
 import requests
