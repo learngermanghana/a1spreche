@@ -325,32 +325,33 @@ def save_progress(student_code, level, teil, remaining, used):
 # 1. Load student data from Google Sheet
 # ====================================
 
+import os
+import pandas as pd
+from datetime import date
+import streamlit as st
+# from your_module import EncryptedCookieManager  # Make sure this is imported
+
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
 
 def load_student_data():
-    df = pd.read_csv(GOOGLE_SHEET_CSV)
+    df = pd.read_csv(GOOGLE_SHEET_CSV, dtype=str)
     df.columns = [c.strip() for c in df.columns]
+    # Remove rows with empty ContractEnd (protects against empty lines in sheet)
+    df = df[df["ContractEnd"].notna() & (df["ContractEnd"].astype(str).str.strip() != "")]
     return df
 
 def is_contract_expired(row):
     expiry_str = str(row.get("ContractEnd", "")).strip()
-    # st.write("DEBUG: ContractEnd value is:", expiry_str)  # No longer visible
-
-    if not expiry_str:
-        return True  # No expiry date = treat as expired
-
-    expiry_date = pd.to_datetime(expiry_str, format='%m/%d/%Y', errors='coerce')
-    if pd.isnull(expiry_date):
-        # st.write("DEBUG: Expiry date parse failed!")  # Optional: keep if you want for debugging
+    if not expiry_str or expiry_str.lower() == "nan":
         return True
-
-    today = date.today()
-    expiry_date_only = expiry_date.date()
-
-    # st.write("DEBUG: Parsed expiry date:", expiry_date_only, "Today:", today)  # Hide this
-
-    return expiry_date_only < today  # True if expired, False if valid
-
+    # Try MM/DD/YYYY first, then DD/MM/YYYY if that fails
+    expiry_date = pd.to_datetime(expiry_str, errors='coerce', dayfirst=False)
+    if pd.isnull(expiry_date):
+        expiry_date = pd.to_datetime(expiry_str, errors='coerce', dayfirst=True)
+    if pd.isnull(expiry_date):
+        return True
+    today = pd.Timestamp(date.today())
+    return expiry_date.date() < today.date()
 
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 if not COOKIE_SECRET:
@@ -383,7 +384,7 @@ code_from_cookie = code_from_cookie.strip().lower()
 # --- Auto-login via Cookie ---
 if not st.session_state["logged_in"] and code_from_cookie:
     df_students = load_student_data()
-    found = df_students[df_students["StudentCode"].str.lower() == code_from_cookie]
+    found = df_students[df_students["StudentCode"].astype(str).str.strip().str.lower() == code_from_cookie]
     if not found.empty:
         student_row = found.iloc[0]
         if is_contract_expired(student_row):
@@ -405,8 +406,8 @@ if not st.session_state["logged_in"]:
     if st.button("Login"):
         df_students = load_student_data()
         found = df_students[
-            (df_students["StudentCode"].str.lower() == login_input) | 
-            (df_students["Email"].str.lower() == login_input)
+            (df_students["StudentCode"].astype(str).str.strip().str.lower() == login_input) | 
+            (df_students["Email"].astype(str).str.strip().str.lower() == login_input)
         ]
         if not found.empty:
             student_row = found.iloc[0]
@@ -434,8 +435,6 @@ if st.session_state["logged_in"]:
             st.session_state[k] = False if k == "logged_in" else "" if "code" in k or "name" in k else None
         st.success("You have been logged out.")
         st.rerun()
-
-
 
 # ====================================
 # 5. CONSTANTS & VOCAB LISTS
@@ -479,7 +478,6 @@ def load_reviews():
     return df
 
 import time
-import pandas as pd
 import matplotlib.pyplot as plt
 
 # ======= Dashboard Code =======
@@ -503,19 +501,19 @@ if st.session_state.get("logged_in"):
     if tab == "Dashboard":
         st.header("📊 Student Dashboard")
 
-        # --- Student Info & Balance ---
+        # --- Get student_row first ---
         df_students = load_student_data()
         matches = df_students[df_students["StudentCode"].str.lower() == student_code]
         student_row = matches.iloc[0].to_dict() if not matches.empty else {}
 
         display_name = student_row.get('Name') or student_name or "Student"
         first_name = str(display_name).strip().split()[0].title() if display_name else "Student"
-        level = student_row.get("Level", "").upper()
 
         # --- Minimal, super-visible greeting for mobile ---
         st.success(f"Hello, {first_name}! 👋")
         st.info("Great to see you. Let's keep learning!")
 
+        # --- Student Info & Balance ---
         st.markdown(f"### 👤 {student_row.get('Name','')}")
         st.markdown(
             f"- **Level:** {student_row.get('Level','')}\n"
@@ -534,66 +532,34 @@ if st.session_state.get("logged_in"):
         except:
             pass
 
-        # --- Main Stats Row ---
-        df_stats = load_stats_data()
-        stats = df_stats[df_stats["studentcode"].astype(str).str.lower() == student_code]
-        TOTALS = {"A1": 18, "A2": 28, "B1": 28, "B2": 24, "C1": 24}
-        total_assign = TOTALS.get(level, 18)
-        submitted = stats["assignment"].nunique()
-        passed = (stats["score"].astype(float) >= 80).sum()
-        last_asg = stats.sort_values("date", ascending=False).iloc[0]["assignment"] if not stats.empty else "-"
-        last_score = stats.sort_values("date", ascending=False).iloc[0]["score"] if not stats.empty else "-"
+        # --- Announcements & Ads (auto-rotating, reduced size) ---
+        st.markdown("### 🖼️ Announcements & Ads")
+        ad_images = [
+            "https://i.imgur.com/9hLAScD.jpg",
+            "https://i.imgur.com/2PzOOvn.jpg",
+            "https://i.imgur.com/Q9mpvRY.jpg",
+        ]
+        ad_captions = [
+            "New A2 Classes—Limited Seats!",
+            "New B1 Classes—Limited Seats!",
+            "Join our classes live in person or online!",
+        ]
+        if "ad_idx" not in st.session_state:
+            st.session_state["ad_idx"] = 0
+            st.session_state["ad_last_time"] = time.time()
 
-        col1, col2, col3 = st.columns(3)
-        col1.metric("✅ Submitted", submitted)
-        col2.metric("🏆 Passed", passed)
-        col3.metric("📝 Last", f"{last_asg} ({last_score})")
+        ROTATE_AD_SEC = 6
+        now = time.time()
+        if now - st.session_state["ad_last_time"] > ROTATE_AD_SEC:
+            st.session_state["ad_idx"] = (st.session_state["ad_idx"] + 1) % len(ad_images)
+            st.session_state["ad_last_time"] = now
+            st.rerun()
 
-        # --- Assignment Trend Chart (last 10) ---
-        with st.expander("📈 Assignment Trend (last 10)", expanded=False):
-            if not stats.empty:
-                trend = stats.sort_values("date").tail(10)
-                fig, ax = plt.subplots(figsize=(3.5,2.2))
-                ax.plot(trend["assignment"], trend["score"], marker="o", linewidth=2)
-                ax.set_ylim(0, 105)
-                ax.set_ylabel("Score")
-                plt.xticks(rotation=25, fontsize=9)
-                st.pyplot(fig)
-            else:
-                st.info("Do some assignments to see your progress chart!")
-        #
+        idx = st.session_state["ad_idx"]
+        st.image(ad_images[idx], caption=ad_captions[idx], width=400)  # change width if needed
 
-        # --- Announcements & Ads ---
-        with st.expander("🖼️ Announcements & Ads", expanded=False):
-            ad_images = [
-                "https://i.imgur.com/9hLAScD.jpg",
-                "https://i.imgur.com/2PzOOvn.jpg",
-                "https://i.imgur.com/Q9mpvRY.jpg",
-            ]
-            ad_captions = [
-                "New A2 Classes—Limited Seats!",
-                "New B1 Classes—Limited Seats!",
-                "Join our classes live in person or online!",
-            ]
-            idx = st.session_state.get("ad_idx", 0)
-            st.image(ad_images[idx], caption=ad_captions[idx], width=400)
-        #
-
-        # --- Student Reviews ---
-        with st.expander("🗣️ Student Reviews", expanded=False):
-            reviews = load_reviews()
-            if not reviews.empty:
-                r = reviews.sample(1).iloc[0]
-                stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
-                st.markdown(
-                    f"> {r.get('review_text','')}\n"
-                    f"> — **{r.get('student_name','')}**  \n"
-                    f"> {stars}"
-                )
-        #
-
-        # --- Goethe Exam Info ---
-        with st.expander("📅 Goethe Exam Dates & Fees", expanded=False):
+        # --- Simple Goethe Exam Section ---
+        with st.expander("📅 Goethe Exam Dates & Fees", expanded=True):
             st.markdown(
                 """
 | Level | Date       | Fee (GHS) |
@@ -610,8 +576,32 @@ if st.session_state.get("logged_in"):
                 """,
                 unsafe_allow_html=True
             )
-        #
 
+        # --- Auto-Rotating Student Reviews ---
+        st.markdown("### 🗣️ What Our Students Say")
+        reviews = load_reviews()
+        if reviews.empty:
+            st.info("No reviews yet. Be the first to share your experience!")
+        else:
+            rev_list = reviews.to_dict("records")
+            if "rev_idx" not in st.session_state:
+                st.session_state["rev_idx"] = 0
+                st.session_state["rev_last_time"] = time.time()
+
+            ROTATE_REV_SEC = 8
+            now = time.time()
+            if now - st.session_state["rev_last_time"] > ROTATE_REV_SEC:
+                st.session_state["rev_idx"] = (st.session_state["rev_idx"] + 1) % len(rev_list)
+                st.session_state["rev_last_time"] = now
+                st.rerun()
+
+            r = rev_list[st.session_state["rev_idx"]]
+            stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
+            st.markdown(
+                f"> {r.get('review_text','')}\n"
+                f"> — **{r.get('student_name','')}**  \n"
+                f"> {stars}"
+            )
 
 def get_a1_schedule():
     return [
@@ -1140,7 +1130,7 @@ def get_a2_schedule():
             "goal": "Describe a typical day.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "https://drive.google.com/file/d/1ayExWDJ8rTEL8hsuMgbil5_ddDPO8z29/view?usp=sharing",
+            "grammarbook_link": "https://drive.google.com/file/d/16l_UeUkxYNXD35o6hxPxV0xGVHyvvpqV/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/18u6FnHpd2nAh1Ev_2mVk5aV3GdVC6Add/view?usp=sharing"
         },
         # DAY 13
