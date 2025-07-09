@@ -325,11 +325,6 @@ def save_progress(student_code, level, teil, remaining, used):
 # 1. Load student data from Google Sheet
 # ====================================
 
-import os
-import pandas as pd
-from datetime import date
-import streamlit as st
-# from your_module import EncryptedCookieManager  # Make sure this is imported
 
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
 
@@ -340,18 +335,37 @@ def load_student_data():
     df = df[df["ContractEnd"].notna() & (df["ContractEnd"].astype(str).str.strip() != "")]
     return df
 
+from datetime import datetime
+
 def is_contract_expired(row):
     expiry_str = str(row.get("ContractEnd", "")).strip()
     if not expiry_str or expiry_str.lower() == "nan":
         return True
-    # Try MM/DD/YYYY first, then DD/MM/YYYY if that fails
-    expiry_date = pd.to_datetime(expiry_str, errors='coerce', dayfirst=False)
-    if pd.isnull(expiry_date):
-        expiry_date = pd.to_datetime(expiry_str, errors='coerce', dayfirst=True)
-    if pd.isnull(expiry_date):
-        return True
-    today = pd.Timestamp(date.today())
-    return expiry_date.date() < today.date()
+
+    # Try parsing with known formats
+    tried_formats = ["%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"]
+    expiry_date = None
+    for fmt in tried_formats:
+        try:
+            expiry_date = datetime.strptime(expiry_str, fmt)
+            break
+        except ValueError:
+            continue
+
+    # Fallback: pandas parsing
+    if expiry_date is None:
+        try:
+            expiry_date = pd.to_datetime(expiry_str, errors="coerce")
+            if pd.isnull(expiry_date):
+                return True
+            expiry_date = expiry_date.to_pydatetime()
+        except Exception:
+            return True
+
+    # Now check
+    today = datetime.now().date()
+    return expiry_date.date() < today
+
 
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 if not COOKIE_SECRET:
