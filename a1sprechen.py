@@ -653,7 +653,7 @@ def get_a1_schedule():
             "day": 1,
             "topic": "Lesen & Hören",
             "chapter": "0.1",
-            "goal": "You will learn to introduce yourself and greet others in German.",
+            "goal": "You will learn to introduce yourself, greet others in German, and ask about people's well-being.",
             "instruction": "Watch the video, review grammar, do the workbook, submit assignment.",
             "lesen_hören": {
                 "video": "",
@@ -1848,6 +1848,132 @@ RESOURCE_LABELS = {
     'extra_resources': '🔗 Extra'
 }
 
+# --- FORCE A MOCK LOGIN FOR TESTING ---
+if "student_row" not in st.session_state:
+    st.session_state["student_row"] = {
+        "Name": "Test Student",
+        "Level": "A1",
+        "StudentCode": "demo001"
+    }
+
+student_row = st.session_state.get("student_row", {})
+student_level = student_row.get("Level", "A1").upper()
+
+# --- Cache level schedules at module scope with TTL for periodic refresh ---
+@st.cache_data(ttl=86400)
+def load_level_schedules():
+    # Dynamically include all supported levels
+    return {
+        "A1": get_a1_schedule(),
+        "A2": get_a2_schedule(),
+        "B1": get_b1_schedule(),
+        "B2": get_b2_schedule(),
+        "C1": get_c1_schedule(),
+    }
+
+# --- Helpers ---
+
+def render_assignment_reminder():
+    """
+    Render a responsive, mobile-friendly assignment reminder box.
+    """
+    st.markdown(
+        '''
+        <div style="
+            box-sizing: border-box;
+            max-width: 100%;
+            padding: 16px;
+            background: #fff3cd;
+            border-left: 6px solid #ffeeba;
+            margin: 12px auto;
+            border-radius: 8px;
+            font-size: 1.2rem;
+            line-height: 1.5;
+            text-align: center;
+            word-break: break-word;
+        ">
+            ⬆️ <strong>Your Assignment:</strong><br />
+            Complete the exercises in your <em>workbook</em> for this chapter.
+        </div>
+        ''', unsafe_allow_html=True
+    )
+
+# Reusable link helper
+
+def render_link(label, url):
+    st.markdown(f"- [{label}]({url})")
+
+# Build WhatsApp message helper
+@st.cache_data(ttl=86400)
+def build_wa_message(name, code, level, day, chapter, answer):
+    """
+    Construct the WhatsApp assignment submission message.
+    """
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    return (
+        f"Learn Language Education Academy – Assignment Submission\n"
+        f"Name: {name}\n"
+        f"Code: {code}\n"
+        f"Level: {level}\n"
+        f"Day: {day}\n"
+        f"Chapter: {chapter}\n"
+        f"Date: {timestamp}\n"
+        f"Answer: {answer if answer.strip() else '[See attached file/photo]'}"
+    )
+
+# Standalone search match helper
+
+def filter_matches(lesson, sq):
+    """
+    Check if search query `sq` appears in any relevant lesson fields.
+    """
+    fields = [
+        lesson.get('topic', ''),
+        lesson.get('chapter', ''),
+        lesson.get('goal', ''),
+        lesson.get('instruction', ''),
+        str(lesson.get('day', ''))
+    ]
+    return any(sq in str(f).lower() for f in fields)
+
+# Common section renderer
+
+def render_section(day_info, section_key, title, icon):
+    """
+    Render a lesson section given its key in day_info, with title and icon.
+    """
+    content = day_info.get(section_key)
+    if not content:
+        return
+    items = content if isinstance(content, list) else [content]
+    st.markdown(f"#### {icon} {title}")
+    for idx, part in enumerate(items):
+        if len(items) > 1:
+            st.markdown(f"###### {icon} Part {idx+1} of {len(items)}: Chapter {part.get('chapter','')}")
+        if part.get('video'):
+            st.video(part['video'])
+        if part.get('grammarbook_link'):
+            render_link("📘 Grammar Book (Notes)", part['grammarbook_link'])
+            st.markdown(
+                '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
+                unsafe_allow_html=True
+            )
+        if part.get('workbook_link'):
+            render_link("📒 Workbook (Assignment)", part['workbook_link'])
+            render_assignment_reminder()
+        extras = part.get('extra_resources')
+        if extras:
+            for ex in (extras if isinstance(extras, list) else [extras]):
+                render_link("🔗 Extra", ex)
+
+# Resource label mapping to avoid repeated logic
+RESOURCE_LABELS = {
+    'video': '🎥 Video',
+    'grammarbook_link': '📘 Grammar',
+    'workbook_link': '📒 Workbook',
+    'extra_resources': '🔗 Extra'
+}
+
 # === Course Book Tab ===
 if tab == "Course Book":
     # 📈 Mobile-friendly Course Book header
@@ -1903,13 +2029,18 @@ if tab == "Course Book":
     render_section(day_info, 'schreiben_sprechen', 'Schreiben & Sprechen', '📝')
 
     # ---------- Top-level resources for A2/B1/B2 ----------
-    if student_level in ['A2','B1','B2']:
+    if student_level in ['A2','B1','B2','B2','C1']:
         for res, label in RESOURCE_LABELS.items():
             if day_info.get(res):
                 if res == 'video':
                     st.video(day_info[res])
                 else:
                     st.markdown(f"- [{label}]({day_info[res]})", unsafe_allow_html=True)
+        # Further notice for all levels
+        st.markdown(
+            '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
+            unsafe_allow_html=True
+        )
 
     # --- Assignment Submission Section (WhatsApp) ---
     st.divider()
@@ -1952,6 +2083,7 @@ if tab == "Course Book":
 - Always use your correct name and student code!
         """
     )
+
 
 
 
