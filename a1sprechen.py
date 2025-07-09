@@ -1972,6 +1972,22 @@ if tab == "My Results and Resources":
     # ========== DETAILED RESULTS (with comments) ==========
     st.markdown("---")
     st.info("🔎 **Scroll down and expand the box below to see your full assignment history and feedback!**")
+
+    # --- Score label function ---
+    def score_label(score):
+        try:
+            score = float(score)
+        except:
+            return ""
+        if score >= 90:
+            return "Excellent 🌟"
+        elif score >= 75:
+            return "Good 👍"
+        elif score >= 60:
+            return "Sufficient ✔️"
+        else:
+            return "Needs Improvement ❗"
+
     with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
         if 'comments' in df_lvl.columns:
             df_display = (
@@ -1980,11 +1996,12 @@ if tab == "My Results and Resources":
                 .reset_index(drop=True)
             )
             for idx, row in df_display.iterrows():
+                perf = score_label(row['score'])
                 st.markdown(
                     f"""
                     <div style="margin-bottom: 18px;">
                     <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span>  
-                    <br>Score: <b>{row['score']}</b> | Date: {row['date']}<br>
+                    <br>Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span> | Date: {row['date']}<br>
                     <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
                     <b>Feedback:</b> {row['comments'] if pd.notnull(row['comments']) and str(row['comments']).strip().lower() != 'nan' else '<i>No feedback</i>'}
                     </div>
@@ -2000,7 +2017,8 @@ if tab == "My Results and Resources":
                 .reset_index(drop=True)
             )
             st.table(df_display)
-    st.markdown("---")
+    st.markdown("---") 
+
 
     # ========== BADGES & TROPHIES ==========
     st.markdown("### 🏅 Badges & Trophies")
