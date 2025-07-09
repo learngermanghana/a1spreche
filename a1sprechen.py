@@ -330,10 +330,10 @@ GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh
 
 def load_student_data():
     df = pd.read_csv(GOOGLE_SHEET_CSV, dtype=str)
-    df.columns = [c.strip() for c in df.columns]
-    # Remove rows with empty ContractEnd (protects against empty lines in sheet)
-    df = df[df["ContractEnd"].notna() & (df["ContractEnd"].astype(str).str.strip() != "")]
+    for col in df.columns:
+        df[col] = df[col].astype(str).str.strip()
     return df
+
 
 from datetime import datetime
 
