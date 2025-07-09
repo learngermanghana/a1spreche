@@ -532,52 +532,70 @@ if st.session_state.get("logged_in"):
                 st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
         except:
             pass
+        # --- Student & Data Setup ---
+        df_students = load_student_data()
+        matches = df_students[df_students["StudentCode"].str.lower() == student_code]
+        student_row = matches.iloc[0].to_dict() if not matches.empty else {}
 
-        # === Accurate PROGRESS using Course Structure ===
-        import re
-
-        # 1. Get official assignments list from LEVEL_SCHEDULES (or your structure dict)
+        display_name = student_row.get('Name') or student_name or "Student"
+        first_name = str(display_name).strip().split()[0].title() if display_name else "Student"
         level = student_row.get("Level", "").upper()
-        official_list = LEVEL_SCHEDULES.get(level, [])
-        official_chapters = []
-        for a in official_list:
-            chap = str(a.get("chapter", "")).strip()
-            if chap: official_chapters.append(chap)
 
-        # 2. Get student's submitted assignments
-        df_scores = load_stats_data()
-        student_scores = df_scores[df_scores["studentcode"].astype(str).str.lower() == student_code]
-        # Extract numbers for reliable matching
-        def extract_numbers(s):
-            return set(re.findall(r"\d+(?:\.\d+)?", str(s)))
-        submitted_chapters = set()
-        for asg in student_scores["assignment"]:
-            nums = extract_numbers(asg)
-            if nums:
-                submitted_chapters |= nums
+        # --- Stats Data ---
+        df_stats = load_stats_data()
+        stats = df_stats[df_stats["studentcode"].astype(str).str.lower() == student_code]
+        TOTALS = {"A1": 18, "A2": 28, "B1": 28, "B2": 24, "C1": 24}
+        total_assign = TOTALS.get(level, 18)
+        submitted = stats["assignment"].nunique()
+        passed = (stats["score"].astype(float) >= 80).sum()
+        last_asg = stats.sort_values("date", ascending=False).iloc[0]["assignment"] if not stats.empty else "-"
+        last_score = stats.sort_values("date", ascending=False).iloc[0]["score"] if not stats.empty else "-"
 
-        # 3. Mark which official assignments are completed (by number matching)
-        completed = 0
-        pending_chapters = []
-        for chap in official_chapters:
-            nums = extract_numbers(chap)
-            if nums & submitted_chapters:
-                completed += 1
+        # --- Welcome ---
+        st.success(f"Hello, {first_name}! 👋")
+        st.markdown(f"**Level:** {level}")
+
+        # --- Assignment Rank in Cohort ---
+        all_stats = df_stats[df_stats["level"].str.upper() == level]
+        sub_counts = all_stats.groupby("studentcode")["assignment"].nunique()
+        ranked = sub_counts.sort_values(ascending=False).reset_index()
+        ranked['rank'] = ranked['assignment'].rank(method="dense", ascending=False).astype(int)
+        my_count = sub_counts.get(student_code, 0)
+        my_rank = ranked[ranked["studentcode"] == student_code]["rank"].iloc[0] if my_count else None
+        st.checkbox("Show my class rank", value=False, key="show_rank")
+        if st.session_state["show_rank"] and my_rank:
+            st.info(f"**Your submission rank:** {my_rank} / {len(sub_counts)}")
+
+        # --- Weekly Submission Streak ---
+        if not stats.empty and "date" in stats:
+            stats["week"] = pd.to_datetime(stats["date"]).dt.to_period("W").apply(lambda p: p.start_time)
+            weeks = sorted(stats["week"].unique())
+            streak = 1
+            for i in range(len(weeks)-1, 0, -1):
+                if (weeks[i] - weeks[i-1]).days == 7:
+                    streak += 1
+                else:
+                    break
+            st.info(f"📅 **Weekly submission streak:** {streak} week{'s' if streak > 1 else ''}")
+
+        # --- Main Stats Row ---
+        col1, col2, col3 = st.columns(3)
+        col1.metric("✅ Submitted", submitted)
+        col2.metric("🏆 Passed", passed)
+        col3.metric("📝 Last", f"{last_asg} ({last_score})")
+
+        # --- Assignment Trend Chart (last 10) ---
+        with st.expander("📈 Assignment Trend (last 10)", expanded=False):
+            if not stats.empty:
+                trend = stats.sort_values("date").tail(10)
+                fig, ax = plt.subplots(figsize=(3.5,2.2))
+                ax.plot(trend["assignment"], trend["score"], marker="o", linewidth=2)
+                ax.set_ylim(0, 105)
+                ax.set_ylabel("Score")
+                plt.xticks(rotation=25, fontsize=9)
+                st.pyplot(fig)
             else:
-                pending_chapters.append(chap)
-
-        total = len(official_chapters)
-        progress = completed / total if total else 0
-
-        # --- Show Progress Bar and List ---
-        st.markdown("### ⏳ Official Assignment Progress")
-        st.progress(progress)
-        st.write(f"**Completed:** {completed} / {total}")
-
-        if pending_chapters:
-            st.info(f"Pending assignments: {', '.join(pending_chapters)}")
-        else:
-            st.success("🎉 All official assignments completed!")
+                st.info("Do some assignments to see your progress chart!")
             
         # --- Announcements & Ads (auto-rotating, reduced size) ---
         st.markdown("### 🖼️ Announcements & Ads")
