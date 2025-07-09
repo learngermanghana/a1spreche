@@ -1739,29 +1739,30 @@ def load_level_schedules():
 
 def render_assignment_reminder():
     """
-    Render a responsive, mobile-friendly assignment reminder box.
+    Render a responsive, mobile-friendly assignment reminder box with clear contrast.
     """
     st.markdown(
         '''
         <div style="
             box-sizing: border-box;
-            max-width: 100%;
-            padding: 16px;
-            background: #fff3cd;
-            border-left: 6px solid #ffeeba;
+            width: calc(100vw - 32px);
+            padding: 14px;
+            background: #ffc107;
+            color: #000;
+            border-left: 6px solid #e0a800;
             margin: 12px auto;
             border-radius: 8px;
-            font-size: 1.2rem;
-            line-height: 1.5;
+            font-size: 1rem;
+            line-height: 1.4;
             text-align: center;
-            word-break: break-word;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
         ">
-            ⬆️ <strong>Your Assignment:</strong><br />
+            ⬆️ <strong>Your Assignment:</strong><br>
             Complete the exercises in your <em>workbook</em> for this chapter.
         </div>
         ''', unsafe_allow_html=True
     )
-
 def render_link(label, url):
     st.markdown(f"- [{label}]({url})")
 
