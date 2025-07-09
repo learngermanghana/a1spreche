@@ -1734,6 +1734,83 @@ def render_assignment_reminder():
         '</div>', unsafe_allow_html=True
     )
 
+SCORES_CSV = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
+
+def extract_chapter_num(text):
+    nums = re.findall(r'\d+(?:\.\d+)?', str(text))
+    if not nums:
+        return None
+    return max(float(n) for n in nums)
+
+def get_last_completed_chapter(student_code, level):
+    df = pd.read_csv(SCORES_CSV, dtype=str)
+    df = df.fillna("")
+    filtered = df[
+        (df["studentcode"].str.lower() == student_code.lower())
+        & (df["level"].str.upper() == level.upper())
+        & (df["score"].astype(str).str.strip() != "")
+    ]
+    chapters = []
+    for asn in filtered["assignment"]:
+        num = extract_chapter_num(asn)
+        if num is not None:
+            chapters.append(num)
+    return max(chapters) if chapters else 0
+
+def get_next_assignment(schedule, last_num):
+    for lesson in schedule:
+        chap_num = extract_chapter_num(lesson.get("chapter", ""))
+        if chap_num and chap_num > last_num:
+            return lesson
+    return None
+
+# Usage in Streamlit:
+student_code = st.session_state["student_row"]["StudentCode"]  # from your login/session
+level = st.session_state["student_row"]["Level"]
+
+# Get correct schedule
+LEVEL_SCHEDULES = {
+    "A1": get_a1_schedule(),
+    "A2": get_a2_schedule(),
+    "B1": get_b1_schedule(),
+    "B2": get_b2_schedule(),
+    "C1": get_c1_schedule(),
+}
+schedule = LEVEL_SCHEDULES.get(level.upper(), get_a1_schedule())
+
+last_num = get_last_completed_chapter(student_code, level)
+next_assignment = get_next_assignment(schedule, last_num)
+
+if next_assignment:
+    st.markdown("## Your Next Assignment")
+    st.markdown(f"**Day {next_assignment['day']}: {next_assignment['topic']} (Chapter {next_assignment['chapter']})**")
+    if next_assignment.get("goal"):
+        st.markdown(f"**🎯 Goal:** {next_assignment['goal']}")
+    if next_assignment.get("instruction"):
+        st.markdown(f"**📝 Instruction:** {next_assignment['instruction']}")
+    # Add links for workbook/grammar/video
+    if "lesen_hören" in next_assignment:
+        items = next_assignment["lesen_hören"]
+        if isinstance(items, dict):
+            items = [items]
+        for lh in items:
+            if lh.get("video"):
+                st.video(lh["video"])
+            if lh.get("grammarbook_link"):
+                st.markdown(f"- [📘 Grammar Book]({lh['grammarbook_link']})")
+            if lh.get("workbook_link"):
+                st.markdown(f"- [📒 Workbook]({lh['workbook_link']})")
+    if "schreiben_sprechen" in next_assignment:
+        ss = next_assignment["schreiben_sprechen"]
+        if ss.get("video"):
+            st.video(ss["video"])
+        if ss.get("workbook_link"):
+            st.markdown(f"- [📒 Workbook]({ss['workbook_link']})")
+        if ss.get("grammarbook_link"):
+            st.markdown(f"- [📘 Grammar Book]({ss['grammarbook_link']})")
+else:
+    st.info("🎉 You have completed all assignments for this level!")
+
 if tab == "Course Book":
     import datetime, urllib.parse
 
