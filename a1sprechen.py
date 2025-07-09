@@ -1737,32 +1737,39 @@ def load_level_schedules():
 
 # --- Helpers ---
 
-def render_assignment_reminder():
-    """
-    Render a responsive, mobile-friendly assignment reminder box with clear contrast.
-    """
-    st.markdown(
-        '''
-        <div style="
-            box-sizing: border-box;
-            width: calc(100vw - 32px);
-            padding: 14px;
-            background: #ffc107;
-            color: #000;
-            border-left: 6px solid #e0a800;
-            margin: 12px auto;
-            border-radius: 8px;
-            font-size: 1rem;
-            line-height: 1.4;
-            text-align: center;
-            overflow-wrap: break-word;
-            word-wrap: break-word;
-        ">
-            ⬆️ <strong>Your Assignment:</strong><br>
-            Complete the exercises in your <em>workbook</em> for this chapter.
-        </div>
-        ''', unsafe_allow_html=True
-    )
+ def render_assignment_reminder():
+     """
+     Render a responsive, mobile-friendly assignment reminder box with clear contrast.
+     """
+     st.markdown(
+-        '''
++        '''
+         <div style="
+-            width: calc(100vw - 32px);
++            width: 100%;
++            max-width: 600px;
+             box-sizing: border-box;
+-            padding: 14px;
++            padding: 16px;
+             background: #ffc107;
+             color: #000;
+             border-left: 6px solid #e0a800;
+-            margin: 12px auto;
++            margin: 16px auto;
+             border-radius: 8px;
+-            font-size: 1rem;
++            font-size: 1.1rem;
+             line-height: 1.4;
+             text-align: center;
+             overflow-wrap: break-word;
+             word-wrap: break-word;
+         ">
+             ⬆️ <strong>Your Assignment:</strong><br>
+             Complete the exercises in your <em>workbook</em> for this chapter.
+         </div>
+         ''', unsafe_allow_html=True
+     )
+
 def render_link(label, url):
     st.markdown(f"- [{label}]({url})")
 
