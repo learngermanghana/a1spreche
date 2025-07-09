@@ -2022,6 +2022,18 @@ if tab == "My Results and Resources":
 
     # ========== BADGES & TROPHIES ==========
     st.markdown("### 🏅 Badges & Trophies")
+    
+    with st.expander("What badges can you earn?", expanded=False):
+        st.markdown(
+            """
+            - 🏆 **Completion Trophy**: Finish all assignments for your level.
+            - 🥇 **Gold Badge**: Maintain an average score above 90.
+            - 🥈 **Silver Badge**: Average score above 75.
+            - 🥉 **Bronze Badge**: Average score above 60.
+            - 🌟 **Star Performer**: Score 95 or higher on any assignment.
+            """
+        )
+
     badge_count = 0
 
     if completed >= total and total > 0:
@@ -2044,6 +2056,7 @@ if tab == "My Results and Resources":
 
     if badge_count == 0:
         st.warning("No badges yet. Complete more assignments to earn badges!")
+
 
     # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
     def extract_chapter_num(chapter):
