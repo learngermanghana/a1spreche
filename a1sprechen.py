@@ -1715,15 +1715,9 @@ def get_c1_schedule():
         # You can add more C1 lessons here in the future
     ]
 
+# --------------------------------------
 
-
-import streamlit as st
-import pandas as pd
-import re
-import datetime
-import urllib.parse
-
-# --- FORCE MOCK LOGIN FOR DEMO ONLY ---
+# --- FORCE A MOCK LOGIN FOR TESTING ---
 if "student_row" not in st.session_state:
     st.session_state["student_row"] = {
         "Name": "Test Student",
@@ -1731,128 +1725,160 @@ if "student_row" not in st.session_state:
         "StudentCode": "demo001"
     }
 
+# --------------------------------------
+# Shared at top so all tabs can access
 student_row = st.session_state.get('student_row', {})
 student_level = student_row.get('Level', 'A1').upper()
 
-def render_assignment_reminder():
-    st.markdown(
-        '<div style="padding:10px; background:#fff3cd; border-left:5px solid #ffeeba; margin:10px 0; border-radius:4px;">'
-        '<strong>⬆️ Your Assignment:</strong> Complete the exercises in your <em>workbook</em> for this chapter.'
-        '</div>', unsafe_allow_html=True
-    )
+if tab == "Course Book":
+    import datetime, urllib.parse
 
-SCORES_CSV = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
+    # --------------------------------------
+    # Compute level schedule mapping once at module load for efficiency
+    # --------------------------------------
+    LEVEL_SCHEDULES = {
+        "A1": get_a1_schedule(),
+        "A2": get_a2_schedule(),
+        "B1": get_b1_schedule(),
+    }
 
-def extract_chapter_num(text):
-    nums = re.findall(r'\d+(?:\.\d+)?', str(text))
-    if not nums:
-        return None
-    return max(float(n) for n in nums)
+    student_row = st.session_state.get('student_row', {})
+    student_level = student_row.get('Level', 'A1').upper()
+    schedule = LEVEL_SCHEDULES.get(student_level, LEVEL_SCHEDULES['A1'])
 
-def get_last_completed_chapter(student_code, level):
-    df = pd.read_csv(SCORES_CSV, dtype=str)
-    df = df.fillna("")
-    filtered = df[
-        (df["studentcode"].str.lower() == student_code.lower())
-        & (df["level"].str.upper() == level.upper())
-        & (df["score"].astype(str).str.strip() != "")
-    ]
-    chapters = set()
-    for asn in filtered["assignment"]:
-        num = extract_chapter_num(asn)
-        if num is not None:
-            chapters.add(num)
-    return max(chapters) if chapters else 0
+    # 1️⃣ SEARCH BAR
+    search_query = st.text_input("🔍 Search for a topic, chapter, or keyword:")
+    selected_day_idx = 0
 
-def get_next_assignment(schedule, last_num):
-    for lesson in schedule:
-        chap_num = extract_chapter_num(lesson.get("chapter", ""))
-        if chap_num and chap_num > last_num:
-            return lesson
-    return None
-
-# ==== Reference your schedule dicts/functions here ====
-LEVEL_SCHEDULES = {
-    "A1": get_a1_schedule(),
-    "A2": get_a2_schedule(),
-    "B1": get_b1_schedule(),
-    "B2": get_b2_schedule(),
-    "C1": get_c1_schedule(),
-}
-schedule = LEVEL_SCHEDULES.get(student_level, LEVEL_SCHEDULES["A1"])
-
-student_code = student_row.get("StudentCode", "demo001")
-last_num = get_last_completed_chapter(student_code, student_level)
-next_assignment = get_next_assignment(schedule, last_num)
-
-col1, col2 = st.columns([2, 1])
-
-with col2:
-    st.markdown("### 📢 Your Next Assignment")
-    if next_assignment:
-        st.markdown(f"**Day {next_assignment['day']}: {next_assignment['topic']} (Chapter {next_assignment['chapter']})**")
-        if next_assignment.get("goal"):
-            st.markdown(f"**🎯 Goal:** {next_assignment['goal']}")
-        if next_assignment.get("instruction"):
-            st.markdown(f"**📝 Instruction:** {next_assignment['instruction']}")
-        render_assignment_reminder()
+    if search_query:
+        sq = search_query.strip().lower()
+        results = [
+            (i, d)
+            for i, d in enumerate(schedule)
+            if sq in str(d.get("topic", "")).lower()
+            or sq in str(d.get("chapter", "")).lower()
+            or sq in str(d.get("goal", "")).lower()
+            or sq in str(d.get("instruction", "")).lower()
+            or sq in f"day {d.get('day','')}".lower()
+            or sq == str(d.get("day", "")).strip()
+        ]
+        if results:
+            st.info(f"Found {len(results)} result(s). Click to view lesson:")
+            result_labels = [
+                f"Day {d['day']}: {d['topic']} (Chapter {d['chapter']})" for i, d in results
+            ]
+            idx = st.selectbox("Select a lesson:", list(range(len(results))), format_func=lambda i: result_labels[i])
+            selected_day_idx = results[idx][0]
+        else:
+            st.warning("No matching lessons found.")
+            st.stop()  # Stop here so you don't try to access non-existent result
     else:
-        st.info("🎉 You have completed all assignments for this level!")
+        selected_day_idx = st.selectbox(
+            "Choose your lesson/day:",
+            range(len(schedule)),
+            format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
+        )
 
-with col1:
-    st.markdown("## 📖 Course Book / All Lessons")
-
-    # Dropdown list for all days (with search)
-    day_options = [f"Day {d['day']}: {d['topic']} (Chapter {d['chapter']})" for d in schedule]
-    idx = st.selectbox(
-        "Choose any lesson/day to view details:",
-        options=list(range(len(schedule))),
-        format_func=lambda i: day_options[i]
-    )
-    day_info = schedule[idx]
+    day_info = schedule[selected_day_idx]
 
     st.markdown(f"### Day {day_info['day']}: {day_info['topic']} (Chapter {day_info['chapter']})")
 
+    # Display optional metadata
     if day_info.get("goal"):
-        st.markdown(f"**🎯 Goal:** {day_info['goal']}")
+        st.markdown(f"**🎯 Goal:**<br>{day_info['goal']}", unsafe_allow_html=True)
     if day_info.get("instruction"):
-        st.markdown(f"**📝 Instruction:** {day_info['instruction']}")
-    # Display Lesen & Hören
+        st.markdown(f"**📝 Instruction:**<br>{day_info['instruction']}", unsafe_allow_html=True)
+
+
+    # --------- Show Lesen & Hören ----------
+    def render_lh_section(item, idx=None, total=None):
+        """
+        Renders a single Lesen & Hören assignment with optional numbering.
+        """
+        # Title for multi-part lessons
+        if idx is not None and total and total > 1:
+            st.markdown(f"#### 📚 Assignment {idx+1} of {total}: Chapter {item.get('chapter','')}")
+        # Video
+        if item.get('video'):
+            st.video(item['video'])
+        # Link rendering util avoids duplication
+        def link(label, url):
+            st.markdown(f"- [{label}]({url})")
+        # Grammar book
+        if item.get('grammarbook_link'):
+            link('📘 Grammar Book', item['grammarbook_link'])
+        # Workbook
+        if item.get('workbook_link'):
+            link('📒 Workbook', item['workbook_link'])
+        # Extras
+        extras = item.get('extra_resources')
+        if extras:
+            if isinstance(extras, list):
+                for ex in extras:
+                    link('🔗 Extra', ex)
+            else:
+                link('🔗 Extra', extras)
+
+    # Normalize and render Lesen & Hören to always use list format
     if 'lesen_hören' in day_info:
         lh = day_info['lesen_hören']
         lh_items = lh if isinstance(lh, list) else [lh]
+        if len(lh_items) > 1:
+            st.markdown(
+                '<div style="padding:8px; background:#f8f9fa; border-left:4px solid #007bff; margin:8px 0;">'
+                '<strong>Note:</strong> Multiple Lesen & Hören tasks below. Complete all before submitting.'
+                '</div>', unsafe_allow_html=True
+            )
         for i, part in enumerate(lh_items):
-            # Assignment header for multi-part
-            if len(lh_items) > 1:
-                st.markdown(f"#### 📚 Assignment {i+1} of {len(lh_items)}: Chapter {part.get('chapter','')}")
-            # Media and links
-            if part.get('video'):
-                st.video(part['video'])
-            if part.get('grammarbook_link'):
-                st.markdown(f"- [📘 Grammar Book (Notes)]({part['grammarbook_link']})")
-            if part.get('workbook_link'):
-                st.markdown(f"- [📒 Workbook (Assignment)]({part['workbook_link']})")
-            render_assignment_reminder()
-    # Display Schreiben & Sprechen if present
+            render_lh_section(part, idx=i, total=len(lh_items))
+
+    # --- Show Schreiben & Sprechen (if present) ---
     if 'schreiben_sprechen' in day_info:
         ss = day_info['schreiben_sprechen']
         st.markdown('#### 📝 Schreiben & Sprechen')
         if ss.get('video'):
             st.video(ss['video'])
+        def sp_link(label, url): st.markdown(f"- [{label}]({url})")
         if ss.get('grammarbook_link'):
-            st.markdown(f"- [📘 Grammar Book (Notes)]({ss['grammarbook_link']})")
+            sp_link('📘 Grammar Book', ss['grammarbook_link'])
         if ss.get('workbook_link'):
-            st.markdown(f"- [📒 Workbook (Assignment)]({ss['workbook_link']})")
-        render_assignment_reminder()
+            sp_link('📒 Workbook', ss['workbook_link'])
+        extras = ss.get('extra_resources')
+        if extras:
+            if isinstance(extras, list):
+                for ex in extras: sp_link('🔗 Extra', ex)
+            else: sp_link('🔗 Extra', extras)
 
+    # ---------- Top-level resources for A2/B1/B2 ----------
+    if student_level in ['A2','B1','B2']:
+        for res in ['video','grammarbook_link','workbook_link','extra_resources']:
+            if day_info.get(res):
+                url = day_info[res]
+                # choose label based on key
+                label = (
+                    '🎥 Video' if res=='video' else
+                    '📘 Grammar' if 'grammar' in res else
+                    '📒 Workbook' if 'workbook' in res else
+                    '🔗 Extra'
+                )
+                if res == 'video':
+                    st.video(url)
+                else:
+                    st.markdown(f"- [{label}]({url})", unsafe_allow_html=True)
+
+    # --- Assignment Submission Section (WhatsApp) ---
     st.divider()
     st.markdown("## 📲 Submit Assignment (WhatsApp)")
-    student_name = st.text_input("👤 Your Name", value=student_row.get('Name', ''))
-    student_code = st.text_input("🆔 Student Code", value=student_row.get('StudentCode', ''))
-    st.markdown("#### ✍️ Your Answer")
-    answer = st.text_area("Type your answer here (leave blank if sending a file/photo on WhatsApp)", height=200, label_visibility="collapsed")
 
-    wa_message = f"""Learn Language Education Academy – Assignment Submission
+    with st.container():
+        student_name = st.text_input("👤 Your Name", value=student_row.get('Name', ''))
+        student_code = st.text_input("🆔 Student Code", value=student_row.get('StudentCode', ''))
+
+        # Wider mobile-friendly text area
+        st.markdown("#### ✍️ Your Answer")
+        answer = st.text_area("Type your answer here (leave blank if sending a file/photo on WhatsApp)", height=400, label_visibility="collapsed")
+
+        wa_message = f"""Learn Language Education Academy – Assignment Submission
 Name: {student_name}
 Code: {student_code}
 Level: {student_level}
@@ -1861,15 +1887,15 @@ Chapter: {day_info['chapter']}
 Date: {datetime.datetime.now():%Y-%m-%d %H:%M}
 Answer: {answer if answer.strip() else '[See attached file/photo]'}
 """
-    wa_url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(wa_message)
+        wa_url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(wa_message)
 
-    if st.button("📤 Submit via WhatsApp", key="wa_submit"):
-        st.success("✅ Now click the button below to open WhatsApp and send your assignment.")
-        st.markdown(
-            f"""<a href="{wa_url}" target="_blank" style="display:block; text-align:center; font-size:1.15em; font-weight:600; background:#25D366; color:white; padding:14px; border-radius:10px; margin-top:10px;">📨 Open WhatsApp</a>""",
-            unsafe_allow_html=True
-        )
-        st.text_area("📋 Copy this message if needed:", wa_message, height=200, label_visibility="visible")
+        if st.button("📤 Submit via WhatsApp"):
+            st.success("✅ Now click the button below to open WhatsApp and send your assignment.")
+            st.markdown(
+                f"""<a href="{wa_url}" target="_blank" style="display:block; text-align:center; font-size:1.15em; font-weight:600; background:#25D366; color:white; padding:14px; border-radius:10px; margin-top:10px;">📨 Open WhatsApp</a>""",
+                unsafe_allow_html=True
+            )
+            st.text_area("📋 Copy this message if needed:", wa_message, height=400, label_visibility="visible")
 
     st.info("""
     - Tap the links above to open books in a new tab (no in-app preview).
