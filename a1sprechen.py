@@ -1714,7 +1714,6 @@ def get_c1_schedule():
         # You can add more C1 lessons here in the future
     ]
 
-
 # --- FORCE A MOCK LOGIN FOR TESTING ---
 if "student_row" not in st.session_state:
     st.session_state["student_row"] = {
@@ -1731,7 +1730,7 @@ student_level = student_row.get('Level', 'A1').upper()
 def render_assignment_reminder():
     st.markdown(
         '<div style="padding:10px; background:#fff3cd; border-left:5px solid #ffeeba; margin:10px 0; border-radius:4px;">'
-        '<strong>👉 Your Assignment:</strong> Complete the exercises in your grammar book and workbook for this chapter.'
+        '<strong>⬆️ Your Assignment:</strong> Complete the exercises in your <em>workbook</em> for this chapter.'
         '</div>', unsafe_allow_html=True
     )
 
@@ -1799,10 +1798,10 @@ if tab == "Course Book":
                 st.video(part['video'])
             def link(label, url): st.markdown(f"- [{label}]({url})")
             if part.get('grammarbook_link'):
-                link('📘 Grammar Book', part['grammarbook_link'])
+                link('📘 Grammar Book (Notes)', part['grammarbook_link'])
             if part.get('workbook_link'):
-                link('📒 Workbook', part['workbook_link'])
-            # 👉 Assignment reminder after grammar/book links
+                link('📒 Workbook (Assignment)', part['workbook_link'])
+            # ⬆️ Assignment reminder after workbook link
             render_assignment_reminder()
             # Extras
             extras = part.get('extra_resources')
@@ -1820,10 +1819,10 @@ if tab == "Course Book":
             st.video(ss['video'])
         def sp_link(label, url): st.markdown(f"- [{label}]({url})")
         if ss.get('grammarbook_link'):
-            sp_link('📘 Grammar Book', ss['grammarbook_link'])
+            sp_link('📘 Grammar Book (Notes)', ss['grammarbook_link'])
         if ss.get('workbook_link'):
-            sp_link('📒 Workbook', ss['workbook_link'])
-        # 👉 Assignment reminder for Schreiben & Sprechen
+            sp_link('📒 Workbook (Assignment)', ss['workbook_link'])
+        # ⬆️ Assignment reminder for workbook
         render_assignment_reminder()
         extras = ss.get('extra_resources')
         if extras:
