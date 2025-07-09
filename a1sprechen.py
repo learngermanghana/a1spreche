@@ -7,7 +7,6 @@ import json
 from datetime import date, datetime
 import pandas as pd
 import streamlit as st
-import re
 import matplotlib.pyplot as plt
 import time
 import requests
@@ -1715,6 +1714,8 @@ def get_c1_schedule():
         # You can add more C1 lessons here in the future
     ]
 
+
+
 # --------------------------------------
 
 # --- FORCE A MOCK LOGIN FOR TESTING ---
@@ -1789,7 +1790,6 @@ if tab == "Course Book":
     if day_info.get("instruction"):
         st.markdown(f"**📝 Instruction:**<br>{day_info['instruction']}", unsafe_allow_html=True)
 
-
     # Display Lesen & Hören
     if 'lesen_hören' in day_info:
         lh = day_info['lesen_hören']
@@ -1840,7 +1840,6 @@ if tab == "Course Book":
                 for ex in extras: sp_link('🔗 Extra', ex)
             else:
                 sp_link('🔗 Extra', extras)
-
 
     # ---------- Top-level resources for A2/B1/B2 ----------
     if student_level in ['A2','B1','B2']:
@@ -1895,8 +1894,6 @@ Answer: {answer if answer.strip() else '[See attached file/photo]'}
     - If multiple tasks are assigned, mention which one you're submitting.
     - Always use your correct name and student code!
     """)
-
-
 
 
 if tab == "My Results and Resources":
