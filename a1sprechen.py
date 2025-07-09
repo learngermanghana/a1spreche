@@ -1715,9 +1715,6 @@ def get_c1_schedule():
     ]
 
 
-
-# --------------------------------------
-
 # --- FORCE A MOCK LOGIN FOR TESTING ---
 if "student_row" not in st.session_state:
     st.session_state["student_row"] = {
@@ -1731,20 +1728,23 @@ if "student_row" not in st.session_state:
 student_row = st.session_state.get('student_row', {})
 student_level = student_row.get('Level', 'A1').upper()
 
+def render_assignment_reminder():
+    st.markdown(
+        '<div style="padding:10px; background:#fff3cd; border-left:5px solid #ffeeba; margin:10px 0; border-radius:4px;">'
+        '<strong>👉 Your Assignment:</strong> Complete the exercises in your grammar book and workbook for this chapter.'
+        '</div>', unsafe_allow_html=True
+    )
+
 if tab == "Course Book":
     import datetime, urllib.parse
 
-    # --------------------------------------
     # Compute level schedule mapping once at module load for efficiency
-    # --------------------------------------
     LEVEL_SCHEDULES = {
         "A1": get_a1_schedule(),
         "A2": get_a2_schedule(),
         "B1": get_b1_schedule(),
     }
 
-    student_row = st.session_state.get('student_row', {})
-    student_level = student_row.get('Level', 'A1').upper()
     schedule = LEVEL_SCHEDULES.get(student_level, LEVEL_SCHEDULES['A1'])
 
     # 1️⃣ SEARCH BAR
@@ -1765,14 +1765,12 @@ if tab == "Course Book":
         ]
         if results:
             st.info(f"Found {len(results)} result(s). Click to view lesson:")
-            result_labels = [
-                f"Day {d['day']}: {d['topic']} (Chapter {d['chapter']})" for i, d in results
-            ]
-            idx = st.selectbox("Select a lesson:", list(range(len(results))), format_func=lambda i: result_labels[i])
+            labels = [f"Day {d['day']}: {d['topic']} (Chapter {d['chapter']})" for i, d in results]
+            idx = st.selectbox("Select a lesson:", list(range(len(results))), format_func=lambda i: labels[i])
             selected_day_idx = results[idx][0]
         else:
             st.warning("No matching lessons found.")
-            st.stop()  # Stop here so you don't try to access non-existent result
+            st.stop()
     else:
         selected_day_idx = st.selectbox(
             "Choose your lesson/day:",
@@ -1781,59 +1779,40 @@ if tab == "Course Book":
         )
 
     day_info = schedule[selected_day_idx]
-
     st.markdown(f"### Day {day_info['day']}: {day_info['topic']} (Chapter {day_info['chapter']})")
 
-    # Display optional metadata
     if day_info.get("goal"):
         st.markdown(f"**🎯 Goal:**<br>{day_info['goal']}", unsafe_allow_html=True)
     if day_info.get("instruction"):
         st.markdown(f"**📝 Instruction:**<br>{day_info['instruction']}", unsafe_allow_html=True)
 
-
-    # --------- Show Lesen & Hören ----------
-    def render_lh_section(item, idx=None, total=None):
-        """
-        Renders a single Lesen & Hören assignment with optional numbering.
-        """
-        # Title for multi-part lessons
-        if idx is not None and total and total > 1:
-            st.markdown(f"#### 📚 Assignment {idx+1} of {total}: Chapter {item.get('chapter','')}")
-        # Video
-        if item.get('video'):
-            st.video(item['video'])
-        # Link rendering util avoids duplication
-        def link(label, url):
-            st.markdown(f"- [{label}]({url})")
-        # Grammar book
-        if item.get('grammarbook_link'):
-            link('📘 Grammar Book', item['grammarbook_link'])
-        # Workbook
-        if item.get('workbook_link'):
-            link('📒 Workbook', item['workbook_link'])
-        # Extras
-        extras = item.get('extra_resources')
-        if extras:
-            if isinstance(extras, list):
-                for ex in extras:
-                    link('🔗 Extra', ex)
-            else:
-                link('🔗 Extra', extras)
-
-    # Normalize and render Lesen & Hören to always use list format
+    # Display Lesen & Hören
     if 'lesen_hören' in day_info:
         lh = day_info['lesen_hören']
         lh_items = lh if isinstance(lh, list) else [lh]
-        if len(lh_items) > 1:
-            st.markdown(
-                '<div style="padding:8px; background:#f8f9fa; border-left:4px solid #007bff; margin:8px 0;">'
-                '<strong>Note:</strong> Multiple Lesen & Hören tasks below. Complete all before submitting.'
-                '</div>', unsafe_allow_html=True
-            )
         for i, part in enumerate(lh_items):
-            render_lh_section(part, idx=i, total=len(lh_items))
+            # Assignment header for multi-part
+            if len(lh_items) > 1:
+                st.markdown(f"#### 📚 Assignment {i+1} of {len(lh_items)}: Chapter {part.get('chapter','')}")
+            # Media and links
+            if part.get('video'):
+                st.video(part['video'])
+            def link(label, url): st.markdown(f"- [{label}]({url})")
+            if part.get('grammarbook_link'):
+                link('📘 Grammar Book', part['grammarbook_link'])
+            if part.get('workbook_link'):
+                link('📒 Workbook', part['workbook_link'])
+            # 👉 Assignment reminder after grammar/book links
+            render_assignment_reminder()
+            # Extras
+            extras = part.get('extra_resources')
+            if extras:
+                if isinstance(extras, list):
+                    for ex in extras: link('🔗 Extra', ex)
+                else:
+                    link('🔗 Extra', extras)
 
-    # --- Show Schreiben & Sprechen (if present) ---
+    # Display Schreiben & Sprechen if present
     if 'schreiben_sprechen' in day_info:
         ss = day_info['schreiben_sprechen']
         st.markdown('#### 📝 Schreiben & Sprechen')
@@ -1844,11 +1823,14 @@ if tab == "Course Book":
             sp_link('📘 Grammar Book', ss['grammarbook_link'])
         if ss.get('workbook_link'):
             sp_link('📒 Workbook', ss['workbook_link'])
+        # 👉 Assignment reminder for Schreiben & Sprechen
+        render_assignment_reminder()
         extras = ss.get('extra_resources')
         if extras:
             if isinstance(extras, list):
                 for ex in extras: sp_link('🔗 Extra', ex)
-            else: sp_link('🔗 Extra', extras)
+            else:
+                sp_link('🔗 Extra', extras)
 
     # ---------- Top-level resources for A2/B1/B2 ----------
     if student_level in ['A2','B1','B2']:
