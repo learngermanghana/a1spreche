@@ -1896,60 +1896,229 @@ if tab == "Course Book":
             else:
                 sp_link('🔗 Extra', extras)
 
+# --- FORCE A MOCK LOGIN FOR TESTING ---
+if "student_row" not in st.session_state:
+    st.session_state["student_row"] = {
+        "Name": "Test Student",
+        "Level": "A1",
+        "StudentCode": "demo001"
+    }
+
+# --------------------------------------
+# Shared at top so all tabs can access
+student_row = st.session_state.get("student_row", {})
+student_level = student_row.get("Level", "A1").upper()
+
+# --- Cache level schedules at module scope to avoid rebuilding each rerun ---
+@st.cache_data
+def load_level_schedules():
+    return {
+        "A1": get_a1_schedule(),
+        "A2": get_a2_schedule(),
+        "B1": get_b1_schedule(),
+    }
+
+# --- Helpers ---
+
+def render_assignment_reminder():
+    """
+    Render a mobile-friendly assignment reminder box pointing up to the workbook link.
+    """
+    st.markdown(
+        """
+<div style="
+    width: 100%;
+    padding: 12px;
+    background: #fff3cd;
+    border-left: 5px solid #ffeeba;
+    margin: 8px 0;
+    border-radius: 6px;
+    font-size: 1rem;
+    line-height: 1.4;
+    text-align: center;
+    word-break: break-word;
+">
+    ⬆️ <strong>Your Assignment:</strong><br />
+    Complete the exercises in your <em>workbook</em> for this chapter.
+</div>
+        """,
+        unsafe_allow_html=True
+    )
+
+# Reusable link helper
+def render_link(label, url):
+    st.markdown(f"- [{label}]({url})")
+
+# Common section renderer
+def render_section(day_info, section_key, title, icon):
+    """
+    Render a lesson section given its key in day_info, with title and icon.
+    """
+    content = day_info.get(section_key)
+    if not content:
+        return
+    items = content if isinstance(content, list) else [content]
+    st.markdown(f"#### {icon} {title}")
+    for idx, part in enumerate(items):
+        if len(items) > 1:
+            st.markdown(f"###### {icon} Part {idx+1} of {len(items)}: Chapter {part.get('chapter','')}")
+        if part.get('video'):
+            st.video(part['video'])
+        if part.get('grammarbook_link'):
+            render_link("📘 Grammar Book (Notes)", part['grammarbook_link'])
+            st.markdown(
+                """<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.""",
+                unsafe_allow_html=True
+            )
+        if part.get('workbook_link'):
+            render_link("📒 Workbook (Assignment)", part['workbook_link'])
+            render_assignment_reminder()
+        extras = part.get('extra_resources')
+        if extras:
+            for ex in (extras if isinstance(extras, list) else [extras]):
+                render_link("🔗 Extra", ex)
+
+# === Course Book Tab ===
+if tab == "Course Book":
+    import datetime
+    import urllib.parse
+
+    # 📈 Mobile-friendly Course Book header
+    st.markdown(
+        """
+<div style="
+    padding: 16px;
+    background: #007bff;
+    color: #ffffff;
+    border-radius: 8px;
+    text-align: center;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+">
+    <span style="font-size:1.8rem; font-weight:600;">📈 Course Book</span>
+</div>
+        """,
+        unsafe_allow_html=True
+    )
+    st.divider()
+
+    # Load the cached schedules
+    LEVEL_SCHEDULES = load_level_schedules()
+    schedule = LEVEL_SCHEDULES.get(student_level, LEVEL_SCHEDULES["A1"])
+
+    # Search bar with unified field list
+    search_query = st.text_input("🔍 Search for topic, chapter, or keyword:")
+    if search_query:
+        sq = search_query.strip().lower()
+        def matches(lesson):
+            fields = [
+                lesson.get("topic", ""),
+                lesson.get("chapter", ""),
+                lesson.get("goal", ""),
+                lesson.get("instruction", ""),
+                str(lesson.get("day", ""))
+            ]
+            return any(sq in str(f).lower() for f in fields)
+        results = [(i, d) for i, d in enumerate(schedule) if matches(d)]
+        if not results:
+            st.warning("No matching lessons.")
+            st.stop()
+        labels = [f"Day {d['day']}: {d['topic']}" for _, d in results]
+        idx = st.selectbox("Lessons:", list(range(len(results))), format_func=lambda i: labels[i])
+        selected_day_idx = results[idx][0]
+    else:
+        selected_day_idx = st.selectbox(
+            "Choose your lesson/day:",
+            range(len(schedule)),
+            format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
+        )
+
+    day_info = schedule[selected_day_idx]
+    st.markdown(f"### Day {day_info['day']}: {day_info['topic']} (Chapter {day_info['chapter']})")
+
+    if day_info.get("goal"):
+        st.markdown(
+            f"""**🎯 Goal:**<br>{day_info['goal']}""",
+            unsafe_allow_html=True
+        )
+    if day_info.get("instruction"):
+        st.markdown(
+            f"""**📝 Instruction:**<br>{day_info['instruction']}""",
+            unsafe_allow_html=True
+        )
+
+    # Render lesson sections
+    render_section(day_info, "lesen_hören", "Lesen & Hören", "📚")
+    render_section(day_info, "schreiben_sprechen", "Schreiben & Sprechen", "📝")
+
     # ---------- Top-level resources for A2/B1/B2 ----------
-    if student_level in ['A2','B1','B2']:
-        for res in ['video','grammarbook_link','workbook_link','extra_resources']:
+    if student_level in ["A2","B1","B2"]:
+        for res in ["video","grammarbook_link","workbook_link","extra_resources"]:
             if day_info.get(res):
                 url = day_info[res]
-                # choose label based on key
                 label = (
-                    '🎥 Video' if res=='video' else
-                    '📘 Grammar' if 'grammar' in res else
-                    '📒 Workbook' if 'workbook' in res else
-                    '🔗 Extra'
+                    "🎥 Video" if res=="video" else
+                    "📘 Grammar" if "grammar" in res else
+                    "📒 Workbook" if "workbook" in res else
+                    "🔗 Extra"
                 )
-                if res == 'video':
+                if res == "video":
                     st.video(url)
                 else:
-                    st.markdown(f"- [{label}]({url})", unsafe_allow_html=True)
+                    st.markdown(
+                        f"- [{label}]({url})",
+                        unsafe_allow_html=True
+                    )
 
     # --- Assignment Submission Section (WhatsApp) ---
     st.divider()
-    st.markdown("## 📲 Submit Assignment (WhatsApp)")
+    st.markdown(
+        """## 📲 Submit Assignment (WhatsApp)"""
+    )
 
-    with st.container():
-        student_name = st.text_input("👤 Your Name", value=student_row.get('Name', ''))
-        student_code = st.text_input("🆔 Student Code", value=student_row.get('StudentCode', ''))
-
-        # Wider mobile-friendly text area
-        st.markdown("#### ✍️ Your Answer")
-        answer = st.text_area("Type your answer here (leave blank if sending a file/photo on WhatsApp)", height=400, label_visibility="collapsed")
-
-        wa_message = f"""Learn Language Education Academy – Assignment Submission
-Name: {student_name}
-Code: {student_code}
-Level: {student_level}
-Day: {day_info['day']}
-Chapter: {day_info['chapter']}
-Date: {datetime.datetime.now():%Y-%m-%d %H:%M}
-Answer: {answer if answer.strip() else '[See attached file/photo]'}
-"""
+    def render_whatsapp_submission():
+        """Render the WhatsApp assignment submission UI."""
+        st.markdown(
+            """#### 👤 Your Name & Code"""
+        )
+        student_name = st.text_input("👤 Your Name", value=student_row.get("Name", ""))  
+        student_code = st.text_input("🆔 Student Code", value=student_row.get("StudentCode", ""))  
+        st.markdown(
+            """#### ✍️ Your Answer"""
+        )
+        answer = st.text_area(
+            "Type your answer here (leave blank if sending a file/photo on WhatsApp)",
+            height=200,
+            label_visibility="collapsed"
+        )
+        wa_message = (
+            f"Learn Language Education Academy – Assignment Submission\n"
+            f"Name: {student_name}\n"
+            f"Code: {student_code}\n"
+            f"Level: {student_level}\n"
+            f"Day: {day_info['day']}\n"
+            f"Chapter: {day_info['chapter']}\n"
+            f"Date: {datetime.datetime.now():%Y-%m-%d %H:%M}\n"
+            f"Answer: {answer if answer.strip() else '[See attached file/photo]'}"
+        )
         wa_url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(wa_message)
-
         if st.button("📤 Submit via WhatsApp"):
-            st.success("✅ Now click the button below to open WhatsApp and send your assignment.")
+            st.success("✅ Click below to open WhatsApp and send your assignment.")
             st.markdown(
-                f"""<a href="{wa_url}" target="_blank" style="display:block; text-align:center; font-size:1.15em; font-weight:600; background:#25D366; color:white; padding:14px; border-radius:10px; margin-top:10px;">📨 Open WhatsApp</a>""",
+                f"""<a href="{wa_url}" target="_blank" style="padding:10px; margin-top:8px; background:#25D366; color:white; border-radius:6px; display:inline-block;">📨 Open WhatsApp</a>""",
                 unsafe_allow_html=True
             )
-            st.text_area("📋 Copy this message if needed:", wa_message, height=400, label_visibility="visible")
+        st.text_area("📋 Copy this message if needed:", wa_message, height=200, key="wa_copy")
 
-    st.info("""
-    - Tap the links above to open books in a new tab (no in-app preview).
-    - If multiple tasks are assigned, mention which one you're submitting.
-    - Always use your correct name and student code!
-    """)
+    render_whatsapp_submission()
 
+    st.info(
+        """
+- Tap the links above to open books in a new tab (no in-app preview).
+- If multiple tasks are assigned, mention which one you're submitting.
+- Always use your correct name and student code!
+        """
+    )
 
 if tab == "My Results and Resources":
     import requests, io, pandas as pd, re, base64
