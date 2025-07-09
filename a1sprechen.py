@@ -1715,13 +1715,15 @@ def get_c1_schedule():
         # You can add more C1 lessons here in the future
     ]
 
+
+
 import streamlit as st
 import pandas as pd
 import re
 import datetime
 import urllib.parse
 
-# --- FORCE A MOCK LOGIN FOR TESTING ---
+# --- FORCE MOCK LOGIN FOR DEMO ONLY ---
 if "student_row" not in st.session_state:
     st.session_state["student_row"] = {
         "Name": "Test Student",
@@ -1755,7 +1757,7 @@ def get_last_completed_chapter(student_code, level):
         & (df["level"].str.upper() == level.upper())
         & (df["score"].astype(str).str.strip() != "")
     ]
-    chapters = set()  # Set removes duplicates
+    chapters = set()
     for asn in filtered["assignment"]:
         num = extract_chapter_num(asn)
         if num is not None:
@@ -1783,73 +1785,98 @@ student_code = student_row.get("StudentCode", "demo001")
 last_num = get_last_completed_chapter(student_code, student_level)
 next_assignment = get_next_assignment(schedule, last_num)
 
-st.title("📚 Your Next Assignment")
+col1, col2 = st.columns([2, 1])
 
-if next_assignment:
-    st.markdown(f"### Day {next_assignment['day']}: {next_assignment['topic']} (Chapter {next_assignment['chapter']})")
-    if next_assignment.get("goal"):
-        st.markdown(f"**🎯 Goal:** {next_assignment['goal']}")
-    if next_assignment.get("instruction"):
-        st.markdown(f"**📝 Instruction:** {next_assignment['instruction']}")
-    # Links for workbook/grammar/video
-    if "lesen_hören" in next_assignment:
-        items = next_assignment["lesen_hören"]
-        if isinstance(items, dict):
-            items = [items]
-        for lh in items:
-            if lh.get("video"):
-                st.video(lh["video"])
-            if lh.get("grammarbook_link"):
-                st.markdown(f"- [📘 Grammar Book]({lh['grammarbook_link']})")
-            if lh.get("workbook_link"):
-                st.markdown(f"- [📒 Workbook]({lh['workbook_link']})")
-    if "schreiben_sprechen" in next_assignment:
-        ss = next_assignment["schreiben_sprechen"]
-        if ss.get("video"):
-            st.video(ss["video"])
-        if ss.get("workbook_link"):
-            st.markdown(f"- [📒 Workbook]({ss['workbook_link']})")
-        if ss.get("grammarbook_link"):
-            st.markdown(f"- [📘 Grammar Book]({ss['grammarbook_link']})")
-    render_assignment_reminder()
-else:
-    st.info("🎉 You have completed all assignments for this level!")
+with col2:
+    st.markdown("### 📢 Your Next Assignment")
+    if next_assignment:
+        st.markdown(f"**Day {next_assignment['day']}: {next_assignment['topic']} (Chapter {next_assignment['chapter']})**")
+        if next_assignment.get("goal"):
+            st.markdown(f"**🎯 Goal:** {next_assignment['goal']}")
+        if next_assignment.get("instruction"):
+            st.markdown(f"**📝 Instruction:** {next_assignment['instruction']}")
+        render_assignment_reminder()
+    else:
+        st.info("🎉 You have completed all assignments for this level!")
 
-# -- WhatsApp Submission Section (Optional) --
-st.divider()
-st.markdown("## 📲 Submit Assignment (WhatsApp)")
+with col1:
+    st.markdown("## 📖 Course Book / All Lessons")
 
-with st.container():
+    # Dropdown list for all days (with search)
+    day_options = [f"Day {d['day']}: {d['topic']} (Chapter {d['chapter']})" for d in schedule]
+    idx = st.selectbox(
+        "Choose any lesson/day to view details:",
+        options=list(range(len(schedule))),
+        format_func=lambda i: day_options[i]
+    )
+    day_info = schedule[idx]
+
+    st.markdown(f"### Day {day_info['day']}: {day_info['topic']} (Chapter {day_info['chapter']})")
+
+    if day_info.get("goal"):
+        st.markdown(f"**🎯 Goal:** {day_info['goal']}")
+    if day_info.get("instruction"):
+        st.markdown(f"**📝 Instruction:** {day_info['instruction']}")
+    # Display Lesen & Hören
+    if 'lesen_hören' in day_info:
+        lh = day_info['lesen_hören']
+        lh_items = lh if isinstance(lh, list) else [lh]
+        for i, part in enumerate(lh_items):
+            # Assignment header for multi-part
+            if len(lh_items) > 1:
+                st.markdown(f"#### 📚 Assignment {i+1} of {len(lh_items)}: Chapter {part.get('chapter','')}")
+            # Media and links
+            if part.get('video'):
+                st.video(part['video'])
+            if part.get('grammarbook_link'):
+                st.markdown(f"- [📘 Grammar Book (Notes)]({part['grammarbook_link']})")
+            if part.get('workbook_link'):
+                st.markdown(f"- [📒 Workbook (Assignment)]({part['workbook_link']})")
+            render_assignment_reminder()
+    # Display Schreiben & Sprechen if present
+    if 'schreiben_sprechen' in day_info:
+        ss = day_info['schreiben_sprechen']
+        st.markdown('#### 📝 Schreiben & Sprechen')
+        if ss.get('video'):
+            st.video(ss['video'])
+        if ss.get('grammarbook_link'):
+            st.markdown(f"- [📘 Grammar Book (Notes)]({ss['grammarbook_link']})")
+        if ss.get('workbook_link'):
+            st.markdown(f"- [📒 Workbook (Assignment)]({ss['workbook_link']})")
+        render_assignment_reminder()
+
+    st.divider()
+    st.markdown("## 📲 Submit Assignment (WhatsApp)")
     student_name = st.text_input("👤 Your Name", value=student_row.get('Name', ''))
     student_code = st.text_input("🆔 Student Code", value=student_row.get('StudentCode', ''))
-
     st.markdown("#### ✍️ Your Answer")
-    answer = st.text_area("Type your answer here (leave blank if sending a file/photo on WhatsApp)", height=400, label_visibility="collapsed")
+    answer = st.text_area("Type your answer here (leave blank if sending a file/photo on WhatsApp)", height=200, label_visibility="collapsed")
 
     wa_message = f"""Learn Language Education Academy – Assignment Submission
 Name: {student_name}
 Code: {student_code}
 Level: {student_level}
-Day: {next_assignment['day'] if next_assignment else ''}
-Chapter: {next_assignment['chapter'] if next_assignment else ''}
+Day: {day_info['day']}
+Chapter: {day_info['chapter']}
 Date: {datetime.datetime.now():%Y-%m-%d %H:%M}
 Answer: {answer if answer.strip() else '[See attached file/photo]'}
 """
     wa_url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(wa_message)
 
-    if st.button("📤 Submit via WhatsApp"):
+    if st.button("📤 Submit via WhatsApp", key="wa_submit"):
         st.success("✅ Now click the button below to open WhatsApp and send your assignment.")
         st.markdown(
             f"""<a href="{wa_url}" target="_blank" style="display:block; text-align:center; font-size:1.15em; font-weight:600; background:#25D366; color:white; padding:14px; border-radius:10px; margin-top:10px;">📨 Open WhatsApp</a>""",
             unsafe_allow_html=True
         )
-        st.text_area("📋 Copy this message if needed:", wa_message, height=400, label_visibility="visible")
+        st.text_area("📋 Copy this message if needed:", wa_message, height=200, label_visibility="visible")
 
-st.info("""
-- Tap the links above to open books in a new tab (no in-app preview).
-- If multiple tasks are assigned, mention which one you're submitting.
-- Always use your correct name and student code!
-""")
+    st.info("""
+    - Tap the links above to open books in a new tab (no in-app preview).
+    - If multiple tasks are assigned, mention which one you're submitting.
+    - Always use your correct name and student code!
+    """)
+
 
 
 
