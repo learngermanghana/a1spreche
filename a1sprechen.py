@@ -1775,7 +1775,7 @@ def render_link(label, url):
 
 @st.cache_data(ttl=86400)
 def build_wa_message(name, code, level, day, chapter, answer):
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     return (
         f"Learn Language Education Academy – Assignment Submission\n"
         f"Name: {name}\n"
