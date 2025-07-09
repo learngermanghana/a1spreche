@@ -325,14 +325,22 @@ def save_progress(student_code, level, teil, remaining, used):
 # 1. Load student data from Google Sheet
 # ====================================
 
-GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7p-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
+GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
 
 def load_student_data():
-    # Read everything as str and strip all whitespace
-    df = pd.read_csv(GOOGLE_SHEET_CSV, dtype=str)
+    try:
+        # Fetch via HTTP so we can handle errors gracefully
+        resp = requests.get(GOOGLE_SHEET_CSV, timeout=10)
+        resp.raise_for_status()
+        text_io = io.StringIO(resp.text)
+        df = pd.read_csv(text_io, dtype=str)
+    except requests.exceptions.RequestException as e:
+        st.error("❌ Could not load student data. Please check the Google Sheet URL or your network connection.")
+        st.stop()
+    # Strip whitespace from all string columns
     for col in df.columns:
         df[col] = df[col].astype(str).str.strip()
-    # Remove rows without a ContractEnd
+    # Drop any rows missing a ContractEnd date
     df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]
     return df
 
