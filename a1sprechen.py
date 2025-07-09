@@ -1724,12 +1724,17 @@ if "student_row" not in st.session_state:
         "StudentCode": "demo001"
     }
 
+# --------------------------------------
+# Shared imports and context
+import datetime
+import urllib.parse
+import streamlit as st
 
 student_row = st.session_state.get("student_row", {})
 student_level = student_row.get("Level", "A1").upper()
 
-# --- Cache level schedules at module scope to avoid rebuilding each rerun ---
-@st.cache_data
+# --- Cache level schedules at module scope with TTL for periodic refresh ---
+@st.cache_data(ttl=86400)
 def load_level_schedules():
     # Dynamically include all supported levels
     return {
@@ -1765,10 +1770,14 @@ def render_assignment_reminder():
         </div>
         ''', unsafe_allow_html=True
     )
+
+# Reusable link helper
+
+def render_link(label, url):
     st.markdown(f"- [{label}]({url})")
 
 # Build WhatsApp message helper
-@st.cache_data
+@st.cache_data(ttl=86400)
 def build_wa_message(name, code, level, day, chapter, answer):
     """
     Construct the WhatsApp assignment submission message.
@@ -1858,7 +1867,7 @@ if tab == "Course Book":
     )
     st.divider()
 
-    # Load the cached schedules
+    # Load the cached schedules with TTL
     LEVEL_SCHEDULES = load_level_schedules()
     schedule = LEVEL_SCHEDULES.get(student_level, LEVEL_SCHEDULES.get('A1', []))
 
@@ -1942,8 +1951,6 @@ if tab == "Course Book":
 - Always use your correct name and student code!
         """
     )
-
-#
 
 
 
