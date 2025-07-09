@@ -1751,6 +1751,8 @@ st.markdown(
 )
 st.divider()
 
+#
+
     # Compute level schedule mapping once at module load for efficiency
     LEVEL_SCHEDULES = {
         "A1": get_a1_schedule(),
