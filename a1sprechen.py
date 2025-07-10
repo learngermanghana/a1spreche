@@ -1956,30 +1956,6 @@ if tab == "Course Book":
         """
     )
 
-def extract_assignment_chapters(schedule, level):
-    chapters = []
-    for lesson in schedule:
-        # A1: check both top-level and nested
-        if level == "A1":
-            if lesson.get("assignment", False):
-                for ch in str(lesson.get("chapter", "")).split("_"):
-                    chapters.append(ch)
-            for section in ["lesen_hören", "schreiben_sprechen"]:
-                if section in lesson:
-                    content = lesson[section]
-                    if isinstance(content, list):
-                        for sub in content:
-                            if sub.get("assignment", False):
-                                chapters.append(sub.get("chapter", ""))
-        # A2–C1: only top-level "assignment" and "chapter"
-        else:
-            if lesson.get("assignment", False):
-                for ch in str(lesson.get("chapter", "")).split("_"):
-                    chapters.append(ch)
-    return [ch for ch in chapters if ch]
-
-
-
 #MyResults
 if tab == "My Results and Resources":
     # 📊 Compact Results & Resources header
@@ -2167,13 +2143,14 @@ if tab == "My Results and Resources":
 
     # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
     def extract_chapter_num(chapter):
-        # Prefer numbers like '1.3', but if just '3' or '10' that's fine too.
+        # Extract numbers like '1.3' or '3' from any string
         nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
         if not nums:
             return None
-        # Find highest numeric value in the chapter string (handles both '1.3' and '3')
+        # Take the highest number (handles cases like '1.3_1.4')
         return max(float(n) for n in nums)
 
+    # Get chapter numbers completed by the student
     completed_chapters = []
     for assignment in df_lvl['assignment']:
         num = extract_chapter_num(assignment)
@@ -2230,10 +2207,6 @@ if tab == "My Results and Resources":
         )
     else:
         st.info("🎉 Great Job!")
-
-
-
-
 
     # ========== DOWNLOAD PDF SUMMARY ==========
     if st.button("⬇️ Download PDF Summary"):
