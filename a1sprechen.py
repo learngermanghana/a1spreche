@@ -673,6 +673,7 @@ def get_a1_schedule():
             "chapter": "0.1",
             "goal": "You will learn to introduce yourself, greet others in German, and ask about people's well-being.",
             "instruction": "Watch the video, review grammar, do the workbook, submit assignment.",
+            "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/7QZhrb-gvxY",
                 "grammarbook_link": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/view?usp=sharing",
@@ -686,6 +687,7 @@ def get_a1_schedule():
             "chapter": "0.2_1.1",
             "goal": "Understand the German alphabets, personal pronouns and verb conjugation in German.",
             "instruction": "You are doing Lesen and Hören chapter 0.2 and 1.1. Make sure to follow up attentively.",
+            "assignment": True,
             "lesen_hören": [
                 {
                     "chapter": "0.2",
@@ -707,6 +709,7 @@ def get_a1_schedule():
             "topic": "Schreiben & Sprechen 1.1 and Lesen & Hören 1.2",
             "chapter": "1.1_1.2",
             "goal": "Introduce others and talk about your family.",
+            "assignment": True,
             "instruction": (
                 "Begin with the practicals at **Schreiben & Sprechen** (writing & speaking). "
                 "Then, move to **Lesen & Hören** (reading & listening). "
