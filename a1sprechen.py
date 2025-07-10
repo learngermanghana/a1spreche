@@ -673,6 +673,7 @@ def get_a1_schedule():
             "chapter": "0.1",
             "goal": "You will learn to introduce yourself, greet others in German, and ask about people's well-being.",
             "instruction": "Watch the video, review grammar, do the workbook, submit assignment.",
+            "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/7QZhrb-gvxY",
                 "grammarbook_link": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/view?usp=sharing",
@@ -686,6 +687,7 @@ def get_a1_schedule():
             "chapter": "0.2_1.1",
             "goal": "Understand the German alphabets, personal pronouns and verb conjugation in German.",
             "instruction": "You are doing Lesen and Hören chapter 0.2 and 1.1. Make sure to follow up attentively.",
+            "assignment": True,
             "lesen_hören": [
                 {
                     "chapter": "0.2",
@@ -717,6 +719,7 @@ def get_a1_schedule():
             "schreiben_sprechen": {
                 "video": "",
                 "workbook_link": "https://drive.google.com/file/d/1GXWzy3cvbl_goP4-ymFuYDtX4X23D70j/view?usp=sharing"
+                "assignment": False,
             },
             "lesen_hören": [
                 {
@@ -724,6 +727,7 @@ def get_a1_schedule():
                     "video": "https://youtu.be/NVCN4fZXEk0",
                     "grammarbook_link": "https://drive.google.com/file/d/1OUJT9aSU1XABi3cdZlstUvfBIndyEOwb/view?usp=sharing",
                     "workbook_link": "https://drive.google.com/file/d/1Lubevhd7zMlbvPcvHHC1D0GzW7xqa4Mp/view?usp=sharing",
+                    "assignment": True,
                 }
             ]
         },
@@ -734,6 +738,7 @@ def get_a1_schedule():
             "chapter": "2",
             "goal": "Learn numbers from one to 10 thousand. Also know the difference between city and street",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
+            "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/BzI2n4A8Oak",
                 "grammarbook_link": "https://drive.google.com/file/d/1f2CJ492liO8ccudCadxHIISwGJkHP6st/view?usp=sharing",
@@ -747,6 +752,7 @@ def get_a1_schedule():
             "chapter": "1.2",
             "goal": "Consolidate your understanding of introductions.",
             "instruction": "Use self-practice workbook and review answers for self-check.",
+            "assignment": False,
             "schreiben_sprechen": {
                 "video": "",
                 "workbook_link": "https://drive.google.com/file/d/1ojXvizvJz_qGes7I39pjdhnmlul7xhxB/view?usp=sharing"
@@ -758,6 +764,7 @@ def get_a1_schedule():
             "topic": "Schreiben & Sprechen 2.3",
             "chapter": "2.3",
             "goal": "Learn about family and expressing your hobby",
+            "assignment": False,
             "instruction": "Use self-practice workbook and review answers for self-check.",
             "schreiben_sprechen": {
                 "video": "",
@@ -771,6 +778,7 @@ def get_a1_schedule():
             "chapter": "3",
             "goal": "Know how to ask for a price and also the use of mogen and gern to express your hobby",
             "instruction": "Do schreiben and sprechen 2.3 before this chapter for better understanding",
+            "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/dGIj1GbK4sI",
                 "grammarbook_link": "https://drive.google.com/file/d/1sCE5y8FVctySejSVNm9lrTG3slIucxqY/view?usp=sharing",
@@ -784,6 +792,7 @@ def get_a1_schedule():
             "chapter": "4",
             "goal": "Learn about schon mal and noch nie, irregular verbs and all the personal pronouns",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
+            "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/JfTc1G9mubs",
                 "grammarbook_link": "https://drive.google.com/file/d/1obsYT3dP3qT-i06SjXmqRzCT2pNoJJZp/view?usp=sharing",
@@ -797,6 +806,7 @@ def get_a1_schedule():
             "chapter": "5",
             "goal": "Learn about the German articles and cases",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
+            "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/Yi5ZA-XD-GY?si=nCX_pceEYgAL-FU0",
                 "grammarbook_link": "https://drive.google.com/file/d/17y5fGW8nAbfeVgolV7tEW4BLiLXZDoO6/view?usp=sharing",
@@ -810,6 +820,7 @@ def get_a1_schedule():
             "chapter": "6_2.4",
             "goal": "Understand Possessive Determiners and its usage in connection with nouns",
             "instruction": "The assignment is the lesen and horen chapter 6 but you must also go through schreiben and sprechnen 2.4 for full understanding",
+            "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/SXwDqcwrR3k",
                 "grammarbook_link": "https://drive.google.com/file/d/1Fy4bKhaHHb4ahS2xIumrLtuqdQ0YAFB4/view?usp=sharing",
@@ -827,6 +838,7 @@ def get_a1_schedule():
             "chapter": "7",
             "goal": "Understand the 12 hour clock system",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
+            "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/uyvXoCoqjiE",
                 "grammarbook_link": "https://drive.google.com/file/d/1pSaloRhfh8eTKK_r9mzwp6xkbfdkCVox/view?usp=sharing",
@@ -840,6 +852,7 @@ def get_a1_schedule():
             "chapter": "8",
             "goal": "Understand the 24 hour clock and date system in German",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
+            "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/aWvIHjV3e_I",
                 "grammarbook_link": "",
@@ -1942,6 +1955,30 @@ if tab == "Course Book":
 - Use your correct name and code.
         """
     )
+
+def extract_assignment_chapters(schedule, level):
+    chapters = []
+    for lesson in schedule:
+        # A1: check both top-level and nested
+        if level == "A1":
+            if lesson.get("assignment", False):
+                for ch in str(lesson.get("chapter", "")).split("_"):
+                    chapters.append(ch)
+            for section in ["lesen_hören", "schreiben_sprechen"]:
+                if section in lesson:
+                    content = lesson[section]
+                    if isinstance(content, list):
+                        for sub in content:
+                            if sub.get("assignment", False):
+                                chapters.append(sub.get("chapter", ""))
+        # A2–C1: only top-level "assignment" and "chapter"
+        else:
+            if lesson.get("assignment", False):
+                for ch in str(lesson.get("chapter", "")).split("_"):
+                    chapters.append(ch)
+    return [ch for ch in chapters if ch]
+
+
 
 #MyResults
 if tab == "My Results and Resources":
