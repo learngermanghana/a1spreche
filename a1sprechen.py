@@ -2016,21 +2016,21 @@ def get_next_assignment(level, schedule, completed_chapter_nums):
     return None
 
 def find_missing_assignments(level, schedule, completed_chapter_nums):
-    # Only check A2+ for jumps; for A1, only between actual assignment days
-    lesson_nums = []
+    lesson_map = []
     for lesson in schedule:
         if lesson_is_assignment(level, lesson):
             num = extract_chapter_num(lesson.get("chapter", ""))
             if num is not None:
-                lesson_nums.append(num)
-    # List of missing: between min and max completed, not done by student
+                label = f"{lesson.get('chapter', '')} – {lesson.get('topic', '')}"
+                lesson_map.append((num, label))
     missing = []
     if completed_chapter_nums:
         done = set(completed_chapter_nums)
-        for num in lesson_nums:
+        for num, label in lesson_map:
             if min(completed_chapter_nums) < num < max(completed_chapter_nums) and num not in done:
-                missing.append(num)
-    return sorted(missing)
+                missing.append(label)
+    return missing
+
 
 # ====== TAB LOGIC ======
 if tab == "My Results and Resources":
