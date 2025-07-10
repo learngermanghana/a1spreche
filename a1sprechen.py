@@ -2018,6 +2018,42 @@ def get_pdf_download_link(pdf_bytes, filename="results.pdf"):
     b64 = base64.b64encode(pdf_bytes).decode()
     return f'<a href="data:application/pdf;base64,{b64}" download="{filename}" style="font-size:1.1em;font-weight:600;color:#2563eb;">📥 Click here to download PDF (manual)</a>'
 
+def normalize_chapter(chapter):
+    nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
+    return nums[0] if nums else None
+
+# Set of chapter numbers from student’s completed assignments
+student_chaps = set()
+for a in df_lvl['assignment']:
+    cnum = normalize_chapter(a)
+    if cnum:
+        student_chaps.add(cnum)
+
+# Build a list of (chapter_num_str, full_chapter_label, topic) for assignable lessons
+assignable_chaps = []
+for l in assignable:
+    cnum = normalize_chapter(l.get('chapter', ''))
+    if cnum:
+        assignable_chaps.append((cnum, l.get('chapter', ''), l.get('topic', '')))
+
+# Only flag as "missing" those with chapter_num <= highest completed
+if student_chaps:
+    max_c = max(float(c) for c in student_chaps)
+    expected = [(c, chap, topic) for c, chap, topic in assignable_chaps if float(c) <= max_c]
+else:
+    expected = assignable_chaps
+
+missing = [(chap, topic) for c, chap, topic in expected if c not in student_chaps]
+
+if missing:
+    st.warning(
+        "⏰ **You skipped these assignments!**\n\n"
+        + ", ".join(f"{ch} ({topic})" for ch, topic in missing)
+    )
+else:
+    st.success("✅ No skipped assignments. Keep it up!")
+
+
 
 # ========== MAIN TAB LOGIC ==========
 if tab == "My Results and Resources":
