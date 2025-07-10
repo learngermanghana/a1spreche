@@ -2874,7 +2874,7 @@ if tab == "Exams Mode & Custom Chat":
                 st.markdown(f"🗣️ {user_input}")
 
             # AI response
-            with st.chat_message("assistant", avatar="🧑‍🏫"):
+            with st.chat_message("assistant", avatar="https://i.imgur.com/aypyUjM_d.jpeg?maxwidth=520&shape=thumb&fidelity=high"):
                 with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                     messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
                     try:
