@@ -1974,7 +1974,6 @@ def fetch_scores(csv_url):
         st.stop()
 
 def extract_chapter_num(chapter):
-    # Pull numeric chapter number like 1.1, 2, 10.3 etc.
     nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
     if not nums:
         return None
@@ -1984,21 +1983,17 @@ def is_assignable_lesson(lesson, level):
     topic = (lesson.get('topic') or '').lower()
     instr = (lesson.get('instruction') or '').lower()
     lh = lesson.get('lesen_hören')
-    lh = lh if isinstance(lh, dict) else {}   # Safely force to dict if None or wrong type
-
+    lh = lh if isinstance(lh, dict) else {}
     # A1: skip pure grammar chapters or ones with no workbook link and explicit 'no assignment'
     if level == "A1":
         if (not lh or not lh.get('workbook_link')) or 'no assignment' in instr or 'grammar' in instr:
-            # But if it's a Goethe exam, always count!
             if 'goethe' in topic:
                 return True
             return False
         return True
-    # All other levels: if workbook link is present and not a grammar-only lesson, count it
     if lh and lh.get('workbook_link') and 'grammar' not in instr and 'no assignment' not in instr:
         return True
     return False
-
 
 def score_label(score):
     try:
@@ -2014,47 +2009,6 @@ def score_label(score):
     else:
         return "Needs Improvement ❗"
 
-def get_pdf_download_link(pdf_bytes, filename="results.pdf"):
-    b64 = base64.b64encode(pdf_bytes).decode()
-    return f'<a href="data:application/pdf;base64,{b64}" download="{filename}" style="font-size:1.1em;font-weight:600;color:#2563eb;">📥 Click here to download PDF (manual)</a>'
-
-def normalize_chapter(chapter):
-    nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
-    return nums[0] if nums else None
-
-# Set of chapter numbers from student’s completed assignments
-student_chaps = set()
-for a in df_lvl['assignment']:
-    cnum = normalize_chapter(a)
-    if cnum:
-        student_chaps.add(cnum)
-
-# Build a list of (chapter_num_str, full_chapter_label, topic) for assignable lessons
-assignable_chaps = []
-for l in assignable:
-    cnum = normalize_chapter(l.get('chapter', ''))
-    if cnum:
-        assignable_chaps.append((cnum, l.get('chapter', ''), l.get('topic', '')))
-
-# Only flag as "missing" those with chapter_num <= highest completed
-if student_chaps:
-    max_c = max(float(c) for c in student_chaps)
-    expected = [(c, chap, topic) for c, chap, topic in assignable_chaps if float(c) <= max_c]
-else:
-    expected = assignable_chaps
-
-missing = [(chap, topic) for c, chap, topic in expected if c not in student_chaps]
-
-if missing:
-    st.warning(
-        "⏰ **You skipped these assignments!**\n\n"
-        + ", ".join(f"{ch} ({topic})" for ch, topic in missing)
-    )
-else:
-    st.success("✅ No skipped assignments. Keep it up!")
-
-
-
 # ========== MAIN TAB LOGIC ==========
 if tab == "My Results and Resources":
     st.markdown(
@@ -2069,8 +2023,6 @@ if tab == "My Results and Resources":
     st.divider()
 
     df_scores = fetch_scores(CSV_URL)
-
-    # Filter to current student
     code = st.session_state.get("student_code", "").lower().strip()
     df_user = df_scores[df_scores.student_code.str.lower().str.strip() == code]
     if df_user.empty:
@@ -2099,27 +2051,65 @@ if tab == "My Results and Resources":
     col4.metric("Best Score", best_score)
 
     # --- Skipped/Missing Assignments Detection ---
-    completed_chaps = set()
-    for assignment in df_lvl['assignment']:
-        num = extract_chapter_num(assignment)
-        if num is not None:
-            completed_chaps.add(num)
-    max_done = max(completed_chaps) if completed_chaps else 0
+    # Set of chapter numbers from student’s completed assignments
+    student_chaps = set()
+    for a in df_lvl['assignment']:
+        cnum = extract_chapter_num(a)
+        if cnum is not None:
+            student_chaps.add(cnum)
+    max_c = max(student_chaps) if student_chaps else 0
 
-    # Only flag as missing if it is before/equal to max_done
-    missing = []
-    for lesson in assignable:
-        chap_num = extract_chapter_num(lesson.get("chapter", ""))
-        if chap_num and chap_num <= max_done and chap_num not in completed_chaps:
-            missing.append(f"{lesson.get('chapter', '')} ({lesson.get('topic', '')})")
+    assignable_chaps = []
+    for l in assignable:
+        cnum = extract_chapter_num(l.get('chapter', ''))
+        if cnum is not None:
+            assignable_chaps.append((cnum, l.get('chapter', ''), l.get('topic', '')))
+
+    # Only flag as "missing" those with chapter_num <= highest completed
+    expected = [(c, chap, topic) for c, chap, topic in assignable_chaps if c <= max_c]
+    missing = [(chap, topic) for c, chap, topic in expected if c not in student_chaps]
 
     if missing:
         st.warning(
             "⏰ **You skipped these assignments!**\n\n"
-            + ", ".join(missing)
+            + ", ".join(f"{ch} ({topic})" for ch, topic in missing)
         )
     else:
         st.success("✅ No skipped assignments. Keep it up!")
+
+    st.markdown("---")
+    st.info("🔎 Expand below to see detailed results:")
+
+    with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
+        if 'comments' in df_lvl.columns:
+            df_display = (
+                df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
+                [['assignment', 'score', 'date', 'comments']]
+                .reset_index(drop=True)
+            )
+            for idx, row in df_display.iterrows():
+                perf = score_label(row['score'])
+                st.markdown(
+                    f"""
+                    <div style="margin-bottom: 18px;">
+                    <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span>  
+                    <br>Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span> | Date: {row['date']}<br>
+                    <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
+                    <b>Feedback:</b> {row['comments'] if pd.notnull(row['comments']) and str(row['comments']).strip().lower() != 'nan' else '<i>No feedback</i>'}
+                    </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+                st.divider()
+        else:
+            df_display = (
+                df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
+                [['assignment', 'score', 'date']]
+                .reset_index(drop=True)
+            )
+            st.table(df_display)
+    st.markdown("---")
 
     st.markdown("---")
     st.info("🔎 Expand below to see detailed results:")
