@@ -2122,31 +2122,9 @@ if tab == "My Results and Resources":
     col4.metric("Best Score", best_score)
 
 
-    # ========== DETAILED RESULTS (with comments) ==========
-    st.markdown("---")
-    st.info("🔎 **Scroll down and expand the box below to see your full assignment history and feedback!**")
-
-    # --- Score label function ---
-    def score_label(score):
-        try:
-            score = float(score)
-        except:
-            return ""
-        if score >= 90:
-            return "Excellent 🌟"
-        elif score >= 75:
-            return "Good 👍"
-        elif score >= 60:
-            return "Sufficient ✔️"
-        else:
-            return "Needs Improvement ❗"
+import re
 
 def extract_sort_num(assignment):
-    """
-    Extract the first float or int number from an assignment string.
-    Returns None if nothing found.
-    """
-    import re
     nums = re.findall(r'\d+(?:\.\d+)?', str(assignment))
     if not nums:
         return None
@@ -2154,33 +2132,53 @@ def extract_sort_num(assignment):
         return float(nums[0])
     except Exception:
         return None
+#
+
+def map_assignment_to_day(assignment, schedule):
+    """
+    Tries to match an assignment string (e.g. '0.1', 'A1 1.2', 'B1 1.1') to the day in the schedule.
+    Looks for a matching chapter number anywhere in the assignment string.
+    """
+    assignment = str(assignment).strip()
+    nums = re.findall(r'\d+(?:\.\d+)?', assignment)
+    for lesson in schedule:
+        chap_str = str(lesson.get("chapter", ""))
+        chap_nums = re.findall(r'\d+(?:\.\d+)?', chap_str)
+        # For multi-chapter lessons like "0.2_1.1", match any chapter number
+        for n in nums:
+            if n in chap_nums:
+                return lesson.get("day", "")
+    return ""  # blank if not found
+#
 
 with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
-    # Debug: Always show the filtered DataFrame
-    st.markdown("**DEBUG: Filtered Results**")
-    st.dataframe(df_lvl)
+    # Prepare for display: force all fields to string, fill NAs, etc
+    display_df = df_lvl.copy().fillna("")
+    display_df["assignment"] = display_df["assignment"].astype(str).str.strip()
+    display_df["score"] = display_df["score"].astype(str).str.strip()
+    display_df["date"] = display_df["date"].astype(str).str.strip()
+    # Add the schedule's day, if possible
+    display_df["day"] = display_df["assignment"].apply(lambda x: map_assignment_to_day(x, schedule))
+    display_df["assignment_sort"] = display_df["assignment"].apply(extract_sort_num)
+    # Sort: first by available day (numerically, if possible), then by chapter/assignment number
+    def safe_int(val):
+        try:
+            return int(float(val))
+        except Exception:
+            return 9999
+    display_df["day_sort"] = display_df["day"].apply(lambda x: safe_int(x) if x else 9999)
+    display_df = display_df.sort_values(
+        by=["day_sort", "assignment_sort", "assignment"], ascending=[True, True, True]
+    ).reset_index(drop=True)
 
-    # Treat all assignments as string
-    df_lvl["assignment"] = df_lvl["assignment"].astype(str).str.strip()
-
-    # Helper column: sorting number (if possible)
-    df_lvl["assignment_sort"] = df_lvl["assignment"].apply(extract_sort_num)
-
-    # Sort: by date, then assignment_sort if available, else assignment string
-    df_display = (
-        df_lvl.sort_values(
-            by=['date', 'assignment_sort', 'assignment'],
-            ascending=[True, True, True]
-        ).reset_index(drop=True)
-    )
-
-    # Display all rows, no filtering
-    for idx, row in df_display.iterrows():
+    for idx, row in display_df.iterrows():
         perf = score_label(row['score'])
+        # Show "Day" only if available
+        day_str = f"Day {row['day']} | " if row['day'] else ""
         st.markdown(
             f"""
             <div style="margin-bottom: 18px;">
-            <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span>  
+            <span style="font-size:1.05em;font-weight:600;">{day_str}{row['assignment']}</span>  
             <br>Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span> | Date: {row['date']}<br>
             <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
             <b>Feedback:</b> {row['comments'] if ('comments' in row and pd.notnull(row['comments']) and str(row['comments']).strip().lower() != 'nan') else '<i>No feedback</i>'}
@@ -2190,9 +2188,7 @@ with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expan
             unsafe_allow_html=True
         )
         st.divider()
-
     st.markdown("---")
-
             
     # ========== BADGES & TROPHIES ==========
     st.markdown("### 🏅 Badges & Trophies")
