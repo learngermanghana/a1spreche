@@ -1981,26 +1981,22 @@ def extract_chapter_num(chapter):
     return float(nums[0])
 
 def is_assignable_lesson(lesson, level):
-    """
-    Returns True if this lesson is considered assignable for metrics/missing detection.
-    Handles A1 (skip lessons with only grammar/no workbook link), others all lessons with workbook.
-    """
     topic = (lesson.get('topic') or '').lower()
     instr = (lesson.get('instruction') or '').lower()
     lh = lesson.get('lesen_hören') or {}
     # A1: skip pure grammar chapters or ones with no workbook link and explicit 'no assignment'
     if level == "A1":
-        if (not lh.get('workbook_link')) or 'no assignment' in instr or 'grammar' in instr:
+        if (not lh or not lh.get('workbook_link')) or 'no assignment' in instr or 'grammar' in instr:
             # But if it's a Goethe exam, always count!
             if 'goethe' in topic:
                 return True
             return False
         return True
     # All other levels: if workbook link is present and not a grammar-only lesson, count it
-    if lh.get('workbook_link') and 'grammar' not in instr and 'no assignment' not in instr:
+    if lh and lh.get('workbook_link') and 'grammar' not in instr and 'no assignment' not in instr:
         return True
-    # For B1+ you could extend to count writing assignments, etc.
     return False
+
 
 def score_label(score):
     try:
