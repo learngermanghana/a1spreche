@@ -1953,6 +1953,7 @@ from fpdf import FPDF
 
 # ====== CONFIG & SCHEDULES ======
 CSV_URL = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
+
 LEVEL_SCHEDULES = {
     "A1": get_a1_schedule(),
     "A2": get_a2_schedule(),
@@ -1960,7 +1961,10 @@ LEVEL_SCHEDULES = {
     "B2": get_b2_schedule(),
     "C1": get_c1_schedule(),
 }
-TOTALS = {"A1": 19, "A2": 29, "B1": 29, "B2": 24, "C1": 24}
+TOTALS = {
+    k: sum(1 for l in v if l.get("assignment")) 
+    for k, v in LEVEL_SCHEDULES.items()
+}
 
 # ====== HELPERS ======
 def fetch_scores(csv_url):
@@ -1980,23 +1984,7 @@ def extract_chapter_num(chapter):
     nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
     if not nums:
         return None
-    return float(nums[0])
-
-def is_assignable_lesson(lesson, level):
-    topic = (lesson.get('topic') or '').lower()
-    instr = (lesson.get('instruction') or '').lower()
-    lh = lesson.get('lesen_hören')
-    lh = lh if isinstance(lh, dict) else {}
-    # A1: skip pure grammar chapters or ones with no workbook link and explicit 'no assignment'
-    if level == "A1":
-        if (not lh or not lh.get('workbook_link')) or 'no assignment' in instr or 'grammar' in instr:
-            if 'goethe' in topic:
-                return True
-            return False
-        return True
-    if lh and lh.get('workbook_link') and 'grammar' not in instr and 'no assignment' not in instr:
-        return True
-    return False
+    return nums[0]  # always string for mapping
 
 def score_label(score):
     try:
@@ -2012,8 +2000,22 @@ def score_label(score):
     else:
         return "Needs Improvement ❗"
 
+def get_pdf_download_link(pdf_bytes, filename="results.pdf"):
+    b64 = base64.b64encode(pdf_bytes).decode()
+    return f'<a href="data:application/pdf;base64,{b64}" download="{filename}" style="font-size:1.1em;font-weight:600;color:#2563eb;">📥 Click here to download PDF (manual)</a>'
+
+# ========== MAIN TAB LOGIC ==========
 if tab == "My Results and Resources":
-    # ...your Streamlit markup
+    st.markdown(
+        '''
+        <div style="padding:8px 12px; background:#17a2b8; color:#fff; border-radius:6px;
+                    text-align:center; margin-bottom:8px; font-size:1.3rem;">
+            📊 My Results & Resources
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
+    st.divider()
 
     df_scores = fetch_scores(CSV_URL)
 
@@ -2029,42 +2031,45 @@ if tab == "My Results and Resources":
     level = st.selectbox("Select level:", levels)
     df_lvl = df_user[df_user.level == level]
 
-    # Build assignable
+    # --- Assignment schedule for selected level
     schedule = LEVEL_SCHEDULES.get(level, [])
-    assignable = [l for l in schedule if is_assignable_lesson(l, level)]
-
-    # Metrics
+    assignable = [l for l in schedule if l.get("assignment")]
     total = TOTALS.get(level, len(assignable))
-    completed = df_lvl.assignment.nunique()
+
+    completed_chaps = set()
+    for assignment in df_lvl['assignment']:
+        num = extract_chapter_num(assignment)
+        if num is not None:
+            completed_chaps.add(num)
+    max_done = max([float(n) for n in completed_chaps]) if completed_chaps else 0
+
+    # --- Metrics
+    completed = len([a for a in df_lvl['assignment'] if extract_chapter_num(a) in [extract_chapter_num(l.get('chapter','')) for l in assignable]])
     avg_score = df_lvl.score.mean() or 0
     best_score = df_lvl.score.max() or 0
 
-    # ...metrics columns
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total Assignments", total)
+    col2.metric("Completed", completed)
+    col3.metric("Average Score", f"{avg_score:.1f}")
+    col4.metric("Best Score", best_score)
 
-    # Now do skipped assignments detection
-    student_chaps = set()
-    for a in df_lvl['assignment']:
-        cnum = extract_chapter_num(a)
-        if cnum is not None:
-            student_chaps.add(cnum)
-    max_c = max(student_chaps) if student_chaps else 0
-
-    assignable_chaps = []
-    for l in assignable:
-        cnum = extract_chapter_num(l.get('chapter', ''))
-        if cnum is not None:
-            assignable_chaps.append((cnum, l.get('chapter', ''), l.get('topic', '')))
-
-    expected = [(c, chap, topic) for c, chap, topic in assignable_chaps if c <= max_c]
-    missing = [(chap, topic) for c, chap, topic in expected if c not in student_chaps]
+    # --- Skipped/Missing Assignments Detection ---
+    missing = []
+    for lesson in assignable:
+        chap_num = extract_chapter_num(lesson.get("chapter", ""))
+        # Only show missing if it's not done and it's before or equal to max completed
+        if chap_num and (chap_num not in completed_chaps) and (float(chap_num) <= max_done):
+            missing.append(f"{lesson.get('chapter', '')} ({lesson.get('topic', '')})")
 
     if missing:
         st.warning(
             "⏰ **You skipped these assignments!**\n\n"
-            + ", ".join(f"{ch} ({topic})" for ch, topic in missing)
+            + ", ".join(missing)
         )
     else:
         st.success("✅ No skipped assignments. Keep it up!")
+
     st.markdown("---")
     st.info("🔎 Expand below to see detailed results:")
 
@@ -2099,8 +2104,6 @@ if tab == "My Results and Resources":
             st.table(df_display)
     st.markdown("---")
 
-    st.markdown("---")
-    st.info("🔎 Expand below to see detailed results:")
 
     # --- Detailed Results (with comments) ---
     with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
