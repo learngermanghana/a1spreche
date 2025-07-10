@@ -2212,35 +2212,40 @@ if tab == "My Results and Resources":
 
     # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
     def extract_chapter_num(chapter):
-        # Extract numbers like '1.3' or '3' from any string
         nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
         if not nums:
             return None
-        # Take the highest number (handles cases like '1.3_1.4')
         return max(float(n) for n in nums)
-
-    # Get chapter numbers completed by the student
-    completed_chapters = []
-    for assignment in df_lvl['assignment']:
-        num = extract_chapter_num(assignment)
+    
+    # Collect all (day, chapter_num) tuples completed by the student
+    completed_assignments = set()
+    for _, row in df_lvl.iterrows():
+        num = extract_chapter_num(row['assignment'])
+        # Optional: You can also try to extract day from the student's input if you want, 
+        # but using just chapter number usually works.
         if num is not None:
-            completed_chapters.append(num)
-    last_num = max(completed_chapters) if completed_chapters else 0
+            completed_assignments.add(num)  # Just chapter_num, or use (row['day'], num) if both available
+
+    last_num = max(completed_assignments) if completed_assignments else 0
 
     schedule = LEVEL_SCHEDULES.get(level, [])
+
     # === SKIPPED ASSIGNMENTS CHECK ===
-    student_chapter_nums = set(completed_chapters)
     skipped_assignments = []
     for lesson in schedule:
         chap_num = extract_chapter_num(lesson.get("chapter", ""))
+        day = lesson.get("day", "")
         has_assignment = lesson.get("assignment", False)
         if (
             has_assignment
             and chap_num is not None
             and chap_num < last_num
-            and chap_num not in student_chapter_nums
+            and chap_num not in completed_assignments
         ):
-            skipped_assignments.append(f"Day {lesson['day']}: {lesson['chapter']} – {lesson['topic']}")
+            skipped_assignments.append(
+                f"Day {day}: Chapter {lesson['chapter']} – {lesson['topic']}"
+            )
+
     if skipped_assignments:
         st.markdown(
             f"""
@@ -2270,7 +2275,7 @@ if tab == "My Results and Resources":
     if next_assignment:
         st.success(
             f"**Your next recommended assignment:**\n\n"
-            f"**Day {next_assignment['day']}: {next_assignment['chapter']} – {next_assignment['topic']}**\n\n"
+            f"**Day {next_assignment.get('day','')}: {next_assignment.get('chapter','')} – {next_assignment.get('topic','')}**\n\n"
             f"**Goal:** {next_assignment.get('goal','')}\n\n"
             f"**Instruction:** {next_assignment.get('instruction','')}"
         )
