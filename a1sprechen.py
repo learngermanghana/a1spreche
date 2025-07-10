@@ -2074,22 +2074,30 @@ if tab == "My Results and Resources":
     col4.metric("Best Score", best_score)
 
     # --- Skipped/Missing Assignments Detection ---
-    completed_chaps = set()
+    # Build set of completed assignment chapter numbers (as strings, for precise matching)
+    completed_chapstr = set()
     for assignment in df_lvl['assignment']:
         num = extract_chapter_num(assignment)
         if num is not None:
-            completed_chaps.add(num)
-    max_done = max(completed_chaps) if completed_chaps else 0
+            # Store both the float and the actual string
+            completed_chapstr.add(str(num))
+            # You could also store the actual assignment string (e.g., '1.1', '3.8') if needed
 
-    missing = []
+    # Get all assignable lessons with their chapter number and label
+    assignable_chaps = []
+    max_done = max([extract_chapter_num(a) for a in df_lvl['assignment'] if extract_chapter_num(a) is not None], default=0)
     for lesson in assignable:
-        chap_num = extract_chapter_num(lesson.get("chapter", ""))
-        if chap_num and chap_num <= max_done and chap_num not in completed_chaps:
-            missing.append((lesson.get('chapter', ''), lesson.get('topic', '')))
-    if missing:
+        chap_str = lesson.get('chapter', '').strip()
+        chap_num = extract_chapter_num(chap_str)
+        if chap_num and chap_num <= max_done:
+            # This assignment is expected to be done
+            if str(chap_num) not in completed_chapstr:
+                assignable_chaps.append((chap_str, lesson.get('topic', '')))
+
+    if assignable_chaps:
         st.warning(
             "⏰ **You skipped these assignments!**\n\n"
-            + ", ".join(f"{ch} ({topic})" for ch, topic in missing)
+            + ", ".join(f"{ch} ({topic})" for ch, topic in assignable_chaps)
         )
     else:
         st.success("✅ No skipped assignments. Keep it up!")
@@ -2161,19 +2169,40 @@ if tab == "My Results and Resources":
     if badge_count == 0:
         st.warning("No badges yet. Complete more assignments to earn badges!")
 
-    # ======== NEXT ASSIGNMENT RECOMMENDATION ========
-    next_assignment = get_next_assignment(assignable, max_done)
-    if next_assignment and not missing:
+    
+    # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
+    def extract_chapter_num(chapter):
+        # Prefer numbers like '1.3', but if just '3' or '10' that's fine too.
+        nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
+        if not nums:
+            return None
+        # Find highest numeric value in the chapter string (handles both '1.3' and '3')
+        return max(float(n) for n in nums)
+
+    completed_chapters = []
+    for assignment in df_lvl['assignment']:
+        num = extract_chapter_num(assignment)
+        if num is not None:
+            completed_chapters.append(num)
+    last_num = max(completed_chapters) if completed_chapters else 0
+
+    schedule = LEVEL_SCHEDULES.get(level, [])
+    next_assignment = None
+    for lesson in schedule:
+        chap_num = extract_chapter_num(lesson.get("chapter", ""))
+        if chap_num and chap_num > last_num:
+            next_assignment = lesson
+            break
+    if next_assignment:
         st.success(
             f"**Your next recommended assignment:**\n\n"
             f"**Day {next_assignment['day']}: {next_assignment['chapter']} – {next_assignment['topic']}**\n\n"
             f"**Goal:** {next_assignment.get('goal','')}\n\n"
             f"**Instruction:** {next_assignment.get('instruction','')}"
         )
-    elif missing:
-        st.info("Complete your skipped assignments above before moving on.")
     else:
-        st.info("🎉 Great Job! All assignments completed.")
+        st.info("🎉 Great Job!")
+
 
     # ======= PDF DOWNLOAD =======
     if st.button("⬇️ Download PDF Summary"):
