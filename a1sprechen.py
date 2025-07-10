@@ -2140,14 +2140,20 @@ if tab == "My Results and Resources":
             return "Sufficient ✔️"
         else:
             return "Needs Improvement ❗"
-
+            
     with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
-        if 'comments' in df_lvl.columns:
-            df_display = (
-                df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
-                [['assignment', 'score', 'date', 'comments']]
-                .reset_index(drop=True)
-            )
+        import re
+        def extract_chapter_num(assignment):
+            nums = re.findall(r'\d+(?:\.\d+)?', str(assignment))
+            if not nums:
+                return float('inf')  # Place empty/unmatched at end
+            return float(nums[0])   # Use the FIRST number for sorting
+
+        df_display = df_lvl.copy()
+        df_display['chapter_num'] = df_display['assignment'].apply(extract_chapter_num)
+        df_display = df_display.sort_values(['chapter_num', 'score'], ascending=[True, False])
+
+        if 'comments' in df_display.columns:
             for idx, row in df_display.iterrows():
                 perf = score_label(row['score'])
                 st.markdown(
@@ -2164,14 +2170,8 @@ if tab == "My Results and Resources":
                 )
                 st.divider()
         else:
-            df_display = (
-                df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
-                [['assignment', 'score', 'date']]
-                .reset_index(drop=True)
-            )
-            st.table(df_display)
-    st.markdown("---") 
-
+            st.table(df_display[['assignment', 'score', 'date']])
+        st.markdown("---")
 
     # ========== BADGES & TROPHIES ==========
     st.markdown("### 🏅 Badges & Trophies")
