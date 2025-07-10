@@ -1987,23 +1987,18 @@ def extract_chapter_num(chapter):
 def has_lesson_assignment(lesson, level):
     # For A1: Only include lessons with 'lesen_hören' assignments, ignore grammar-only or practical-only
     if level == "A1":
-        lesen = lesson.get('lesen_hören', {})
+        lesen = lesson.get('lesen_hören') or {}
         # No assignment if no 'lesen_hören' or explicitly "no assignment"
-        if not lesen:
+        if not lesen.get('workbook_link') and 'no assignment' in lesson.get('instruction', '').lower():
             return False
-        if (
-            not lesen.get('workbook_link') and
-            'no assignment' in lesson.get('instruction', '').lower()
-        ):
-            return False
-        return True
+        return bool(lesen.get('workbook_link'))
     # A2–C1: Any lesson with a workbook or explicit assignment counts
-    lesen = lesson.get('lesen_hören', {})
-    sprechen = lesson.get('schreiben_sprechen', {})
+    lesen = lesson.get('lesen_hören') or {}
+    sprechen = lesson.get('schreiben_sprechen') or {}
     return (
-        (lesen and lesen.get('workbook_link')) or
-        (sprechen and sprechen.get('workbook_link')) or
-        lesson.get('assignment')
+        bool(lesen.get('workbook_link')) or
+        bool(sprechen.get('workbook_link')) or
+        bool(lesson.get('assignment'))
     )
 
 
