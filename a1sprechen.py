@@ -1942,221 +1942,119 @@ if tab == "Course Book":
 - Use your correct name and code.
         """
     )
-
 import streamlit as st
 import requests, io, pandas as pd, re, base64
 from fpdf import FPDF
 
-# ==== CONSTANTS AND HELPERS ====
+# ====== CONSTANTS AND CACHED SCHEDULES ======
 CSV_URL = (
-    "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/"
+    "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSHzfW_J_7W36NQ/"
     "gviz/tq?tqx=out:csv"
 )
 
-LEVEL_SCHEDULES = {
-    "A1": get_a1_schedule(),
-    "A2": get_a2_schedule(),
-    "B1": get_b1_schedule(),
-    "B2": get_b2_schedule(),
-    "C1": get_c1_schedule(),
-}
+@st.cache_data
+def load_level_schedules():
+    return {
+        "A1": get_a1_schedule(),
+        "A2": get_a2_schedule(),
+        "B1": get_b1_schedule(),
+        "B2": get_b2_schedule(),
+        "C1": get_c1_schedule(),
+    }
 
-def fetch_scores(csv_url):
+LEVEL_SCHEDULES = load_level_schedules()
+
+@st.cache_data
+def fetch_scores(csv_url: str) -> pd.DataFrame:
     response = requests.get(csv_url, timeout=7)
     response.raise_for_status()
     df = pd.read_csv(io.StringIO(response.text), engine="python")
-    df.columns = [col.strip().lower().replace('studentcode', 'student_code') for col in df.columns]
-    required_cols = ["student_code", "name", "assignment", "score", "date", "level"]
-    df = df.dropna(subset=required_cols)
-    return df
+    df.columns = [col.strip().lower().replace('studentcode','student_code') for col in df.columns]
+    required = ["student_code","name","assignment","score","date","level"]
+    return df.dropna(subset=required)
 
-def get_pdf_download_link(pdf_bytes, filename="results.pdf"):
-    b64 = base64.b64encode(pdf_bytes).decode()
-    return f'<a href="data:application/pdf;base64,{b64}" download="{filename}" style="font-size:1.1em;font-weight:600;color:#2563eb;">📥 Click here to download PDF (manual)</a>'
+def extract_chapter_num(chapter: str) -> float | None:
+    nums = re.findall(r"\d+(?:\.\d+)?", str(chapter))
+    return max((float(n) for n in nums), default=None)
 
-def extract_chapter_num(chapter):
-    nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
-    if not nums:
-        return None
-    return max(float(n) for n in nums)
+def has_lesson_assignment(lesson: dict, level: str) -> bool:
+    lh = lesson.get('lesen_hören') or {}
+    ss = lesson.get('schreiben_sprechen') or {}
+    instr = str(lesson.get('instruction','')).lower()
+    if level == 'A1':
+        return bool(lh.get('workbook_link')) and 'grammar' not in instr
+    return bool(lh.get('workbook_link')) or bool(ss.get('workbook_link'))
 
-def has_lesson_assignment(lesson, level):
-    lesen = lesson.get('lesen_hören') or {}
-    sprechen = lesson.get('schreiben_sprechen') or {}
-    instruction = str(lesson.get('instruction', '')).lower()
-    # For A1, only lessons with workbook_link in lesen_hören and not grammar-only
-    if level == "A1":
-        return bool(lesen.get('workbook_link')) and 'no assignment' not in instruction and 'grammar' not in instruction
-    # For others, any workbook_link or assignment field counts
-    return bool(lesen.get('workbook_link')) or bool(sprechen.get('workbook_link')) or bool(lesson.get('assignment'))
-
-def score_label(score):
+def score_label(score) -> str:
     try:
-        score = float(score)
+        s = float(score)
     except:
-        return ""
-    if score >= 90:
-        return "Excellent 🌟"
-    elif score >= 75:
-        return "Good 👍"
-    elif score >= 60:
-        return "Sufficient ✔️"
-    else:
-        return "Needs Improvement ❗"
+        return ''
+    if s>=90: return 'Excellent 🌟'
+    if s>=75: return 'Good 👍'
+    if s>=60: return 'Sufficient ✔️'
+    return 'Needs Improvement ❗'
 
-# ==== TAB LOGIC ====
 if tab == "My Results and Resources":
     st.markdown(
-        '''
-        <div style="padding:8px 12px; background:#17a2b8; color:#fff; border-radius:6px;
-                    text-align:center; margin-bottom:8px; font-size:1.3rem;">
-            📊 My Results & Resources
-        </div>
-        ''',
-        unsafe_allow_html=True
-    )
+        '<div style="padding:8px; background:#17a2b8; color:#fff; border-radius:6px; text-align:center; margin-bottom:8px; font-size:1.3rem;">'
+        '📊 My Results & Resources'</div>', unsafe_allow_html=True)
     st.divider()
 
     df_scores = fetch_scores(CSV_URL)
-
-    # Filter to current student
-    code = st.session_state.get("student_code", "").lower().strip()
-    df_user = df_scores[df_scores.student_code.str.lower().str.strip() == code]
+    code = st.session_state.get('student_code','').strip().lower()
+    df_user = df_scores[df_scores.student_code.str.lower().str.strip()==code]
     if df_user.empty:
         st.info("No results yet. Complete an assignment to see your scores!")
         st.stop()
     df_user = df_user.copy()
-    df_user['level'] = df_user['level'].str.upper().str.strip()
-    levels = sorted(df_user['level'].unique())
+    df_user['level'] = df_user.level.str.upper().str.strip()
+
+    levels = sorted(df_user.level.unique())
     level = st.selectbox("Select level:", levels)
-    df_lvl = df_user[df_user.level == level]
+    df_lvl = df_user[df_user.level==level]
 
     schedule = LEVEL_SCHEDULES.get(level, [])
-    assignable_lessons = [l for l in schedule if has_lesson_assignment(l, level)]
+    assignable = [l for l in schedule if has_lesson_assignment(l, level)]
+    chap_nums = sorted(filter(None, (extract_chapter_num(l.get('chapter','')) for l in assignable)))
 
-    # --- METRICS ---
-    total = len(assignable_lessons)
+    total = len(assignable)
     completed = df_lvl.assignment.nunique()
     avg_score = df_lvl.score.mean() or 0
     best_score = df_lvl.score.max() or 0
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Assignments", total)
-    col2.metric("Completed", completed)
-    col3.metric("Average Score", f"{avg_score:.1f}")
-    col4.metric("Best Score", best_score)
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Total Assignments", total)
+    c2.metric("Completed", completed)
+    c3.metric("Average Score", f"{avg_score:.1f}")
+    c4.metric("Best Score", f"{best_score:.1f}")
 
-    # --- Skipped Assignment Detection ---
-    completed_chapter_nums = set()
-    assignment_to_chapter = {}
-    for assignment in df_lvl['assignment']:
-        num = extract_chapter_num(assignment)
-        if num is not None:
-            completed_chapter_nums.add(num)
-            assignment_to_chapter[num] = assignment  # Track for display
-
-    # Only check for missing assignments less than max completed
-    max_completed = max(completed_chapter_nums) if completed_chapter_nums else 0
-    skipped = []
-    for lesson in assignable_lessons:
-        chap_num = extract_chapter_num(lesson.get("chapter", ""))
-        if chap_num and chap_num < max_completed and chap_num not in completed_chapter_nums:
-            skipped.append((chap_num, lesson.get("chapter", ""), lesson.get("topic", "")))
-
-    if skipped:
-        st.warning(
-            "⚠️ **You skipped some assignments!** Please complete these chapters to stay on track:<br>"
-            + "<br>".join(f"<b>{ch_name}</b> – {topic}" for _, ch_name, topic in skipped),
-            icon="⚠️",
-            unsafe_allow_html=True,
-        )
+    completed_nums = sorted(filter(None, (extract_chapter_num(a) for a in df_lvl.assignment)))
+    last_done = max(completed_nums, default=0)
+    missing = [n for n in chap_nums if n<last_done and n not in completed_nums]
+    if missing:
+        st.warning(f"🚩 You have missing assignments: {', '.join(map(str,missing))}")
     else:
         st.success("✅ No skipped assignments. Keep it up!")
 
     st.markdown("---")
-    st.info("🔎 **Scroll down and expand the box below to see your full assignment history and feedback!**")
+    st.info("🔎 Expand below to see detailed results:")
+    with st.expander("📋 SEE DETAILED RESULTS", expanded=False):
+        cols = ['assignment','score','date'] + (['comments'] if 'comments' in df_lvl else [])
+        df_display = df_lvl[cols].sort_values(['assignment','score'], ascending=[True,False]).reset_index(drop=True)
+        st.table(df_display)
 
-    # --- Results Display ---
-    with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
-        if 'comments' in df_lvl.columns:
-            df_display = (
-                df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
-                [['assignment', 'score', 'date', 'comments']]
-                .reset_index(drop=True)
-            )
-            for idx, row in df_display.iterrows():
-                perf = score_label(row['score'])
-                st.markdown(
-                    f"""
-                    <div style="margin-bottom: 18px;">
-                    <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span>  
-                    <br>Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span> | Date: {row['date']}<br>
-                    <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
-                    <b>Feedback:</b> {row['comments'] if pd.notnull(row['comments']) and str(row['comments']).strip().lower() != 'nan' else '<i>No feedback</i>'}
-                    </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-                st.divider()
-        else:
-            df_display = (
-                df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
-                [['assignment', 'score', 'date']]
-                .reset_index(drop=True)
-            )
-            st.table(df_display)
     st.markdown("---")
-
-    # --- Badges & Trophies ---
-    st.markdown("### 🏅 Badges & Trophies")
-    with st.expander("What badges can you earn?", expanded=False):
-        st.markdown(
-            """
-            - 🏆 **Completion Trophy**: Finish all assignments for your level.
-            - 🥇 **Gold Badge**: Maintain an average score above 80.
-            - 🥈 **Silver Badge**: Average score above 70.
-            - 🥉 **Bronze Badge**: Average score above 60.
-            - 🌟 **Star Performer**: Score 85 or higher on any assignment.
-            """
-        )
-
-    badge_count = 0
-    if completed >= total and total > 0:
-        st.success("🏆 **Congratulations!** You have completed all assignments for this level!")
-        badge_count += 1
-    if avg_score >= 90:
-        st.info("🥇 **Gold Badge:** Average score above 90!")
-        badge_count += 1
-    elif avg_score >= 75:
-        st.info("🥈 **Silver Badge:** Average score above 75!")
-        badge_count += 1
-    elif avg_score >= 60:
-        st.info("🥉 **Bronze Badge:** Average score above 60!")
-        badge_count += 1
-    if best_score >= 95:
-        st.info("🌟 **Star Performer:** You scored 95 or above on an assignment!")
-        badge_count += 1
-    if badge_count == 0:
-        st.warning("No badges yet. Complete more assignments to earn badges!")
-
-    # --- Next Assignment Recommendation ---
-    next_assignment = None
-    for lesson in assignable_lessons:
-        chap_num = extract_chapter_num(lesson.get("chapter", ""))
-        if chap_num and chap_num > max_completed and chap_num not in completed_chapter_nums:
-            next_assignment = lesson
-            break
-
-    if next_assignment:
-        st.success(
-            f"**Your next recommended assignment:**\n\n"
-            f"**Day {next_assignment['day']}: {next_assignment['chapter']} – {next_assignment['topic']}**\n\n"
-            f"**Goal:** {next_assignment.get('goal','')}\n\n"
-            f"**Instruction:** {next_assignment.get('instruction','')}"
-        )
+    next_lesson = None
+    if not missing:
+        for l in assignable:
+            num = extract_chapter_num(l.get('chapter',''))
+            if num and num>last_done:
+                next_lesson = l; break
+    if next_lesson:
+        st.success(f"Next recommended: Day {next_lesson['day']}: {next_lesson['chapter']} – {next_lesson['topic']}")
     else:
-        st.info("🎉 Great Job! All assignments completed.")
+        st.info("🎉 All assignments completed!")
 
     # --- PDF Download ---
     if st.button("⬇️ Download PDF Summary"):
