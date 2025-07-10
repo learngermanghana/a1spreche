@@ -1985,23 +1985,27 @@ def extract_chapter_num(chapter):
     return max(float(n) for n in nums)
 
 def has_lesson_assignment(lesson, level):
-    # A1: Only consider lessons with 'lesen_hören' (ignore grammar-only or practical)
+    # For A1: Only include lessons with 'lesen_hören' assignments, ignore grammar-only or practical-only
     if level == "A1":
-        if not lesson.get('lesen_hören'):
+        lesen = lesson.get('lesen_hören', {})
+        # No assignment if no 'lesen_hören' or explicitly "no assignment"
+        if not lesen:
             return False
-        # skip if workbook_link is blank and instruction says 'no assignment'
         if (
-            not lesson['lesen_hören'].get('workbook_link')
-            and 'no assignment' in lesson.get('instruction', '').lower()
+            not lesen.get('workbook_link') and
+            'no assignment' in lesson.get('instruction', '').lower()
         ):
             return False
         return True
-    # A2–C1: Any lesson with a workbook or assignment counts
+    # A2–C1: Any lesson with a workbook or explicit assignment counts
+    lesen = lesson.get('lesen_hören', {})
+    sprechen = lesson.get('schreiben_sprechen', {})
     return (
-        lesson.get('lesen_hören', {}).get('workbook_link')
-        or lesson.get('schreiben_sprechen', {}).get('workbook_link')
-        or lesson.get('assignment')
+        (lesen and lesen.get('workbook_link')) or
+        (sprechen and sprechen.get('workbook_link')) or
+        lesson.get('assignment')
     )
+
 
 def score_label(score):
     try:
