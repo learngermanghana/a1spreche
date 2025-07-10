@@ -2143,35 +2143,43 @@ if tab == "My Results and Resources":
             
     with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
         import re
+
         def extract_chapter_num(assignment):
-            nums = re.findall(r'\d+(?:\.\d+)?', str(assignment))
-            if not nums:
-                return float('inf')  # Place empty/unmatched at end
-            return float(nums[0])   # Use the FIRST number for sorting
+            # Assignment could be 'A1 4', '0.1', '4', etc.
+            if pd.isnull(assignment):
+                return float('inf')
+            # Get the first number group, could be '0.1', '4', etc.
+            match = re.search(r'(\d+(?:\.\d+)?)', str(assignment))
+            if match:
+                return float(match.group(1))
+            return float('inf')  # If no number, put at end
 
         df_display = df_lvl.copy()
         df_display['chapter_num'] = df_display['assignment'].apply(extract_chapter_num)
         df_display = df_display.sort_values(['chapter_num', 'score'], ascending=[True, False])
 
+        show_cols = ['assignment', 'score', 'date']
         if 'comments' in df_display.columns:
-            for idx, row in df_display.iterrows():
-                perf = score_label(row['score'])
-                st.markdown(
-                    f"""
-                    <div style="margin-bottom: 18px;">
-                    <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span>  
-                    <br>Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span> | Date: {row['date']}<br>
-                    <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
-                    <b>Feedback:</b> {row['comments'] if pd.notnull(row['comments']) and str(row['comments']).strip().lower() != 'nan' else '<i>No feedback</i>'}
-                    </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-                st.divider()
-        else:
-            st.table(df_display[['assignment', 'score', 'date']])
+            show_cols.append('comments')
+
+        # Always show ALL rows
+        for idx, row in df_display.iterrows():
+            perf = score_label(row['score'])
+            st.markdown(
+                f"""
+                <div style="margin-bottom: 18px;">
+                <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span>  
+                <br>Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span> | Date: {row['date']}<br>
+                <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
+                <b>Feedback:</b> {row['comments'] if 'comments' in row and pd.notnull(row['comments']) and str(row['comments']).strip().lower() != 'nan' else '<i>No feedback</i>'}
+                </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            st.divider()
         st.markdown("---")
+
 
     # ========== BADGES & TROPHIES ==========
     st.markdown("### 🏅 Badges & Trophies")
