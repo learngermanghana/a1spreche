@@ -1983,7 +1983,9 @@ def extract_chapter_num(chapter):
 def is_assignable_lesson(lesson, level):
     topic = (lesson.get('topic') or '').lower()
     instr = (lesson.get('instruction') or '').lower()
-    lh = lesson.get('lesen_hören') or {}
+    lh = lesson.get('lesen_hören')
+    lh = lh if isinstance(lh, dict) else {}   # Safely force to dict if None or wrong type
+
     # A1: skip pure grammar chapters or ones with no workbook link and explicit 'no assignment'
     if level == "A1":
         if (not lh or not lh.get('workbook_link')) or 'no assignment' in instr or 'grammar' in instr:
