@@ -1952,6 +1952,7 @@ CSV_URL = (
     "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/"
     "gviz/tq?tqx=out:csv"
 )
+
 LEVEL_SCHEDULES = {
     "A1": get_a1_schedule(),
     "A2": get_a2_schedule(),
@@ -1983,18 +1984,24 @@ def extract_chapter_num(chapter):
         return None
     return max(float(n) for n in nums)
 
-def lesson_label(lesson):
-    # Show: e.g.  "2.4 – Beschreiben"
-    ch = lesson.get("chapter", "")
-    topic = lesson.get("topic", "")
-    return f"{ch} – {topic}" if ch and topic else ch or topic or "Untitled"
-
 def has_lesson_assignment(lesson, level):
-    # A1: Only lessons with 'lesen_hören'
+    # A1: Only consider lessons with 'lesen_hören' (ignore grammar-only or practical)
     if level == "A1":
-        return bool(lesson.get('lesen_hören'))
-    # All other levels: any "assignment" (or core content) counts
-    return bool(lesson.get('lesen_hören') or lesson.get('schreiben_sprechen') or lesson.get('assignment'))
+        if not lesson.get('lesen_hören'):
+            return False
+        # skip if workbook_link is blank and instruction says 'no assignment'
+        if (
+            not lesson['lesen_hören'].get('workbook_link')
+            and 'no assignment' in lesson.get('instruction', '').lower()
+        ):
+            return False
+        return True
+    # A2–C1: Any lesson with a workbook or assignment counts
+    return (
+        lesson.get('lesen_hören', {}).get('workbook_link')
+        or lesson.get('schreiben_sprechen', {}).get('workbook_link')
+        or lesson.get('assignment')
+    )
 
 def score_label(score):
     try:
@@ -2010,16 +2017,6 @@ def score_label(score):
     else:
         return "Needs Improvement ❗"
 
-def get_next_assignment(level, schedule, completed_chapters):
-    for lesson in schedule:
-        chap_num = extract_chapter_num(lesson.get("chapter", ""))
-        if chap_num and chap_num > completed_chapters:
-            # For A1: only recommend if it has lesen_hören
-            if level == "A1" and not lesson.get("lesen_hören"):
-                continue
-            return lesson
-    return None
-
 # ====== TAB LOGIC ======
 if tab == "My Results and Resources":
     st.markdown(
@@ -2032,12 +2029,6 @@ if tab == "My Results and Resources":
         unsafe_allow_html=True
     )
     st.divider()
-
-    # ========== REFRESH BUTTON ==========
-    if st.button("🔄 Refresh for your latest results"):
-        st.cache_data.clear()
-        st.success("Cache cleared! Reloading…")
-        st.rerun()
 
     df_scores = fetch_scores(CSV_URL)
 
@@ -2054,23 +2045,11 @@ if tab == "My Results and Resources":
     df_lvl = df_user[df_user.level == level]
 
     schedule = LEVEL_SCHEDULES.get(level, [])
-    total = len([l for l in schedule if has_lesson_assignment(l, level)])
+    # Only include lessons with assignments
+    assignable_lessons = [l for l in schedule if has_lesson_assignment(l, level)]
+    total = len(assignable_lessons)
 
-    completed_assignments = set()
-    for assignment in df_lvl['assignment']:
-        num = extract_chapter_num(assignment)
-        if num is not None:
-            completed_assignments.add(num)
-
-    # ======= Detect skipped assignments =======
-    skipped_lessons = []
-    for lesson in schedule:
-        if has_lesson_assignment(lesson, level):
-            chap_num = extract_chapter_num(lesson.get("chapter", ""))
-            if chap_num is not None and chap_num not in completed_assignments:
-                skipped_lessons.append(lesson)
-
-    completed = len(completed_assignments)
+    completed = df_lvl.assignment.nunique()
     avg_score = df_lvl.score.mean() or 0
     best_score = df_lvl.score.max() or 0
 
@@ -2080,14 +2059,59 @@ if tab == "My Results and Resources":
     col3.metric("Average Score", f"{avg_score:.1f}")
     col4.metric("Best Score", best_score)
 
-    if skipped_lessons:
+    # ======= CHECK FOR SKIPPED ASSIGNMENTS =======
+    # --- Find completed chapter numbers (and their names) ---
+    completed_chapters = set()
+    assignment_chapter_map = {}  # {chapter_num: assignment_name}
+    for assignment in df_lvl['assignment']:
+        num = extract_chapter_num(assignment)
+        if num is not None:
+            completed_chapters.add(num)
+            assignment_chapter_map[num] = assignment  # may overwrite, but fine
+
+    max_completed = max(completed_chapters) if completed_chapters else 0
+
+    # --- Find all scheduled assignments up to max_completed ---
+    expected_chapters = []
+    chapter_to_lesson = {}
+    for lesson in assignable_lessons:
+        chap_num = extract_chapter_num(lesson.get("chapter", ""))
+        if chap_num is not None and chap_num <= max_completed:
+            expected_chapters.append(chap_num)
+            chapter_to_lesson[chap_num] = lesson
+
+    # --- Detect missing ones ---
+    missing_chapters = sorted(set(expected_chapters) - completed_chapters)
+
+    if missing_chapters:
         st.warning(
-            "⚠️ **You have skipped these assignments:**\n\n" +
-            "\n".join(f"- **{lesson_label(lesson)}**" for lesson in skipped_lessons)
+            "⚠️ **You have missed/skipped some assignments!**\n\n"
+            "Please complete these before moving on:\n\n"
+            + "\n".join(
+                f"- {chapter_to_lesson[num]['chapter']} ({chapter_to_lesson[num]['topic']})"
+                for num in missing_chapters
+            )
         )
     else:
-        st.info("✅ No skipped assignments. Keep it up!")
+        # Recommend next assignment, skip practical-only for A1
+        next_lesson = None
+        for lesson in assignable_lessons:
+            chap_num = extract_chapter_num(lesson.get("chapter", ""))
+            if chap_num and chap_num > max_completed:
+                next_lesson = lesson
+                break
 
+        if next_lesson:
+            st.success(
+                f"**Your next recommended assignment:**\n\n"
+                f"**Day {next_lesson['day']}: {next_lesson['chapter']} – {next_lesson['topic']}**\n\n"
+                f"**Goal:** {next_lesson.get('goal','')}\n\n"
+                f"**Instruction:** {next_lesson.get('instruction','')}"
+            )
+        else:
+            st.info("🎉 Great Job! All assignments completed.")
+
+    # ====== DETAILED RESULTS ======
     st.markdown("---")
     st.info("🔎 **Scroll down and expand the box below to see your full assignment history and feedback!**")
 
@@ -2153,19 +2177,6 @@ if tab == "My Results and Resources":
         badge_count += 1
     if badge_count == 0:
         st.warning("No badges yet. Complete more assignments to earn badges!")
-
-    # ======== NEXT ASSIGNMENT RECOMMENDATION ========
-    max_completed = max(completed_assignments) if completed_assignments else 0
-    next_lesson = get_next_assignment(level, schedule, max_completed)
-    if next_lesson:
-        st.success(
-            f"**Your next recommended assignment:**\n\n"
-            f"**Day {next_lesson.get('day','?')}: {lesson_label(next_lesson)}**\n\n"
-            f"**Goal:** {next_lesson.get('goal','')}\n\n"
-            f"**Instruction:** {next_lesson.get('instruction','')}"
-        )
-    else:
-        st.info("🎉 Great Job! All assignments completed.")
 
     # ======= PDF DOWNLOAD =======
     if st.button("⬇️ Download PDF Summary"):
