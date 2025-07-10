@@ -236,19 +236,34 @@ def get_student_stats(student_code):
 
 def get_falowen_usage(student_code):
     today_str = str(date.today())
-    key = f"{student_code}_falowen_{today_str}"
-    if "falowen_usage" not in st.session_state:
-        st.session_state["falowen_usage"] = {}
-    st.session_state["falowen_usage"].setdefault(key, 0)
-    return st.session_state["falowen_usage"][key]
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS falowen_usage (student_code TEXT, date TEXT, usage INTEGER, PRIMARY KEY (student_code, date))"
+    )
+    c.execute(
+        "SELECT usage FROM falowen_usage WHERE student_code=? AND date=?",
+        (student_code, today_str)
+    )
+    row = c.fetchone()
+    conn.commit()
+    return row[0] if row else 0
 
 def inc_falowen_usage(student_code):
     today_str = str(date.today())
-    key = f"{student_code}_falowen_{today_str}"
-    if "falowen_usage" not in st.session_state:
-        st.session_state["falowen_usage"] = {}
-    st.session_state["falowen_usage"].setdefault(key, 0)
-    st.session_state["falowen_usage"][key] += 1
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS falowen_usage (student_code TEXT, date TEXT, usage INTEGER, PRIMARY KEY (student_code, date))"
+    )
+    # Try to update; if not exists, insert
+    c.execute(
+        "INSERT INTO falowen_usage (student_code, date, usage) VALUES (?, ?, 1) "
+        "ON CONFLICT(student_code, date) DO UPDATE SET usage = usage + 1",
+        (student_code, today_str)
+    )
+    conn.commit()
+
 
 def has_falowen_quota(student_code):
     return get_falowen_usage(student_code) < FALOWEN_DAILY_LIMIT
