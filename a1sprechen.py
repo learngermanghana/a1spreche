@@ -1942,13 +1942,14 @@ if tab == "Course Book":
 - Use your correct name and code.
         """
     )
+
 import streamlit as st
 import requests, io, pandas as pd, re, base64
 from fpdf import FPDF
 
 # ====== CONSTANTS AND CACHED SCHEDULES ======
 CSV_URL = (
-    "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSHzfW_J_7W36NQ/"
+    "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/"
     "gviz/tq?tqx=out:csv"
 )
 
@@ -1996,9 +1997,16 @@ def score_label(score) -> str:
     return 'Needs Improvement ❗'
 
 if tab == "My Results and Resources":
+    # Header
     st.markdown(
-        '<div style="padding:8px; background:#17a2b8; color:#fff; border-radius:6px; text-align:center; margin-bottom:8px; font-size:1.3rem;">'
-        '📊 My Results & Resources'</div>', unsafe_allow_html=True)
+        '''
+        <div style="padding:8px; background:#17a2b8; color:#fff; border-radius:6px;
+                    text-align:center; margin-bottom:8px; font-size:1.3rem;">
+            📊 My Results & Resources
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
     st.divider()
 
     df_scores = fetch_scores(CSV_URL)
