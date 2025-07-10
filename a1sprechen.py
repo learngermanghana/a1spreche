@@ -1943,124 +1943,105 @@ if tab == "Course Book":
         """
     )
 
-if tab == "My Results and Resources":
-    # 📊 Header
-    st.markdown(
-        """
-        <div style="
-            padding:8px 12px;
-            background:#17a2b8;
-            color:#fff;
-            border-radius:6px;
-            text-align:center;
-            margin-bottom:12px;
-            font-size:1.3rem;
-        ">
-            📊 My Results & Resources
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    st.divider()
+import requests
+import io
+import pandas as pd
+import re
+import base64
+from fpdf import FPDF
+import streamlit as st
 
-    import requests, io, pandas as pd, re, base64
-    from fpdf import FPDF
-
-    # 📚 Schedules for each level
-    LEVEL_SCHEDULES = {
+# --- Cache schedules to avoid rebuilding on each rerun ---
+@st.cache_data
+def load_level_schedules() -> dict:
+    return {
         "A1": get_a1_schedule(),
         "A2": get_a2_schedule(),
         "B1": get_b1_schedule(),
         "B2": get_b2_schedule(),
         "C1": get_c1_schedule(),
     }
+LEVEL_SCHEDULES = load_level_schedules()
 
-    SHEET = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
-    @st.cache_data
-    def fetch_scores():
-        r = requests.get(SHEET, timeout=7)
-        r.raise_for_status()
-        df = pd.read_csv(io.StringIO(r.text))
-        df.columns = [c.strip().lower().replace("studentcode","student_code") for c in df.columns]
-        return df.dropna(subset=["student_code","assignment","score","date","level"])
+# --- Cache score fetch with parameterized URL for easier updates ---
+@st.cache_data
+def fetch_scores(csv_url: str) -> pd.DataFrame:
+    response = requests.get(csv_url, timeout=7)
+    response.raise_for_status()
+    df = pd.read_csv(io.StringIO(response.text), engine='python')
+    df.columns = [c.strip().lower().replace('studentcode', 'student_code') for c in df.columns]
+    required = ["student_code", "assignment", "score", "date", "level"]
+    return df.dropna(subset=required)
 
-    code = st.session_state["student_code"].lower().strip()
-    name = st.session_state["student_name"]
-    st.header("📈 My Results & Resources Hub")
-    st.markdown("All results are private and visible only to you.")
+if tab == "My Results and Resources":
+    # Header
+    st.markdown(
+        '''
+        <div style="padding:8px 12px; background:#17a2b8; color:#fff; border-radius:6px;
+                    text-align:center; margin-bottom:8px; font-size:1.3rem;">
+            📊 My Results & Resources
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
+    st.divider()
 
-    if st.button("🔄 Refresh"):
-        st.cache_data.clear()
-        st.success("Reloading…")
-        st.experimental_rerun()
+    # Live Google Sheets CSV URL
+    CSV_URL = (
+        "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/"
+        "gviz/tq?tqx=out:csv"
+    )
+    df_scores = fetch_scores(CSV_URL)
 
-    df = fetch_scores()
-    df_user = df[df.student_code.str.lower().str.strip() == code]
+    # Filter to current student
+    code = st.session_state.get("student_code", "").lower().strip()
+    df_user = df_scores[df_scores.student_code.str.lower().str.strip() == code]
     if df_user.empty:
         st.info("No results yet. Complete an assignment to see your scores!")
         st.stop()
+    df_user['level'] = df_user['level'].str.upper().str.strip()
 
-    # — Select level
-    df_user["level"] = df_user.level.str.upper().str.strip()
-    levels = sorted(df_user.level.unique())
-    level = st.selectbox("Select level:", levels)
-    df_lvl = df_user[df_user.level == level]
+    # Level selector
+    level = st.selectbox("Select level:", sorted(df_user['level'].unique()))
+    df_lvl = df_user[df_user['level'] == level]
 
-    # — Missing assignments
-    schedule = LEVEL_SCHEDULES[level]
-    submitted = {a.strip().lower() for a in df_lvl.assignment}
-    missing = []
+    # Metrics: total derived from schedule length
+    total = sum(1 for lesson in LEVEL_SCHEDULES[level] if lesson.get('lesen_hören'))
+    completed = df_lvl['assignment'].nunique()
+    avg_score = df_lvl['score'].astype(float).mean() or 0
+    best_score = df_lvl['score'].astype(float).max() or 0
 
-    if level == "A1":
-        # only lessons with lesen_hören + Goethe
-        for lesson in schedule:
-            if not lesson.get("lesen_hören"):
-                continue
-            chap = str(lesson["chapter"]).strip().lower()
-            if chap and chap not in submitted:
-                missing.append(f"Day {lesson['day']}: {lesson['chapter']} – {lesson['topic']}")
-        if not any("goethe" in a for a in submitted):
-            missing.append("📝 Goethe Exam (Final)")
-    else:
-        # require every chapter
-        for lesson in schedule:
-            chap = str(lesson["chapter"]).strip().lower()
-            if chap and chap not in submitted:
-                missing.append(f"Day {lesson['day']}: {lesson['chapter']} – {lesson['topic']}")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Total Assignments", total)
+    c2.metric("Completed", completed)
+    c3.metric("Average Score", f"{avg_score:.1f}")
+    c4.metric("Best Score", f"{best_score:.1f}")
 
+    # Identify skipped assignments
+    def _chap_num(s: str) -> float | None:
+        nums = re.findall(r"\d+(?:\.\d+)?", str(s))
+        return max(map(float, nums)) if nums else None
+
+    expected = {_chap_num(l['chapter']) for l in LEVEL_SCHEDULES[level] if l.get('lesen_hören')}
+    done = {_chap_num(a) for a in df_lvl['assignment'] if _chap_num(a) is not None}
+    missing = sorted(expected - done)
     if missing:
-        st.warning("🚩 You have missing assignments:\n" + "\n".join(f"- {m}" for m in missing))
-    else:
-        st.success("🎉 All required assignments submitted!")
+        st.warning(f"⚠️ You skipped {len(missing)} assignment(s): {', '.join(map(str, missing))}")
 
-    # — Metrics
-    totals = {"A1": 19, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
-    total    = totals[level]
-    done     = df_lvl.assignment.nunique()
-    avg      = df_lvl.score.mean() or 0
-    best     = df_lvl.score.max() or 0
-
-    c1,c2,c3,c4 = st.columns(4)
-    c1.metric("Total",        total)
-    c2.metric("Completed",    done)
-    c3.metric("Average Score",f"{avg:.1f}")
-    c4.metric("Best Score",   best)
-
-    # — Detailed history
+    # Next assignment recommendation
+    last_done = max(done) if done else 0
+    next_lesson = next(
+        (l for l in LEVEL_SCHEDULES[level]
+         if l.get('lesen_hören') and (_chap_num(l['chapter']) or 0) > last_done),
+        None
+    )
     st.markdown("---")
-    st.info("🔎 Expand for full history & feedback")
-    def label(s):
-        s = float(s)
-        return "Excellent 🌟" if s>=90 else "Good 👍" if s>=75 else "Sufficient ✔️" if s>=60 else "Needs Improvement ❗"
+    st.subheader("🔜 Next Assignment Recommendation")
+    if next_lesson:
+        st.success(f"Day {next_lesson['day']}: {next_lesson['chapter']} – {next_lesson['topic']}")
+    else:
+        st.info("🎉 All done!")
 
-    cols = ["assignment","score","date","comments"] if "comments" in df_lvl.columns else ["assignment","score","date"]
-    df_disp = df_lvl.sort_values(["assignment","score"],ascending=[True,False])[cols]
-    with st.expander("📋 Detailed Results", expanded=False):
-        for _, r in df_disp.iterrows():
-            st.write(f"**{r['assignment']}** – {r['score']} {label(r['score'])} | Date: {r['date']}")
-            if "comments" in r and pd.notna(r["comments"]):
-                st.markdown(f"*Feedback:* {r['comments']}")
-            st.divider()
 
     # — PDF download
     if st.button("⬇️ Download PDF Summary"):
