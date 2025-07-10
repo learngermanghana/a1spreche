@@ -821,11 +821,11 @@ def get_a1_schedule():
             "topic": "Lesen & Hören 6 and Schreiben & Sprechen 2.4",
             "chapter": "6_2.4",
             "goal": "Understand Possessive Determiners and its usage in connection with nouns",
-            "instruction": "The assignment is the lesen and horen chapter 6 but you must also go through schreiben and sprechnen 2.4 for full understanding",
-            "assignment": True,
+            "instruction": "The assignment is the lesen and horen chapter 6 but you must also go through schreiben and sprechnen 2.4 for full understanding",         
             "lesen_hören": {
                 "video": "https://youtu.be/SXwDqcwrR3k",
                 "grammarbook_link": "https://drive.google.com/file/d/1Fy4bKhaHHb4ahS2xIumrLtuqdQ0YAFB4/view?usp=sharing",
+                "assignment": True,
                 "workbook_link": "https://drive.google.com/file/d/1Da1iw54oAqoaY-UIw6oyIn8tsDmIi1YR/view?usp=sharing"
             },
             "schreiben_sprechen": {
