@@ -1991,15 +1991,17 @@ def has_schreiben_sprechen_assignment(lesson):
     return isinstance(sh, dict) and bool(sh.get('workbook_link'))
 
 def is_assignable_lesson(lesson, level):
-    topic = str(lesson.get('topic', '')).lower()
-    instruction = str(lesson.get('instruction', '')).lower()
-    if "no assignment" in instruction or "grammar" in instruction:
-        return False
-    # A1: Only count "Lesen & Hören" with workbook_link OR if it's Goethe Exam (for A1 final)
+    # For A1: only 'Lesen & Hören' with a real assignment (not just grammar)
     if level == "A1":
-        return (has_lesen_horen_assignment(lesson) and "lesen" in topic) or "goethe" in topic
-    # Other levels: any lesson with a workbook link (in any skill)
-    return has_lesen_horen_assignment(lesson) or has_schreiben_sprechen_assignment(lesson)
+        lh = lesson.get("lesen_hören", {})
+        instr = (lesson.get("instruction") or "").lower()
+        return bool(lh.get('workbook_link')) and "grammar" not in instr
+    else:
+        # For A2+, any lesson with a workbook_link in lesen_hören or schreiben_sprechen
+        lh = lesson.get("lesen_hören", {})
+        ss = lesson.get("schreiben_sprechen", {})
+        return bool(lh.get('workbook_link')) or bool(ss.get('workbook_link'))
+
 
 def score_label(score):
     try:
@@ -2090,13 +2092,9 @@ if tab == "My Results and Resources":
     level = st.selectbox("Select level:", levels)
     df_lvl = df_user[df_user.level == level]
 
-    # --- Hardcoded assignment totals for metric display
+    # --- Hardcoded assignment totals for accuracy
     TOTALS = {"A1": 19, "A2": 29, "B1": 29, "B2": 24, "C1": 24}
     total = TOTALS.get(level, 0)
-
-    # --- Assignable lessons for this level (for logic only)
-    schedule = LEVEL_SCHEDULES.get(level, [])
-    assignable = [l for l in schedule if is_assignable_lesson(l, level)]
 
     completed = df_lvl.assignment.nunique()
     avg_score = df_lvl.score.mean() or 0
@@ -2109,37 +2107,37 @@ if tab == "My Results and Resources":
     col3.metric("Average Score", f"{avg_score:.1f}")
     col4.metric("Best Score", best_score)
 
+    # --- Assignable lessons for this level (insert this before missing assignments check!)
+    schedule = LEVEL_SCHEDULES.get(level, [])
+    assignable = [l for l in schedule if is_assignable_lesson(l, level)]
+
     # --- Skipped/Missing Assignments Detection ---
-    # Build set of completed assignment chapter numbers (as strings, for precise matching)
-    completed_chapstr = set()
+    completed_chaps = set()
     for assignment in df_lvl['assignment']:
         num = extract_chapter_num(assignment)
         if num is not None:
-            # Store both the float and the actual string
-            completed_chapstr.add(str(num))
-            # You could also store the actual assignment string (e.g., '1.1', '3.8') if needed
+            completed_chaps.add(num)
+    max_done = max(completed_chaps) if completed_chaps else 0
 
-    # Get all assignable lessons with their chapter number and label
-    assignable_chaps = []
-    max_done = max([extract_chapter_num(a) for a in df_lvl['assignment'] if extract_chapter_num(a) is not None], default=0)
+    # Only count lessons with chapter number <= last completed for missing
+    missing = []
     for lesson in assignable:
-        chap_str = lesson.get('chapter', '').strip()
-        chap_num = extract_chapter_num(chap_str)
-        if chap_num and chap_num <= max_done:
-            # This assignment is expected to be done
-            if str(chap_num) not in completed_chapstr:
-                assignable_chaps.append((chap_str, lesson.get('topic', '')))
+        chap_num = extract_chapter_num(lesson.get("chapter", ""))
+        # Check if chap_num is not in completed, and is before/equal to last completed
+        if chap_num and chap_num <= max_done and chap_num not in completed_chaps:
+            missing.append((lesson.get('chapter', ''), lesson.get('topic', '')))
 
-    if assignable_chaps:
+    if missing:
         st.warning(
             "⏰ **You skipped these assignments!**\n\n"
-            + ", ".join(f"{ch} ({topic})" for ch, topic in assignable_chaps)
+            + ", ".join(f"{ch} ({topic})" for ch, topic in missing)
         )
     else:
         st.success("✅ No skipped assignments. Keep it up!")
 
     st.markdown("---")
     st.info("🔎 Expand below to see detailed results:")
+
 
     with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
         if 'comments' in df_lvl.columns:
