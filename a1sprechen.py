@@ -1985,18 +1985,21 @@ def extract_chapter_num(chapter):
     return max(float(n) for n in nums)
 
 def has_lesson_assignment(lesson, level):
-    # For A1: Only include lessons with 'lesen_hören' workbook assignments, ignore grammar-only or practical-only
-    lesen = lesson.get('lesen_hören') or {}
-    sprechen = lesson.get('schreiben_sprechen') or {}
+    # Always treat these as dict, even if None or invalid.
+    lesen = lesson.get('lesen_hören')
+    sprechen = lesson.get('schreiben_sprechen')
+    if not isinstance(lesen, dict):
+        lesen = {}
+    if not isinstance(sprechen, dict):
+        sprechen = {}
 
+    instruction = str(lesson.get('instruction', '')).lower()
     if level == "A1":
-        instruction = lesson.get('instruction', '').lower()
-        # Only count if there is a workbook_link, and it's not a grammar-only chapter
+        # Only count if there is a workbook_link (and it's not grammar-only)
         has_assignment = bool(lesen.get('workbook_link'))
         is_grammar_only = 'no assignment' in instruction or 'grammar' in instruction
         return has_assignment and not is_grammar_only
-
-    # For A2–C1: Any lesson with workbook_link (lesen_hören or schreiben_sprechen) or assignment field
+    # For A2–C1: Any lesson with any assignment
     return (
         bool(lesen.get('workbook_link')) or
         bool(sprechen.get('workbook_link')) or
