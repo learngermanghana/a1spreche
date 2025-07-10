@@ -2027,6 +2027,42 @@ def get_next_assignment(assignable, last_done):
             return lesson
     return None
 
+# -- Find schedule chapter keys up to latest done --
+def extract_chapter_key(chapter_str):
+    # Extracts e.g. '3.8' or '1.1' or '1.2' from "A2 3.8", "Lesen & Hören 1.1", etc.
+    match = re.search(r'(\d{1,2}\.\d)', str(chapter_str))
+    return match.group(1) if match else None
+
+# Build set of schedule chapters up to the *highest completed*
+schedule_chapters = []
+for lesson in assignable:
+    chap_key = extract_chapter_key(lesson.get("chapter", "")) or extract_chapter_key(lesson.get("topic", ""))
+    if chap_key:
+        schedule_chapters.append((chap_key, lesson.get("chapter", ""), lesson.get("topic", "")))
+        
+# Build set of completed chapter keys
+completed_keys = set()
+for assignment in df_lvl['assignment']:
+    a_key = extract_chapter_key(assignment)
+    if a_key:
+        completed_keys.add(a_key)
+
+# What is the highest completed key in the schedule order?
+completed_order = [i for i, (k, _, _) in enumerate(schedule_chapters) if k in completed_keys]
+last_completed_index = max(completed_order) if completed_order else -1
+
+# All chapters up to last completed, but not in completed_keys, are missing
+missing = []
+for i, (k, ch, topic) in enumerate(schedule_chapters):
+    if i <= last_completed_index and k not in completed_keys:
+        missing.append(f"{ch} ({topic})")
+
+if missing:
+    st.warning("⏰ **You skipped these assignments!**\n\n" + ", ".join(missing))
+else:
+    st.success("✅ No skipped assignments. Keep it up!")
+
+
 # ========== MAIN TAB LOGIC ==========
 if tab == "My Results and Resources":
     st.markdown(
