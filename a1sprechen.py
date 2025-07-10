@@ -524,6 +524,7 @@ import time
 import matplotlib.pyplot as plt
 
 # ======= Dashboard Code =======
+# ======= Dashboard Code =======
 if st.session_state.get("logged_in"):
     student_code = st.session_state.get("student_code", "").strip().lower()
     student_name = st.session_state.get("student_name", "")
@@ -542,7 +543,24 @@ if st.session_state.get("logged_in"):
     )
 
     if tab == "Dashboard":
-        st.header("📊 Student Dashboard")
+        # 🏠 Compact Dashboard header
+        st.markdown(
+            '''
+            <div style="
+                padding: 8px 12px;
+                background: #343a40;
+                color: #ffffff;
+                border-radius: 6px;
+                text-align: center;
+                margin-bottom: 8px;
+                font-size: 1.3rem;
+            ">
+                📊 Student Dashboard
+            </div>
+            ''',
+            unsafe_allow_html=True
+        )
+        st.divider()
 
         # --- Get student_row first ---
         df_students = load_student_data()
@@ -651,12 +669,12 @@ def get_a1_schedule():
         # DAY 1
         {
             "day": 1,
-            "topic": "Lesen & Hören",
+            "topic": "Lesen & Hören 0.1",
             "chapter": "0.1",
             "goal": "You will learn to introduce yourself, greet others in German, and ask about people's well-being.",
             "instruction": "Watch the video, review grammar, do the workbook, submit assignment.",
             "lesen_hören": {
-                "video": "",
+                "video": "https://youtu.be/7QZhrb-gvxY",
                 "grammarbook_link": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/view?usp=sharing"
             }
@@ -664,7 +682,7 @@ def get_a1_schedule():
         # DAY 2 – Multi chapter
         {
             "day": 2,
-            "topic": "Lesen & Hören",
+            "topic": "Lesen & Hören 0.2 and 1.1 ",
             "chapter": "0.2_1.1",
             "goal": "Understand the German alphabets, personal pronouns and verb conjugation in German.",
             "instruction": "You are doing Lesen and Hören chapter 0.2 and 1.1. Make sure to follow up attentively.",
@@ -686,7 +704,7 @@ def get_a1_schedule():
         # DAY 3
         {
             "day": 3,
-            "topic": "Schreiben & Sprechen and Lesen & Hören",
+            "topic": "Schreiben & Sprechen 1.1 and Lesen & Hören 1.2",
             "chapter": "1.1_1.2",
             "goal": "Introduce others and talk about your family.",
             "instruction": (
@@ -712,7 +730,7 @@ def get_a1_schedule():
         # DAY 4
         {
             "day": 4,
-            "topic": "Lesen & Hören",
+            "topic": "Lesen & Hören 2",
             "chapter": "2",
             "goal": "Learn numbers from one to 10 thousand. Also know the difference between city and street",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
@@ -725,7 +743,7 @@ def get_a1_schedule():
         # DAY 5
         {
             "day": 5,
-            "topic": "Schreiben & Sprechen (Recap)",
+            "topic": "Schreiben & Sprechen 1.2 (Recap)",
             "chapter": "1.2",
             "goal": "Consolidate your understanding of introductions.",
             "instruction": "Use self-practice workbook and review answers for self-check.",
@@ -737,7 +755,7 @@ def get_a1_schedule():
         # DAY 6
         {
             "day": 6,
-            "topic": "Schreiben & Sprechen",
+            "topic": "Schreiben & Sprechen 2.3",
             "chapter": "2.3",
             "goal": "Learn about family and expressing your hobby",
             "instruction": "Use self-practice workbook and review answers for self-check.",
@@ -749,7 +767,7 @@ def get_a1_schedule():
         # DAY 7
         {
             "day": 7,
-            "topic": "Lesen & Hören",
+            "topic": "Lesen & Hören 3",
             "chapter": "3",
             "goal": "Know how to ask for a price and also the use of mogen and gern to express your hobby",
             "instruction": "Do schreiben and sprechen 2.3 before this chapter for better understanding",
@@ -762,7 +780,7 @@ def get_a1_schedule():
         # DAY 8
         {
             "day": 8,
-            "topic": "Lesen & Hören",
+            "topic": "Lesen & Hören 4",
             "chapter": "4",
             "goal": "Learn about schon mal and noch nie, irregular verbs and all the personal pronouns",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
@@ -775,7 +793,7 @@ def get_a1_schedule():
         # DAY 9
         {
             "day": 9,
-            "topic": "Lesen & Hören",
+            "topic": "Lesen & Hören 5",
             "chapter": "5",
             "goal": "Learn about the German articles and cases",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
@@ -788,7 +806,7 @@ def get_a1_schedule():
         # DAY 10
         {
             "day": 10,
-            "topic": "Lesen & Hören and Schreiben & Sprechen",
+            "topic": "Lesen & Hören 6 and Schreiben & Sprechen 2.4",
             "chapter": "6_2.4",
             "goal": "Understand Possessive Determiners and its usage in connection with nouns",
             "instruction": "The assignment is the lesen and horen chapter 6 but you must also go through schreiben and sprechnen 2.4 for full understanding",
@@ -805,7 +823,7 @@ def get_a1_schedule():
         # DAY 11
         {
             "day": 11,
-            "topic": "Lesen & Hören",
+            "topic": "Lesen & Hören 7",
             "chapter": "7",
             "goal": "Understand the 12 hour clock system",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
@@ -818,7 +836,7 @@ def get_a1_schedule():
         # DAY 12
         {
             "day": 12,
-            "topic": "Lesen & Hören",
+            "topic": "Lesen & Hören 8",
             "chapter": "8",
             "goal": "Understand the 24 hour clock and date system in German",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
@@ -831,7 +849,7 @@ def get_a1_schedule():
         # DAY 13
         {
             "day": 13,
-            "topic": "Schreiben & Sprechen",
+            "topic": "Schreiben & Sprechen 3.5",
             "chapter": "3.5",
             "goal": "Recap from the lesen and horen. Understand numbers, time, asking of price and how to formulate statements in German",
             "instruction": "Use the statement rule to talk about your weekly routine using the activities listed. Share with your tutor when done",
@@ -843,7 +861,7 @@ def get_a1_schedule():
         # DAY 14
         {
             "day": 14,
-            "topic": "Schreiben & Sprechen",
+            "topic": "Schreiben & Sprechen 3.6",
             "chapter": "3.6",
             "goal": "Understand how to use modal verbs with main verbs and separable verbs",
             "instruction": "This is a practical exercise. All the answers are included in the document except for the last paragraph. You can send a screenshot of that to your tutor",
@@ -855,7 +873,7 @@ def get_a1_schedule():
         # DAY 15
         {
             "day": 15,
-            "topic": "Schreiben & Sprechen",
+            "topic": "Schreiben & Sprechen 4.7",
             "chapter": "4.7",
             "goal": "Understand imperative statements and learn how to use them in your Sprechen exams, especially in Teil 3.",
             "instruction": "After completing this chapter, go to the Falowen Exam Chat Mode, select A1 Teil 3, and start practicing",
@@ -867,7 +885,7 @@ def get_a1_schedule():
         # DAY 16
         {
             "day": 16,
-            "topic": "Lesen & Hören",
+            "topic": "Lesen & Hören 9 and 10",
             "chapter": "9_10",
             "goal": "Understand how to negate statements using nicht,kein and nein",
             "instruction": "This chapter has two assignments. Do the assignments for chapter 9 and after chapter 10. Chapter 10 has no grammar",
@@ -889,7 +907,7 @@ def get_a1_schedule():
         # DAY 17
         {
             "day": 17,
-            "topic": "Lesen & Hören",
+            "topic": "Lesen & Hören 11",
             "chapter": "11",
             "goal": "Understand instructions and request in German using the Imperative rule",
             "instruction": "",
@@ -902,10 +920,10 @@ def get_a1_schedule():
         # DAY 18
         {
             "day": 18,
-            "topic": "Lesen & Hören and Schreiben & Sprechen (including 5.8)",
+            "topic": "Lesen & Hören 12.1 and 12.2 and Schreiben & Sprechen (including 5.8)",
             "chapter": "12.1_12.2",
             "goal": "Learn about German professions and how to use two-way prepositions",
-            "instruction": "This lesson has two Lesen & Hören assignments (12.1 and 12.2) and one Schreiben & Sprechen practice (5.8)",
+            "instruction": "This lesson has two Lesen & Hören assignments (12.1 and 12.2) and one Schreiben & Sprechen practice (5.8) for practice to understand chapter 12",
             "lesen_hören": [
                 {
                     "chapter": "12.1",
@@ -928,7 +946,7 @@ def get_a1_schedule():
         # DAY 19
         {
             "day": 19,
-            "topic": "Schreiben & Sprechen",
+            "topic": "Schreiben & Sprechen 5.9",
             "chapter": "5.9",
             "goal": "Understand the difference between Erlaubt and Verboten and how to use it in the exams hall",
             "instruction": "",
@@ -940,7 +958,7 @@ def get_a1_schedule():
         # DAY 20
         {
             "day": 20,
-            "topic": "Schreiben & Sprechen (Intro to letter writing)",
+            "topic": "Schreiben & Sprechen 6.10 (Intro to letter writing)",
             "chapter": "6.10",
             "goal": "Practice how to write both formal and informal letters",
             "instruction": "Write all the two letters in this document and send to your tutor for corrections",
@@ -952,14 +970,14 @@ def get_a1_schedule():
         # DAY 21
         {
             "day": 21,
-            "topic": "Lesen & Hören and Schreiben & Sprechen",
+            "topic": "Lesen & Hören 13 and Schreiben & Sprechen 6.11",
             "chapter": "13_6.11",
             "goal": "",
             "instruction": "",
             "lesen_hören": {
                 "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
+                "grammarbook_link": "https://drive.google.com/file/d/1PCXsTIg9iNlaAUkwH8BYekw_3v1HJjGq/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1zCnIoVHlfRwOQ9mX2NxVFuHgsqfHUkDK/view?usp=sharing"
             },
             "schreiben_sprechen": {
                 "video": "",
@@ -969,14 +987,14 @@ def get_a1_schedule():
         # DAY 22
         {
             "day": 22,
-            "topic": "Lesen & Hören and Schreiben & Sprechen",
+            "topic": "Lesen & Hören 14.1 and Schreiben & Sprechen 7.12",
             "chapter": "14.1_7.12",
             "goal": "",
             "instruction": "",
             "lesen_hören": {
                 "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
+                "grammarbook_link": "https://drive.google.com/file/d/1EFZA_oAeznMBEqIgTWyeFt9wLdmqA-Bp/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1_zEb4wmENI7szcepRz_CIjSo9aS7RHv-/view?usp=sharing"
             },
             "schreiben_sprechen": {
                 "video": "",
@@ -986,13 +1004,13 @@ def get_a1_schedule():
         # DAY 23
         {
             "day": 23,
-            "topic": "Lesen & Hören and Schreiben & Sprechen",
+            "topic": "Lesen & Hören 14.2",
             "chapter": "14.2_7.12",
-            "goal": "",
-            "instruction": "",
+            "goal": "Understand adjective declension and dative verbs",
+            "instruction": " This chapter has no assignment. Only grammar",
             "lesen_hören": {
                 "video": "",
-                "grammarbook_link": "",
+                "grammarbook_link": "https://drive.google.com/file/d/16h-yS0gkB2_FL1zxCC4MaqRBbKne7GI1/view?usp=sharing",
                 "workbook_link": ""
             },
             "schreiben_sprechen": {
@@ -1003,25 +1021,25 @@ def get_a1_schedule():
         # DAY 24
         {
             "day": 24,
-            "topic": "Schreiben & Sprechen",
+            "topic": "Schreiben & Sprechen 8.13",
             "chapter": "8.13",
-            "goal": "",
+            "goal": "Learn about conjunctions and how to apply them in your exams",
             "instruction": "",
             "schreiben_sprechen": {
                 "video": "",
-                "workbook_link": ""
+                "workbook_link": "https://drive.google.com/file/d/1smb4IuRqSKndoGf_ujEi5IiaYyXOTj4t/view?usp=sharing"
             }
         },
         # DAY 25
         {
             "day": 25,
-            "topic": "Exam tips - Schreiben & Sprechen recap",
+            "topic": "Goethe Mock Test",
             "chapter": "final",
-            "goal": "",
+            "goal": "This test should help the student have an idea about how the lesen and horen will look like",
             "instruction": "",
             "schreiben_sprechen": {
                 "video": "",
-                "workbook_link": ""
+                "workbook_link": "https://forms.gle/FP8ZPNhwxcAZsTfY6"
             }
         }
     ]
@@ -1031,7 +1049,7 @@ def get_a2_schedule():
         # DAY 1
         {
             "day": 1,
-            "topic": "Small Talk (Exercise)",
+            "topic": "Small Talk 1.1 (Exercise)",
             "chapter": "1.1",
             "goal": "Practice basic greetings and small talk.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1042,7 +1060,7 @@ def get_a2_schedule():
         # DAY 2
         {
             "day": 2,
-            "topic": "Personen Beschreiben (Exercise)",
+            "topic": "Personen Beschreiben 1.2 (Exercise)",
             "chapter": "1.2",
             "goal": "Describe people and their appearance.",
             "instruction": (
@@ -1061,7 +1079,7 @@ def get_a2_schedule():
         # DAY 3
         {
             "day": 3,
-            "topic": "Dinge und Personen vergleichen",
+            "topic": "Dinge und Personen vergleichen 1.3",
             "chapter": "1.3",
             "goal": "Learn to compare things and people.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1072,7 +1090,7 @@ def get_a2_schedule():
         # DAY 4
         {
             "day": 4,
-            "topic": "Wo möchten wir uns treffen?",
+            "topic": "Wo möchten wir uns treffen? 2.4",
             "chapter": "2.4",
             "goal": "Arrange and discuss meeting places.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1083,7 +1101,7 @@ def get_a2_schedule():
         # DAY 5
         {
             "day": 5,
-            "topic": "Was machst du in deiner Freizeit?",
+            "topic": "Was machst du in deiner Freizeit? 2.5 ",
             "chapter": "2.5",
             "goal": "Talk about free time activities.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1094,7 +1112,7 @@ def get_a2_schedule():
         # DAY 6
         {
             "day": 6,
-            "topic": "Möbel und Räume kennenlernen",
+            "topic": "Möbel und Räume kennenlernen 3.6",
             "chapter": "3.6",
             "goal": "Identify furniture and rooms.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1105,7 +1123,7 @@ def get_a2_schedule():
         # DAY 7
         {
             "day": 7,
-            "topic": "Eine Wohnung suchen (Übung)",
+            "topic": "Eine Wohnung suchen (Übung) 3.7",
             "chapter": "3.7",
             "goal": "Practice searching for an apartment.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1116,7 +1134,7 @@ def get_a2_schedule():
         # DAY 8
         {
             "day": 8,
-            "topic": "Rezepte und Essen (Exercise)",
+            "topic": "Rezepte und Essen (Exercise) 3.8",
             "chapter": "3.8",
             "goal": "Learn about recipes and food. Practice using sequence words like zuerst', 'nachdem', and 'außerdem' to organize your letter.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1127,18 +1145,18 @@ def get_a2_schedule():
         # DAY 9
         {
             "day": 9,
-            "topic": "Urlaub",
+            "topic": "Urlaub 3.9",
             "chapter": "4.9",
             "goal": "Discuss vacation plans.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
-            "video": "",
+            "video": "https://youtu.be/NxoQH-BY9Js",
             "grammarbook_link": "https://drive.google.com/file/d/1kOb7c08Pkxf21OQE_xIGEaif7Xq7k-ty/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1NzRxbGUe306Vq0mq9kKsc3y3HYqkMhuA/view?usp=sharing"
         },
         # DAY 10
         {
             "day": 10,
-            "topic": "Tourismus und Traditionelle Feste",
+            "topic": "Tourismus und Traditionelle Feste 4.10",
             "chapter": "4.10",
             "goal": "Learn about tourism and festivals.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1149,18 +1167,18 @@ def get_a2_schedule():
         # DAY 11
         {
             "day": 11,
-            "topic": "Unterwegs: Verkehrsmittel vergleichen",
+            "topic": "Unterwegs: Verkehrsmittel vergleichen 4.11",
             "chapter": "4.11",
             "goal": "Compare means of transportation.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1Vl9UPeM2RaATafT8t539aOPrxnSkfr9A/view?usp=sharing",
-            "workbook_link": "https://drive.google.com/file/d/1snFsDYBK8RrPRq2n3PtWvcIctSph-zvN/view?usp=sharing"
+            "workbook_link": "https://drive.google.com/file/d/1c7ITea0iVbCaPO0piark9RnqJgZS-DOi/view?usp=sharing"
         },
         # DAY 12
         {
             "day": 12,
-            "topic": "Ein Tag im Leben (Übung)",
+            "topic": "Ein Tag im Leben (Übung) 5.12",
             "chapter": "5.12",
             "goal": "Describe a typical day.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1171,40 +1189,40 @@ def get_a2_schedule():
         # DAY 13
         {
             "day": 13,
-            "topic": "Ein Vorstellungsgespräch (Exercise)",
+            "topic": "Ein Vorstellungsgespräch (Exercise) 5.13",
             "chapter": "5.13",
             "goal": "Prepare for a job interview.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
-            "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "video": "https://youtu.be/urKBrX5VAYU",
+            "grammarbook_link": "https://drive.google.com/file/d/1tv2tYzn9mIG57hwWr_ilxV1My7kt-RKQ/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1sW2yKZptnYWPhS7ciYdi0hN5HV-ycsF0/view?usp=sharing"
         },
         # DAY 14
         {
             "day": 14,
-            "topic": "Beruf und Karriere (Exercise)",
+            "topic": "Beruf und Karriere (Exercise) 5.14",
             "chapter": "5.14",
             "goal": "Discuss jobs and careers.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/13mVpVGfhY1NQn-BEb7xYUivnaZbhXJsK/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1rlZoo49bYBRjt7mu3Ydktzgfdq4IyK2q/view?usp=sharing"
         },
         # DAY 15
         {
             "day": 15,
-            "topic": "Mein Lieblingssport",
+            "topic": "Mein Lieblingssport 6.15",
             "chapter": "6.15",
             "goal": "Talk about your favorite sport.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1UohFnTmCwjCJHQU1etaGOBzZJTk2kauz/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1iiExhUj66r5p0SJZfV7PsmCWOyaF360s/view?usp=sharing"
         },
         # DAY 16
         {
             "day": 16,
-            "topic": "Wohlbefinden und Entspannung",
+            "topic": "Wohlbefinden und Entspannung 6.16",
             "chapter": "6.16",
             "goal": "Express well-being and relaxation.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1215,7 +1233,7 @@ def get_a2_schedule():
         # DAY 17
         {
             "day": 17,
-            "topic": "In die Apotheke gehen",
+            "topic": "In die Apotheke gehen 6.17",
             "chapter": "6.17",
             "goal": "Learn phrases for the pharmacy.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1226,29 +1244,29 @@ def get_a2_schedule():
         # DAY 18
         {
             "day": 18,
-            "topic": "Die Bank anrufen",
+            "topic": "Die Bank anrufen 7.18",
             "chapter": "7.18",
             "goal": "Practice calling the bank.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1qNHtY8MYOXjtBxf6wHi6T_P_X1DGFtPm/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1GD7cCPU8ZFykcwsFQZuQMi2fiNrvrCPg/view?usp=sharing"
         },
         # DAY 19
         {
             "day": 19,
-            "topic": "Einkaufen? Wo und wie? (Exercise)",
+            "topic": "Einkaufen? Wo und wie? (Exercise) 7.19",
             "chapter": "7.19",
             "goal": "Shop and ask about locations.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1Qt9oxn-74t8dFdsk-NjSc0G5OT7MQ-qq/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1CEFn14eYeomtf6CpZJhyW00CA2f_6VRc/view?usp=sharing"
         },
         # DAY 20
         {
             "day": 20,
-            "topic": "Typische Reklamationssituationen üben",
+            "topic": "Typische Reklamationssituationen üben 7.20",
             "chapter": "7.20",
             "goal": "Handle typical complaints.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1259,7 +1277,7 @@ def get_a2_schedule():
         # DAY 21
         {
             "day": 21,
-            "topic": "Ein Wochenende planen",
+            "topic": "Ein Wochenende planen 8.21",
             "chapter": "8.21",
             "goal": "Plan a weekend.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1270,7 +1288,7 @@ def get_a2_schedule():
         # DAY 22
         {
             "day": 22,
-            "topic": "Die Woche Planung",
+            "topic": "Die Woche Planung 8.22",
             "chapter": "8.22",
             "goal": "Make a weekly plan.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1281,7 +1299,7 @@ def get_a2_schedule():
         # DAY 23
         {
             "day": 23,
-            "topic": "Wie kommst du zur Schule / zur Arbeit?",
+            "topic": "Wie kommst du zur Schule / zur Arbeit? 9.23",
             "chapter": "9.23",
             "goal": "Talk about your route to school or work.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1292,7 +1310,7 @@ def get_a2_schedule():
         # DAY 24
         {
             "day": 24,
-            "topic": "Einen Urlaub planen",
+            "topic": "Einen Urlaub planen 9.24",
             "chapter": "9.24",
             "goal": "Plan a vacation.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1303,7 +1321,7 @@ def get_a2_schedule():
         # DAY 25
         {
             "day": 25,
-            "topic": "Tagesablauf (Exercise)",
+            "topic": "Tagesablauf (Exercise) 9.25",
             "chapter": "9.25",
             "goal": "Describe a daily routine.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1313,7 +1331,7 @@ def get_a2_schedule():
         # DAY 26
         {
             "day": 26,
-            "topic": "Gefühle in verschiedenen Situationen beschreiben",
+            "topic": "Gefühle in verschiedenen Situationen beschreiben 10.26",
             "chapter": "10.26",
             "goal": "Express feelings in various situations.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1323,7 +1341,7 @@ def get_a2_schedule():
         # DAY 27
         {
             "day": 27,
-            "topic": "Digitale Kommunikation",
+            "topic": "Digitale Kommunikation 10.27",
             "chapter": "10.27",
             "goal": "Talk about digital communication.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1333,12 +1351,23 @@ def get_a2_schedule():
         # DAY 28
         {
             "day": 28,
-            "topic": "Über die Zukunft sprechen",
+            "topic": "Über die Zukunft sprechen 10.28",
             "chapter": "10.28",
             "goal": "Discuss the future.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "workbook_link": "https://drive.google.com/file/d/1164aJFtkZM1AMb87s1-K59wuobD7q34U/view?usp=sharing"
+        },
+#
+        # DAY 29
+        {
+            "day": 29,
+            "topic": "Goethe Mock Test 10.29",
+            "chapter": "10.29",
+            "goal": "Practice how the final exams for the lesen will look like",
+            "instruction": "Answer everything on the phone and dont write in your book. The answers will be sent to your email",
+            "video": "",
+            "workbook_link": "https://forms.gle/YqCEMXTF5d3N9Q7C7"
         },
     ]
 
@@ -1347,7 +1376,7 @@ def get_b1_schedule():
         # DAY 1
         {
             "day": 1,
-            "topic": "Traumwelten (Übung)",
+            "topic": "Traumwelten (Übung) 1.1",
             "chapter": "1.1",
             "goal": "Talk about dream worlds and imagination.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1358,7 +1387,7 @@ def get_b1_schedule():
         # DAY 2
         {
             "day": 2,
-            "topic": "Freunde fürs Leben (Übung)",
+            "topic": "Freunde fürs Leben (Übung) 1.2",
             "chapter": "1.2",
             "goal": "Discuss friendships and important qualities.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1369,7 +1398,7 @@ def get_b1_schedule():
         # DAY 3
         {
             "day": 3,
-            "topic": "Vergangenheit erzählen",
+            "topic": "Vergangenheit erzählen 1.3",
             "chapter": "1.3",
             "goal": "Tell stories about the past.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1380,7 +1409,7 @@ def get_b1_schedule():
         # DAY 4
         {
             "day": 4,
-            "topic": "Wohnen und Zusammenleben",
+            "topic": "Wohnen und Zusammenleben 2.4",
             "chapter": "2.4",
             "goal": "Discuss housing and living together.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1391,7 +1420,7 @@ def get_b1_schedule():
         # DAY 5
         {
             "day": 5,
-            "topic": "Feste feiern",
+            "topic": "Feste feiern 2.5",
             "chapter": "2.5",
             "goal": "Talk about festivals and celebrations.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1402,7 +1431,7 @@ def get_b1_schedule():
         # DAY 6
         {
             "day": 6,
-            "topic": "Mein Traumjob",
+            "topic": "Mein Traumjob 2.6",
             "chapter": "2.6",
             "goal": "Describe your dream job.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1413,7 +1442,7 @@ def get_b1_schedule():
         # DAY 7
         {
             "day": 7,
-            "topic": "Gesund bleiben",
+            "topic": "Gesund bleiben 3.7",
             "chapter": "3.7",
             "goal": "Learn how to talk about health and fitness.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1424,7 +1453,7 @@ def get_b1_schedule():
         # DAY 8
         {
             "day": 8,
-            "topic": "Arztbesuch und Gesundheitstipps",
+            "topic": "Arztbesuch und Gesundheitstipps 3.8",
             "chapter": "3.8",
             "goal": "Communicate with a doctor and give health tips.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1435,7 +1464,7 @@ def get_b1_schedule():
         # DAY 9
         {
             "day": 9,
-            "topic": "Erinnerungen und Kindheit",
+            "topic": "Erinnerungen und Kindheit 3.9",
             "chapter": "3.9",
             "goal": "Talk about childhood memories.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1446,7 +1475,7 @@ def get_b1_schedule():
         # DAY 10
         {
             "day": 10,
-            "topic": "Typisch deutsch? Kultur und Alltag",
+            "topic": "Typisch deutsch? Kultur und Alltag 4.10",
             "chapter": "4.10",
             "goal": "Discuss cultural habits and everyday life.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1457,7 +1486,7 @@ def get_b1_schedule():
         # DAY 11
         {
             "day": 11,
-            "topic": "Wünsche und Träume",
+            "topic": "Wünsche und Träume 4.11",
             "chapter": "4.11",
             "goal": "Express wishes and dreams.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1468,7 +1497,7 @@ def get_b1_schedule():
         # DAY 12
         {
             "day": 12,
-            "topic": "Medien und Kommunikation",
+            "topic": "Medien und Kommunikation 4.12",
             "chapter": "4.12",
             "goal": "Talk about media and communication.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1479,7 +1508,7 @@ def get_b1_schedule():
         # DAY 13
         {
             "day": 13,
-            "topic": "Reisen und Verkehr",
+            "topic": "Reisen und Verkehr 5.13",
             "chapter": "5.13",
             "goal": "Discuss travel and transportation.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1490,7 +1519,7 @@ def get_b1_schedule():
         # DAY 14
         {
             "day": 14,
-            "topic": "Stadt oder Land",
+            "topic": "Stadt oder Land 5.14",
             "chapter": "5.14",
             "goal": "Compare life in the city and the countryside.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1501,7 +1530,7 @@ def get_b1_schedule():
         # DAY 15
         {
             "day": 15,
-            "topic": "Wohnungssuche und Umzug",
+            "topic": "Wohnungssuche und Umzug 5.15",
             "chapter": "5.15",
             "goal": "Talk about searching for an apartment and moving.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1512,7 +1541,7 @@ def get_b1_schedule():
         # DAY 16
         {
             "day": 16,
-            "topic": "Natur und Umwelt",
+            "topic": "Natur und Umwelt 6.16",
             "chapter": "6.16",
             "goal": "Learn to discuss nature and the environment.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1523,7 +1552,7 @@ def get_b1_schedule():
         # DAY 17
         {
             "day": 17,
-            "topic": "Probleme und Lösungen",
+            "topic": "Probleme und Lösungen 6.17",
             "chapter": "6.17",
             "goal": "Describe problems and find solutions.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1534,7 +1563,7 @@ def get_b1_schedule():
         # DAY 18
         {
             "day": 18,
-            "topic": "Arbeit und Finanzen",
+            "topic": "Arbeit und Finanzen 6.18",
             "chapter": "6.18",
             "goal": "Talk about work and finances.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1545,7 +1574,7 @@ def get_b1_schedule():
         # DAY 19
         {
             "day": 19,
-            "topic": "Berufliche Zukunft",
+            "topic": "Berufliche Zukunft 7.19",
             "chapter": "7.19",
             "goal": "Discuss future career plans.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1556,7 +1585,7 @@ def get_b1_schedule():
         # DAY 20
         {
             "day": 20,
-            "topic": "Bildung und Weiterbildung",
+            "topic": "Bildung und Weiterbildung 7.20",
             "chapter": "7.20",
             "goal": "Talk about education and further studies.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1567,7 +1596,7 @@ def get_b1_schedule():
         # DAY 21
         {
             "day": 21,
-            "topic": "Familie und Gesellschaft",
+            "topic": "Familie und Gesellschaft 7.21",
             "chapter": "7.21",
             "goal": "Discuss family and society.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1578,7 +1607,7 @@ def get_b1_schedule():
         # DAY 22
         {
             "day": 22,
-            "topic": "Konsum und Werbung",
+            "topic": "Konsum und Werbung 8.22",
             "chapter": "8.22",
             "goal": "Talk about consumption and advertising.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1589,7 +1618,7 @@ def get_b1_schedule():
         # DAY 23
         {
             "day": 23,
-            "topic": "Globalisierung",
+            "topic": "Globalisierung 8.23",
             "chapter": "8.23",
             "goal": "Discuss globalization and its effects.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1600,7 +1629,7 @@ def get_b1_schedule():
         # DAY 24
         {
             "day": 24,
-            "topic": "Kulturelle Unterschiede",
+            "topic": "Kulturelle Unterschiede 8.24",
             "chapter": "8.24",
             "goal": "Talk about cultural differences.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1611,7 +1640,7 @@ def get_b1_schedule():
         # DAY 25
         {
             "day": 25,
-            "topic": "Lebenslauf schreiben",
+            "topic": "Lebenslauf schreiben 8.25",
             "chapter": "9.25",
             "goal": "Write a CV and cover letter.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1622,7 +1651,7 @@ def get_b1_schedule():
         # DAY 26
         {
             "day": 26,
-            "topic": "Präsentationen halten",
+            "topic": "Präsentationen halten 9.26",
             "chapter": "9.26",
             "goal": "Learn to give presentations.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1633,7 +1662,7 @@ def get_b1_schedule():
         # DAY 27
         {
             "day": 27,
-            "topic": "Zusammenfassen und Berichten",
+            "topic": "Zusammenfassen und Berichten 9.27",
             "chapter": "9.27",
             "goal": "Practice summarizing and reporting.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1644,7 +1673,7 @@ def get_b1_schedule():
         # DAY 28
         {
             "day": 28,
-            "topic": "Abschlussprüfungsvorbereitung",
+            "topic": "Abschlussprüfungsvorbereitung 10.28",
             "chapter": "10.28",
             "goal": "Prepare for the final exam.",
             "instruction": "Review all topics, watch the revision video, and complete your mock exam.",
@@ -1914,13 +1943,30 @@ if tab == "Course Book":
         """
     )
 
-
 if tab == "My Results and Resources":
+    # 📊 Header
+    st.markdown(
+        """
+        <div style="
+            padding:8px 12px;
+            background:#17a2b8;
+            color:#fff;
+            border-radius:6px;
+            text-align:center;
+            margin-bottom:12px;
+            font-size:1.3rem;
+        ">
+            📊 My Results & Resources
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    st.divider()
+
     import requests, io, pandas as pd, re, base64
     from fpdf import FPDF
-    from collections import Counter
 
-    # ============ LEVEL SCHEDULES (make sure these functions are defined above) ============
+    # 📚 Schedules for each level
     LEVEL_SCHEDULES = {
         "A1": get_a1_schedule(),
         "A2": get_a2_schedule(),
@@ -1929,263 +1975,114 @@ if tab == "My Results and Resources":
         "C1": get_c1_schedule(),
     }
 
-    # --- LIVE GOOGLE SHEETS CSV LINK ---
-    GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
-
-    def get_pdf_download_link(pdf_bytes, filename="results.pdf"):
-        b64 = base64.b64encode(pdf_bytes).decode()
-        return f'<a href="data:application/pdf;base64,{b64}" download="{filename}" style="font-size:1.1em;font-weight:600;color:#2563eb;">📥 Click here to download PDF (manual)</a>'
-
+    SHEET = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
     @st.cache_data
     def fetch_scores():
-        response = requests.get(GOOGLE_SHEET_CSV, timeout=7)
-        response.raise_for_status()
-        df = pd.read_csv(io.StringIO(response.text), engine='python')
-        df.columns = [col.strip().lower().replace('studentcode', 'student_code') for col in df.columns]
-        required_cols = ["student_code", "name", "assignment", "score", "date", "level"]
-        df = df.dropna(subset=required_cols)
-        return df
+        r = requests.get(SHEET, timeout=7)
+        r.raise_for_status()
+        df = pd.read_csv(io.StringIO(r.text))
+        df.columns = [c.strip().lower().replace("studentcode","student_code") for c in df.columns]
+        return df.dropna(subset=["student_code","assignment","score","date","level"])
 
-    # --- Session Vars ---
-    student_code = st.session_state.get("student_code", "")
-    student_name = st.session_state.get("student_name", "")
-    st.header("📈 My Results and Resources Hub")
-    st.markdown("View and download your assignment history. All results are private and only visible to you.")
+    code = st.session_state["student_code"].lower().strip()
+    name = st.session_state["student_name"]
+    st.header("📈 My Results & Resources Hub")
+    st.markdown("All results are private and visible only to you.")
 
-    # ========== REFRESH BUTTON ==========
-    if st.button("🔄 Refresh for your latest results"):
+    if st.button("🔄 Refresh"):
         st.cache_data.clear()
-        st.success("Cache cleared! Reloading…")
-        st.rerun()
+        st.success("Reloading…")
+        st.experimental_rerun()
 
-    # ========== FETCH AND FILTER DATA ==========
-    df_scores = fetch_scores()
-    required_cols = {"student_code", "name", "assignment", "score", "date", "level"}
-    if not required_cols.issubset(df_scores.columns):
-        st.error("Data format error. Please contact support.")
-        st.write("Columns found:", df_scores.columns.tolist())
-        st.stop()
-
-    code = student_code.lower().strip()
-    df_user = df_scores[df_scores.student_code.str.lower().str.strip() == code]
+    df = fetch_scores()
+    df_user = df[df.student_code.str.lower().str.strip() == code]
     if df_user.empty:
         st.info("No results yet. Complete an assignment to see your scores!")
         st.stop()
 
-    # --- Choose level
-    df_user['level'] = df_user.level.str.upper().str.strip()
-    levels = sorted(df_user['level'].unique())
+    # — Select level
+    df_user["level"] = df_user.level.str.upper().str.strip()
+    levels = sorted(df_user.level.unique())
     level = st.selectbox("Select level:", levels)
     df_lvl = df_user[df_user.level == level]
 
-    # ========== METRICS ==========
-    totals = {"A1": 18, "A2": 28, "B1": 28, "B2": 24, "C1": 24}
-    total = totals.get(level, 0)
-    completed = df_lvl.assignment.nunique()
-    avg_score = df_lvl.score.mean() or 0
-    best_score = df_lvl.score.max() or 0
+    # — Missing assignments
+    schedule = LEVEL_SCHEDULES[level]
+    submitted = {a.strip().lower() for a in df_lvl.assignment}
+    missing = []
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Assignments", total)
-    col2.metric("Completed", completed)
-    col3.metric("Average Score", f"{avg_score:.1f}")
-    col4.metric("Best Score", best_score)
-
-
-    # ========== DETAILED RESULTS (with comments) ==========
-    st.markdown("---")
-    st.info("🔎 **Scroll down and expand the box below to see your full assignment history and feedback!**")
-
-    # --- Score label function ---
-    def score_label(score):
-        try:
-            score = float(score)
-        except:
-            return ""
-        if score >= 90:
-            return "Excellent 🌟"
-        elif score >= 75:
-            return "Good 👍"
-        elif score >= 60:
-            return "Sufficient ✔️"
-        else:
-            return "Needs Improvement ❗"
-
-    with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
-        if 'comments' in df_lvl.columns:
-            df_display = (
-                df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
-                [['assignment', 'score', 'date', 'comments']]
-                .reset_index(drop=True)
-            )
-            for idx, row in df_display.iterrows():
-                perf = score_label(row['score'])
-                st.markdown(
-                    f"""
-                    <div style="margin-bottom: 18px;">
-                    <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span>  
-                    <br>Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span> | Date: {row['date']}<br>
-                    <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
-                    <b>Feedback:</b> {row['comments'] if pd.notnull(row['comments']) and str(row['comments']).strip().lower() != 'nan' else '<i>No feedback</i>'}
-                    </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-                st.divider()
-        else:
-            df_display = (
-                df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
-                [['assignment', 'score', 'date']]
-                .reset_index(drop=True)
-            )
-            st.table(df_display)
-    st.markdown("---") 
-
-
-    # ========== BADGES & TROPHIES ==========
-    st.markdown("### 🏅 Badges & Trophies")
-    
-    with st.expander("What badges can you earn?", expanded=False):
-        st.markdown(
-            """
-            - 🏆 **Completion Trophy**: Finish all assignments for your level.
-            - 🥇 **Gold Badge**: Maintain an average score above 80.
-            - 🥈 **Silver Badge**: Average score above 70.
-            - 🥉 **Bronze Badge**: Average score above 60.
-            - 🌟 **Star Performer**: Score 85 or higher on any assignment.
-            """
-        )
-
-    badge_count = 0
-
-    if completed >= total and total > 0:
-        st.success("🏆 **Congratulations!** You have completed all assignments for this level!")
-        badge_count += 1
-
-    if avg_score >= 90:
-        st.info("🥇 **Gold Badge:** Average score above 90!")
-        badge_count += 1
-    elif avg_score >= 75:
-        st.info("🥈 **Silver Badge:** Average score above 75!")
-        badge_count += 1
-    elif avg_score >= 60:
-        st.info("🥉 **Bronze Badge:** Average score above 60!")
-        badge_count += 1
-
-    if best_score >= 95:
-        st.info("🌟 **Star Performer:** You scored 95 or above on an assignment!")
-        badge_count += 1
-
-    if badge_count == 0:
-        st.warning("No badges yet. Complete more assignments to earn badges!")
-
-    # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
-    def extract_chapter_num(chapter):
-        # Prefer numbers like '1.3', but if just '3' or '10' that's fine too.
-        nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
-        if not nums:
-            return None
-        # Find highest numeric value in the chapter string (handles both '1.3' and '3')
-        return max(float(n) for n in nums)
-
-    completed_chapters = []
-    for assignment in df_lvl['assignment']:
-        num = extract_chapter_num(assignment)
-        if num is not None:
-            completed_chapters.append(num)
-    last_num = max(completed_chapters) if completed_chapters else 0
-
-    schedule = LEVEL_SCHEDULES.get(level, [])
-    next_assignment = None
-    for lesson in schedule:
-        chap_num = extract_chapter_num(lesson.get("chapter", ""))
-        if chap_num and chap_num > last_num:
-            next_assignment = lesson
-            break
-    if next_assignment:
-        st.success(
-            f"**Your next recommended assignment:**\n\n"
-            f"**Day {next_assignment['day']}: {next_assignment['chapter']} – {next_assignment['topic']}**\n\n"
-            f"**Goal:** {next_assignment.get('goal','')}\n\n"
-            f"**Instruction:** {next_assignment.get('instruction','')}"
-        )
+    if level == "A1":
+        # only lessons with lesen_hören + Goethe
+        for lesson in schedule:
+            if not lesson.get("lesen_hören"):
+                continue
+            chap = str(lesson["chapter"]).strip().lower()
+            if chap and chap not in submitted:
+                missing.append(f"Day {lesson['day']}: {lesson['chapter']} – {lesson['topic']}")
+        if not any("goethe" in a for a in submitted):
+            missing.append("📝 Goethe Exam (Final)")
     else:
-        st.info("🎉 Great Job!")
+        # require every chapter
+        for lesson in schedule:
+            chap = str(lesson["chapter"]).strip().lower()
+            if chap and chap not in submitted:
+                missing.append(f"Day {lesson['day']}: {lesson['chapter']} – {lesson['topic']}")
 
-    # ========== DOWNLOAD PDF SUMMARY ==========
-    if st.button("⬇️ Download PDF Summary"):
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", 'B', 14)
-        pdf.cell(0, 10, "Learn Language Education Academy", ln=1, align='C')
-        pdf.ln(5)
-        pdf.set_font("Arial", '', 12)
-        pdf.multi_cell(
-            0, 8,
-            f"Name: {df_user.name.iloc[0]}\n"
-            f"Code: {code}\n"
-            f"Level: {level}\n"
-            f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"
-        )
-        pdf.ln(4)
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 8, "Summary Metrics", ln=1)
-        pdf.set_font("Arial", '', 11)
-        pdf.cell(0, 8, f"Total: {total}, Completed: {completed}, Avg: {avg_score:.1f}, Best: {best_score}", ln=1)
-        pdf.ln(4)
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 8, "Detailed Results", ln=1)
-        pdf.set_font("Arial", '', 10)
-        for _, row in df_display.iterrows():
-            feedback = row.get('comments', '')
-            if (
-                pd.isna(feedback) or
-                not str(feedback).strip() or
-                str(feedback).lower().strip() == "nan"
-            ):
-                feedback = "No feedback yet."
-            pdf.cell(0, 7, f"{row['assignment']}: {row['score']} ({row['date']})", ln=1)
-            if 'comments' in row and feedback:
-                pdf.set_font("Arial", 'I', 9)
-                pdf.multi_cell(0, 6, f"  Feedback: {feedback}")
-                pdf.set_font("Arial", '', 10)
-        pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
-        # Streamlit native download button
-        st.download_button(
-            label="Download PDF",
-            data=pdf_bytes,
-            file_name=f"{code}_results_{level}.pdf",
-            mime="application/pdf"
-        )
-        # Manual fallback download
-        st.markdown(
-            get_pdf_download_link(pdf_bytes, f"{code}_results_{level}.pdf"),
-            unsafe_allow_html=True
-        )
-        st.info("If you are on iPhone or computer and the button does not work, tap-and-hold or right-click on the blue link above and choose **Save link as...** to download your PDF.")
+    if missing:
+        st.warning("🚩 You have missing assignments:\n" + "\n".join(f"- {m}" for m in missing))
+    else:
+        st.success("🎉 All required assignments submitted!")
 
-    # --- Resources Section ---
+    # — Metrics
+    totals = {"A1": 19, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
+    total    = totals[level]
+    done     = df_lvl.assignment.nunique()
+    avg      = df_lvl.score.mean() or 0
+    best     = df_lvl.score.max() or 0
+
+    c1,c2,c3,c4 = st.columns(4)
+    c1.metric("Total",        total)
+    c2.metric("Completed",    done)
+    c3.metric("Average Score",f"{avg:.1f}")
+    c4.metric("Best Score",   best)
+
+    # — Detailed history
     st.markdown("---")
-    st.subheader("📚 Useful Resources")
-    st.markdown(
-        """
-**1. [A1 Schreiben Practice Questions](https://drive.google.com/file/d/1X_PFF2AnBXSrGkqpfrArvAnEIhqdF6fv/view?usp=sharing)**  
-Practice writing tasks and sample questions for A1.
+    st.info("🔎 Expand for full history & feedback")
+    def label(s):
+        s = float(s)
+        return "Excellent 🌟" if s>=90 else "Good 👍" if s>=75 else "Sufficient ✔️" if s>=60 else "Needs Improvement ❗"
 
-**2. [A1 Exams Sprechen Guide](https://drive.google.com/file/d/1UWvbCCCcrW3_j9x7pOuWug6_Odvzcvaa/view?usp=sharing)**  
-Step-by-step guide to the A1 speaking exam.
+    cols = ["assignment","score","date","comments"] if "comments" in df_lvl.columns else ["assignment","score","date"]
+    df_disp = df_lvl.sort_values(["assignment","score"],ascending=[True,False])[cols]
+    with st.expander("📋 Detailed Results", expanded=False):
+        for _, r in df_disp.iterrows():
+            st.write(f"**{r['assignment']}** – {r['score']} {label(r['score'])} | Date: {r['date']}")
+            if "comments" in r and pd.notna(r["comments"]):
+                st.markdown(f"*Feedback:* {r['comments']}")
+            st.divider()
 
-**3. [German Writing Rules](https://drive.google.com/file/d/1o7_ez3WSNgpgxU_nEtp6EO1PXDyi3K3b/view?usp=sharing)**  
-Tips and grammar rules for better writing.
+    # — PDF download
+    if st.button("⬇️ Download PDF Summary"):
+        pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial","B",14)
+        pdf.cell(0,10,"Learn Language Education Academy",ln=1,align="C")
+        pdf.ln(5); pdf.set_font("Arial","",12)
+        pdf.multi_cell(
+            0,8,
+            f"Name: {name}\nCode: {code}\nLevel: {level}\nDate: {pd.Timestamp.now():%Y-%m-%d %H:%M}"
+        )
+        pdf.ln(4); pdf.set_font("Arial","B",12); pdf.cell(0,8,"Metrics",ln=1)
+        pdf.set_font("Arial","",11)
+        pdf.cell(0,8,f"Total: {total}, Done: {done}, Avg: {avg:.1f}, Best: {best}",ln=1)
+        pdf.ln(4); pdf.set_font("Arial","B",12); pdf.cell(0,8,"History",ln=1); pdf.set_font("Arial","",10)
+        for _, r in df_disp.iterrows():
+            pdf.cell(0,7,f"{r['assignment']}: {r['score']} ({r['date']})",ln=1)
+            fb = r.get("comments","")
+            if pd.notna(fb) and str(fb).strip():
+                pdf.set_font("Arial","I",9); pdf.multi_cell(0,6,f"  Feedback: {fb}"); pdf.set_font("Arial","",10)
+        data = pdf.output(dest="S").encode("latin1","replace")
+        st.download_button("Download PDF", data,file_name=f"{code}_results_{level}.pdf",mime="application/pdf")
 
-**4. [A2 Sprechen Guide](https://drive.google.com/file/d/1TZecDTjNwRYtZXpEeshbWnN8gCftryhI/view?usp=sharing)**  
-A2-level speaking exam guide.
-
-**5. [B1 Sprechen Guide](https://drive.google.com/file/d/1snk4mL_Q9-xTBXSRfgiZL_gYRI9tya8F/view?usp=sharing)**  
-How to prepare for your B1 oral exam.
-        """
-    )
 
 
 
@@ -2211,6 +2108,25 @@ def load_exam_topics():
 df_exam = load_exam_topics()
 
 if tab == "Exams Mode & Custom Chat":
+    # 🗣️ Compact tab header
+    st.markdown(
+        '''
+        <div style="
+            padding: 8px 12px;
+            background: #28a745;
+            color: #fff;
+            border-radius: 6px;
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 1.3rem;
+        ">
+            🗣️ Exam Simulator & Custom Chat
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
+    st.divider()
+
     # --- Daily Limit Check ---
     # You can use a helper like: has_falowen_quota(student_code) or get_falowen_remaining(student_code)
     if not has_falowen_quota(student_code):
@@ -2754,8 +2670,26 @@ def load_vocab_lists():
 
 VOCAB_LISTS = load_vocab_lists()
 
-# --------- Main Vocab Trainer Tab logic -------------
 if tab == "Vocab Trainer":
+    # 📚 Compact Vocab Trainer header
+    st.markdown(
+        '''
+        <div style="
+            padding: 8px 12px;
+            background: #6f42c1;
+            color: #fff;
+            border-radius: 6px;
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 1.3rem;
+        ">
+            📚 Vocab Trainer
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
+    st.divider()
+    
     HERR_FELIX = "Herr Felix 👨‍🏫"
     defaults = {
         "vt_history": [],
@@ -2846,7 +2780,24 @@ if tab == "Vocab Trainer":
 import urllib.parse
 
 if tab == "Schreiben Trainer":
-    st.header("✍️ Schreiben Trainer (Writing Practice)")
+    # ✍️ Compact Schreiben Trainer header
+    st.markdown(
+        '''
+        <div style="
+            padding: 8px 12px;
+            background: #d63384;
+            color: #fff;
+            border-radius: 6px;
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 1.3rem;
+        ">
+            ✍️ Schreiben Trainer (Writing Practice)
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
+    st.divider()
 
     # 1. Choose Level (remember previous)
     schreiben_levels = ["A1", "A2", "B1", "B2"]
