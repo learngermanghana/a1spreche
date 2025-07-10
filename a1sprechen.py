@@ -718,7 +718,7 @@ def get_a1_schedule():
             ),
             "schreiben_sprechen": {
                 "video": "",
-                "workbook_link": "https://drive.google.com/file/d/1GXWzy3cvbl_goP4-ymFuYDtX4X23D70j/view?usp=sharing"
+                "workbook_link": "https://drive.google.com/file/d/1GXWzy3cvbl_goP4-ymFuYDtX4X23D70j/view?usp=sharing",
                 "assignment": False,
             },
             "lesen_hören": [
