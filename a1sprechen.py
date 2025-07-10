@@ -2121,7 +2121,6 @@ if tab == "My Results and Resources":
     col3.metric("Average Score", f"{avg_score:.1f}")
     col4.metric("Best Score", best_score)
 
-
     # ========== DETAILED RESULTS (with comments) ==========
     st.markdown("---")
     st.info("🔎 **Scroll down and expand the box below to see your full assignment history and feedback!**")
@@ -2172,7 +2171,6 @@ if tab == "My Results and Resources":
             st.table(df_display)
     st.markdown("---") 
 
-
     # ========== BADGES & TROPHIES ==========
     st.markdown("### 🏅 Badges & Trophies")
     
@@ -2210,7 +2208,8 @@ if tab == "My Results and Resources":
     if badge_count == 0:
         st.warning("No badges yet. Complete more assignments to earn badges!")
 
-        def extract_all_chapter_nums(chapter_str):
+    # ========== SKIPPED ASSIGNMENTS LOGIC ==========
+    def extract_all_chapter_nums(chapter_str):
         # Split by underscores, spaces, etc. and extract all numeric parts
         parts = re.split(r'[_\s,;]+', str(chapter_str))
         nums = []
@@ -2266,14 +2265,11 @@ if tab == "My Results and Resources":
             unsafe_allow_html=True
         )
 
-
     # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
     def extract_chapter_num(chapter):
-        # Prefer numbers like '1.3', but if just '3' or '10' that's fine too.
         nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
         if not nums:
             return None
-        # Find highest numeric value in the chapter string (handles both '1.3' and '3')
         return max(float(n) for n in nums)
 
     completed_chapters = []
@@ -2299,8 +2295,6 @@ if tab == "My Results and Resources":
         )
     else:
         st.info("🎉 Great Job!")
-
-#
 
     # ========== DOWNLOAD PDF SUMMARY ==========
     if st.button("⬇️ Download PDF Summary"):
@@ -2375,9 +2369,6 @@ A2-level speaking exam guide.
 How to prepare for your B1 oral exam.
         """
     )
-
-
-
 
 
 # ================================
