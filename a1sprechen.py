@@ -2874,12 +2874,18 @@ if tab == "Exams Mode & Custom Chat":
                 st.markdown(f"🗣️ {user_input}")
 
             # AI response
-            with st.chat_message("assistant", avatar="https://i.imgur.com/aypyUjM_d.jpeg?maxwidth=520&shape=thumb&fidelity=high"):
-                with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+            with st.chat_message(
+                "assistant",
+                avatar="https://i.imgur.com/aypyUjM_d.jpeg?maxwidth=520&shape=thumb&fidelity=high"
+            ):
+                with st.spinner("Herr Felix is typing..."):
                     messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
                     try:
                         resp = client.chat.completions.create(
-                            model="gpt-4o", messages=messages, temperature=0.15, max_tokens=600
+                            model="gpt-4o",
+                            messages=messages,
+                            temperature=0.15,
+                            max_tokens=600
                         )
                         ai_reply = resp.choices[0].message.content.strip()
                     except Exception as e:
@@ -2893,9 +2899,8 @@ if tab == "Exams Mode & Custom Chat":
             # save assistant reply
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
-# =========================================
 #End
-# =========================================
+
 
 # =========================================
 # VOCAB TRAINER TAB (A1–C1) — MOBILE OPTIMIZED
