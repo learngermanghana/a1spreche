@@ -1947,7 +1947,7 @@ import streamlit as st
 import requests, io, pandas as pd, re, base64
 from fpdf import FPDF
 
-# ====== CONSTANTS AND HELPERS ======
+# ==== CONSTANTS AND HELPERS ====
 CSV_URL = (
     "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/"
     "gviz/tq?tqx=out:csv"
@@ -1962,17 +1962,13 @@ LEVEL_SCHEDULES = {
 }
 
 def fetch_scores(csv_url):
-    try:
-        response = requests.get(csv_url, timeout=7)
-        response.raise_for_status()
-        df = pd.read_csv(io.StringIO(response.text), engine="python")
-        df.columns = [col.strip().lower().replace('studentcode', 'student_code') for col in df.columns]
-        required_cols = ["student_code", "name", "assignment", "score", "date", "level"]
-        df = df.dropna(subset=required_cols)
-        return df
-    except Exception as e:
-        st.error("Failed to fetch results. Please check your connection or contact support.")
-        st.stop()
+    response = requests.get(csv_url, timeout=7)
+    response.raise_for_status()
+    df = pd.read_csv(io.StringIO(response.text), engine="python")
+    df.columns = [col.strip().lower().replace('studentcode', 'student_code') for col in df.columns]
+    required_cols = ["student_code", "name", "assignment", "score", "date", "level"]
+    df = df.dropna(subset=required_cols)
+    return df
 
 def get_pdf_download_link(pdf_bytes, filename="results.pdf"):
     b64 = base64.b64encode(pdf_bytes).decode()
@@ -1985,27 +1981,14 @@ def extract_chapter_num(chapter):
     return max(float(n) for n in nums)
 
 def has_lesson_assignment(lesson, level):
-    # Always treat these as dict, even if None or invalid.
-    lesen = lesson.get('lesen_hören')
-    sprechen = lesson.get('schreiben_sprechen')
-    if not isinstance(lesen, dict):
-        lesen = {}
-    if not isinstance(sprechen, dict):
-        sprechen = {}
-
+    lesen = lesson.get('lesen_hören') or {}
+    sprechen = lesson.get('schreiben_sprechen') or {}
     instruction = str(lesson.get('instruction', '')).lower()
+    # For A1, only lessons with workbook_link in lesen_hören and not grammar-only
     if level == "A1":
-        # Only count if there is a workbook_link (and it's not grammar-only)
-        has_assignment = bool(lesen.get('workbook_link'))
-        is_grammar_only = 'no assignment' in instruction or 'grammar' in instruction
-        return has_assignment and not is_grammar_only
-    # For A2–C1: Any lesson with any assignment
-    return (
-        bool(lesen.get('workbook_link')) or
-        bool(sprechen.get('workbook_link')) or
-        bool(lesson.get('assignment'))
-    )
-
+        return bool(lesen.get('workbook_link')) and 'no assignment' not in instruction and 'grammar' not in instruction
+    # For others, any workbook_link or assignment field counts
+    return bool(lesen.get('workbook_link')) or bool(sprechen.get('workbook_link')) or bool(lesson.get('assignment'))
 
 def score_label(score):
     try:
@@ -2021,7 +2004,7 @@ def score_label(score):
     else:
         return "Needs Improvement ❗"
 
-# ====== TAB LOGIC ======
+# ==== TAB LOGIC ====
 if tab == "My Results and Resources":
     st.markdown(
         '''
@@ -2042,17 +2025,17 @@ if tab == "My Results and Resources":
     if df_user.empty:
         st.info("No results yet. Complete an assignment to see your scores!")
         st.stop()
-    df_user = df_user.copy()  # Avoid SettingWithCopyWarning
-    df_user.loc[:, 'level'] = df_user['level'].str.upper().str.strip()
+    df_user = df_user.copy()
+    df_user['level'] = df_user['level'].str.upper().str.strip()
     levels = sorted(df_user['level'].unique())
     level = st.selectbox("Select level:", levels)
     df_lvl = df_user[df_user.level == level]
 
     schedule = LEVEL_SCHEDULES.get(level, [])
-    # Only include lessons with assignments
     assignable_lessons = [l for l in schedule if has_lesson_assignment(l, level)]
-    total = len(assignable_lessons)
 
+    # --- METRICS ---
+    total = len(assignable_lessons)
     completed = df_lvl.assignment.nunique()
     avg_score = df_lvl.score.mean() or 0
     best_score = df_lvl.score.max() or 0
@@ -2063,62 +2046,37 @@ if tab == "My Results and Resources":
     col3.metric("Average Score", f"{avg_score:.1f}")
     col4.metric("Best Score", best_score)
 
-    # ======= CHECK FOR SKIPPED ASSIGNMENTS =======
-    # --- Find completed chapter numbers (and their names) ---
-    completed_chapters = set()
-    assignment_chapter_map = {}  # {chapter_num: assignment_name}
+    # --- Skipped Assignment Detection ---
+    completed_chapter_nums = set()
+    assignment_to_chapter = {}
     for assignment in df_lvl['assignment']:
         num = extract_chapter_num(assignment)
         if num is not None:
-            completed_chapters.add(num)
-            assignment_chapter_map[num] = assignment  # may overwrite, but fine
+            completed_chapter_nums.add(num)
+            assignment_to_chapter[num] = assignment  # Track for display
 
-    max_completed = max(completed_chapters) if completed_chapters else 0
-
-    # --- Find all scheduled assignments up to max_completed ---
-    expected_chapters = []
-    chapter_to_lesson = {}
+    # Only check for missing assignments less than max completed
+    max_completed = max(completed_chapter_nums) if completed_chapter_nums else 0
+    skipped = []
     for lesson in assignable_lessons:
         chap_num = extract_chapter_num(lesson.get("chapter", ""))
-        if chap_num is not None and chap_num <= max_completed:
-            expected_chapters.append(chap_num)
-            chapter_to_lesson[chap_num] = lesson
+        if chap_num and chap_num < max_completed and chap_num not in completed_chapter_nums:
+            skipped.append((chap_num, lesson.get("chapter", ""), lesson.get("topic", "")))
 
-    # --- Detect missing ones ---
-    missing_chapters = sorted(set(expected_chapters) - completed_chapters)
-
-    if missing_chapters:
+    if skipped:
         st.warning(
-            "⚠️ **You have missed/skipped some assignments!**\n\n"
-            "Please complete these before moving on:\n\n"
-            + "\n".join(
-                f"- {chapter_to_lesson[num]['chapter']} ({chapter_to_lesson[num]['topic']})"
-                for num in missing_chapters
-            )
+            "⚠️ **You skipped some assignments!** Please complete these chapters to stay on track:<br>"
+            + "<br>".join(f"<b>{ch_name}</b> – {topic}" for _, ch_name, topic in skipped),
+            icon="⚠️",
+            unsafe_allow_html=True,
         )
     else:
-        # Recommend next assignment, skip practical-only for A1
-        next_lesson = None
-        for lesson in assignable_lessons:
-            chap_num = extract_chapter_num(lesson.get("chapter", ""))
-            if chap_num and chap_num > max_completed:
-                next_lesson = lesson
-                break
+        st.success("✅ No skipped assignments. Keep it up!")
 
-        if next_lesson:
-            st.success(
-                f"**Your next recommended assignment:**\n\n"
-                f"**Day {next_lesson['day']}: {next_lesson['chapter']} – {next_lesson['topic']}**\n\n"
-                f"**Goal:** {next_lesson.get('goal','')}\n\n"
-                f"**Instruction:** {next_lesson.get('instruction','')}"
-            )
-        else:
-            st.info("🎉 Great Job! All assignments completed.")
-
-    # ====== DETAILED RESULTS ======
     st.markdown("---")
     st.info("🔎 **Scroll down and expand the box below to see your full assignment history and feedback!**")
 
+    # --- Results Display ---
     with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
         if 'comments' in df_lvl.columns:
             df_display = (
@@ -2150,7 +2108,7 @@ if tab == "My Results and Resources":
             st.table(df_display)
     st.markdown("---")
 
-    # ======== BADGES & TROPHIES ========
+    # --- Badges & Trophies ---
     st.markdown("### 🏅 Badges & Trophies")
     with st.expander("What badges can you earn?", expanded=False):
         st.markdown(
@@ -2182,7 +2140,25 @@ if tab == "My Results and Resources":
     if badge_count == 0:
         st.warning("No badges yet. Complete more assignments to earn badges!")
 
-    # ======= PDF DOWNLOAD =======
+    # --- Next Assignment Recommendation ---
+    next_assignment = None
+    for lesson in assignable_lessons:
+        chap_num = extract_chapter_num(lesson.get("chapter", ""))
+        if chap_num and chap_num > max_completed and chap_num not in completed_chapter_nums:
+            next_assignment = lesson
+            break
+
+    if next_assignment:
+        st.success(
+            f"**Your next recommended assignment:**\n\n"
+            f"**Day {next_assignment['day']}: {next_assignment['chapter']} – {next_assignment['topic']}**\n\n"
+            f"**Goal:** {next_assignment.get('goal','')}\n\n"
+            f"**Instruction:** {next_assignment.get('instruction','')}"
+        )
+    else:
+        st.info("🎉 Great Job! All assignments completed.")
+
+    # --- PDF Download ---
     if st.button("⬇️ Download PDF Summary"):
         pdf = FPDF()
         pdf.add_page()
@@ -2253,7 +2229,6 @@ A2-level speaking exam guide.
 How to prepare for your B1 oral exam.
         """
     )
-
 
 
 # ================================
