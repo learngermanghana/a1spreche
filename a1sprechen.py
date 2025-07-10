@@ -2140,46 +2140,52 @@ if tab == "My Results and Resources":
             return "Sufficient ✔️"
         else:
             return "Needs Improvement ❗"
-            
+
     with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
-        import re
+        # Show the exact filtered DataFrame for debugging
+        st.write("DEBUG: Filtered Results")
+        st.dataframe(df_lvl)
 
-        def extract_chapter_num(assignment):
-            # Assignment could be 'A1 4', '0.1', '4', etc.
-            if pd.isnull(assignment):
-                return float('inf')
-            # Get the first number group, could be '0.1', '4', etc.
-            match = re.search(r'(\d+(?:\.\d+)?)', str(assignment))
-            if match:
-                return float(match.group(1))
-            return float('inf')  # If no number, put at end
+        # Always sort by numeric chapter if possible, fallback to string
+        def chapter_sort_key(row):
+            import re
+            nums = re.findall(r'\d+(?:\.\d+)?', str(row['assignment']))
+            return float(nums[0]) if nums else float('inf')
 
-        df_display = df_lvl.copy()
-        df_display['chapter_num'] = df_display['assignment'].apply(extract_chapter_num)
-        df_display = df_display.sort_values(['chapter_num', 'score'], ascending=[True, False])
+        # Sort the DataFrame to show chapters in order
+        try:
+            df_display = df_lvl.copy()
+            df_display['chapter_num'] = df_display['assignment'].apply(
+                lambda x: float(re.findall(r'\d+(?:\.\d+)?', str(x))[0]) if re.findall(r'\d+(?:\.\d+)?', str(x)) else float('inf')
+            )
+            df_display = df_display.sort_values('chapter_num').reset_index(drop=True)
+        except Exception as e:
+            # Fallback to plain sort if error
+            df_display = df_lvl.sort_values(['assignment', 'score'], ascending=[True, False]).reset_index(drop=True)
 
-        show_cols = ['assignment', 'score', 'date']
-        if 'comments' in df_display.columns:
-            show_cols.append('comments')
-
-        # Always show ALL rows
+        # Display all available columns for feedback
         for idx, row in df_display.iterrows():
             perf = score_label(row['score'])
+            feedback = ""
+            if 'comments' in row and pd.notnull(row['comments']) and str(row['comments']).strip().lower() != 'nan':
+                feedback = row['comments']
+            else:
+                feedback = '<i>No feedback</i>'
             st.markdown(
                 f"""
                 <div style="margin-bottom: 18px;">
                 <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span>  
                 <br>Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span> | Date: {row['date']}<br>
                 <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
-                <b>Feedback:</b> {row['comments'] if 'comments' in row and pd.notnull(row['comments']) and str(row['comments']).strip().lower() != 'nan' else '<i>No feedback</i>'}
+                <b>Feedback:</b> {feedback}
                 </div>
                 </div>
                 """,
                 unsafe_allow_html=True
             )
             st.divider()
-        st.markdown("---")
-
+    st.markdown("---")
+            
 
     # ========== BADGES & TROPHIES ==========
     st.markdown("### 🏅 Badges & Trophies")
