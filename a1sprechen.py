@@ -2187,7 +2187,7 @@ if tab == "My Results and Resources":
     skipped_assignments = []
     for lesson in schedule:
         chap_num = extract_chapter_num(lesson.get("chapter", ""))
-        has_assignment = lesson.get("assignment", False)  # must be in your schedule dict
+        has_assignment = lesson.get("assignment", False)
         if (
             has_assignment
             and chap_num is not None
@@ -2196,10 +2196,22 @@ if tab == "My Results and Resources":
         ):
             skipped_assignments.append(f"Day {lesson['day']}: {lesson['chapter']} – {lesson['topic']}")
     if skipped_assignments:
-        st.warning(
-            f"⚠️ <b>You have skipped the following assignments. Please complete them for full progress:</b><br>"
-            + "<br>".join(skipped_assignments),
-            unsafe_allow_html=True,
+        st.markdown(
+            f"""
+            <div style="
+                background-color: #fff3cd;
+                border-left: 6px solid #ffecb5;
+                color: #7a6001;
+                padding: 16px 18px 16px 16px;
+                border-radius: 8px;
+                margin: 12px 0;
+                font-size: 1.05em;">
+                <b>⚠️ You have skipped the following assignments.<br>
+                Please complete them for full progress:</b><br>
+                {"<br>".join(skipped_assignments)}
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
     # === NEXT ASSIGNMENT SUGGESTION ===
@@ -2218,6 +2230,8 @@ if tab == "My Results and Resources":
         )
     else:
         st.info("🎉 Great Job!")
+
+
 
 
 
