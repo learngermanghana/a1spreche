@@ -2120,6 +2120,8 @@ if tab == "My Results and Resources":
     col2.metric("Completed", completed)
     col3.metric("Average Score", f"{avg_score:.1f}")
     col4.metric("Best Score", best_score)
+
+
 with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
     if 'comments' in df_lvl.columns:
         df_display = (
@@ -2159,46 +2161,47 @@ with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expan
                 unsafe_allow_html=True
             )
             st.divider()
+
 st.markdown("---")
 
+# ========== BADGES & TROPHIES ==========
+st.markdown("### 🏅 Badges & Trophies")
 
-            
-    # ========== BADGES & TROPHIES ==========
-    st.markdown("### 🏅 Badges & Trophies")
-    
-    with st.expander("What badges can you earn?", expanded=False):
-        st.markdown(
-            """
-            - 🏆 **Completion Trophy**: Finish all assignments for your level.
-            - 🥇 **Gold Badge**: Maintain an average score above 80.
-            - 🥈 **Silver Badge**: Average score above 70.
-            - 🥉 **Bronze Badge**: Average score above 60.
-            - 🌟 **Star Performer**: Score 85 or higher on any assignment.
-            """
-        )
+with st.expander("What badges can you earn?", expanded=False):
+    st.markdown(
+        """
+        - 🏆 **Completion Trophy**: Finish all assignments for your level.
+        - 🥇 **Gold Badge**: Maintain an average score above 80.
+        - 🥈 **Silver Badge**: Average score above 70.
+        - 🥉 **Bronze Badge**: Average score above 60.
+        - 🌟 **Star Performer**: Score 85 or higher on any assignment.
+        """
+    )
 
-    badge_count = 0
+badge_count = 0
 
-    if completed >= total and total > 0:
-        st.success("🏆 **Congratulations!** You have completed all assignments for this level!")
-        badge_count += 1
+if completed >= total and total > 0:
+    st.success("🏆 **Congratulations!** You have completed all assignments for this level!")
+    badge_count += 1
 
-    if avg_score >= 90:
-        st.info("🥇 **Gold Badge:** Average score above 90!")
-        badge_count += 1
-    elif avg_score >= 75:
-        st.info("🥈 **Silver Badge:** Average score above 75!")
-        badge_count += 1
-    elif avg_score >= 60:
-        st.info("🥉 **Bronze Badge:** Average score above 60!")
-        badge_count += 1
+if avg_score >= 90:
+    st.info("🥇 **Gold Badge:** Average score above 90!")
+    badge_count += 1
+elif avg_score >= 75:
+    st.info("🥈 **Silver Badge:** Average score above 75!")
+    badge_count += 1
+elif avg_score >= 60:
+    st.info("🥉 **Bronze Badge:** Average score above 60!")
+    badge_count += 1
 
-    if best_score >= 95:
-        st.info("🌟 **Star Performer:** You scored 95 or above on an assignment!")
-        badge_count += 1
+if best_score >= 95:
+    st.info("🌟 **Star Performer:** You scored 95 or above on an assignment!")
+    badge_count += 1
 
-    if badge_count == 0:
-        st.warning("No badges yet. Complete more assignments to earn badges!")
+if badge_count == 0:
+    st.warning("No badges yet. Complete more assignments to earn badges!")
+
+
 
     # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
     def extract_chapter_num(chapter):
