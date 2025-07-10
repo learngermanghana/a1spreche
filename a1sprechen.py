@@ -2120,7 +2120,6 @@ if tab == "My Results and Resources":
     col2.metric("Completed", completed)
     col3.metric("Average Score", f"{avg_score:.1f}")
     col4.metric("Best Score", best_score)
-
 with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
     if 'comments' in df_lvl.columns:
         df_display = (
@@ -2161,6 +2160,8 @@ with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expan
             )
             st.divider()
 st.markdown("---")
+
+
             
     # ========== BADGES & TROPHIES ==========
     st.markdown("### 🏅 Badges & Trophies")
