@@ -2217,14 +2217,12 @@ if tab == "My Results and Resources":
             return None
         return max(float(n) for n in nums)
     
-    # Collect all (day, chapter_num) tuples completed by the student
+    # Collect all (chapter_num) completed by the student
     completed_assignments = set()
     for _, row in df_lvl.iterrows():
         num = extract_chapter_num(row['assignment'])
-        # Optional: You can also try to extract day from the student's input if you want, 
-        # but using just chapter number usually works.
         if num is not None:
-            completed_assignments.add(num)  # Just chapter_num, or use (row['day'], num) if both available
+            completed_assignments.add(num)
 
     last_num = max(completed_assignments) if completed_assignments else 0
 
@@ -2281,6 +2279,7 @@ if tab == "My Results and Resources":
         )
     else:
         st.info("🎉 Great Job!")
+
 
     # ========== DOWNLOAD PDF SUMMARY ==========
     if st.button("⬇️ Download PDF Summary"):
