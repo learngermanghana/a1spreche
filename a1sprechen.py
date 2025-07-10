@@ -2025,20 +2025,6 @@ if tab == "Course Book":
         """
     )
 
-def score_label(score):
-    try:
-        score = float(score)
-    except:
-        return ""
-    if score >= 90:
-        return "Excellent 🌟"
-    elif score >= 75:
-        return "Good 👍"
-    elif score >= 60:
-        return "Sufficient ✔️"
-    else:
-        return "Needs Improvement ❗"
-
 #MyResults
 if tab == "My Results and Resources":
     # 📊 Compact Results & Resources header
@@ -2136,120 +2122,130 @@ if tab == "My Results and Resources":
     col4.metric("Best Score", best_score)
 
 
-with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
-    if 'comments' in df_lvl.columns:
-        df_display = (
-            df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
-            [['assignment', 'score', 'date', 'comments']]
-            .reset_index(drop=True)
-        )
-        for idx, row in df_display.iterrows():
-            perf = score_label(row['score'])
-            st.markdown(
-                f"""
-                <div style="margin-bottom: 18px;">
-                    <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span><br>
-                    Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span> | Date: {row['date']}<br>
+    # ========== DETAILED RESULTS (with comments) ==========
+    st.markdown("---")
+    st.info("🔎 **Scroll down and expand the box below to see your full assignment history and feedback!**")
+
+    # --- Score label function ---
+    def score_label(score):
+        try:
+            score = float(score)
+        except:
+            return ""
+        if score >= 90:
+            return "Excellent 🌟"
+        elif score >= 75:
+            return "Good 👍"
+        elif score >= 60:
+            return "Sufficient ✔️"
+        else:
+            return "Needs Improvement ❗"
+
+    with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
+        if 'comments' in df_lvl.columns:
+            df_display = (
+                df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
+                [['assignment', 'score', 'date', 'comments']]
+                .reset_index(drop=True)
+            )
+            for idx, row in df_display.iterrows():
+                perf = score_label(row['score'])
+                st.markdown(
+                    f"""
+                    <div style="margin-bottom: 18px;">
+                    <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span>  
+                    <br>Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span> | Date: {row['date']}<br>
                     <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
-                        <b>Feedback:</b> {row['comments'] if pd.notnull(row['comments']) and str(row['comments']).strip().lower() != 'nan' else '<i>No feedback</i>'}
+                    <b>Feedback:</b> {row['comments'] if pd.notnull(row['comments']) and str(row['comments']).strip().lower() != 'nan' else '<i>No feedback</i>'}
                     </div>
-                </div>
-                """,
-                unsafe_allow_html=True
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+                st.divider()
+        else:
+            df_display = (
+                df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
+                [['assignment', 'score', 'date']]
+                .reset_index(drop=True)
             )
-            st.divider()
-    else:
-        df_display = (
-            df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
-            [['assignment', 'score', 'date']]
-            .reset_index(drop=True)
-        )
-        for idx, row in df_display.iterrows():
-            st.markdown(
-                f"""
-                <div style="margin-bottom: 18px;">
-                    <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span><br>
-                    Score: <b>{row['score']}</b> | Date: {row['date']}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-            st.divider()
-
-st.markdown("---")
-
-# ========== BADGES & TROPHIES ==========
-st.markdown("### 🏅 Badges & Trophies")
-
-with st.expander("What badges can you earn?", expanded=False):
-    st.markdown(
-        """
-        - 🏆 **Completion Trophy**: Finish all assignments for your level.
-        - 🥇 **Gold Badge**: Maintain an average score above 80.
-        - 🥈 **Silver Badge**: Average score above 70.
-        - 🥉 **Bronze Badge**: Average score above 60.
-        - 🌟 **Star Performer**: Score 85 or higher on any assignment.
-        """
-    )
-
-badge_count = 0
-
-if completed >= total and total > 0:
-    st.success("🏆 **Congratulations!** You have completed all assignments for this level!")
-    badge_count += 1
-
-if avg_score >= 90:
-    st.info("🥇 **Gold Badge:** Average score above 90!")
-    badge_count += 1
-elif avg_score >= 75:
-    st.info("🥈 **Silver Badge:** Average score above 75!")
-    badge_count += 1
-elif avg_score >= 60:
-    st.info("🥉 **Bronze Badge:** Average score above 60!")
-    badge_count += 1
-
-if best_score >= 95:
-    st.info("🌟 **Star Performer:** You scored 95 or above on an assignment!")
-    badge_count += 1
-
-if badge_count == 0:
-    st.warning("No badges yet. Complete more assignments to earn badges!")
+            st.table(df_display)
+    st.markdown("---") 
 
 
-
-    # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
-    def extract_chapter_num(chapter):
-        nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
-        if not nums:
-            return None
-        return max(float(n) for n in nums)
+    # ========== BADGES & TROPHIES ==========
+    st.markdown("### 🏅 Badges & Trophies")
     
-    # Collect all (chapter_num) completed by the student
-    completed_assignments = set()
-    for _, row in df_lvl.iterrows():
-        num = extract_chapter_num(row['assignment'])
-        if num is not None:
-            completed_assignments.add(num)
+    with st.expander("What badges can you earn?", expanded=False):
+        st.markdown(
+            """
+            - 🏆 **Completion Trophy**: Finish all assignments for your level.
+            - 🥇 **Gold Badge**: Maintain an average score above 80.
+            - 🥈 **Silver Badge**: Average score above 70.
+            - 🥉 **Bronze Badge**: Average score above 60.
+            - 🌟 **Star Performer**: Score 85 or higher on any assignment.
+            """
+        )
 
-    last_num = max(completed_assignments) if completed_assignments else 0
+    badge_count = 0
+
+    if completed >= total and total > 0:
+        st.success("🏆 **Congratulations!** You have completed all assignments for this level!")
+        badge_count += 1
+
+    if avg_score >= 90:
+        st.info("🥇 **Gold Badge:** Average score above 90!")
+        badge_count += 1
+    elif avg_score >= 75:
+        st.info("🥈 **Silver Badge:** Average score above 75!")
+        badge_count += 1
+    elif avg_score >= 60:
+        st.info("🥉 **Bronze Badge:** Average score above 60!")
+        badge_count += 1
+
+    if best_score >= 95:
+        st.info("🌟 **Star Performer:** You scored 95 or above on an assignment!")
+        badge_count += 1
+
+    if badge_count == 0:
+        st.warning("No badges yet. Complete more assignments to earn badges!")
+
+        def extract_all_chapter_nums(chapter_str):
+        # Split by underscores, spaces, etc. and extract all numeric parts
+        parts = re.split(r'[_\s,;]+', str(chapter_str))
+        nums = []
+        for part in parts:
+            match = re.search(r'\d+(?:\.\d+)?', part)
+            if match:
+                nums.append(float(match.group()))
+        return nums
+
+    # Build a set of all chapter numbers completed by student
+    completed_nums = set()
+    for _, row in df_lvl.iterrows():
+        nums = extract_all_chapter_nums(row['assignment'])
+        completed_nums.update(nums)
+
+    last_num = max(completed_nums) if completed_nums else 0
 
     schedule = LEVEL_SCHEDULES.get(level, [])
-
-    # === SKIPPED ASSIGNMENTS CHECK ===
     skipped_assignments = []
     for lesson in schedule:
-        chap_num = extract_chapter_num(lesson.get("chapter", ""))
+        chapter_field = lesson.get("chapter", "")
+        lesson_nums = extract_all_chapter_nums(chapter_field)
         day = lesson.get("day", "")
         has_assignment = lesson.get("assignment", False)
-        if (
-            has_assignment
-            and chap_num is not None
-            and chap_num < last_num
-            and chap_num not in completed_assignments
-        ):
-            skipped_assignments.append(
-                f"Day {day}: Chapter {lesson['chapter']} – {lesson['topic']}"
-            )
+        # If any required num is skipped (i.e., less than last_num and not in completed)
+        for chap_num in lesson_nums:
+            if (
+                has_assignment
+                and chap_num < last_num
+                and chap_num not in completed_nums
+            ):
+                skipped_assignments.append(
+                    f"Day {day}: Chapter {chapter_field} – {lesson.get('topic','')}"
+                )
+                break  # Only need to flag once per lesson
 
     if skipped_assignments:
         st.markdown(
@@ -2270,7 +2266,24 @@ if badge_count == 0:
             unsafe_allow_html=True
         )
 
-    # === NEXT ASSIGNMENT SUGGESTION ===
+
+    # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
+    def extract_chapter_num(chapter):
+        # Prefer numbers like '1.3', but if just '3' or '10' that's fine too.
+        nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
+        if not nums:
+            return None
+        # Find highest numeric value in the chapter string (handles both '1.3' and '3')
+        return max(float(n) for n in nums)
+
+    completed_chapters = []
+    for assignment in df_lvl['assignment']:
+        num = extract_chapter_num(assignment)
+        if num is not None:
+            completed_chapters.append(num)
+    last_num = max(completed_chapters) if completed_chapters else 0
+
+    schedule = LEVEL_SCHEDULES.get(level, [])
     next_assignment = None
     for lesson in schedule:
         chap_num = extract_chapter_num(lesson.get("chapter", ""))
@@ -2280,13 +2293,14 @@ if badge_count == 0:
     if next_assignment:
         st.success(
             f"**Your next recommended assignment:**\n\n"
-            f"**Day {next_assignment.get('day','')}: {next_assignment.get('chapter','')} – {next_assignment.get('topic','')}**\n\n"
+            f"**Day {next_assignment['day']}: {next_assignment['chapter']} – {next_assignment['topic']}**\n\n"
             f"**Goal:** {next_assignment.get('goal','')}\n\n"
             f"**Instruction:** {next_assignment.get('instruction','')}"
         )
     else:
         st.info("🎉 Great Job!")
 
+#
 
     # ========== DOWNLOAD PDF SUMMARY ==========
     if st.button("⬇️ Download PDF Summary"):
@@ -2361,6 +2375,7 @@ A2-level speaking exam guide.
 How to prepare for your B1 oral exam.
         """
     )
+
 
 
 
