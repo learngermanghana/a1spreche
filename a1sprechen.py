@@ -1981,19 +1981,25 @@ def extract_chapter_num(chapter: str) -> float | None:
 def has_lesson_assignment(lesson: dict, level: str) -> bool:
     lh = lesson.get('lesen_hören') or {}
     ss = lesson.get('schreiben_sprechen') or {}
+    def any_link(sec):
+        if isinstance(sec, list):
+            return any(bool(item.get('workbook_link')) for item in sec)
+        return bool(sec.get('workbook_link'))
+    has_lh = any_link(lh)
+    has_ss = any_link(ss)
     instr = str(lesson.get('instruction','')).lower()
     if level == 'A1':
-        return bool(lh.get('workbook_link')) and 'grammar' not in instr
-    return bool(lh.get('workbook_link')) or bool(ss.get('workbook_link'))
+        return has_lh and 'grammar' not in instr
+    return has_lh or has_ss
 
 def score_label(score) -> str:
     try:
         s = float(score)
     except:
         return ''
-    if s>=90: return 'Excellent 🌟'
-    if s>=75: return 'Good 👍'
-    if s>=60: return 'Sufficient ✔️'
+    if s >= 90: return 'Excellent 🌟'
+    if s >= 75: return 'Good 👍'
+    if s >= 60: return 'Sufficient ✔️'
     return 'Needs Improvement ❗'
 
 if tab == "My Results and Resources":
@@ -2009,56 +2015,67 @@ if tab == "My Results and Resources":
     )
     st.divider()
 
+    # Fetch and filter scores
     df_scores = fetch_scores(CSV_URL)
     code = st.session_state.get('student_code','').strip().lower()
-    df_user = df_scores[df_scores.student_code.str.lower().str.strip()==code]
+    df_user = df_scores[df_scores.student_code.str.lower().str.strip() == code]
     if df_user.empty:
         st.info("No results yet. Complete an assignment to see your scores!")
         st.stop()
     df_user = df_user.copy()
     df_user['level'] = df_user.level.str.upper().str.strip()
 
+    # Level selection
     levels = sorted(df_user.level.unique())
     level = st.selectbox("Select level:", levels)
-    df_lvl = df_user[df_user.level==level]
+    df_lvl = df_user[df_user.level == level]
 
+    # Build assignable lessons
     schedule = LEVEL_SCHEDULES.get(level, [])
     assignable = [l for l in schedule if has_lesson_assignment(l, level)]
     chap_nums = sorted(filter(None, (extract_chapter_num(l.get('chapter','')) for l in assignable)))
 
+    # Dynamic metrics
     total = len(assignable)
     completed = df_lvl.assignment.nunique()
     avg_score = df_lvl.score.mean() or 0
     best_score = df_lvl.score.max() or 0
-
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Total Assignments", total)
     c2.metric("Completed", completed)
     c3.metric("Average Score", f"{avg_score:.1f}")
     c4.metric("Best Score", f"{best_score:.1f}")
 
-    completed_nums = sorted(filter(None, (extract_chapter_num(a) for a in df_lvl.assignment)))
+    # Check for skipped assignments
+    completed_nums = sorted(filter(None,
+        (extract_chapter_num(a) for a in df_lvl.assignment)))
     last_done = max(completed_nums, default=0)
-    missing = [n for n in chap_nums if n<last_done and n not in completed_nums]
+    missing = [n for n in chap_nums if n < last_done and n not in completed_nums]
     if missing:
-        st.warning(f"🚩 You have missing assignments: {', '.join(map(str,missing))}")
+        st.warning(f"🚩 You have missing assignments: {', '.join(map(str, missing))}")
     else:
         st.success("✅ No skipped assignments. Keep it up!")
 
+    # Detailed results
     st.markdown("---")
     st.info("🔎 Expand below to see detailed results:")
     with st.expander("📋 SEE DETAILED RESULTS", expanded=False):
         cols = ['assignment','score','date'] + (['comments'] if 'comments' in df_lvl else [])
-        df_display = df_lvl[cols].sort_values(['assignment','score'], ascending=[True,False]).reset_index(drop=True)
-        st.table(df_display)
+        st.table(
+            df_lvl[cols]
+            .sort_values(['assignment','score'], ascending=[True,False])
+            .reset_index(drop=True)
+        )
 
+    # Next assignment recommendation
     st.markdown("---")
     next_lesson = None
     if not missing:
         for l in assignable:
             num = extract_chapter_num(l.get('chapter',''))
-            if num and num>last_done:
-                next_lesson = l; break
+            if num and num > last_done:
+                next_lesson = l
+                break
     if next_lesson:
         st.success(f"Next recommended: Day {next_lesson['day']}: {next_lesson['chapter']} – {next_lesson['topic']}")
     else:
