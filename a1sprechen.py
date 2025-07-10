@@ -2054,9 +2054,13 @@ if tab == "My Results and Resources":
     level = st.selectbox("Select level:", levels)
     df_lvl = df_user[df_user.level == level]
 
-    # --- Hardcoded assignment totals for accuracy
+    # --- Hardcoded assignment totals for metric display
     TOTALS = {"A1": 19, "A2": 29, "B1": 29, "B2": 24, "C1": 24}
     total = TOTALS.get(level, 0)
+
+    # --- Assignable lessons for this level (for logic only)
+    schedule = LEVEL_SCHEDULES.get(level, [])
+    assignable = [l for l in schedule if is_assignable_lesson(l, level)]
 
     completed = df_lvl.assignment.nunique()
     avg_score = df_lvl.score.mean() or 0
@@ -2069,9 +2073,7 @@ if tab == "My Results and Resources":
     col3.metric("Average Score", f"{avg_score:.1f}")
     col4.metric("Best Score", best_score)
 
-
     # --- Skipped/Missing Assignments Detection ---
-    # Build set of chapter numbers for completed assignments
     completed_chaps = set()
     for assignment in df_lvl['assignment']:
         num = extract_chapter_num(assignment)
@@ -2079,14 +2081,11 @@ if tab == "My Results and Resources":
             completed_chaps.add(num)
     max_done = max(completed_chaps) if completed_chaps else 0
 
-    # Only count lessons with chapter number <= last completed for missing
     missing = []
     for lesson in assignable:
         chap_num = extract_chapter_num(lesson.get("chapter", ""))
-        # Check if chap_num is not in completed, and is before/equal to last completed
         if chap_num and chap_num <= max_done and chap_num not in completed_chaps:
             missing.append((lesson.get('chapter', ''), lesson.get('topic', '')))
-
     if missing:
         st.warning(
             "⏰ **You skipped these assignments!**\n\n"
@@ -2128,6 +2127,7 @@ if tab == "My Results and Resources":
             )
             st.table(df_display)
     st.markdown("---")
+
 
     # ======== BADGES & TROPHIES ========
     st.markdown("### 🏅 Badges & Trophies")
