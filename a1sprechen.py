@@ -2009,20 +2009,12 @@ def score_label(score):
     else:
         return "Needs Improvement ❗"
 
-# ========== MAIN TAB LOGIC ==========
 if tab == "My Results and Resources":
-    st.markdown(
-        '''
-        <div style="padding:8px 12px; background:#17a2b8; color:#fff; border-radius:6px;
-                    text-align:center; margin-bottom:8px; font-size:1.3rem;">
-            📊 My Results & Resources
-        </div>
-        ''',
-        unsafe_allow_html=True
-    )
-    st.divider()
+    # ...your Streamlit markup
 
     df_scores = fetch_scores(CSV_URL)
+
+    # Filter to current student
     code = st.session_state.get("student_code", "").lower().strip()
     df_user = df_scores[df_scores.student_code.str.lower().str.strip() == code]
     if df_user.empty:
@@ -2034,24 +2026,19 @@ if tab == "My Results and Resources":
     level = st.selectbox("Select level:", levels)
     df_lvl = df_user[df_user.level == level]
 
-    # --- Assignment schedule for selected level
+    # Build assignable
     schedule = LEVEL_SCHEDULES.get(level, [])
     assignable = [l for l in schedule if is_assignable_lesson(l, level)]
 
-    # --- Metrics
+    # Metrics
     total = TOTALS.get(level, len(assignable))
     completed = df_lvl.assignment.nunique()
     avg_score = df_lvl.score.mean() or 0
     best_score = df_lvl.score.max() or 0
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Assignments", total)
-    col2.metric("Completed", completed)
-    col3.metric("Average Score", f"{avg_score:.1f}")
-    col4.metric("Best Score", best_score)
+    # ...metrics columns
 
-    # --- Skipped/Missing Assignments Detection ---
-    # Set of chapter numbers from student’s completed assignments
+    # Now do skipped assignments detection
     student_chaps = set()
     for a in df_lvl['assignment']:
         cnum = extract_chapter_num(a)
@@ -2065,7 +2052,6 @@ if tab == "My Results and Resources":
         if cnum is not None:
             assignable_chaps.append((cnum, l.get('chapter', ''), l.get('topic', '')))
 
-    # Only flag as "missing" those with chapter_num <= highest completed
     expected = [(c, chap, topic) for c, chap, topic in assignable_chaps if c <= max_c]
     missing = [(chap, topic) for c, chap, topic in expected if c not in student_chaps]
 
@@ -2076,7 +2062,6 @@ if tab == "My Results and Resources":
         )
     else:
         st.success("✅ No skipped assignments. Keep it up!")
-
     st.markdown("---")
     st.info("🔎 Expand below to see detailed results:")
 
