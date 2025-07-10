@@ -2141,22 +2141,40 @@ if tab == "My Results and Resources":
         else:
             return "Needs Improvement ❗"
 
-with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
-    st.markdown("**DEBUG: Filtered Results**")
-    st.dataframe(df_lvl)  # Always show what you are working with!
+def extract_sort_num(assignment):
+    """
+    Extract the first float or int number from an assignment string.
+    Returns None if nothing found.
+    """
+    import re
+    nums = re.findall(r'\d+(?:\.\d+)?', str(assignment))
+    if not nums:
+        return None
+    try:
+        return float(nums[0])
+    except Exception:
+        return None
 
-    # Treat assignment as string, always
+with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
+    # Debug: Always show the filtered DataFrame
+    st.markdown("**DEBUG: Filtered Results**")
+    st.dataframe(df_lvl)
+
+    # Treat all assignments as string
     df_lvl["assignment"] = df_lvl["assignment"].astype(str).str.strip()
 
-    # Sort by date first, then assignment (for stability)
+    # Helper column: sorting number (if possible)
+    df_lvl["assignment_sort"] = df_lvl["assignment"].apply(extract_sort_num)
+
+    # Sort: by date, then assignment_sort if available, else assignment string
     df_display = (
         df_lvl.sort_values(
-            by=['date', 'assignment'],
-            ascending=[True, True]
+            by=['date', 'assignment_sort', 'assignment'],
+            ascending=[True, True, True]
         ).reset_index(drop=True)
     )
 
-    # Show all assignments, even if there are format issues
+    # Display all rows, no filtering
     for idx, row in df_display.iterrows():
         perf = score_label(row['score'])
         st.markdown(
@@ -2174,8 +2192,8 @@ with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expan
         st.divider()
 
     st.markdown("---")
-            
 
+            
     # ========== BADGES & TROPHIES ==========
     st.markdown("### 🏅 Badges & Trophies")
     
