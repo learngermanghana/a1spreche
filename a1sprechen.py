@@ -2054,10 +2054,9 @@ if tab == "My Results and Resources":
     level = st.selectbox("Select level:", levels)
     df_lvl = df_user[df_user.level == level]
 
-    # --- Assignable lessons for this level
-    schedule = LEVEL_SCHEDULES.get(level, [])
-    assignable = [l for l in schedule if is_assignable_lesson(l, level)]
-    total = len(assignable)
+    # --- Hardcoded assignment totals for accuracy
+    TOTALS = {"A1": 19, "A2": 29, "B1": 29, "B2": 24, "C1": 24}
+    total = TOTALS.get(level, 0)
 
     completed = df_lvl.assignment.nunique()
     avg_score = df_lvl.score.mean() or 0
@@ -2069,6 +2068,7 @@ if tab == "My Results and Resources":
     col2.metric("Completed", completed)
     col3.metric("Average Score", f"{avg_score:.1f}")
     col4.metric("Best Score", best_score)
+
 
     # --- Skipped/Missing Assignments Detection ---
     # Build set of chapter numbers for completed assignments
