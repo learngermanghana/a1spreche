@@ -2025,6 +2025,20 @@ if tab == "Course Book":
         """
     )
 
+def score_label(score):
+    try:
+        score = float(score)
+    except:
+        return ""
+    if score >= 90:
+        return "Excellent 🌟"
+    elif score >= 75:
+        return "Good 👍"
+    elif score >= 60:
+        return "Sufficient ✔️"
+    else:
+        return "Needs Improvement ❗"
+
 #MyResults
 if tab == "My Results and Resources":
     # 📊 Compact Results & Resources header
