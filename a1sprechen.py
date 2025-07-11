@@ -443,7 +443,7 @@ if not st.session_state["logged_in"]:
             <br>
             <span style='color:#111;font-size:0.99rem;font-weight:400;'>
                 Website: <a href='https://www.learngermanghana.com' style='color:#1565c0;'>www.learngermanghana.com</a> <br>
-                Tutors: Felix Asadu &amp; Frau Sabine
+                Competent German Tutors Team
             </span>
         </div>
     """, unsafe_allow_html=True)
@@ -518,6 +518,7 @@ if not st.session_state["logged_in"]:
             st.error("Login failed. Please check your Student Code or Email.")
 
     st.stop()
+
 
 
 # --- Logged In UI ---
