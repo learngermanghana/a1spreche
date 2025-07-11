@@ -234,6 +234,15 @@ def save_progress(student_code, level, teil, remaining, used):
         (student_code, level, teil, json.dumps(remaining), json.dumps(used))
     )
     conn.commit()
+
+# ====================================
+# 5. CONSTANTS & VOCAB LISTS
+# ====================================
+
+FALOWEN_DAILY_LIMIT = 2
+VOCAB_DAILY_LIMIT = 20
+SCHREIBEN_DAILY_LIMIT = 5
+max_turns = 25
     
 
 # ====================================
@@ -394,14 +403,7 @@ if st.button("Log out"):
     st.rerun()
 
 
-# ====================================
-# 5. CONSTANTS & VOCAB LISTS
-# ====================================
 
-FALOWEN_DAILY_LIMIT = 2
-VOCAB_DAILY_LIMIT = 20
-SCHREIBEN_DAILY_LIMIT = 5
-max_turns = 25
 
 # ======= Data Loading Functions =======
 @st.cache_data
