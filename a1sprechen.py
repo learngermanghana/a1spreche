@@ -501,6 +501,10 @@ if st.button("Log out"):
 
 
 
+import pandas as pd
+import streamlit as st
+import time
+
 # ======= Data Loading Functions =======
 @st.cache_data
 def load_student_data():
@@ -508,7 +512,11 @@ def load_student_data():
     SHEET_NAME = "Sheet1"
     csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
     df = pd.read_csv(csv_url)
-    df.columns = df.columns.str.strip().str.replace(" ", "")
+    # Standardize columns and clean values
+    df.columns = df.columns.str.strip().str.replace(" ", "").str.lower()
+    df = df.replace("nan", "", regex=True).fillna("")
+    for col in df.columns:
+        df[col] = df[col].astype(str).str.strip()
     return df
 
 @st.cache_data
@@ -517,8 +525,10 @@ def load_stats_data():
     SHEET_NAME = "Sheet1"
     csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
     df = pd.read_csv(csv_url)
-    # Clean columns for easier access
     df.columns = df.columns.str.strip().str.lower()
+    df = df.replace("nan", "", regex=True).fillna("")
+    for col in df.columns:
+        df[col] = df[col].astype(str).str.strip()
     return df
 
 @st.cache_data
@@ -531,10 +541,10 @@ def load_reviews():
     )
     df = pd.read_csv(url)
     df.columns = df.columns.str.strip().str.lower()
+    df = df.replace("nan", "", regex=True).fillna("")
+    for col in df.columns:
+        df[col] = df[col].astype(str).str.strip()
     return df
-
-import time
-import matplotlib.pyplot as plt
 
 # ======= Dashboard Code =======
 if st.session_state.get("logged_in"):
@@ -573,22 +583,19 @@ if st.session_state.get("logged_in"):
         )
         st.divider()
 
-        # --- Get student_row robustly ---
+        # --- Load and clean student data robustly ---
         df_students = load_student_data()
-        # Standardize columns!
-        df_students.columns = df_students.columns.str.strip().str.replace(" ", "").str.lower()
-        student_code = student_code.lower().strip()
+        # Columns are now all lower-case and trimmed
 
-        # Defensive: show columns for debugging if needed
-        # st.write("Student Data Columns:", df_students.columns.tolist())
+        # Accept code or email as login/lookup value
+        lookup_value = student_code.strip().lower()
+        matches = df_students[
+            (df_students["studentcode"] == lookup_value) |
+            (df_students["email"] == lookup_value)
+        ]
 
-        if "studentcode" not in df_students.columns:
-            st.error("❌ Student data error: 'StudentCode' column not found in data.")
-            st.stop()
-
-        matches = df_students[df_students["studentcode"] == student_code]
         if matches.empty:
-            st.error("❌ No data found for your code. Please check your code or contact support.")
+            st.error("❌ No data found for your code or email. Please check or contact support.")
             st.stop()
         student_row = matches.iloc[0].to_dict()
 
@@ -618,7 +625,7 @@ if st.session_state.get("logged_in"):
         except:
             pass
 
-        # --- Announcements & Ads (auto-rotating, reduced size) ---
+        # --- Announcements & Ads (auto-rotating) ---
         st.markdown("### 🖼️ Announcements & Ads")
         ad_images = [
             "https://i.imgur.com/9hLAScD.jpg",
