@@ -443,7 +443,32 @@ if not st.session_state["logged_in"]:
     st.title("🔑 Student Login")
     login_input = st.text_input("Enter your Student Code or Email:", value=code_from_cookie).strip().lower()
     if st.button("Login"):
-        # ... your existing login logic here ...
+        df_students = load_student_data()
+        df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
+        df_students["Email"]       = df_students["Email"].str.lower().str.strip()
+        found = df_students[
+            (df_students["StudentCode"] == login_input) |
+            (df_students["Email"] == login_input)
+        ]
+        if not found.empty:
+            student_row = found.iloc[0]
+            # Debug: show what we're checking
+            st.write("DEBUG: raw ContractEnd for login:", repr(student_row["ContractEnd"]))
+            if is_contract_expired(student_row):
+                st.error("Your contract has expired. Please contact the office for renewal.")
+                st.stop()
+            st.session_state.update({
+                "logged_in": True,
+                "student_row": student_row.to_dict(),
+                "student_code": student_row["StudentCode"],
+                "student_name": student_row["Name"]
+            })
+            cookie_manager["student_code"] = student_row["StudentCode"]
+            cookie_manager.save()
+            st.success(f"Welcome, {student_row['Name']}! 🎉")
+            st.rerun()
+        else:
+            st.error("Login failed. Please check your Student Code or Email.")
 
     # --- Columns with extra info below login box ---
     col1, col2 = st.columns(2)
@@ -487,7 +512,6 @@ if not st.session_state["logged_in"]:
     )
 
     st.stop()
-
 
 
 # --- Logged In UI ---
