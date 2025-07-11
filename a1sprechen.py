@@ -2599,7 +2599,7 @@ if tab == "Exams Mode & Custom Chat":
                 f"1. Explain difficult words when level is A1,A2,B1,B2. "
                 f"After keyword questions, continue with other random follow-up questions that reflect student selected level about the topic in German (until you reach 20 questions in total). "
                 f"Never ask more than 3 questions about the same keyword. "
-                f"After the student answers 18 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English. "
+                f"After the student answers 18 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
                 f"All feedback and corrections should be {correction_lang}. "
                 f"Encourage the student and keep the chat motivating. "
             )
@@ -2610,7 +2610,7 @@ if tab == "Exams Mode & Custom Chat":
         st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
         st.stop()
 
-    # ---- SESSION STATE DEFAULTS ----
+# ---- SESSION STATE DEFAULTS ----
     default_state = {
         "falowen_stage": 1,
         "falowen_mode": None,
@@ -2632,7 +2632,10 @@ if tab == "Exams Mode & Custom Chat":
         st.subheader("Step 1: Choose Practice Mode")
         mode = st.radio(
             "How would you like to practice?",
-            ["Geführte Prüfungssimulation (Exam Mode)", "Eigenes Thema/Frage (Custom Chat)"],
+            [
+                "Geführte Prüfungssimulation (Exam Mode)",
+                "Eigenes Thema/Frage (Custom Chat)"
+            ],
             key="falowen_mode_center"
         )
         if st.button("Next ➡️", key="falowen_next_mode"):
@@ -2642,7 +2645,9 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_teil"] = None
             st.session_state["falowen_messages"] = []
             st.session_state["custom_topic_intro_done"] = False
+            st.experimental_rerun()
         st.stop()
+
 
     # ---- STAGE 2: Level Selection ----
     if st.session_state["falowen_stage"] == 2:
