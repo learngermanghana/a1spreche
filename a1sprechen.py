@@ -426,9 +426,67 @@ if not st.session_state["logged_in"] and code_from_cookie:
 
 # --- Manual Login Form ---
 if not st.session_state["logged_in"]:
-    st.title("🔑 Student Login")
-    login_input = st.text_input("Enter your Student Code or Email:", value=code_from_cookie).strip().lower()
-    if st.button("Login"):
+    st.markdown("""
+        <div style='text-align:center;margin-top:1.5em'>
+            <img src='https://upload.wikimedia.org/wikipedia/commons/thumb/5/5c/Flag_of_the_United_Kingdom.svg/60px-Flag_of_the_United_Kingdom.svg.png'
+                 style='height:40px;vertical-align:middle;margin-right:8px;'>
+            <span style='font-size:2.2rem;font-weight:700;color:#1565c0;letter-spacing:2px'>
+                Falowen App
+            </span>
+            <span style='font-size:2.1rem;vertical-align:middle;margin-left:4px;'>🇩🇪</span>
+        </div>
+        <div style='text-align:center;font-size:1.1rem;color:#ff9800;font-weight:600;margin-top:8px;'>
+            Learn Language Education Academy
+        </div>
+        <div style='text-align:center;font-size:1.05rem;color:#1976d2;margin-bottom:28px;'>
+            Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
+        </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown(
+        "<h1 style='text-align:center;font-size:2.8rem;margin-top:2.5rem;'>🔑 Student Login</h1>",
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        "<div style='text-align:center;margin-bottom:10px;'>Enter your Student Code or Email:</div>",
+        unsafe_allow_html=True
+    )
+
+    login_input = st.text_input("", value=code_from_cookie, key="login_code").strip().lower()
+
+    login_clicked = st.button("Login", key="login_button")
+
+    st.markdown(
+        """
+        <div style='text-align:center; margin-top:8px; margin-bottom:16px;'>
+            <a href='https://api.whatsapp.com/send?phone=233205706589' target='_blank'
+               style='color:#43a047;font-weight:600;text-decoration:none;font-size:1.03rem;'>
+               💬 Need help? Contact support on WhatsApp
+            </a>
+            <br>
+            <span style='font-size:0.97rem;color:#666;'>
+                Forgot your code? Try the <span style='color:#1976d2;font-weight:600;'>demo123</span> account or ask your teacher.
+            </span>
+            <br>
+            <span style='color:#999;font-size:0.94rem;'>
+                Your data is 100% private and secure. <span style='font-size:1rem;'>🔒</span>
+            </span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        """
+        <div style='text-align:center;margin-top:32px;color:#1976d2;font-size:0.99rem;'>
+            🆕 <b>What's New:</b> Exam Simulator & Custom Chat Mode now available!
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    if login_clicked:
         df_students = load_student_data()
         df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
         df_students["Email"]       = df_students["Email"].str.lower().str.strip()
@@ -440,7 +498,7 @@ if not st.session_state["logged_in"]:
         if not found.empty:
             student_row = found.iloc[0]
             # Debug: show what we're checking
-            st.write("DEBUG: raw ContractEnd for login:", repr(student_row["ContractEnd"]))
+            # st.write("DEBUG: raw ContractEnd for login:", repr(student_row["ContractEnd"]))
             if is_contract_expired(student_row):
                 st.error("Your contract has expired. Please contact the office for renewal.")
                 st.stop()
@@ -458,6 +516,7 @@ if not st.session_state["logged_in"]:
             st.error("Login failed. Please check your Student Code or Email.")
 
     st.stop()
+
 
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
