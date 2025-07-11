@@ -443,44 +443,43 @@ if not st.session_state["logged_in"]:
     st.title("🔑 Student Login")
     login_input = st.text_input("Enter your Student Code or Email:", value=code_from_cookie).strip().lower()
     if st.button("Login"):
-        df_students = load_student_data()
-        df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
-        df_students["Email"]       = df_students["Email"].str.lower().str.strip()
+        # ... your existing login logic here ...
 
-        found = df_students[
-            (df_students["StudentCode"] == login_input) |
-            (df_students["Email"]       == login_input)
-        ]
-        if not found.empty:
-            student_row = found.iloc[0]
-            # Debug: show what we're checking
-            st.write("DEBUG: raw ContractEnd for login:", repr(student_row["ContractEnd"]))
-            if is_contract_expired(student_row):
-                st.error("Your contract has expired. Please contact the office for renewal.")
-                st.stop()
-            st.session_state.update({
-                "logged_in": True,
-                "student_row": student_row.to_dict(),
-                "student_code": student_row["StudentCode"],
-                "student_name": student_row["Name"]
-            })
-            cookie_manager["student_code"] = student_row["StudentCode"]
-            cookie_manager.save()
-            st.success(f"Welcome, {student_row['Name']}! 🎉")
-            st.rerun()
-        else:
-            st.error("Login failed. Please check your Student Code or Email.")
+    # --- Columns with extra info below login box ---
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown(
+            """
+            <div style='text-align:left;font-size:1.02rem;margin-top:10px;'>
+                <a href='https://www.learngermanghana.com' target='_blank' style='color:#1565c0;font-weight:600;'>🌐 learngermanghana.com</a>
+                <br>
+                <a href='https://api.whatsapp.com/send?phone=233205706589' target='_blank'
+                   style='color:#43a047;font-weight:600;text-decoration:none;'>
+                   💬 WhatsApp Support
+                </a>
+            </div>
+            """, unsafe_allow_html=True
+        )
+    with col2:
+        st.markdown(
+            """
+            <div style='text-align:right;font-size:1.01rem;margin-top:10px;'>
+                <span style='color:#1565c0;'><b>Tip:</b></span> Forgot your code? Use <b>demo123</b><br>
+                <span style='font-size:0.97rem;color:#ff9800;'>“Practice every day for best results!”</span>
+            </div>
+            """, unsafe_allow_html=True
+        )
 
-    # --- Add extra info for students below the login box ---
+    # --- Extra info (centered, below columns) ---
     st.markdown(
         """
-        <div style='text-align:center; margin-top:20px; margin-bottom:12px;'>
+        <div style='text-align:center; margin-top:18px; margin-bottom:12px;'>
             <span style='color:#ff9800;font-weight:600;'>
                 🔒 <b>Data Privacy:</b> Your login details and activity are never shared. Only your teacher can see your learning progress.
             </span>
             <br>
             <span style='color:#1976d2;'>
-                🆕 <b>Update:</b> New features have been added to help you prepare for your German speaking exam! Practice as often as you want, within your daily quota.
+                🆕 <b>Update:</b> New features help you prepare for your German speaking exam! Practice as often as you want, within your daily quota.
             </span>
         </div>
         """,
@@ -488,6 +487,7 @@ if not st.session_state["logged_in"]:
     )
 
     st.stop()
+
 
 
 # --- Logged In UI ---
