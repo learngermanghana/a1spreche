@@ -26,6 +26,15 @@ if not OPENAI_API_KEY:
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY   # <- Set for OpenAI client!
 client = OpenAI()  # <-- Do NOT pass api_key here for openai>=1.0
 
+
+# ==== DB CONNECTION ====
+def get_connection():
+    if "conn" not in st.session_state:
+        st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
+        atexit.register(st.session_state["conn"].close)
+    return st.session_state["conn"]
+
+# ==== INITIALIZE DB TABLES ====
 def init_db():
     conn = get_connection()
     c = conn.cursor()
@@ -88,12 +97,12 @@ def init_db():
             student_code TEXT,
             level        TEXT,
             teil         TEXT,
-            remaining    TEXT,    -- JSON list of topics still to do
-            used         TEXT,    -- JSON list of already done
+            remaining    TEXT,
+            used         TEXT,
             PRIMARY KEY (student_code, level, teil)
         )
     """)
-    # My Vocab Table (Personal Vocab List)
+    # My Vocab Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS my_vocab (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -104,7 +113,7 @@ def init_db():
             date_added TEXT
         )
     """)
-    # Sprechen Daily Usage Table (for persistent daily limit)
+    # Sprechen Daily Usage Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS sprechen_usage (
             student_code TEXT,
@@ -113,7 +122,7 @@ def init_db():
             PRIMARY KEY (student_code, date)
         )
     """)
-    # Schreiben Daily Usage Table (for persistent daily limit)
+    # Schreiben Daily Usage Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS schreiben_usage (
             student_code TEXT,
@@ -124,9 +133,14 @@ def init_db():
     """)
     conn.commit()
 
+init_db()  # <<-- Make sure this is before any other DB calls!
 
-# ====== DB HELPERS (for all tables) ======
+# ==== CONSTANTS ====
+FALOWEN_DAILY_LIMIT = 20
+VOCAB_DAILY_LIMIT = 20
+SCHREIBEN_DAILY_LIMIT = 5
 
+# ==== USAGE COUNTERS ====
 def get_sprechen_usage(student_code):
     today = str(date.today())
     conn = get_connection()
@@ -155,7 +169,7 @@ def inc_sprechen_usage(student_code):
         )
     conn.commit()
 
-def has_sprechen_quota(student_code, limit=20):
+def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
     return get_sprechen_usage(student_code) < limit
 
 def get_schreiben_usage(student_code):
@@ -186,9 +200,8 @@ def inc_schreiben_usage(student_code):
         )
     conn.commit()
 
-def has_schreiben_quota(student_code, limit=5):
+def has_schreiben_quota(student_code, limit=SCHREIBEN_DAILY_LIMIT):
     return get_schreiben_usage(student_code) < limit
-
 
 
 # --- Streamlit page config ---
