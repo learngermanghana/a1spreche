@@ -243,24 +243,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ---- Falowen Header ----
-st.markdown(
-    """
-    <div style='display:flex;align-items:center;gap:18px;margin-bottom:22px;'>
-        <img src='https://cdn-icons-png.flaticon.com/512/323/323329.png' width='50' style='border-radius:50%;border:2.5px solid #d2b431;box-shadow:0 2px 8px #e4c08d;'/>
-        <div>
-            <span style='font-size:2.0rem;font-weight:bold;color:#17617a;letter-spacing:2px;'>Falowen App</span>
-            <span style='font-size:1.6rem;margin-left:12px;'>🇩🇪</span>
-            <br>
-            <span style='font-size:1.02rem;color:#ff9900;font-weight:600;'>Learn Language Education Academy</span><br>
-            <span style='font-size:1.01rem;color:#268049;font-weight:400;'>
-                Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
-            </span>
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+
 
 # ==== 2) Helpers to load & save progress ====
 def load_progress(student_code, level, teil):
