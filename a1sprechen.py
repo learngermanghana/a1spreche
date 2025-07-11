@@ -370,8 +370,7 @@ def load_student_data():
 
 def is_contract_expired(row):
     expiry_str = str(row.get("ContractEnd", "")).strip()
-    # Debug: show raw string
-    st.write("DEBUG: raw ContractEnd:", repr(expiry_str))
+    # Debug lines removed
 
     if not expiry_str or expiry_str.lower() == "nan":
         return True
@@ -389,13 +388,14 @@ def is_contract_expired(row):
     if expiry_date is None:
         parsed = pd.to_datetime(expiry_str, errors="coerce")
         if pd.isnull(parsed):
-            st.write("DEBUG: pandas parse failed for", expiry_str)
             return True
         expiry_date = parsed.to_pydatetime()
 
     today = datetime.now().date()
+    # Debug lines removed
 
     return expiry_date.date() < today
+
 
 # ---- Cookie & Session Setup ----
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
