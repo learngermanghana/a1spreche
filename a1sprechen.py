@@ -480,7 +480,7 @@ if not st.session_state["logged_in"]:
             </span>
             <br>
             <span style='color:#1976d2;'>
-                🆕 <b>Update:</b> New features have been added to help you prepare for your German speaking exam! Practice as often as you want, within your daily quota.
+                🆕 <b>Update:</b> New features have been added to help you prepare for your German exam! Practice as often as you want, within your daily quota.
             </span>
         </div>
         """,
