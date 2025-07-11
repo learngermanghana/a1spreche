@@ -2818,45 +2818,54 @@ if tab == "Exams Mode & Custom Chat":
             })
             st.rerun()
 
-        # ---- Bubble Styles (MOBILE FRIENDLY) ----
         bubble_user = (
-            "background: #e3f2fd;"
+            "background: #1976d2;"            # Deep blue
+            "color: #fff;"                    # White text for contrast
             "padding: 14px 16px;"
-            "border-radius: 18px 18px 6px 18px;"
-            "margin: 10px 0;"
+            "border-radius: 18px 6px 18px 18px;"
+            "margin: 10px 0 10px auto;"
             "display: block;"
-            "font-size: 1.11rem;"
+            "font-size: 1.13rem;"
             "word-break: break-word;"
-            "max-width: 92vw;"
+            "max-width: 380px;"
             "width: fit-content;"
-            "min-width: 80px;"
             "box-sizing: border-box;"
             "line-height: 1.6;"
+            "text-align: left;"
+            "font-weight: 500;"
+            "box-shadow: 0 2px 8px rgba(0,0,0,0.06);"
         )
         bubble_assistant = (
-            "background: #212121;"
-            "color: #fffde7;"
+            "background: #fff9c4;"
+            "color: #333;"
             "padding: 14px 16px;"
             "border-radius: 18px 18px 18px 6px;"
-            "margin: 10px 0;"
+            "margin: 10px auto 10px 0;"
             "display: block;"
-            "font-size: 1.11rem;"
+            "font-size: 1.13rem;"
             "word-break: break-word;"
-            "max-width: 92vw;"
+            "max-width: 380px;"
             "width: fit-content;"
-            "min-width: 80px;"
             "box-sizing: border-box;"
             "line-height: 1.6;"
+            "text-align: left;"
+            "font-weight: 500;"
+            "box-shadow: 0 2px 8px rgba(0,0,0,0.06);"
         )
         st.markdown("""
         <style>
         @media only screen and (max-width: 600px) {
-            div[style*="background: #e3f2fd"],
-            div[style*="background: #212121"] {
-                font-size: 1.04rem !important;
-                padding: 12px 8px !important;
-                width: 95vw !important;
-                max-width: 95vw !important;
+            div[style*="background: #1976d2"] {
+                font-size: 1.09rem !important;
+                padding: 13px 9px !important;
+                max-width: 94vw !important;
+                width: 94vw !important;
+            }
+            div[style*="background: #fff9c4"] {
+                font-size: 1.09rem !important;
+                padding: 13px 9px !important;
+                max-width: 94vw !important;
+                width: 94vw !important;
             }
         }
         </style>
