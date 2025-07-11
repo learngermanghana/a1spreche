@@ -2325,9 +2325,8 @@ if tab == "Exams Mode & Custom Chat":
     )
     st.divider()
 
-    # --- Daily Limit Check ---
-    # You can use a helper like: has_falowen_quota(student_code) or get_falowen_remaining(student_code)
-    if not has_falowen_quota(student_code):
+    # --- Daily Limit Check (NEW: persistent with SQLite) ---
+    if not has_sprechen_quota(student_code, FALOWEN_DAILY_LIMIT):
         st.header("🗣️ Falowen – Speaking & Exam Trainer")
         st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
         st.stop()
