@@ -411,14 +411,15 @@ if not st.session_state["logged_in"] and code_from_cookie:
 if not st.session_state["logged_in"]:
     st.markdown("""
         <div style='text-align:center;margin-top:2em'>
-            <img src='https://upload.wikimedia.org/wikipedia/commons/thumb/5/5c/Flag_of_the_United_Kingdom.svg/60px-Flag_of_the_United_Kingdom.svg.png'
-                 style='height:40px;vertical-align:middle;margin-right:8px;'>
+            <img src='https://upload.wikimedia.org/wikipedia/commons/1/19/Flag_of_Ghana.svg'
+                 style='height:40px;vertical-align:middle;margin-right:12px;float:left;'>
             <span style='font-size:2.2rem;font-weight:700;color:#1565c0;letter-spacing:2px'>
                 Falowen App
             </span>
-            <span style='font-size:2.1rem;vertical-align:middle;margin-left:4px;'>🇩🇪</span>
+            <img src='https://upload.wikimedia.org/wikipedia/commons/b/ba/Flag_of_Germany.svg'
+                 style='height:40px;vertical-align:middle;margin-left:12px;float:right;'>
         </div>
-        <div style='text-align:center;font-size:1.13rem;color:#ff9800;font-weight:600;margin-top:8px;'>
+        <div style='text-align:center;font-size:1.13rem;color:#ff9800;font-weight:600;margin-top:8px;clear:both;'>
             Learn Language Education Academy
         </div>
         <div style='text-align:center;font-size:1.04rem;color:#1976d2;margin-bottom:28px;'>
@@ -430,6 +431,7 @@ if not st.session_state["logged_in"]:
             </span>
         </div>
     """, unsafe_allow_html=True)
+
 
     st.markdown(
         "<h1 style='text-align:center;font-size:2.6rem;margin-top:2.2rem;'>🔑 Student Login</h1>",
