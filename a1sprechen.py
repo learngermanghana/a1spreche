@@ -537,7 +537,6 @@ import time
 import matplotlib.pyplot as plt
 
 # ======= Dashboard Code =======
-# ======= Dashboard Code =======
 if st.session_state.get("logged_in"):
     student_code = st.session_state.get("student_code", "").strip().lower()
     student_name = st.session_state.get("student_name", "")
@@ -556,7 +555,6 @@ if st.session_state.get("logged_in"):
     )
 
     if tab == "Dashboard":
-        # 🏠 Compact Dashboard header
         st.markdown(
             '''
             <div style="
@@ -575,12 +573,26 @@ if st.session_state.get("logged_in"):
         )
         st.divider()
 
-        # --- Get student_row first ---
+        # --- Get student_row robustly ---
         df_students = load_student_data()
-        matches = df_students[df_students["StudentCode"].str.lower() == student_code]
-        student_row = matches.iloc[0].to_dict() if not matches.empty else {}
+        # Standardize columns!
+        df_students.columns = df_students.columns.str.strip().str.replace(" ", "").str.lower()
+        student_code = student_code.lower().strip()
 
-        display_name = student_row.get('Name') or student_name or "Student"
+        # Defensive: show columns for debugging if needed
+        # st.write("Student Data Columns:", df_students.columns.tolist())
+
+        if "studentcode" not in df_students.columns:
+            st.error("❌ Student data error: 'StudentCode' column not found in data.")
+            st.stop()
+
+        matches = df_students[df_students["studentcode"] == student_code]
+        if matches.empty:
+            st.error("❌ No data found for your code. Please check your code or contact support.")
+            st.stop()
+        student_row = matches.iloc[0].to_dict()
+
+        display_name = student_row.get('name') or student_name or "Student"
         first_name = str(display_name).strip().split()[0].title() if display_name else "Student"
 
         # --- Minimal, super-visible greeting for mobile ---
@@ -588,19 +600,19 @@ if st.session_state.get("logged_in"):
         st.info("Great to see you. Let's keep learning!")
 
         # --- Student Info & Balance ---
-        st.markdown(f"### 👤 {student_row.get('Name','')}")
+        st.markdown(f"### 👤 {student_row.get('name','')}")
         st.markdown(
-            f"- **Level:** {student_row.get('Level','')}\n"
-            f"- **Code:** `{student_row.get('StudentCode','')}`\n"
-            f"- **Email:** {student_row.get('Email','')}\n"
-            f"- **Phone:** {student_row.get('Phone','')}\n"
-            f"- **Location:** {student_row.get('Location','')}\n"
-            f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}\n"
-            f"- **Enroll Date:** {student_row.get('EnrollDate','')}\n"
-            f"- **Status:** {student_row.get('Status','')}"
+            f"- **Level:** {student_row.get('level','')}\n"
+            f"- **Code:** `{student_row.get('studentcode','')}`\n"
+            f"- **Email:** {student_row.get('email','')}\n"
+            f"- **Phone:** {student_row.get('phone','')}\n"
+            f"- **Location:** {student_row.get('location','')}\n"
+            f"- **Contract:** {student_row.get('contractstart','')} ➔ {student_row.get('contractend','')}\n"
+            f"- **Enroll Date:** {student_row.get('enrolldate','')}\n"
+            f"- **Status:** {student_row.get('status','')}"
         )
         try:
-            bal = float(student_row.get("Balance", 0))
+            bal = float(student_row.get("balance", 0))
             if bal > 0:
                 st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
         except:
@@ -630,9 +642,9 @@ if st.session_state.get("logged_in"):
             st.rerun()
 
         idx = st.session_state["ad_idx"]
-        st.image(ad_images[idx], caption=ad_captions[idx], width=400)  # change width if needed
+        st.image(ad_images[idx], caption=ad_captions[idx], width=400)
 
-        # --- Simple Goethe Exam Section ---
+        # --- Goethe Exam Section ---
         with st.expander("📅 Goethe Exam Dates & Fees", expanded=True):
             st.markdown(
                 """
@@ -651,7 +663,7 @@ if st.session_state.get("logged_in"):
                 unsafe_allow_html=True
             )
 
-        # --- Auto-Rotating Student Reviews ---
+        # --- Student Reviews ---
         st.markdown("### 🗣️ What Our Students Say")
         reviews = load_reviews()
         if reviews.empty:
@@ -676,6 +688,7 @@ if st.session_state.get("logged_in"):
                 f"> — **{r.get('student_name','')}**  \n"
                 f"> {stars}"
             )
+
 
 def get_a1_schedule():
     return [
