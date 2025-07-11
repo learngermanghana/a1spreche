@@ -2886,11 +2886,13 @@ if tab == "Exams Mode & Custom Chat":
         if user_input:
             st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
             inc_sprechen_usage(student_code)
+
             with st.chat_message("user"):
                 st.markdown(
                     f"<div style='{bubble_user}'>🗣️ {user_input}</div>",
                     unsafe_allow_html=True
                 )
+
             with st.chat_message(
                 "assistant",
                 avatar="https://i.imgur.com/aypyUjM_d.jpeg?maxwidth=520&shape=thumb&fidelity=high"
@@ -2907,13 +2909,77 @@ if tab == "Exams Mode & Custom Chat":
                         ai_reply = resp.choices[0].message.content.strip()
                     except Exception as e:
                         ai_reply = f"Sorry, an error occurred: {e}"
+
                 st.markdown(
                     "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
                     f"<div style='{bubble_assistant}'>{highlight_keywords(ai_reply, highlight_words)}</div>",
                     unsafe_allow_html=True
                 )
+
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
+        # ---- END SESSION BUTTON & SUMMARY ----
+        st.divider()
+        if st.button("✅ End Session & Show Summary"):
+            st.session_state["falowen_stage"] = 5
+            st.rerun()
+
+    # ---- STAGE 5: End-of-Session Summary ----
+    if st.session_state.get("falowen_stage") == 5:
+        st.subheader("📝 End-of-Session Summary")
+
+        messages = st.session_state.get("falowen_messages", [])
+
+        # 1. Total Turns
+        user_turns = len([m for m in messages if m["role"] == "user"])
+        st.markdown(f"- **Total Messages Sent:** {user_turns}")
+
+        # 2. Words Used
+        import re
+        user_text = " ".join([m["content"] for m in messages if m["role"] == "user"])
+        user_words = set(re.findall(r'\b\w+\b', user_text.lower()))
+        st.markdown(f"- **Unique Words Used:** {len(user_words)}")
+        if user_words:
+            st.markdown(f"`{', '.join(list(user_words)[:20])}`")
+
+        # 3. Corrections/Highlights
+        corrections = []
+        for m in messages:
+            if m["role"] == "assistant":
+                # Simple extraction: lines mentioning 'correct', 'should', 'mistake', 'improve'
+                lines = m["content"].split("\n")
+                for line in lines:
+                    if any(word in line.lower() for word in ["correct", "should", "mistake", "improve", "tip"]):
+                        if len(line) < 130:  # avoid overly long
+                            corrections.append(line)
+        if corrections:
+            st.markdown("**Common Corrections & Tips:**")
+            for corr in corrections[:8]:
+                st.markdown(f"- {corr}")
+
+        # 4. Recent AI Feedback
+        last_feedback = "\n\n".join([m["content"] for m in messages if m["role"] == "assistant"][-2:])
+        st.markdown("**Recent Feedback:**")
+        st.markdown(last_feedback)
+
+        # 5. Download Chat as PDF
+        pdf_bytes = falowen_download_pdf(messages, f"Falowen_Summary_{st.session_state.get('student_code','')}")
+        st.download_button("⬇️ Download Chat as PDF", pdf_bytes, file_name="Falowen_Summary.pdf", mime="application/pdf")
+
+        # 6. Start new session
+        st.divider()
+        if st.button("🔄 Start New Session"):
+            for key in [
+                "falowen_stage", "falowen_messages", "falowen_teil", "falowen_mode",
+                "custom_topic_intro_done", "falowen_turn_count",
+                "falowen_exam_topic", "falowen_exam_keyword", "remaining_topics", "used_topics"
+            ]:
+                st.session_state[key] = None
+            st.session_state["falowen_stage"] = 1
+            st.rerun()
+
+# =========================================
+# End
 # =========================================
 
 
