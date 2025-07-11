@@ -286,7 +286,7 @@ def save_progress(student_code, level, teil, remaining, used):
 
 FALOWEN_DAILY_LIMIT = 2
 VOCAB_DAILY_LIMIT = 20
-SCHREIBEN_DAILY_LIMIT = 5
+SCHREIBEN_DAILY_LIMIT = 1
 max_turns = 25
     
 
