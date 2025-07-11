@@ -280,6 +280,16 @@ def save_progress(student_code, level, teil, remaining, used):
     )
     conn.commit()
 
+def save_schreiben_attempt(student_code, name, level, score):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO schreiben_progress (student_code, name, level, essay, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (student_code, name, level, "", score, "", str(date.today()))
+    )
+    conn.commit()
+
+
 # ====================================
 # 5. CONSTANTS & VOCAB LISTS
 # ====================================
@@ -3020,14 +3030,11 @@ if tab == "Vocab Trainer":
         if st.button("Practice Again", key="vt_again"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
-
-#
-
+                
 
 # ====================================
-# SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI, persistent with SQLite)
+# SCHREIBEN TRAINER TAB (with Daily Limit, Mobile UI, persistent with SQLite)
 # ====================================
-import urllib.parse
 
 if tab == "Schreiben Trainer":
     # ✍️ Compact Schreiben Trainer header
@@ -3097,9 +3104,7 @@ if tab == "Schreiben Trainer":
 
     # --- Word and character count ---
     if user_letter.strip():
-        # Simple word count (splitting by whitespace, stripping punctuation)
         import re
-        # Remove most punctuation, only for counting words
         words = re.findall(r'\b\w+\b', user_letter)
         chars = len(user_letter)
         st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
@@ -3146,7 +3151,6 @@ if tab == "Schreiben Trainer":
         if feedback:
             # === Extract score and check if passed ===
             import re
-            # Robust regex for score detection
             score_match = re.search(
                 r"score\s*(?:[:=]|is)?\s*(\d+)\s*/\s*25",
                 feedback,
@@ -3160,8 +3164,9 @@ if tab == "Schreiben Trainer":
                 st.warning("Could not detect a score in the AI feedback.")
                 score = 0
 
-            # === Update usage (persistently in DB) ===
+            # === Update usage (persistently in DB) and only save stats ===
             inc_schreiben_usage(student_code)
+            save_schreiben_attempt(student_code, student_name, schreiben_level, score)
 
             # --- Show Feedback ---
             st.markdown("---")
@@ -3197,6 +3202,5 @@ if tab == "Schreiben Trainer":
                 f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                 unsafe_allow_html=True
             )
-
 
 
