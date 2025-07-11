@@ -471,7 +471,24 @@ if not st.session_state["logged_in"]:
         else:
             st.error("Login failed. Please check your Student Code or Email.")
 
+    # --- Add extra info for students below the login box ---
+    st.markdown(
+        """
+        <div style='text-align:center; margin-top:20px; margin-bottom:12px;'>
+            <span style='color:#ff9800;font-weight:600;'>
+                🔒 <b>Data Privacy:</b> Your login details and activity are never shared. Only your teacher can see your learning progress.
+            </span>
+            <br>
+            <span style='color:#1976d2;'>
+                🆕 <b>Update:</b> New features have been added to help you prepare for your German speaking exam! Practice as often as you want, within your daily quota.
+            </span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
     st.stop()
+
 
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
