@@ -2770,6 +2770,7 @@ if tab == "Exams Mode & Custom Chat":
             random.shuffle(st.session_state["remaining_topics"])
             st.session_state["used_topics"] = []
 
+    # =========================================
     # ---- STAGE 4: MAIN CHAT ----
     if st.session_state["falowen_stage"] == 4:
         import re
@@ -2820,41 +2821,42 @@ if tab == "Exams Mode & Custom Chat":
         # ---- Bubble Styles (MOBILE FRIENDLY) ----
         bubble_user = (
             "background: #e3f2fd;"
-            "color: #102027;"
             "padding: 14px 16px;"
             "border-radius: 18px 18px 6px 18px;"
             "margin: 10px 0;"
             "display: block;"
-            "font-size: 1.12rem;"
+            "font-size: 1.11rem;"
             "word-break: break-word;"
-            "width: 97vw;"
-            "max-width: 97vw;"
+            "max-width: 92vw;"
+            "width: fit-content;"
+            "min-width: 80px;"
             "box-sizing: border-box;"
-            "line-height: 1.5;"
+            "line-height: 1.6;"
         )
         bubble_assistant = (
-            "background: #212121;"   # much darker for readability
+            "background: #212121;"
             "color: #fffde7;"
             "padding: 14px 16px;"
             "border-radius: 18px 18px 18px 6px;"
             "margin: 10px 0;"
             "display: block;"
-            "font-size: 1.12rem;"
+            "font-size: 1.11rem;"
             "word-break: break-word;"
-            "width: 97vw;"
-            "max-width: 97vw;"
+            "max-width: 92vw;"
+            "width: fit-content;"
+            "min-width: 80px;"
             "box-sizing: border-box;"
-            "line-height: 1.5;"
+            "line-height: 1.6;"
         )
         st.markdown("""
         <style>
         @media only screen and (max-width: 600px) {
             div[style*="background: #e3f2fd"],
             div[style*="background: #212121"] {
-                font-size: 1.09rem !important;
-                padding: 11px 7px !important;
-                width: 98vw !important;
-                max-width: 98vw !important;
+                font-size: 1.04rem !important;
+                padding: 12px 8px !important;
+                width: 95vw !important;
+                max-width: 95vw !important;
             }
         }
         </style>
@@ -2867,7 +2869,7 @@ if tab == "Exams Mode & Custom Chat":
                 word = match.group(0)
                 return f"<span style='background:#fff3b0;border-radius:0.4em;padding:0.12em 0.4em'>{word}</span>"
             for word in keywords:
-                text = re.sub(rf'\\b{re.escape(word)}\\b', repl, text, flags=re.IGNORECASE)
+                text = re.sub(rf'\b{re.escape(word)}\b', repl, text, flags=re.IGNORECASE)
             return text
 
         highlight_words = []
@@ -2881,14 +2883,15 @@ if tab == "Exams Mode & Custom Chat":
             if msg["role"] == "assistant":
                 with st.chat_message("assistant", avatar="🧑‍🏫"):
                     st.markdown(
-                        "<span style='color:#aeea00;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
+                        "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
                         f"<div style='{bubble_assistant}'>{highlight_keywords(msg['content'], highlight_words)}</div>",
                         unsafe_allow_html=True
                     )
             else:
                 with st.chat_message("user"):
                     st.markdown(
-                        f"<div style='{bubble_user}'>🗣️ {msg['content']}</div>",
+                        f"<div style='display:flex;justify-content:flex-end;'>"
+                        f"<div style='{bubble_user}'>🗣️ {msg['content']}</div></div>",
                         unsafe_allow_html=True
                     )
 
@@ -2950,7 +2953,8 @@ if tab == "Exams Mode & Custom Chat":
 
             with st.chat_message("user"):
                 st.markdown(
-                    f"<div style='{bubble_user}'>🗣️ {user_input}</div>",
+                    f"<div style='display:flex;justify-content:flex-end;'>"
+                    f"<div style='{bubble_user}'>🗣️ {user_input}</div></div>",
                     unsafe_allow_html=True
                 )
 
@@ -2972,7 +2976,7 @@ if tab == "Exams Mode & Custom Chat":
                         ai_reply = f"Sorry, an error occurred: {e}"
 
                 st.markdown(
-                    "<span style='color:#aeea00;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
+                    "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
                     f"<div style='{bubble_assistant}'>{highlight_keywords(ai_reply, highlight_words)}</div>",
                     unsafe_allow_html=True
                 )
@@ -2984,6 +2988,8 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("✅ End Session & Show Summary"):
             st.session_state["falowen_stage"] = 5
             st.rerun()
+    # =========================================
+
 
     # ---- STAGE 5: End-of-Session Summary ----
     if st.session_state.get("falowen_stage") == 5:
