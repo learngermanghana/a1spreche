@@ -246,31 +246,35 @@ st.set_page_config(
 # ---- Falowen Header ----
 st.markdown(
     """
-    <div style='display:flex;align-items:center;gap:20px;margin-bottom:22px;'>
-        <span style='font-size:2.2rem;margin-right:4px;'>🇬🇭</span>
-        <div>
-            <span style='font-size:2.1rem;font-weight:bold;color:#17617a;letter-spacing:2px;'>
+    <div style='display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; width: 100%;'>
+        <!-- Left Flag -->
+        <span style='font-size:2.2rem; flex: 0 0 auto;'>🇬🇭</span>
+        <!-- Center Block -->
+        <div style='flex: 1; text-align: center;'>
+            <span style='font-size:2.1rem; font-weight:bold; color:#17617a; letter-spacing:2px;'>
                 Falowen App
             </span>
-            <span style='font-size:2.0rem;margin-left:14px;'>🇩🇪</span>
             <br>
-            <span style='font-size:1.06rem;color:#ff9900;font-weight:600;'>Learn Language Education Academy</span><br>
-            <span style='font-size:1.05rem;color:#268049;font-weight:400;'>
+            <span style='font-size:1.08rem; color:#ff9900; font-weight:600;'>Learn Language Education Academy</span>
+            <br>
+            <span style='font-size:1.05rem; color:#268049; font-weight:400;'>
                 Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
-            </span><br>
-            <span style='font-size:1.01rem;color:#1976d2;font-weight:500;'>
-                Website: <a href='https://www.learngermanghana.com' target='_blank' style='color:#1565c0;text-decoration:none;'>www.learngermanghana.com</a>
-            </span><br>
-            <span style='font-size:0.98rem;color:#666;font-weight:500;'>
+            </span>
+            <br>
+            <span style='font-size:1.01rem; color:#1976d2; font-weight:500;'>
+                Website: <a href='https://www.learngermanghana.com' target='_blank' style='color:#1565c0; text-decoration:none;'>www.learngermanghana.com</a>
+            </span>
+            <br>
+            <span style='font-size:0.98rem; color:#666; font-weight:500;'>
                 Competent German Tutors Team
             </span>
         </div>
+        <!-- Right Flag -->
+        <span style='font-size:2.2rem; flex: 0 0 auto;'>🇩🇪</span>
     </div>
     """,
     unsafe_allow_html=True
 )
-
-
 
 # ==== 2) Helpers to load & save progress ====
 def load_progress(student_code, level, teil):
