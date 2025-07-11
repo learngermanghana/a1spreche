@@ -2770,7 +2770,6 @@ if tab == "Exams Mode & Custom Chat":
             random.shuffle(st.session_state["remaining_topics"])
             st.session_state["used_topics"] = []
 
-# =========================================
     # ---- STAGE 4: MAIN CHAT ----
     if st.session_state["falowen_stage"] == 4:
         import re
@@ -2818,15 +2817,46 @@ if tab == "Exams Mode & Custom Chat":
             })
             st.rerun()
 
-        # ---- Bubble Styles ----
+        # ---- Bubble Styles (MOBILE FRIENDLY) ----
         bubble_user = (
-            "background: #e6f0fa; border-radius: 1.4em 1.4em 0 1.4em; "
-            "padding: 1em 1.5em; display: inline-block; margin-bottom: 6px;"
+            "background: #e3f2fd;"
+            "padding: 14px 16px;"
+            "border-radius: 18px 18px 6px 18px;"
+            "margin: 10px 0;"
+            "display: block;"
+            "font-size: 1.16rem;"
+            "word-break: break-word;"
+            "width: 98vw;"
+            "max-width: 98vw;"
+            "box-sizing: border-box;"
+            "line-height: 1.5;"
         )
         bubble_assistant = (
-            "background: #e9ffe5; border-radius: 1.4em 1.4em 1.4em 0; "
-            "padding: 1em 1.5em; display: inline-block; margin-bottom: 6px;"
+            "background: #fff9c4;"
+            "padding: 14px 16px;"
+            "border-radius: 18px 18px 18px 6px;"
+            "margin: 10px 0;"
+            "display: block;"
+            "font-size: 1.16rem;"
+            "word-break: break-word;"
+            "width: 98vw;"
+            "max-width: 98vw;"
+            "box-sizing: border-box;"
+            "line-height: 1.5;"
         )
+        st.markdown("""
+        <style>
+        @media only screen and (max-width: 600px) {
+            div[style*="background: #e3f2fd"], 
+            div[style*="background: #fff9c4"] {
+                font-size: 1.11rem !important;
+                padding: 12px 8px !important;
+                width: 98vw !important;
+                max-width: 98vw !important;
+            }
+        }
+        </style>
+        """, unsafe_allow_html=True)
 
         # ---- Word Highlighting ----
         def highlight_keywords(text, keywords):
@@ -2926,7 +2956,8 @@ if tab == "Exams Mode & Custom Chat":
                 "assistant",
                 avatar="https://i.imgur.com/aypyUjM_d.jpeg?maxwidth=520&shape=thumb&fidelity=high"
             ):
-                with st.spinner("Herr Felix is typing..."):
+                # --- HERR FELIX IS TYPING SPINNER ---
+                with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                     messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
                     try:
                         resp = client.chat.completions.create(
