@@ -2648,7 +2648,6 @@ if tab == "Exams Mode & Custom Chat":
             st.rerun()
         st.stop()
 
-
     # ---- STAGE 2: Level Selection ----
     if st.session_state["falowen_stage"] == 2:
         st.subheader("Step 2: Choose Your Level")
@@ -2659,7 +2658,7 @@ if tab == "Exams Mode & Custom Chat":
         )
         if st.button("⬅️ Back", key="falowen_back1"):
             st.session_state["falowen_stage"] = 1
-            st.stop()
+            st.rerun()
         if st.button("Next ➡️", key="falowen_next_level"):
             st.session_state["falowen_level"] = level
             if st.session_state["falowen_mode"] == "Geführte Prüfungssimulation (Exam Mode)":
@@ -2669,10 +2668,9 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_teil"] = None
             st.session_state["falowen_messages"] = []
             st.session_state["custom_topic_intro_done"] = False
+            st.rerun()
         st.stop()
-
-
-
+    
     # ---- STAGE 3: Exam Part & Topic (Exam Mode Only) ----
     if st.session_state["falowen_stage"] == 3:
         level = st.session_state["falowen_level"]
@@ -2706,12 +2704,15 @@ if tab == "Exams Mode & Custom Chat":
         else:
             topics_list = []
 
-        # Optional topic picker
+        # Optional topic picker (auto-pick random, but always shuffle for fairness)
         picked = None
+        random.shuffle(topics_list)  # Always shuffle!
         if topics_list:
             picked = st.selectbox("Choose a topic (optional):", ["(random)"] + topics_list)
             if picked == "(random)":
+                # When random, set None and shuffle for Stage 4 auto-picking
                 st.session_state["falowen_exam_topic"] = None
+                st.session_state["falowen_exam_keyword"] = None
             else:
                 # If picked includes ' – ', split out topic & keyword
                 if " – " in picked:
@@ -2735,13 +2736,16 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_messages"] = []
             st.session_state["custom_topic_intro_done"] = False
 
-            # Shuffle or save deck if needed (optional)
+            # Save/shuffle deck for Stage 4 picking
             st.session_state["remaining_topics"] = topics_list.copy()
             random.shuffle(st.session_state["remaining_topics"])
             st.session_state["used_topics"] = []
 
+# =========================================
     # ---- STAGE 4: MAIN CHAT ----
     if st.session_state["falowen_stage"] == 4:
+        import re
+
         level = st.session_state["falowen_level"]
         teil = st.session_state["falowen_teil"]
         mode = st.session_state["falowen_mode"]
@@ -2749,7 +2753,7 @@ if tab == "Exams Mode & Custom Chat":
         is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
 
         # ---- Show daily usage ----
-        used_today = get_sprechen_usage(student_code)  # Persistent DB usage
+        used_today = get_sprechen_usage(student_code)
         st.info(f"Today: {used_today} / {FALOWEN_DAILY_LIMIT} Falowen chat messages used.")
         if used_today >= FALOWEN_DAILY_LIMIT:
             st.warning("You have reached your daily practice limit for Falowen today. Please come back tomorrow.")
@@ -2764,7 +2768,10 @@ if tab == "Exams Mode & Custom Chat":
                 "falowen_mode": None,
                 "custom_topic_intro_done": False,
                 "falowen_turn_count": 0,
-                "falowen_exam_topic": None
+                "falowen_exam_topic": None,
+                "falowen_exam_keyword": None,
+                "remaining_topics": [],
+                "used_topics": [],
             })
             st.rerun()
 
@@ -2782,21 +2789,47 @@ if tab == "Exams Mode & Custom Chat":
             })
             st.rerun()
 
-        # ---- Render Chat History ----
+        # ---- Bubble Styles ----
+        bubble_user = (
+            "background: #e6f0fa; border-radius: 1.4em 1.4em 0 1.4em; "
+            "padding: 1em 1.5em; display: inline-block; margin-bottom: 6px;"
+        )
+        bubble_assistant = (
+            "background: #e9ffe5; border-radius: 1.4em 1.4em 1.4em 0; "
+            "padding: 1em 1.5em; display: inline-block; margin-bottom: 6px;"
+        )
+
+        # ---- Word Highlighting ----
+        def highlight_keywords(text, keywords):
+            if not keywords: return text
+            def repl(match):
+                word = match.group(0)
+                return f"<span style='background:#fff3b0;border-radius:0.4em;padding:0.12em 0.4em'>{word}</span>"
+            for word in keywords:
+                text = re.sub(rf'\b{re.escape(word)}\b', repl, text, flags=re.IGNORECASE)
+            return text
+
+        highlight_words = []
+        if is_exam:
+            if st.session_state.get("falowen_exam_keyword"):
+                highlight_words.append(st.session_state["falowen_exam_keyword"])
+            highlight_words += ["weil", "möchte", "deshalb"]
+
+        # ---- Render Chat History (with bubbles and highlights) ----
         for msg in st.session_state["falowen_messages"]:
             if msg["role"] == "assistant":
                 with st.chat_message("assistant", avatar="🧑‍🏫"):
                     st.markdown(
-                        "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
+                        "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
+                        f"<div style='{bubble_assistant}'>{highlight_keywords(msg['content'], highlight_words)}</div>",
                         unsafe_allow_html=True
                     )
-                    st.markdown(msg["content"])
             else:
                 with st.chat_message("user"):
-                    st.markdown(f"🗣️ {msg['content']}")
-
-        # ---- Auto-scroll to bottom ----
-        st.markdown("<script>window.scrollTo(0, document.body.scrollHeight);</script>", unsafe_allow_html=True)
+                    st.markdown(
+                        f"<div style='{bubble_user}'>🗣️ {msg['content']}</div>",
+                        unsafe_allow_html=True
+                    )
 
         # ---- PDF Download Button ----
         if st.session_state["falowen_messages"]:
@@ -2829,6 +2862,16 @@ if tab == "Exams Mode & Custom Chat":
 
         # ---- Build System Prompt including topic/context ----
         if is_exam:
+            if (not st.session_state.get("falowen_exam_topic")) and st.session_state.get("remaining_topics"):
+                next_topic = st.session_state["remaining_topics"].pop(0)
+                if " – " in next_topic:
+                    topic, keyword = next_topic.split(" – ", 1)
+                    st.session_state["falowen_exam_topic"] = topic
+                    st.session_state["falowen_exam_keyword"] = keyword
+                else:
+                    st.session_state["falowen_exam_topic"] = next_topic
+                    st.session_state["falowen_exam_keyword"] = None
+                st.session_state["used_topics"].append(next_topic)
             base_prompt = build_exam_system_prompt(level, teil)
             topic = st.session_state.get("falowen_exam_topic")
             if topic:
@@ -2842,13 +2885,12 @@ if tab == "Exams Mode & Custom Chat":
         user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
         if user_input:
             st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
-            inc_sprechen_usage(student_code)  # Persistent usage
-
-            # render user message
+            inc_sprechen_usage(student_code)
             with st.chat_message("user"):
-                st.markdown(f"🗣️ {user_input}")
-
-            # AI response
+                st.markdown(
+                    f"<div style='{bubble_user}'>🗣️ {user_input}</div>",
+                    unsafe_allow_html=True
+                )
             with st.chat_message(
                 "assistant",
                 avatar="https://i.imgur.com/aypyUjM_d.jpeg?maxwidth=520&shape=thumb&fidelity=high"
@@ -2866,18 +2908,15 @@ if tab == "Exams Mode & Custom Chat":
                     except Exception as e:
                         ai_reply = f"Sorry, an error occurred: {e}"
                 st.markdown(
-                    "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
+                    "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
+                    f"<div style='{bubble_assistant}'>{highlight_keywords(ai_reply, highlight_words)}</div>",
                     unsafe_allow_html=True
                 )
-                st.markdown(ai_reply)
-
-            # save assistant reply
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
-  
 
 # =========================================
-    #End
-# =========================================
+
+
 
 # =========================================
 # VOCAB TRAINER TAB (A1–C1) — MOBILE OPTIMIZED
