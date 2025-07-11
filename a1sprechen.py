@@ -510,7 +510,7 @@ if st.button("Log out"):
 # 5. CONSTANTS & VOCAB LISTS
 # ====================================
 
-FALOWEN_DAILY_LIMIT = 20
+FALOWEN_DAILY_LIMIT = 2
 VOCAB_DAILY_LIMIT = 20
 SCHREIBEN_DAILY_LIMIT = 5
 max_turns = 25
