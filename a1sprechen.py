@@ -15,7 +15,6 @@ from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
-
 # ---- OpenAI Client Setup ----
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
@@ -23,9 +22,8 @@ if not OPENAI_API_KEY:
         "Missing OpenAI API key. Please set OPENAI_API_KEY as an environment variable or in Streamlit secrets."
     )
     st.stop()
-os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY   # <- Set for OpenAI client!
-client = OpenAI()  # <-- Do NOT pass api_key here for openai>=1.0
-
+os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+client = OpenAI()
 
 # ==== DB CONNECTION ====
 def get_connection():
@@ -202,6 +200,13 @@ def inc_schreiben_usage(student_code):
 
 def has_schreiben_quota(student_code, limit=SCHREIBEN_DAILY_LIMIT):
     return get_schreiben_usage(student_code) < limit
+
+# -- ALIAS for legacy code (use this so your old code works without errors!) --
+has_falowen_quota = has_sprechen_quota
+
+# (Now your whole app can use has_falowen_quota(student_code, FALOWEN_DAILY_LIMIT)
+# OR has_sprechen_quota(student_code, FALOWEN_DAILY_LIMIT) and it will always work.)
+
 
 
 # --- Streamlit page config ---
