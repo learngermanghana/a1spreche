@@ -3095,6 +3095,15 @@ if tab == "Schreiben Trainer":
         placeholder="Write your German letter here..."
     )
 
+    # --- Word and character count ---
+    if user_letter.strip():
+        # Simple word count (splitting by whitespace, stripping punctuation)
+        import re
+        # Remove most punctuation, only for counting words
+        words = re.findall(r'\b\w+\b', user_letter)
+        chars = len(user_letter)
+        st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
+
     # 6. AI prompt (always define before calling the API)
     ai_prompt = (
         f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
@@ -3151,11 +3160,8 @@ if tab == "Schreiben Trainer":
                 st.warning("Could not detect a score in the AI feedback.")
                 score = 0
 
-            # === Update usage and save to DB ===
+            # === Update usage (persistently in DB) ===
             inc_schreiben_usage(student_code)
-            save_schreiben_submission(
-                student_code, student_name, schreiben_level, user_letter, score, feedback
-            )
 
             # --- Show Feedback ---
             st.markdown("---")
@@ -3191,4 +3197,6 @@ if tab == "Schreiben Trainer":
                 f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                 unsafe_allow_html=True
             )
+
+
 
