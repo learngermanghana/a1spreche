@@ -394,8 +394,6 @@ def is_contract_expired(row):
         expiry_date = parsed.to_pydatetime()
 
     today = datetime.now().date()
-    # Debug: show parsed date
-    st.write("DEBUG: parsed expiry_date:", expiry_date.date(), "today:", today)
 
     return expiry_date.date() < today
 
