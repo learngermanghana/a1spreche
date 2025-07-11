@@ -289,12 +289,24 @@ def save_schreiben_attempt(student_code, name, level, score):
     )
     conn.commit()
 
+# Bubble CSS
+bubble_user = "background:#e3f2fd;padding:12px 20px;border-radius:18px 18px 6px 18px;margin:8px 0;display:inline-block;"
+bubble_assistant = "background:#fff9c4;padding:12px 20px;border-radius:18px 18px 18px 6px;margin:8px 0;display:inline-block;"
+
+# Highlight function and words
+highlight_words = ["correct", "should", "mistake", "improve", "tip"]
+def highlight_keywords(text, words):
+    import re
+    pattern = r'(' + '|'.join(map(re.escape, words)) + r')'
+    return re.sub(pattern, r"<span style='color:#d63384;font-weight:600'>\1</span>", text, flags=re.IGNORECASE)
+
+
 
 # ====================================
 # 5. CONSTANTS & VOCAB LISTS
 # ====================================
 
-FALOWEN_DAILY_LIMIT = 20
+FALOWEN_DAILY_LIMIT = 3
 VOCAB_DAILY_LIMIT = 20
 SCHREIBEN_DAILY_LIMIT = 5
 max_turns = 25
