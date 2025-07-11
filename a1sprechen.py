@@ -117,6 +117,17 @@ def init_db():
     """)
     conn.commit()
 
+# Falowen Daily Usage Table (add this after your current tables)
+c.execute("""
+    CREATE TABLE IF NOT EXISTS falowen_usage (
+        student_code TEXT,
+        date TEXT,
+        count INTEGER,
+        PRIMARY KEY (student_code, date)
+    )
+""")
+
+
 # Call DB initialization ONCE after imports
 init_db()
 
@@ -235,34 +246,35 @@ def get_student_stats(student_code):
     return stats
 
 def get_falowen_usage(student_code):
-    today_str = str(date.today())
+    today = str(date.today())
     conn = get_connection()
     c = conn.cursor()
     c.execute(
-        "CREATE TABLE IF NOT EXISTS falowen_usage (student_code TEXT, date TEXT, usage INTEGER, PRIMARY KEY (student_code, date))"
-    )
-    c.execute(
-        "SELECT usage FROM falowen_usage WHERE student_code=? AND date=?",
-        (student_code, today_str)
+        "SELECT count FROM falowen_usage WHERE student_code=? AND date=?",
+        (student_code, today)
     )
     row = c.fetchone()
-    conn.commit()
     return row[0] if row else 0
 
 def inc_falowen_usage(student_code):
-    today_str = str(date.today())
+    today = str(date.today())
     conn = get_connection()
     c = conn.cursor()
-    c.execute(
-        "CREATE TABLE IF NOT EXISTS falowen_usage (student_code TEXT, date TEXT, usage INTEGER, PRIMARY KEY (student_code, date))"
-    )
-    # Try to update; if not exists, insert
-    c.execute(
-        "INSERT INTO falowen_usage (student_code, date, usage) VALUES (?, ?, 1) "
-        "ON CONFLICT(student_code, date) DO UPDATE SET usage = usage + 1",
-        (student_code, today_str)
-    )
+    usage = get_falowen_usage(student_code)
+    if usage == 0:
+        c.execute(
+            "INSERT INTO falowen_usage (student_code, date, count) VALUES (?, ?, ?)",
+            (student_code, today, 1)
+        )
+    else:
+        c.execute(
+            "UPDATE falowen_usage SET count = ? WHERE student_code = ? AND date = ?",
+            (usage + 1, student_code, today)
+        )
     conn.commit()
+
+def has_falowen_quota(student_code, limit=20):
+    return get_falowen_usage(student_code) < limit
 
 
 def has_falowen_quota(student_code):
@@ -1192,7 +1204,7 @@ def get_a2_schedule():
         # DAY 9
         {
             "day": 9,
-            "topic": "Urlaub 3.9",
+            "topic": "Urlaub 4.9",
             "chapter": "4.9",
             "goal": "Discuss vacation plans.",
             "assignment": True,
@@ -2022,13 +2034,13 @@ if tab == "Course Book":
         name = st.text_input("Name", value=student_row.get('Name',''))
         code = st.text_input("Code", value=student_row.get('StudentCode',''))
         st.subheader("✍️ Your Answer")
-        ans = st.text_area("Answer (or attach on WhatsApp)", height=800)
+        ans = st.text_area("Answer (or attach on WhatsApp)", height=500)
         msg = build_wa_message(name, code, student_level, info['day'], info['chapter'], ans)
         url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(msg)
         if st.button("📤 Send via WhatsApp"):
             st.success("Click link below to open WhatsApp.")
             st.markdown(f"[📨 Open WhatsApp]({url})")
-        st.text_area("📋 Copy message:", msg, height=800)
+        st.text_area("📋 Copy message:", msg, height=500)
     render_whatsapp()
 
     st.info(
@@ -2914,8 +2926,11 @@ if tab == "Exams Mode & Custom Chat":
             # save assistant reply
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
-#End
 
+
+# =========================================
+#End
+# =========================================
 
 # =========================================
 # VOCAB TRAINER TAB (A1–C1) — MOBILE OPTIMIZED
