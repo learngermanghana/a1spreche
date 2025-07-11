@@ -270,6 +270,7 @@ st.markdown(
 )
 
 
+
 # ==== 2) Helpers to load & save progress ====
 def load_progress(student_code, level, teil):
     c.execute(
