@@ -243,6 +243,31 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# ---- Falowen Header ----
+st.markdown(
+    """
+    <div style='display:flex;align-items:center;gap:18px;margin-bottom:22px;'>
+        <span style='font-size:2.1rem;margin-right:4px;'>🇬🇭</span>
+        <img src='https://cdn-icons-png.flaticon.com/512/323/323329.png' width='50' style='border-radius:50%;border:2.5px solid #d2b431;box-shadow:0 2px 8px #e4c08d;'/>
+        <div>
+            <span style='font-size:2.0rem;font-weight:bold;color:#17617a;letter-spacing:2px;'>Falowen App</span>
+            <span style='font-size:1.7rem;margin-left:10px;'>🇩🇪</span>
+            <br>
+            <span style='font-size:1.02rem;color:#ff9900;font-weight:600;'>Learn Language Education Academy</span><br>
+            <span style='font-size:1.01rem;color:#268049;font-weight:400;'>
+                Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
+            </span><br>
+            <span style='font-size:0.98rem;color:#1976d2;font-weight:500;'>
+                Website: <a href='https://www.learngermanghana.com' target='_blank' style='color:#1565c0;text-decoration:none;'>www.learngermanghana.com</a>
+            </span><br>
+            <span style='font-size:0.97rem;color:#666;font-weight:500;'>
+                Competent German Tutors Team
+            </span>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 
 # ==== 2) Helpers to load & save progress ====
@@ -409,73 +434,9 @@ if not st.session_state["logged_in"] and code_from_cookie:
 
 # --- Manual Login Form ---
 if not st.session_state["logged_in"]:
-    st.markdown("""
-        <div style='text-align:center;margin-top:2em'>
-            <img src='https://upload.wikimedia.org/wikipedia/commons/1/19/Flag_of_Ghana.svg'
-                 style='height:40px;vertical-align:middle;margin-right:12px;float:left;'>
-            <span style='font-size:2.2rem;font-weight:700;color:#1565c0;letter-spacing:2px'>
-                Falowen App
-            </span>
-            <img src='https://upload.wikimedia.org/wikipedia/commons/b/ba/Flag_of_Germany.svg'
-                 style='height:40px;vertical-align:middle;margin-left:12px;float:right;'>
-        </div>
-        <div style='text-align:center;font-size:1.13rem;color:#ff9800;font-weight:600;margin-top:8px;clear:both;'>
-            Learn Language Education Academy
-        </div>
-        <div style='text-align:center;font-size:1.04rem;color:#1976d2;margin-bottom:28px;'>
-            Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
-            <br>
-            <span style='color:#111;font-size:0.99rem;font-weight:400;'>
-                Website: <a href='https://www.learngermanghana.com' style='color:#1565c0;'>www.learngermanghana.com</a> <br>
-                Competent German Tutors Team
-            </span>
-        </div>
-    """, unsafe_allow_html=True)
-
-
-    st.markdown(
-        "<h1 style='text-align:center;font-size:2.6rem;margin-top:2.2rem;'>🔑 Student Login</h1>",
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        "<div style='text-align:center;margin-bottom:8px;font-size:1.08rem;'>Enter your Student Code or Email:</div>",
-        unsafe_allow_html=True
-    )
-
-    login_input = st.text_input("", value=code_from_cookie, key="login_code").strip().lower()
-    login_clicked = st.button("Login", key="login_button")
-
-    st.markdown(
-        """
-        <div style='text-align:center; margin-top:9px; margin-bottom:15px;'>
-            <a href='https://api.whatsapp.com/send?phone=233205706589' target='_blank'
-               style='color:#43a047;font-weight:600;text-decoration:none;font-size:1.06rem;'>
-               💬 Need help? Contact support on WhatsApp
-            </a>
-            <br>
-            <span style='font-size:0.97rem;color:#666;'>
-                Forgot your code? Try <span style='color:#1976d2;font-weight:600;'>demo123</span> or ask your teacher.
-            </span>
-            <br>
-            <span style='color:#999;font-size:0.94rem;'>
-                Your data is 100% private and secure. <span style='font-size:1rem;'>🔒</span>
-            </span>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        """
-        <div style='text-align:center;margin-top:24px;color:#1976d2;font-size:0.98rem;'>
-            🆕 <b>What's New:</b> Exam Simulator & Custom Chat Mode now available!
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    if login_clicked:
+    st.title("🔑 Student Login")
+    login_input = st.text_input("Enter your Student Code or Email:", value=code_from_cookie).strip().lower()
+    if st.button("Login"):
         df_students = load_student_data()
         df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
         df_students["Email"]       = df_students["Email"].str.lower().str.strip()
@@ -486,6 +447,8 @@ if not st.session_state["logged_in"]:
         ]
         if not found.empty:
             student_row = found.iloc[0]
+            # Debug: show what we're checking
+            st.write("DEBUG: raw ContractEnd for login:", repr(student_row["ContractEnd"]))
             if is_contract_expired(student_row):
                 st.error("Your contract has expired. Please contact the office for renewal.")
                 st.stop()
@@ -503,8 +466,6 @@ if not st.session_state["logged_in"]:
             st.error("Login failed. Please check your Student Code or Email.")
 
     st.stop()
-
-
 
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
