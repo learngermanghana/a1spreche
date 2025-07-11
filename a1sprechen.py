@@ -427,7 +427,7 @@ if not st.session_state["logged_in"] and code_from_cookie:
 # --- Manual Login Form ---
 if not st.session_state["logged_in"]:
     st.markdown("""
-        <div style='text-align:center;margin-top:1.5em'>
+        <div style='text-align:center;margin-top:2em'>
             <img src='https://upload.wikimedia.org/wikipedia/commons/thumb/5/5c/Flag_of_the_United_Kingdom.svg/60px-Flag_of_the_United_Kingdom.svg.png'
                  style='height:40px;vertical-align:middle;margin-right:8px;'>
             <span style='font-size:2.2rem;font-weight:700;color:#1565c0;letter-spacing:2px'>
@@ -435,38 +435,42 @@ if not st.session_state["logged_in"]:
             </span>
             <span style='font-size:2.1rem;vertical-align:middle;margin-left:4px;'>🇩🇪</span>
         </div>
-        <div style='text-align:center;font-size:1.1rem;color:#ff9800;font-weight:600;margin-top:8px;'>
+        <div style='text-align:center;font-size:1.13rem;color:#ff9800;font-weight:600;margin-top:8px;'>
             Learn Language Education Academy
         </div>
-        <div style='text-align:center;font-size:1.05rem;color:#1976d2;margin-bottom:28px;'>
+        <div style='text-align:center;font-size:1.04rem;color:#1976d2;margin-bottom:28px;'>
             Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
+            <br>
+            <span style='color:#111;font-size:0.99rem;font-weight:400;'>
+                Website: <a href='https://www.learngermanghana.com' style='color:#1565c0;'>www.learngermanghana.com</a> <br>
+                Tutors: Felix Asadu &amp; Frau Sabine
+            </span>
         </div>
     """, unsafe_allow_html=True)
 
     st.markdown(
-        "<h1 style='text-align:center;font-size:2.8rem;margin-top:2.5rem;'>🔑 Student Login</h1>",
+        "<h1 style='text-align:center;font-size:2.6rem;margin-top:2.2rem;'>🔑 Student Login</h1>",
         unsafe_allow_html=True
     )
 
     st.markdown(
-        "<div style='text-align:center;margin-bottom:10px;'>Enter your Student Code or Email:</div>",
+        "<div style='text-align:center;margin-bottom:8px;font-size:1.08rem;'>Enter your Student Code or Email:</div>",
         unsafe_allow_html=True
     )
 
     login_input = st.text_input("", value=code_from_cookie, key="login_code").strip().lower()
-
     login_clicked = st.button("Login", key="login_button")
 
     st.markdown(
         """
-        <div style='text-align:center; margin-top:8px; margin-bottom:16px;'>
+        <div style='text-align:center; margin-top:9px; margin-bottom:15px;'>
             <a href='https://api.whatsapp.com/send?phone=233205706589' target='_blank'
-               style='color:#43a047;font-weight:600;text-decoration:none;font-size:1.03rem;'>
+               style='color:#43a047;font-weight:600;text-decoration:none;font-size:1.06rem;'>
                💬 Need help? Contact support on WhatsApp
             </a>
             <br>
             <span style='font-size:0.97rem;color:#666;'>
-                Forgot your code? Try the <span style='color:#1976d2;font-weight:600;'>demo123</span> account or ask your teacher.
+                Forgot your code? Try <span style='color:#1976d2;font-weight:600;'>demo123</span> or ask your teacher.
             </span>
             <br>
             <span style='color:#999;font-size:0.94rem;'>
@@ -479,7 +483,7 @@ if not st.session_state["logged_in"]:
 
     st.markdown(
         """
-        <div style='text-align:center;margin-top:32px;color:#1976d2;font-size:0.99rem;'>
+        <div style='text-align:center;margin-top:24px;color:#1976d2;font-size:0.98rem;'>
             🆕 <b>What's New:</b> Exam Simulator & Custom Chat Mode now available!
         </div>
         """,
@@ -497,8 +501,6 @@ if not st.session_state["logged_in"]:
         ]
         if not found.empty:
             student_row = found.iloc[0]
-            # Debug: show what we're checking
-            # st.write("DEBUG: raw ContractEnd for login:", repr(student_row["ContractEnd"]))
             if is_contract_expired(student_row):
                 st.error("Your contract has expired. Please contact the office for renewal.")
                 st.stop()
