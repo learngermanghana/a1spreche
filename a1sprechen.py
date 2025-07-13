@@ -21,7 +21,7 @@ if not OPENAI_API_KEY:
     st.stop()
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-
+st.write(client.models.list()) 
 
 # ==== DB CONNECTION ====
 def get_connection():
