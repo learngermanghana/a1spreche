@@ -15,12 +15,13 @@ from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
-# ---- OpenAI Client Setup ----
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
-    st.error("Missing OpenAI API key. Please set OPENAI_API_KEY as an environment variable in Render.")
+    st.error("Missing OpenAI API key.")
     st.stop()
 client = OpenAI(api_key=OPENAI_API_KEY)
+
+
 
 # ==== DB CONNECTION ====
 def get_connection():
