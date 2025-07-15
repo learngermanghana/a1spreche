@@ -15,13 +15,31 @@ from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-if not OPENAI_API_KEY:
-    st.error("Missing OpenAI API key.")
-    st.stop()
-client = OpenAI(api_key=OPENAI_API_KEY)
+st.markdown(
+    """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    footer:after {content:""; display:none;}
+    .st-emotion-cache-1v0mbdj {display: none;}
+    .css-164nlkn {display: none;}
+    .css-1lsmgbg.egzxvld1 {display: none;} /* Some new versions */
+    .st-emotion-cache-7ym5gk {display: none;} /* Another possible Streamlit version */
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
-st.write(client.models.list()) 
+
+# ---- OpenAI Client Setup ----
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    st.error(
+        "Missing OpenAI API key. Please set OPENAI_API_KEY as an environment variable or in Streamlit secrets."
+    )
+    st.stop()
+os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+client = OpenAI()
 
 # ==== DB CONNECTION ====
 def get_connection():
@@ -224,6 +242,7 @@ def get_student_stats(student_code):
     for level, correct, attempted in c.fetchall():
         stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
     return stats
+
 
 
 # -- ALIAS for legacy code (use this so your old code works without errors!) --
@@ -499,10 +518,6 @@ if st.button("Log out"):
 
 
 
-import pandas as pd
-import streamlit as st
-import time
-
 # ======= Data Loading Functions =======
 @st.cache_data
 def load_student_data():
@@ -510,11 +525,7 @@ def load_student_data():
     SHEET_NAME = "Sheet1"
     csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
     df = pd.read_csv(csv_url)
-    # Standardize columns and clean values
-    df.columns = df.columns.str.strip().str.replace(" ", "").str.lower()
-    df = df.replace("nan", "", regex=True).fillna("")
-    for col in df.columns:
-        df[col] = df[col].astype(str).str.strip()
+    df.columns = df.columns.str.strip().str.replace(" ", "")
     return df
 
 @st.cache_data
@@ -523,10 +534,8 @@ def load_stats_data():
     SHEET_NAME = "Sheet1"
     csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
     df = pd.read_csv(csv_url)
+    # Clean columns for easier access
     df.columns = df.columns.str.strip().str.lower()
-    df = df.replace("nan", "", regex=True).fillna("")
-    for col in df.columns:
-        df[col] = df[col].astype(str).str.strip()
     return df
 
 @st.cache_data
@@ -539,11 +548,12 @@ def load_reviews():
     )
     df = pd.read_csv(url)
     df.columns = df.columns.str.strip().str.lower()
-    df = df.replace("nan", "", regex=True).fillna("")
-    for col in df.columns:
-        df[col] = df[col].astype(str).str.strip()
     return df
 
+import time
+import matplotlib.pyplot as plt
+
+# ======= Dashboard Code =======
 # ======= Dashboard Code =======
 if st.session_state.get("logged_in"):
     student_code = st.session_state.get("student_code", "").strip().lower()
@@ -563,6 +573,7 @@ if st.session_state.get("logged_in"):
     )
 
     if tab == "Dashboard":
+        # 🏠 Compact Dashboard header
         st.markdown(
             '''
             <div style="
@@ -581,23 +592,12 @@ if st.session_state.get("logged_in"):
         )
         st.divider()
 
-        # --- Load and clean student data robustly ---
+        # --- Get student_row first ---
         df_students = load_student_data()
-        # Columns are now all lower-case and trimmed
+        matches = df_students[df_students["StudentCode"].str.lower() == student_code]
+        student_row = matches.iloc[0].to_dict() if not matches.empty else {}
 
-        # Accept code or email as login/lookup value
-        lookup_value = student_code.strip().lower()
-        matches = df_students[
-            (df_students["studentcode"] == lookup_value) |
-            (df_students["email"] == lookup_value)
-        ]
-
-        if matches.empty:
-            st.error("❌ No data found for your code or email. Please check or contact support.")
-            st.stop()
-        student_row = matches.iloc[0].to_dict()
-
-        display_name = student_row.get('name') or student_name or "Student"
+        display_name = student_row.get('Name') or student_name or "Student"
         first_name = str(display_name).strip().split()[0].title() if display_name else "Student"
 
         # --- Minimal, super-visible greeting for mobile ---
@@ -605,28 +605,28 @@ if st.session_state.get("logged_in"):
         st.info("Great to see you. Let's keep learning!")
 
         # --- Student Info & Balance ---
-        st.markdown(f"### 👤 {student_row.get('name','')}")
+        st.markdown(f"### 👤 {student_row.get('Name','')}")
         st.markdown(
-            f"- **Level:** {student_row.get('level','')}\n"
-            f"- **Code:** `{student_row.get('studentcode','')}`\n"
-            f"- **Email:** {student_row.get('email','')}\n"
-            f"- **Phone:** {student_row.get('phone','')}\n"
-            f"- **Location:** {student_row.get('location','')}\n"
-            f"- **Contract:** {student_row.get('contractstart','')} ➔ {student_row.get('contractend','')}\n"
-            f"- **Enroll Date:** {student_row.get('enrolldate','')}\n"
-            f"- **Status:** {student_row.get('status','')}"
+            f"- **Level:** {student_row.get('Level','')}\n"
+            f"- **Code:** `{student_row.get('StudentCode','')}`\n"
+            f"- **Email:** {student_row.get('Email','')}\n"
+            f"- **Phone:** {student_row.get('Phone','')}\n"
+            f"- **Location:** {student_row.get('Location','')}\n"
+            f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}\n"
+            f"- **Enroll Date:** {student_row.get('EnrollDate','')}\n"
+            f"- **Status:** {student_row.get('Status','')}"
         )
         try:
-            bal = float(student_row.get("balance", 0))
+            bal = float(student_row.get("Balance", 0))
             if bal > 0:
                 st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
         except:
             pass
 
-        # --- Announcements & Ads (auto-rotating) ---
+        # --- Announcements & Ads (auto-rotating, reduced size) ---
         st.markdown("### 🖼️ Announcements & Ads")
         ad_images = [
-            "https://i.imgur.com/9hLAScD.jpg",
+            "https://i.imgur.com/IjZl191.png",
             "https://i.imgur.com/2PzOOvn.jpg",
             "https://i.imgur.com/Q9mpvRY.jpg",
         ]
@@ -647,9 +647,9 @@ if st.session_state.get("logged_in"):
             st.rerun()
 
         idx = st.session_state["ad_idx"]
-        st.image(ad_images[idx], caption=ad_captions[idx], width=400)
+        st.image(ad_images[idx], caption=ad_captions[idx], width=400)  # change width if needed
 
-        # --- Goethe Exam Section ---
+        # --- Simple Goethe Exam Section ---
         with st.expander("📅 Goethe Exam Dates & Fees", expanded=True):
             st.markdown(
                 """
@@ -668,7 +668,7 @@ if st.session_state.get("logged_in"):
                 unsafe_allow_html=True
             )
 
-        # --- Student Reviews ---
+        # --- Auto-Rotating Student Reviews ---
         st.markdown("### 🗣️ What Our Students Say")
         reviews = load_reviews()
         if reviews.empty:
@@ -693,7 +693,6 @@ if st.session_state.get("logged_in"):
                 f"> — **{r.get('student_name','')}**  \n"
                 f"> {stars}"
             )
-
 
 def get_a1_schedule():
     return [
@@ -721,14 +720,14 @@ def get_a1_schedule():
             "lesen_hören": [
                 {
                     "chapter": "0.2",
-                    "video": "",
+                    "video": "https://youtu.be/S7n6TlAQRLQ",
                     "grammarbook_link": "https://drive.google.com/file/d/1KtJCF15Ng4cLU88wdUCX5iumOLY7ZA0a/view?usp=sharing",
                     "assignment": True,
                     "workbook_link": "https://drive.google.com/file/d/1R6PqzgsPm9f5iVn7JZXSNVa_NttoPU9Q/view?usp=sharing",
                 },
                 {
                     "chapter": "1.1",
-                    "video": "https://youtu.be/rNxu2uQZ_lc",
+                    "video": "https://youtu.be/AjsnO1hxDs4",
                     "grammarbook_link": "https://drive.google.com/file/d/1DKhyi-43HX1TNs8fxA9bgRvhylubilBf/view?usp=sharing",
                     "assignment": True,
                     "workbook_link": "https://drive.google.com/file/d/1A1D1pAssnoncF1JY0v54XT2npPb6mQZv/view?usp=sharing",
@@ -888,9 +887,9 @@ def get_a1_schedule():
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
             "assignment": True,
             "lesen_hören": {
-                "video": "https://youtu.be/aWvIHjV3e_I",
-                "grammarbook_link": "",
-                "workbook_link": ""
+                "video": "https://youtu.be/hLpPFOthVkU",
+                "grammarbook_link": "https://drive.google.com/file/d/1fW2ChjnDKW_5SEr65ZgE1ylJy1To46_p/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1onzokN8kQualNO6MSsPndFXiRwsnsVM9/view?usp=sharing"
             }
         },
         # DAY 13
@@ -901,7 +900,7 @@ def get_a1_schedule():
             "goal": "Recap from the lesen and horen. Understand numbers, time, asking of price and how to formulate statements in German",
             "instruction": "Use the statement rule to talk about your weekly routine using the activities listed. Share with your tutor when done",
             "schreiben_sprechen": {
-                "video": "",
+                "video": "https://youtu.be/PwDLGmfBUDw",
                 "assignment": False,
                 "workbook_link": "https://drive.google.com/file/d/12oFKrKrHBwSpSnzxLX_e-cjPSiYtCFVs/view?usp=sharing"
             }
@@ -980,7 +979,7 @@ def get_a1_schedule():
             "lesen_hören": [
                 {
                     "chapter": "12.1",
-                    "video": "",
+                    "video": "https://youtu.be/-vTEvx9a8Ts",
                     "assignment": True,
                     "grammarbook_link": "https://drive.google.com/file/d/1wdWYVxBhu4QtRoETDpDww-LjjzsGDYva/view?usp=sharing",
                     "workbook_link": "https://drive.google.com/file/d/1A0NkFl1AG68jHeqSytI3ygJ0k7H74AEX/view?usp=sharing"
@@ -994,7 +993,7 @@ def get_a1_schedule():
                 }
             ],
             "schreiben_sprechen": {
-                "video": "",
+                "video": "https://youtu.be/xVyYo7upDGo",
                 "assignment": False,
                 "workbook_link": "https://drive.google.com/file/d/1iyYBuxu3bBEovxz0j9QeSu_1URX92fvN/view?usp=sharing"
             }
@@ -1018,6 +1017,7 @@ def get_a1_schedule():
             "topic": "Schreiben & Sprechen 6.10 (Intro to letter writing)",
             "chapter": "6.10",
             "goal": "Practice how to write both formal and informal letters",
+            "assignment": True,
             "instruction": "Write all the two letters in this document and send to your tutor for corrections",
             "schreiben_sprechen": {
                 "video": "",
@@ -1225,7 +1225,7 @@ def get_a2_schedule():
             "assignment": True,
             "goal": "Learn about tourism and festivals.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
-            "video": "",
+            "video": "https://youtu.be/XFxV3GSSm8E",
             "grammarbook_link": "https://drive.google.com/file/d/1snFsDYBK8RrPRq2n3PtWvcIctSph-zvN/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1vijZn-ryhT46cTzGmetuF0c4zys0yGlB/view?usp=sharing"
         },
@@ -1273,7 +1273,7 @@ def get_a2_schedule():
             "assignment": True,
             "goal": "Discuss jobs and careers.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
-            "video": "",
+            "video": "https://youtu.be/IyBvx-yVT-0",
             "grammarbook_link": "https://drive.google.com/file/d/13mVpVGfhY1NQn-BEb7xYUivnaZbhXJsK/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1rlZoo49bYBRjt7mu3Ydktzgfdq4IyK2q/view?usp=sharing"
         },
@@ -1286,7 +1286,7 @@ def get_a2_schedule():
             "goal": "Talk about your favorite sport.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "https://drive.google.com/file/d/1UohFnTmCwjCJHQU1etaGOBzZJTk2kauz/view?usp=sharing",
+            "grammarbook_link": "https://drive.google.com/file/d/1dGZjcHhdN1xAdK2APL54RykGH7_msUyr/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1iiExhUj66r5p0SJZfV7PsmCWOyaF360s/view?usp=sharing"
         },
         # DAY 16
@@ -1605,7 +1605,7 @@ def get_b1_schedule():
         {
             "day": 13,
             "topic": "Reisen und Verkehr 5.13",
-            "chapter": "5.13",
+            "chapter": "4.13",
             "goal": "Discuss travel and transportation.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1640,8 +1640,8 @@ def get_b1_schedule():
         # DAY 16
         {
             "day": 16,
-            "topic": "Natur und Umwelt 6.16",
-            "chapter": "6.16",
+            "topic": "Natur und Umwelt 5.16",
+            "chapter": "5.16",
             "goal": "Learn to discuss nature and the environment.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1652,8 +1652,8 @@ def get_b1_schedule():
         # DAY 17
         {
             "day": 17,
-            "topic": "Probleme und Lösungen 6.17",
-            "chapter": "6.17",
+            "topic": "Probleme und Lösungen 5.17",
+            "chapter": "5.17",
             "goal": "Describe problems and find solutions.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1676,8 +1676,8 @@ def get_b1_schedule():
         # DAY 19
         {
             "day": 19,
-            "topic": "Berufliche Zukunft 7.19",
-            "chapter": "7.19",
+            "topic": "Berufliche Zukunft 6.19",
+            "chapter": "6.19",
             "goal": "Discuss future career plans.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1688,8 +1688,8 @@ def get_b1_schedule():
         # DAY 20
         {
             "day": 20,
-            "topic": "Bildung und Weiterbildung 7.20",
-            "chapter": "7.20",
+            "topic": "Bildung und Weiterbildung 6.20",
+            "chapter": "6.20",
             "goal": "Talk about education and further studies.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1712,8 +1712,8 @@ def get_b1_schedule():
         # DAY 22
         {
             "day": 22,
-            "topic": "Konsum und Werbung 8.22",
-            "chapter": "8.22",
+            "topic": "Konsum und Werbung 7.22",
+            "chapter": "7.22",
             "goal": "Talk about consumption and advertising.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1724,8 +1724,8 @@ def get_b1_schedule():
         # DAY 23
         {
             "day": 23,
-            "topic": "Globalisierung 8.23",
-            "chapter": "8.23",
+            "topic": "Globalisierung 7.23",
+            "chapter": "7.23",
             "goal": "Discuss globalization and its effects.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1749,7 +1749,7 @@ def get_b1_schedule():
         {
             "day": 25,
             "topic": "Lebenslauf schreiben 8.25",
-            "chapter": "9.25",
+            "chapter": "8.25",
             "goal": "Write a CV and cover letter.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1773,7 +1773,7 @@ def get_b1_schedule():
         {
             "day": 27,
             "topic": "Zusammenfassen und Berichten 9.27",
-            "chapter": "9.27",
+            "chapter": "10.27",
             "goal": "Practice summarizing and reporting.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -3406,34 +3406,41 @@ if tab == "Schreiben Trainer":
             st.markdown("#### 📝 Feedback from Herr Felix")
             st.markdown(feedback)
 
-            # === Download as PDF ===
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=12)
-            pdf.multi_cell(0, 10, f"Your Letter:\n\n{user_letter}\n\nFeedback from Herr Felix:\n\n{feedback}")
-            pdf_output = f"Feedback_{student_code}_{schreiben_level}.pdf"
-            pdf.output(pdf_output)
-            with open(pdf_output, "rb") as f:
-                pdf_bytes = f.read()
-            st.download_button(
-                "⬇️ Download Feedback as PDF",
-                pdf_bytes,
-                file_name=pdf_output,
-                mime="application/pdf"
-            )
-            import os
-            os.remove(pdf_output)
+        def sanitize_text(text):
+            return text.encode('latin-1', errors='replace').decode('latin-1')
 
-            # === WhatsApp Share ===
-            wa_message = f"Hi, here is my German letter and AI feedback:\n\n{user_letter}\n\nFeedback:\n{feedback}"
-            wa_url = (
-                "https://api.whatsapp.com/send"
-                "?phone=233205706589"
-                f"&text={urllib.parse.quote(wa_message)}"
-            )
-            st.markdown(
-                f"[📲 Send to Tutor on WhatsApp]({wa_url})",
-                unsafe_allow_html=True
-            )
+        # === Download as PDF ===
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
+        safe_user_letter = sanitize_text(user_letter)
+        safe_feedback = sanitize_text(feedback)
+        pdf.multi_cell(0, 10, f"Your Letter:\n\n{safe_user_letter}\n\nFeedback from Herr Felix:\n\n{safe_feedback}")
+        pdf_output = f"Feedback_{student_code}_{schreiben_level}.pdf"
+        pdf.output(pdf_output)
+        with open(pdf_output, "rb") as f:
+            pdf_bytes = f.read()
+        st.download_button(
+            "⬇️ Download Feedback as PDF",
+            pdf_bytes,
+            file_name=pdf_output,
+            mime="application/pdf"
+        )
+        import os
+        os.remove(pdf_output)
+
+        # === WhatsApp Share ===
+        wa_message = f"Hi, here is my German letter and AI feedback:\n\n{user_letter}\n\nFeedback:\n{feedback}"
+        wa_url = (
+            "https://api.whatsapp.com/send"
+            "?phone=233205706589"
+            f"&text={urllib.parse.quote(wa_message)}"
+        )
+        st.markdown(
+            f"[📲 Send to Tutor on WhatsApp]({wa_url})",
+            unsafe_allow_html=True
+        )
+#
+
 
 
