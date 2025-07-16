@@ -2261,23 +2261,23 @@ if tab == "My Results and Resources":
     last_num = max(completed_nums) if completed_nums else 0
 
     schedule = LEVEL_SCHEDULES.get(level, [])
-    skipped_assignments = []
+
+    # Build a sorted list of all lessons with assignment == True and valid chapter numbers
+    valid_lessons = []
     for lesson in schedule:
-        chapter_field = lesson.get("chapter", "")
-        lesson_nums = extract_all_chapter_nums(chapter_field)
-        day = lesson.get("day", "")
-        has_assignment = lesson.get("assignment", False)
-        # If any required num is skipped (i.e., less than last_num and not in completed)
-        for chap_num in lesson_nums:
-            if (
-                has_assignment
-                and chap_num < last_num
-                and chap_num not in completed_nums
-            ):
-                skipped_assignments.append(
-                    f"Day {day}: Chapter {chapter_field} – {lesson.get('topic','')}"
-                )
-                break  # Only need to flag once per lesson
+        if lesson.get("assignment", False) is True:
+            chap_num = extract_chapter_num(lesson.get("chapter", ""))
+            if chap_num is not None:
+                valid_lessons.append((chap_num, lesson))
+
+    # Sort by chapter number (ascending, 9 then 12.3 etc.)
+    valid_lessons = sorted(valid_lessons, key=lambda x: x[0])
+
+    next_assignment = None
+    for chap_num, lesson in valid_lessons:
+        if chap_num > last_num:
+            next_assignment = lesson
+            break
 
     if skipped_assignments:
         st.markdown(
