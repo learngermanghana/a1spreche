@@ -2300,28 +2300,31 @@ if tab == "My Results and Resources":
             return None
         return max(float(n) for n in nums)
 
-    completed_chapters = []
-    for assignment in df_lvl['assignment']:
-        num = extract_chapter_num(assignment)
-        if num is not None:
-            completed_chapters.append(num)
-    last_num = max(completed_chapters) if completed_chapters else 0
-
-    # Sort schedule by chapter num ascending (handles 9 vs 12.3 correctly)
+    # List all assignable lessons, sort ascending by chapter num
     def get_chap_num_safe(lesson):
         chap_num = extract_chapter_num(lesson.get("chapter", ""))
         return chap_num if chap_num is not None else float('inf')
+
     sorted_schedule = sorted(
         [lesson for lesson in schedule if lesson.get("assignment", False)],
         key=get_chap_num_safe
     )
 
+    # Chapters student has completed
+    completed_chapters = set()
+    for assignment in df_lvl['assignment']:
+        num = extract_chapter_num(assignment)
+        if num is not None:
+            completed_chapters.add(num)
+
+    # Find first assignable lesson not completed
     next_assignment = None
     for lesson in sorted_schedule:
         chap_num = extract_chapter_num(lesson.get("chapter", ""))
-        if chap_num and chap_num > last_num:
+        if chap_num is not None and chap_num not in completed_chapters:
             next_assignment = lesson
             break
+
     if next_assignment:
         st.success(
             f"**Your next recommended assignment:**\n\n"
@@ -2331,6 +2334,7 @@ if tab == "My Results and Resources":
         )
     else:
         st.info("🎉 Great Job!")
+
 
     # ========== DOWNLOAD PDF SUMMARY ==========
     if st.button("⬇️ Download PDF Summary"):
