@@ -2854,7 +2854,7 @@ if tab == "Exams Mode & Custom Chat":
             st.rerun()
 
 
-        # =========================================
+    # =========================================
     # ---- STAGE 4: MAIN CHAT ----
     if st.session_state["falowen_stage"] == 4:
         import re
@@ -3085,6 +3085,7 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("✅ End Session & Show Summary"):
             st.session_state["falowen_stage"] = 5
             st.rerun()
+
 
 
     # ---- STAGE 5: End-of-Session Summary ----
