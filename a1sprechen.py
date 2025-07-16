@@ -2857,8 +2857,7 @@ if tab == "Exams Mode & Custom Chat":
     # =========================================
     # ---- STAGE 4: MAIN CHAT ----
     if st.session_state["falowen_stage"] == 4:
-        import re
-        import random
+        import random, re
 
         level = st.session_state["falowen_level"]
         teil = st.session_state["falowen_teil"]
@@ -3021,8 +3020,12 @@ if tab == "Exams Mode & Custom Chat":
 
         # ---- Build System Prompt including topic/context ----
         if is_exam:
-            # Pick next topic randomly if not set yet
-            if (not st.session_state.get("falowen_exam_topic")) and st.session_state.get("remaining_topics"):
+            # Randomly pick a topic from remaining_topics (never fixed order)
+            if (
+                not st.session_state.get("falowen_exam_topic")
+                and st.session_state.get("remaining_topics")
+                and len(st.session_state["remaining_topics"]) > 0
+            ):
                 idx = random.randint(0, len(st.session_state["remaining_topics"]) - 1)
                 next_topic = st.session_state["remaining_topics"].pop(idx)
                 if " – " in next_topic:
@@ -3085,7 +3088,6 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("✅ End Session & Show Summary"):
             st.session_state["falowen_stage"] = 5
             st.rerun()
-
 
 
     # ---- STAGE 5: End-of-Session Summary ----
