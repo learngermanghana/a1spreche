@@ -2297,6 +2297,7 @@ if tab == "My Results and Resources":
             """,
             unsafe_allow_html=True
         )
+
     # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
     def extract_chapter_num(chapter):
         nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
@@ -2307,21 +2308,26 @@ if tab == "My Results and Resources":
         num = extract_chapter_num(assignment)
         if num is not None:
             completed_chapters.add(num)
-    last_num = max(completed_chapters) if completed_chapters else 0
 
     schedule = LEVEL_SCHEDULES.get(level, [])
-    next_assignment = None
+    # Build list of (chapter_num, lesson) only for assignment=True
+    assignments = []
     for lesson in schedule:
-        # Only consider lessons where 'assignment' is True
         if lesson.get('assignment', False):
             chap_num = extract_chapter_num(lesson.get("chapter", ""))
-            if (
-                chap_num
-                and chap_num > last_num
-                and chap_num not in completed_chapters
-            ):
-                next_assignment = lesson
-                break
+            if chap_num is not None:
+                assignments.append((chap_num, lesson))
+
+    # Sort assignments by chapter number ascending
+    assignments.sort(key=lambda x: x[0])
+
+    # Find first uncompleted chapter after all completed ones, in order
+    next_assignment = None
+    for chap_num, lesson in assignments:
+        if chap_num not in completed_chapters:
+            next_assignment = lesson
+            break
+
     if next_assignment:
         st.success(
             f"**Your next recommended assignment:**\n\n"
