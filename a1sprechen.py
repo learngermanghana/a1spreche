@@ -796,7 +796,7 @@ def get_a1_schedule():
             "topic": "Schreiben & Sprechen 2.3",
             "chapter": "2.3",
             "goal": "Learn about family and expressing your hobby",
-            "assignment": False,
+            "assignment": False
             "instruction": "Use self-practice workbook and review answers for self-check.",
             "schreiben_sprechen": {
                 "video": "",
@@ -1237,20 +1237,20 @@ def get_a2_schedule():
             "assignment": True,
             "goal": "Compare means of transportation.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
-            "video": "",
+            "video": "https://youtu.be/RkvfRiPCZI4",
             "grammarbook_link": "https://drive.google.com/file/d/19I7oOHX8r4daxXmx38mNMaZO10AXHEFu/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1c7ITea0iVbCaPO0piark9RnqJgZS-DOi/view?usp=sharing"
         },
         # DAY 12
         {
             "day": 12,
-            "topic": "Ein Tag im Leben (Übung) 5.12",
+            "topic": "Mein Traumberuf (Übung) 5.12",
             "chapter": "5.12",
             "assignment": True,
-            "goal": "Describe a typical day.",
+            "goal": "Learn how to talk about a dream job and future goals.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
-            "video": "",
-            "grammarbook_link": "https://drive.google.com/file/d/16l_UeUkxYNXD35o6hxPxV0xGVHyvvpqV/view?usp=sharing",
+            "video": "https://youtu.be/w81bsmssGXQ",
+            "grammarbook_link": "https://drive.google.com/file/d/1dyGB5q92EePy8q60eWWYA91LXnsWQFb1/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/18u6FnHpd2nAh1Ev_2mVk5aV3GdVC6Add/view?usp=sharing"
         },
         # DAY 13
@@ -2301,24 +2301,28 @@ if tab == "My Results and Resources":
     # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
     def extract_chapter_num(chapter):
         nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
-        if not nums:
-            return None
-        return max(float(n) for n in nums)
+        return max([float(n) for n in nums], default=None)
 
-    completed_chapters = []
+    completed_chapters = set()
     for assignment in df_lvl['assignment']:
         num = extract_chapter_num(assignment)
         if num is not None:
-            completed_chapters.append(num)
+            completed_chapters.add(num)
     last_num = max(completed_chapters) if completed_chapters else 0
 
     schedule = LEVEL_SCHEDULES.get(level, [])
     next_assignment = None
     for lesson in schedule:
-        chap_num = extract_chapter_num(lesson.get("chapter", ""))
-        if chap_num and chap_num > last_num:
-            next_assignment = lesson
-            break
+        # Only consider lessons where 'assignment' is True
+        if lesson.get('assignment', False):
+            chap_num = extract_chapter_num(lesson.get("chapter", ""))
+            if (
+                chap_num
+                and chap_num > last_num
+                and chap_num not in completed_chapters
+            ):
+                next_assignment = lesson
+                break
     if next_assignment:
         st.success(
             f"**Your next recommended assignment:**\n\n"
@@ -2328,82 +2332,8 @@ if tab == "My Results and Resources":
         )
     else:
         st.info("🎉 Great Job!")
+#
 
-    # ========== DOWNLOAD PDF SUMMARY ==========
-    if st.button("⬇️ Download PDF Summary"):
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", 'B', 14)
-        pdf.cell(0, 10, sanitize_pdf_text("Learn Language Education Academy"), ln=1, align='C')
-        pdf.ln(5)
-        pdf.set_font("Arial", '', 12)
-        pdf.multi_cell(
-            0, 8,
-            sanitize_pdf_text(
-                f"Name: {df_user.name.iloc[0]}\n"
-                f"Code: {code}\n"
-                f"Level: {level}\n"
-                f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"
-            )
-        )
-        pdf.ln(4)
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 8, sanitize_pdf_text("Summary Metrics"), ln=1)
-        pdf.set_font("Arial", '', 11)
-        pdf.cell(0, 8, sanitize_pdf_text(f"Total: {total}, Completed: {completed}, Avg: {avg_score:.1f}, Best: {best_score}"), ln=1)
-        pdf.ln(4)
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 8, sanitize_pdf_text("Detailed Results"), ln=1)
-        pdf.set_font("Arial", '', 10)
-        for _, row in df_display.iterrows():
-            feedback = row.get('comments', '')
-            if (
-                pd.isna(feedback) or
-                not str(feedback).strip() or
-                str(feedback).lower().strip() == "nan"
-            ):
-                feedback = "No feedback yet."
-            pdf.cell(0, 7, sanitize_pdf_text(f"{row['assignment']}: {row['score']} ({row['date']})"), ln=1)
-            if 'comments' in row and feedback:
-                pdf.set_font("Arial", 'I', 9)
-                pdf.multi_cell(0, 6, sanitize_pdf_text(f"  Feedback: {feedback}"))
-                pdf.set_font("Arial", '', 10)
-        pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
-        # Streamlit native download button
-        st.download_button(
-            label="Download PDF",
-            data=pdf_bytes,
-            file_name=f"{code}_results_{level}.pdf",
-            mime="application/pdf"
-        )
-        # Manual fallback download
-        st.markdown(
-            get_pdf_download_link(pdf_bytes, f"{code}_results_{level}.pdf"),
-            unsafe_allow_html=True
-        )
-        st.info("If you are on iPhone or computer and the button does not work, tap-and-hold or right-click on the blue link above and choose **Save link as...** to download your PDF.")
-
-    # --- Resources Section ---
-    st.markdown("---")
-    st.subheader("📚 Useful Resources")
-    st.markdown(
-        """
-**1. [A1 Schreiben Practice Questions](https://drive.google.com/file/d/1X_PFF2AnBXSrGkqpfrArvAnEIhqdF6fv/view?usp=sharing)**  
-Practice writing tasks and sample questions for A1.
-
-**2. [A1 Exams Sprechen Guide](https://drive.google.com/file/d/1UWvbCCCcrW3_j9x7pOuWug6_Odvzcvaa/view?usp=sharing)**  
-Step-by-step guide to the A1 speaking exam.
-
-**3. [German Writing Rules](https://drive.google.com/file/d/1o7_ez3WSNgpgxU_nEtp6EO1PXDyi3K3b/view?usp=sharing)**  
-Tips and grammar rules for better writing.
-
-**4. [A2 Sprechen Guide](https://drive.google.com/file/d/1TZecDTjNwRYtZXpEeshbWnN8gCftryhI/view?usp=sharing)**  
-A2-level speaking exam guide.
-
-**5. [B1 Sprechen Guide](https://drive.google.com/file/d/1snk4mL_Q9-xTBXSRfgiZL_gYRI9tya8F/view?usp=sharing)**  
-How to prepare for your B1 oral exam.
-        """
-    )
 
 
 # ================================
@@ -2781,8 +2711,6 @@ if tab == "Exams Mode & Custom Chat":
     
     # ---- STAGE 3: Exam Part & Topic (Exam Mode Only) ----
     if st.session_state["falowen_stage"] == 3:
-        import random
-
         level = st.session_state["falowen_level"]
 
         # Dynamically build teil_options from your app logic
@@ -2805,6 +2733,7 @@ if tab == "Exams Mode & Custom Chat":
         # Some Teils (like Teil 3) may just have a prompt, not a topic+keyword
         topics_list = []
         if not exam_topics.empty:
+            # If both Topic & Keyword: show as "Topic – Keyword", else just Topic
             for _, row in exam_topics.iterrows():
                 if row['Keyword'] and not pd.isna(row['Keyword']):
                     topics_list.append(f"{row['Topic']} – {row['Keyword']}")
@@ -2813,18 +2742,15 @@ if tab == "Exams Mode & Custom Chat":
         else:
             topics_list = []
 
-        random.shuffle(topics_list)  # Always shuffle for fairness
-
-        # The user can optionally pick a topic, but "(random)" means let Stage 4 do the random picking.
+        # Optional topic picker (auto-pick random, but always shuffle for fairness)
         picked = None
+        random.shuffle(topics_list)  # Always shuffle!
         if topics_list:
             picked = st.selectbox("Choose a topic (optional):", ["(random)"] + topics_list)
             if picked == "(random)":
+                # When random, set None and shuffle for Stage 4 auto-picking
                 st.session_state["falowen_exam_topic"] = None
                 st.session_state["falowen_exam_keyword"] = None
-                # All topics are eligible for random picking in Stage 4
-                st.session_state["remaining_topics"] = topics_list.copy()
-                random.shuffle(st.session_state["remaining_topics"])
             else:
                 # If picked includes ' – ', split out topic & keyword
                 if " – " in picked:
@@ -2834,13 +2760,9 @@ if tab == "Exams Mode & Custom Chat":
                 else:
                     st.session_state["falowen_exam_topic"] = picked
                     st.session_state["falowen_exam_keyword"] = None
-                st.session_state["remaining_topics"] = []  # Not used, because user selected a topic
         else:
             st.session_state["falowen_exam_topic"] = None
             st.session_state["falowen_exam_keyword"] = None
-            st.session_state["remaining_topics"] = []
-
-        st.session_state["used_topics"] = []
 
         if st.button("⬅️ Back", key="falowen_back2"):
             st.session_state["falowen_stage"] = 2
@@ -2851,12 +2773,16 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_stage"] = 4
             st.session_state["falowen_messages"] = []
             st.session_state["custom_topic_intro_done"] = False
-            st.rerun()
+
+            # Save/shuffle deck for Stage 4 picking
+            st.session_state["remaining_topics"] = topics_list.copy()
+            random.shuffle(st.session_state["remaining_topics"])
+            st.session_state["used_topics"] = []
 
     # =========================================
     # ---- STAGE 4: MAIN CHAT ----
     if st.session_state["falowen_stage"] == 4:
-        import random, re
+        import re
 
         level = st.session_state["falowen_level"]
         teil = st.session_state["falowen_teil"]
@@ -2900,6 +2826,7 @@ if tab == "Exams Mode & Custom Chat":
                 "falowen_messages": []
             })
             st.rerun()
+            
 
         # ---- Bubble Styles (MOBILE FRIENDLY) ----
         bubble_user = (
@@ -2962,7 +2889,7 @@ if tab == "Exams Mode & Custom Chat":
                 word = match.group(0)
                 return f"<span style='background:#fff3b0;border-radius:0.4em;padding:0.12em 0.4em'>{word}</span>"
             for word in keywords:
-                text = re.sub(rf'\\b{re.escape(word)}\\b', repl, text, flags=re.IGNORECASE)
+                text = re.sub(rf'\b{re.escape(word)}\b', repl, text, flags=re.IGNORECASE)
             return text
 
         highlight_words = []
@@ -3019,14 +2946,8 @@ if tab == "Exams Mode & Custom Chat":
 
         # ---- Build System Prompt including topic/context ----
         if is_exam:
-            # Pick next topic randomly every turn
-            if (
-                not st.session_state.get("falowen_exam_topic")
-                and st.session_state.get("remaining_topics")
-            ):
-                next_topic = st.session_state["remaining_topics"].pop(
-                    random.randrange(len(st.session_state["remaining_topics"]))
-                )
+            if (not st.session_state.get("falowen_exam_topic")) and st.session_state.get("remaining_topics"):
+                next_topic = st.session_state["remaining_topics"].pop(0)
                 if " – " in next_topic:
                     topic, keyword = next_topic.split(" – ", 1)
                     st.session_state["falowen_exam_topic"] = topic
