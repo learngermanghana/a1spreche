@@ -1015,7 +1015,7 @@ def get_a1_schedule():
         {
             "day": 20,
             "topic": "Schreiben & Sprechen (Introduction to Letter Writing)",
-            "chapter": "12.3",
+            "chapter": "6.10",
             "goal": "Practice how to write both formal and informal letters",
             "assignment": True,
             "instruction": "Write all the two letters in this document and send to your tutor for corrections",
