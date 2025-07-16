@@ -1014,7 +1014,7 @@ def get_a1_schedule():
         # DAY 20
         {
             "day": 20,
-            "topic": "Schreiben & Sprechen (Introduction to Letter Writing)",
+            "topic": "Introduction to Letter Writing",
             "chapter": "6.10",
             "goal": "Practice how to write both formal and informal letters",
             "assignment": False,
@@ -2298,36 +2298,27 @@ if tab == "My Results and Resources":
             unsafe_allow_html=True
         )
 
-        # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
-    def extract_all_chapter_nums(label):
-        # Extract all numbers from a chapter label (e.g., "13_6.11" gives [13.0, 6.11])
-        return [float(n) for n in re.findall(r'\d+(?:\.\d+)?', str(label))]
+    # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
+    def extract_chapter_num(chapter):
+        nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
+        if not nums:
+            return None
+        return max(float(n) for n in nums)
 
-    # Collect all completed chapter numbers (flattened set)
-    completed_nums = set()
+    completed_chapters = []
     for assignment in df_lvl['assignment']:
-        completed_nums.update(extract_all_chapter_nums(assignment))
+        num = extract_chapter_num(assignment)
+        if num is not None:
+            completed_chapters.append(num)
+    last_num = max(completed_chapters) if completed_chapters else 0
 
     schedule = LEVEL_SCHEDULES.get(level, [])
-    # Build assignments list as (chapter_num, lesson) for all assignment=True, for all chapter nums
-    assignments = []
-    for lesson in schedule:
-        if lesson.get('assignment', False):
-            chapter = lesson.get("chapter", "")
-            nums = extract_all_chapter_nums(chapter)
-            for num in nums:
-                assignments.append((num, lesson))
-
-    # Sort assignments by chapter number (ascending)
-    assignments.sort(key=lambda x: x[0])
-
-    # Find the first assignment whose chapter number isn't completed
     next_assignment = None
-    for num, lesson in assignments:
-        if num not in completed_nums:
+    for lesson in schedule:
+        chap_num = extract_chapter_num(lesson.get("chapter", ""))
+        if chap_num and chap_num > last_num:
             next_assignment = lesson
             break
-
     if next_assignment:
         st.success(
             f"**Your next recommended assignment:**\n\n"
@@ -2338,33 +2329,81 @@ if tab == "My Results and Resources":
     else:
         st.info("🎉 Great Job!")
 
-
+    # ========== DOWNLOAD PDF SUMMARY ==========
+    if st.button("⬇️ Download PDF Summary"):
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", 'B', 14)
+        pdf.cell(0, 10, sanitize_pdf_text("Learn Language Education Academy"), ln=1, align='C')
+        pdf.ln(5)
+        pdf.set_font("Arial", '', 12)
+        pdf.multi_cell(
+            0, 8,
+            sanitize_pdf_text(
+                f"Name: {df_user.name.iloc[0]}\n"
+                f"Code: {code}\n"
+                f"Level: {level}\n"
+                f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"
+            )
+        )
+        pdf.ln(4)
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(0, 8, sanitize_pdf_text("Summary Metrics"), ln=1)
+        pdf.set_font("Arial", '', 11)
+        pdf.cell(0, 8, sanitize_pdf_text(f"Total: {total}, Completed: {completed}, Avg: {avg_score:.1f}, Best: {best_score}"), ln=1)
+        pdf.ln(4)
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(0, 8, sanitize_pdf_text("Detailed Results"), ln=1)
+        pdf.set_font("Arial", '', 10)
+        for _, row in df_display.iterrows():
+            feedback = row.get('comments', '')
+            if (
+                pd.isna(feedback) or
+                not str(feedback).strip() or
+                str(feedback).lower().strip() == "nan"
+            ):
+                feedback = "No feedback yet."
+            pdf.cell(0, 7, sanitize_pdf_text(f"{row['assignment']}: {row['score']} ({row['date']})"), ln=1)
+            if 'comments' in row and feedback:
+                pdf.set_font("Arial", 'I', 9)
+                pdf.multi_cell(0, 6, sanitize_pdf_text(f"  Feedback: {feedback}"))
+                pdf.set_font("Arial", '', 10)
+        pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
+        # Streamlit native download button
+        st.download_button(
+            label="Download PDF",
+            data=pdf_bytes,
+            file_name=f"{code}_results_{level}.pdf",
+            mime="application/pdf"
+        )
+        # Manual fallback download
+        st.markdown(
+            get_pdf_download_link(pdf_bytes, f"{code}_results_{level}.pdf"),
+            unsafe_allow_html=True
+        )
+        st.info("If you are on iPhone or computer and the button does not work, tap-and-hold or right-click on the blue link above and choose **Save link as...** to download your PDF.")
 
     # --- Resources Section ---
     st.markdown("---")
     st.subheader("📚 Useful Resources")
     st.markdown(
         """
-    **1. [A1 Schreiben Practice Questions](https://drive.google.com/file/d/1X_PFF2AnBXSrGkqpfrArvAnEIhqdF6fv/view?usp=sharing)**  
-    Practice writing tasks and sample questions for A1.
+**1. [A1 Schreiben Practice Questions](https://drive.google.com/file/d/1X_PFF2AnBXSrGkqpfrArvAnEIhqdF6fv/view?usp=sharing)**  
+Practice writing tasks and sample questions for A1.
 
-    **2. [A1 Exams Sprechen Guide](https://drive.google.com/file/d/1UWvbCCCcrW3_j9x7pOuWug6_Odvzcvaa/view?usp=sharing)**  
-    Step-by-step guide to the A1 speaking exam.
+**2. [A1 Exams Sprechen Guide](https://drive.google.com/file/d/1UWvbCCCcrW3_j9x7pOuWug6_Odvzcvaa/view?usp=sharing)**  
+Step-by-step guide to the A1 speaking exam.
 
-    **3. [German Writing Rules](https://drive.google.com/file/d/1o7_ez3WSNgpgxU_nEtp6EO1PXDyi3K3b/view?usp=sharing)**  
-    Tips and grammar rules for better writing.
+**3. [German Writing Rules](https://drive.google.com/file/d/1o7_ez3WSNgpgxU_nEtp6EO1PXDyi3K3b/view?usp=sharing)**  
+Tips and grammar rules for better writing.
 
-    **4. [A2 Sprechen Guide](https://drive.google.com/file/d/1TZecDTjNwRYtZXpEeshbWnN8gCftryhI/view?usp=sharing)**  
-    A2-level speaking exam guide.
+**4. [A2 Sprechen Guide](https://drive.google.com/file/d/1TZecDTjNwRYtZXpEeshbWnN8gCftryhI/view?usp=sharing)**  
+A2-level speaking exam guide.
 
-    **5. [B1 Sprechen Guide](https://drive.google.com/file/d/1snk4mL_Q9-xTBXSRfgiZL_gYRI9tya8F/view?usp=sharing)**  
-    How to prepare for your B1 oral exam.
+**5. [B1 Sprechen Guide](https://drive.google.com/file/d/1snk4mL_Q9-xTBXSRfgiZL_gYRI9tya8F/view?usp=sharing)**  
+How to prepare for your B1 oral exam.
         """
     )
-
-
-
-
 
 
 # ================================
