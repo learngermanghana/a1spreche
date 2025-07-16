@@ -793,8 +793,8 @@ def get_a1_schedule():
         # DAY 6
         {
             "day": 6,
-            "topic": "Schreiben & Sprechen 3",
-            "chapter": "3",
+            "topic": "Schreiben & Sprechen 2.3",
+            "chapter": "2.3",
             "goal": "Learn about family and expressing your hobby",
             "assignment": False,
             "instruction": "Use self-practice workbook and review answers for self-check.",
@@ -2301,24 +2301,33 @@ if tab == "My Results and Resources":
     # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
     def extract_chapter_num(chapter):
         nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
-        if not nums:
-            return None
-        return max(float(n) for n in nums)
+        return max([float(n) for n in nums], default=None)
 
-    completed_chapters = []
+    completed_chapters = set()
     for assignment in df_lvl['assignment']:
         num = extract_chapter_num(assignment)
         if num is not None:
-            completed_chapters.append(num)
-    last_num = max(completed_chapters) if completed_chapters else 0
+            completed_chapters.add(num)
 
     schedule = LEVEL_SCHEDULES.get(level, [])
-    next_assignment = None
+    # Build list of (chapter_num, lesson) only for assignment=True
+    assignments = []
     for lesson in schedule:
-        chap_num = extract_chapter_num(lesson.get("chapter", ""))
-        if chap_num and chap_num > last_num:
+        if lesson.get('assignment', False):
+            chap_num = extract_chapter_num(lesson.get("chapter", ""))
+            if chap_num is not None:
+                assignments.append((chap_num, lesson))
+
+    # Sort assignments by chapter number ascending
+    assignments.sort(key=lambda x: x[0])
+
+    # Find first uncompleted chapter after all completed ones, in order
+    next_assignment = None
+    for chap_num, lesson in assignments:
+        if chap_num not in completed_chapters:
             next_assignment = lesson
             break
+
     if next_assignment:
         st.success(
             f"**Your next recommended assignment:**\n\n"
@@ -2328,6 +2337,8 @@ if tab == "My Results and Resources":
         )
     else:
         st.info("🎉 Great Job!")
+
+
 
     # ========== DOWNLOAD PDF SUMMARY ==========
     if st.button("⬇️ Download PDF Summary"):
