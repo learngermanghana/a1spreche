@@ -739,7 +739,7 @@ def get_a1_schedule():
             "day": 3,
             "topic": "Schreiben & Sprechen 1.1 and Lesen & Hören 1.2",
             "chapter": "1.1_1.2",
-            "goal": "Introduce others and talk about your family.",
+            "goal": "Recap what we have learned so far: be able to introduce yourself in German and know all the pronouns.",
             "instruction": (
                 "Begin with the practicals at **Schreiben & Sprechen** (writing & speaking). "
                 "Then, move to **Lesen & Hören** (reading & listening). "
@@ -748,7 +748,7 @@ def get_a1_schedule():
                 "Main assignment to be marked is under Lesen & Hören below."
             ),
             "schreiben_sprechen": {
-                "video": "",
+                "video": "https://youtu.be/hEe6rs0lkRg",
                 "workbook_link": "https://drive.google.com/file/d/1GXWzy3cvbl_goP4-ymFuYDtX4X23D70j/view?usp=sharing",
                 "assignment": False,
             },
@@ -1006,9 +1006,9 @@ def get_a1_schedule():
             "goal": "Understand the difference between Erlaubt and Verboten and how to use it in the exams hall",
             "instruction": "",
             "schreiben_sprechen": {
-                "video": "",
+                "video": "https://youtu.be/MqAp84GthAo",
                 "assignment": False,
-                "workbook_link": "https://drive.google.com/file/d/1-bbY9zoos62U5jUAFrYCyxay_cvbk65N/view?usp=sharing"
+                "workbook_link": "https://drive.google.com/file/d/1CkoYa_qeqsGju0kTS6ElurCAlEW6pVFL/view?usp=sharing"
             }
         },
         # DAY 20
@@ -1238,7 +1238,7 @@ def get_a2_schedule():
             "goal": "Compare means of transportation.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "https://drive.google.com/file/d/1Vl9UPeM2RaATafT8t539aOPrxnSkfr9A/view?usp=sharing",
+            "grammarbook_link": "https://drive.google.com/file/d/19I7oOHX8r4daxXmx38mNMaZO10AXHEFu/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1c7ITea0iVbCaPO0piark9RnqJgZS-DOi/view?usp=sharing"
         },
         # DAY 12
@@ -2446,11 +2446,33 @@ if tab == "Exams Mode & Custom Chat":
     )
     st.divider()
 
-    # --- Daily Limit Check (NEW: persistent with SQLite) ---
-    if not has_sprechen_quota(student_code, FALOWEN_DAILY_LIMIT):
-        st.header("🗣️ Falowen – Speaking & Exam Trainer")
-        st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
-        st.stop()
+    # ---- Exam Sample Images (A1/A2 Template) ----
+    image_map = {
+        ("A1", "Teil 1"): {
+            "url": "https://i.imgur.com/sKQDrpx.png",
+            "caption": "Sample – A1 Teil 1"
+        },
+        ("A1", "Teil 2"): {
+            "url": "https://i.imgur.com/xTTIUME.png",  # Replace with real image if you get a valid link!
+            "caption": "Sample – A1 Teil 2"
+        },
+        ("A1", "Teil 3"): {
+            "url": "https://i.imgur.com/MxBUCR8.png",
+            "caption": "Sample – A1 Teil 3"
+        },
+        # Add A2 etc:
+        # ("A2", "Teil 1"): { ... }
+    }
+
+    # Display image only for selected level/teil and at the start of chat
+    level = st.session_state.get("falowen_level")
+    teil = st.session_state.get("falowen_teil")
+    msgs = st.session_state.get("falowen_messages", [])
+    # Show image if no chat yet, or only the 1st assistant instruction
+    if level and teil and (not msgs or (len(msgs) == 1 and msgs[0].get("role") == "assistant")):
+        for (map_level, map_teil), v in image_map.items():
+            if level == map_level and map_teil in teil:
+                st.image(v["url"], width=380, caption=v["caption"])
 
 
     # ---- PDF Helper ----
@@ -2649,8 +2671,13 @@ if tab == "Exams Mode & Custom Chat":
     def build_custom_chat_prompt(level):
         if level == "C1":
             return (
-                "Du bist Herr Felix, ein C1-Prüfer. Sprich nur Deutsch. "
-                "Gib konstruktives Feedback, stelle schwierige Fragen, und hilf dem Studenten, auf C1-Niveau zu sprechen."
+                "You are supportive German C1 Teacher. Speak both english and German "
+                "Ask student one question at a time"
+                "Suggest useful phrases student can use to begin their phrases"
+                "Check if student is writing on C1 Level"
+                "When there is error, correct for the student and teach them how to say it correctly"
+                "Stay on one topic and always ask next question. After 5 questions on a topic, give the student their performance and scores and suggestions to improve"
+                "Help student progress from B2 to C1 with your support and guidance"
             )
         if level in ["A1", "A2", "B1", "B2"]:
             correction_lang = "in English" if level in ["A1", "A2"] else "half in English and half in German"
@@ -2869,6 +2896,7 @@ if tab == "Exams Mode & Custom Chat":
                 "falowen_messages": []
             })
             st.rerun()
+            
 
         # ---- Bubble Styles (MOBILE FRIENDLY) ----
         bubble_user = (
