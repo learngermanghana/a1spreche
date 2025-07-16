@@ -3068,7 +3068,7 @@ if tab == "Exams Mode & Custom Chat":
                             model="gpt-4o",
                             messages=messages,
                             temperature=0.15,
-                            max_tokens=000
+                            max_tokens=600
                         )
                         ai_reply = resp.choices[0].message.content.strip()
                     except Exception as e:
