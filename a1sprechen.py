@@ -2298,31 +2298,30 @@ if tab == "My Results and Resources":
             unsafe_allow_html=True
         )
 
-    # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
+        # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
     def extract_all_chapter_nums(label):
-        # Extract all chapter numbers (including decimals like 12.3)
+        # Extract all numbers from a chapter label (e.g., "13_6.11" gives [13.0, 6.11])
         return [float(n) for n in re.findall(r'\d+(?:\.\d+)?', str(label))]
 
-    # Gather all completed numbers (flattened)
+    # Collect all completed chapter numbers (flattened set)
     completed_nums = set()
     for assignment in df_lvl['assignment']:
         completed_nums.update(extract_all_chapter_nums(assignment))
 
     schedule = LEVEL_SCHEDULES.get(level, [])
+    # Build assignments list as (chapter_num, lesson) for all assignment=True, for all chapter nums
     assignments = []
     for lesson in schedule:
         if lesson.get('assignment', False):
             chapter = lesson.get("chapter", "")
-            # Multiple numbers possible in a label
             nums = extract_all_chapter_nums(chapter)
-            if nums:
-                for num in nums:
-                    assignments.append((num, lesson))
+            for num in nums:
+                assignments.append((num, lesson))
 
-    # Sort assignments by number (ascending)
+    # Sort assignments by chapter number (ascending)
     assignments.sort(key=lambda x: x[0])
 
-    # Find first uncompleted assignment by number
+    # Find the first assignment whose chapter number isn't completed
     next_assignment = None
     for num, lesson in assignments:
         if num not in completed_nums:
@@ -2338,7 +2337,8 @@ if tab == "My Results and Resources":
         )
     else:
         st.info("🎉 Great Job!")
-  
+
+
 
     # --- Resources Section ---
     st.markdown("---")
