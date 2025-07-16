@@ -2853,7 +2853,6 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["custom_topic_intro_done"] = False
             st.rerun()
 
-
     # =========================================
     # ---- STAGE 4: MAIN CHAT ----
     if st.session_state["falowen_stage"] == 4:
@@ -3020,14 +3019,14 @@ if tab == "Exams Mode & Custom Chat":
 
         # ---- Build System Prompt including topic/context ----
         if is_exam:
-            # Randomly pick a topic from remaining_topics (never fixed order)
+            # pick next topic randomly every turn, concise pop
             if (
                 not st.session_state.get("falowen_exam_topic")
                 and st.session_state.get("remaining_topics")
-                and len(st.session_state["remaining_topics"]) > 0
             ):
-                idx = random.randint(0, len(st.session_state["remaining_topics"]) - 1)
-                next_topic = st.session_state["remaining_topics"].pop(idx)
+                next_topic = st.session_state["remaining_topics"].pop(
+                    random.randrange(len(st.session_state["remaining_topics"]))
+                )
                 if " – " in next_topic:
                     topic, keyword = next_topic.split(" – ", 1)
                     st.session_state["falowen_exam_topic"] = topic
@@ -3069,7 +3068,7 @@ if tab == "Exams Mode & Custom Chat":
                             model="gpt-4o",
                             messages=messages,
                             temperature=0.15,
-                            max_tokens=600
+                            max_tokens=000
                         )
                         ai_reply = resp.choices[0].message.content.strip()
                     except Exception as e:
