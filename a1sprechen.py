@@ -2299,32 +2299,33 @@ if tab == "My Results and Resources":
         )
 
     # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
-    def extract_chapter_num(chapter):
-        nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
-        return max([float(n) for n in nums], default=None)
+    def extract_all_chapter_nums(label):
+        # Extract all chapter numbers (including decimals like 12.3)
+        return [float(n) for n in re.findall(r'\d+(?:\.\d+)?', str(label))]
 
-    completed_chapters = set()
+    # Gather all completed numbers (flattened)
+    completed_nums = set()
     for assignment in df_lvl['assignment']:
-        num = extract_chapter_num(assignment)
-        if num is not None:
-            completed_chapters.add(num)
+        completed_nums.update(extract_all_chapter_nums(assignment))
 
     schedule = LEVEL_SCHEDULES.get(level, [])
-    # Build list of (chapter_num, lesson) only for assignment=True
     assignments = []
     for lesson in schedule:
         if lesson.get('assignment', False):
-            chap_num = extract_chapter_num(lesson.get("chapter", ""))
-            if chap_num is not None:
-                assignments.append((chap_num, lesson))
+            chapter = lesson.get("chapter", "")
+            # Multiple numbers possible in a label
+            nums = extract_all_chapter_nums(chapter)
+            if nums:
+                for num in nums:
+                    assignments.append((num, lesson))
 
-    # Sort assignments by chapter number ascending
+    # Sort assignments by number (ascending)
     assignments.sort(key=lambda x: x[0])
 
-    # Find first uncompleted chapter after all completed ones, in order
+    # Find first uncompleted assignment by number
     next_assignment = None
-    for chap_num, lesson in assignments:
-        if chap_num not in completed_chapters:
+    for num, lesson in assignments:
+        if num not in completed_nums:
             next_assignment = lesson
             break
 
@@ -2337,6 +2338,32 @@ if tab == "My Results and Resources":
         )
     else:
         st.info("🎉 Great Job!")
+  
+
+    # --- Resources Section ---
+    st.markdown("---")
+    st.subheader("📚 Useful Resources")
+    st.markdown(
+        """
+    **1. [A1 Schreiben Practice Questions](https://drive.google.com/file/d/1X_PFF2AnBXSrGkqpfrArvAnEIhqdF6fv/view?usp=sharing)**  
+    Practice writing tasks and sample questions for A1.
+
+    **2. [A1 Exams Sprechen Guide](https://drive.google.com/file/d/1UWvbCCCcrW3_j9x7pOuWug6_Odvzcvaa/view?usp=sharing)**  
+    Step-by-step guide to the A1 speaking exam.
+
+    **3. [German Writing Rules](https://drive.google.com/file/d/1o7_ez3WSNgpgxU_nEtp6EO1PXDyi3K3b/view?usp=sharing)**  
+    Tips and grammar rules for better writing.
+
+    **4. [A2 Sprechen Guide](https://drive.google.com/file/d/1TZecDTjNwRYtZXpEeshbWnN8gCftryhI/view?usp=sharing)**  
+    A2-level speaking exam guide.
+
+    **5. [B1 Sprechen Guide](https://drive.google.com/file/d/1snk4mL_Q9-xTBXSRfgiZL_gYRI9tya8F/view?usp=sharing)**  
+    How to prepare for your B1 oral exam.
+        """
+    )
+
+
+
 
 
 
