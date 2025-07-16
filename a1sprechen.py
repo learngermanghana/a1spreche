@@ -2058,14 +2058,6 @@ if tab == "Course Book":
 def sanitize_pdf_text(text):
     return text.encode("latin1", errors="replace").decode("latin1")
 
-def extract_chapter_num(chapter):
-    nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
-    if not nums:
-        return None
-    return max(float(n) for n in nums)
-
-
-#MyResults
 if tab == "My Results and Resources":
     # 📊 Compact Results & Resources header
     st.markdown(
@@ -2090,7 +2082,6 @@ if tab == "My Results and Resources":
     from fpdf import FPDF
     from collections import Counter
 
-    # ============ LEVEL SCHEDULES (make sure these functions are defined above) ============
     LEVEL_SCHEDULES = {
         "A1": get_a1_schedule(),
         "A2": get_a2_schedule(),
@@ -2099,7 +2090,6 @@ if tab == "My Results and Resources":
         "C1": get_c1_schedule(),
     }
 
-    # --- LIVE GOOGLE SHEETS CSV LINK ---
     GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
 
     def get_pdf_download_link(pdf_bytes, filename="results.pdf"):
@@ -2165,7 +2155,6 @@ if tab == "My Results and Resources":
     st.markdown("---")
     st.info("🔎 **Scroll down and expand the box below to see your full assignment history and feedback!**")
 
-    # --- Score label function ---
     def score_label(score):
         try:
             score = float(score)
@@ -2250,7 +2239,6 @@ if tab == "My Results and Resources":
 
     # ========== SKIPPED ASSIGNMENTS LOGIC ==========
     def extract_all_chapter_nums(chapter_str):
-        # Split by underscores, spaces, etc. and extract all numeric parts
         parts = re.split(r'[_\s,;]+', str(chapter_str))
         nums = []
         for part in parts:
@@ -2259,7 +2247,6 @@ if tab == "My Results and Resources":
                 nums.append(float(match.group()))
         return nums
 
-    # Build a set of all chapter numbers completed by student
     completed_nums = set()
     for _, row in df_lvl.iterrows():
         nums = extract_all_chapter_nums(row['assignment'])
@@ -2268,23 +2255,24 @@ if tab == "My Results and Resources":
     last_num = max(completed_nums) if completed_nums else 0
 
     schedule = LEVEL_SCHEDULES.get(level, [])
-
-    # Build a sorted list of all lessons with assignment == True and valid chapter numbers
-    valid_lessons = []
+    skipped_assignments = []
     for lesson in schedule:
-        if lesson.get("assignment", False) is True:
-            chap_num = extract_chapter_num(lesson.get("chapter", ""))
-            if chap_num is not None:
-                valid_lessons.append((chap_num, lesson))
-
-    # Sort by chapter number (ascending, 9 then 12.3 etc.)
-    valid_lessons = sorted(valid_lessons, key=lambda x: x[0])
-
-    next_assignment = None
-    for chap_num, lesson in valid_lessons:
-        if chap_num > last_num:
-            next_assignment = lesson
-            break
+        chapter_field = lesson.get("chapter", "")
+        lesson_nums = extract_all_chapter_nums(chapter_field)
+        day = lesson.get("day", "")
+        has_assignment = lesson.get("assignment", False)
+        # Only check lessons where assignment==True
+        if not has_assignment:
+            continue
+        for chap_num in lesson_nums:
+            if (
+                chap_num < last_num
+                and chap_num not in completed_nums
+            ):
+                skipped_assignments.append(
+                    f"Day {day}: Chapter {chapter_field} – {lesson.get('topic','')}"
+                )
+                break  # Only need to flag once per lesson
 
     if skipped_assignments:
         st.markdown(
@@ -2319,9 +2307,17 @@ if tab == "My Results and Resources":
             completed_chapters.append(num)
     last_num = max(completed_chapters) if completed_chapters else 0
 
-    schedule = LEVEL_SCHEDULES.get(level, [])
+    # Sort schedule by chapter num ascending (handles 9 vs 12.3 correctly)
+    def get_chap_num_safe(lesson):
+        chap_num = extract_chapter_num(lesson.get("chapter", ""))
+        return chap_num if chap_num is not None else float('inf')
+    sorted_schedule = sorted(
+        [lesson for lesson in schedule if lesson.get("assignment", False)],
+        key=get_chap_num_safe
+    )
+
     next_assignment = None
-    for lesson in schedule:
+    for lesson in sorted_schedule:
         chap_num = extract_chapter_num(lesson.get("chapter", ""))
         if chap_num and chap_num > last_num:
             next_assignment = lesson
@@ -2376,14 +2372,12 @@ if tab == "My Results and Resources":
                 pdf.multi_cell(0, 6, sanitize_pdf_text(f"  Feedback: {feedback}"))
                 pdf.set_font("Arial", '', 10)
         pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
-        # Streamlit native download button
         st.download_button(
             label="Download PDF",
             data=pdf_bytes,
             file_name=f"{code}_results_{level}.pdf",
             mime="application/pdf"
         )
-        # Manual fallback download
         st.markdown(
             get_pdf_download_link(pdf_bytes, f"{code}_results_{level}.pdf"),
             unsafe_allow_html=True
