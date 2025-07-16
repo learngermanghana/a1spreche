@@ -1017,7 +1017,7 @@ def get_a1_schedule():
             "topic": "Schreiben & Sprechen (Introduction to Letter Writing)",
             "chapter": "6.10",
             "goal": "Practice how to write both formal and informal letters",
-            "assignment": True,
+            "assignment": False,
             "instruction": "Write all the two letters in this document and send to your tutor for corrections",
             "schreiben_sprechen": {
                 "video": "",
