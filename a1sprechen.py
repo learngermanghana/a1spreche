@@ -2848,7 +2848,8 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["remaining_topics"] = topics_list.copy()
             random.shuffle(st.session_state["remaining_topics"])
             st.session_state["used_topics"] = []
-    # =========================================
+
+        # =========================================
     # ---- STAGE 4: MAIN CHAT ----
     if st.session_state["falowen_stage"] == 4:
         import re
@@ -2958,7 +2959,7 @@ if tab == "Exams Mode & Custom Chat":
                 word = match.group(0)
                 return f"<span style='background:#fff3b0;border-radius:0.4em;padding:0.12em 0.4em'>{word}</span>"
             for word in keywords:
-                text = re.sub(rf'\\b{re.escape(word)}\\b', repl, text, flags=re.IGNORECASE)
+                text = re.sub(rf'\b{re.escape(word)}\b', repl, text, flags=re.IGNORECASE)
             return text
 
         highlight_words = []
