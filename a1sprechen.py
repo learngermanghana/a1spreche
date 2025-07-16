@@ -793,10 +793,9 @@ def get_a1_schedule():
         # DAY 6
         {
             "day": 6,
-            "topic": "Schreiben & Sprechen 2.3",
-            "chapter": "2.3",
+            "topic": "Schreiben & Sprechen 3",
+            "chapter": "3",
             "goal": "Learn about family and expressing your hobby",
-            "assignment": False,
             "assignment": False,
             "instruction": "Use self-practice workbook and review answers for self-check.",
             "schreiben_sprechen": {
