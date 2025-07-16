@@ -1014,10 +1014,10 @@ def get_a1_schedule():
         # DAY 20
         {
             "day": 20,
-            "topic": "Introduction to Letter Writing 12.2",
-            "chapter": "12.2",
+            "topic": "Introduction to Letter Writing 6.10",
+            "chapter": "6.10",
             "goal": "Practice how to write both formal and informal letters",
-            "assignment": True,
+            "assignment": False,
             "instruction": "Write all the two letters in this document and send to your tutor for corrections",
             "schreiben_sprechen": {
                 "video": "",
