@@ -1014,7 +1014,7 @@ def get_a1_schedule():
         # DAY 20
         {
             "day": 20,
-            "topic": "Schreiben & Sprechen  (Introduction to Letter Writing 12.3)",
+            "topic": "Introduction to Letter Writing 12.3",
             "chapter": "12.3 ",
             "goal": "Practice how to write both formal and informal letters",
             "assignment": False,
@@ -2301,28 +2301,24 @@ if tab == "My Results and Resources":
     # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
     def extract_chapter_num(chapter):
         nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
-        return max([float(n) for n in nums], default=None)
+        if not nums:
+            return None
+        return max(float(n) for n in nums)
 
-    completed_chapters = set()
+    completed_chapters = []
     for assignment in df_lvl['assignment']:
         num = extract_chapter_num(assignment)
         if num is not None:
-            completed_chapters.add(num)
+            completed_chapters.append(num)
     last_num = max(completed_chapters) if completed_chapters else 0
 
     schedule = LEVEL_SCHEDULES.get(level, [])
     next_assignment = None
     for lesson in schedule:
-        # Only consider lessons where 'assignment' is True
-        if lesson.get('assignment', False):
-            chap_num = extract_chapter_num(lesson.get("chapter", ""))
-            if (
-                chap_num
-                and chap_num > last_num
-                and chap_num not in completed_chapters
-            ):
-                next_assignment = lesson
-                break
+        chap_num = extract_chapter_num(lesson.get("chapter", ""))
+        if chap_num and chap_num > last_num:
+            next_assignment = lesson
+            break
     if next_assignment:
         st.success(
             f"**Your next recommended assignment:**\n\n"
@@ -2332,8 +2328,6 @@ if tab == "My Results and Resources":
         )
     else:
         st.info("🎉 Great Job!")
-
-
 
     # ========== DOWNLOAD PDF SUMMARY ==========
     if st.button("⬇️ Download PDF Summary"):
