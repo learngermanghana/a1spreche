@@ -2297,7 +2297,6 @@ if tab == "My Results and Resources":
             """,
             unsafe_allow_html=True
         )
-
     # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
     def extract_chapter_num(chapter):
         nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
@@ -2332,7 +2331,6 @@ if tab == "My Results and Resources":
         )
     else:
         st.info("🎉 Great Job!")
-#
 
 
 
