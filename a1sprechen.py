@@ -2962,7 +2962,7 @@ if tab == "Exams Mode & Custom Chat":
                 word = match.group(0)
                 return f"<span style='background:#fff3b0;border-radius:0.4em;padding:0.12em 0.4em'>{word}</span>"
             for word in keywords:
-                text = re.sub(rf'\b{re.escape(word)}\b', repl, text, flags=re.IGNORECASE)
+                text = re.sub(rf'\\b{re.escape(word)}\\b', repl, text, flags=re.IGNORECASE)
             return text
 
         highlight_words = []
@@ -3019,7 +3019,7 @@ if tab == "Exams Mode & Custom Chat":
 
         # ---- Build System Prompt including topic/context ----
         if is_exam:
-            # pick next topic randomly every turn, concise pop
+            # Pick next topic randomly every turn
             if (
                 not st.session_state.get("falowen_exam_topic")
                 and st.session_state.get("remaining_topics")
