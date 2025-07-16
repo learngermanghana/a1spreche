@@ -2781,6 +2781,8 @@ if tab == "Exams Mode & Custom Chat":
     
     # ---- STAGE 3: Exam Part & Topic (Exam Mode Only) ----
     if st.session_state["falowen_stage"] == 3:
+        import random
+
         level = st.session_state["falowen_level"]
 
         # Dynamically build teil_options from your app logic
@@ -2803,7 +2805,6 @@ if tab == "Exams Mode & Custom Chat":
         # Some Teils (like Teil 3) may just have a prompt, not a topic+keyword
         topics_list = []
         if not exam_topics.empty:
-            # If both Topic & Keyword: show as "Topic – Keyword", else just Topic
             for _, row in exam_topics.iterrows():
                 if row['Keyword'] and not pd.isna(row['Keyword']):
                     topics_list.append(f"{row['Topic']} – {row['Keyword']}")
@@ -2812,15 +2813,18 @@ if tab == "Exams Mode & Custom Chat":
         else:
             topics_list = []
 
-        # Optional topic picker (auto-pick random, but always shuffle for fairness)
+        random.shuffle(topics_list)  # Always shuffle for fairness
+
+        # The user can optionally pick a topic, but "(random)" means let Stage 4 do the random picking.
         picked = None
-        random.shuffle(topics_list)  # Always shuffle!
         if topics_list:
             picked = st.selectbox("Choose a topic (optional):", ["(random)"] + topics_list)
             if picked == "(random)":
-                # When random, set None and shuffle for Stage 4 auto-picking
                 st.session_state["falowen_exam_topic"] = None
                 st.session_state["falowen_exam_keyword"] = None
+                # All topics are eligible for random picking in Stage 4
+                st.session_state["remaining_topics"] = topics_list.copy()
+                random.shuffle(st.session_state["remaining_topics"])
             else:
                 # If picked includes ' – ', split out topic & keyword
                 if " – " in picked:
@@ -2830,9 +2834,13 @@ if tab == "Exams Mode & Custom Chat":
                 else:
                     st.session_state["falowen_exam_topic"] = picked
                     st.session_state["falowen_exam_keyword"] = None
+                st.session_state["remaining_topics"] = []  # Not used, because user selected a topic
         else:
             st.session_state["falowen_exam_topic"] = None
             st.session_state["falowen_exam_keyword"] = None
+            st.session_state["remaining_topics"] = []
+
+        st.session_state["used_topics"] = []
 
         if st.button("⬅️ Back", key="falowen_back2"):
             st.session_state["falowen_stage"] = 2
@@ -2843,11 +2851,8 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_stage"] = 4
             st.session_state["falowen_messages"] = []
             st.session_state["custom_topic_intro_done"] = False
+            st.rerun()
 
-            # Save/shuffle deck for Stage 4 picking
-            st.session_state["remaining_topics"] = topics_list.copy()
-            random.shuffle(st.session_state["remaining_topics"])
-            st.session_state["used_topics"] = []
 
         # =========================================
     # ---- STAGE 4: MAIN CHAT ----
