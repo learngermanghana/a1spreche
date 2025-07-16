@@ -2058,6 +2058,13 @@ if tab == "Course Book":
 def sanitize_pdf_text(text):
     return text.encode("latin1", errors="replace").decode("latin1")
 
+def extract_chapter_num(chapter):
+    nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
+    if not nums:
+        return None
+    return max(float(n) for n in nums)
+
+
 #MyResults
 if tab == "My Results and Resources":
     # 📊 Compact Results & Resources header
