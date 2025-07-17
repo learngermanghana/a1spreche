@@ -2340,127 +2340,114 @@ if tab == "My Results and Resources":
     else:
         st.info("🎉 Great Job!")
 
-            if st.button("⬇️ Download PDF Summary"):
-        import unicodedata
-        import requests
-        import tempfile
+if st.button("⬇️ Download PDF Summary"):
+    import unicodedata
+    import requests
+    import tempfile
 
-        def clean_for_pdf(text):
-            if not isinstance(text, str):
-                text = str(text)
-            text = text.replace('\n', ' ').replace('\r', ' ')
-            text = ''.join(c if 32 <= ord(c) <= 255 else '?' for c in text)
-            text = unicodedata.normalize('NFKD', text)
-            return text
+    def clean_for_pdf(text):
+        """
+        Convert text to only safe, printable ASCII/Latin1 for PDF (remove emojis/unicode).
+        Replace any character not in Latin-1 (basic) with a blank or '?'
+        """
+        if not isinstance(text, str):
+            text = str(text)
+        text = text.replace('\n', ' ').replace('\r', ' ')
+        text = ''.join(c if 32 <= ord(c) <= 255 else '?' for c in text)
+        text = unicodedata.normalize('NFKD', text)
+        return text
 
-        pdf = FPDF()
-        pdf.add_page()
+    pdf = FPDF()
+    pdf.add_page()
 
-        # --- Logo at top (centered, width 34mm, adjust as needed) ---
-        logo_url = "https://i.imgur.com/iFiehrp.png"
-        try:
-            response = requests.get(logo_url, stream=True, timeout=6)
-            if response.status_code == 200:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_logo:
-                    tmp_logo.write(response.content)
-                    tmp_logo.flush()
-                    # Centered logo, width=34mm, top margin
-                    pdf.image(tmp_logo.name, x=pdf.w/2-17, y=10, w=34)
-                    pdf.ln(30)
-        except Exception as e:
-            pass  # Ignore logo failure and continue
+    # --- Logo at top (centered, width 34mm, adjust as needed) ---
+    logo_url = "https://i.imgur.com/iFiehrp.png"
+    try:
+        response = requests.get(logo_url, stream=True, timeout=6)
+        if response.status_code == 200:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_logo:
+                tmp_logo.write(response.content)
+                tmp_logo.flush()
+                # Centered logo, width=34mm, top margin
+                pdf.image(tmp_logo.name, x=pdf.w/2-17, y=10, w=34)
+                pdf.ln(30)
+    except Exception as e:
+        pass  # Ignore logo failure and continue
 
-        # --- Header ---
-        pdf.set_font("Arial", 'B', 16)
-        pdf.cell(0, 12, clean_for_pdf("Learn Language Education Academy"), ln=1, align='C')
-        pdf.ln(3)
+    # --- Header ---
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(0, 12, clean_for_pdf("Learn Language Education Academy"), ln=1, align='C')
+    pdf.ln(3)
 
-        # --- Student Info ---
-        pdf.set_font("Arial", '', 12)
-        pdf.cell(0, 8, clean_for_pdf(f"Name: {df_user.name.iloc[0]}"), ln=1)
-        pdf.cell(0, 8, clean_for_pdf(f"Code: {code}     Level: {level}"), ln=1)
-        pdf.cell(0, 8, clean_for_pdf(f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"), ln=1)
-        pdf.ln(5)
+    # --- Student Info ---
+    pdf.set_font("Arial", '', 12)
+    pdf.cell(0, 8, clean_for_pdf(f"Name: {df_user.name.iloc[0]}"), ln=1)
+    pdf.cell(0, 8, clean_for_pdf(f"Code: {code}     Level: {level}"), ln=1)
+    pdf.cell(0, 8, clean_for_pdf(f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"), ln=1)
+    pdf.ln(5)
 
-        # --- Metrics ---
-        pdf.set_font("Arial", 'B', 13)
-        pdf.cell(0, 10, clean_for_pdf("Summary Metrics"), ln=1)
-        pdf.set_font("Arial", '', 11)
-        pdf.cell(0, 8, clean_for_pdf(f"Total: {total}   Completed: {completed}   Avg: {avg_score:.1f}   Best: {best_score}"), ln=1)
-        pdf.ln(6)
+    # --- Metrics ---
+    pdf.set_font("Arial", 'B', 13)
+    pdf.cell(0, 10, clean_for_pdf("Summary Metrics"), ln=1)
+    pdf.set_font("Arial", '', 11)
+    pdf.cell(0, 8, clean_for_pdf(f"Total: {total}   Completed: {completed}   Avg: {avg_score:.1f}   Best: {best_score}"), ln=1)
+    pdf.ln(6)
 
-        # --- Table Header ---
-        pdf.set_font("Arial", 'B', 11)
-        pdf.set_fill_color(235, 235, 245)
-        pdf.cell(45, 9, "Assignment", 1, 0, 'C', fill=True)
-        pdf.cell(18, 9, "Score", 1, 0, 'C', fill=True)
-        pdf.cell(30, 9, "Date", 1, 0, 'C', fill=True)
-        pdf.cell(0, 9, "Feedback", 1, 1, 'C', fill=True)
-        pdf.set_font("Arial", '', 10)
+    # --- Table Header ---
+    pdf.set_font("Arial", 'B', 11)
+    pdf.set_fill_color(235, 235, 245)
+    pdf.cell(45, 9, "Assignment", 1, 0, 'C', fill=True)
+    pdf.cell(18, 9, "Score", 1, 0, 'C', fill=True)
+    pdf.cell(30, 9, "Date", 1, 0, 'C', fill=True)
+    pdf.cell(0, 9, "Feedback", 1, 1, 'C', fill=True)
+    pdf.set_font("Arial", '', 10)
 
-        # --- Table Rows ---
-        pdf.set_fill_color(249, 249, 249)
-        row_fill = False
-        for _, row in df_display.iterrows():
-            assignment = clean_for_pdf(str(row['assignment'])[:24])
-            score = clean_for_pdf(str(row['score']))
-            date = clean_for_pdf(str(row['date']))
-            feedback = row.get('comments', '')
-            if pd.isna(feedback) or not str(feedback).strip() or str(feedback).lower().strip() == "nan":
-                feedback = "No feedback yet."
-            feedback = feedback.replace("\n", " ").replace("\r", " ")
-            if len(feedback) > 90:
-                feedback = feedback[:87] + "..."
-            feedback = clean_for_pdf(feedback)
-            pdf.cell(45, 8, assignment, 1, 0, 'L', fill=row_fill)
-            pdf.cell(18, 8, score, 1, 0, 'C', fill=row_fill)
-            pdf.cell(30, 8, date, 1, 0, 'C', fill=row_fill)
-            pdf.cell(0, 8, feedback, 1, 1, 'L', fill=row_fill)
-            row_fill = not row_fill  # alternate row color
+    # --- Table Rows ---
+    pdf.set_fill_color(249, 249, 249)
+    row_fill = False
+    for _, row in df_display.iterrows():
+        assignment = clean_for_pdf(str(row['assignment'])[:24])
+        score = clean_for_pdf(str(row['score']))
+        date = clean_for_pdf(str(row['date']))
+        feedback = row.get('comments', '')
+        if pd.isna(feedback) or not str(feedback).strip() or str(feedback).lower().strip() == "nan":
+            feedback = "No feedback yet."
+        feedback = feedback.replace("\n", " ").replace("\r", " ")
+        if len(feedback) > 90:
+            feedback = feedback[:87] + "..."
+        feedback = clean_for_pdf(feedback)
+        pdf.cell(45, 8, assignment, 1, 0, 'L', fill=row_fill)
+        pdf.cell(18, 8, score, 1, 0, 'C', fill=row_fill)
+        pdf.cell(30, 8, date, 1, 0, 'C', fill=row_fill)
+        pdf.cell(0, 8, feedback, 1, 1, 'L', fill=row_fill)
+        row_fill = not row_fill  # alternate row color
 
-        pdf.ln(2)
+    pdf.ln(2)
 
-        # --- Footer (always included) ---
-        pdf.set_font("Arial", 'I', 9)
-        pdf.set_text_color(120, 120, 120)
-        pdf.cell(
-            0, 8,
-            "Learn Language Education Academy — Results generated on " + pd.Timestamp.now().strftime("%d.%m.%Y"),
-            0, 1, 'C'
-        )
-        pdf.set_text_color(0, 0, 0)
+    # --- Footer (always included) ---
+    pdf.set_font("Arial", 'I', 9)
+    pdf.set_text_color(120, 120, 120)
+    pdf.cell(
+        0, 8,
+        "Learn Language Education Academy — Results generated on " + pd.Timestamp.now().strftime("%d.%m.%Y"),
+        0, 1, 'C'
+    )
+    pdf.set_text_color(0, 0, 0)
 
-        # --- Output Download ---
-        pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
-        st.download_button(
-            label="Download PDF",
-            data=pdf_bytes,
-            file_name=f"{code}_results_{level}.pdf",
-            mime="application/pdf"
-        )
-        st.markdown(
-            get_pdf_download_link(pdf_bytes, f"{code}_results_{level}.pdf"),
-            unsafe_allow_html=True
-        )
-        st.info("If the button does not work, right-click the blue link above and choose 'Save link as...' to download your PDF.")
+    # --- Output Download ---
+    pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
+    st.download_button(
+        label="Download PDF",
+        data=pdf_bytes,
+        file_name=f"{code}_results_{level}.pdf",
+        mime="application/pdf"
+    )
+    st.markdown(
+        get_pdf_download_link(pdf_bytes, f"{code}_results_{level}.pdf"),
+        unsafe_allow_html=True
+    )
+    st.info("If the button does not work, right-click the blue link above and choose 'Save link as...' to download your PDF.")
 
-
-    # --- Resources Section ---
-        
-
-        # --- Output Download ---
-        pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
-        st.download_button(
-            label="Download PDF",
-            data=pdf_bytes,
-            file_name=f"{code}_results_{level}.pdf",
-            mime="application/pdf"
-        )
-        st.markdown(
-            get_pdf_download_link(pdf_bytes, f"{code}_results_{level}.pdf"),
-            unsafe_allow_html=True
-        )
-        st.info("If the button does not work, right-click the blue link above and choose 'Save link as...' to download your PDF.")
 
     # --- Resources Section ---
     st.markdown("---")
