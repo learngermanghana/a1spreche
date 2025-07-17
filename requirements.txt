@@ -6,4 +6,3 @@ streamlit-cookies-manager>=0.2.0
 requests>=2.28.0
 matplotlib
 thefuzz
-easyocr
