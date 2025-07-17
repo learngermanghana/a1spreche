@@ -2313,16 +2313,31 @@ if tab == "My Results and Resources":
 
     schedule = LEVEL_SCHEDULES.get(level, [])
     next_assignment = None
+
+    # Helper: has completed both 12.1 and 12.2?
+    def has_done_12_1_2():
+        return 12.1 in completed_chapters and 12.2 in completed_chapters
+
     for lesson in schedule:
         chap_num = extract_chapter_num(lesson.get("chapter", ""))
-        # Only recommend if assignment is required (assignment=True)
-        if (
-            chap_num
-            and chap_num > last_num
-            and lesson.get("assignment", False)
-        ):
+        topic = str(lesson.get("topic", "")).lower()
+        is_assignment = lesson.get("assignment", False)
+        # ------------------------------------------>
+        # Check for Schreiben & Sprechen skip
+        if "schreiben" in topic and "sprechen" in topic:
+            continue
+        # Only recommend assignments
+        if not is_assignment:
+            continue
+        # Special: Day 20 "Letter Writing 6.10" appears *only* after both 12.1 & 12.2
+        if chap_num == 6.10:
+            if not has_done_12_1_2():
+                continue
+        # Default recommend if > last_num
+        if chap_num and chap_num > last_num:
             next_assignment = lesson
             break
+        # <------------------------------------------
 
     if next_assignment:
         st.success(
@@ -2333,7 +2348,6 @@ if tab == "My Results and Resources":
         )
     else:
         st.info("🎉 Great Job!")
-
 
 
     # ========== DOWNLOAD PDF SUMMARY ==========
