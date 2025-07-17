@@ -2352,9 +2352,9 @@ if st.button("⬇️ Download PDF Summary"):
         """
         if not isinstance(text, str):
             text = str(text)
-        text = text.replace('\n', ' ').replace('\r', ' ')
-        text = ''.join(c if 32 <= ord(c) <= 255 else '?' for c in text)
         text = unicodedata.normalize('NFKD', text)
+        text = ''.join(c if 32 <= ord(c) <= 255 else '?' for c in text)
+        text = text.replace('\n', ' ').replace('\r', ' ')
         return text
 
     pdf = FPDF()
@@ -2371,8 +2371,8 @@ if st.button("⬇️ Download PDF Summary"):
                 # Centered logo, width=34mm, top margin
                 pdf.image(tmp_logo.name, x=pdf.w/2-17, y=10, w=34)
                 pdf.ln(30)
-    except Exception as e:
-        pass  # Ignore logo failure and continue
+    except Exception:
+        pdf.ln(8)
 
     # --- Header ---
     pdf.set_font("Arial", 'B', 16)
@@ -2447,8 +2447,6 @@ if st.button("⬇️ Download PDF Summary"):
         unsafe_allow_html=True
     )
     st.info("If the button does not work, right-click the blue link above and choose 'Save link as...' to download your PDF.")
-
-
 
 
     # --- Resources Section ---
