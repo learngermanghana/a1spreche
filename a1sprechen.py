@@ -2298,71 +2298,71 @@ if tab == "My Results and Resources":
             unsafe_allow_html=True
         )
 
+    # Define A1 required chapters and goethe logic
+    REQUIRED_A1_CHAPTERS = [0.1, 0.2, 1.1, 1.2, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12.1, 12.2, 6.10, 13, 14.1]
+    GOETHE_LABELS = ["goethe", "goethe exams"]
+
     def extract_chapter_num(chapter):
         nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
         if not nums:
             return None
         return max(float(n) for n in nums)
 
-    # ---- REQUIRED A1 CHAPTERS (including Goethe Exams at the end) ----
-    REQUIRED_A1_CHAPTERS = [
-        0.1, 0.2, 1.1, 1.2, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12.1, 12.2, 6.10, 13, 14.1
-    ]
-    GOETHE_LABELS = ["goethe", "goethe exams"]
-
-    completed_chapters = []
+    # What has the student finished?
+    completed_chapters = set()
     completed_goethe = False
     for assignment in df_lvl['assignment']:
-        # Handle normal chapter numbers
         num = extract_chapter_num(assignment)
         if num is not None:
-            completed_chapters.append(num)
-        # Handle Goethe exam completion (case-insensitive label match)
+            completed_chapters.add(num)
         if any(lbl in str(assignment).lower() for lbl in GOETHE_LABELS):
             completed_goethe = True
 
-    # Helper: has completed both 12.1 and 12.2?
-    def has_done_12_1_2():
-        return 12.1 in completed_chapters and 12.2 in completed_chapters
+    # Helper: Only include 6.10 if 12.1 & 12.2 are done
+    def allowed_required_chapters():
+        req = [x for x in REQUIRED_A1_CHAPTERS if x != 6.10]
+        if 12.1 in completed_chapters and 12.2 in completed_chapters:
+            req.append(6.10)
+        return req
 
-    schedule = LEVEL_SCHEDULES.get(level, [])
+    # Identify what is truly missing
+    missing = [c for c in allowed_required_chapters() if c not in completed_chapters]
+    missing_goethe = not completed_goethe
+
+    # Pick next assignment, obeying all rules (Schreiben/Sprechen, 6.10 special logic)
     next_assignment = None
-
+    schedule = LEVEL_SCHEDULES.get(level, [])
     for lesson in schedule:
         chap_num = extract_chapter_num(lesson.get("chapter", ""))
         topic = str(lesson.get("topic", "")).lower()
         is_assignment = lesson.get("assignment", False)
-        # ------------------------------------------>
-        # Skip any lessons that are just "Schreiben & Sprechen"
-        if "schreiben" in topic and "sprechen" in topic:
-            continue
+        # Skip non-assignment or S&S lessons
         if not is_assignment:
             continue
-        # Show "Letter Writing 6.10" only after 12.1 and 12.2 are done
-        if chap_num == 6.10:
-            if not has_done_12_1_2():
-                continue
-        # Recommend next missing assignment
-        if chap_num and (chap_num not in completed_chapters):
+        if "schreiben" in topic and "sprechen" in topic:
+            continue
+        # 6.10 only if allowed
+        if chap_num == 6.10 and 6.10 not in allowed_required_chapters():
+            continue
+        # If missing, recommend it next
+        if chap_num in missing:
             next_assignment = lesson
             break
-        # <------------------------------------------
 
-    # Check if ALL required chapters and Goethe exam are done
-    all_done = (
-        all(chap in completed_chapters for chap in REQUIRED_A1_CHAPTERS)
-        and completed_goethe
-    )
-
-    if next_assignment and not all_done:
-        st.success(
-            f"**Your next recommended assignment:**\n\n"
-            f"**Day {next_assignment['day']}: {next_assignment['chapter']} – {next_assignment['topic']}**\n\n"
-            f"**Goal:** {next_assignment.get('goal','')}\n\n"
-            f"**Instruction:** {next_assignment.get('instruction','')}"
-        )
+    # Show next assignment, or mark complete
+    if next_assignment or missing_goethe:
+        if next_assignment:
+            st.success(
+                f"**Your next recommended assignment:**\n\n"
+                f"**Day {next_assignment['day']}: {next_assignment['chapter']} – {next_assignment['topic']}**\n\n"
+                f"**Goal:** {next_assignment.get('goal','')}\n\n"
+                f"**Instruction:** {next_assignment.get('instruction','')}"
+            )
+        elif missing_goethe:
+            st.success("**Your next recommended step:** Complete the Goethe exams.")
     else:
         st.info("🎉 Great Job! All assignments up to 14.1 and Goethe exams completed.")
+
 
     # ========== DOWNLOAD PDF SUMMARY ==========
     if st.button("⬇️ Download PDF Summary"):
