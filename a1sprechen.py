@@ -3380,7 +3380,7 @@ if tab == "Schreiben Trainer":
     )
 
     import pytesseract
-    from PIL import Image
+    from PIL import Image, ImageEnhance, ImageFilter
     import tempfile
     from pdf2image import convert_from_bytes
 
@@ -3388,7 +3388,7 @@ if tab == "Schreiben Trainer":
         "Paste or type your German letter/essay here.",
         key="schreiben_input",
         disabled=(daily_so_far >= SCHREIBEN_DAILY_LIMIT),
-        height=180,
+        height=500,
         placeholder="Write your German letter here..."
     )
 
@@ -3411,14 +3411,16 @@ if tab == "Schreiben Trainer":
                     img = images[0]
                 else:
                     img = Image.open(tmp_file.name)
-                uploaded_text = pytesseract.image_to_string(img, lang="deu")
+                # Preprocess for better OCR results
+                gray = img.convert("L").filter(ImageFilter.MedianFilter())
+                enhancer = ImageEnhance.Contrast(gray)
+                processed_img = enhancer.enhance(2)
+                uploaded_text = pytesseract.image_to_string(processed_img, lang="deu")
         except Exception as e:
-            st.warning("❌ Could not extract text from the uploaded file. Please make sure it's a clear scan/photo.")
+            st.warning("❌ Could not extract text from the uploaded file. Please make sure it's a clear, well-lit scan/photo.")
 
-    if uploaded_text:
-        st.markdown("**Extracted text from your uploaded file:**")
-        st.code(uploaded_text, language="markdown")
-        # Allow editing/examining before AI checks
+    if uploaded_text.strip():
+        st.markdown("**Extracted text from your uploaded file (please edit/confirm):**")
         user_letter = st.text_area(
             "Edit or confirm your extracted text:",
             value=uploaded_text,
@@ -3427,7 +3429,7 @@ if tab == "Schreiben Trainer":
         )
 
     # --- Word and character count (show if either box has content) ---
-    letter_to_count = user_letter.strip() or uploaded_text.strip()
+    letter_to_count = user_letter.strip()
     if letter_to_count:
         import re
         words = re.findall(r'\b\w+\b', letter_to_count)
