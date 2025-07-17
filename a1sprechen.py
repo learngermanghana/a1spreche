@@ -3369,12 +3369,25 @@ if tab == "Schreiben Trainer":
 
     st.divider()
 
+    # --- External image-to-text recommendation (show this first) ---
+    st.markdown(
+        """
+        <div style="background:#f8f9fa;border-left:4px solid #d63384;padding:12px 16px;margin:18px 0;border-radius:7px;">
+        📝 <b>If you wrote your letter by hand:</b><br>
+        Take a <b>clear photo or scan</b> of your writing, go to 
+        <a href="https://www.imagetotext.info/" target="_blank"><b>imagetotext.info</b></a>, extract your text, 
+        and <b>paste it here</b> for AI feedback.<br>
+        <small>This is more reliable than uploading directly. Always check the text for errors after extraction.</small>
+        </div>
+        """, unsafe_allow_html=True
+    )
+
     # 5. Input Box (disabled if limit reached)
     user_letter = st.text_area(
         "Paste or type your German letter/essay here.",
         key="schreiben_input",
         disabled=(daily_so_far >= SCHREIBEN_DAILY_LIMIT),
-        height=180,
+        height=500,
         placeholder="Write your German letter here..."
     )
 
@@ -3384,6 +3397,7 @@ if tab == "Schreiben Trainer":
         words = re.findall(r'\b\w+\b', user_letter)
         chars = len(user_letter)
         st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
+
 
     # 6. AI prompt (always define before calling the API)
     ai_prompt = (
