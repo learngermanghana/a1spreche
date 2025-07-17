@@ -3357,25 +3357,21 @@ if tab == "Schreiben Trainer":
 - 📅 **Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}
 """)
 
-    # 4. Level-Specific Stats (optional)
+    # 4. Level-Specific Stats
     stats = get_student_stats(student_code)
     lvl_stats = stats.get(schreiben_level, {}) if stats else {}
-    if lvl_stats and lvl_stats.get("attempted"):
-        correct = lvl_stats.get("correct", 0)
-        attempted_lvl = lvl_stats.get("attempted", 0)
-        st.info(f"Level `{schreiben_level}`: {correct} / {attempted_lvl} passed")
+    if lvl_stats.get("attempted"):
+        st.info(f"Level `{schreiben_level}`: {lvl_stats['correct']} / {lvl_stats['attempted']} passed")
     else:
         st.info("_No previous writing activity for this level yet._")
 
     st.divider()
 
-    # 5. Input Box or Upload (disabled if limit reached)
+    # 5. Type OR Upload + Auto‑OCR + Auto‑Mark
     st.markdown(
         """
-        _**You can type/paste your letter OR upload a clear scan/photo (JPG/PNG/PDF) of your handwritten essay.  
-        • If uploading, make sure your handwriting is clear and the photo is bright and not blurry.  
-        • For PDFs, only the first page will be read.  
-        • After upload, the extracted text will appear below for your confirmation before submitting to the AI.**_
+        _You can either type/paste your letter below, **or** upload a scan/photo (JPG/PNG/PDF).  
+        If you upload, we’ll extract it and immediately send to AI for feedback._
         """
     )
 
@@ -3384,7 +3380,7 @@ if tab == "Schreiben Trainer":
     import tempfile
     from pdf2image import convert_from_bytes
 
-    # Add EasyOCR import and check
+    # Try EasyOCR fallback
     try:
         import easyocr
         easyocr_available = True
@@ -3392,57 +3388,80 @@ if tab == "Schreiben Trainer":
         easyocr_available = False
 
     user_letter = st.text_area(
-        "Paste or type your German letter/essay here.",
+        "Paste or type your German letter/essay here:",
         key="schreiben_input",
         disabled=(daily_so_far >= SCHREIBEN_DAILY_LIMIT),
-        height=500,
-        placeholder="Write your German letter here..."
+        height=300
     )
 
     uploaded_file = st.file_uploader(
-        "Or upload a scan/photo (JPG, PNG, PDF):", 
-        type=["jpg", "jpeg", "png", "pdf"], 
+        "OR upload a scan/photo (JPG/PNG/PDF):",
+        type=["jpg","jpeg","png","pdf"],
         disabled=(daily_so_far >= SCHREIBEN_DAILY_LIMIT),
         key="schreiben_upload"
     )
 
-    uploaded_text = ""
-    if uploaded_file is not None:
-        try:
-            # --- Save to temp and load ---
-            with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-                tmp_file.write(uploaded_file.read())
-                tmp_file.flush()
-                if uploaded_file.type == "application/pdf":
-                    images = convert_from_bytes(open(tmp_file.name, "rb").read(), first_page=1, last_page=1)
-                    img = images[0]
-                else:
-                    img = Image.open(tmp_file.name)
+    letter_to_mark = None
 
-            # *** PREVIEW IMAGE ***
-            st.image(img, caption="📄 Preview of your upload", use_column_width=True)
+    if uploaded_file:
+        # 1) Save & load
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            tmp.write(uploaded_file.read())
+            tmp.flush()
+            if uploaded_file.type == "application/pdf":
+                img = convert_from_bytes(open(tmp.name,"rb").read(), first_page=1, last_page=1)[0]
+            else:
+                img = Image.open(tmp.name)
+        # 2) Preview
+        st.image(img, caption="📄 Preview your upload", use_container_width=True)
+        # 3) OCR preprocessing
+        gray = img.convert("L").filter(ImageFilter.MedianFilter())
+        enhancer = ImageEnhance.Contrast(gray)
+        proc = enhancer.enhance(2)
+        # 4) Tesseract → EasyOCR fallback
+        text = pytesseract.image_to_string(proc, lang="deu", config="--psm 6")
+        if len(text.strip())<15 and easyocr_available:
+            reader = easyocr.Reader(['de'], gpu=False)
+            ocr = reader.readtext(proc)
+            text = " ".join([o[1] for o in ocr])
+        if len(text.strip())<8:
+            st.warning("❌ OCR failed—please type your letter or upload a clearer scan.")
+        else:
+            st.success("✅ Extracted text—sending for AI feedback now.")
+            letter_to_mark = text
 
-            # --- Preprocess for OCR ---
-            gray = img.convert("L").filter(ImageFilter.MedianFilter())
-            enhancer = ImageEnhance.Contrast(gray)
-            processed_img = enhancer.enhance(2)
+    # If they typed instead of uploaded
+    if not letter_to_mark and user_letter.strip():
+        letter_to_mark = user_letter.strip()
 
-            # --- OCR with Tesseract + fallback to EasyOCR ---
-            uploaded_text = pytesseract.image_to_string(processed_img, lang="deu", config="--psm 6")
-            if len(uploaded_text.strip()) < 15 and easyocr_available:
-                reader = easyocr.Reader(['de'], gpu=False)
-                result = reader.readtext(processed_img)
-                uploaded_text = " ".join([r[1] for r in result])
+    # Auto‑mark when we have something
+    if letter_to_mark:
+        # Build AI prompt
+        ai_prompt = (
+            f"You are Herr Felix, a supportive German writing trainer. "
+            f"Here is the student’s {schreiben_level} letter:\n\n{letter_to_mark}\n\n"
+            "Please score it out of 25, highlight errors with corrections, "
+            "and give a Pass (≥17) or Keep Improving (<17) line at the end."
+        )
+        with st.spinner("🧑‍🏫 Marking your letter..."):
+            resp = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role":"system","content": ai_prompt}
+                ]
+            )
+        feedback = resp.choices[0].message.content
+        # Persist usage & score
+        import re
+        m = re.search(r"(\d+)\s*/\s*25", feedback)
+        score = int(m.group(1)) if m else 0
+        inc_schreiben_usage(student_code)
+        save_schreiben_attempt(student_code, student_name, schreiben_level, score)
 
-            if len(uploaded_text.strip()) < 8:
-                uploaded_text = ""
-                st.warning(
-                    "❌ Could not extract text. "
-                    "Make sure the photo is flat, bright, and handwriting is clear, or type directly."
-                )
+        # Show feedback
+        st.markdown("#### 📝 Feedback from Herr Felix")
+        st.markdown(feedback)
 
-        except Exception:
-            st.warning("❌ OCR step failed. Please try a clearer scan/photo or type your letter manually.")
 
 
     # 6. AI prompt (always define before calling the API)
