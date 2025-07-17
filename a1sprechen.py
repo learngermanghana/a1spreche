@@ -2350,44 +2350,56 @@ if st.button("⬇️ Download PDF Summary"):
     def clean_for_pdf(text):
         if not isinstance(text, str):
             text = str(text)
-        # Normalize and strip out non-Latin1/unicode chars
         text = unicodedata.normalize('NFKD', text)
         text = ''.join(c if 32 <= ord(c) <= 255 else '?' for c in text)
-        # Replace line breaks for single‐line cells
         text = text.replace('\n', ' ').replace('\r', ' ')
         return text
+
+    def score_label(score):
+        try:
+            s = float(score)
+        except:
+            return "Needs Improvement"
+        if s >= 90:
+            return "Excellent"
+        elif s >= 75:
+            return "Good"
+        elif s >= 60:
+            return "Sufficient"
+        else:
+            return "Needs Improvement"
 
     pdf = FPDF()
     pdf.add_page()
 
-    # --- Logo ---
+    # Logo
     logo_url = "https://i.imgur.com/iFiehrp.png"
     try:
-        resp = requests.get(logo_url, stream=True, timeout=6)
-        if resp.status_code == 200:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_logo:
-                tmp_logo.write(resp.content)
-                tmp_logo.flush()
-            pdf.image(tmp_logo.name, x=pdf.w/2-17, y=10, w=34)
-            pdf.ln(30)
-        else:
-            pdf.ln(8)
-    except:
-        pdf.ln(8)
+        resp = requests.get(logo_url, timeout=6)
+        resp.raise_for_status()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_logo:
+            tmp_logo.write(resp.content)
+            tmp_logo.flush()
+        # Place logo at top-left corner
+        pdf.image(tmp_logo.name, x=10, y=8, w=30)
+        pdf.ln(20)
+    except Exception:
+        # If logo fetch fails, just add spacing
+        pdf.ln(12)
 
-    # --- Title ---
+    # Header
     pdf.set_font("Arial", 'B', 16)
     pdf.cell(0, 12, clean_for_pdf("Learn Language Education Academy"), ln=1, align='C')
     pdf.ln(3)
 
-    # --- Student Info ---
+    # Student Info
     pdf.set_font("Arial", '', 12)
     pdf.cell(0, 8, clean_for_pdf(f"Name: {df_user.name.iloc[0]}"), ln=1)
     pdf.cell(0, 8, clean_for_pdf(f"Code: {code}     Level: {level}"), ln=1)
     pdf.cell(0, 8, clean_for_pdf(f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"), ln=1)
     pdf.ln(5)
 
-    # --- Summary Metrics ---
+    # Summary Metrics
     pdf.set_font("Arial", 'B', 13)
     pdf.cell(0, 10, clean_for_pdf("Summary Metrics"), ln=1)
     pdf.set_font("Arial", '', 11)
@@ -2398,7 +2410,7 @@ if st.button("⬇️ Download PDF Summary"):
     )
     pdf.ln(6)
 
-    # --- Table Header ---
+    # Table Header
     pdf.set_font("Arial", 'B', 11)
     pdf.set_fill_color(235, 235, 245)
     pdf.cell(45, 9, "Assignment", 1, 0, 'C', True)
@@ -2407,41 +2419,31 @@ if st.button("⬇️ Download PDF Summary"):
     pdf.cell(0, 9, "Feedback", 1, 1, 'C', True)
     pdf.set_font("Arial", '', 10)
 
-    # --- Table Rows ---
+    # Table Rows
     pdf.set_fill_color(249, 249, 249)
     row_fill = False
     for _, row in df_display.iterrows():
         assignment = clean_for_pdf(str(row['assignment'])[:24])
-        score = clean_for_pdf(str(row['score']))
+        score = str(row['score'])
         date = clean_for_pdf(str(row['date']))
-
-        fb = row.get('comments', '')
-        if pd.isna(fb) or not str(fb).strip() or str(fb).lower().strip() == "nan":
-            fb = "No feedback yet."
-        fb = fb.replace("\n", " ").replace("\r", " ")
-        if len(fb) > 90:
-            fb = fb[:87] + "..."
-        feedback = clean_for_pdf(fb)
+        label = score_label(row['score'])
 
         pdf.cell(45, 8, assignment, 1, 0, 'L', row_fill)
-        pdf.cell(18, 8, score, 1, 0, 'C', row_fill)
+        pdf.cell(18, 8, clean_for_pdf(score), 1, 0, 'C', row_fill)
         pdf.cell(30, 8, date, 1, 0, 'C', row_fill)
-        pdf.cell(0, 8, feedback, 1, 1, 'L', row_fill)
+        pdf.cell(0, 8, label, 1, 1, 'C', row_fill)
         row_fill = not row_fill
 
     pdf.ln(2)
 
-    # --- Footer ---
+    # Footer
     pdf.set_font("Arial", 'I', 9)
     pdf.set_text_color(120, 120, 120)
-    footer_text = (
-        clean_for_pdf("Learn Language Education Academy — Results generated on ")
-        + pd.Timestamp.now().strftime("%d.%m.%Y")
-    )
+    footer_text = clean_for_pdf("Learn Language Education Academy — Results generated on ") + pd.Timestamp.now().strftime("%d.%m.%Y")
     pdf.cell(0, 8, footer_text, 0, 1, 'C')
     pdf.set_text_color(0, 0, 0)
 
-    # --- Download Button ---
+    # Download Button
     pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
     st.download_button(
         label="Download PDF",
@@ -2449,13 +2451,10 @@ if st.button("⬇️ Download PDF Summary"):
         file_name=f"{code}_results_{level}.pdf",
         mime="application/pdf"
     )
-    st.markdown(
-        get_pdf_download_link(pdf_bytes, f"{code}_results_{level}.pdf"),
-        unsafe_allow_html=True
-    )
+    st.markdown(get_pdf_download_link(pdf_bytes, f"{code}_results_{level}.pdf"), unsafe_allow_html=True)
     st.info("If the button does not work, right-click the blue link above and choose 'Save link as...' to download your PDF.")
 
-    # --- Useful Resources ---
+    # Useful Resources
     st.markdown("---")
     st.subheader("📚 Useful Resources")
     st.markdown("""
@@ -2473,8 +2472,7 @@ A2-level speaking exam guide.
 
 **5. [B1 Sprechen Guide](https://drive.google.com/file/d/1snk4mL_Q9-xTBXSRfgiZL_gYRI9tya8F/view?usp=sharing)**  
 How to prepare for your B1 oral exam.
-""")
-
+    """)
 
 
 # ================================
