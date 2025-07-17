@@ -2298,7 +2298,6 @@ if tab == "My Results and Resources":
             unsafe_allow_html=True
         )
 
-    # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
     def extract_chapter_num(chapter):
         nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
         if not nums:
@@ -2316,9 +2315,15 @@ if tab == "My Results and Resources":
     next_assignment = None
     for lesson in schedule:
         chap_num = extract_chapter_num(lesson.get("chapter", ""))
-        if chap_num and chap_num > last_num:
+        # Only recommend if assignment is required (assignment=True)
+        if (
+            chap_num
+            and chap_num > last_num
+            and lesson.get("assignment", False)
+        ):
             next_assignment = lesson
             break
+
     if next_assignment:
         st.success(
             f"**Your next recommended assignment:**\n\n"
@@ -2328,6 +2333,8 @@ if tab == "My Results and Resources":
         )
     else:
         st.info("🎉 Great Job!")
+
+
 
     # ========== DOWNLOAD PDF SUMMARY ==========
     if st.button("⬇️ Download PDF Summary"):
