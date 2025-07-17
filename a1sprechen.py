@@ -2342,26 +2342,42 @@ if tab == "My Results and Resources":
 
     # ========== DOWNLOAD PDF SUMMARY ==========
     if st.button("⬇️ Download PDF Summary"):
+        import unicodedata
+        def clean_for_pdf(text):
+            """
+            Convert text to only safe, printable ASCII/Latin1 for PDF (remove emojis/unicode).
+            Replace any character not in Latin-1 (basic) with a blank or '?'
+            """
+            if not isinstance(text, str):
+                text = str(text)
+            # Replace line breaks for PDF cell compatibility
+            text = text.replace('\n', ' ').replace('\r', ' ')
+            # Remove emojis and non-latin-1
+            text = ''.join(c if 32 <= ord(c) <= 255 else '?' for c in text)
+            # Optionally, further normalize
+            text = unicodedata.normalize('NFKD', text)
+            return text
+
         pdf = FPDF()
         pdf.add_page()
 
         # --- Header ---
         pdf.set_font("Arial", 'B', 16)
-        pdf.cell(0, 12, "Learn Language Education Academy", ln=1, align='C')
+        pdf.cell(0, 12, clean_for_pdf("Learn Language Education Academy"), ln=1, align='C')
         pdf.ln(3)
 
         # --- Student Info ---
         pdf.set_font("Arial", '', 12)
-        pdf.cell(0, 8, f"Name: {df_user.name.iloc[0]}", ln=1)
-        pdf.cell(0, 8, f"Code: {code}     Level: {level}", ln=1)
-        pdf.cell(0, 8, f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}", ln=1)
+        pdf.cell(0, 8, clean_for_pdf(f"Name: {df_user.name.iloc[0]}"), ln=1)
+        pdf.cell(0, 8, clean_for_pdf(f"Code: {code}     Level: {level}"), ln=1)
+        pdf.cell(0, 8, clean_for_pdf(f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"), ln=1)
         pdf.ln(5)
 
         # --- Metrics ---
         pdf.set_font("Arial", 'B', 13)
-        pdf.cell(0, 10, "Summary Metrics", ln=1)
+        pdf.cell(0, 10, clean_for_pdf("Summary Metrics"), ln=1)
         pdf.set_font("Arial", '', 11)
-        pdf.cell(0, 8, f"Total: {total}   Completed: {completed}   Avg: {avg_score:.1f}   Best: {best_score}", ln=1)
+        pdf.cell(0, 8, clean_for_pdf(f"Total: {total}   Completed: {completed}   Avg: {avg_score:.1f}   Best: {best_score}"), ln=1)
         pdf.ln(6)
 
         # --- Table Header ---
@@ -2374,14 +2390,14 @@ if tab == "My Results and Resources":
 
         # --- Table Rows ---
         for _, row in df_display.iterrows():
-            assignment = str(row['assignment'])[:22]
-            score = str(row['score'])
-            date = str(row['date'])
+            assignment = clean_for_pdf(str(row['assignment'])[:22])
+            score = clean_for_pdf(str(row['score']))
+            date = clean_for_pdf(str(row['date']))
             feedback = row.get('comments', '')
             if pd.isna(feedback) or not str(feedback).strip() or str(feedback).lower().strip() == "nan":
                 feedback = "No feedback yet."
-            # Clean feedback for ASCII-only, single line, and safe wrapping
-            feedback = str(feedback).replace("\n", " ")
+            feedback = clean_for_pdf(feedback)
+            # Shorten long feedback for single row
             if len(feedback) > 80:
                 feedback = feedback[:77] + "..."
             pdf.cell(40, 8, assignment, 1)
@@ -2404,7 +2420,6 @@ if tab == "My Results and Resources":
             unsafe_allow_html=True
         )
         st.info("If the button does not work, right-click the blue link above and choose 'Save link as...' to download your PDF.")
-
 
     # --- Resources Section ---
     st.markdown("---")
