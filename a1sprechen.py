@@ -3409,50 +3409,40 @@ if tab == "Schreiben Trainer":
     uploaded_text = ""
     if uploaded_file is not None:
         try:
+            # --- Save to temp and load ---
             with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
                 tmp_file.write(uploaded_file.read())
                 tmp_file.flush()
                 if uploaded_file.type == "application/pdf":
-                    # Convert PDF first page to image
                     images = convert_from_bytes(open(tmp_file.name, "rb").read(), first_page=1, last_page=1)
                     img = images[0]
                 else:
                     img = Image.open(tmp_file.name)
-                # --- Preprocess for better OCR results ---
-                gray = img.convert("L").filter(ImageFilter.MedianFilter())
-                enhancer = ImageEnhance.Contrast(gray)
-                processed_img = enhancer.enhance(2)
-                # OCR: Try with Tesseract (psm 6 for paragraph-style)
-                uploaded_text = pytesseract.image_to_string(processed_img, lang="deu", config="--psm 6")
-                # Fallback: if Tesseract fails or returns very little text, try EasyOCR
-                if len(uploaded_text.strip()) < 15 and easyocr_available:
-                    reader = easyocr.Reader(['de'], gpu=False)
-                    result = reader.readtext(processed_img)
-                    uploaded_text = " ".join([r[1] for r in result])
-                # If still not enough, advise manual
-                if len(uploaded_text.strip()) < 8:
-                    uploaded_text = ""
-                    st.warning("❌ Could not extract text from the uploaded file. Please make sure it's a clear, well-lit scan/photo. For best results, PRINT your letter clearly, scan in bright light, or type directly.")
-        except Exception as e:
-            st.warning("❌ Could not extract text from the uploaded file. Please make sure it's a clear, well-lit scan/photo.")
 
-    if uploaded_text.strip():
-        st.markdown("**Extracted text from your uploaded file (please edit/confirm):**")
-        user_letter = st.text_area(
-            "Edit or confirm your extracted text:",
-            value=uploaded_text,
-            key="schreiben_input_upload",
-            height=180
-        )
+            # *** PREVIEW IMAGE ***
+            st.image(img, caption="📄 Preview of your upload", use_column_width=True)
 
-    # --- Word and character count (show if either box has content) ---
-    letter_to_count = user_letter.strip()
-    if letter_to_count:
-        import re
-        words = re.findall(r'\b\w+\b', letter_to_count)
-        chars = len(letter_to_count)
-        st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
+            # --- Preprocess for OCR ---
+            gray = img.convert("L").filter(ImageFilter.MedianFilter())
+            enhancer = ImageEnhance.Contrast(gray)
+            processed_img = enhancer.enhance(2)
 
+            # --- OCR with Tesseract + fallback to EasyOCR ---
+            uploaded_text = pytesseract.image_to_string(processed_img, lang="deu", config="--psm 6")
+            if len(uploaded_text.strip()) < 15 and easyocr_available:
+                reader = easyocr.Reader(['de'], gpu=False)
+                result = reader.readtext(processed_img)
+                uploaded_text = " ".join([r[1] for r in result])
+
+            if len(uploaded_text.strip()) < 8:
+                uploaded_text = ""
+                st.warning(
+                    "❌ Could not extract text. "
+                    "Make sure the photo is flat, bright, and handwriting is clear, or type directly."
+                )
+
+        except Exception:
+            st.warning("❌ OCR step failed. Please try a clearer scan/photo or type your letter manually.")
 
 
     # 6. AI prompt (always define before calling the API)
