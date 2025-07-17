@@ -2449,6 +2449,7 @@ if st.button("⬇️ Download PDF Summary"):
     st.info("If the button does not work, right-click the blue link above and choose 'Save link as...' to download your PDF.")
 
 
+
     # --- Resources Section ---
     st.markdown("---")
     st.subheader("📚 Useful Resources")
