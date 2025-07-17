@@ -2352,15 +2352,18 @@ FEEDBACK_W = PAGE_WIDTH - 2 * MARGIN - (COL_ASSN_W + COL_SCORE_W + COL_DATE_W)
 LOGO_URL = "https://i.imgur.com/iFiehrp.png"
 
 # Cached logo download to speed up repeated PDF generations
+@st.cache_data
 def fetch_logo():
     import requests, tempfile
-    resp = requests.get(LOGO_URL, timeout=6)
-    resp.raise_for_status()
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-    tmp.write(resp.content)
-    tmp.flush()
-    return tmp.name
-fetch_logo = st.cache_data(fetch_logo)
+    try:
+        resp = requests.get(LOGO_URL, timeout=6)
+        resp.raise_for_status()
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+        tmp.write(resp.content)
+        tmp.flush()
+        return tmp.name
+    except Exception:
+        return None
 
 # Subclass FPDF to add automatic header/footer
 from fpdf import FPDF
@@ -2368,8 +2371,13 @@ class PDFReport(FPDF):
     def header(self):
         logo_path = fetch_logo()
         if logo_path:
-            self.image(logo_path, 10, 8, 30)
-            self.ln(20)
+            try:
+                self.image(logo_path, 10, 8, 30)
+                self.ln(20)
+            except Exception:
+                self.ln(20)
+        else:
+            self.ln(28)
         self.set_font("Arial", 'B', 16)
         self.cell(0, 12, clean_for_pdf("Learn Language Education Academy"), ln=1, align='C')
         self.ln(3)
@@ -2384,9 +2392,7 @@ class PDFReport(FPDF):
         self.alias_nb_pages()
 
 if st.button("⬇️ Download PDF Summary"):
-    import unicodedata, requests, tempfile
-    from fpdf import FPDF
-
+    import unicodedata
     def clean_for_pdf(text):
         if not isinstance(text, str):
             text = str(text)
@@ -2461,6 +2467,7 @@ if st.button("⬇️ Download PDF Summary"):
     )
     st.markdown(get_pdf_download_link(pdf_bytes, f"{code}_results_{level}.pdf"), unsafe_allow_html=True)
     st.info("If the button does not work, right-click the blue link above and choose 'Save link as...' to download your PDF.")
+
 
 
     # Useful Resources
