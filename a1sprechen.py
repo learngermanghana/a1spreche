@@ -2352,48 +2352,46 @@ if tab == "My Results and Resources":
 
         # --- Student Info ---
         pdf.set_font("Arial", '', 12)
-        pdf.cell(0, 9, f"Name: {df_user.name.iloc[0]}", ln=1)
-        pdf.cell(0, 9, f"Code: {code}     Level: {level}", ln=1)
-        pdf.cell(0, 9, f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}", ln=1)
+        pdf.cell(0, 8, f"Name: {df_user.name.iloc[0]}", ln=1)
+        pdf.cell(0, 8, f"Code: {code}     Level: {level}", ln=1)
+        pdf.cell(0, 8, f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}", ln=1)
         pdf.ln(5)
 
         # --- Metrics ---
         pdf.set_font("Arial", 'B', 13)
         pdf.cell(0, 10, "Summary Metrics", ln=1)
         pdf.set_font("Arial", '', 11)
-        pdf.cell(0, 8, f"Total Assignments: {total}     Completed: {completed}     Avg: {avg_score:.1f}     Best: {best_score}", ln=1)
+        pdf.cell(0, 8, f"Total: {total}   Completed: {completed}   Avg: {avg_score:.1f}   Best: {best_score}", ln=1)
         pdf.ln(6)
 
-        # --- Detailed Results (Boxed) ---
-        pdf.set_font("Arial", 'B', 13)
-        pdf.cell(0, 10, "Detailed Results", ln=1)
+        # --- Table Header ---
         pdf.set_font("Arial", 'B', 11)
-        pdf.cell(45, 8, "Assignment", 1, 0, 'C')
-        pdf.cell(20, 8, "Score", 1, 0, 'C')
+        pdf.cell(40, 8, "Assignment", 1, 0, 'C')
+        pdf.cell(18, 8, "Score", 1, 0, 'C')
         pdf.cell(28, 8, "Date", 1, 0, 'C')
         pdf.cell(0, 8, "Feedback", 1, 1, 'C')
         pdf.set_font("Arial", '', 10)
 
+        # --- Table Rows ---
         for _, row in df_display.iterrows():
+            assignment = str(row['assignment'])[:22]
+            score = str(row['score'])
+            date = str(row['date'])
             feedback = row.get('comments', '')
-            if (
-                pd.isna(feedback) or
-                not str(feedback).strip() or
-                str(feedback).lower().strip() == "nan"
-            ):
+            if pd.isna(feedback) or not str(feedback).strip() or str(feedback).lower().strip() == "nan":
                 feedback = "No feedback yet."
-            pdf.cell(45, 8, str(row['assignment']), 1)
-            pdf.cell(20, 8, str(row['score']), 1)
-            pdf.cell(28, 8, str(row['date']), 1)
-            # Feedback: multi-cell with left padding
-            x, y = pdf.get_x(), pdf.get_y()
-            pdf.multi_cell(0, 8, " " + feedback, border=1)
-            # Add spacing after each row
-            pdf.ln(1)
+            # Clean feedback for ASCII-only, single line, and safe wrapping
+            feedback = str(feedback).replace("\n", " ")
+            if len(feedback) > 80:
+                feedback = feedback[:77] + "..."
+            pdf.cell(40, 8, assignment, 1)
+            pdf.cell(18, 8, score, 1)
+            pdf.cell(28, 8, date, 1)
+            pdf.cell(0, 8, feedback, 1, ln=1)
 
         pdf.ln(2)
 
-        # --- Output ---
+        # --- Output Download ---
         pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
         st.download_button(
             label="Download PDF",
@@ -2406,6 +2404,7 @@ if tab == "My Results and Resources":
             unsafe_allow_html=True
         )
         st.info("If the button does not work, right-click the blue link above and choose 'Save link as...' to download your PDF.")
+
 
     # --- Resources Section ---
     st.markdown("---")
