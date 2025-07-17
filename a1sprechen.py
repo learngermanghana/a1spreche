@@ -972,7 +972,7 @@ def get_a1_schedule():
         # DAY 18
         {
             "day": 18,
-            "topic": "Lesen & Hören 12.1 and 12.2 and Schreiben & Sprechen (including 5.8)",
+            "topic": "Lesen & Hören 12.1 and 12.2",
             "chapter": "12.1_12.2",
             "goal": "Learn about German professions and how to use two-way prepositions",
             "instruction": "This lesson has two Lesen & Hören assignments (12.1 and 12.2) and one Schreiben & Sprechen practice (5.8) for practice to understand chapter 12",
@@ -1014,7 +1014,7 @@ def get_a1_schedule():
         # DAY 20
         {
             "day": 20,
-            "topic": "Introduction to Letter Writing 12.3",
+            "topic": "Introduction to Letter Writing 12.3 ",
             "chapter": "12.3",
             "goal": "Practice how to write both formal and informal letters",
             "assignment": True,
@@ -1027,19 +1027,19 @@ def get_a1_schedule():
         # DAY 21
         {
             "day": 21,
-            "topic": "Lesen & Hören 13 and Schreiben & Sprechen 6.11",
-            "chapter": "13_6.11",
+            "topic": "Lesen & Hören 13",
+            "chapter": "13",
+            "assignment": True,
             "goal": "",
             "instruction": "",
             "lesen_hören": {
                 "video": "",
-                "grammarbook_link": "https://drive.google.com/file/d/1PCXsTIg9iNlaAUkwH8BYekw_3v1HJjGq/view?usp=sharing",
                 "assignment": True,
+                "grammarbook_link": "https://drive.google.com/file/d/1PCXsTIg9iNlaAUkwH8BYekw_3v1HJjGq/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1zCnIoVHlfRwOQ9mX2NxVFuHgsqfHUkDK/view?usp=sharing"
             },
             "schreiben_sprechen": {
                 "video": "",
-                "assignment": False,
                 "workbook_link": ""
             }
         },
@@ -1047,7 +1047,7 @@ def get_a1_schedule():
         {
             "day": 22,
             "topic": "Lesen & Hören 14.1 and Schreiben & Sprechen 7.12",
-            "chapter": "14.1_7.12",
+            "chapter": "14.1",
             "goal": "",
             "instruction": "",
             "lesen_hören": {
@@ -1058,7 +1058,7 @@ def get_a1_schedule():
             },
             "schreiben_sprechen": {
                 "video": "",
-                "assignment": False,
+                "assignment": True,
                 "workbook_link": ""
             }
         },
@@ -1066,7 +1066,7 @@ def get_a1_schedule():
         {
             "day": 23,
             "topic": "Lesen & Hören 14.2",
-            "chapter": "14.2_7.12",
+            "chapter": "14.2",
             "goal": "Understand adjective declension and dative verbs",
             "instruction": " This chapter has no assignment. Only grammar",
             "lesen_hören": {
@@ -1096,8 +1096,9 @@ def get_a1_schedule():
         # DAY 25
         {
             "day": 25,
-            "topic": "Goethe Mock Test",
-            "chapter": "final",
+            "topic": "Goethe Mock Test 15",
+            "chapter": "15",
+            "assignment": True,
             "goal": "This test should help the student have an idea about how the lesen and horen will look like",
             "instruction": "",
             "schreiben_sprechen": {
@@ -1117,7 +1118,7 @@ def get_a2_schedule():
             "goal": "Practice basic greetings and small talk.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "assignment": True,
-            "video": "",
+            "video": "https://youtu.be/siF0jWZdIwk",
             "grammarbook_link": "https://drive.google.com/file/d/1NsCKO4K7MWI-queLWCeBuclmaqPN04YQ/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1LXDI1yyJ4aT4LhX5eGDbKnkCkJZ2EE2T/view?usp=sharing"
         },
@@ -3369,25 +3370,12 @@ if tab == "Schreiben Trainer":
 
     st.divider()
 
-    # --- External image-to-text recommendation (show this first) ---
-    st.markdown(
-        """
-        <div style="background:#f8f9fa;border-left:4px solid #d63384;padding:12px 16px;margin:18px 0;border-radius:7px;">
-        📝 <b>If you wrote your letter by hand:</b><br>
-        Take a <b>clear photo or scan</b> of your writing, go to 
-        <a href="https://www.imagetotext.info/" target="_blank"><b>imagetotext.info</b></a>, extract your text, 
-        and <b>paste it here</b> for AI feedback.<br>
-        <small>This is more reliable than uploading directly. Always check the text for errors after extraction.</small>
-        </div>
-        """, unsafe_allow_html=True
-    )
-
     # 5. Input Box (disabled if limit reached)
     user_letter = st.text_area(
         "Paste or type your German letter/essay here.",
         key="schreiben_input",
         disabled=(daily_so_far >= SCHREIBEN_DAILY_LIMIT),
-        height=500,
+        height=180,
         placeholder="Write your German letter here..."
     )
 
@@ -3397,7 +3385,6 @@ if tab == "Schreiben Trainer":
         words = re.findall(r'\b\w+\b', user_letter)
         chars = len(user_letter)
         st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
-
 
     # 6. AI prompt (always define before calling the API)
     ai_prompt = (
