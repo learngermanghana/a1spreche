@@ -2364,6 +2364,7 @@ if tab == "My Results and Resources":
         st.info("🎉 Great Job! All assignments up to 14.1 and Goethe exams completed.")
 
 
+
     # ========== DOWNLOAD PDF SUMMARY ==========
     if st.button("⬇️ Download PDF Summary"):
         pdf = FPDF()
