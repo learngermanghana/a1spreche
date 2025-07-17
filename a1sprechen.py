@@ -2298,9 +2298,14 @@ if tab == "My Results and Resources":
             unsafe_allow_html=True
         )
 
-    # Define A1 required chapters and goethe logic
-    REQUIRED_A1_CHAPTERS = [0.1, 0.2, 1.1, 1.2, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12.1, 12.2, 6.10, 13, 14.1]
-    GOETHE_LABELS = ["goethe", "goethe exams"]
+    # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
+    # Helper: Should this lesson be recommended (i.e. not Schreiben & Sprechen)?
+    def is_recommendable_assignment(lesson):
+        topic = str(lesson.get("topic", "")).lower()
+        # Skip if both "schreiben" and "sprechen" in topic
+        if "schreiben" in topic and "sprechen" in topic:
+            return False
+        return True
 
     def extract_chapter_num(chapter):
         nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
@@ -2308,62 +2313,31 @@ if tab == "My Results and Resources":
             return None
         return max(float(n) for n in nums)
 
-    # What has the student finished?
-    completed_chapters = set()
-    completed_goethe = False
+    completed_chapters = []
     for assignment in df_lvl['assignment']:
         num = extract_chapter_num(assignment)
         if num is not None:
-            completed_chapters.add(num)
-        if any(lbl in str(assignment).lower() for lbl in GOETHE_LABELS):
-            completed_goethe = True
+            completed_chapters.append(num)
+    last_num = max(completed_chapters) if completed_chapters else 0
 
-    # Helper: Only include 6.10 if 12.1 & 12.2 are done
-    def allowed_required_chapters():
-        req = [x for x in REQUIRED_A1_CHAPTERS if x != 6.10]
-        if 12.1 in completed_chapters and 12.2 in completed_chapters:
-            req.append(6.10)
-        return req
-
-    # Identify what is truly missing
-    missing = [c for c in allowed_required_chapters() if c not in completed_chapters]
-    missing_goethe = not completed_goethe
-
-    # Pick next assignment, obeying all rules (Schreiben/Sprechen, 6.10 special logic)
-    next_assignment = None
     schedule = LEVEL_SCHEDULES.get(level, [])
+    next_assignment = None
     for lesson in schedule:
         chap_num = extract_chapter_num(lesson.get("chapter", ""))
-        topic = str(lesson.get("topic", "")).lower()
-        is_assignment = lesson.get("assignment", False)
-        # Skip non-assignment or S&S lessons
-        if not is_assignment:
-            continue
-        if "schreiben" in topic and "sprechen" in topic:
-            continue
-        # 6.10 only if allowed
-        if chap_num == 6.10 and 6.10 not in allowed_required_chapters():
-            continue
-        # If missing, recommend it next
-        if chap_num in missing:
+        if not is_recommendable_assignment(lesson):
+            continue  # Skip Schreiben & Sprechen lessons
+        if chap_num and chap_num > last_num:
             next_assignment = lesson
             break
-
-    # Show next assignment, or mark complete
-    if next_assignment or missing_goethe:
-        if next_assignment:
-            st.success(
-                f"**Your next recommended assignment:**\n\n"
-                f"**Day {next_assignment['day']}: {next_assignment['chapter']} – {next_assignment['topic']}**\n\n"
-                f"**Goal:** {next_assignment.get('goal','')}\n\n"
-                f"**Instruction:** {next_assignment.get('instruction','')}"
-            )
-        elif missing_goethe:
-            st.success("**Your next recommended step:** Complete the Goethe exams.")
+    if next_assignment:
+        st.success(
+            f"**Your next recommended assignment:**\n\n"
+            f"**Day {next_assignment['day']}: {next_assignment['chapter']} – {next_assignment['topic']}**\n\n"
+            f"**Goal:** {next_assignment.get('goal','')}\n\n"
+            f"**Instruction:** {next_assignment.get('instruction','')}"
+        )
     else:
-        st.info("🎉 Great Job! All assignments up to 14.1 and Goethe exams completed.")
-
-
+        st.info("🎉 Great Job!")
 
     # ========== DOWNLOAD PDF SUMMARY ==========
     if st.button("⬇️ Download PDF Summary"):
