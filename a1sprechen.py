@@ -3384,6 +3384,13 @@ if tab == "Schreiben Trainer":
     import tempfile
     from pdf2image import convert_from_bytes
 
+    # Add EasyOCR import and check
+    try:
+        import easyocr
+        easyocr_available = True
+    except ImportError:
+        easyocr_available = False
+
     user_letter = st.text_area(
         "Paste or type your German letter/essay here.",
         key="schreiben_input",
@@ -3417,6 +3424,15 @@ if tab == "Schreiben Trainer":
                 processed_img = enhancer.enhance(2)
                 # OCR: Try with Tesseract (psm 6 for paragraph-style)
                 uploaded_text = pytesseract.image_to_string(processed_img, lang="deu", config="--psm 6")
+                # Fallback: if Tesseract fails or returns very little text, try EasyOCR
+                if len(uploaded_text.strip()) < 15 and easyocr_available:
+                    reader = easyocr.Reader(['de'], gpu=False)
+                    result = reader.readtext(processed_img)
+                    uploaded_text = " ".join([r[1] for r in result])
+                # If still not enough, advise manual
+                if len(uploaded_text.strip()) < 8:
+                    uploaded_text = ""
+                    st.warning("❌ Could not extract text from the uploaded file. Please make sure it's a clear, well-lit scan/photo. For best results, PRINT your letter clearly, scan in bright light, or type directly.")
         except Exception as e:
             st.warning("❌ Could not extract text from the uploaded file. Please make sure it's a clear, well-lit scan/photo.")
 
@@ -3436,6 +3452,7 @@ if tab == "Schreiben Trainer":
         words = re.findall(r'\b\w+\b', letter_to_count)
         chars = len(letter_to_count)
         st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
+
 
 
     # 6. AI prompt (always define before calling the API)
