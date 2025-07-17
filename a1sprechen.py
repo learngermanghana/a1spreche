@@ -3383,6 +3383,7 @@ if tab == "Schreiben Trainer":
     # Try EasyOCR fallback
     try:
         import easyocr
+        import numpy as np
         easyocr_available = True
     except ImportError:
         easyocr_available = False
@@ -3404,7 +3405,6 @@ if tab == "Schreiben Trainer":
     letter_to_mark = None
 
     if uploaded_file:
-        # 1) Save & load
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             tmp.write(uploaded_file.read())
             tmp.flush()
@@ -3412,20 +3412,21 @@ if tab == "Schreiben Trainer":
                 img = convert_from_bytes(open(tmp.name,"rb").read(), first_page=1, last_page=1)[0]
             else:
                 img = Image.open(tmp.name)
-        # 2) Preview
         st.image(img, caption="📄 Preview your upload", use_container_width=True)
-        # 3) OCR preprocessing
         gray = img.convert("L").filter(ImageFilter.MedianFilter())
         enhancer = ImageEnhance.Contrast(gray)
         proc = enhancer.enhance(2)
-        # 4) Tesseract → EasyOCR fallback
+        # --- OCR
         try:
             text = pytesseract.image_to_string(proc, lang="deu", config="--psm 6")
         except Exception:
             text = ""
+        # EasyOCR fallback: must use numpy array
         if len(text.strip()) < 15 and easyocr_available:
             reader = easyocr.Reader(['de'], gpu=False)
-            ocr = reader.readtext(proc)
+            # Convert PIL Image to numpy array
+            img_np = np.array(proc)
+            ocr = reader.readtext(img_np)
             text = " ".join([o[1] for o in ocr])
         if len(text.strip()) < 8:
             st.warning("❌ OCR failed—please type your letter or upload a clearer scan.")
@@ -3433,7 +3434,6 @@ if tab == "Schreiben Trainer":
             st.success("✅ Extracted text—sending for AI feedback now.")
             letter_to_mark = text
 
-    # If they typed instead of uploaded
     if not letter_to_mark and user_letter.strip():
         letter_to_mark = user_letter.strip()
 
@@ -3453,14 +3453,11 @@ if tab == "Schreiben Trainer":
                 ]
             )
         feedback = resp.choices[0].message.content
-        # Persist usage & score
         import re
         m = re.search(r"(\d+)\s*/\s*25", feedback)
         score = int(m.group(1)) if m else 0
         inc_schreiben_usage(student_code)
         save_schreiben_attempt(student_code, student_name, schreiben_level, score)
-
-        # Show feedback
         st.markdown("#### 📝 Feedback from Herr Felix")
         st.markdown(feedback)
 
