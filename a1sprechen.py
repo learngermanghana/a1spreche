@@ -3419,12 +3419,15 @@ if tab == "Schreiben Trainer":
         enhancer = ImageEnhance.Contrast(gray)
         proc = enhancer.enhance(2)
         # 4) Tesseract → EasyOCR fallback
-        text = pytesseract.image_to_string(proc, lang="deu", config="--psm 6")
-        if len(text.strip())<15 and easyocr_available:
+        try:
+            text = pytesseract.image_to_string(proc, lang="deu", config="--psm 6")
+        except Exception:
+            text = ""
+        if len(text.strip()) < 15 and easyocr_available:
             reader = easyocr.Reader(['de'], gpu=False)
             ocr = reader.readtext(proc)
             text = " ".join([o[1] for o in ocr])
-        if len(text.strip())<8:
+        if len(text.strip()) < 8:
             st.warning("❌ OCR failed—please type your letter or upload a clearer scan.")
         else:
             st.success("✅ Extracted text—sending for AI feedback now.")
@@ -3436,7 +3439,6 @@ if tab == "Schreiben Trainer":
 
     # Auto‑mark when we have something
     if letter_to_mark:
-        # Build AI prompt
         ai_prompt = (
             f"You are Herr Felix, a supportive German writing trainer. "
             f"Here is the student’s {schreiben_level} letter:\n\n{letter_to_mark}\n\n"
@@ -3461,7 +3463,6 @@ if tab == "Schreiben Trainer":
         # Show feedback
         st.markdown("#### 📝 Feedback from Herr Felix")
         st.markdown(feedback)
-
 
 
     # 6. AI prompt (always define before calling the API)
