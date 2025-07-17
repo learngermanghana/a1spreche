@@ -3348,7 +3348,7 @@ if tab == "Schreiben Trainer":
     student_name = st.session_state.get("student_name", "")
     daily_so_far = get_schreiben_usage(student_code)   # <-- DB-based!
 
-        # 3. Show overall writing performance (DB-driven, mobile-first)
+    # 3. Show overall writing performance (DB-driven, mobile-first)
     attempted, passed, accuracy = get_writing_stats(student_code)
     st.markdown(f"""**📝 Your Overall Writing Performance**
 - 📨 **Submitted:** {attempted}
@@ -3360,7 +3360,7 @@ if tab == "Schreiben Trainer":
     # 4. Level-Specific Stats (optional)
     stats = get_student_stats(student_code)
     lvl_stats = stats.get(schreiben_level, {}) if stats else {}
-    if lvl_stats and lvl_stats["attempted"]:
+    if lvl_stats and lvl_stats.get("attempted"):
         correct = lvl_stats.get("correct", 0)
         attempted_lvl = lvl_stats.get("attempted", 0)
         st.info(f"Level `{schreiben_level}`: {correct} / {attempted_lvl} passed")
@@ -3411,11 +3411,12 @@ if tab == "Schreiben Trainer":
                     img = images[0]
                 else:
                     img = Image.open(tmp_file.name)
-                # Preprocess for better OCR results
+                # --- Preprocess for better OCR results ---
                 gray = img.convert("L").filter(ImageFilter.MedianFilter())
                 enhancer = ImageEnhance.Contrast(gray)
                 processed_img = enhancer.enhance(2)
-                uploaded_text = pytesseract.image_to_string(processed_img, lang="deu")
+                # OCR: Try with Tesseract (psm 6 for paragraph-style)
+                uploaded_text = pytesseract.image_to_string(processed_img, lang="deu", config="--psm 6")
         except Exception as e:
             st.warning("❌ Could not extract text from the uploaded file. Please make sure it's a clear, well-lit scan/photo.")
 
