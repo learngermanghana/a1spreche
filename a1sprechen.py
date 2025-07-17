@@ -3348,7 +3348,7 @@ if tab == "Schreiben Trainer":
     student_name = st.session_state.get("student_name", "")
     daily_so_far = get_schreiben_usage(student_code)   # <-- DB-based!
 
-    # 3. Show overall writing performance (DB-driven, mobile-first)
+        # 3. Show overall writing performance (DB-driven, mobile-first)
     attempted, passed, accuracy = get_writing_stats(student_code)
     st.markdown(f"""**📝 Your Overall Writing Performance**
 - 📨 **Submitted:** {attempted}
@@ -3369,7 +3369,21 @@ if tab == "Schreiben Trainer":
 
     st.divider()
 
-    # 5. Input Box (disabled if limit reached)
+    # 5. Input Box or Upload (disabled if limit reached)
+    st.markdown(
+        """
+        _**You can type/paste your letter OR upload a clear scan/photo (JPG/PNG/PDF) of your handwritten essay.  
+        • If uploading, make sure your handwriting is clear and the photo is bright and not blurry.  
+        • For PDFs, only the first page will be read.  
+        • After upload, the extracted text will appear below for your confirmation before submitting to the AI.**_
+        """
+    )
+
+    import pytesseract
+    from PIL import Image
+    import tempfile
+    from pdf2image import convert_from_bytes
+
     user_letter = st.text_area(
         "Paste or type your German letter/essay here.",
         key="schreiben_input",
@@ -3378,12 +3392,48 @@ if tab == "Schreiben Trainer":
         placeholder="Write your German letter here..."
     )
 
-    # --- Word and character count ---
-    if user_letter.strip():
+    uploaded_file = st.file_uploader(
+        "Or upload a scan/photo (JPG, PNG, PDF):", 
+        type=["jpg", "jpeg", "png", "pdf"], 
+        disabled=(daily_so_far >= SCHREIBEN_DAILY_LIMIT),
+        key="schreiben_upload"
+    )
+
+    uploaded_text = ""
+    if uploaded_file is not None:
+        try:
+            with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+                tmp_file.write(uploaded_file.read())
+                tmp_file.flush()
+                if uploaded_file.type == "application/pdf":
+                    # Convert PDF first page to image
+                    images = convert_from_bytes(open(tmp_file.name, "rb").read(), first_page=1, last_page=1)
+                    img = images[0]
+                else:
+                    img = Image.open(tmp_file.name)
+                uploaded_text = pytesseract.image_to_string(img, lang="deu")
+        except Exception as e:
+            st.warning("❌ Could not extract text from the uploaded file. Please make sure it's a clear scan/photo.")
+
+    if uploaded_text:
+        st.markdown("**Extracted text from your uploaded file:**")
+        st.code(uploaded_text, language="markdown")
+        # Allow editing/examining before AI checks
+        user_letter = st.text_area(
+            "Edit or confirm your extracted text:",
+            value=uploaded_text,
+            key="schreiben_input_upload",
+            height=180
+        )
+
+    # --- Word and character count (show if either box has content) ---
+    letter_to_count = user_letter.strip() or uploaded_text.strip()
+    if letter_to_count:
         import re
-        words = re.findall(r'\b\w+\b', user_letter)
-        chars = len(user_letter)
+        words = re.findall(r'\b\w+\b', letter_to_count)
+        chars = len(letter_to_count)
         st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
+
 
     # 6. AI prompt (always define before calling the API)
     ai_prompt = (
