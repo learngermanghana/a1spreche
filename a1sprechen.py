@@ -2352,7 +2352,9 @@ if st.button("⬇️ Download PDF Summary"):
         """
         if not isinstance(text, str):
             text = str(text)
+        # Normalize to decompose accents
         text = unicodedata.normalize('NFKD', text)
+        # Remove non-latin1, line breaks
         text = ''.join(c if 32 <= ord(c) <= 255 else '?' for c in text)
         text = text.replace('\n', ' ').replace('\r', ' ')
         return text
@@ -2429,7 +2431,7 @@ if st.button("⬇️ Download PDF Summary"):
     pdf.set_text_color(120, 120, 120)
     pdf.cell(
         0, 8,
-        "Learn Language Education Academy — Results generated on " + pd.Timestamp.now().strftime("%d.%m.%Y"),
+        clean_for_pdf("Learn Language Education Academy — Results generated on " + pd.Timestamp.now().strftime("%d.%m.%Y")),
         0, 1, 'C'
     )
     pdf.set_text_color(0, 0, 0)
@@ -2447,6 +2449,7 @@ if st.button("⬇️ Download PDF Summary"):
         unsafe_allow_html=True
     )
     st.info("If the button does not work, right-click the blue link above and choose 'Save link as...' to download your PDF.")
+
 
 
 
