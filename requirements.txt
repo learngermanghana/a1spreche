@@ -9,3 +9,4 @@ thefuzz
 pytesseract
 pdf2image
 pillow
+easyocr
