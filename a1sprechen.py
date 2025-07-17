@@ -2344,28 +2344,36 @@ if tab == "My Results and Resources":
     if st.button("⬇️ Download PDF Summary"):
         pdf = FPDF()
         pdf.add_page()
-        pdf.set_font("Arial", 'B', 14)
-        pdf.cell(0, 10, sanitize_pdf_text("Learn Language Education Academy"), ln=1, align='C')
-        pdf.ln(5)
+
+        # --- Header ---
+        pdf.set_font("Arial", 'B', 16)
+        pdf.cell(0, 12, "Learn Language Education Academy", ln=1, align='C')
+        pdf.ln(3)
+
+        # --- Student Info ---
         pdf.set_font("Arial", '', 12)
-        pdf.multi_cell(
-            0, 8,
-            sanitize_pdf_text(
-                f"Name: {df_user.name.iloc[0]}\n"
-                f"Code: {code}\n"
-                f"Level: {level}\n"
-                f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"
-            )
-        )
-        pdf.ln(4)
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 8, sanitize_pdf_text("Summary Metrics"), ln=1)
+        pdf.cell(0, 9, f"Name: {df_user.name.iloc[0]}", ln=1)
+        pdf.cell(0, 9, f"Code: {code}     Level: {level}", ln=1)
+        pdf.cell(0, 9, f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}", ln=1)
+        pdf.ln(5)
+
+        # --- Metrics ---
+        pdf.set_font("Arial", 'B', 13)
+        pdf.cell(0, 10, "Summary Metrics", ln=1)
         pdf.set_font("Arial", '', 11)
-        pdf.cell(0, 8, sanitize_pdf_text(f"Total: {total}, Completed: {completed}, Avg: {avg_score:.1f}, Best: {best_score}"), ln=1)
-        pdf.ln(4)
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 8, sanitize_pdf_text("Detailed Results"), ln=1)
+        pdf.cell(0, 8, f"Total Assignments: {total}     Completed: {completed}     Avg: {avg_score:.1f}     Best: {best_score}", ln=1)
+        pdf.ln(6)
+
+        # --- Detailed Results (Boxed) ---
+        pdf.set_font("Arial", 'B', 13)
+        pdf.cell(0, 10, "Detailed Results", ln=1)
+        pdf.set_font("Arial", 'B', 11)
+        pdf.cell(45, 8, "Assignment", 1, 0, 'C')
+        pdf.cell(20, 8, "Score", 1, 0, 'C')
+        pdf.cell(28, 8, "Date", 1, 0, 'C')
+        pdf.cell(0, 8, "Feedback", 1, 1, 'C')
         pdf.set_font("Arial", '', 10)
+
         for _, row in df_display.iterrows():
             feedback = row.get('comments', '')
             if (
@@ -2374,25 +2382,30 @@ if tab == "My Results and Resources":
                 str(feedback).lower().strip() == "nan"
             ):
                 feedback = "No feedback yet."
-            pdf.cell(0, 7, sanitize_pdf_text(f"{row['assignment']}: {row['score']} ({row['date']})"), ln=1)
-            if 'comments' in row and feedback:
-                pdf.set_font("Arial", 'I', 9)
-                pdf.multi_cell(0, 6, sanitize_pdf_text(f"  Feedback: {feedback}"))
-                pdf.set_font("Arial", '', 10)
+            pdf.cell(45, 8, str(row['assignment']), 1)
+            pdf.cell(20, 8, str(row['score']), 1)
+            pdf.cell(28, 8, str(row['date']), 1)
+            # Feedback: multi-cell with left padding
+            x, y = pdf.get_x(), pdf.get_y()
+            pdf.multi_cell(0, 8, " " + feedback, border=1)
+            # Add spacing after each row
+            pdf.ln(1)
+
+        pdf.ln(2)
+
+        # --- Output ---
         pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
-        # Streamlit native download button
         st.download_button(
             label="Download PDF",
             data=pdf_bytes,
             file_name=f"{code}_results_{level}.pdf",
             mime="application/pdf"
         )
-        # Manual fallback download
         st.markdown(
             get_pdf_download_link(pdf_bytes, f"{code}_results_{level}.pdf"),
             unsafe_allow_html=True
         )
-        st.info("If you are on iPhone or computer and the button does not work, tap-and-hold or right-click on the blue link above and choose **Save link as...** to download your PDF.")
+        st.info("If the button does not work, right-click the blue link above and choose 'Save link as...' to download your PDF.")
 
     # --- Resources Section ---
     st.markdown("---")
