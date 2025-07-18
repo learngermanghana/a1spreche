@@ -829,7 +829,7 @@ def get_a1_schedule():
             "chapter": "4",
             "goal": "Learn about schon mal and noch nie, irregular verbs and all the personal pronouns",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
-            "grammar_topic": "schon mal, noch nie; irregular verbs; personal pronouns"
+            "grammar_topic": "schon mal, noch nie; irregular verbs; personal pronouns",
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/JfTc1G9mubs",
