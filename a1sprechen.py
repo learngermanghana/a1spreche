@@ -749,6 +749,7 @@ def get_a1_schedule():
                 "Schreiben & Sprechen activities are for self-practice and have answers provided for self-check. "
                 "Main assignment to be marked is under Lesen & Hören below."
             ),
+            "grammar_topic": "German Pronouns",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/hEe6rs0lkRg",
                 "workbook_link": "https://drive.google.com/file/d/1GXWzy3cvbl_goP4-ymFuYDtX4X23D70j/view?usp=sharing",
@@ -771,6 +772,7 @@ def get_a1_schedule():
             "chapter": "2",
             "goal": "Learn numbers from one to 10 thousand. Also know the difference between city and street",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
+            "grammar_topic": "German Numbers",
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/BzI2n4A8Oak",
@@ -812,6 +814,7 @@ def get_a1_schedule():
             "chapter": "3",
             "goal": "Know how to ask for a price and also the use of mogen and gern to express your hobby",
             "instruction": "Do schreiben and sprechen 2.3 before this chapter for better understanding",
+            "grammar_topic": "Fragen nach dem Preis; gern/lieber/mögen (Talking about price and preferences)",
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/dGIj1GbK4sI",
@@ -826,6 +829,7 @@ def get_a1_schedule():
             "chapter": "4",
             "goal": "Learn about schon mal and noch nie, irregular verbs and all the personal pronouns",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
+            "grammar_topic": "schon mal, noch nie; irregular verbs; personal pronouns"
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/JfTc1G9mubs",
@@ -840,6 +844,7 @@ def get_a1_schedule():
             "chapter": "5",
             "goal": "Learn about the German articles and cases",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
+            "grammar_topic": "Nominative & Akkusative, Definite & Indefinite Articles"
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/Yi5ZA-XD-GY?si=nCX_pceEYgAL-FU0",
