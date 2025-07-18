@@ -2477,7 +2477,6 @@ How to prepare for your B1 oral exam.
 
 
 
-
 # ================================
 # 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
 # ================================
@@ -2851,7 +2850,6 @@ if tab == "Exams Mode & Custom Chat":
         st.stop()
 
     
-    # ---- STAGE 3: Exam Part & Topic (Exam Mode Only) ----
     if st.session_state["falowen_stage"] == 3:
         import random
 
@@ -2908,7 +2906,19 @@ if tab == "Exams Mode & Custom Chat":
                 else:
                     topics_list.append(row['Topic'])
 
-        # Manual Picker + Random Option
+        # ----- PREVIEW ALL AVAILABLE TOPICS -----
+        if topics_list:
+            st.markdown("#### Preview: Available Topics")
+            col1, col2 = st.columns(2)
+            half = (len(topics_list) + 1) // 2
+            with col1:
+                for t in topics_list[:half]:
+                    st.markdown(f"- {t}")
+            with col2:
+                for t in topics_list[half:]:
+                    st.markdown(f"- {t}")
+
+        # ----- MANUAL PICKER + RANDOM OPTION -----
         picked = None
         if topics_list:
             random.shuffle(topics_list)
@@ -2963,8 +2973,6 @@ if tab == "Exams Mode & Custom Chat":
             random.shuffle(st.session_state["remaining_topics"])
             st.session_state["used_topics"] = []
             st.rerun()
-
-
 
     # =========================================
     # ---- STAGE 4: MAIN CHAT ----
