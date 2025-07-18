@@ -2591,13 +2591,14 @@ if tab == "Exams Mode & Custom Chat":
                     "**A1 – Teil 2: Question and Answer**\n\n"
                     "You will get a topic and a keyword. Your job: ask a question using the keyword, "
                     "then answer it yourself. Example: Thema: Geschäft – Keyword: schließen → "
-                    "Wann schließt das Geschäft?\nLet's try one. Ready?"
+                    "Wann schließt das Geschäft?\nLet's try one.Type Yes in the chatbox so we start?"
                 )
             elif "Teil 3" in teil:
                 return (
                     "**A1 – Teil 3: Making a Request**\n\n"
                     "You'll receive a prompt (e.g. 'Radio anmachen'). Write a polite request or imperative. "
                     "Example: Können Sie bitte das Radio anmachen?\nReady?"
+                    "Type Yes in the chatbox so we start?"
                 )
         if level == "A2":
             if "Teil 1" in teil:
