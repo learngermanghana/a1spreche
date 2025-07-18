@@ -1939,9 +1939,10 @@ def filter_matches(lesson, sq):
         lesson.get('chapter', ''),
         lesson.get('goal', ''),
         lesson.get('instruction', ''),
+        lesson.get('grammar_topic', ''),
         str(lesson.get('day', ''))
     ]
-    return any(sq in str(f).lower() for f in fields)
+    return any(sq in str(f).lower() for f in fields if f)
 
 
 def render_section(day_info, key, title, icon):
@@ -1997,7 +1998,7 @@ if tab == "Course Book":
     schedules = load_level_schedules()
     schedule = schedules.get(student_level, schedules.get('A1', []))
 
-    query = st.text_input("🔍 Search for topic, chapter, or keyword:")
+    query = st.text_input("🔍 Search for topic, chapter, grammar, day, or anything…")
     if query:
         sq = query.strip().lower()
         matches = [(i, d) for i, d in enumerate(schedule) if filter_matches(d, sq)]
