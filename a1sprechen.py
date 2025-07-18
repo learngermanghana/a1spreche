@@ -702,8 +702,8 @@ def get_a1_schedule():
             "topic": "Lesen & Hören 0.1",
             "chapter": "0.1",
             "goal": "You will learn to introduce yourself, greet others in German, and ask about people's well-being.",
-            "instruction": "Watch the video, review grammar, do the workbook, submit assignment.y",
-            "grammar_topic": "Basic Greetings",
+            "instruction": "Watch the video, review grammar, do the workbook, submit assignment.",
+            "grammar_topic": "Formal and Informal Greetings",
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/7QZhrb-gvxY",
@@ -718,6 +718,7 @@ def get_a1_schedule():
             "chapter": "0.2_1.1",
             "goal": "Understand the German alphabets, personal pronouns and verb conjugation in German.",
             "instruction": "You are doing Lesen and Hören chapter 0.2 and 1.1. Make sure to follow up attentively.",
+            "grammar_topic": "German Alphabets and Personal Pronouns",
             "lesen_hören": [
                 {
                     "chapter": "0.2",
@@ -2015,6 +2016,8 @@ if tab == "Course Book":
         st.markdown(f"**🎯 Goal:**  {info['goal']}")
     if info.get('instruction'):
         st.markdown(f"**📝 Instruction:**  {info['instruction']}")
+    if info.get('grammar_topic'):
+    st.markdown(f"**📘 Grammar Focus:**  {info['grammar_topic']}")
 
     render_section(info, 'lesen_hören', 'Lesen & Hören', '📚')
     render_section(info, 'schreiben_sprechen', 'Schreiben & Sprechen', '📝')
