@@ -844,7 +844,7 @@ def get_a1_schedule():
             "chapter": "5",
             "goal": "Learn about the German articles and cases",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
-            "grammar_topic": "Nominative & Akkusative, Definite & Indefinite Articles"
+            "grammar_topic": "Nominative & Akkusative, Definite & Indefinite Articles",
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/Yi5ZA-XD-GY?si=nCX_pceEYgAL-FU0",
