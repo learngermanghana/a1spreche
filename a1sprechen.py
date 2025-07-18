@@ -1933,23 +1933,28 @@ def build_wa_message(name, code, level, day, chapter, answer):
     )
 
 
-def filter_matches(lesson, sq):
-    """Check if search query appears in any lesson field, including grammar, goal, and 'day X'."""
-    fields = [
-        lesson.get('topic', ''),
-        lesson.get('chapter', ''),
-        lesson.get('goal', ''),
-        lesson.get('instruction', ''),
-        lesson.get('grammar_topic', ''),
-    ]
-    # Also check day number and allow for search terms like 'day 10'
-    day = str(lesson.get('day', '')).strip()
-    fields.append(day)
-    fields.append(f"day {day}")
-    fields.append(f"lesson {day}")
-    # Add more patterns if you want (e.g., "chapter X")
-    return any(sq in str(f).lower() for f in fields if f)
+def highlight_terms(text, terms):
+    """Wrap each term in <span> for highlight in markdown/html."""
+    if not text: return ""
+    for term in terms:
+        if not term.strip():
+            continue
+        pattern = re.compile(re.escape(term), re.IGNORECASE)
+        text = pattern.sub(f"<span style='background:yellow;border-radius:0.23em;'>{term}</span>", text)
+    return text
 
+def filter_matches(lesson, terms):
+    """Check if ANY term appears in ANY searchable field."""
+    searchable = (
+        str(lesson.get('topic', '')).lower() +
+        str(lesson.get('chapter', '')).lower() +
+        str(lesson.get('goal', '')).lower() +
+        str(lesson.get('instruction', '')).lower() +
+        str(lesson.get('grammar_topic', '')).lower() +
+        str(lesson.get('day', '')).lower()
+    )
+    return any(term in searchable for term in terms)
+    
 def render_section(day_info, key, title, icon):
     content = day_info.get(key)
     if not content:
@@ -2004,14 +2009,20 @@ if tab == "Course Book":
     schedule = schedules.get(student_level, schedules.get('A1', []))
 
     query = st.text_input("🔍 Search for topic, chapter, grammar, day, or anything…")
-    if query:
-        sq = query.strip().lower()
-        matches = [(i, d) for i, d in enumerate(schedule) if filter_matches(d, sq)]
+    search_terms = [q for q in query.strip().lower().split() if q] if query else []
+
+    if search_terms:
+        matches = [(i, d) for i, d in enumerate(schedule) if filter_matches(d, search_terms)]
         if not matches:
-            st.warning("No matching lessons.")
+            st.warning("No matching lessons. Try simpler terms or check spelling.")
             st.stop()
-        labels = [f"Day {d['day']}: {d['topic']}" for _, d in matches]
-        sel = st.selectbox("Lessons:", list(range(len(matches))), format_func=lambda i: labels[i])
+        labels = []
+        for _, d in matches:
+            # Highlight all visible fields in results!
+            title = highlight_terms(f"Day {d['day']}: {d['topic']}", search_terms)
+            grammar = highlight_terms(d.get('grammar_topic', ''), search_terms)
+            labels.append(f"{title}  {'<span style=\"color:#007bff\">['+grammar+']</span>' if grammar else ''}")
+        sel = st.selectbox("Lessons:", list(range(len(matches))), format_func=lambda i: labels[i], key="course_search_sel")
         idx = matches[sel][0]
     else:
         idx = st.selectbox(
@@ -2019,6 +2030,14 @@ if tab == "Course Book":
             range(len(schedule)),
             format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
         )
+
+    info = schedule[idx]
+    st.markdown(
+        f"### {highlight_terms('Day ' + str(info['day']) + ': ' + info['topic'], search_terms)} (Chapter {info['chapter']})",
+        unsafe_allow_html=True
+    )
+    if info.get('grammar_topic'):
+        st.markdown(f"**🔤 Grammar:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
 
     info = schedule[idx]
     st.markdown(f"### Day {info['day']}: {info['topic']} (Chapter {info['chapter']})")
