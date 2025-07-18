@@ -702,7 +702,7 @@ def get_a1_schedule():
             "topic": "Lesen & Hören 0.1",
             "chapter": "0.1",
             "goal": "You will learn to introduce yourself, greet others in German, and ask about people's well-being.",
-            "instruction": "Watch the video, review grammar, do the workbook, submit assignment.",
+            "instruction": "Watch the video, review grammar, do the workbook, submit assignment.y",
             "grammar_topic": "Basic Greetings",
             "assignment": True,
             "lesen_hören": {
