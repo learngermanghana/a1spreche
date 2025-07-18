@@ -2890,10 +2890,13 @@ if tab == "Exams Mode & Custom Chat":
             key="falowen_teil_center"
         )
 
-        # Parse Teil for lookup (e.g., "Teil 2" from "Teil 2 – Question and Answer")
         teil_number = teil.split()[1]
 
-        # Filter exam topics by level and teil
+        # ==== Google Sheet Columns (update as needed) ====
+        topic_col = "Topic/Prompt"
+        keyword_col = "Keyword/Subtopic"
+
+        # --- Filter available topics for level and teil ---
         exam_topics = df_exam[
             (df_exam["Level"] == level) & (df_exam["Teil"] == f"Teil {teil_number}")
         ]
@@ -2901,24 +2904,29 @@ if tab == "Exams Mode & Custom Chat":
         topics_list = []
         if not exam_topics.empty:
             for _, row in exam_topics.iterrows():
-                if row['Keyword'] and not pd.isna(row['Keyword']):
-                    topics_list.append(f"{row['Topic']} – {row['Keyword']}")
-                else:
-                    topics_list.append(row['Topic'])
+                topic_val = str(row.get(topic_col, "")).strip()
+                keyword_val = str(row.get(keyword_col, "")).strip()
+                if topic_val and keyword_val:
+                    topics_list.append(f"{topic_val} – {keyword_val}")
+                elif topic_val:
+                    topics_list.append(topic_val)
 
-        # ----- PREVIEW ALL AVAILABLE TOPICS -----
+        # === Preview topics in 2 columns ===
         if topics_list:
-            st.markdown("#### Preview: Available Topics")
+            st.markdown("**Preview: Available Topics**")
+            n = len(topics_list)
             col1, col2 = st.columns(2)
-            half = (len(topics_list) + 1) // 2
-            with col1:
-                for t in topics_list[:half]:
-                    st.markdown(f"- {t}")
-            with col2:
-                for t in topics_list[half:]:
-                    st.markdown(f"- {t}")
+            for i, t in enumerate(topics_list):
+                if i % 2 == 0:
+                    with col1:
+                        st.markdown(f"- {t}")
+                else:
+                    with col2:
+                        st.markdown(f"- {t}")
+        else:
+            st.info("No topics available for this exam part.")
 
-        # ----- MANUAL PICKER + RANDOM OPTION -----
+        # === Topic Picker: random or manual ===
         picked = None
         if topics_list:
             random.shuffle(topics_list)
@@ -2928,35 +2936,26 @@ if tab == "Exams Mode & Custom Chat":
             )
 
             if picked == "(random)":
-                # Auto-pick a random topic
                 chosen_topic = random.choice(topics_list)
-                if " – " in chosen_topic:
-                    topic, keyword = chosen_topic.split(" – ", 1)
-                    st.session_state["falowen_exam_topic"] = topic
-                    st.session_state["falowen_exam_keyword"] = keyword
-                else:
-                    st.session_state["falowen_exam_topic"] = chosen_topic
-                    st.session_state["falowen_exam_keyword"] = None
             else:
-                if " – " in picked:
-                    topic, keyword = picked.split(" – ", 1)
-                    st.session_state["falowen_exam_topic"] = topic
-                    st.session_state["falowen_exam_keyword"] = keyword
-                else:
-                    st.session_state["falowen_exam_topic"] = picked
-                    st.session_state["falowen_exam_keyword"] = None
+                chosen_topic = picked
 
-            # Display picked or random topic
+            # Set topic & keyword in session_state
+            if " – " in chosen_topic:
+                topic, keyword = chosen_topic.split(" – ", 1)
+                st.session_state["falowen_exam_topic"] = topic
+                st.session_state["falowen_exam_keyword"] = keyword
+            else:
+                st.session_state["falowen_exam_topic"] = chosen_topic
+                st.session_state["falowen_exam_keyword"] = None
+
+            # Show chosen topic
             topic = st.session_state.get("falowen_exam_topic")
             keyword = st.session_state.get("falowen_exam_keyword")
             if topic and keyword:
                 st.success(f"**Your exam topic is:**\n\n{topic} – {keyword}")
             elif topic:
                 st.success(f"**Your exam topic is:**\n\n{topic}")
-        else:
-            st.warning("No topics available for this exam part.")
-            st.session_state["falowen_exam_topic"] = None
-            st.session_state["falowen_exam_keyword"] = None
 
         # --- Control Buttons ---
         if st.button("⬅️ Back", key="falowen_back2"):
@@ -2968,11 +2967,11 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_stage"] = 4
             st.session_state["falowen_messages"] = []
             st.session_state["custom_topic_intro_done"] = False
-            # Save/shuffle deck for Stage 4 if needed
             st.session_state["remaining_topics"] = topics_list.copy()
             random.shuffle(st.session_state["remaining_topics"])
             st.session_state["used_topics"] = []
             st.rerun()
+
 
     # =========================================
     # ---- STAGE 4: MAIN CHAT ----
