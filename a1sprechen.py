@@ -2017,7 +2017,7 @@ if tab == "Course Book":
     if info.get('instruction'):
         st.markdown(f"**📝 Instruction:**  {info['instruction']}")
     if info.get('grammar_topic'):
-    st.markdown(f"**📘 Grammar Focus:**  {info['grammar_topic']}")
+        st.markdown(f"**📘 Grammar Focus:**  {info['grammar_topic']}")
 
     render_section(info, 'lesen_hören', 'Lesen & Hören', '📚')
     render_section(info, 'schreiben_sprechen', 'Schreiben & Sprechen', '📝')
@@ -2146,7 +2146,7 @@ if tab == "My Results and Resources":
     df_lvl = df_user[df_user.level == level]
 
     # ========== METRICS ==========
-    totals = {"A1": 19, "A2": 28, "B1": 28, "B2": 24, "C1": 24}
+    totals = {"A1": 19, "A2": 31, "B1": 28, "B2": 24, "C1": 24}
     total = totals.get(level, 0)
     completed = df_lvl.assignment.nunique()
     avg_score = df_lvl.score.mean() or 0
