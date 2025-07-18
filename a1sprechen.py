@@ -1932,18 +1932,23 @@ def build_wa_message(name, code, level, day, chapter, answer):
         f"Answer: {answer if answer.strip() else '[See attached file/photo]'}"
     )
 
+
 def filter_matches(lesson, sq):
-    """Check if search query appears in lesson fields."""
+    """Check if search query appears in any lesson field, including grammar, goal, and 'day X'."""
     fields = [
         lesson.get('topic', ''),
         lesson.get('chapter', ''),
         lesson.get('goal', ''),
         lesson.get('instruction', ''),
         lesson.get('grammar_topic', ''),
-        str(lesson.get('day', ''))
     ]
+    # Also check day number and allow for search terms like 'day 10'
+    day = str(lesson.get('day', '')).strip()
+    fields.append(day)
+    fields.append(f"day {day}")
+    fields.append(f"lesson {day}")
+    # Add more patterns if you want (e.g., "chapter X")
     return any(sq in str(f).lower() for f in fields if f)
-
 
 def render_section(day_info, key, title, icon):
     content = day_info.get(key)
