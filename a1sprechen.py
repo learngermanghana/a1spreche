@@ -2469,11 +2469,10 @@ if st.button("⬇️ Download PDF Summary"):
     st.info("If the button does not work, right-click the blue link above and choose 'Save link as...' to download your PDF.")
 
 
-
-    # Useful Resources
     st.markdown("---")
     st.subheader("📚 Useful Resources")
-    st.markdown("""
+    st.markdown(
+        """
 **1. [A1 Schreiben Practice Questions](https://drive.google.com/file/d/1X_PFF2AnBXSrGkqpfrArvAnEIhqdF6fv/view?usp=sharing)**  
 Practice writing tasks and sample questions for A1.
 
@@ -2488,7 +2487,9 @@ A2-level speaking exam guide.
 
 **5. [B1 Sprechen Guide](https://drive.google.com/file/d/1snk4mL_Q9-xTBXSRfgiZL_gYRI9tya8F/view?usp=sharing)**  
 How to prepare for your B1 oral exam.
-    """)
+        """
+    )
+
 
 
 # ================================
@@ -2866,73 +2867,107 @@ if tab == "Exams Mode & Custom Chat":
     
     # ---- STAGE 3: Exam Part & Topic (Exam Mode Only) ----
     if st.session_state["falowen_stage"] == 3:
+        import random
+
         level = st.session_state["falowen_level"]
 
         # Dynamically build teil_options from your app logic
         teil_options = {
-            "A1": ["Teil 1 – Basic Introduction", "Teil 2 – Question and Answer", "Teil 3 – Making A Request"],
-            "A2": ["Teil 1 – Fragen zu Schlüsselwörtern", "Teil 2 – Über das Thema sprechen", "Teil 3 – Gemeinsam planen"],
-            "B1": ["Teil 1 – Gemeinsam planen (Dialogue)", "Teil 2 – Präsentation (Monologue)", "Teil 3 – Feedback & Fragen stellen"],
-            "B2": ["Teil 1 – Diskussion", "Teil 2 – Präsentation", "Teil 3 – Argumentation"],
-            "C1": ["Teil 1 – Vortrag", "Teil 2 – Diskussion", "Teil 3 – Bewertung"]
+            "A1": [
+                "Teil 1 – Basic Introduction",
+                "Teil 2 – Question and Answer",
+                "Teil 3 – Making A Request"
+            ],
+            "A2": [
+                "Teil 1 – Fragen zu Schlüsselwörtern",
+                "Teil 2 – Über das Thema sprechen",
+                "Teil 3 – Gemeinsam planen"
+            ],
+            "B1": [
+                "Teil 1 – Gemeinsam planen (Dialogue)",
+                "Teil 2 – Präsentation (Monologue)",
+                "Teil 3 – Feedback & Fragen stellen"
+            ],
+            "B2": [
+                "Teil 1 – Diskussion",
+                "Teil 2 – Präsentation",
+                "Teil 3 – Argumentation"
+            ],
+            "C1": [
+                "Teil 1 – Vortrag",
+                "Teil 2 – Diskussion",
+                "Teil 3 – Bewertung"
+            ]
         }
+
         st.subheader("Step 3: Choose Exam Part")
-        teil = st.radio("Which exam part?", teil_options[level], key="falowen_teil_center")
+        teil = st.radio(
+            "Which exam part?",
+            teil_options[level],
+            key="falowen_teil_center"
+        )
 
         # Parse Teil for lookup (e.g., "Teil 2" from "Teil 2 – Question and Answer")
         teil_number = teil.split()[1]
 
         # Filter exam topics by level and teil
-        exam_topics = df_exam[(df_exam["Level"] == level) & (df_exam["Teil"] == f"Teil {teil_number}")]
+        exam_topics = df_exam[
+            (df_exam["Level"] == level) & (df_exam["Teil"] == f"Teil {teil_number}")
+        ]
 
-        # Some Teils (like Teil 3) may just have a prompt, not a topic+keyword
+        # Build topics list (either "Topic – Keyword" or just "Topic")
         topics_list = []
         if not exam_topics.empty:
-            # If both Topic & Keyword: show as "Topic – Keyword", else just Topic
             for _, row in exam_topics.iterrows():
                 if row['Keyword'] and not pd.isna(row['Keyword']):
                     topics_list.append(f"{row['Topic']} – {row['Keyword']}")
                 else:
                     topics_list.append(row['Topic'])
-        else:
-            topics_list = []
 
-        # Optional topic picker (auto-pick random, but always shuffle for fairness)
-        picked = None
-        random.shuffle(topics_list)  # Always shuffle!
+        # --- Auto-pick and display a random topic ---
         if topics_list:
-            picked = st.selectbox("Choose a topic (optional):", ["(random)"] + topics_list)
-            if picked == "(random)":
-                # When random, set None and shuffle for Stage 4 auto-picking
-                st.session_state["falowen_exam_topic"] = None
-                st.session_state["falowen_exam_keyword"] = None
-            else:
-                # If picked includes ' – ', split out topic & keyword
-                if " – " in picked:
-                    topic, keyword = picked.split(" – ", 1)
+            # Only pick a new topic if none chosen yet, or user switched teil
+            prev_teil = st.session_state.get("falowen_teil_last")
+            if (not st.session_state.get("falowen_exam_topic")) or (prev_teil != teil):
+                chosen_topic = random.choice(topics_list)
+                if " – " in chosen_topic:
+                    topic, keyword = chosen_topic.split(" – ", 1)
                     st.session_state["falowen_exam_topic"] = topic
                     st.session_state["falowen_exam_keyword"] = keyword
                 else:
-                    st.session_state["falowen_exam_topic"] = picked
+                    st.session_state["falowen_exam_topic"] = chosen_topic
                     st.session_state["falowen_exam_keyword"] = None
+                st.session_state["falowen_teil_last"] = teil  # Track teil to reset topic if user changes teil
+
+            # Show what was picked (always from session state)
+            topic = st.session_state["falowen_exam_topic"]
+            keyword = st.session_state.get("falowen_exam_keyword")
+            if topic and keyword:
+                st.success(f"**Your exam topic is:**\n\n{topic} – {keyword}")
+            elif topic:
+                st.success(f"**Your exam topic is:**\n\n{topic}")
         else:
+            st.warning("No topics available for this exam part.")
             st.session_state["falowen_exam_topic"] = None
             st.session_state["falowen_exam_keyword"] = None
 
+        # --- Control Buttons ---
         if st.button("⬅️ Back", key="falowen_back2"):
             st.session_state["falowen_stage"] = 2
-            st.stop()
+            st.rerun()
 
         if st.button("Start Practice", key="falowen_start_practice"):
             st.session_state["falowen_teil"] = teil
             st.session_state["falowen_stage"] = 4
             st.session_state["falowen_messages"] = []
             st.session_state["custom_topic_intro_done"] = False
-
-            # Save/shuffle deck for Stage 4 picking
+            # Save/shuffle deck for Stage 4 picking (if you need it)
             st.session_state["remaining_topics"] = topics_list.copy()
             random.shuffle(st.session_state["remaining_topics"])
             st.session_state["used_topics"] = []
+            st.rerun()
+
+
 
     # =========================================
     # ---- STAGE 4: MAIN CHAT ----
