@@ -2893,6 +2893,8 @@ if tab == "Exams Mode & Custom Chat":
     #   STAGE 3: Exam Topic Picker (Exam Mode Only)
     # =====================
     if st.session_state.get("falowen_stage") == 3 and st.session_state.get("falowen_mode") == "Geführte Prüfungssimulation (Exam Mode)":
+        import random
+
         level = st.session_state.get("falowen_level")
 
         # Define exam parts per level
@@ -2922,7 +2924,7 @@ if tab == "Exams Mode & Custom Chat":
             (df_exam["Level"] == level) & (df_exam["Teil"] == f"Teil {teil_number}")
         ]
 
-        # Build topics_list using list comprehension
+        # Build topics_list using vectorized operations
         if not exam_topics.empty:
             t_series = exam_topics[topic_col].astype(str).str.strip()
             k_series = exam_topics[keyword_col].astype(str).str.strip()
@@ -2949,7 +2951,7 @@ if tab == "Exams Mode & Custom Chat":
         else:
             st.info("No topics found. Try a different search.")
 
-        # Topic picker with disabled state when no topics
+        # === Topic Picker ===
         st.write("**Pick your topic or select random:**")
         options = filtered.copy()
         if filtered:
@@ -2971,28 +2973,21 @@ if tab == "Exams Mode & Custom Chat":
                 st.session_state["falowen_exam_keyword"] = None
             st.success(f"**Your exam topic is:**\n\n{chosen}")
 
-        # Control buttons
-        col_back, col_start = st.columns([1, 1])
-        with col_back:
-            if st.button("⬅️ Back", key="falowen_back2"):
-                st.session_state["falowen_stage"] = 2
-                st.rerun()
-        with col_start:
-            disable_start = not st.session_state.get("falowen_exam_topic")
-            if st.button("Start Practice", key="falowen_start_practice", disabled=disable_start):
-                st.session_state["falowen_teil"] = teil
-                st.session_state["falowen_stage"] = 4
-                st.session_state["falowen_messages"] = []
-                st.session_state["custom_topic_intro_done"] = False
-                st.session_state["remaining_topics"] = filtered.copy()
-                random.shuffle(st.session_state["remaining_topics"])
-                st.session_state["used_topics"] = []
-                st.rerun()
-      
-# End of Stage 3 block
+        # --- Control Buttons ---
+        if st.button("⬅️ Back", key="falowen_back2"):
+            st.session_state["falowen_stage"] = 2
+            st.rerun()
 
-
-
+        if st.button("Start Practice", key="falowen_start_practice"):
+            st.session_state["falowen_teil"] = teil
+            st.session_state["falowen_stage"] = 4
+            st.session_state["falowen_messages"] = []
+            st.session_state["custom_topic_intro_done"] = False
+            st.session_state["remaining_topics"] = filtered.copy()
+            random.shuffle(st.session_state["remaining_topics"])
+            st.session_state["used_topics"] = []
+            st.rerun()
+#
 
     # =========================================
     # ---- STAGE 4: MAIN CHAT ----
