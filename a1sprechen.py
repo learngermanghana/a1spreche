@@ -2890,86 +2890,55 @@ if tab == "Exams Mode & Custom Chat":
         st.stop()
 
     # =====================
-    #   STAGE 3: Exam Topic Picker (Exam Mode Only) with Categories & Tips
+    #   STAGE 3: Exam Topic Picker (Exam Mode Only)
     # =====================
-    if st.session_state["falowen_stage"] == 3 and st.session_state["falowen_mode"] == "Geführte Prüfungssimulation (Exam Mode)":
-        # (random imported at top of file)
-        level = st.session_state["falowen_level"]
+    if st.session_state.get("falowen_stage") == 3 and st.session_state.get("falowen_mode") == "Geführte Prüfungssimulation (Exam Mode)":
+        level = st.session_state.get("falowen_level")
 
+        # Define exam parts per level
         teil_options = {
-            "A1": [
-                "Teil 1 – Basic Introduction",
-                "Teil 2 – Question and Answer",
-                "Teil 3 – Making A Request"
-            ],
-            "A2": [
-                "Teil 1 – Fragen zu Schlüsselwörtern",
-                "Teil 2 – Über das Thema sprechen",
-                "Teil 3 – Gemeinsam planen"
-            ],
-            "B1": [
-                "Teil 1 – Gemeinsam planen (Dialogue)",
-                "Teil 2 – Präsentation (Monologue)",
-                "Teil 3 – Feedback & Fragen stellen"
-            ],
-            "B2": [
-                "Teil 1 – Diskussion",
-                "Teil 2 – Präsentation",
-                "Teil 3 – Argumentation"
-            ],
-            "C1": [
-                "Teil 1 – Vortrag",
-                "Teil 2 – Diskussion",
-                "Teil 3 – Bewertung"
-            ]
+            "A1": ["Teil 1 – Basic Introduction", "Teil 2 – Question and Answer", "Teil 3 – Making A Request"],
+            "A2": ["Teil 1 – Fragen zu Schlüsselwörtern", "Teil 2 – Über das Thema sprechen", "Teil 3 – Gemeinsam planen"],
+            "B1": ["Teil 1 – Gemeinsam planen (Dialogue)", "Teil 2 – Präsentation (Monologue)", "Teil 3 – Feedback & Fragen stellen"],
+            "B2": ["Teil 1 – Diskussion", "Teil 2 – Präsentation", "Teil 3 – Argumentation"],
+            "C1": ["Teil 1 – Vortrag", "Teil 2 – Diskussion", "Teil 3 – Bewertung"]
         }
 
         st.subheader("Step 3: Choose Exam Part")
         teil = st.radio(
             "Which exam part?",
-            teil_options[level],
+            teil_options.get(level, []),
             key="falowen_teil_center"
         )
-        teil_number = teil.split()[1]
+        # Safely extract part number when available
+        teil_number = teil.split()[1] if teil and len(teil.split()) > 1 else ""
 
-        # pull from your sheet
+        # Google Sheet column names
         topic_col = "Topic/Prompt"
         keyword_col = "Keyword/Subtopic"
-        # Optional category and notes columns
-        cat_col = "Category" if "Category" in df_exam.columns else None
-        notes_col = "Notes" if "Notes" in df_exam.columns else None
 
+        # Filter topics from sheet
         exam_topics = df_exam[
             (df_exam["Level"] == level) & (df_exam["Teil"] == f"Teil {teil_number}")
         ]
 
-        # --------- CATEGORY DROPDOWN ---------
-        if cat_col:
-            categories = sorted(exam_topics[cat_col].dropna().unique())
-            categories = ["All"] + categories if categories else ["All"]
-            picked_cat = st.selectbox("Filter by Category (optional):", categories, key="falowen_cat_picker")
-            if picked_cat and picked_cat != "All":
-                exam_topics = exam_topics[exam_topics[cat_col] == picked_cat]
-
-        topics_list = []
-        notes_map = {}
+        # Build topics_list using list comprehension
         if not exam_topics.empty:
-            for _, row in exam_topics.iterrows():
-                t = str(row.get(topic_col, "")).strip()
-                k = str(row.get(keyword_col, "")).strip()
-                note = str(row.get(notes_col, "")).strip() if notes_col else ""
-                display = f"{t} – {k}" if t and k else t
-                if display:
-                    topics_list.append(display)
-                    if note:
-                        notes_map[display] = note
+            t_series = exam_topics[topic_col].astype(str).str.strip()
+            k_series = exam_topics[keyword_col].astype(str).str.strip()
+            topics_list = [
+                f"{t} – {k}" if k else t
+                for t, k in zip(t_series, k_series) if t
+            ]
+        else:
+            topics_list = []
 
-        # --------- SEARCH AND PREVIEW ---------
-        search = st.text_input("🔍 Search topic or keyword...", "")
-        filtered = [t for t in topics_list if search.lower() in t.lower()] if search else topics_list
+        # Searchable preview
+        search = st.text_input("🔍 Search topic or keyword...", key="falowen_topic_search")
+        filtered = [t for t in topics_list if search.lower() in t.lower()] if search else topics_list.copy()
 
+        st.markdown("**Preview: Available Topics**")
         if filtered:
-            st.markdown("**Preview: Available Topics**")
             for t in filtered[:6]:
                 st.markdown(f"- {t}")
             if len(filtered) > 6:
@@ -2980,13 +2949,17 @@ if tab == "Exams Mode & Custom Chat":
         else:
             st.info("No topics found. Try a different search.")
 
+        # Topic picker with disabled state when no topics
         st.write("**Pick your topic or select random:**")
+        options = filtered.copy()
+        if filtered:
+            options.insert(0, "(random)")
         choice = st.selectbox(
             "",
-            ["(random)"] + filtered if filtered else ["(no topics)"],
-            key="falowen_topic_picker"
+            options,
+            key="falowen_topic_picker",
+            disabled=not bool(filtered)
         )
-        chosen = None
         if filtered and choice:
             chosen = random.choice(filtered) if choice == "(random)" else choice
             if " – " in chosen:
@@ -2997,31 +2970,27 @@ if tab == "Exams Mode & Custom Chat":
                 st.session_state["falowen_exam_topic"] = chosen
                 st.session_state["falowen_exam_keyword"] = None
             st.success(f"**Your exam topic is:**\n\n{chosen}")
-            # ---------- Show topic note/tip if available --------------
-            if notes_map.get(chosen):
-                st.info(f"💡 **Tip:** {notes_map[chosen]}")
 
-        # --- Control Buttons (always show) ---
+        # Control buttons
         col_back, col_start = st.columns([1, 1])
         with col_back:
             if st.button("⬅️ Back", key="falowen_back2"):
                 st.session_state["falowen_stage"] = 2
                 st.rerun()
-
         with col_start:
-            start_disabled = not filtered or not st.session_state.get("falowen_exam_topic")
-            if st.button("Start Practice", key="falowen_start_practice", disabled=start_disabled):
+            disable_start = not st.session_state.get("falowen_exam_topic")
+            if st.button("Start Practice", key="falowen_start_practice", disabled=disable_start):
                 st.session_state["falowen_teil"] = teil
                 st.session_state["falowen_stage"] = 4
-                st.session_state.setdefault("falowen_messages", [])
+                st.session_state["falowen_messages"] = []
                 st.session_state["custom_topic_intro_done"] = False
                 st.session_state["remaining_topics"] = filtered.copy()
                 random.shuffle(st.session_state["remaining_topics"])
                 st.session_state["used_topics"] = []
-                # Show topic tip/summary BEFORE chat
-                if chosen and notes_map.get(chosen):
-                    st.session_state["falowen_messages"].insert(0, {"role": "assistant", "content": f"💡 **Tip:** {notes_map[chosen]}"})
                 st.rerun()
+      
+# End of Stage 3 block
+
 
 
 
