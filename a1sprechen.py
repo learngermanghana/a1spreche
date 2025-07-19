@@ -2973,11 +2973,30 @@ if tab == "Exams Mode & Custom Chat":
                 st.session_state["falowen_exam_keyword"] = None
             st.success(f"**Your exam topic is:**\n\n{chosen}")
 
-        # --- Control Buttons ---
-        if st.button("⬅️ Back", key="falowen_back2"):
-            st.session_state["falowen_stage"] = 2
-            st.rerun()
+    # --- Control Buttons ---
+    if st.button("⬅️ Back", key="falowen_back2"):
+        st.session_state["falowen_stage"] = 2
+        st.rerun()
 
+    if st.session_state.get("falowen_messages"):
+        # If you already started, let student resume or restart
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Continue Previous Chat", key="falowen_continue_chat"):
+                st.session_state["falowen_teil"] = teil
+                st.session_state["falowen_stage"] = 4
+                st.rerun()
+        with col2:
+            if st.button("Restart Practice", key="falowen_start_practice"):
+                st.session_state["falowen_teil"] = teil
+                st.session_state["falowen_stage"] = 4
+                st.session_state["falowen_messages"] = []
+                st.session_state["custom_topic_intro_done"] = False
+                st.session_state["remaining_topics"] = filtered.copy()
+                random.shuffle(st.session_state["remaining_topics"])
+                st.session_state["used_topics"] = []
+                st.rerun()
+    else:
         if st.button("Start Practice", key="falowen_start_practice"):
             st.session_state["falowen_teil"] = teil
             st.session_state["falowen_stage"] = 4
@@ -2987,7 +3006,8 @@ if tab == "Exams Mode & Custom Chat":
             random.shuffle(st.session_state["remaining_topics"])
             st.session_state["used_topics"] = []
             st.rerun()
-#
+
+
 
     # =========================================
     # ---- STAGE 4: MAIN CHAT ----
