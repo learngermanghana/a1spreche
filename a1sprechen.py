@@ -2890,7 +2890,7 @@ if tab == "Exams Mode & Custom Chat":
         st.stop()
 
     # =====================
-    #   STAGE 3: Exam Topic Picker (Exam Mode Only)
+    #   STAGE 3: Exam Topic Picker (Exam Mode Only) with Categories & Tips
     # =====================
     if st.session_state["falowen_stage"] == 3 and st.session_state["falowen_mode"] == "Geführte Prüfungssimulation (Exam Mode)":
         # (random imported at top of file)
@@ -2935,22 +2935,36 @@ if tab == "Exams Mode & Custom Chat":
         # pull from your sheet
         topic_col = "Topic/Prompt"
         keyword_col = "Keyword/Subtopic"
+        # Optional category and notes columns
+        cat_col = "Category" if "Category" in df_exam.columns else None
+        notes_col = "Notes" if "Notes" in df_exam.columns else None
 
         exam_topics = df_exam[
             (df_exam["Level"] == level) & (df_exam["Teil"] == f"Teil {teil_number}")
         ]
 
+        # --------- CATEGORY DROPDOWN ---------
+        if cat_col:
+            categories = sorted(exam_topics[cat_col].dropna().unique())
+            categories = ["All"] + categories if categories else ["All"]
+            picked_cat = st.selectbox("Filter by Category (optional):", categories, key="falowen_cat_picker")
+            if picked_cat and picked_cat != "All":
+                exam_topics = exam_topics[exam_topics[cat_col] == picked_cat]
+
         topics_list = []
+        notes_map = {}
         if not exam_topics.empty:
             for _, row in exam_topics.iterrows():
                 t = str(row.get(topic_col, "")).strip()
                 k = str(row.get(keyword_col, "")).strip()
-                if t and k:
-                    topics_list.append(f"{t} – {k}")
-                elif t:
-                    topics_list.append(t)
+                note = str(row.get(notes_col, "")).strip() if notes_col else ""
+                display = f"{t} – {k}" if t and k else t
+                if display:
+                    topics_list.append(display)
+                    if note:
+                        notes_map[display] = note
 
-        # searchable preview
+        # --------- SEARCH AND PREVIEW ---------
         search = st.text_input("🔍 Search topic or keyword...", "")
         filtered = [t for t in topics_list if search.lower() in t.lower()] if search else topics_list
 
@@ -2972,6 +2986,7 @@ if tab == "Exams Mode & Custom Chat":
             ["(random)"] + filtered if filtered else ["(no topics)"],
             key="falowen_topic_picker"
         )
+        chosen = None
         if filtered and choice:
             chosen = random.choice(filtered) if choice == "(random)" else choice
             if " – " in chosen:
@@ -2982,6 +2997,9 @@ if tab == "Exams Mode & Custom Chat":
                 st.session_state["falowen_exam_topic"] = chosen
                 st.session_state["falowen_exam_keyword"] = None
             st.success(f"**Your exam topic is:**\n\n{chosen}")
+            # ---------- Show topic note/tip if available --------------
+            if notes_map.get(chosen):
+                st.info(f"💡 **Tip:** {notes_map[chosen]}")
 
         # --- Control Buttons (always show) ---
         col_back, col_start = st.columns([1, 1])
@@ -3000,7 +3018,11 @@ if tab == "Exams Mode & Custom Chat":
                 st.session_state["remaining_topics"] = filtered.copy()
                 random.shuffle(st.session_state["remaining_topics"])
                 st.session_state["used_topics"] = []
+                # Show topic tip/summary BEFORE chat
+                if chosen and notes_map.get(chosen):
+                    st.session_state["falowen_messages"].insert(0, {"role": "assistant", "content": f"💡 **Tip:** {notes_map[chosen]}"})
                 st.rerun()
+
 
 
     # =========================================
