@@ -3755,6 +3755,11 @@ if tab == "Schreiben Trainer":
         import json
 
         # ==== Download Progress as CSV ====
+        st.info('''
+        🛟 **How to save your work:**
+        - Download your progress often so you never lose your ideas or chats, especially if your device logs you out or you have internet issues.
+        - You can upload your progress file later, or copy-paste your progress to continue from where you stopped—no need to start over each time!
+        ''')
         if st.session_state.get("letter_coach_chat"):
             rows = []
             for msg in st.session_state.letter_coach_chat[1:]:
