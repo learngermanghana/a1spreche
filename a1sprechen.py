@@ -3792,7 +3792,7 @@ if tab == "Schreiben Trainer":
                 ]
                 st.session_state.letter_coach_active = True
                 inc_letter_coach_usage(student_code)   # <-- Persistently increment usage
-                st.experimental_rerun()
+                st.rerun()
 
         # Step 2: Chat Interface
         if st.session_state.letter_coach_active:
