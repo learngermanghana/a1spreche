@@ -3765,7 +3765,7 @@ if sub_tab == "Ideas Generator (Letter Coach)":
 
             chat_history.append({"role": "assistant", "content": ai_reply})
             st.session_state.letter_coach_chat = chat_history
-            st.experimental_rerun()
+            st.rerun()
 
         st.divider()
         col1, col2 = st.columns(2)
