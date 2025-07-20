@@ -3005,7 +3005,6 @@ if tab == "Exams Mode & Custom Chat":
                 st.session_state["falowen_stage"] = 2
                 st.rerun()
 
-            # Chat controls: Continue, Restart, Start
             if st.session_state.get("falowen_messages"):
                 col1, col2 = st.columns(2)
                 with col1:
