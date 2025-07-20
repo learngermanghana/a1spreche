@@ -3100,70 +3100,69 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["falowen_messages"] = []
                     st.session_state["custom_topic_intro_done"] = False
                     st.rerun()
+    # ---- STAGE 4: MAIN CHAT ----
+    if st.session_state["falowen_stage"] == 4:
+        import re
+        import pandas as pd
 
-# ---- STAGE 4: MAIN CHAT ----
-if st.session_state["falowen_stage"] == 4:
-    import re
-    import pandas as pd
+        level = st.session_state["falowen_level"]
+        teil = st.session_state["falowen_teil"]
+        mode = st.session_state["falowen_mode"]
+        is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
+        is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
 
-    level = st.session_state["falowen_level"]
-    teil = st.session_state["falowen_teil"]
-    mode = st.session_state["falowen_mode"]
-    is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
-    is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
-
-    # ====== Exams Mode: CSV Progress Save/Upload + Progress Bar ======
-    if is_exam:
-        st.info(
-            "💾 **Download your progress as CSV after each session. "
-            "Upload it next time to continue—so you don't repeat topics.**"
-        )
-
-        # Initialize topic lists if missing
-        if "remaining_topics" not in st.session_state:
-            st.session_state["remaining_topics"] = []
-        if "used_topics" not in st.session_state:
-            st.session_state["used_topics"] = []
-
-        total_topics = st.session_state["remaining_topics"] + st.session_state["used_topics"]
-        num_total = len(total_topics) if len(total_topics) > 0 else 1
-        num_used = len(st.session_state["used_topics"])
-        st.progress(
-            num_used / num_total,
-            text=f"{num_used} of {num_total} topics completed"
-        )
-
-        # --- Download progress as CSV ---
-        if num_used > 0:
-            df = pd.DataFrame({"Used_Topics": st.session_state["used_topics"]})
-            csv = df.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                label="⬇️ Download Exam Progress as CSV",
-                data=csv,
-                file_name="falowen_exam_progress.csv",
-                mime="text/csv",
-                key=f"download_progress_{level}_{teil}"
+        # ====== Exams Mode: CSV Progress Save/Upload + Progress Bar ======
+        if is_exam:
+            st.info(
+                "💾 **Download your progress as CSV after each session. "
+                "Upload it next time to continue—so you don't repeat topics.**"
             )
-        else:
-            st.caption("No topics done yet.")
 
-        # --- Upload progress from CSV ---
-        upload_key = f"upload_progress_{level}_{teil}"
-        uploaded = st.file_uploader(
-            "⬆️ Upload Previous Exam Progress (CSV)",
-            type=["csv"],
-            key=upload_key
-        )
-        if uploaded:
-            df_upload = pd.read_csv(uploaded)
-            if "Used_Topics" in df_upload.columns:
-                st.session_state["used_topics"] = list(df_upload["Used_Topics"].dropna())
-                st.success("Progress restored! Topics you already did will be skipped next time.")
-                # Remove restored topics from remaining topics
-                st.session_state["remaining_topics"] = [
-                    t for t in st.session_state["remaining_topics"]
-                    if t not in st.session_state["used_topics"]
-                ]
+            # Initialize topic lists if missing
+            if "remaining_topics" not in st.session_state:
+                st.session_state["remaining_topics"] = []
+            if "used_topics" not in st.session_state:
+                st.session_state["used_topics"] = []
+
+            total_topics = st.session_state["remaining_topics"] + st.session_state["used_topics"]
+            num_total = len(total_topics) if len(total_topics) > 0 else 1
+            num_used = len(st.session_state["used_topics"])
+            st.progress(
+                num_used / num_total,
+                text=f"{num_used} of {num_total} topics completed"
+            )
+
+            # --- Download progress as CSV ---
+            if num_used > 0:
+                df = pd.DataFrame({"Used_Topics": st.session_state["used_topics"]})
+                csv = df.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    label="⬇️ Download Exam Progress as CSV",
+                    data=csv,
+                    file_name="falowen_exam_progress.csv",
+                    mime="text/csv",
+                    key=f"download_progress_{level}_{teil}"
+                )
+            else:
+                st.caption("No topics done yet.")
+
+            # --- Upload progress from CSV ---
+            upload_key = f"upload_progress_{level}_{teil}"
+            uploaded = st.file_uploader(
+                "⬆️ Upload Previous Exam Progress (CSV)",
+                type=["csv"],
+                key=upload_key
+            )
+            if uploaded:
+                df_upload = pd.read_csv(uploaded)
+                if "Used_Topics" in df_upload.columns:
+                    st.session_state["used_topics"] = list(df_upload["Used_Topics"].dropna())
+                    st.success("Progress restored! Topics you already did will be skipped next time.")
+                    # Remove restored topics from remaining topics
+                    st.session_state["remaining_topics"] = [
+                        t for t in st.session_state["remaining_topics"]
+                        if t not in st.session_state["used_topics"]
+                    ]
 
         # ---- Show daily usage ----
         used_today = get_sprechen_usage(student_code)
@@ -3201,7 +3200,6 @@ if st.session_state["falowen_stage"] == 4:
                 "falowen_messages": []
             })
             st.rerun()
-            
 
         # ---- Bubble Styles (MOBILE FRIENDLY) ----
         bubble_user = (
@@ -3264,58 +3262,6 @@ if st.session_state["falowen_stage"] == 4:
                 highlight_words.append(st.session_state["falowen_exam_keyword"])
             highlight_words += ["weil", "möchte", "deshalb"]
 
-        # ====== Exams Mode: CSV Progress Save/Upload + Progress Bar ======
-        if is_exam:
-            st.info(
-                "💾 **Download your progress as CSV after each session. "
-                "Upload it next time to continue—so you don't repeat topics.**"
-            )
-
-            # Initialize topic lists if missing
-            if "remaining_topics" not in st.session_state:
-                st.session_state["remaining_topics"] = []
-            if "used_topics" not in st.session_state:
-                st.session_state["used_topics"] = []
-            total_topics = st.session_state["remaining_topics"] + st.session_state["used_topics"]
-
-            num_total = len(total_topics) if len(total_topics) > 0 else 1
-            num_used = len(st.session_state["used_topics"])
-            st.progress(
-                num_used / num_total,
-                text=f"{num_used} of {num_total} topics completed"
-            )
-
-            # --- Download progress as CSV ---
-            if num_used > 0:
-                df = pd.DataFrame({"Used_Topics": st.session_state["used_topics"]})
-                csv = df.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    "⬇️ Download Exam Progress as CSV",
-                    csv,
-                    file_name="falowen_exam_progress.csv",
-                    mime="text/csv"
-                )
-            else:
-                st.caption("No topics done yet.")
-
-            # --- Upload progress from CSV ---
-            uploaded = st.file_uploader(
-                "⬆️ Upload Previous Exam Progress (CSV)",
-                type=["csv"],
-                key="falowen_exam_csv_upload"
-            )
-            if uploaded:
-                df_upload = pd.read_csv(uploaded)
-                if "Used_Topics" in df_upload.columns:
-                    st.session_state["used_topics"] = list(df_upload["Used_Topics"].dropna())
-                    st.success("Progress restored! Topics you already did will be skipped next time.")
-                    # Remove restored topics from remaining topics
-                    if "remaining_topics" in st.session_state:
-                        st.session_state["remaining_topics"] = [
-                            t for t in st.session_state["remaining_topics"]
-                            if t not in st.session_state["used_topics"]
-                        ]
-
         # ---- Render Chat History (bubbles and highlights) ----
         for msg in st.session_state["falowen_messages"]:
             if msg["role"] == "assistant":
@@ -3374,20 +3320,17 @@ if st.session_state["falowen_stage"] == 4:
         if user_input:
             st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
             inc_sprechen_usage(student_code)
-            
+
             # ---- Mark topic–keyword pair as completed (exams mode only) ----
             if is_exam:
                 topic   = st.session_state.get("falowen_exam_topic", "")
                 keyword = st.session_state.get("falowen_exam_keyword")
                 if topic:
-                    # Rebuild the exact same string you popped from remaining_topics
                     finished_pair = f"{topic} – {keyword}" if keyword else topic
                     if finished_pair not in st.session_state["used_topics"]:
                         st.session_state["used_topics"].append(finished_pair)
-                        # remove it so you don’t see it again
                         if "remaining_topics" in st.session_state and finished_pair in st.session_state["remaining_topics"]:
                             st.session_state["remaining_topics"].remove(finished_pair)
-
 
             with st.chat_message("user"):
                 st.markdown(
@@ -3426,6 +3369,7 @@ if st.session_state["falowen_stage"] == 4:
         if st.button("✅ End Session & Show Summary"):
             st.session_state["falowen_stage"] = 5
             st.rerun()
+
 
 
     # ---- STAGE 5: End-of-Session Summary ----
