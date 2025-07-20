@@ -2892,10 +2892,7 @@ if tab == "Exams Mode & Custom Chat":
     # =====================
     #   STAGE 3: Exam Topic Picker (Exam Mode Only)
     # =====================
-    if st.session_state.get("falowen_stage") == 3 and st.session_state.get("falowen_mode") == "Geführte Prüfungssimulation (Exam Mode)":
-        import random
-
-         level = st.session_state["falowen_level"]
+    level = st.session_state["falowen_level"]
 
     teil_options = {
         "A1": [
@@ -2933,16 +2930,14 @@ if tab == "Exams Mode & Custom Chat":
     )
     teil_number = teil.split()[1] if teil else ""
 
-    # ==== Google Sheet Columns (update as needed) ====
     topic_col = "Topic/Prompt"
     keyword_col = "Keyword/Subtopic"
 
-    # --- Filter available topics for level and teil ---
     exam_topics = df_exam[
         (df_exam["Level"] == level) & (df_exam["Teil"] == f"Teil {teil_number}")
     ] if teil_number else pd.DataFrame()
 
-    # Efficient topic list build (avoid iterrows)
+    # Efficient topic list build
     if not exam_topics.empty:
         topic_vals = exam_topics[topic_col].astype(str).str.strip()
         keyword_vals = exam_topics[keyword_col].astype(str).str.strip()
@@ -2954,7 +2949,7 @@ if tab == "Exams Mode & Custom Chat":
     else:
         topics_list = []
 
-    # === Searchable Preview, Collapsible, and Random Subset ===
+    # Search & Preview
     search = st.text_input("🔍 Search topic or keyword...", "")
     filtered = [t for t in topics_list if search.lower() in t.lower()] if search else topics_list
 
@@ -2964,7 +2959,6 @@ if tab == "Exams Mode & Custom Chat":
         preview_topics = filtered[:preview_n]
         for t in preview_topics:
             st.markdown(f"- {t}")
-
         if len(filtered) > preview_n:
             with st.expander(f"See all {len(filtered)} topics"):
                 col1, col2 = st.columns(2)
@@ -2976,7 +2970,7 @@ if tab == "Exams Mode & Custom Chat":
     else:
         st.info("No topics found. Try a different search.")
 
-    # === Topic Picker: random or manual ===
+    # Topic Picker
     picked = None
     if filtered:
         st.write("**Pick your topic or select random:**")
@@ -2984,7 +2978,6 @@ if tab == "Exams Mode & Custom Chat":
             "",
             ["(random)"] + filtered
         )
-
         if picked == "(random)":
             chosen_topic = random.choice(filtered)
         else:
