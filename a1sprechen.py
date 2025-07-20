@@ -3794,63 +3794,64 @@ if tab == "Schreiben Trainer":
                 inc_letter_coach_usage(student_code)   # <-- Persistently increment usage
                 st.rerun()
 
-        # Step 2: Chat Interface
-        if st.session_state.letter_coach_active:
-            chat_history = st.session_state.letter_coach_chat
+    # Step 2: Chat Interface (Improved: chat input and send button)
+    if st.session_state.letter_coach_active:
+        chat_history = st.session_state.letter_coach_chat
 
-            # Bubble UI
-            def bubble(role, text):
-                color = "#7b2ff2" if role == "assistant" else "#222"
-                bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
-                name = "Herr Felix" if role == "assistant" else "You"
-                return f"""
-                    <div style="background:{bg};color:{color};margin-bottom:8px;padding:13px 15px;border-radius:14px;max-width:98vw;font-size:1.09rem;">
-                        <b>{name}:</b><br>{text}
-                    </div>
-                """
+        # --- CHAT BUBBLES UI ---
+        def bubble(role, text):
+            color = "#7b2ff2" if role == "assistant" else "#222"
+            bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
+            name = "Herr Felix" if role == "assistant" else "You"
+            return f"""
+                <div style="background:{bg};color:{color};margin-bottom:8px;padding:13px 15px;border-radius:14px;max-width:98vw;font-size:1.09rem;">
+                    <b>{name}:</b><br>{text}
+                </div>
+            """
 
-            for msg in chat_history[1:]:
-                st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
+        for msg in chat_history[1:]:
+            st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
 
-            # Chat input
-            user_input = st.text_area(
-                "Your reply (press Enter to send):",
-                key="letter_coach_user_input",
-                height=80,
-                disabled=(ideas_so_far >= IDEAS_LIMIT),
-                placeholder="Reply to Herr Felix here. Paste more than 4 lines if needed."
+        # Chat input (single line) with send button, auto-clear after send
+        with st.form("letter_coach_chat_form", clear_on_submit=True):
+            user_input = st.text_input(
+                "Your reply (press Enter or click Send):",
+                value="",
+                key="letter_coach_user_input"
             )
-            if user_input and len(user_input.strip().splitlines()) >= 1:
-                chat_history.append({"role": "user", "content": user_input})
-                with st.spinner("Herr Felix is typing..."):
-                    try:
-                        resp = client.chat.completions.create(
-                            model="gpt-4o",
-                            messages=chat_history,
-                            temperature=0.25,
-                            max_tokens=450
-                        )
-                        ai_reply = resp.choices[0].message.content
-                    except Exception as e:
-                        ai_reply = "Sorry, something went wrong. Please try again."
-                chat_history.append({"role": "assistant", "content": ai_reply})
-                st.session_state.letter_coach_chat = chat_history
-                st.session_state.letter_coach_user_input = ""  # Clear
+            send = st.form_submit_button("Send")
+
+        if send and user_input.strip():
+            chat_history.append({"role": "user", "content": user_input})
+            with st.spinner("Herr Felix is typing..."):
+                try:
+                    resp = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=chat_history,
+                        temperature=0.25,
+                        max_tokens=450
+                    )
+                    ai_reply = resp.choices[0].message.content
+                except Exception as e:
+                    ai_reply = "Sorry, something went wrong. Please try again."
+            chat_history.append({"role": "assistant", "content": ai_reply})
+            st.session_state.letter_coach_chat = chat_history
+            st.rerun()
+
+        st.divider()
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Finish & Show Summary"):
+                st.session_state.letter_coach_active = False
+                st.rerun()
+        with col2:
+            if st.button("Restart Letter Coach"):
+                st.session_state.letter_coach_active = False
+                st.session_state.letter_coach_chat = []
+                st.session_state.letter_coach_prompt = ""
                 st.rerun()
 
-            st.divider()
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("Finish & Show Summary"):
-                    st.session_state.letter_coach_active = False
-                    st.rerun()
-            with col2:
-                if st.button("Restart Letter Coach"):
-                    st.session_state.letter_coach_active = False
-                    st.session_state.letter_coach_chat = []
-                    st.session_state.letter_coach_prompt = ""
-                    st.session_state.letter_coach_user_input = ""
-                    st.rerun()
+
 
         # Step 3: Summary and Copyable Plan
         if not st.session_state.letter_coach_active and st.session_state.letter_coach_chat:
