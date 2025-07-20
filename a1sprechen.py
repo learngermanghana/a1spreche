@@ -3804,7 +3804,7 @@ if main_tab == "Schreiben Trainer":
                 chat_history.append({"role": "assistant", "content": ai_reply})
                 st.session_state.letter_coach_chat = chat_history
                 st.session_state.letter_coach_stage = "chat"
-                st.experimental_rerun()
+                st.rerun()
 
             st.divider()
             col1, col2 = st.columns(2)
