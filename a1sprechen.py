@@ -3110,118 +3110,33 @@ if st.session_state["falowen_stage"] == 4:
     teil = st.session_state["falowen_teil"]
     mode = st.session_state["falowen_mode"]
     is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
-    is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
     MAX_BUFFER_SIZE = 50
 
-    # ---- Seed remaining_topics from Google Sheet if empty ----
-    if is_exam and not st.session_state.get("remaining_topics"):
-        # extract Teil number
-        teil_num = teil.split()[1]
-        exam_df = df_exam[
-            (df_exam["Level"] == level) &
-            (df_exam["Teil"]  == f"Teil {teil_num}")
-        ]
-        topics = []
-        for t, k in zip(exam_df["Topic"].astype(str), exam_df["Keyword"].astype(str)):
-            t, k = t.strip(), k.strip()
-            if t:
-                topics.append(f"{t} – {k}" if k else t)
-        st.session_state["remaining_topics"] = topics.copy()
-        st.session_state["used_topics"] = []
-
-    # ---- Seed remaining_topics from Google Sheet if empty ----
-    if is_exam and not st.session_state.get("remaining_topics"):
-        # extract Teil number
-        teil_num = teil.split()[1]
-        exam_df = df_exam[
-            (df_exam["Level"] == level) &
-            (df_exam["Teil"]  == f"Teil {teil_num}")
-        ]
-        topics = []
-        for t, k in zip(exam_df["Topic"].astype(str), exam_df["Keyword"].astype(str)):
-            t, k = t.strip(), k.strip()
-            if t:
-                topics.append(f"{t} – {k}" if k else t)
-        st.session_state["remaining_topics"] = topics.copy()
-        st.session_state["used_topics"] = []
-
-# extract Teil number
-        teil_num = teil.split()[1]
-        exam_df = df_exam[
-            (df_exam["Level"] == level) &
-            (df_exam["Teil"]  == f"Teil {teil_num}")
-        ]
-        topics = []
-        for t, k in zip(exam_df["Topic"].astype(str), exam_df["Keyword"].astype(str)):
-            t, k = t.strip(), k.strip()
-            if t:
-                topics.append(f"{t} – {k}" if k else t)
-        st.session_state["remaining_topics"] = topics.copy()
-        st.session_state["used_topics"] = []
-
-#
-
-    # ====== Exams Mode: CSV Progress Save/Upload + Progress Bar ======
     if is_exam:
-        st.info(
-            "💾 **Download your progress as CSV after each session. "
-            "Upload it next time to continue—so you don't repeat topics.**"
-        )
-
-        # Initialize topic lists if missing
-        if "remaining_topics" not in st.session_state:
-            st.session_state["remaining_topics"] = []
-        if "used_topics" not in st.session_state:
+        if not st.session_state.get("remaining_topics"):
+            teil_num = teil.split()[1]
+            exam_df = df_exam[(df_exam["Level"] == level) & (df_exam["Teil"] == f"Teil {teil_num}")]
+            topics = [f"{t.strip()} – {k.strip()}" if k.strip() else t.strip() for t, k in zip(exam_df["Topic"].astype(str), exam_df["Keyword"].astype(str)) if t.strip()]
+            st.session_state["remaining_topics"] = topics.copy()
             st.session_state["used_topics"] = []
-
-        total_topics = st.session_state["remaining_topics"] + st.session_state["used_topics"]
-        num_total = len(total_topics) if len(total_topics) > 0 else 1
-        num_used = len(st.session_state["used_topics"])
-        st.progress(
-            num_used / num_total,
-            text=f"{num_used} of {num_total} topics completed"
-        )
-
-        # --- Download progress as CSV ---
-        if num_used > 0:
-            df = pd.DataFrame({"Used_Topics": st.session_state["used_topics"]})
-            csv = df.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                label="⬇️ Download Exam Progress as CSV",
-                data=csv,
-                file_name="falowen_exam_progress.csv",
-                mime="text/csv",
-                key=f"download_progress_{level}_{teil}"
-            )
-        else:
-            st.caption("No topics done yet.")
-
-        # --- Upload progress from CSV ---
-        upload_key = f"upload_progress_{level}_{teil}"
-        uploaded = st.file_uploader(
-            "⬆️ Upload Previous Exam Progress (CSV)",
-            type=["csv"],
-            key=upload_key
-        )
+        total = len(st.session_state["remaining_topics"]) + len(st.session_state["used_topics"])
+        used = len(st.session_state["used_topics"])
+        st.progress(used / total, text=f"{used} of {total} topics completed")
+        if used > 0:
+            csv_data = pd.DataFrame({"Used_Topics": st.session_state["used_topics"]}).to_csv(index=False).encode()
+            st.download_button("⬇️ Download Exam Progress as CSV", csv_data, "falowen_exam_progress.csv", "text/csv")
+        uploaded = st.file_uploader("⬆️ Upload Previous Exam Progress (CSV)", type=["csv"])
         if uploaded:
-            df_upload = pd.read_csv(uploaded)
-            if "Used_Topics" in df_upload.columns:
-                st.session_state["used_topics"] = list(df_upload["Used_Topics"].dropna())
-                st.success("Progress restored! Topics you already did will be skipped next time.")
-                # Remove restored topics from remaining topics
-                st.session_state["remaining_topics"] = [
-                    t for t in st.session_state["remaining_topics"]
-                    if t not in st.session_state["used_topics"]
-                ]
+            dfu = pd.read_csv(uploaded)
+            if "Used_Topics" in dfu.columns:
+                st.session_state["used_topics"] = dfu["Used_Topics"].dropna().tolist()
+                st.session_state["remaining_topics"] = [t for t in st.session_state["remaining_topics"] if t not in st.session_state["used_topics"]]
 
-    # ---- Show daily usage ----
     used_today = get_sprechen_usage(student_code)
     st.info(f"Today: {used_today} / {FALOWEN_DAILY_LIMIT} Falowen chat messages used.")
     if used_today >= FALOWEN_DAILY_LIMIT:
-        st.warning("You have reached your daily practice limit for Falowen today. Please come back tomorrow.")
         st.stop()
 
-    # ---- Session Controls ----
     def reset_chat():
         st.session_state.update({
             "falowen_stage": 1,
@@ -3251,7 +3166,6 @@ if st.session_state["falowen_stage"] == 4:
         })
         st.rerun()
 
-    # ---- Bubble Styles (MOBILE FRIENDLY) ----
     bubble_user = (
         "background: #1976d2;"
         "color: #fff;"
@@ -3286,38 +3200,33 @@ if st.session_state["falowen_stage"] == 4:
         "font-weight: 500;"
         "box-shadow: 0 2px 8px rgba(0,0,0,0.06);"
     )
-    st.markdown("""
-    <style>
-    @media only screen and (max-width: 600px) {
-        div[style*="background: #1976d2"] {
-            font-size: 1.09rem !important;
-            padding: 13px 9px !important;
-            max-width: 94vw !important;
-            width: 94vw !important;
+    st.markdown(
+        """
+        <style>
+        @media only screen and (max-width: 600px) {
+            div[style*="background: #1976d2"],
+            div[style*="background: #fff9c4"] {
+                font-size: 1.09rem !important;
+                padding: 13px 9px !important;
+                max-width: 94vw !important;
+                width: 94vw !important;
+            }
         }
-        div[style*="background: #fff9c4"] {
-            font-size: 1.09rem !important;
-            padding: 13px 9px !important;
-            max-width: 94vw !important;
-            width: 94vw !important;
-        }
-    }
-    </style>
-    """, unsafe_allow_html=True)
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
-    # ---- Word Highlighting ----
     highlight_words = []
-    if is_exam:
-        if st.session_state.get("falowen_exam_keyword"):
-            highlight_words.append(st.session_state["falowen_exam_keyword"])
+    if is_exam and st.session_state.get("falowen_exam_keyword"):
+        highlight_words.append(st.session_state["falowen_exam_keyword"])
         highlight_words += ["weil", "möchte", "deshalb"]
 
-    # ---- Render Chat History (bubbles and highlights) ----
     for msg in st.session_state["falowen_messages"]:
         if msg["role"] == "assistant":
             with st.chat_message("assistant", avatar="🧑‍🏫"):
                 st.markdown(
-                    "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
+                    f"<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
                     f"<div style='{bubble_assistant}'>{highlight_keywords(msg['content'], highlight_words)}</div>",
                     unsafe_allow_html=True
                 )
@@ -3329,111 +3238,135 @@ if st.session_state["falowen_stage"] == 4:
                     unsafe_allow_html=True
                 )
 
-    # ---- Session Buttons ----
     col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("Restart Chat"): reset_chat()
-    with col2:
-        if st.button("Back"): back_step()
-    with col3:
-        if st.button("Change Level"): change_level()
+    if col1.button("Restart Chat"): reset_chat()
+    if col2.button("Back"): back_step()
+    if col3.button("Change Level"): change_level()
 
-    # ---- Initial Instruction ----
     if not st.session_state["falowen_messages"]:
-        instruction = build_exam_instruction(level, teil) if is_exam else (
-            "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
-        )
-        st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
+        st.session_state["falowen_messages"].append({
+            "role": "assistant",
+            "content": build_exam_instruction(level, teil) if is_exam else "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
+        })
 
-    # ---- Build System Prompt including topic/context ----
     if is_exam:
-        # Only advance if we don't already have an active topic and still have topics left
-        if (not st.session_state.get("falowen_exam_topic")) and st.session_state.get("remaining_topics"):
+        if not st.session_state.get("falowen_exam_topic") and st.session_state["remaining_topics"]:
             next_topic = st.session_state["remaining_topics"].pop(0)
             if " – " in next_topic:
-                topic, keyword = next_topic.split(" – ", 1)
-                st.session_state["falowen_exam_topic"] = topic
-                st.session_state["falowen_exam_keyword"] = keyword
+                t, k = next_topic.split(" – ", 1)
+                st.session_state["falowen_exam_topic"], st.session_state["falowen_exam_keyword"] = t, k
             else:
-                st.session_state["falowen_exam_topic"] = next_topic
-                st.session_state["falowen_exam_keyword"] = None
-            # Mark topic as used **immediately when you pop it**
+                st.session_state["falowen_exam_topic"], st.session_state["falowen_exam_keyword"] = next_topic, None
             if next_topic not in st.session_state["used_topics"]:
                 st.session_state["used_topics"].append(next_topic)
-        base_prompt = build_exam_system_prompt(level, teil)
-        topic = st.session_state.get("falowen_exam_topic")
-        if topic:
-            system_prompt = f"{base_prompt} Thema: {topic}."
-        else:
-            system_prompt = base_prompt
+        bp = build_exam_system_prompt(level, teil)
+        topic = st.session_state["falowen_exam_topic"]
+        system_prompt = f"{bp} Thema: {topic}." if topic else bp
     else:
         system_prompt = build_custom_chat_prompt(level)
 
-    # ---- Chat Input & Assistant Response with Buffer Trimming ----
     user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
     if user_input:
-        # Append user message to session state
         st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
-        # Trim buffer if it grows too large
         if len(st.session_state["falowen_messages"]) > MAX_BUFFER_SIZE:
             st.session_state["falowen_messages"] = st.session_state["falowen_messages"][-MAX_BUFFER_SIZE:]
 
-        # ---- UI Rendering Helpers ----
-        def render_user_message(text: str):
-            with st.chat_message("user"):
-                st.markdown(
-                    f"<div style='display:flex;justify-content:flex-end;'>"
-                    f"<div style='{bubble_user}'>🗣️ {text}</div></div>",
-                    unsafe_allow_html=True
-                )
+        with st.chat_message("user"):
+            st.markdown(
+                f"<div style='display:flex;justify-content:flex-end;'>"
+                f"<div style='{bubble_user}'>🗣️ {user_input}</div></div>",
+                unsafe_allow_html=True
+            )
 
-        def render_assistant_message(html_content: str):
-            with st.chat_message("assistant", avatar="https://i.imgur.com/aypyUjM_d.jpeg?maxwidth=520&shape=thumb&fidelity=high"):
-                st.markdown(
-                    "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
-                    f"<div style='{bubble_assistant}'>{html_content}</div>",
-                    unsafe_allow_html=True
-                )
-
-        # Render user input bubble
-        render_user_message(user_input)
-
-        # Generate and render assistant reply
         with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-            messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
+            msgs = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
             try:
                 resp = client.chat.completions.create(
                     model="gpt-4o",
-                    messages=messages,
+                    messages=msgs,
                     temperature=0.15,
                     max_tokens=600
                 )
                 ai_reply = resp.choices[0].message.content.strip()
-            except Exception as e:
-                ai_reply = f"Sorry, an error occurred: {e}"
+            except:
+                ai_reply = "Sorry, an error occurred."
 
-        # Highlight and render assistant reply
-        html_reply = highlight_keywords(ai_reply, highlight_words)
-        render_assistant_message(html_reply)
+        reply_html = highlight_keywords(ai_reply, highlight_words)
+        with st.chat_message("assistant", avatar="https://i.imgur.com/aypyUjM_d.jpeg?maxwidth=520&shape=thumb&fidelity=high"):
+            st.markdown(
+                f"<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
+                f"<div style='{bubble_assistant}'>{reply_html}</div>",
+                unsafe_allow_html=True
+            )
 
-        # Append assistant message and trim buffer
         st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
-        if len(st.session_state["falowen_messages"]) > MAX_BUFFER_SIZE:
-            st.session_state["falowen_messages"] = st.session_state["falowen_messages"][-MAX_BUFFER_SIZE:]
-
-        # Batch-update usage metrics once per loop
         inc_sprechen_usage(student_code)
 
-    # ---- END SESSION BUTTON & SUMMARY ----
     st.divider()
     if st.button("✅ End Session & Show Summary"):
         st.session_state["falowen_stage"] = 5
         st.rerun()
+    # ---- STAGE 5: End-of-Session Summary ----
+    if st.session_state.get("falowen_stage") == 5:
+        st.subheader("📝 End-of-Session Summary")
 
+        messages = st.session_state.get("falowen_messages", [])
+
+        # 1. Total Turns
+        user_turns = len([m for m in messages if m["role"] == "user"])
+        st.markdown(f"- **Total Messages Sent:** {user_turns}")
+
+        # 2. Words Used
+        import re
+        user_text = " ".join([m["content"] for m in messages if m["role"] == "user"])
+        user_words = set(re.findall(r'\b\w+\b', user_text.lower()))
+        st.markdown(f"- **Unique Words Used:** {len(user_words)}")
+        if user_words:
+            st.markdown(f"`{', '.join(list(user_words)[:20])}`")
+
+        # 3. Corrections/Highlights
+        corrections = []
+        for m in messages:
+            if m["role"] == "assistant":
+                # Simple extraction: lines mentioning 'correct', 'should', 'mistake', 'improve'
+                lines = m["content"].split("\n")
+                for line in lines:
+                    if any(word in line.lower() for word in ["correct", "should", "mistake", "improve", "tip"]):
+                        if len(line) < 130:  # avoid overly long
+                            corrections.append(line)
+        if corrections:
+            st.markdown("**Common Corrections & Tips:**")
+            for corr in corrections[:8]:
+                st.markdown(f"- {corr}")
+
+        # 4. Recent AI Feedback
+        last_feedback = "\n\n".join([m["content"] for m in messages if m["role"] == "assistant"][-2:])
+        st.markdown("**Recent Feedback:**")
+        st.markdown(last_feedback)
+
+        # 5. Download Chat as PDF
+        pdf_bytes = falowen_download_pdf(messages, f"Falowen_Summary_{st.session_state.get('student_code','')}")
+        st.download_button("⬇️ Download Chat as PDF", pdf_bytes, file_name="Falowen_Summary.pdf", mime="application/pdf")
+
+        # 6. Start new session
+        st.divider()
+        if st.button("🔄 Start New Session"):
+            for key in [
+                "falowen_stage", "falowen_messages", "falowen_teil", "falowen_mode",
+                "custom_topic_intro_done", "falowen_turn_count",
+                "falowen_exam_topic", "falowen_exam_keyword", "remaining_topics", "used_topics"
+            ]:
+                st.session_state[key] = None
+            st.session_state["falowen_stage"] = 1
+            st.rerun()
 
 # =========================================
 # End
 # =========================================
+
+
+
+
 
 
 
