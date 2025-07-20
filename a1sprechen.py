@@ -3119,28 +3119,23 @@ if tab == "Exams Mode & Custom Chat":
                 "Upload it next time to continue—so you don't repeat topics.**"
             )
 
-            # Collect topics for this level/teil
-            total_topics = []
-            if "remaining_topics" in st.session_state and "used_topics" in st.session_state:
-                total_topics = st.session_state["remaining_topics"] + st.session_state["used_topics"]
-            elif "remaining_topics" in st.session_state:
-                total_topics = st.session_state["remaining_topics"]
-            elif "used_topics" in st.session_state:
-                total_topics = st.session_state["used_topics"]
+            # Initialize topic lists if missing
+            if "remaining_topics" not in st.session_state:
+                st.session_state["remaining_topics"] = []
+            if "used_topics" not in st.session_state:
+                st.session_state["used_topics"] = []
+            total_topics = st.session_state["remaining_topics"] + st.session_state["used_topics"]
 
-            used_topics = st.session_state.get("used_topics", [])
-            num_used = len(used_topics)
-            num_total = len(total_topics) if total_topics else max(num_used, 1)  # avoid div/0
-
-            # Progress bar
+            num_total = len(total_topics) if len(total_topics) > 0 else 1
+            num_used = len(st.session_state["used_topics"])
             st.progress(
-                num_used / num_total if num_total else 0.0,
+                num_used / num_total,
                 text=f"{num_used} of {num_total} topics completed"
             )
 
-            # Download progress button
-            if used_topics:
-                df = pd.DataFrame({"Used_Topics": used_topics})
+            # --- Download progress as CSV ---
+            if num_used > 0:
+                df = pd.DataFrame({"Used_Topics": st.session_state["used_topics"]})
                 csv = df.to_csv(index=False).encode("utf-8")
                 st.download_button(
                     "⬇️ Download Exam Progress as CSV",
@@ -3151,7 +3146,7 @@ if tab == "Exams Mode & Custom Chat":
             else:
                 st.caption("No topics done yet.")
 
-            # Upload previous progress
+            # --- Upload progress from CSV ---
             uploaded = st.file_uploader(
                 "⬆️ Upload Previous Exam Progress (CSV)",
                 type=["csv"],
@@ -3161,13 +3156,14 @@ if tab == "Exams Mode & Custom Chat":
                 df_upload = pd.read_csv(uploaded)
                 if "Used_Topics" in df_upload.columns:
                     st.session_state["used_topics"] = list(df_upload["Used_Topics"].dropna())
-                    st.success("Progress restored! Topics you already did will be skipped.")
-                    # Remove restored from remaining topics
+                    st.success("Progress restored! Topics you already did will be skipped next time.")
+                    # Remove restored topics from remaining topics
                     if "remaining_topics" in st.session_state:
                         st.session_state["remaining_topics"] = [
                             t for t in st.session_state["remaining_topics"]
                             if t not in st.session_state["used_topics"]
                         ]
+
 
         # ---- Show daily usage ----
         used_today = get_sprechen_usage(student_code)
