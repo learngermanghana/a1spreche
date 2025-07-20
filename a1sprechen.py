@@ -2892,132 +2892,137 @@ if tab == "Exams Mode & Custom Chat":
     # =====================
     #   STAGE 3: Exam Topic Picker (Exam Mode Only)
     # =====================
-    level = st.session_state["falowen_level"]
+    if st.session_state.get("falowen_mode") == "Geführte Prüfungssimulation (Exam Mode)":
+        level = st.session_state["falowen_level"]
 
-    teil_options = {
-        "A1": [
-            "Teil 1 – Basic Introduction",
-            "Teil 2 – Question and Answer",
-            "Teil 3 – Making A Request"
-        ],
-        "A2": [
-            "Teil 1 – Fragen zu Schlüsselwörtern",
-            "Teil 2 – Über das Thema sprechen",
-            "Teil 3 – Gemeinsam planen"
-        ],
-        "B1": [
-            "Teil 1 – Gemeinsam planen (Dialogue)",
-            "Teil 2 – Präsentation (Monologue)",
-            "Teil 3 – Feedback & Fragen stellen"
-        ],
-        "B2": [
-            "Teil 1 – Diskussion",
-            "Teil 2 – Präsentation",
-            "Teil 3 – Argumentation"
-        ],
-        "C1": [
-            "Teil 1 – Vortrag",
-            "Teil 2 – Diskussion",
-            "Teil 3 – Bewertung"
-        ]
-    }
+        teil_options = {
+            "A1": [
+                "Teil 1 – Basic Introduction",
+                "Teil 2 – Question and Answer",
+                "Teil 3 – Making A Request"
+            ],
+            "A2": [
+                "Teil 1 – Fragen zu Schlüsselwörtern",
+                "Teil 2 – Über das Thema sprechen",
+                "Teil 3 – Gemeinsam planen"
+            ],
+            "B1": [
+                "Teil 1 – Gemeinsam planen (Dialogue)",
+                "Teil 2 – Präsentation (Monologue)",
+                "Teil 3 – Feedback & Fragen stellen"
+            ],
+            "B2": [
+                "Teil 1 – Diskussion",
+                "Teil 2 – Präsentation",
+                "Teil 3 – Argumentation"
+            ],
+            "C1": [
+                "Teil 1 – Vortrag",
+                "Teil 2 – Diskussion",
+                "Teil 3 – Bewertung"
+            ]
+        }
 
-    st.subheader("Step 3: Choose Exam Part")
-    teil = st.radio(
-        "Which exam part?",
-        teil_options[level],
-        key="falowen_teil_center"
-    )
-    teil_number = teil.split()[1] if teil else ""
-
-    topic_col = "Topic/Prompt"
-    keyword_col = "Keyword/Subtopic"
-
-    exam_topics = df_exam[
-        (df_exam["Level"] == level) & (df_exam["Teil"] == f"Teil {teil_number}")
-    ] if teil_number else pd.DataFrame()
-
-    # Efficient topic list build
-    if not exam_topics.empty:
-        topic_vals = exam_topics[topic_col].astype(str).str.strip()
-        keyword_vals = exam_topics[keyword_col].astype(str).str.strip()
-        topics_list = [
-            f"{t} – {k}" if k else t
-            for t, k in zip(topic_vals, keyword_vals)
-            if t
-        ]
-    else:
-        topics_list = []
-
-    # Search & Preview
-    search = st.text_input("🔍 Search topic or keyword...", "")
-    filtered = [t for t in topics_list if search.lower() in t.lower()] if search else topics_list
-
-    if filtered:
-        st.markdown("**Preview: Available Topics**")
-        preview_n = 6
-        preview_topics = filtered[:preview_n]
-        for t in preview_topics:
-            st.markdown(f"- {t}")
-        if len(filtered) > preview_n:
-            with st.expander(f"See all {len(filtered)} topics"):
-                col1, col2 = st.columns(2)
-                for i, t in enumerate(filtered):
-                    if i % 2 == 0:
-                        with col1: st.markdown(f"- {t}")
-                    else:
-                        with col2: st.markdown(f"- {t}")
-    else:
-        st.info("No topics found. Try a different search.")
-
-    # Topic Picker
-    picked = None
-    if filtered:
-        st.write("**Pick your topic or select random:**")
-        picked = st.selectbox(
-            "",
-            ["(random)"] + filtered
+        st.subheader("Step 3: Choose Exam Part")
+        teil = st.radio(
+            "Which exam part?",
+            teil_options[level],
+            key="falowen_teil_center"
         )
-        if picked == "(random)":
-            chosen_topic = random.choice(filtered)
-        else:
-            chosen_topic = picked
+        teil_number = teil.split()[1] if teil else ""
 
-        # Set topic & keyword in session_state
-        if " – " in chosen_topic:
-            topic, keyword = chosen_topic.split(" – ", 1)
-            st.session_state["falowen_exam_topic"] = topic
-            st.session_state["falowen_exam_keyword"] = keyword
+        topic_col = "Topic/Prompt"
+        keyword_col = "Keyword/Subtopic"
+
+        exam_topics = df_exam[
+            (df_exam["Level"] == level) & (df_exam["Teil"] == f"Teil {teil_number}")
+        ] if teil_number else pd.DataFrame()
+
+        if not exam_topics.empty:
+            topic_vals = exam_topics[topic_col].astype(str).str.strip()
+            keyword_vals = exam_topics[keyword_col].astype(str).str.strip()
+            topics_list = [
+                f"{t} – {k}" if k else t
+                for t, k in zip(topic_vals, keyword_vals)
+                if t
+            ]
         else:
-            st.session_state["falowen_exam_topic"] = chosen_topic
+            topics_list = []
+
+        search = st.text_input("🔍 Search topic or keyword...", "")
+        filtered = [t for t in topics_list if search.lower() in t.lower()] if search else topics_list
+
+        if filtered:
+            st.markdown("**Preview: Available Topics**")
+            preview_n = 6
+            preview_topics = filtered[:preview_n]
+            for t in preview_topics:
+                st.markdown(f"- {t}")
+            if len(filtered) > preview_n:
+                with st.expander(f"See all {len(filtered)} topics"):
+                    col1, col2 = st.columns(2)
+                    for i, t in enumerate(filtered):
+                        if i % 2 == 0:
+                            with col1: st.markdown(f"- {t}")
+                        else:
+                            with col2: st.markdown(f"- {t}")
+        else:
+            st.info("No topics found. Try a different search.")
+
+        picked = None
+        if filtered:
+            st.write("**Pick your topic or select random:**")
+            picked = st.selectbox(
+                "",
+                ["(random)"] + filtered
+            )
+            if picked == "(random)":
+                chosen_topic = random.choice(filtered)
+            else:
+                chosen_topic = picked
+
+            if " – " in chosen_topic:
+                topic, keyword = chosen_topic.split(" – ", 1)
+                st.session_state["falowen_exam_topic"] = topic
+                st.session_state["falowen_exam_keyword"] = keyword
+            else:
+                st.session_state["falowen_exam_topic"] = chosen_topic
+                st.session_state["falowen_exam_keyword"] = None
+
+            topic = st.session_state.get("falowen_exam_topic")
+            keyword = st.session_state.get("falowen_exam_keyword")
+            if topic and keyword:
+                st.success(f"**Your exam topic is:**\n\n{topic} – {keyword}")
+            elif topic:
+                st.success(f"**Your exam topic is:**\n\n{topic}")
+        else:
+            st.warning("No topics available for this exam part.")
+            st.session_state["falowen_exam_topic"] = None
             st.session_state["falowen_exam_keyword"] = None
 
-        # Show chosen topic
-        topic = st.session_state.get("falowen_exam_topic")
-        keyword = st.session_state.get("falowen_exam_keyword")
-        if topic and keyword:
-            st.success(f"**Your exam topic is:**\n\n{topic} – {keyword}")
-        elif topic:
-            st.success(f"**Your exam topic is:**\n\n{topic}")
-    else:
-        st.warning("No topics available for this exam part.")
-        st.session_state["falowen_exam_topic"] = None
-        st.session_state["falowen_exam_keyword"] = None
+        if st.button("⬅️ Back", key="falowen_back2"):
+            st.session_state["falowen_stage"] = 2
+            st.rerun()
 
-    # --- Control Buttons ---
-    if st.button("⬅️ Back", key="falowen_back2"):
-        st.session_state["falowen_stage"] = 2
-        st.rerun()
-
-    if st.session_state.get("falowen_messages"):
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("Continue Previous Chat", key="falowen_continue_chat"):
-                st.session_state["falowen_teil"] = teil
-                st.session_state["falowen_stage"] = 4
-                st.rerun()
-        with col2:
-            if st.button("Restart Practice", key="falowen_start_practice"):
+        if st.session_state.get("falowen_messages"):
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Continue Previous Chat", key="falowen_continue_chat"):
+                    st.session_state["falowen_teil"] = teil
+                    st.session_state["falowen_stage"] = 4
+                    st.rerun()
+            with col2:
+                if st.button("Restart Practice", key="falowen_start_practice"):
+                    st.session_state["falowen_teil"] = teil
+                    st.session_state["falowen_stage"] = 4
+                    st.session_state["falowen_messages"] = []
+                    st.session_state["custom_topic_intro_done"] = False
+                    st.session_state["remaining_topics"] = filtered.copy()
+                    random.shuffle(st.session_state["remaining_topics"])
+                    st.session_state["used_topics"] = []
+                    st.rerun()
+        else:
+            if st.button("Start Practice", key="falowen_start_practice"):
                 st.session_state["falowen_teil"] = teil
                 st.session_state["falowen_stage"] = 4
                 st.session_state["falowen_messages"] = []
@@ -3026,16 +3031,6 @@ if tab == "Exams Mode & Custom Chat":
                 random.shuffle(st.session_state["remaining_topics"])
                 st.session_state["used_topics"] = []
                 st.rerun()
-    else:
-        if st.button("Start Practice", key="falowen_start_practice"):
-            st.session_state["falowen_teil"] = teil
-            st.session_state["falowen_stage"] = 4
-            st.session_state["falowen_messages"] = []
-            st.session_state["custom_topic_intro_done"] = False
-            st.session_state["remaining_topics"] = filtered.copy()
-            random.shuffle(st.session_state["remaining_topics"])
-            st.session_state["used_topics"] = []
-            st.rerun()
 
 
 
