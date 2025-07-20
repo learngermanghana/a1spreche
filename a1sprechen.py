@@ -3669,132 +3669,186 @@ if main_tab == "Schreiben Trainer":
                 )
 
     # ========== 2. IDEAS GENERATOR (Letter Coach, Chat-Style) ==========
-import streamlit as st
-import openai
-
-# ... (main tab select and level select from above, unchanged)
-
-if sub_tab == "Ideas Generator (Letter Coach)":
-    st.markdown(
-        '''
-        <div style="
-            padding: 8px 12px;
-            background: #8e44ad;
-            color: #fff;
-            border-radius: 6px;
-            text-align: center;
-            margin-bottom: 8px;
-            font-size: 1.2rem;">
-            💡 Ideas Generator (Letter Coach Chat)
-        </div>
-        ''',
-        unsafe_allow_html=True
-    )
-
-    # Initialize session state for chat
-    if "letter_coach_chat" not in st.session_state:
-        st.session_state.letter_coach_chat = []
-    if "letter_coach_active" not in st.session_state:
-        st.session_state.letter_coach_active = False
-    if "letter_coach_prompt" not in st.session_state:
-        st.session_state.letter_coach_prompt = ""
-
-    # Step 1: Paste prompt, only if not already started
-    if not st.session_state.letter_coach_active:
-        prompt = st.text_area(
-            "Paste your letter/essay question or prompt here:",
-            value=st.session_state.letter_coach_prompt,
-            placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Chefin..."
+    if sub_tab == "Ideas Generator (Letter Coach)":
+        st.markdown(
+            '''
+            <div style="
+                padding: 8px 12px;
+                background: #8e44ad;
+                color: #fff;
+                border-radius: 7px;
+                text-align: center;
+                margin-bottom: 10px;
+                font-size: 1.2rem;">
+                💡 <b>Ideas Generator (Letter Coach Chat)</b>
+            </div>
+            ''',
+            unsafe_allow_html=True
         )
-        st.session_state.letter_coach_prompt = prompt
 
-        if prompt and st.button("Start Letter Coach Chat"):
-            # Begin chat, prime system and show first guidance
-            level = st.session_state["schreiben_level"]
-            st.session_state.letter_coach_chat = [
-                {
-                    "role": "system",
-                    "content": (
-                        f"You are Herr Felix, a supportive German letter coach. "
-                        f"The student is at level {level}. "
-                        "Congratulate the student on the chosen topic and tell them motivating words. "
-                        "Guide the student step-by-step with ideas to plan their letter based on the prompt they pasted. "
-                        "Analyze and determine if the letter is an SMS, formal/informal letter, opinion essay, etc. "
-                        "Begin by asking what type the student thinks it is, then guide them through brainstorming, structure, and main points. "
-                        "After each student answer, respond with a tip and the next guiding question, step by step. "
-                        "Always reply with only the next step and advice. Continue until the student clicks 'Finish'."
+        # Level selection
+        levels = ["A1", "A2", "B1", "B2", "C1"]
+        schreiben_level = st.selectbox(
+            "Choose your writing level:",
+            levels,
+            key="letter_coach_level"
+        )
+
+        # Session state
+        if "letter_coach_chat" not in st.session_state:
+            st.session_state.letter_coach_chat = []
+        if "letter_coach_active" not in st.session_state:
+            st.session_state.letter_coach_active = False
+        if "letter_coach_prompt" not in st.session_state:
+            st.session_state.letter_coach_prompt = ""
+        if "letter_coach_stage" not in st.session_state:
+            st.session_state.letter_coach_stage = "prompt"
+
+        # Step 1: Prompt input
+        if not st.session_state.letter_coach_active:
+            st.markdown("Paste your **letter/essay question** or **exam prompt** below and start the coach chat.")
+            prompt = st.text_area(
+                "Paste your letter/essay question or prompt here:",
+                value=st.session_state.letter_coach_prompt,
+                placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Chefin ...",
+                height=110
+            )
+            st.session_state.letter_coach_prompt = prompt
+
+            # Must be at least 4 lines or 50 characters
+            if prompt and (prompt.count('\n') >= 3 or len(prompt) > 50):
+                if st.button("Start Letter Coach Chat"):
+                    st.session_state.letter_coach_chat = [
+                        {
+                            "role": "system",
+                            "content": (
+                                f"You are Herr Felix, a supportive German letter coach. "
+                                f"The student is at level {schreiben_level}. "
+                                "Congratulate the student and set a positive mood. "
+                                "Analyze and determine if the letter is an SMS, formal/informal letter, or opinion essay. "
+                                "Start by asking the student what type they think it is. "
+                                "Guide the student step-by-step with ideas to plan their letter. "
+                                "After each student reply, suggest the next step and explain relevant German grammar (tense, accusative, modal verbs, etc.) in English. "
+                                "Your replies should be warm, clear, and motivating. "
+                                "Continue stage by stage (Intro, Body, Ending). When the student says they are ready to move to the next stage, guide them on what to include and check their work. "
+                                "After the conclusion, summarize and encourage. Only one step at a time!"
+                            )
+                        },
+                        {
+                            "role": "assistant",
+                            "content": (
+                                "Great! Let's get started! 🎉\n\n"
+                                "From your prompt, do you think this is a formal letter, informal letter, SMS, or an opinion essay? "
+                                "Or just describe briefly if you're unsure."
+                            )
+                        },
+                        {
+                            "role": "user",
+                            "content": prompt
+                        }
+                    ]
+                    st.session_state.letter_coach_active = True
+                    st.session_state.letter_coach_stage = "chat"
+                    st.experimental_rerun()
+            else:
+                st.info("Please paste the full letter or essay prompt/question (at least 4 lines or 50 characters).")
+
+        # Step 2: Main chat flow
+        if st.session_state.letter_coach_active and st.session_state.letter_coach_stage == "chat":
+            chat_history = st.session_state.letter_coach_chat
+
+            for msg in chat_history[1:]:
+                if msg["role"] == "assistant":
+                    st.markdown(
+                        f"""
+                        <div style="background:#f0e6ff;padding:15px 18px;border-radius:15px 15px 15px 2px;
+                            margin:10px 0 10px 0.5em;max-width:94%;box-shadow:0 2px 7px #e7e2f7">
+                            <b>🧑‍🏫 Herr Felix:</b> <br>{msg['content']}
+                        </div>
+                        """, unsafe_allow_html=True
                     )
-                },
-                {
-                    "role": "assistant",
-                    "content": "Let's begin! From your prompt, do you think this is a formal letter, informal letter, SMS, or an opinion essay? Or describe briefly if you're unsure."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
-            st.session_state.letter_coach_active = True
-            st.experimental_rerun()
-
-    # Step 2: Actual chat flow (chat interface)
-    if st.session_state.letter_coach_active:
-        chat_history = st.session_state.letter_coach_chat
-
-        # Show chat bubbles
-        for msg in chat_history[1:]:
-            if msg["role"] == "assistant":
-                st.markdown(f"**Herr Felix:** {msg['content']}")
-            elif msg["role"] == "user":
-                st.markdown(f"**You:** {msg['content']}")
-
-        # Input for user
-        user_input = st.text_input("Your reply (press Enter to send):", key="letter_coach_user_input")
-        if user_input:
-            chat_history.append({"role": "user", "content": user_input})
-            with st.spinner("Herr Felix is typing..."):
-                try:
-                    resp = openai.chat.completions.create(
-                        model="gpt-4o",
-                        messages=chat_history,
-                        temperature=0.4,
+                elif msg["role"] == "user":
+                    st.markdown(
+                        f"""
+                        <div style="background:#e3f6e3;padding:15px 18px;border-radius:15px 2px 15px 15px;
+                            margin:10px 0 10px auto;max-width:94%;box-shadow:0 2px 7px #e7f7e2">
+                            <b>🧑 You:</b> <br>{msg['content']}
+                        </div>
+                        """, unsafe_allow_html=True
                     )
-                    ai_reply = resp.choices[0].message.content
-                except Exception as e:
-                    ai_reply = "Sorry, something went wrong. Please try again."
 
-            chat_history.append({"role": "assistant", "content": ai_reply})
-            st.session_state.letter_coach_chat = chat_history
-            st.rerun()
+            st.markdown("---")
+            user_input = st.text_area(
+                "Your reply (write your idea, answer, or type 'Next stage' to progress):",
+                key="letter_coach_user_input",
+                height=100,
+                placeholder="Share your thoughts, ideas, or questions here…"
+            )
+            send = st.button("Send", key="send_letter_coach")
 
-        st.divider()
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("Finish & Show Steps"):
-                st.session_state.letter_coach_active = False
+            if send and user_input.strip():
+                chat_history.append({"role": "user", "content": user_input.strip()})
+                with st.spinner("Herr Felix is typing..."):
+                    try:
+                        import openai
+                        resp = openai.chat.completions.create(
+                            model="gpt-4o",
+                            messages=chat_history,
+                            temperature=0.4,
+                        )
+                        ai_reply = resp.choices[0].message.content
+                    except Exception as e:
+                        ai_reply = (
+                            "Sorry, something went wrong. Please try again, or check your OpenAI settings."
+                        )
+                chat_history.append({"role": "assistant", "content": ai_reply})
+                st.session_state.letter_coach_chat = chat_history
+                st.session_state.letter_coach_stage = "chat"
                 st.experimental_rerun()
-        with col2:
-            if st.button("Restart Letter Coach"):
-                st.session_state.letter_coach_active = False
+
+            st.divider()
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Finish & Show Steps", key="letter_coach_finish"):
+                    st.session_state.letter_coach_active = False
+                    st.session_state.letter_coach_stage = "summary"
+                    st.experimental_rerun()
+            with col2:
+                if st.button("Restart Letter Coach", key="letter_coach_restart"):
+                    st.session_state.letter_coach_active = False
+                    st.session_state.letter_coach_chat = []
+                    st.session_state.letter_coach_prompt = ""
+                    st.session_state.letter_coach_stage = "prompt"
+                    st.experimental_rerun()
+
+        # Step 3: Summary
+        if not st.session_state.letter_coach_active and st.session_state.letter_coach_chat and st.session_state.letter_coach_stage == "summary":
+            st.subheader("📝 Your Step-by-Step Plan")
+            for msg in st.session_state.letter_coach_chat[1:]:
+                if msg["role"] == "assistant":
+                    st.markdown(
+                        f"""
+                        <div style="background:#f0e6ff;padding:12px 15px;border-radius:14px 14px 14px 2px;
+                            margin:7px 0 7px 0.5em;max-width:95%;">
+                            <b>🧑‍🏫 Herr Felix:</b> <br>{msg['content']}
+                        </div>
+                        """, unsafe_allow_html=True
+                    )
+                elif msg["role"] == "user":
+                    st.markdown(
+                        f"""
+                        <div style="background:#e3f6e3;padding:12px 15px;border-radius:14px 2px 14px 14px;
+                            margin:7px 0 7px auto;max-width:95%;">
+                            <b>🧑 You:</b> <br>{msg['content']}
+                        </div>
+                        """, unsafe_allow_html=True
+                    )
+
+            if st.button("Start New Letter Coach"):
                 st.session_state.letter_coach_chat = []
                 st.session_state.letter_coach_prompt = ""
+                st.session_state.letter_coach_stage = "prompt"
                 st.experimental_rerun()
-
-    # Step 3: Summary view when finished
-    if not st.session_state.letter_coach_active and st.session_state.letter_coach_chat:
-        st.subheader("📝 Your Step-by-Step Plan")
-        for msg in st.session_state.letter_coach_chat[1:]:
-            if msg["role"] == "assistant":
-                st.markdown(f"**Herr Felix:** {msg['content']}")
-            elif msg["role"] == "user":
-                st.markdown(f"**You:** {msg['content']}")
-
-        if st.button("Start New Letter Coach"):
-            st.session_state.letter_coach_chat = []
-            st.session_state.letter_coach_prompt = ""
-            st.rerun()
-
-
 
 
 
