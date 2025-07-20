@@ -3101,6 +3101,17 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["custom_topic_intro_done"] = False
                     st.rerun()
 
+# ---- STAGE 4: MAIN CHAT ----
+if st.session_state["falowen_stage"] == 4:
+    import re
+    import pandas as pd
+
+    level = st.session_state["falowen_level"]
+    teil = st.session_state["falowen_teil"]
+    mode = st.session_state["falowen_mode"]
+    is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
+    is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
+
     # ====== Exams Mode: CSV Progress Save/Upload + Progress Bar ======
     if is_exam:
         st.info(
@@ -3127,8 +3138,8 @@ if tab == "Exams Mode & Custom Chat":
             df = pd.DataFrame({"Used_Topics": st.session_state["used_topics"]})
             csv = df.to_csv(index=False).encode("utf-8")
             st.download_button(
-                "⬇️ Download Exam Progress as CSV",
-                csv,
+                label="⬇️ Download Exam Progress as CSV",
+                data=csv,
                 file_name="falowen_exam_progress.csv",
                 mime="text/csv",
                 key="falowen_exam_csv_download"
@@ -3153,6 +3164,7 @@ if tab == "Exams Mode & Custom Chat":
                         t for t in st.session_state["remaining_topics"]
                         if t not in st.session_state["used_topics"]
                     ]
+
 
 
         # ---- Show daily usage ----
