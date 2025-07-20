@@ -3807,7 +3807,7 @@ if uploaded_file and not st.session_state.get("letter_coach_uploaded"):
     st.session_state.letter_coach_stage = 2  # Jump to chat stage
     st.session_state.letter_coach_uploaded = True  # Prevent re-running logic
     st.success("Progress uploaded! Continue your session below.")
-    st.experimental_rerun()
+    st.rerun()
 
 if not uploaded_file:
     st.session_state["letter_coach_uploaded"] = False
