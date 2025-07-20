@@ -3726,7 +3726,8 @@ def bubble(role, text):
     bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
     name = "Herr Felix" if role == "assistant" else "You"
     return f"""
-        <div style="background:{bg};color:{color};margin-bottom:8px;padding:13px 15px;border-radius:14px;max-width:98vw;font-size:1.09rem;">
+        <div style="background:{bg};color:{color};margin-bottom:8px;padding:13px 15px;
+        border-radius:14px;max-width:98vw;font-size:1.09rem;">
             <b>{name}:</b><br>{text}
         </div>
     """
@@ -3754,7 +3755,7 @@ if sub_tab == "Ideas Generator (Letter Coach)":
     if ideas_so_far >= IDEAS_LIMIT:
         st.warning("You have reached today's letter coach limit. Please come back tomorrow.")
 
-    # --- SESSION STATE ---
+    # --- SESSION STATE SETUP ---
     if "letter_coach_chat" not in st.session_state:
         st.session_state.letter_coach_chat = []
     if "letter_coach_active" not in st.session_state:
@@ -3764,73 +3765,67 @@ if sub_tab == "Ideas Generator (Letter Coach)":
     if "letter_coach_user_input" not in st.session_state:
         st.session_state.letter_coach_user_input = ""
 
-    # --- STEP 1: Paste Prompt ---
+    # ----------- STEP 1: Paste Prompt (Show Prompt/Sample at Top, Only Once) -----------
     if not st.session_state.letter_coach_active:
         prompt = st.text_area(
             "Paste your letter/essay question or prompt here:",
             value=st.session_state.letter_coach_prompt,
-            height=120,
+            height=140,
             disabled=(ideas_so_far >= IDEAS_LIMIT),
-            placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Chefin..."
+            placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Chefin über eine Terminverschiebung..."
         )
         st.session_state.letter_coach_prompt = prompt
 
+        if prompt:
+            st.markdown("---")
+            st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{prompt}")
+
         if prompt and st.button("Start Letter Coach Chat", disabled=(ideas_so_far >= IDEAS_LIMIT)):
             level = schreiben_level
-            # SYSTEM PROMPT: now step by step, not asking both at once
             system_prompt = (
                 "You are Herr Felix, a friendly, supportive, and clear German letter-writing coach. "
-                "The student is preparing for the A1–C1 German writing exam. "
-                "ALWAYS reply with short, focused, motivating tips: never more than 2 ideas or sentence starters per message. "
-                "Correct student grammar (especially adjective endings, declension, and tense). "
-                "Explain the rule if you spot an error. "
-                "First, ask the student if they want to start from the introduction or another section. "
-                "After their answer, ask what type of letter (formal, informal, SMS, opinion essay) it is, or give your own analysis. "
-                "Guide the student one step at a time (introduction, body, closing, or special point), always only one focus/question per message. "
-                "ALWAYS end with: 'If you are okay or confident, click END SUMMARY below to copy your text and send to your tutor—or type your next idea/question.' "
-                "DO NOT write the whole letter. Summarize all tips in a copyable format at the end."
+                "The student is practicing for the A1–C1 German writing exam. "
+                "ALWAYS give short, focused, motivating replies (never more than 2 ideas or 2 sentence starters per reply). "
+                "Correct student grammar, especially adjective endings, declension, and tense usage. "
+                "If you spot an error, explain the correct rule (statement, modal verb, connectors, adjective endings, tenses) in clear English. "
+                "Start by asking if the student wants to begin from the introduction or jump to a particular section (like advantages, disadvantages, closing). "
+                "WAIT for their answer. Then, ask what type of letter it is (formal, informal, SMS, or opinion essay). WAIT for their answer. "
+                "Only after both answers, analyze and give targeted guidance for that type and section. "
+                "Always guide one step at a time: a practical tip, a starter phrase (with English), or a correction and rule. "
+                "Mention grammar/connectors only when relevant. "
+                "Always end with: 'If you are okay or confident, click END SUMMARY below to copy your text and send to your tutor—or type your next idea/question.' "
+                "DO NOT write the whole letter. "
+                "When finished, summarize all the steps and ideas in a simple, copyable format."
             )
             st.session_state.letter_coach_chat = [
                 {"role": "system", "content": system_prompt},
-                {"role": "assistant", "content": (
-                    "Let's begin! Would you like to start from the introduction, or do you want help with a specific section (e.g., advantages, closing, opinion)?"
-                )},
-                {"role": "user", "content": prompt}
+                {"role": "assistant", "content":
+                    "Let's begin! Congratulations on starting your letter.\n"
+                    "Would you like to start from the introduction, or do you want ideas/help for a specific section (e.g., advantages, closing, opinion)?"}
             ]
             st.session_state.letter_coach_active = True
             inc_letter_coach_usage(student_code)
             st.rerun()
 
-    # --- STEP 2: Chat Interface ---
+    # ----------- STEP 2: Chat Interface (Prompt always at top, chat bubbles) -----------
     if st.session_state.letter_coach_active:
+        prompt = st.session_state.letter_coach_prompt
+        st.markdown("---")
+        st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{prompt}")
+
         chat_history = st.session_state.letter_coach_chat
 
-        # Always show the student prompt (sample/question) at top!
-        prompt_sample = st.session_state.letter_coach_prompt
-        if prompt_sample:
-            st.markdown(
-                f"""
-                <div style='background:#e3f3fe;border-radius:9px;padding:12px 13px;margin-bottom:12px;border-left:5px solid #2683d6;'>
-                <b>📝 Letter/Essay Prompt:</b><br>
-                <span style='font-size:1.03rem;'>{prompt_sample}</span>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-        # Now show chat (AI answers always below)
         for msg in chat_history[1:]:
             st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
 
-        # Modern, bigger input box (mobile and expressive)
         with st.form("letter_coach_chat_form", clear_on_submit=True):
             user_input = st.text_area(
                 "",
                 value="",
                 key="letter_coach_user_input",
-                height=90,
+                height=110,
                 placeholder="Type your reply, ask about a section, or paste your draft here...",
-                help="Reply to Herr Felix here. You can type more than one line."
+                help="Reply to Herr Felix here."
             )
             send = st.form_submit_button("Send")
 
@@ -3842,7 +3837,7 @@ if sub_tab == "Ideas Generator (Letter Coach)":
                         model="gpt-4o",
                         messages=chat_history,
                         temperature=0.22,
-                        max_tokens=420
+                        max_tokens=440
                     )
                     ai_reply = resp.choices[0].message.content
                 except Exception as e:
@@ -3864,8 +3859,12 @@ if sub_tab == "Ideas Generator (Letter Coach)":
                 st.session_state.letter_coach_prompt = ""
                 st.rerun()
 
-    # --- STEP 3: Summary and Copyable Plan ---
+    # ----------- STEP 3: Summary and Copyable Plan -----------
     if not st.session_state.letter_coach_active and st.session_state.letter_coach_chat:
+        prompt = st.session_state.letter_coach_prompt
+        st.markdown("---")
+        st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{prompt}")
+
         st.subheader("📝 Your Step-by-Step Plan")
         combined = []
         for msg in st.session_state.letter_coach_chat[1:]:
@@ -3887,6 +3886,5 @@ if sub_tab == "Ideas Generator (Letter Coach)":
             st.session_state.letter_coach_prompt = ""
             st.session_state.letter_coach_user_input = ""
             st.rerun()
-
 
 
