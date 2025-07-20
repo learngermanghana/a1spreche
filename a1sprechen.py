@@ -3346,13 +3346,21 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
             inc_sprechen_usage(student_code)
 
+            # ---- Mark topic as completed before moving on (exams mode only) ----
+            if is_exam:
+                finished_topic = st.session_state.get("falowen_exam_topic", "")
+                if finished_topic and finished_topic not in st.session_state["used_topics"]:
+                    st.session_state["used_topics"].append(finished_topic)
+                    if "remaining_topics" in st.session_state and finished_topic in st.session_state["remaining_topics"]:
+                        st.session_state["remaining_topics"].remove(finished_topic)
+
             with st.chat_message("user"):
                 st.markdown(
                     f"<div style='display:flex;justify-content:flex-end;'>"
                     f"<div style='{bubble_user}'>🗣️ {user_input}</div></div>",
                     unsafe_allow_html=True
                 )
-
+                
             with st.chat_message(
                 "assistant",
                 avatar="https://i.imgur.com/aypyUjM_d.jpeg?maxwidth=520&shape=thumb&fidelity=high"
@@ -3383,6 +3391,8 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("✅ End Session & Show Summary"):
             st.session_state["falowen_stage"] = 5
             st.rerun()
+
+#
 
 
     # ---- STAGE 5: End-of-Session Summary ----
