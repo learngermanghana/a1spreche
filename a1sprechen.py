@@ -3518,17 +3518,39 @@ if tab == "Vocab Trainer":
                 st.session_state[k] = defaults[k]
                 
 
-if tab == "Schreiben Trainer":
-    # ======= MAIN SUBTAB RADIO =======
-    subtab = st.radio(
-        "Choose a tool:",
-        ["Mark My Letter", "Ideas Generator"],
-        key="schreiben_subtab"
+import streamlit as st
+import openai
+from fpdf import FPDF
+import urllib.parse
+import re
+
+# ========== TAB SELECTION ==========
+main_tab = st.sidebar.selectbox("Choose Trainer", ["Schreiben Trainer"])
+if main_tab == "Schreiben Trainer":
+    sub_tab = st.radio(
+        "Choose Mode",
+        ["Mark My Letter", "Ideas Generator (Letter Coach)"],
+        horizontal=True,
+        key="schreiben_sub_tab"
     )
 
-    # ======= SUBTAB 1: MARK MY LETTER =======
-    if subtab == "Mark My Letter":
-        st.markdown("""
+    # ========== COMMON: Select Level ==========
+    schreiben_levels = ["A1", "A2", "B1", "B2", "C1"]
+    prev_level = st.session_state.get("schreiben_level", "A1")
+    schreiben_level = st.selectbox(
+        "Choose your writing level:",
+        schreiben_levels,
+        index=schreiben_levels.index(prev_level) if prev_level in schreiben_levels else 0,
+        key="schreiben_level_selector"
+    )
+    st.session_state["schreiben_level"] = schreiben_level
+
+    st.divider()
+
+    # ========== 1. MARK MY LETTER ==========
+    if sub_tab == "Mark My Letter":
+        st.markdown(
+            '''
             <div style="
                 padding: 8px 12px;
                 background: #d63384;
@@ -3536,45 +3558,21 @@ if tab == "Schreiben Trainer":
                 border-radius: 6px;
                 text-align: center;
                 margin-bottom: 8px;
-                font-size: 1.3rem;">
-                ✅ Mark My Letter (AI Writing Feedback)
+                font-size: 1.2rem;">
+                ✍️ Mark My Letter (AI Feedback & Score)
             </div>
-            """, unsafe_allow_html=True)
-        st.divider()
-
-        schreiben_levels = ["A1", "A2", "B1", "B2"]
-        prev_level = st.session_state.get("schreiben_level", "A1")
-        schreiben_level = st.selectbox(
-            "Choose your writing level:",
-            schreiben_levels,
-            index=schreiben_levels.index(prev_level) if prev_level in schreiben_levels else 0,
-            key="schreiben_level_selector"
+            ''',
+            unsafe_allow_html=True
         )
-        st.session_state["schreiben_level"] = schreiben_level
-
+        # Example student code/name usage
         student_code = st.session_state.get("student_code", "demo")
         student_name = st.session_state.get("student_name", "")
-        daily_so_far = get_schreiben_usage(student_code)
 
-        attempted, passed, accuracy = get_writing_stats(student_code)
-        st.markdown(f"""**📝 Your Overall Writing Performance**
-- 📨 **Submitted:** {attempted}
-- ✅ **Passed (≥17):** {passed}
-- 📊 **Pass Rate:** {accuracy}%
-- 📅 **Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}
-""")
+        # (Insert your daily limit & stats DB code here)
+        SCHREIBEN_DAILY_LIMIT = 2
+        daily_so_far = 0  # Replace with your DB logic if needed
 
-        stats = get_student_stats(student_code)
-        lvl_stats = stats.get(schreiben_level, {}) if stats else {}
-        if lvl_stats and lvl_stats["attempted"]:
-            correct = lvl_stats.get("correct", 0)
-            attempted_lvl = lvl_stats.get("attempted", 0)
-            st.info(f"Level `{schreiben_level}`: {correct} / {attempted_lvl} passed")
-        else:
-            st.info("_No previous writing activity for this level yet._")
-
-        st.divider()
-
+        # Input Box
         user_letter = st.text_area(
             "Paste or type your German letter/essay here.",
             key="schreiben_input",
@@ -3584,7 +3582,6 @@ if tab == "Schreiben Trainer":
         )
 
         if user_letter.strip():
-            import re
             words = re.findall(r'\b\w+\b', user_letter)
             chars = len(user_letter)
             st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
@@ -3605,7 +3602,6 @@ if tab == "Schreiben Trainer":
             "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score."
         )
 
-        feedback = ""
         submit_disabled = daily_so_far >= SCHREIBEN_DAILY_LIMIT or not user_letter.strip()
         if submit_disabled and daily_so_far >= SCHREIBEN_DAILY_LIMIT:
             st.warning("You have reached today's writing practice limit. Please come back tomorrow.")
@@ -3613,7 +3609,7 @@ if tab == "Schreiben Trainer":
         if st.button("Get Feedback", type="primary", disabled=submit_disabled):
             with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                 try:
-                    completion = client.chat.completions.create(
+                    completion = openai.chat.completions.create(
                         model="gpt-4o",
                         messages=[
                             {"role": "system", "content": ai_prompt},
@@ -3627,102 +3623,134 @@ if tab == "Schreiben Trainer":
                     feedback = None
 
             if feedback:
-                import re
-                score_match = re.search(
-                    r"score\s*(?:[:=]|is)?\s*(\d+)\s*/\s*25",
-                    feedback,
-                    re.IGNORECASE,
-                )
+                # Extract score
+                score_match = re.search(r"score\s*(?:[:=]|is)?\s*(\d+)\s*/\s*25", feedback, re.IGNORECASE)
                 if not score_match:
                     score_match = re.search(r"Score[:\s]+(\d+)\s*/\s*25", feedback, re.IGNORECASE)
-                if score_match:
-                    score = int(score_match.group(1))
-                else:
-                    st.warning("Could not detect a score in the AI feedback.")
-                    score = 0
+                score = int(score_match.group(1)) if score_match else 0
 
-                inc_schreiben_usage(student_code)
-                save_schreiben_attempt(student_code, student_name, schreiben_level, score)
+                # Save to DB if needed here
 
                 st.markdown("---")
                 st.markdown("#### 📝 Feedback from Herr Felix")
                 st.markdown(feedback)
 
-            def sanitize_text(text):
-                return text.encode('latin-1', errors='replace').decode('latin-1')
+                # Download as PDF
+                def sanitize_text(text):
+                    return text.encode('latin-1', errors='replace').decode('latin-1')
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_font("Arial", size=12)
+                safe_user_letter = sanitize_text(user_letter)
+                safe_feedback = sanitize_text(feedback)
+                pdf.multi_cell(0, 10, f"Your Letter:\n\n{safe_user_letter}\n\nFeedback from Herr Felix:\n\n{safe_feedback}")
+                pdf_output = f"Feedback_{student_code}_{schreiben_level}.pdf"
+                pdf.output(pdf_output)
+                with open(pdf_output, "rb") as f:
+                    pdf_bytes = f.read()
+                st.download_button(
+                    "⬇️ Download Feedback as PDF",
+                    pdf_bytes,
+                    file_name=pdf_output,
+                    mime="application/pdf"
+                )
+                import os
+                os.remove(pdf_output)
 
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=12)
-            safe_user_letter = sanitize_text(user_letter)
-            safe_feedback = sanitize_text(feedback)
-            pdf.multi_cell(0, 10, f"Your Letter:\n\n{safe_user_letter}\n\nFeedback from Herr Felix:\n\n{safe_feedback}")
-            pdf_output = f"Feedback_{student_code}_{schreiben_level}.pdf"
-            pdf.output(pdf_output)
-            with open(pdf_output, "rb") as f:
-                pdf_bytes = f.read()
-            st.download_button(
-                "⬇️ Download Feedback as PDF",
-                pdf_bytes,
-                file_name=pdf_output,
-                mime="application/pdf"
-            )
-            import os
-            os.remove(pdf_output)
+                wa_message = f"Hi, here is my German letter and AI feedback:\n\n{user_letter}\n\nFeedback:\n{feedback}"
+                wa_url = (
+                    "https://api.whatsapp.com/send"
+                    "?phone=233205706589"
+                    f"&text={urllib.parse.quote(wa_message)}"
+                )
+                st.markdown(
+                    f"[📲 Send to Tutor on WhatsApp]({wa_url})",
+                    unsafe_allow_html=True
+                )
 
-            wa_message = f"Hi, here is my German letter and AI feedback:\n\n{user_letter}\n\nFeedback:\n{feedback}"
-            wa_url = (
-                "https://api.whatsapp.com/send"
-                "?phone=233205706589"
-                f"&text={urllib.parse.quote(wa_message)}"
-            )
-            st.markdown(
-                f"[📲 Send to Tutor on WhatsApp]({wa_url})",
-                unsafe_allow_html=True
-            )
-
-    # ======= SUBTAB 2: IDEAS GENERATOR =======
-    if subtab == "Ideas Generator":
-        st.markdown("""
+    # ========== 2. IDEAS GENERATOR (Letter Coach, Chat-Style) ==========
+    if sub_tab == "Ideas Generator (Letter Coach)":
+        st.markdown(
+            '''
             <div style="
                 padding: 8px 12px;
-                background: #6633cc;
+                background: #8e44ad;
                 color: #fff;
                 border-radius: 6px;
                 text-align: center;
                 margin-bottom: 8px;
-                font-size: 1.3rem;">
+                font-size: 1.2rem;">
                 💡 Ideas Generator (Step-by-Step Letter Planning)
             </div>
-            """, unsafe_allow_html=True)
-        st.divider()
-        st.markdown(
-            "Paste your **letter prompt/question** below. Herr Felix will help you brainstorm and plan your letter step by step."
-        )
-        prompt = st.text_area(
-            "Paste your letter question here:",
-            key="ideas_prompt",
-            height=100,
-            placeholder="e.g. Sie möchten Ihrem Freund für die Einladung danken..."
+            ''',
+            unsafe_allow_html=True
         )
 
-        # === Step-by-step AI guidance (expandable logic here) ===
-        if prompt.strip():
-            if st.button("Get Ideas", key="ideas_btn"):
-                with st.spinner("Herr Felix is brainstorming..."):
-                    coach_prompt = (
-                        "You are Herr Felix, a German writing coach. Help the student brainstorm and plan their letter step by step. "
-                        "Do NOT write the full letter. Start with purpose, then structure, then key Redemittel and points. "
-                        "After each step, wait for student input, then continue with the next suggestion. "
-                        f"\n\nLetter prompt: {prompt}"
+        if "letter_coach_history" not in st.session_state:
+            st.session_state.letter_coach_history = []
+        if "letter_coach_active" not in st.session_state:
+            st.session_state.letter_coach_active = False
+        if "letter_coach_prompt" not in st.session_state:
+            st.session_state.letter_coach_prompt = ""
+
+        # Step 1: Student pastes the letter prompt
+        prompt = st.text_area(
+            "Paste your letter prompt/question here:",
+            value=st.session_state.letter_coach_prompt,
+            placeholder="e.g., Warum schreibst du? Erzähle Felix etwas über deine Arbeit und deine Familie."
+        )
+
+        if prompt and not st.session_state.letter_coach_active:
+            if st.button("Start Letter Coach Chat"):
+                st.session_state.letter_coach_prompt = prompt
+                st.session_state.letter_coach_history = [
+                    {"role": "system", "content": (
+                        "You are Herr Felix, a supportive German letter coach. "
+                        f"The student is at level {schreiben_level}. "
+                        "Guide the student step-by-step to plan their letter based on their pasted prompt/question. "
+                        "First, analyze and determine if the letter is SMS, formal, informal, opinion essay, or other. "
+                        "Ask one guiding question at a time to help the student brainstorm and structure the letter, with tips after each answer. "
+                        "Keep the flow as a natural chat, and adapt your questions to the letter type and answers."
+                    )},
+                    {"role": "assistant", "content": "Great! Let's begin. From your prompt, do you think your letter is formal, informal, an SMS, or an opinion essay? Or describe briefly if unsure."},
+                    {"role": "user", "content": prompt},
+                ]
+                st.session_state.letter_coach_active = True
+
+        if st.session_state.letter_coach_active:
+            # Show chat
+            for msg in st.session_state.letter_coach_history[2:]:
+                if msg["role"] == "assistant":
+                    st.markdown(f"**Herr Felix:** {msg['content']}")
+                elif msg["role"] == "user":
+                    st.markdown(f"**You:** {msg['content']}")
+
+            user_input = st.text_input("Your answer (press Enter to send):", key="letter_coach_input")
+            if user_input:
+                st.session_state.letter_coach_history.append({"role": "user", "content": user_input})
+                with st.spinner("Herr Felix is thinking..."):
+                    completion = openai.chat.completions.create(
+                        model="gpt-4o",
+                        messages=st.session_state.letter_coach_history,
+                        temperature=0.4,
                     )
-                    # Example placeholder (simulate AI, replace with real API call as needed)
-                    st.success(
-                        "**Step 1:** What is the **purpose** of your letter? (E.g., Einladung, Beschwerde, Entschuldigung...)\n\n"
-                        "_Type your answer and I'll help you with the next step!_"
-                    )
-        else:
-            st.info("Paste your letter prompt above to get started.")
+                    ai_reply = completion.choices[0].message.content
+                st.session_state.letter_coach_history.append({"role": "assistant", "content": ai_reply})
+                st.experimental_rerun()
+
+            if st.button("Finish & Show All Steps"):
+                st.subheader("📝 Your Planned Letter (Step-by-step)")
+                for msg in st.session_state.letter_coach_history[2:]:
+                    if msg["role"] == "assistant":
+                        st.markdown(f"**Herr Felix:** {msg['content']}")
+                    elif msg["role"] == "user":
+                        st.markdown(f"**You:** {msg['content']}")
+                st.session_state.letter_coach_active = False
+                st.session_state.letter_coach_history = []
+
+        if not st.session_state.letter_coach_active and not prompt:
+            st.info("Paste your letter prompt above and start the chat letter coach to get ideas and guidance, step by step.")
+
 
 
 
