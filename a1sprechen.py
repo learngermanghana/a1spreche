@@ -3751,6 +3751,63 @@ if tab == "Schreiben Trainer":
         if "letter_coach_type" not in st.session_state:
             st.session_state.letter_coach_type = ""
 
+    # --- 2. IDEAS GENERATOR SUB-TAB ---
+    if sub_tab == "Ideas Generator (Letter Coach)":
+        st.markdown(
+            '''
+            <div style="padding: 8px 12px; background: #8e44ad; color: #fff;
+            border-radius: 6px; text-align: center; margin-bottom: 8px; font-size: 1.2rem;">
+            💡 Ideas Generator (Letter Coach Chat)
+            </div>
+            ''', unsafe_allow_html=True
+        )
+
+        IDEAS_LIMIT = 20
+        ideas_so_far = get_letter_coach_usage(student_code)
+        st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
+        if ideas_so_far >= IDEAS_LIMIT:
+            st.warning("You have reached today's letter coach limit. Please come back tomorrow.")
+
+        # --- SESSION STATE ---
+        if "letter_coach_stage" not in st.session_state:
+            st.session_state.letter_coach_stage = 0
+        if "letter_coach_chat" not in st.session_state:
+            st.session_state.letter_coach_chat = []
+        if "letter_coach_prompt" not in st.session_state:
+            st.session_state.letter_coach_prompt = ""
+        if "letter_coach_type" not in st.session_state:
+            st.session_state.letter_coach_type = ""
+
+        # ==== Download Progress as CSV ====
+        import pandas as pd
+        import io
+        if st.session_state.get("letter_coach_chat"):
+            # Collect only student replies (or all messages, as you wish)
+            rows = []
+            for msg in st.session_state.letter_coach_chat[1:]:  # skip the first system message
+                role = "You" if msg["role"] == "user" else "Herr Felix"
+                rows.append({"Role": role, "Message": msg["content"]})
+            df = pd.DataFrame(rows)
+            csv = df.to_csv(index=False).encode("utf-8")
+            st.download_button("⬇️ Download Progress as CSV", csv, file_name="falowen_letter_coach_progress.csv", mime="text/csv")
+
+        # ==== Upload Progress as CSV ====
+        uploaded_file = st.file_uploader("⬆️ Upload a previous progress CSV to resume", type=["csv"])
+        if uploaded_file:
+            df_uploaded = pd.read_csv(uploaded_file)
+            # Convert back to chat format
+            chat = []
+            for _, row in df_uploaded.iterrows():
+                role = "user" if row["Role"] == "You" else "assistant"
+                chat.append({"role": role, "content": row["Message"]})
+            # Insert system prompt at the beginning for consistency
+            system_message = {"role": "system", "content": "You are a German letter coach. Always explain in English. Short and supportive!"}
+            chat = [system_message] + chat
+            st.session_state.letter_coach_chat = chat
+            st.session_state.letter_coach_stage = 2  # Jump to chat stage
+            st.success("Progress uploaded! Continue your session below.")
+            st.rerun()
+
         # ------ STAGE 0: GET PROMPT -------
         if st.session_state.letter_coach_stage == 0:
             with st.form("prompt_form", clear_on_submit=True):
@@ -3926,6 +3983,8 @@ if tab == "Schreiben Trainer":
             st.session_state.letter_coach_user_input = ""
             st.session_state.selected_letter_lines = []
             st.rerun()
+
+
 
 
 
