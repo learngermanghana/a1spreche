@@ -3100,6 +3100,7 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["falowen_messages"] = []
                     st.session_state["custom_topic_intro_done"] = False
                     st.rerun()
+                    
     # ---- STAGE 4: MAIN CHAT ----
     if st.session_state["falowen_stage"] == 4:
         import re
@@ -3295,25 +3296,30 @@ if tab == "Exams Mode & Custom Chat":
             )
             st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
 
-        # ---- Build System Prompt including topic/context ----
-        if is_exam:
-            if (not st.session_state.get("falowen_exam_topic")) and st.session_state.get("remaining_topics"):
-                next_topic = st.session_state["remaining_topics"].pop(0)
-                if " – " in next_topic:
-                    topic, keyword = next_topic.split(" – ", 1)
-                    st.session_state["falowen_exam_topic"] = topic
-                    st.session_state["falowen_exam_keyword"] = keyword
-                else:
-                    st.session_state["falowen_exam_topic"] = next_topic
-                    st.session_state["falowen_exam_keyword"] = None
-            base_prompt = build_exam_system_prompt(level, teil)
-            topic = st.session_state.get("falowen_exam_topic")
-            if topic:
-                system_prompt = f"{base_prompt} Thema: {topic}."
+    # ---- Build System Prompt including topic/context ----
+    if is_exam:
+        # Only advance if we don't already have an active topic and still have topics left
+        if (not st.session_state.get("falowen_exam_topic")) and st.session_state.get("remaining_topics"):
+            next_topic = st.session_state["remaining_topics"].pop(0)
+            if " – " in next_topic:
+                topic, keyword = next_topic.split(" – ", 1)
+                st.session_state["falowen_exam_topic"] = topic
+                st.session_state["falowen_exam_keyword"] = keyword
             else:
-                system_prompt = base_prompt
+                st.session_state["falowen_exam_topic"] = next_topic
+                st.session_state["falowen_exam_keyword"] = None
+            # Mark topic as used **immediately when you pop it**
+            if next_topic not in st.session_state["used_topics"]:
+                st.session_state["used_topics"].append(next_topic)
+        base_prompt = build_exam_system_prompt(level, teil)
+        topic = st.session_state.get("falowen_exam_topic")
+        if topic:
+            system_prompt = f"{base_prompt} Thema: {topic}."
         else:
-            system_prompt = build_custom_chat_prompt(level)
+            system_prompt = base_prompt
+    else:
+        system_prompt = build_custom_chat_prompt(level)
+
 
         # ---- Chat Input & Assistant Response ----
         user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
