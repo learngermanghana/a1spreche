@@ -3101,7 +3101,7 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["custom_topic_intro_done"] = False
                     st.rerun()
                     
-    # ---- STAGE 4: MAIN CHAT ----
+# ---- STAGE 4: MAIN CHAT ----
 if st.session_state["falowen_stage"] == 4:
     import re
     import pandas as pd
@@ -3112,6 +3112,54 @@ if st.session_state["falowen_stage"] == 4:
     is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
     is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
     MAX_BUFFER_SIZE = 50
+
+    # ---- Seed remaining_topics from Google Sheet if empty ----
+    if is_exam and not st.session_state.get("remaining_topics"):
+        # extract Teil number
+        teil_num = teil.split()[1]
+        exam_df = df_exam[
+            (df_exam["Level"] == level) &
+            (df_exam["Teil"]  == f"Teil {teil_num}")
+        ]
+        topics = []
+        for t, k in zip(exam_df["Topic"].astype(str), exam_df["Keyword"].astype(str)):
+            t, k = t.strip(), k.strip()
+            if t:
+                topics.append(f"{t} – {k}" if k else t)
+        st.session_state["remaining_topics"] = topics.copy()
+        st.session_state["used_topics"] = []
+
+    # ---- Seed remaining_topics from Google Sheet if empty ----
+    if is_exam and not st.session_state.get("remaining_topics"):
+        # extract Teil number
+        teil_num = teil.split()[1]
+        exam_df = df_exam[
+            (df_exam["Level"] == level) &
+            (df_exam["Teil"]  == f"Teil {teil_num}")
+        ]
+        topics = []
+        for t, k in zip(exam_df["Topic"].astype(str), exam_df["Keyword"].astype(str)):
+            t, k = t.strip(), k.strip()
+            if t:
+                topics.append(f"{t} – {k}" if k else t)
+        st.session_state["remaining_topics"] = topics.copy()
+        st.session_state["used_topics"] = []
+
+# extract Teil number
+        teil_num = teil.split()[1]
+        exam_df = df_exam[
+            (df_exam["Level"] == level) &
+            (df_exam["Teil"]  == f"Teil {teil_num}")
+        ]
+        topics = []
+        for t, k in zip(exam_df["Topic"].astype(str), exam_df["Keyword"].astype(str)):
+            t, k = t.strip(), k.strip()
+            if t:
+                topics.append(f"{t} – {k}" if k else t)
+        st.session_state["remaining_topics"] = topics.copy()
+        st.session_state["used_topics"] = []
+
+#
 
     # ====== Exams Mode: CSV Progress Save/Upload + Progress Bar ======
     if is_exam:
