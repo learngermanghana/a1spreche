@@ -3555,15 +3555,37 @@ if tab == "Vocab Trainer":
                 st.session_state[k] = defaults[k]
                 
 
-# ---- SCHREIBEN TRAINER TAB ----
-if main_tab == "Schreiben Trainer":
-    # Sub-tabs
+# ====================================
+# SCHREIBEN TRAINER TAB (with Daily Limit, Mobile UI, persistent with SQLite)
+# ====================================
+
+if tab == "Schreiben Trainer":
+    # Header
+    st.markdown(
+        '''
+        <div style="
+            padding: 8px 12px;
+            background: #d63384;
+            color: #fff;
+            border-radius: 6px;
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 1.3rem;">
+            ✍️ Schreiben Trainer (Writing Practice)
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
+    st.divider()
+
+    # Sub-tabs: Mark My Letter, Ideas Generator (Letter Coach)
     sub_tab = st.radio(
         "Choose Mode",
         ["Mark My Letter", "Ideas Generator (Letter Coach)"],
         horizontal=True,
         key="schreiben_sub_tab"
     )
+
 
     # Level picker
     schreiben_levels = ["A1", "A2", "B1", "B2", "C1"]
