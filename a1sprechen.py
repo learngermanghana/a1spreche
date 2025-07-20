@@ -3877,56 +3877,57 @@ if tab == "Schreiben Trainer":
                     st.session_state.letter_coach_type = ""
                     st.rerun()
 
-        # Step 3: Summary and Copyable Plan (with line selection)
-        if not st.session_state.letter_coach_active and st.session_state.letter_coach_chat:
-            st.subheader("📝 Your Step-by-Step Plan")
+    # Step 3: Summary and Copyable Plan (with line selection)
+    if st.session_state.letter_coach_stage == 0 and st.session_state.letter_coach_chat:
+        st.subheader("📝 Your Step-by-Step Plan")
 
-            # Collect only student replies
-            user_msgs = [
-                (i, msg["content"])
-                for i, msg in enumerate(st.session_state.letter_coach_chat[1:], start=1)
-                if msg["role"] == "user"
-            ]
+        # Collect only student replies
+        user_msgs = [
+            (i, msg["content"])
+            for i, msg in enumerate(st.session_state.letter_coach_chat[1:], start=1)
+            if msg["role"] == "user"
+        ]
 
-            # Track which lines are selected (default: all checked)
-            if "selected_letter_lines" not in st.session_state or len(st.session_state.selected_letter_lines) != len(user_msgs):
-                st.session_state.selected_letter_lines = [True] * len(user_msgs)
+        # Track which lines are selected (default: all checked)
+        if "selected_letter_lines" not in st.session_state or len(st.session_state.selected_letter_lines) != len(user_msgs):
+            st.session_state.selected_letter_lines = [True] * len(user_msgs)
 
-            st.markdown("**✅ Select which parts to include in your letter:**")
-            selected = []
-            for idx, (msg_idx, content) in enumerate(user_msgs):
-                checked = st.checkbox(
-                    content, 
-                    value=st.session_state.selected_letter_lines[idx] if idx < len(st.session_state.selected_letter_lines) else True,
-                    key=f"letter_line_{msg_idx}"
-                )
-                selected.append(checked)
-
-            st.session_state.selected_letter_lines = selected
-
-            # Only include selected lines
-            arranged_letter = [content for (i, (msg_idx, content)) in enumerate(user_msgs) if st.session_state.selected_letter_lines[i]]
-
-            st.markdown("**Copy your selected letter draft:**")
-            st.code("\n".join(arranged_letter), language="markdown")
-
-            st.markdown("---")
-            st.markdown("**Copy your text with AI feedback and tips:**")
-            ai_and_you = "\n".join(
-                f"{'You' if m['role']=='user' else 'Herr Felix'}: {m['content']}"
-                for m in st.session_state.letter_coach_chat[1:]
+        st.markdown("**✅ Select which parts to include in your letter:**")
+        selected = []
+        for idx, (msg_idx, content) in enumerate(user_msgs):
+            checked = st.checkbox(
+                content,
+                value=st.session_state.selected_letter_lines[idx] if idx < len(st.session_state.selected_letter_lines) else True,
+                key=f"letter_line_{msg_idx}"
             )
-            st.code(ai_and_you, language="markdown")
-            st.info("""
-            **Next Step:**  
-            Paste your draft into the **Mark My Letter** tab to get AI feedback and a score before sending it to your tutor!
-            """)
+            selected.append(checked)
 
-            if st.button("Start New Letter Coach"):
-                st.session_state.letter_coach_chat = []
-                st.session_state.letter_coach_prompt = ""
-                st.session_state.letter_coach_user_input = ""
-                st.session_state.selected_letter_lines = []
-                st.rerun()
+        st.session_state.selected_letter_lines = selected
+
+        # Only include selected lines
+        arranged_letter = [content for (i, (msg_idx, content)) in enumerate(user_msgs) if st.session_state.selected_letter_lines[i]]
+
+        st.markdown("**Copy your selected letter draft:**")
+        st.code("\n".join(arranged_letter), language="markdown")
+
+        st.markdown("---")
+        st.markdown("**Copy your text with AI feedback and tips:**")
+        ai_and_you = "\n".join(
+            f"{'You' if m['role']=='user' else 'Herr Felix'}: {m['content']}"
+            for m in st.session_state.letter_coach_chat[1:]
+        )
+        st.code(ai_and_you, language="markdown")
+        st.info("""
+        **Next Step:**  
+        Paste your draft into the **Mark My Letter** tab to get AI feedback and a score before sending it to your tutor!
+        """)
+
+        if st.button("Start New Letter Coach"):
+            st.session_state.letter_coach_chat = []
+            st.session_state.letter_coach_prompt = ""
+            st.session_state.letter_coach_user_input = ""
+            st.session_state.selected_letter_lines = []
+            st.rerun()
+
 
 
