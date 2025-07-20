@@ -3560,7 +3560,6 @@ if tab == "Vocab Trainer":
 # ====================================
 
 if tab == "Schreiben Trainer":
-    # Header
     st.markdown(
         '''
         <div style="
@@ -3585,7 +3584,6 @@ if tab == "Schreiben Trainer":
         horizontal=True,
         key="schreiben_sub_tab"
     )
-
 
     # Level picker
     schreiben_levels = ["A1", "A2", "B1", "B2", "C1"]
@@ -3623,7 +3621,6 @@ if tab == "Schreiben Trainer":
         # Daily usage
         SCHREIBEN_DAILY_LIMIT = 5
         daily_so_far = get_schreiben_usage(student_code)
-
         st.markdown(f"**Daily usage:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}")
 
         user_letter = st.text_area(
@@ -3723,159 +3720,162 @@ if tab == "Schreiben Trainer":
                     f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                     unsafe_allow_html=True
                 )
-def bubble(role, text):
-    color = "#7b2ff2" if role == "assistant" else "#222"
-    bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
-    name = "Herr Felix" if role == "assistant" else "You"
-    return f"""
-        <div style="background:{bg};color:{color};margin-bottom:8px;padding:13px 15px;border-radius:14px;max-width:98vw;font-size:1.09rem;">
-            <b>{name}:</b><br>{text}
-        </div>
-    """
 
-# --- 2. IDEAS GENERATOR SUB-TAB ---
-if sub_tab == "Ideas Generator (Letter Coach)":
-    st.markdown(
-        '''
-        <div style="
-            padding: 8px 12px;
-            background: #8e44ad;
-            color: #fff;
-            border-radius: 6px;
-            text-align: center;
-            margin-bottom: 8px;
-            font-size: 1.2rem;">
-            💡 Ideas Generator (Letter Coach Chat)
-        </div>
-        ''',
-        unsafe_allow_html=True
-    )
+    # Bubble function (for chat UI in next section)
+    def bubble(role, text):
+        color = "#7b2ff2" if role == "assistant" else "#222"
+        bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
+        name = "Herr Felix" if role == "assistant" else "You"
+        return f"""
+            <div style="background:{bg};color:{color};margin-bottom:8px;padding:13px 15px;border-radius:14px;max-width:98vw;font-size:1.09rem;">
+                <b>{name}:</b><br>{text}
+            </div>
+        """
 
-    # Daily usage for Ideas Generator
-    IDEAS_LIMIT = 20
-    ideas_so_far = get_letter_coach_usage(student_code)
-    st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
-    if ideas_so_far >= IDEAS_LIMIT:
-        st.warning("You have reached today's letter coach limit. Please come back tomorrow.")
-
-    # SESSION STATE SETUP
-    if "letter_coach_chat" not in st.session_state:
-        st.session_state.letter_coach_chat = []
-    if "letter_coach_active" not in st.session_state:
-        st.session_state.letter_coach_active = False
-    if "letter_coach_prompt" not in st.session_state:
-        st.session_state.letter_coach_prompt = ""
-    if "letter_coach_user_input" not in st.session_state:
-        st.session_state.letter_coach_user_input = ""
-
-    # Step 1: Paste prompt, only if not already started
-    if not st.session_state.letter_coach_active:
-        prompt = st.text_area(
-            "Paste your letter/essay question or prompt here:",
-            value=st.session_state.letter_coach_prompt,
-            height=120,
-            disabled=(ideas_so_far >= IDEAS_LIMIT),
-            placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Chefin..."
+    # --- 2. IDEAS GENERATOR SUB-TAB ---
+    if sub_tab == "Ideas Generator (Letter Coach)":
+        st.markdown(
+            '''
+            <div style="
+                padding: 8px 12px;
+                background: #8e44ad;
+                color: #fff;
+                border-radius: 6px;
+                text-align: center;
+                margin-bottom: 8px;
+                font-size: 1.2rem;">
+                💡 Ideas Generator (Letter Coach Chat)
+            </div>
+            ''',
+            unsafe_allow_html=True
         )
-        st.session_state.letter_coach_prompt = prompt
 
-        if prompt and st.button("Start Letter Coach Chat", disabled=(ideas_so_far >= IDEAS_LIMIT)):
-            level = schreiben_level
-            system_prompt = (
-                "You are Herr Felix, a friendly, supportive, and clear German letter-writing coach. "
-                "The student is practicing for the A1–C1 German writing exam. "
-                "ALWAYS give short, focused, and motivating replies: never more than 2 ideas or 2 sentence starters per reply. "
-                "Correct student grammar, especially adjective endings, declension, and tense usage. "
-                "If you spot an error, explain the correct rule (statement, modal verb, connectors, adjective endings, tenses) in clear English. "
-                "At the start, ask if the student wants to begin from the introduction or jump to a particular section (like advantages, disadvantages, closing). "
-                "Guide only one step at a time: a practical tip, an example, or a starter phrase with English translation. "
-                "Mention grammar/connections only when relevant (e.g., suggest 'weil' or 'deshalb', mention modal verbs or accusative/dative/adjective endings). "
-                "Always end with: 'If you are okay or confident, click END SUMMARY below to copy your text and send to your tutor—or type your next idea/question.' "
-                "DO NOT write the whole letter. "
-                "When finished, summarize all the steps and ideas in a simple, copyable format."
+        # Daily usage for Ideas Generator
+        IDEAS_LIMIT = 20
+        ideas_so_far = get_letter_coach_usage(student_code)
+        st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
+        if ideas_so_far >= IDEAS_LIMIT:
+            st.warning("You have reached today's letter coach limit. Please come back tomorrow.")
+
+        # SESSION STATE SETUP
+        if "letter_coach_chat" not in st.session_state:
+            st.session_state.letter_coach_chat = []
+        if "letter_coach_active" not in st.session_state:
+            st.session_state.letter_coach_active = False
+        if "letter_coach_prompt" not in st.session_state:
+            st.session_state.letter_coach_prompt = ""
+        if "letter_coach_user_input" not in st.session_state:
+            st.session_state.letter_coach_user_input = ""
+
+        # Step 1: Paste prompt, only if not already started
+        if not st.session_state.letter_coach_active:
+            prompt = st.text_area(
+                "Paste your letter/essay question or prompt here:",
+                value=st.session_state.letter_coach_prompt,
+                height=120,
+                disabled=(ideas_so_far >= IDEAS_LIMIT),
+                placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Chefin..."
             )
-            st.session_state.letter_coach_chat = [
-                {"role": "system", "content": system_prompt},
-                {"role": "assistant", "content": (
-                    "Let's begin! Congratulations on starting your letter. "
-                    "Would you like to start from the introduction, or do you want ideas/help for a specific section (e.g., advantages, closing, opinion)? "
-                    "Also, do you think this is a formal letter, informal letter, SMS, or opinion essay? (If unsure, say so!)"
-                )},
-                {"role": "user", "content": prompt}
-            ]
-            st.session_state.letter_coach_active = True
-            inc_letter_coach_usage(student_code)
-            st.rerun()
+            st.session_state.letter_coach_prompt = prompt
 
-    # Step 2: Chat Interface (mobile-friendly, modern input)
-    if st.session_state.letter_coach_active:
-        chat_history = st.session_state.letter_coach_chat
-
-        for msg in chat_history[1:]:
-            st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
-
-        with st.form("letter_coach_chat_form", clear_on_submit=True):
-            user_input = st.text_input(
-                "",
-                value="",
-                key="letter_coach_user_input",
-                placeholder="Type your reply, ask about a section, or paste your draft here...",
-                help="Reply to Herr Felix here."
-            )
-            send = st.form_submit_button("Send")
-
-        if send and user_input.strip():
-            chat_history.append({"role": "user", "content": user_input})
-            with st.spinner("Herr Felix is typing..."):
-                try:
-                    resp = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=chat_history,
-                        temperature=0.22,
-                        max_tokens=420
-                    )
-                    ai_reply = resp.choices[0].message.content
-                except Exception as e:
-                    ai_reply = "Sorry, something went wrong. Please try again."
-            chat_history.append({"role": "assistant", "content": ai_reply})
-            st.session_state.letter_coach_chat = chat_history
-            st.rerun()
-
-        st.divider()
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("END SUMMARY"):
-                st.session_state.letter_coach_active = False
+            if prompt and st.button("Start Letter Coach Chat", disabled=(ideas_so_far >= IDEAS_LIMIT)):
+                level = schreiben_level
+                system_prompt = (
+                    "You are Herr Felix, a friendly, supportive, and clear German letter-writing coach. "
+                    "The student is practicing for the A1–C1 German writing exam. "
+                    "ALWAYS give short, focused, and motivating replies: never more than 2 ideas or 2 sentence starters per reply. "
+                    "Correct student grammar, especially adjective endings, declension, and tense usage. "
+                    "If you spot an error, explain the correct rule (statement, modal verb, connectors, adjective endings, tenses) in clear English. "
+                    "At the start, ask if the student wants to begin from the introduction or jump to a particular section (like advantages, disadvantages, closing). "
+                    "Guide only one step at a time: a practical tip, an example, or a starter phrase with English translation. "
+                    "Mention grammar/connections only when relevant (e.g., suggest 'weil' or 'deshalb', mention modal verbs or accusative/dative/adjective endings). "
+                    "ALWAYS end your reply with: 'If you are okay or confident, click END SUMMARY below to copy your text and send to your tutor—or type your next idea/question.' "
+                    "DO NOT write the whole letter. "
+                    "When finished, summarize all the steps and ideas in a simple, copyable format."
+                )
+                st.session_state.letter_coach_chat = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "assistant", "content": (
+                        "Let's begin! Congratulations on starting your letter. "
+                        "Would you like to start from the introduction, or do you want ideas/help for a specific section (e.g., advantages, closing, opinion)? "
+                        "Also, do you think this is a formal letter, informal letter, SMS, or opinion essay? (If unsure, say so!)"
+                    )},
+                    {"role": "user", "content": prompt}
+                ]
+                st.session_state.letter_coach_active = True
+                inc_letter_coach_usage(student_code)
                 st.rerun()
-        with col2:
-            if st.button("Restart Letter Coach"):
-                st.session_state.letter_coach_active = False
+
+        # Step 2: Chat Interface (modern, mobile-friendly)
+        if st.session_state.letter_coach_active:
+            chat_history = st.session_state.letter_coach_chat
+
+            for msg in chat_history[1:]:
+                st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
+
+            with st.form("letter_coach_chat_form", clear_on_submit=True):
+                user_input = st.text_input(
+                    "",
+                    value="",
+                    key="letter_coach_user_input",
+                    placeholder="Type your reply, ask about a section, or paste your draft here...",
+                    help="Reply to Herr Felix here."
+                )
+                send = st.form_submit_button("Send")
+
+            if send and user_input.strip():
+                chat_history.append({"role": "user", "content": user_input})
+                with st.spinner("Herr Felix is typing..."):
+                    try:
+                        resp = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=chat_history,
+                            temperature=0.22,
+                            max_tokens=420
+                        )
+                        ai_reply = resp.choices[0].message.content
+                    except Exception as e:
+                        ai_reply = "Sorry, something went wrong. Please try again."
+                chat_history.append({"role": "assistant", "content": ai_reply})
+                st.session_state.letter_coach_chat = chat_history
+                st.rerun()
+
+            st.divider()
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("END SUMMARY"):
+                    st.session_state.letter_coach_active = False
+                    st.rerun()
+            with col2:
+                if st.button("Restart Letter Coach"):
+                    st.session_state.letter_coach_active = False
+                    st.session_state.letter_coach_chat = []
+                    st.session_state.letter_coach_prompt = ""
+                    st.rerun()
+
+        # Step 3: Summary and Copyable Plan
+        if not st.session_state.letter_coach_active and st.session_state.letter_coach_chat:
+            st.subheader("📝 Your Step-by-Step Plan")
+            combined = []
+            for msg in st.session_state.letter_coach_chat[1:]:
+                st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
+                if msg["role"] == "user":
+                    combined.append(msg["content"])
+            st.markdown("---")
+            st.markdown("**Copy your text only:**")
+            st.code("\n".join(combined), language="markdown")
+            st.markdown("**Copy your text with AI feedback and tips:**")
+            ai_and_you = "\n".join(f"{'You' if m['role']=='user' else 'Herr Felix'}: {m['content']}" for m in st.session_state.letter_coach_chat[1:])
+            st.code(ai_and_you, language="markdown")
+            st.info("""
+            **Next Step:**  
+            Paste your draft into the **Mark My Letter** tab to get AI feedback and a score before sending it to your tutor!
+            """)
+            if st.button("Start New Letter Coach"):
                 st.session_state.letter_coach_chat = []
                 st.session_state.letter_coach_prompt = ""
+                st.session_state.letter_coach_user_input = ""
                 st.rerun()
 
-    # Step 3: Summary and Copyable Plan
-    if not st.session_state.letter_coach_active and st.session_state.letter_coach_chat:
-        st.subheader("📝 Your Step-by-Step Plan")
-        combined = []
-        for msg in st.session_state.letter_coach_chat[1:]:
-            st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
-            if msg["role"] == "user":
-                combined.append(msg["content"])
-        st.markdown("---")
-        st.markdown("**Copy your text only:**")
-        st.code("\n".join(combined), language="markdown")
-        st.markdown("**Copy your text with AI feedback and tips:**")
-        ai_and_you = "\n".join(f"{'You' if m['role']=='user' else 'Herr Felix'}: {m['content']}" for m in st.session_state.letter_coach_chat[1:])
-        st.code(ai_and_you, language="markdown")
-        st.info("""
-        **Next Step:**  
-        Paste your draft into the **Mark My Letter** tab to get AI feedback and a score before sending it to your tutor!
-        """)
-        if st.button("Start New Letter Coach"):
-            st.session_state.letter_coach_chat = []
-            st.session_state.letter_coach_prompt = ""
-            st.session_state.letter_coach_user_input = ""
-            st.rerun()
 
 
