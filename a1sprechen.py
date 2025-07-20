@@ -3778,9 +3778,10 @@ if tab == "Schreiben Trainer":
             st.session_state.letter_coach_stage = 2
             st.session_state.letter_coach_uploaded = True
             st.success("Progress uploaded! Continue your session below.")
-            st.experimental_rerun()
-        if not uploaded_file:
+            st.stop()
+        if not uploaded_file and st.session_state.get("letter_coach_uploaded"):
             st.session_state["letter_coach_uploaded"] = False
+
 
         # ==== Instant Copy Chat Progress (JSON) ====
         if st.session_state.get("letter_coach_chat"):
