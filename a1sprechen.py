@@ -3792,21 +3792,56 @@ if tab == "Schreiben Trainer":
             st.download_button("⬇️ Download Progress as CSV", csv, file_name="falowen_letter_coach_progress.csv", mime="text/csv")
 
         # ==== Upload Progress as CSV ====
-        uploaded_file = st.file_uploader("⬆️ Upload a previous progress CSV to resume", type=["csv"])
-        if uploaded_file:
-            df_uploaded = pd.read_csv(uploaded_file)
-            # Convert back to chat format
-            chat = []
-            for _, row in df_uploaded.iterrows():
-                role = "user" if row["Role"] == "You" else "assistant"
-                chat.append({"role": role, "content": row["Message"]})
-            # Insert system prompt at the beginning for consistency
-            system_message = {"role": "system", "content": "You are a German letter coach. Always explain in English. Short and supportive!"}
-            chat = [system_message] + chat
-            st.session_state.letter_coach_chat = chat
-            st.session_state.letter_coach_stage = 2  # Jump to chat stage
-            st.success("Progress uploaded! Continue your session below.")
-            st.rerun()
+uploaded_file = st.file_uploader("⬆️ Upload a previous progress CSV to resume", type=["csv"])
+if uploaded_file and not st.session_state.get("letter_coach_uploaded"):
+    df_uploaded = pd.read_csv(uploaded_file)
+    # Convert back to chat format
+    chat = []
+    for _, row in df_uploaded.iterrows():
+        role = "user" if row["Role"] == "You" else "assistant"
+        chat.append({"role": role, "content": row["Message"]})
+    # Insert system prompt at the beginning for consistency
+    system_message = {"role": "system", "content": "You are a German letter coach. Always explain in English. Short and supportive!"}
+    chat = [system_message] + chat
+    st.session_state.letter_coach_chat = chat
+    st.session_state.letter_coach_stage = 2  # Jump to chat stage
+    st.session_state.letter_coach_uploaded = True  # Prevent re-running logic
+    st.success("Progress uploaded! Continue your session below.")
+    st.experimental_rerun()
+
+if not uploaded_file:
+    st.session_state["letter_coach_uploaded"] = False
+
+# ==== Instant Copy Chat Progress (JSON) ====
+import json
+if st.session_state.get("letter_coach_chat"):
+    chat_json = json.dumps(st.session_state["letter_coach_chat"], ensure_ascii=False, indent=2)
+    st.markdown("**📋 Instantly Copy Your Chat Progress (for backup/resume):**")
+    st.code(chat_json, language="json")
+    st.info("Copy the text above and save it (e.g., in your email or phone notes). Paste it here to continue later.")
+
+# ==== Paste and Resume Progress (from copied JSON) ====
+resume_chat_str = st.text_area(
+    "Paste your saved chat progress here (JSON format) to resume session:",
+    value="",
+    key="letter_coach_resume_paste",
+    height=120,
+    help="Paste only if you want to restore a previous chat session."
+)
+if st.button("Restore from Pasted Progress"):
+    try:
+        restored_chat = json.loads(resume_chat_str)
+        # Validate it's a list of chat dicts
+        if isinstance(restored_chat, list) and all("role" in m and "content" in m for m in restored_chat):
+            st.session_state.letter_coach_chat = restored_chat
+            st.session_state.letter_coach_stage = 2  # Go to chat stage
+            st.success("Progress restored! Continue your session below.")
+            st.experimental_rerun()
+        else:
+            st.warning("Invalid format! Please paste exactly as copied from the app.")
+    except Exception as e:
+        st.warning(f"Error restoring progress: {e}")
+
 
         # ------ STAGE 0: GET PROMPT -------
         if st.session_state.letter_coach_stage == 0:
@@ -3983,6 +4018,7 @@ if tab == "Schreiben Trainer":
             st.session_state.letter_coach_user_input = ""
             st.session_state.selected_letter_lines = []
             st.rerun()
+
 
 
 
