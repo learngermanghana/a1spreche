@@ -3825,7 +3825,6 @@ if tab == "Schreiben Trainer":
                 st.session_state.letter_coach_stage = 0
                 st.session_state.letter_coach_type = ""
                 st.session_state.letter_coach_uploaded = False
-                st.session_state.letter_coach_resume_paste = ""
                 st.experimental_rerun()
 
         # ------ STAGE 0: GET PROMPT -------
