@@ -3258,20 +3258,63 @@ if tab == "Exams Mode & Custom Chat":
         """, unsafe_allow_html=True)
 
         # ---- Word Highlighting ----
-        def highlight_keywords(text, keywords):
-            if not keywords: return text
-            def repl(match):
-                word = match.group(0)
-                return f"<span style='background:#fff3b0;border-radius:0.4em;padding:0.12em 0.4em'>{word}</span>"
-            for word in keywords:
-                text = re.sub(rf'\b{re.escape(word)}\b', repl, text, flags=re.IGNORECASE)
-            return text
-
         highlight_words = []
         if is_exam:
             if st.session_state.get("falowen_exam_keyword"):
                 highlight_words.append(st.session_state["falowen_exam_keyword"])
             highlight_words += ["weil", "möchte", "deshalb"]
+
+        # ====== Exams Mode: CSV Progress Save/Upload + Progress Bar ======
+        if is_exam:
+            st.info(
+                "💾 **Download your progress as CSV after each session. "
+                "Upload it next time to continue—so you don't repeat topics.**"
+            )
+
+            # Initialize topic lists if missing
+            if "remaining_topics" not in st.session_state:
+                st.session_state["remaining_topics"] = []
+            if "used_topics" not in st.session_state:
+                st.session_state["used_topics"] = []
+            total_topics = st.session_state["remaining_topics"] + st.session_state["used_topics"]
+
+            num_total = len(total_topics) if len(total_topics) > 0 else 1
+            num_used = len(st.session_state["used_topics"])
+            st.progress(
+                num_used / num_total,
+                text=f"{num_used} of {num_total} topics completed"
+            )
+
+            # --- Download progress as CSV ---
+            if num_used > 0:
+                df = pd.DataFrame({"Used_Topics": st.session_state["used_topics"]})
+                csv = df.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    "⬇️ Download Exam Progress as CSV",
+                    csv,
+                    file_name="falowen_exam_progress.csv",
+                    mime="text/csv"
+                )
+            else:
+                st.caption("No topics done yet.")
+
+            # --- Upload progress from CSV ---
+            uploaded = st.file_uploader(
+                "⬆️ Upload Previous Exam Progress (CSV)",
+                type=["csv"],
+                key="falowen_exam_csv_upload"
+            )
+            if uploaded:
+                df_upload = pd.read_csv(uploaded)
+                if "Used_Topics" in df_upload.columns:
+                    st.session_state["used_topics"] = list(df_upload["Used_Topics"].dropna())
+                    st.success("Progress restored! Topics you already did will be skipped next time.")
+                    # Remove restored topics from remaining topics
+                    if "remaining_topics" in st.session_state:
+                        st.session_state["remaining_topics"] = [
+                            t for t in st.session_state["remaining_topics"]
+                            if t not in st.session_state["used_topics"]
+                        ]
 
         # ---- Render Chat History (bubbles and highlights) ----
         for msg in st.session_state["falowen_messages"]:
@@ -3289,19 +3332,6 @@ if tab == "Exams Mode & Custom Chat":
                         f"<div style='{bubble_user}'>🗣️ {msg['content']}</div></div>",
                         unsafe_allow_html=True
                     )
-
-        # ---- PDF Download Button ----
-        if st.session_state["falowen_messages"]:
-            pdf_bytes = falowen_download_pdf(
-                st.session_state["falowen_messages"],
-                f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}"
-            )
-            st.download_button(
-                "⬇️ Download Chat as PDF",
-                pdf_bytes,
-                file_name=f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}.pdf",
-                mime="application/pdf"
-            )
 
         # ---- Session Buttons ----
         col1, col2, col3 = st.columns(3)
@@ -3330,7 +3360,6 @@ if tab == "Exams Mode & Custom Chat":
                 else:
                     st.session_state["falowen_exam_topic"] = next_topic
                     st.session_state["falowen_exam_keyword"] = None
-                st.session_state["used_topics"].append(next_topic)
             base_prompt = build_exam_system_prompt(level, teil)
             topic = st.session_state.get("falowen_exam_topic")
             if topic:
@@ -3351,8 +3380,8 @@ if tab == "Exams Mode & Custom Chat":
                 finished_topic = st.session_state.get("falowen_exam_topic", "")
                 if finished_topic and finished_topic not in st.session_state["used_topics"]:
                     st.session_state["used_topics"].append(finished_topic)
-                    if "remaining_topics" in st.session_state and finished_topic in st.session_state["remaining_topics"]:
-                        st.session_state["remaining_topics"].remove(finished_topic)
+                if "remaining_topics" in st.session_state and finished_topic in st.session_state["remaining_topics"]:
+                    st.session_state["remaining_topics"].remove(finished_topic)
 
             with st.chat_message("user"):
                 st.markdown(
@@ -3360,7 +3389,7 @@ if tab == "Exams Mode & Custom Chat":
                     f"<div style='{bubble_user}'>🗣️ {user_input}</div></div>",
                     unsafe_allow_html=True
                 )
-                
+
             with st.chat_message(
                 "assistant",
                 avatar="https://i.imgur.com/aypyUjM_d.jpeg?maxwidth=520&shape=thumb&fidelity=high"
@@ -3391,8 +3420,6 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("✅ End Session & Show Summary"):
             st.session_state["falowen_stage"] = 5
             st.rerun()
-
-#
 
 
     # ---- STAGE 5: End-of-Session Summary ----
