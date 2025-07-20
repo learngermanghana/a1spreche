@@ -3101,16 +3101,38 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["custom_topic_intro_done"] = False
                     st.rerun()
 
-    # =========================================
     # ---- STAGE 4: MAIN CHAT ----
     if st.session_state["falowen_stage"] == 4:
         import re
+        import pandas as pd
 
         level = st.session_state["falowen_level"]
         teil = st.session_state["falowen_teil"]
         mode = st.session_state["falowen_mode"]
         is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
         is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
+
+        # ====== Exams Mode: CSV Progress Save/Upload ======
+        if is_exam:
+            st.info("💾 **Download your progress as CSV after each session. Upload it to continue next time—so you don't repeat topics.**")
+            # 1. Download progress button
+            used_topics = st.session_state.get("used_topics", [])
+            if used_topics:
+                df = pd.DataFrame({"Used_Topics": used_topics})
+                csv = df.to_csv(index=False).encode("utf-8")
+                st.download_button("⬇️ Download Exam Progress as CSV", csv, file_name="falowen_exam_progress.csv", mime="text/csv")
+            else:
+                st.caption("No topics done yet.")
+            # 2. Upload previous progress
+            uploaded = st.file_uploader("⬆️ Upload Previous Exam Progress (CSV)", type=["csv"], key="falowen_exam_csv_upload")
+            if uploaded:
+                df_upload = pd.read_csv(uploaded)
+                if "Used_Topics" in df_upload.columns:
+                    st.session_state["used_topics"] = list(df_upload["Used_Topics"].dropna())
+                    st.success("Progress restored! Topics you already did will be skipped.")
+                    # Remove restored from remaining topics
+                    if "remaining_topics" in st.session_state:
+                        st.session_state["remaining_topics"] = [t for t in st.session_state["remaining_topics"] if t not in st.session_state["used_topics"]]
 
         # ---- Show daily usage ----
         used_today = get_sprechen_usage(student_code)
