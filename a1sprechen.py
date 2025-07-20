@@ -137,16 +137,15 @@ def init_db():
             PRIMARY KEY (student_code, date)
         )
     """)
-
-    # Add in your init_db() for daily usage of letter coach
-c.execute("""
-    CREATE TABLE IF NOT EXISTS letter_coach_usage (
-        student_code TEXT,
-        date TEXT,
-        count INTEGER,
-        PRIMARY KEY (student_code, date)
-    )
-""")
+    # Letter Coach Daily Usage Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS letter_coach_usage (
+            student_code TEXT,
+            date TEXT,
+            count INTEGER,
+            PRIMARY KEY (student_code, date)
+        )
+    """)
     # Schreiben Daily Usage Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS schreiben_usage (
@@ -159,6 +158,7 @@ c.execute("""
     conn.commit()
 
 init_db()  # <<-- Make sure this is before any other DB calls!
+
 
 # ==== CONSTANTS ====
 FALOWEN_DAILY_LIMIT = 20
