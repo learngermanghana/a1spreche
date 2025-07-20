@@ -3819,7 +3819,7 @@ if main_tab == "Schreiben Trainer":
                     st.session_state.letter_coach_chat = []
                     st.session_state.letter_coach_prompt = ""
                     st.session_state.letter_coach_stage = "prompt"
-                    st.experimental_rerun()
+                    st.rerun()
 
         # Step 3: Summary
         if not st.session_state.letter_coach_active and st.session_state.letter_coach_chat and st.session_state.letter_coach_stage == "summary":
@@ -3848,7 +3848,7 @@ if main_tab == "Schreiben Trainer":
                 st.session_state.letter_coach_chat = []
                 st.session_state.letter_coach_prompt = ""
                 st.session_state.letter_coach_stage = "prompt"
-                st.experimental_rerun()
+                st.rerun()
 
 
 
