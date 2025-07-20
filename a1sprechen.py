@@ -3724,6 +3724,16 @@ if tab == "Schreiben Trainer":
                     unsafe_allow_html=True
                 )
 
+def bubble(role, text):    # <--- move this here
+    color = "#7b2ff2" if role == "assistant" else "#222"
+    bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
+    name = "Herr Felix" if role == "assistant" else "You"
+    return f"""
+        <div style="background:{bg};color:{color};margin-bottom:8px;padding:13px 15px;border-radius:14px;max-width:98vw;font-size:1.09rem;">
+            <b>{name}:</b><br>{text}
+        </div>
+    """
+    
 # --- 2. IDEAS GENERATOR SUB-TAB ---
 if sub_tab == "Ideas Generator (Letter Coach)":
     st.markdown(
