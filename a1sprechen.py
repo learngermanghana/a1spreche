@@ -3723,8 +3723,7 @@ if tab == "Schreiben Trainer":
                     f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                     unsafe_allow_html=True
                 )
-
-def bubble(role, text):    # <--- move this here
+def bubble(role, text):
     color = "#7b2ff2" if role == "assistant" else "#222"
     bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
     name = "Herr Felix" if role == "assistant" else "You"
@@ -3733,7 +3732,7 @@ def bubble(role, text):    # <--- move this here
             <b>{name}:</b><br>{text}
         </div>
     """
-    
+
 # --- 2. IDEAS GENERATOR SUB-TAB ---
 if sub_tab == "Ideas Generator (Letter Coach)":
     st.markdown(
@@ -3782,50 +3781,46 @@ if sub_tab == "Ideas Generator (Letter Coach)":
 
         if prompt and st.button("Start Letter Coach Chat", disabled=(ideas_so_far >= IDEAS_LIMIT)):
             level = schreiben_level
-            # --- UPDATED SYSTEM PROMPT: Short, step-by-step, supportive ---
             system_prompt = (
                 "You are Herr Felix, a friendly, supportive, and clear German letter-writing coach. "
                 "The student is practicing for the A1–C1 German writing exam. "
-                "ONLY give short, focused, and motivating replies: never more than 2 ideas or 2 sentence starters per reply. "
-                "Start by congratulating the student and asking what kind of letter or essay it is (formal, informal, SMS, opinion essay, etc), then analyze their prompt yourself. "
-                "After each student reply, give ONLY the next step—ONE practical tip, a simple example, or a starter phrase (with English translation), and a question to guide them to the next point. "
-                "Mention grammar or connectors ONLY if relevant (e.g., suggest 'weil' or 'deshalb', or mention if a modal verb is useful). "
-                "Always end your reply by asking: 'Are you ready to continue?' or 'Would you like another idea?' "
-                "DO NOT write full paragraphs or show more than 2 ideas at once. "
-                "When the student finishes, summarize all steps and ideas in a simple copy-paste format."
+                "ALWAYS give short, focused, and motivating replies: never more than 2 ideas or 2 sentence starters per reply. "
+                "Correct student grammar, especially adjective endings, declension, and tense usage. "
+                "If you spot an error, explain the correct rule (statement, modal verb, connectors, adjective endings, tenses) in clear English. "
+                "At the start, ask if the student wants to begin from the introduction or jump to a particular section (like advantages, disadvantages, closing). "
+                "Guide only one step at a time: a practical tip, an example, or a starter phrase with English translation. "
+                "Mention grammar/connections only when relevant (e.g., suggest 'weil' or 'deshalb', mention modal verbs or accusative/dative/adjective endings). "
+                "Always end with: 'If you are okay or confident, click END SUMMARY below to copy your text and send to your tutor—or type your next idea/question.' "
+                "DO NOT write the whole letter. "
+                "When finished, summarize all the steps and ideas in a simple, copyable format."
             )
             st.session_state.letter_coach_chat = [
                 {"role": "system", "content": system_prompt},
-                {"role": "assistant", "content": "Let's begin! Congratulations on starting your letter. From your prompt, do you think this is a formal letter, informal letter, SMS, or an opinion essay? (If you're unsure, say so!)"},
+                {"role": "assistant", "content": (
+                    "Let's begin! Congratulations on starting your letter. "
+                    "Would you like to start from the introduction, or do you want ideas/help for a specific section (e.g., advantages, closing, opinion)? "
+                    "Also, do you think this is a formal letter, informal letter, SMS, or opinion essay? (If unsure, say so!)"
+                )},
                 {"role": "user", "content": prompt}
             ]
             st.session_state.letter_coach_active = True
-            inc_letter_coach_usage(student_code)   # <-- Persistently increment usage
+            inc_letter_coach_usage(student_code)
             st.rerun()
 
-    # Step 2: Chat Interface (bubble chat input and send button)
+    # Step 2: Chat Interface (mobile-friendly, modern input)
     if st.session_state.letter_coach_active:
         chat_history = st.session_state.letter_coach_chat
-
-        def bubble(role, text):
-            color = "#7b2ff2" if role == "assistant" else "#222"
-            bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
-            name = "Herr Felix" if role == "assistant" else "You"
-            return f"""
-                <div style="background:{bg};color:{color};margin-bottom:8px;padding:13px 15px;border-radius:14px;max-width:98vw;font-size:1.09rem;">
-                    <b>{name}:</b><br>{text}
-                </div>
-            """
 
         for msg in chat_history[1:]:
             st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
 
-        # Chat input (form, mobile-friendly, clears after send)
         with st.form("letter_coach_chat_form", clear_on_submit=True):
             user_input = st.text_input(
-                "Your reply (press Enter or click Send):",
+                "",
                 value="",
-                key="letter_coach_user_input"
+                key="letter_coach_user_input",
+                placeholder="Type your reply, ask about a section, or paste your draft here...",
+                help="Reply to Herr Felix here."
             )
             send = st.form_submit_button("Send")
 
@@ -3837,7 +3832,7 @@ if sub_tab == "Ideas Generator (Letter Coach)":
                         model="gpt-4o",
                         messages=chat_history,
                         temperature=0.22,
-                        max_tokens=400
+                        max_tokens=420
                     )
                     ai_reply = resp.choices[0].message.content
                 except Exception as e:
@@ -3849,7 +3844,7 @@ if sub_tab == "Ideas Generator (Letter Coach)":
         st.divider()
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("Finish & Show Summary"):
+            if st.button("END SUMMARY"):
                 st.session_state.letter_coach_active = False
                 st.rerun()
         with col2:
@@ -3877,10 +3872,10 @@ if sub_tab == "Ideas Generator (Letter Coach)":
         **Next Step:**  
         Paste your draft into the **Mark My Letter** tab to get AI feedback and a score before sending it to your tutor!
         """)
-        # Start new session
         if st.button("Start New Letter Coach"):
             st.session_state.letter_coach_chat = []
             st.session_state.letter_coach_prompt = ""
             st.session_state.letter_coach_user_input = ""
             st.rerun()
+
 
