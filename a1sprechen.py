@@ -3374,14 +3374,20 @@ if st.session_state["falowen_stage"] == 4:
         if user_input:
             st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
             inc_sprechen_usage(student_code)
-
-            # ---- Mark topic as completed before moving on (exams mode only) ----
+            
+            # ---- Mark topic–keyword pair as completed (exams mode only) ----
             if is_exam:
-                finished_topic = st.session_state.get("falowen_exam_topic", "")
-                if finished_topic and finished_topic not in st.session_state["used_topics"]:
-                    st.session_state["used_topics"].append(finished_topic)
-                if "remaining_topics" in st.session_state and finished_topic in st.session_state["remaining_topics"]:
-                    st.session_state["remaining_topics"].remove(finished_topic)
+                topic   = st.session_state.get("falowen_exam_topic", "")
+                keyword = st.session_state.get("falowen_exam_keyword")
+                if topic:
+                    # Rebuild the exact same string you popped from remaining_topics
+                    finished_pair = f"{topic} – {keyword}" if keyword else topic
+                    if finished_pair not in st.session_state["used_topics"]:
+                        st.session_state["used_topics"].append(finished_pair)
+                        # remove it so you don’t see it again
+                        if "remaining_topics" in st.session_state and finished_pair in st.session_state["remaining_topics"]:
+                            st.session_state["remaining_topics"].remove(finished_pair)
+
 
             with st.chat_message("user"):
                 st.markdown(
