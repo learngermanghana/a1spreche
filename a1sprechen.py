@@ -3101,6 +3101,17 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["custom_topic_intro_done"] = False
                     st.rerun()
 
+    # ---- STAGE 4: MAIN CHAT ----
+    if st.session_state["falowen_stage"] == 4:
+        import re
+        import pandas as pd
+
+        level = st.session_state["falowen_level"]
+        teil = st.session_state["falowen_teil"]
+        mode = st.session_state["falowen_mode"]
+        is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
+        is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
+
         # ====== Exams Mode: CSV Progress Save/Upload + Progress Bar ======
         if is_exam:
             st.info(
@@ -3111,7 +3122,6 @@ if tab == "Exams Mode & Custom Chat":
             # Collect topics for this level/teil
             total_topics = []
             if "remaining_topics" in st.session_state and "used_topics" in st.session_state:
-                # Should always be set by the topic picker!
                 total_topics = st.session_state["remaining_topics"] + st.session_state["used_topics"]
             elif "remaining_topics" in st.session_state:
                 total_topics = st.session_state["remaining_topics"]
@@ -3158,7 +3168,6 @@ if tab == "Exams Mode & Custom Chat":
                             t for t in st.session_state["remaining_topics"]
                             if t not in st.session_state["used_topics"]
                         ]
-
 
         # ---- Show daily usage ----
         used_today = get_sprechen_usage(student_code)
