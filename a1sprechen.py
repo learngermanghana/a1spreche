@@ -3943,10 +3943,10 @@ if tab == "Schreiben Trainer":
     # ]
 
     st.markdown("""
-        **📝 Your Letter Draft**
-        - Tick the lines you want to include in your letter draft.
-        - You can untick any part you want to leave out.
-        - Only ticked lines will appear in your downloadable draft below.
+    **📝 Your Letter Draft**
+    - Tick the lines you want to include in your letter draft.
+    - You can untick any part you want to leave out.
+    - Only ticked lines will appear in your downloadable draft below.
     """)
 
     # Store selection in session state
@@ -3965,13 +3965,14 @@ if tab == "Schreiben Trainer":
 
     letter_draft = "\n".join(selected_lines)
 
+    # Header style
     st.markdown(
         """
         <div style="
             background:#1565c0;
             color:#fff;
             border-radius:14px;
-            border: none;
+            border:none;
             margin-bottom:0.7em;
             padding:0.9em 1.05em 0.9em 1.05em;
             font-size:1.16em;
@@ -3987,7 +3988,7 @@ if tab == "Schreiben Trainer":
         unsafe_allow_html=True
     )
 
-
+    # Draft + Copy (with custom JS, mobile-friendly)
     components.html(f"""
         <textarea id="letterBox" readonly rows="6" style="
             width: 100vw;
