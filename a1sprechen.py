@@ -3772,24 +3772,31 @@ if tab == "Schreiben Trainer":
 
         uploaded_file = st.file_uploader("⬆️ Upload previous progress CSV to continue", type=["csv"], key="letter_coach_csv_upload")
 
+        uploaded_file = st.file_uploader("⬆️ Upload previous progress CSV to continue", type=["csv"], key="letter_coach_csv_upload")
 
-    # ==== Upload Progress as CSV (Only User Lines) ====
-    uploaded_file = st.file_uploader("⬆️ Upload previous letter text (CSV)", type=["csv"], key="letter_coach_csv_upload")
-    if uploaded_file and not st.session_state.get("letter_coach_uploaded"):
-        df_uploaded = pd.read_csv(uploaded_file)
-        user_lines = list(df_uploaded["Letter"].dropna())
-        system_message = {"role": "system", "content": "You are a German letter coach. Always explain in English. Short and supportive!"}
-        chat = [system_message]
-        for line in user_lines:
-            chat.append({"role": "user", "content": line})
-        st.session_state.letter_coach_chat = chat
-        st.session_state.letter_coach_stage = 2
-        st.session_state.letter_coach_uploaded = True
-        st.success("Letter uploaded! Continue your session below.")
-        st.stop()
-    if not uploaded_file and st.session_state.get("letter_coach_uploaded"):
-        st.session_state["letter_coach_uploaded"] = False
-
+        if uploaded_file and not st.session_state.get("letter_coach_uploaded"):
+            try:
+                df_uploaded = pd.read_csv(uploaded_file, sep=None, engine="python")  # auto-detect delimiter (handles comma or tab-separated files)
+                if not {"Role", "Message"}.issubset(df_uploaded.columns):
+                    st.warning("Please upload a valid CSV (with 'Role' and 'Message' columns).")
+                    st.stop()
+                chat = []
+                for _, row in df_uploaded.iterrows():
+                    role = "user" if row["Role"] == "You" else "assistant"
+                    chat.append({"role": role, "content": row["Message"]})
+                system_message = {"role": "system", "content": "You are a German letter coach. Always explain in English. Short and supportive!"}
+                chat = [system_message] + chat
+                st.session_state.letter_coach_chat = chat
+                st.session_state.letter_coach_stage = 2
+                st.session_state.letter_coach_uploaded = True
+                st.success("Progress uploaded! Continue your session below.")
+                st.experimental_rerun()
+            except Exception as e:
+                st.warning("Could not read the file. Please check format.")
+                st.stop()
+        elif st.session_state.get("letter_coach_uploaded"):
+            # Skip upload logic after successful upload, avoid double warning
+            pass
 
 
         # --- Bubble function for chat rendering ---
