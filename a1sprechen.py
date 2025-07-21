@@ -3746,25 +3746,6 @@ if tab == "Schreiben Trainer":
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
 
-        # ---- MOBILE LAYOUT OPTIMIZATION ----
-        st.markdown("""
-        <style>
-        @media only screen and (max-width: 700px) {
-            div[data-testid="column"] {
-                flex-direction: column !important;
-                align-items: stretch !important;
-            }
-            div[style*="background: #f9fbe7"] {
-                font-size: 1rem !important;
-                padding: 12px 8px !important;
-            }
-            textarea, code {
-                font-size: 1rem !important;
-            }
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
         def reset_letter_coach():
             for k in [
                 "letter_coach_stage", "letter_coach_chat", "letter_coach_prompt",
@@ -3792,8 +3773,6 @@ if tab == "Schreiben Trainer":
             *Scroll down to get started, upload a file, or paste your prompt or letter in the chat.*
             """
         )
-
-
 
         IDEAS_LIMIT = 20
         ideas_so_far = get_letter_coach_usage(student_code)
@@ -3925,15 +3904,13 @@ if tab == "Schreiben Trainer":
                     "At the end of the letter, help the student check their work with a quick checklist: Greeting, Introduction, Reason, Request, Closing, Connector.\n"
                     "Always finish with: 'If you are okay or confident, click END SUMMARY below to copy your text and send to your tutor—or type your next idea/question.'"
                 )
-                # --- SHOW HERR FELIX IS TYPING SPINNER HERE ---
-                with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-                    resp = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[{"role": "system", "content": system_prompt}] + chat_history[1:] + [{"role": "user", "content": user_input}],
-                        temperature=0.22,
-                        max_tokens=380
-                    )
-                    ai_reply = resp.choices[0].message.content
+                resp = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[{"role": "system", "content": system_prompt}] + chat_history[1:] + [{"role": "user", "content": user_input}],
+                    temperature=0.22,
+                    max_tokens=380
+                )
+                ai_reply = resp.choices[0].message.content
                 chat_history.append({"role": "assistant", "content": ai_reply})
                 st.session_state.letter_coach_chat = chat_history
                 st.rerun()
@@ -3969,25 +3946,6 @@ if tab == "Schreiben Trainer":
 
             letter_draft = "\n".join(selected_lines)
 
-            # --- Letter Preview Card ---
-            st.markdown("""
-            <div style="
-                background: #f9fbe7;
-                border-radius: 18px;
-                box-shadow: 0 2px 8px rgba(200,220,50,0.06);
-                padding: 18px 20px 14px 20px;
-                margin-top: 12px;
-                margin-bottom: 14px;
-                font-size: 1.09rem;
-                min-height: 120px;
-                ">
-            <b>📄 Letter Preview</b><br>
-            {}
-            </div>
-            """.format(
-                "<br>".join(selected_lines) if selected_lines else "<i>(No lines selected. Tick lines above to build your letter!)</i>"
-            ), unsafe_allow_html=True)
-
             st.text_area("Your letter so far", value=letter_draft, height=180, key="live_letter", disabled=True)
 
             colA, colB = st.columns([1, 1])
@@ -4018,10 +3976,7 @@ if tab == "Schreiben Trainer":
                 st.session_state.selected_letter_lines = []
                 st.session_state.letter_coach_uploaded = False
                 st.rerun()
-
-
-
-
+#
 
 
 
