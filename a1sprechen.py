@@ -3924,6 +3924,7 @@ if tab == "Schreiben Trainer":
         st.session_state.selected_letter_lines = []
         st.session_state.letter_coach_uploaded = False
         st.rerun()
+
     # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
     user_msgs = [
         msg["content"]
@@ -4001,7 +4002,8 @@ if tab == "Schreiben Trainer":
                 A small <b>copy</b> button (<span style='background:#fff;padding:0 0.3em;border-radius:5px;'>📋</span>) will appear in the corner.<br>
                 <span style="font-size: 1.12em; color: #ef6c00;">↘️ Click it to copy your letter!</span>
             </div>
-
+        """, unsafe_allow_html=True)
+#
 
 
 
