@@ -3965,24 +3965,23 @@ if tab == "Schreiben Trainer":
 
     letter_draft = "\n".join(selected_lines)
 
-    # Header style
     st.markdown(
         """
         <div style="
-            background:#1565c0;
-            color:#fff;
-            border-radius:14px;
-            border:none;
-            margin-bottom:0.7em;
-            padding:0.9em 1.05em 0.9em 1.05em;
-            font-size:1.16em;
-            font-weight:bold;
-            text-align:center;
-            letter-spacing:0.02em;
-            box-shadow:0 2px 8px #90caf9cc;
+            background:#23272b;
+            color:#eee;
+            border-radius:10px;
+            padding:0.72em 1.04em;
+            margin-bottom:0.45em;
+            font-size:1.07em;
+            font-weight:400;
+            letter-spacing:0.01em;
+            border:1px solid #343a40;
+            box-shadow:0 2px 10px #0002;
+            text-align:left;
         ">
-            📝 Your Letter So Far<br>
-            <span style='font-size:0.98em; font-weight:normal;'>copy & download below</span>
+            <span style="font-size:1.12em; color:#ffe082;">📝 Your Letter So Far</span><br>
+            <span style="font-size:1.00em; color:#b0b0b0;">copy &amp; download below</span>
         </div>
         """,
         unsafe_allow_html=True
