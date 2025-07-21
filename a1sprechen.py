@@ -3746,6 +3746,25 @@ if tab == "Schreiben Trainer":
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
 
+        # ---- MOBILE LAYOUT OPTIMIZATION ----
+        st.markdown("""
+        <style>
+        @media only screen and (max-width: 700px) {
+            div[data-testid="column"] {
+                flex-direction: column !important;
+                align-items: stretch !important;
+            }
+            div[style*="background: #f9fbe7"] {
+                font-size: 1rem !important;
+                padding: 12px 8px !important;
+            }
+            textarea, code {
+                font-size: 1rem !important;
+            }
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
         def reset_letter_coach():
             for k in [
                 "letter_coach_stage", "letter_coach_chat", "letter_coach_prompt",
@@ -3773,6 +3792,8 @@ if tab == "Schreiben Trainer":
             *Scroll down to get started, upload a file, or paste your prompt or letter in the chat.*
             """
         )
+
+
 
         IDEAS_LIMIT = 20
         ideas_so_far = get_letter_coach_usage(student_code)
@@ -3823,7 +3844,7 @@ if tab == "Schreiben Trainer":
         if st.session_state.letter_coach_stage == 0:
             with st.form("prompt_form", clear_on_submit=True):
                 prompt = st.text_area(
-                    "Paste your letter/essay question or prompt here:",
+                    "Paste your letter/essay question or prompt here (or paste your unfinished draft to continue):",
                     value=st.session_state.letter_coach_prompt,
                     height=140,
                     disabled=(ideas_so_far >= IDEAS_LIMIT),
@@ -3832,53 +3853,18 @@ if tab == "Schreiben Trainer":
                 send = st.form_submit_button("Send")
             if send and prompt:
                 st.session_state.letter_coach_prompt = prompt
-                st.session_state.letter_coach_stage = 1
+                st.session_state.letter_coach_stage = 2  # jump straight to main chat!
+                # Start chat history with a system prompt, add prompt as user input if needed
                 st.session_state.letter_coach_chat = [
-                    {"role": "system", "content": "You are a German letter coach. Always explain in English. Short and supportive!"},
-                    {"role": "assistant", "content": "Which type of letter do you think this is: formal, informal, SMS, or opinion essay?"}
+                    {"role": "system", "content": "You are a German letter coach. Always explain in English. Be supportive and pick up from wherever the student starts, whether it's a prompt or a draft. Never ask about letter type—just continue from the draft or prompt."},
+                    {"role": "user", "content": prompt}
                 ]
                 inc_letter_coach_usage(student_code)
                 st.rerun()
             if prompt:
                 st.markdown("---")
-                st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{prompt}")
+                st.markdown(f"📝 **Letter/Essay Prompt or Draft:**\n\n{prompt}")
 
-        # --- Stage 1: Guess Letter Type ---
-        elif st.session_state.letter_coach_stage == 1:
-            st.markdown("---")
-            st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{st.session_state.letter_coach_prompt}")
-            chat_history = st.session_state.letter_coach_chat
-            for msg in chat_history[1:]:
-                st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
-            with st.form("type_form", clear_on_submit=True):
-                type_guess = st.text_input(
-                    "Which type do you think it is (formal, informal, SMS, opinion essay)?",
-                    value="", key="letter_coach_type_input"
-                )
-                send_type = st.form_submit_button("Send")
-            if send_type and type_guess:
-                ai_check_prompt = (
-                    f"Prompt: {st.session_state.letter_coach_prompt}\n"
-                    f"Student answer: {type_guess}\n"
-                    "1. Is the student correct about the type (formal, informal, SMS, or opinion essay)?\n"
-                    "2. If correct, reply: 👍 Great! That's right. If not, reply: ❌ Actually, this is a [correct type] because [reason].\n"
-                    "Explain in 1-2 sentences in simple English, then ask if they want to start from greeting or a section (e.g. advantages)."
-                )
-                resp = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[{"role": "system", "content": ai_check_prompt}],
-                    temperature=0.2,
-                    max_tokens=150
-                )
-                ai_type_feedback = resp.choices[0].message.content
-                chat_history.extend([
-                    {"role": "user", "content": type_guess},
-                    {"role": "assistant", "content": ai_type_feedback}
-                ])
-                st.session_state.letter_coach_chat = chat_history
-                st.session_state.letter_coach_stage = 2
-                st.session_state.letter_coach_type = type_guess
-                st.rerun()
 
         # --- Stage 2+: Coaching Chat ---
         elif st.session_state.letter_coach_stage >= 2:
@@ -3939,13 +3925,15 @@ if tab == "Schreiben Trainer":
                     "At the end of the letter, help the student check their work with a quick checklist: Greeting, Introduction, Reason, Request, Closing, Connector.\n"
                     "Always finish with: 'If you are okay or confident, click END SUMMARY below to copy your text and send to your tutor—or type your next idea/question.'"
                 )
-                resp = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[{"role": "system", "content": system_prompt}] + chat_history[1:] + [{"role": "user", "content": user_input}],
-                    temperature=0.22,
-                    max_tokens=380
-                )
-                ai_reply = resp.choices[0].message.content
+                # --- SHOW HERR FELIX IS TYPING SPINNER HERE ---
+                with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                    resp = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[{"role": "system", "content": system_prompt}] + chat_history[1:] + [{"role": "user", "content": user_input}],
+                        temperature=0.22,
+                        max_tokens=380
+                    )
+                    ai_reply = resp.choices[0].message.content
                 chat_history.append({"role": "assistant", "content": ai_reply})
                 st.session_state.letter_coach_chat = chat_history
                 st.rerun()
@@ -3956,9 +3944,50 @@ if tab == "Schreiben Trainer":
                 for msg in st.session_state.letter_coach_chat[1:]
                 if msg["role"] == "user"
             ]
-            letter_draft = "\n".join(user_msgs)
 
-            st.markdown("**📝 Your Letter Draft (auto-updates):**")
+            st.markdown("""
+            **📝 Your Letter Draft**
+            - Tick the lines you want to include in your letter draft.
+            - You can untick any part you want to leave out.
+            - Only ticked lines will appear in your downloadable draft below.
+            """)
+
+            # Store selection in session state
+            if "selected_letter_lines" not in st.session_state or \
+               len(st.session_state.selected_letter_lines) != len(user_msgs):
+                # Initialize: all ticked by default
+                st.session_state.selected_letter_lines = [True] * len(user_msgs)
+
+            selected_lines = []
+            for i, line in enumerate(user_msgs):
+                st.session_state.selected_letter_lines[i] = st.checkbox(
+                    line, value=st.session_state.selected_letter_lines[i],
+                    key=f"letter_line_{i}"
+                )
+                if st.session_state.selected_letter_lines[i]:
+                    selected_lines.append(line)
+
+            letter_draft = "\n".join(selected_lines)
+
+            # --- Letter Preview Card ---
+            st.markdown("""
+            <div style="
+                background: #f9fbe7;
+                border-radius: 18px;
+                box-shadow: 0 2px 8px rgba(200,220,50,0.06);
+                padding: 18px 20px 14px 20px;
+                margin-top: 12px;
+                margin-bottom: 14px;
+                font-size: 1.09rem;
+                min-height: 120px;
+                ">
+            <b>📄 Letter Preview</b><br>
+            {}
+            </div>
+            """.format(
+                "<br>".join(selected_lines) if selected_lines else "<i>(No lines selected. Tick lines above to build your letter!)</i>"
+            ), unsafe_allow_html=True)
+
             st.text_area("Your letter so far", value=letter_draft, height=180, key="live_letter", disabled=True)
 
             colA, colB = st.columns([1, 1])
@@ -3967,18 +3996,6 @@ if tab == "Schreiben Trainer":
             with colB:
                 st.code(letter_draft, language="markdown")
                 st.caption("**📋 Click the clipboard icon above to copy your letter!**")
-
-            if num_student_turns >= 4 or st.session_state.get("show_checklist"):
-                st.markdown("""
-                **✅ Final Checklist Before Sending Your Letter**
-                - [ ] Greeting (e.g. **Sehr geehrte/r ...**, or **Liebe/r ...**)
-                - [ ] Introduction (**Ich schreibe Ihnen, weil...**)
-                - [ ] Reason (**weil**, **denn**)
-                - [ ] Request (**möchte**, e.g. *Ich möchte...*)
-                - [ ] Closing (e.g. **Mit freundlichen Grüßen**)
-                - [ ] Used at least one connector (**und**, **aber**, **weil**, etc.)
-                """)
-                st.info("If you missed a part, go back and add it before sending!")
 
             st.markdown("---")
             confirm_end = st.checkbox("I'm sure. End the summary and finish my letter coach session.", key="end_summary_confirm")
@@ -4001,7 +4018,8 @@ if tab == "Schreiben Trainer":
                 st.session_state.selected_letter_lines = []
                 st.session_state.letter_coach_uploaded = False
                 st.rerun()
-#
+
+
 
 
 
