@@ -3774,13 +3774,17 @@ if tab == "Schreiben Trainer":
 
     # --- 2. IDEAS GENERATOR SUB-TAB ---
     if sub_tab == "Ideas Generator (Letter Coach)":
-        st.markdown(
-            '''
-            <div style="padding: 8px 12px; background: #8e44ad; color: #fff;
-            border-radius: 6px; text-align: center; margin-bottom: 8px; font-size: 1.2rem;">
-            💡 Ideas Generator (Letter Coach Chat)
-            </div>
-            ''', unsafe_allow_html=True
+        import pandas as pd
+        import pickle
+
+        # ==== How to Use Box ====
+        st.info(
+            "🛟 **How to use this page:**\n"
+            "1. Paste your exam prompt or letter task.\n"
+            "2. Select and edit your steps as you write.\n"
+            "3. See your live draft update below.\n"
+            "4. Download your work as CSV, or restore auto-saved session if needed.\n"
+            "5. Paste your draft into **Mark My Letter** for scoring and feedback!"
         )
 
         IDEAS_LIMIT = 20
@@ -3789,7 +3793,7 @@ if tab == "Schreiben Trainer":
         if ideas_so_far >= IDEAS_LIMIT:
             st.warning("You have reached today's letter coach limit. Please come back tomorrow.")
 
-        # --- SESSION STATE ---
+        # --- SESSION STATE SETUP ---
         if "letter_coach_stage" not in st.session_state:
             st.session_state.letter_coach_stage = 0
         if "letter_coach_chat" not in st.session_state:
@@ -3798,8 +3802,76 @@ if tab == "Schreiben Trainer":
             st.session_state.letter_coach_prompt = ""
         if "letter_coach_type" not in st.session_state:
             st.session_state.letter_coach_type = ""
+        if "selected_letter_lines" not in st.session_state:
+            st.session_state.selected_letter_lines = []
+        if "auto_saved_coach_progress" not in st.session_state:
+            st.session_state.auto_saved_coach_progress = None
 
-        import pandas as pd
+        # --- Auto-save/restore logic ---
+        def auto_save_progress():
+            data = {
+                "letter_coach_stage": st.session_state.letter_coach_stage,
+                "letter_coach_chat": st.session_state.letter_coach_chat,
+                "letter_coach_prompt": st.session_state.letter_coach_prompt,
+                "letter_coach_type": st.session_state.letter_coach_type,
+                "selected_letter_lines": st.session_state.selected_letter_lines
+            }
+            st.session_state.auto_saved_coach_progress = pickle.dumps(data)
+
+        def auto_restore_progress():
+            if st.session_state.auto_saved_coach_progress:
+                try:
+                    data = pickle.loads(st.session_state.auto_saved_coach_progress)
+                    st.session_state.letter_coach_stage = data["letter_coach_stage"]
+                    st.session_state.letter_coach_chat = data["letter_coach_chat"]
+                    st.session_state.letter_coach_prompt = data["letter_coach_prompt"]
+                    st.session_state.letter_coach_type = data["letter_coach_type"]
+                    st.session_state.selected_letter_lines = data["selected_letter_lines"]
+                    st.success("Session progress restored!")
+                except Exception:
+                    st.warning("Could not restore saved progress.")
+
+        # --- Restore progress button if available ---
+        if st.session_state.auto_saved_coach_progress:
+            if st.button("🔄 Restore Last Session Progress"):
+                auto_restore_progress()
+                st.rerun()
+
+        # ==== Download Progress as CSV ====
+        if st.session_state.get("letter_coach_chat"):
+            rows = []
+            for msg in st.session_state.letter_coach_chat[1:]:
+                role = "You" if msg["role"] == "user" else "Herr Felix"
+                rows.append({"Role": role, "Message": msg["content"]})
+            df_full = pd.DataFrame(rows)
+            csv_full = df_full.to_csv(index=False).encode("utf-8")
+            st.download_button("⬇️ Download Your Letter Coach Chat as CSV", csv_full, file_name="letter_coach_progress.csv", mime="text/csv")
+
+        # ==== Upload Progress as CSV ====
+        uploaded_file = st.file_uploader("⬆️ Upload previous progress CSV", type=["csv"], key="letter_coach_csv_upload")
+        if uploaded_file and not st.session_state.get("letter_coach_uploaded"):
+            try:
+                df_uploaded = pd.read_csv(uploaded_file)
+                if not {"Role", "Message"}.issubset(df_uploaded.columns):
+                    st.warning("Please upload a valid CSV (with 'Role' and 'Message' columns).")
+                    st.stop()
+                chat = []
+                for _, row in df_uploaded.iterrows():
+                    role = "user" if row["Role"] == "You" else "assistant"
+                    chat.append({"role": role, "content": row["Message"]})
+                system_message = {"role": "system", "content": "You are a German letter coach. Always explain in English. Short and supportive!"}
+                chat = [system_message] + chat
+                st.session_state.letter_coach_chat = chat
+                st.session_state.letter_coach_stage = 2
+                st.session_state.letter_coach_uploaded = True
+                st.success("Progress uploaded! Continue your session below.")
+                auto_save_progress()
+                st.stop()
+            except Exception as e:
+                st.warning("Could not read the file. Please check format.")
+                st.stop()
+        if not uploaded_file and st.session_state.get("letter_coach_uploaded"):
+            st.session_state["letter_coach_uploaded"] = False
 
         # ------ STAGE 0: GET PROMPT -------
         if st.session_state.letter_coach_stage == 0:
@@ -3820,6 +3892,7 @@ if tab == "Schreiben Trainer":
                     {"role": "assistant", "content": "Which type of letter do you think this is: formal, informal, SMS, or opinion essay?"}
                 ]
                 inc_letter_coach_usage(student_code)
+                auto_save_progress()
                 st.rerun()
             if prompt:
                 st.markdown("---")
@@ -3832,10 +3905,14 @@ if tab == "Schreiben Trainer":
             chat_history = st.session_state.letter_coach_chat
 
             for msg in chat_history[1:]:
-                if msg["role"] == "assistant":
-                    st.info(msg["content"])
-                else:
-                    st.success(msg["content"])
+                color = "#7b2ff2" if msg["role"] == "assistant" else "#222"
+                bg = "#ede3fa" if msg["role"] == "assistant" else "#f6f8fb"
+                name = "Herr Felix" if msg["role"] == "assistant" else "You"
+                st.markdown(
+                    f"""<div style="background:{bg};color:{color};margin-bottom:8px;padding:13px 15px;
+                        border-radius:14px;max-width:98vw;font-size:1.09rem;">
+                        <b>{name}:</b><br>{msg['content']}
+                    </div>""", unsafe_allow_html=True)
 
             with st.form("type_form", clear_on_submit=True):
                 type_guess = st.text_input(
@@ -3864,6 +3941,7 @@ if tab == "Schreiben Trainer":
                 st.session_state.letter_coach_chat = chat_history
                 st.session_state.letter_coach_stage = 2
                 st.session_state.letter_coach_type = type_guess
+                auto_save_progress()
                 st.rerun()
 
         # ------ STAGE 2+: Main Coaching Chat ------
@@ -3874,10 +3952,14 @@ if tab == "Schreiben Trainer":
             chat_history = st.session_state.letter_coach_chat
 
             for msg in chat_history[1:]:
-                if msg["role"] == "assistant":
-                    st.info(msg["content"])
-                else:
-                    st.success(msg["content"])
+                color = "#7b2ff2" if msg["role"] == "assistant" else "#222"
+                bg = "#ede3fa" if msg["role"] == "assistant" else "#f6f8fb"
+                name = "Herr Felix" if msg["role"] == "assistant" else "You"
+                st.markdown(
+                    f"""<div style="background:{bg};color:{color};margin-bottom:8px;padding:13px 15px;
+                        border-radius:14px;max-width:98vw;font-size:1.09rem;">
+                        <b>{name}:</b><br>{msg['content']}
+                    </div>""", unsafe_allow_html=True)
 
             with st.form("letter_coach_chat_form", clear_on_submit=True):
                 user_input = st.text_area(
@@ -3906,54 +3988,79 @@ if tab == "Schreiben Trainer":
                 ai_reply = resp.choices[0].message.content
                 chat_history.append({"role": "assistant", "content": ai_reply})
                 st.session_state.letter_coach_chat = chat_history
+                auto_save_progress()
                 st.rerun()
 
             st.divider()
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("END SUMMARY"):
-                    st.session_state.letter_coach_active = False
-                    st.session_state.letter_coach_stage = 0
-                    st.rerun()
-            with col2:
-                if st.button("Restart Letter Coach"):
-                    st.session_state.letter_coach_active = False
-                    st.session_state.letter_coach_stage = 0
-                    st.session_state.letter_coach_chat = []
-                    st.session_state.letter_coach_prompt = ""
-                    st.session_state.letter_coach_type = ""
-                    st.rerun()
+            st.info("Download your work regularly as CSV! You can upload your CSV to continue next time.")
 
-        # ---- LIVE DRAFT: Select, copy, and download while writing ----
-        if st.session_state.get("letter_coach_chat"):
-            st.subheader("📝 Your Letter Draft (Select lines to keep)")
+            # ===== Step-by-step Plan with Line Numbers, Live Preview, Progress Bar, CSV download =====
             user_msgs = [
                 (i, msg["content"])
                 for i, msg in enumerate(st.session_state.letter_coach_chat[1:], start=1)
                 if msg["role"] == "user"
             ]
-            if "selected_letter_lines" not in st.session_state or len(st.session_state.selected_letter_lines) != len(user_msgs):
+
+            # Ensure selection array matches messages
+            if len(st.session_state.selected_letter_lines) != len(user_msgs):
                 st.session_state.selected_letter_lines = [True] * len(user_msgs)
-            st.markdown("**✅ Tick which parts to include in your letter:**")
+
+            st.markdown("**✅ Select which parts to include in your letter (in order):**")
             selected = []
             for idx, (msg_idx, content) in enumerate(user_msgs):
+                line_label = f"{idx + 1}. {content}"
                 checked = st.checkbox(
-                    content,
+                    line_label,
                     value=st.session_state.selected_letter_lines[idx] if idx < len(st.session_state.selected_letter_lines) else True,
                     key=f"letter_line_{msg_idx}"
                 )
                 selected.append(checked)
             st.session_state.selected_letter_lines = selected
+
+            # Progress Bar
+            total_lines = len(user_msgs)
+            selected_lines = sum(st.session_state.selected_letter_lines)
+            if total_lines > 0:
+                st.progress(selected_lines / total_lines, text=f"{selected_lines} of {total_lines} steps selected")
+
+            # Show live draft
             arranged_letter = [content for (i, (msg_idx, content)) in enumerate(user_msgs) if st.session_state.selected_letter_lines[i]]
+            st.markdown("**Your current letter draft (auto-updates):**")
+            st.text_area("Your letter so far", value="\n".join(arranged_letter), height=180, key="live_letter", disabled=True)
+
+            # Download letter as CSV
             if arranged_letter:
-                st.markdown("**Copy your selected draft below and paste it in the 'Mark My Letter' tab for feedback and scoring. You can also download it as CSV.**")
-                st.code("\n".join(arranged_letter), language="markdown")
-                df_letter = pd.DataFrame({"Letter": arranged_letter})
-                csv = df_letter.to_csv(index=False).encode("utf-8")
-                st.download_button("⬇️ Download Selected Letter as CSV", csv, file_name="mein_brief.csv", mime="text/csv")
-            else:
-                st.info("Select at least one line to copy or download your letter.")
-            st.warning("**Don't forget:** You can copy your draft, edit, or download anytime while working. When you're ready, paste it in the 'Mark My Letter' tab for feedback and a score!")
+                df = pd.DataFrame({"Line": [f"{i+1}. {txt}" for i, txt in enumerate(arranged_letter)]})
+                csv = df.to_csv(index=False).encode("utf-8")
+                st.download_button("⬇️ Download Your Letter as CSV", csv, file_name="my_german_letter.csv", mime="text/csv")
+
+            # END SUMMARY Confirmation
+            st.markdown("---")
+            confirm_end = st.checkbox("I'm sure. End the summary and finish my letter coach session.", key="end_summary_confirm")
+            if st.button("END SUMMARY", disabled=not confirm_end):
+                st.session_state.letter_coach_active = False
+                st.session_state.letter_coach_stage = 0
+                st.session_state.letter_coach_chat = []
+                st.session_state.letter_coach_prompt = ""
+                st.session_state.letter_coach_type = ""
+                st.session_state.selected_letter_lines = []
+                st.success("Session ended. Download your letter as CSV and use 'Mark My Letter' for final feedback and scoring!")
+                auto_save_progress()
+                st.stop()
+            st.caption("⚠️ Are you sure? You won’t be able to add to this chat after ending.")
+
+            # Restart button
+            if st.button("Start New Letter Coach"):
+                st.session_state.letter_coach_chat = []
+                st.session_state.letter_coach_prompt = ""
+                st.session_state.letter_coach_type = ""
+                st.session_state.selected_letter_lines = []
+                auto_save_progress()
+                st.rerun()
+
+        # --- Always auto-save progress at the end ---
+        auto_save_progress()
+
 
 
 
