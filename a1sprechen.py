@@ -3955,16 +3955,41 @@ if tab == "Schreiben Trainer":
             selected_lines.append(line)
 
     letter_draft = "\n".join(selected_lines)
-
-    st.text_area("Your letter so far", value=letter_draft, height=180, key="live_letter", disabled=True)
+    st.text_area(
+        "Your letter so far", 
+        value=letter_draft, 
+        height=180, 
+        key="live_letter", 
+        disabled=True
+    )
 
     colA, colB = st.columns([1, 1])
     with colA:
-        st.download_button("⬇️ Download Letter as TXT", letter_draft.encode("utf-8"), file_name="my_letter.txt")
+        st.download_button(
+            "⬇️ Download Letter as TXT", 
+            letter_draft.encode("utf-8"), 
+            file_name="my_letter.txt"
+        )
     with colB:
         st.code(letter_draft, language="markdown")
-        st.caption("**📋 Click the clipboard icon above to copy your letter!**")
-#
+        st.markdown("""
+            <div style="
+                margin-top: 0.4em; 
+                background: #ffe082; 
+                color: #3e2723; 
+                font-weight: bold; 
+                border-radius: 9px; 
+                padding: 0.6em 1em;
+                font-size: 1.11rem;
+                box-shadow: 0 2px 7px rgba(0,0,0,0.04);
+                border-left: 5px solid #ffb300;">
+                📋 <span style="font-size: 1.13em;">Click <b>inside</b> the code box above.<br>
+                A small <b>copy</b> button (<span style='background:#fff;padding:0 0.3em;border-radius:5px;'>📋</span>) will appear in the corner.<br>
+                <span style="font-size: 1.12em; color: #ef6c00;">↘️ Click it to copy your letter!</span>
+            </div>
+        """, unsafe_allow_html=True)
+
+
 
 
 
