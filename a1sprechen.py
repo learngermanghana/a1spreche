@@ -3770,50 +3770,62 @@ if tab == "Schreiben Trainer":
         if "selected_letter_lines" not in st.session_state:
             st.session_state.selected_letter_lines = []
 
-        uploaded_file = st.file_uploader("⬆️ Upload previous progress CSV to continue", type=["csv"], key="letter_coach_csv_upload_ideas")  # unique key to avoid duplicate widget error
-
-        # Process upload once, update session and continue UI
-        if uploaded_file and not st.session_state.get("letter_coach_uploaded"):
+                # --- Helper function to load progress from CSV ---
+        def load_letter_coach_progress(uploaded_file) -> bool:
+            """
+            Reads a CSV (comma- or tab-separated) and updates session_state with chat history.
+            Returns True if loading was successful, False otherwise.
+            """
             try:
-                # Auto-detect delimiter for comma or tab-separated CSV
-                df_uploaded = pd.read_csv(
+                df = pd.read_csv(
                     uploaded_file,
                     sep=None,
                     engine="python"
+                )  # auto-detect delimiter
+            except pd.errors.ParserError as e:
+                st.warning(f"CSV parsing error: {e}")
+                return False
+            except Exception as e:
+                st.warning(f"Could not read the file. Please check format. Error: {e}")
+                return False
+
+            # Verify required columns
+            if not {"Role", "Message"}.issubset(df.columns):
+                st.warning("Please upload a valid CSV (with 'Role' and 'Message' columns).")
+                return False
+
+            # Build chat history list
+            chat = []
+            for row in df.itertuples(index=False):
+                role = "user" if getattr(row, 'Role').strip().lower() == "you" else "assistant"
+                chat.append({
+                    "role": role,
+                    "content": getattr(row, 'Message')
+                })
+
+            # Prepend system message
+            system_message = {
+                "role": "system",
+                "content": (
+                    "You are a German letter coach. Always explain in English and be supportive."
                 )
-                # Verify required columns
-                if not {"Role", "Message"}.issubset(df_uploaded.columns):
-                    st.warning(
-                        "Please upload a valid CSV (with 'Role' and 'Message' columns)."
-                    )
-                else:
-                    # Rebuild chat history from CSV
-                    chat = []
-                    for _, row in df_uploaded.iterrows():
-                        role = "user" if row["Role"] == "You" else "assistant"
-                        chat.append({
-                            "role": role,
-                            "content": row["Message"]
-                        })
-                    # Prepend system message
-                    system_message = {
-                        "role": "system",
-                        "content": (
-                            "You are a German letter coach. Always explain in English. "
-                            "Short and supportive!"
-                        )
-                    }
-                    st.session_state.letter_coach_chat = [system_message] + chat
-                    st.session_state.letter_coach_stage = 2
-                    st.session_state.letter_coach_uploaded = True
-                    st.success(
-                        "Progress uploaded! Continue your session below."
-                    )
-            except Exception:
-                st.warning(
-                    "Could not read the file. Please check format."
-                )
-#
+            }
+            st.session_state.letter_coach_chat = [system_message] + chat
+            st.session_state.letter_coach_stage = 2
+            st.session_state.letter_coach_uploaded = True
+            st.success("Progress uploaded! Continue your session below.")
+            return True
+
+        # --- File uploader widget ---
+        uploaded_file = st.file_uploader(
+            "⬆️ Upload previous progress CSV to continue",
+            type=["csv"],
+            key="letter_coach_csv_upload_ideas"
+        )  # unique key to avoid duplicate widget error
+
+        # Process upload on change
+        if uploaded_file and not st.session_state.get("letter_coach_uploaded"):
+            load_letter_coach_progress(uploaded_file)
 
 
         # --- Bubble function for chat rendering ---
