@@ -3742,17 +3742,16 @@ if tab == "Schreiben Trainer":
                 <b>{name}:</b><br>{text}
             </div>
         """
-
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
 
         def reset_letter_coach():
-            for k in [
-                "letter_coach_stage", "letter_coach_chat", "letter_coach_prompt",
-                "letter_coach_type", "selected_letter_lines", "letter_coach_uploaded"
-            ]:
-                st.session_state[k] = (0 if k == "letter_coach_stage" else [])
-            st.session_state.letter_coach_uploaded = False
+            st.session_state["letter_coach_stage"] = 0
+            st.session_state["letter_coach_chat"] = []
+            st.session_state["letter_coach_prompt"] = ""
+            st.session_state["letter_coach_type"] = ""
+            st.session_state["selected_letter_lines"] = []
+            st.session_state["letter_coach_uploaded"] = False
 
         def bubble(role, text):
             if role == "assistant":
@@ -3914,13 +3913,12 @@ if tab == "Schreiben Trainer":
                 st.session_state.letter_coach_chat = chat_history
                 st.rerun()
 
+            # --- Start New Letter Coach button ---
             if st.button("Start New Letter Coach"):
-                st.session_state.letter_coach_chat = []
-                st.session_state.letter_coach_prompt = ""
-                st.session_state.letter_coach_type = ""
-                st.session_state.selected_letter_lines = []
-                st.session_state.letter_coach_uploaded = False
+                reset_letter_coach()
                 st.rerun()
+#
+
 
     # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
     import streamlit.components.v1 as components
