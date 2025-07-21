@@ -3564,196 +3564,131 @@ if tab == "Vocab Trainer":
                 st.session_state[k] = defaults[k]
                 
 
+    if sub_tab == "Ideas Generator (Letter Coach)":
+        import io
 
-if tab == "Schreiben Trainer":
-    st.markdown(
-        '''
-        <div style="
-            padding: 8px 12px;
-            background: #d63384;
-            color: #fff;
-            border-radius: 6px;
-            text-align: center;
-            margin-bottom: 8px;
-            font-size: 1.3rem;">
-            ✍️ Schreiben Trainer (Writing Practice)
-        </div>
-        ''',
-        unsafe_allow_html=True
-    )
-    st.divider()
+        def reset_letter_coach():
+            for k in [
+                "letter_coach_stage", "letter_coach_chat", "letter_coach_prompt",
+                "letter_coach_type", "selected_letter_lines", "letter_coach_uploaded"
+            ]:
+                st.session_state[k] = (0 if k == "letter_coach_stage" else [])
+            st.session_state.letter_coach_uploaded = False
 
-    # Sub-tabs: Mark My Letter, Ideas Generator (Letter Coach)
-    sub_tab = st.radio(
-        "Choose Mode",
-        ["Mark My Letter", "Ideas Generator (Letter Coach)"],
-        horizontal=True,
-        key="schreiben_sub_tab"
-    )
+        def bubble(role, text):
+            if role == "assistant":
+                return f"""<div style='background: #f4eafd; color: #7b2ff2; border-radius: 16px 16px 16px 3px; margin-bottom: 8px; margin-right: 80px; box-shadow: 0 2px 8px rgba(123,47,242,0.08); padding: 13px 18px; text-align: left; max-width: 88vw; font-size: 1.12rem;'><b>👨‍🏫 Herr Felix:</b><br>{text}</div>"""
+            return f"""<div style='background: #eaf4ff; color: #1a237e; border-radius: 16px 16px 3px 16px; margin-bottom: 8px; margin-left: 80px; box-shadow: 0 2px 8px rgba(26,35,126,0.07); padding: 13px 18px; text-align: right; max-width: 88vw; font-size: 1.12rem;'><b>🙋 You:</b><br>{text}</div>"""
 
-    # Level picker
-    schreiben_levels = ["A1", "A2", "B1", "B2", "C1"]
-    prev_level = st.session_state.get("schreiben_level", "A1")
-    schreiben_level = st.selectbox(
-        "Choose your writing level:",
-        schreiben_levels,
-        index=schreiben_levels.index(prev_level) if prev_level in schreiben_levels else 0,
-        key="schreiben_level_selector"
-    )
-    st.session_state["schreiben_level"] = schreiben_level
+        IDEAS_LIMIT = 20
+        ideas_so_far = get_letter_coach_usage(student_code)
+        st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
+        if ideas_so_far >= IDEAS_LIMIT:
+            st.warning("You have reached today's letter coach limit. Please come back tomorrow.")
 
-    st.divider()
+        # --- Session State Defaults ---
+        for key, default in [
+            ("letter_coach_stage", 0),
+            ("letter_coach_chat", []),
+            ("letter_coach_prompt", ""),
+            ("letter_coach_type", ""),
+            ("selected_letter_lines", []),
+            ("letter_coach_uploaded", False)
+        ]:
+            if key not in st.session_state:
+                st.session_state[key] = default
 
-    # --- 1. MARK MY LETTER SUB-TAB ---
-    if sub_tab == "Mark My Letter":
-        st.markdown(
-            '''
-            <div style="
-                padding: 8px 12px;
-                background: #d63384;
-                color: #fff;
-                border-radius: 6px;
-                text-align: center;
-                margin-bottom: 8px;
-                font-size: 1.2rem;">
-                ✍️ Mark My Letter (AI Feedback & Score)
-            </div>
-            ''',
-            unsafe_allow_html=True
+        # --- File Upload (Resume Letter) ---
+        uploaded_file = st.file_uploader(
+            "⬆️ Upload previous letter as TXT to continue",
+            type=["txt"],
+            key="letter_coach_txt_upload"
         )
-        student_code = st.session_state.get("student_code", "demo")
-        student_name = st.session_state.get("student_name", "")
+        if uploaded_file and not st.session_state["letter_coach_uploaded"]:
+            try:
+                content = uploaded_file.read().decode("utf-8")
+                chat = [{"role": "user", "content": line} for line in content.splitlines() if line.strip()]
+                st.session_state.letter_coach_chat = [{"role": "system", "content": "You are a German letter coach. Always explain in English and be supportive."}] + chat
+                st.session_state.letter_coach_stage = 2
+                st.session_state.letter_coach_uploaded = True
+                st.success("Letter uploaded! Continue your session below.")
+                st.rerun()
+            except Exception as e:
+                st.warning(f"Could not read the file. Please check format. Error: {e}")
 
-        # Daily usage
-        SCHREIBEN_DAILY_LIMIT = 5
-        daily_so_far = get_schreiben_usage(student_code)
-        st.markdown(f"**Daily usage:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}")
+        # --- Show next-step instruction if uploaded ---
+        if st.session_state.get("letter_coach_uploaded", False):
+            st.info(
+                "✅ **Your previous letter was loaded!**\n\n"
+                "Scroll down to continue your chat with Herr Felix, review your draft, or just start typing your next step below.\n\n"
+                "If you want feedback, keep chatting or finish your letter, then download as TXT for scoring in 'Mark My Letter'."
+            )
 
-        user_letter = st.text_area(
-            "Paste or type your German letter/essay here.",
-            key="schreiben_input",
-            disabled=(daily_so_far >= SCHREIBEN_DAILY_LIMIT),
-            height=200,
-            placeholder="Write your German letter here..."
-        )
-
-        # Word/char count
-        if user_letter.strip():
-            words = re.findall(r'\b\w+\b', user_letter)
-            chars = len(user_letter)
-            st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
-
-        ai_prompt = (
-            f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
-            f"The student has submitted a {schreiben_level} German letter or essay. "
-            "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
-            "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
-            "Don't just say errors—show exactly where the mistakes are. "
-            "1. Give a score out of 25 marks and always display the score clearly. "
-            "2. If the score is 17 or more, write: '**Passed: You may submit to your tutor!**'. "
-            "3. If the score is 16 or less, write: '**Keep improving before you submit.**'. "
-            "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
-            "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
-            "6. Also check for AI usage or if the student wrote with their own effort. "
-            "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
-            "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score."
-        )
-
-        submit_disabled = daily_so_far >= SCHREIBEN_DAILY_LIMIT or not user_letter.strip()
-        if submit_disabled and daily_so_far >= SCHREIBEN_DAILY_LIMIT:
-            st.warning("You have reached today's writing practice limit. Please come back tomorrow.")
-
-        if st.button("Get Feedback", type="primary", disabled=submit_disabled):
-            with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-                try:
-                    completion = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[
-                            {"role": "system", "content": ai_prompt},
-                            {"role": "user", "content": user_letter},
-                        ],
-                        temperature=0.6,
-                    )
-                    feedback = completion.choices[0].message.content
-                except Exception as e:
-                    st.error("AI feedback failed. Please check your OpenAI setup.")
-                    feedback = None
-
-            if feedback:
-                # Extract score
-                score_match = re.search(r"score\s*(?:[:=]|is)?\s*(\d+)\s*/\s*25", feedback, re.IGNORECASE)
-                if not score_match:
-                    score_match = re.search(r"Score[:\s]+(\d+)\s*/\s*25", feedback, re.IGNORECASE)
-                score = int(score_match.group(1)) if score_match else 0
-
-                # Save to DB if needed here
-                inc_schreiben_usage(student_code)
-                save_schreiben_attempt(student_code, student_name, schreiben_level, score)
-
+        # --- Stage 0: Paste Prompt ---
+        if st.session_state.letter_coach_stage == 0:
+            with st.form("prompt_form", clear_on_submit=True):
+                prompt = st.text_area(
+                    "Paste your letter/essay question or prompt here:",
+                    value=st.session_state.letter_coach_prompt,
+                    height=140,
+                    disabled=(ideas_so_far >= IDEAS_LIMIT),
+                    placeholder="e.g., Schreiben Sie eine formelle E-Mail ..."
+                )
+                send = st.form_submit_button("Send")
+            if send and prompt:
+                st.session_state.letter_coach_prompt = prompt
+                st.session_state.letter_coach_stage = 1
+                st.session_state.letter_coach_chat = [
+                    {"role": "system", "content": "You are a German letter coach. Always explain in English. Short and supportive!"},
+                    {"role": "assistant", "content": "Which type of letter do you think this is: formal, informal, SMS, or opinion essay?"}
+                ]
+                inc_letter_coach_usage(student_code)
+                st.rerun()
+            if prompt:
                 st.markdown("---")
-                st.markdown("#### 📝 Feedback from Herr Felix")
-                st.markdown(feedback)
+                st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{prompt}")
 
-                # Download as PDF
-                def sanitize_text(text):
-                    return text.encode('latin-1', errors='replace').decode('latin-1')
-                pdf = FPDF()
-                pdf.add_page()
-                pdf.set_font("Arial", size=12)
-                safe_user_letter = sanitize_text(user_letter)
-                safe_feedback = sanitize_text(feedback)
-                pdf.multi_cell(0, 10, f"Your Letter:\n\n{safe_user_letter}\n\nFeedback from Herr Felix:\n\n{safe_feedback}")
-                pdf_output = f"Feedback_{student_code}_{schreiben_level}.pdf"
-                pdf.output(pdf_output)
-                with open(pdf_output, "rb") as f:
-                    pdf_bytes = f.read()
-                st.download_button(
-                    "⬇️ Download Feedback as PDF",
-                    pdf_bytes,
-                    file_name=pdf_output,
-                    mime="application/pdf"
+        # --- Stage 1: Guess Letter Type ---
+        elif st.session_state.letter_coach_stage == 1:
+            st.markdown("---")
+            st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{st.session_state.letter_coach_prompt}")
+            chat_history = st.session_state.letter_coach_chat
+            for msg in chat_history[1:]:
+                st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
+            with st.form("type_form", clear_on_submit=True):
+                type_guess = st.text_input(
+                    "Which type do you think it is (formal, informal, SMS, opinion essay)?",
+                    value="", key="letter_coach_type_input"
                 )
-                import os
-                os.remove(pdf_output)
-
-                wa_message = f"Hi, here is my German letter and AI feedback:\n\n{user_letter}\n\nFeedback:\n{feedback}"
-                wa_url = (
-                    "https://api.whatsapp.com/send"
-                    "?phone=233205706589"
-                    f"&text={urllib.parse.quote(wa_message)}"
+                send_type = st.form_submit_button("Send")
+            if send_type and type_guess:
+                ai_check_prompt = (
+                    f"Prompt: {st.session_state.letter_coach_prompt}\n"
+                    f"Student answer: {type_guess}\n"
+                    "1. Is the student correct about the type (formal, informal, SMS, or opinion essay)?\n"
+                    "2. If correct, reply: 👍 Great! That's right. If not, reply: ❌ Actually, this is a [correct type] because [reason].\n"
+                    "Explain in 1-2 sentences in simple English, then ask if they want to start from greeting or a section (e.g. advantages)."
                 )
-                st.markdown(
-                    f"[📲 Send to Tutor on WhatsApp]({wa_url})",
-                    unsafe_allow_html=True
+                resp = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[{"role": "system", "content": ai_check_prompt}],
+                    temperature=0.2,
+                    max_tokens=150
                 )
-
-    # ===== BUBBLE FUNCTION =====
-    def bubble(role, text):
-        color = "#7b2ff2" if role == "assistant" else "#222"
-        bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
-        name = "Herr Felix" if role == "assistant" else "You"
-        return f"""
-            <div style="background:{bg};color:{color};margin-bottom:8px;padding:13px 15px;
-            border-radius:14px;max-width:98vw;font-size:1.09rem;">
-                <b>{name}:</b><br>{text}
-            </div>
-        """
+                ai_type_feedback = resp.choices[0].message.content
+                chat_history.extend([
+                    {"role": "user", "content": type_guess},
+                    {"role": "assistant", "content": ai_type_feedback}
+                ])
+                st.session_state.letter_coach_chat = chat_history
+                st.session_state.letter_coach_stage = 2
+                st.session_state.letter_coach_type = type_guess
+                st.rerun()
 
         # --- Stage 2+: Coaching Chat ---
         elif st.session_state.letter_coach_stage >= 2:
             st.markdown("---")
             st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{st.session_state.letter_coach_prompt}")
-
-            # Show a "resume" instruction ONLY after upload, then rerun so chat/draft updates immediately
-            if st.session_state.get("letter_coach_uploaded"):
-                st.info(
-                    "✅ **Your previous letter was loaded!**\n\n"
-                    "Continue your writing below — you can type your next sentence, ask a question, or finish your letter. "
-                    "When you're ready, download your draft as TXT or click **END SUMMARY** to finish."
-                )
-                st.session_state.letter_coach_uploaded = False
-                st.rerun()  # ensures chat, draft, bubbles all update after instruction
-
             chat_history = st.session_state.letter_coach_chat
             for msg in chat_history[1:]:
                 st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
@@ -3820,7 +3755,6 @@ if tab == "Schreiben Trainer":
                 st.session_state.letter_coach_chat = chat_history
                 st.rerun()
 
-
             # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
             user_msgs = [
                 msg["content"]
@@ -3872,6 +3806,7 @@ if tab == "Schreiben Trainer":
                 st.session_state.selected_letter_lines = []
                 st.session_state.letter_coach_uploaded = False
                 st.rerun()
+#
 
 
 
