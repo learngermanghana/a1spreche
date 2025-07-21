@@ -3915,6 +3915,14 @@ if tab == "Schreiben Trainer":
                 st.session_state.letter_coach_chat = chat_history
                 st.rerun()
 
+                        if st.button("Start New Letter Coach"):
+                st.session_state.letter_coach_chat = []
+                st.session_state.letter_coach_prompt = ""
+                st.session_state.letter_coach_type = ""
+                st.session_state.selected_letter_lines = []
+                st.session_state.letter_coach_uploaded = False
+                st.rerun()
+
             # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
             user_msgs = [
                 msg["content"]
@@ -3955,28 +3963,7 @@ if tab == "Schreiben Trainer":
                 st.code(letter_draft, language="markdown")
                 st.caption("**📋 Click the clipboard icon above to copy your letter!**")
 
-            st.markdown("---")
-            confirm_end = st.checkbox("I'm sure. End the summary and finish my letter coach session.", key="end_summary_confirm")
-            if st.button("END SUMMARY", disabled=not confirm_end):
-                st.session_state.letter_coach_active = False
-                st.session_state.letter_coach_stage = 0
-                st.session_state.letter_coach_chat = []
-                st.session_state.letter_coach_prompt = ""
-                st.session_state.letter_coach_type = ""
-                st.session_state.selected_letter_lines = []
-                st.session_state.letter_coach_uploaded = False
-                st.success("Session ended. Download your letter as TXT and use 'Mark My Letter' for final feedback and scoring!")
-                st.stop()
-            st.caption("⚠️ Are you sure? You won’t be able to add to this chat after ending.")
 
-            if st.button("Start New Letter Coach"):
-                st.session_state.letter_coach_chat = []
-                st.session_state.letter_coach_prompt = ""
-                st.session_state.letter_coach_type = ""
-                st.session_state.selected_letter_lines = []
-                st.session_state.letter_coach_uploaded = False
-                st.rerun()
-#
 
 
 
