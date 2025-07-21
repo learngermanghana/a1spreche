@@ -3582,15 +3582,13 @@ if tab == "Schreiben Trainer":
     )
     st.divider()
 
-    # Sub-tabs: Mark My Letter, Ideas Generator (Letter Coach)
     sub_tab = st.radio(
         "Choose Mode",
-        ["Mark My Letter", "Ideas Generator (Letter Coach)"],
+        ["Mark My Letter", "Ideas Generator (Letter Coach)", "Start/Continue Letter"],
         horizontal=True,
         key="schreiben_sub_tab"
     )
 
-    # Level picker
     schreiben_levels = ["A1", "A2", "B1", "B2", "C1"]
     prev_level = st.session_state.get("schreiben_level", "A1")
     schreiben_level = st.selectbox(
@@ -3623,7 +3621,6 @@ if tab == "Schreiben Trainer":
         student_code = st.session_state.get("student_code", "demo")
         student_name = st.session_state.get("student_name", "")
 
-        # Daily usage
         SCHREIBEN_DAILY_LIMIT = 5
         daily_so_far = get_schreiben_usage(student_code)
         st.markdown(f"**Daily usage:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}")
@@ -3636,7 +3633,6 @@ if tab == "Schreiben Trainer":
             placeholder="Write your German letter here..."
         )
 
-        # Word/char count
         if user_letter.strip():
             words = re.findall(r'\b\w+\b', user_letter)
             chars = len(user_letter)
@@ -3679,13 +3675,11 @@ if tab == "Schreiben Trainer":
                     feedback = None
 
             if feedback:
-                # Extract score
                 score_match = re.search(r"score\s*(?:[:=]|is)?\s*(\d+)\s*/\s*25", feedback, re.IGNORECASE)
                 if not score_match:
                     score_match = re.search(r"Score[:\s]+(\d+)\s*/\s*25", feedback, re.IGNORECASE)
                 score = int(score_match.group(1)) if score_match else 0
 
-                # Save to DB if needed here
                 inc_schreiben_usage(student_code)
                 save_schreiben_attempt(student_code, student_name, schreiben_level, score)
 
@@ -3693,7 +3687,7 @@ if tab == "Schreiben Trainer":
                 st.markdown("#### 📝 Feedback from Herr Felix")
                 st.markdown(feedback)
 
-                # Download as PDF
+                from fpdf import FPDF
                 def sanitize_text(text):
                     return text.encode('latin-1', errors='replace').decode('latin-1')
                 pdf = FPDF()
@@ -3753,24 +3747,30 @@ if tab == "Schreiben Trainer":
                 st.experimental_rerun()
         with col2:
             uploaded_file = st.file_uploader(
-                "⬆️ Upload your previous letter (CSV)", 
-                type=["csv"], 
+                "⬆️ Upload your previous letter (CSV)",
+                type=["csv"],
                 key="letter_coach_csv_upload_start"
             )
             if uploaded_file and not st.session_state.get("letter_coach_uploaded"):
                 import pandas as pd
                 df_uploaded = pd.read_csv(uploaded_file)
-                user_lines = list(df_uploaded["Letter"].dropna())
-                system_message = {"role": "system", "content": "You are a German letter coach. Always explain in English. Short and supportive!"}
-                chat = [system_message]
-                for line in user_lines:
-                    chat.append({"role": "user", "content": line})
-                st.session_state.letter_coach_chat = chat
-                st.session_state.letter_coach_stage = 2
-                st.session_state.letter_coach_uploaded = True
-                st.success("Letter uploaded! Continue your session below.")
-                st.experimental_rerun()
-        st.info("You can always copy, download, and edit your letter as you write. All your progress is shown live in the Ideas Generator tab.")
+                if "Letter" in df_uploaded.columns:
+                    user_lines = list(df_uploaded["Letter"].dropna())
+                    system_message = {"role": "system", "content": "You are a German letter coach. Always explain in English. Short and supportive!"}
+                    chat = [system_message]
+                    for line in user_lines:
+                        chat.append({"role": "user", "content": line})
+                    st.session_state.letter_coach_chat = chat
+                    st.session_state.letter_coach_stage = 2
+                    st.session_state.letter_coach_uploaded = True
+                    st.success("Letter uploaded! Continue your session below.")
+                    st.experimental_rerun()
+                else:
+                    st.warning("Invalid file: No 'Letter' column found in CSV.")
+        st.info(
+            "You can always copy, download, and edit your letter as you write. "
+            "All your progress is shown live in the Ideas Generator tab."
+        )
 
     # --- 2. IDEAS GENERATOR SUB-TAB ---
     if sub_tab == "Ideas Generator (Letter Coach)":
@@ -3954,6 +3954,7 @@ if tab == "Schreiben Trainer":
             else:
                 st.info("Select at least one line to copy or download your letter.")
             st.warning("**Don't forget:** You can copy your draft, edit, or download anytime while working. When you're ready, paste it in the 'Mark My Letter' tab for feedback and a score!")
+
 
 
 
