@@ -3926,98 +3926,60 @@ if tab == "Schreiben Trainer":
         st.rerun()
 
 
-        # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
-        user_msgs = [
-            msg["content"]
-            for msg in st.session_state.letter_coach_chat[1:]
-            if msg["role"] == "user"
-        ]
+    # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
+    user_msgs = [
+        msg["content"]
+        for msg in st.session_state.letter_coach_chat[1:]
+        if msg["role"] == "user"
+    ]
 
-        st.markdown("""
-        **📝 Your Letter Draft**
-        - Tick the lines you want to include in your letter draft.
-        - You can untick any part you want to leave out.
-        - Only ticked lines will appear in your downloadable draft below.
-        """)
+    st.markdown("""
+    **📝 Your Letter Draft**
+    - Tick the lines you want to include in your letter draft.
+    - You can untick any part you want to leave out.
+    - Only ticked lines will appear in your downloadable draft below.
+    """)
 
-        # Initialize or preserve selection state
-        if "selected_letter_lines" not in st.session_state:
-            st.session_state.selected_letter_lines = [True] * len(user_msgs)
-        else:
-            diff = len(user_msgs) - len(st.session_state.selected_letter_lines)
-            if diff > 0:
-                st.session_state.selected_letter_lines.extend([True] * diff)
-            elif diff < 0:
-                st.session_state.selected_letter_lines = st.session_state.selected_letter_lines[:len(user_msgs)]
+    # Store selection in session state
+    if "selected_letter_lines" not in st.session_state or \
+       len(st.session_state.selected_letter_lines) != len(user_msgs):
+        # Initialize: all ticked by default
+        st.session_state.selected_letter_lines = [True] * len(user_msgs)
 
-        selected_lines = []
-        for i, line in enumerate(user_msgs):
-            st.session_state.selected_letter_lines[i] = st.checkbox(
-                line,
-                value=st.session_state.selected_letter_lines[i],
-                key=f"letter_line_{i}"
-            )
-            if st.session_state.selected_letter_lines[i]:
-                selected_lines.append(line)
-
-        letter_draft = "\n".join(selected_lines)
-
-        # --- Styles for Draft and Tip Boxes ---
-        DRAFT_BOX_STYLE = (
-            "background:#fffde7;"
-            "border-radius:11px;"
-            "border:2px solid #ffd600;"
-            "box-shadow:0 1px 9px #ffe08244;"
-            "margin-bottom:0.48em;"
-            "padding:0.8em 0.99em;"
-            "font-size:1.18em;"
-            "min-height:90px;"
-            "max-height:220px;"
-            "overflow-y:auto;"
-            "color:#1a237e;"
-            "font-family:'Fira Mono', monospace, Arial;"
-            "white-space:pre-line;"
-            "word-break:break-word;"
+    selected_lines = []
+    for i, line in enumerate(user_msgs):
+        st.session_state.selected_letter_lines[i] = st.checkbox(
+            line, value=st.session_state.selected_letter_lines[i],
+            key=f"letter_line_{i}"
         )
-        TIP_BOX_STYLE = (
-            "background:#ffd600;"
-            "padding:0.89em 1.11em;"
-            "border-radius:10px;"
-            "margin:0.44em 0 1.09em 0;"
-            "color:#543c0b;"
-            "font-weight:700;"
-            "border-left:6px solid #ff9100;"
-            "font-size:1.13em;"
-            "line-height:1.45;"
-        )
+        if st.session_state.selected_letter_lines[i]:
+            selected_lines.append(line)
 
-                                # --- Render Draft Box ---
-        # Display the draft with line breaks converted to <br>
-        st.markdown(
-            f"""
-            <div id='letter-draft-box' style="{DRAFT_BOX_STYLE}">
-            {letter_draft.replace("
-", "<br>")}
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    letter_draft = "\n".join(selected_lines)
 
-        # --- Render Copy Tip Box ---
-        st.markdown(
-            f"<div style=\"{TIP_BOX_STYLE}\">📋 <span style=\"font-size:1.11em;\"><b>Tap and hold to select, then copy your letter</b> (works best on all phones).<br>Or use the button below to download as TXT.</span></div>",
-            unsafe_allow_html=True
-        )
+    # --- Show as code box (with Streamlit's copy button) ---
+    st.markdown(
+        """
+        <div style="background:#fffde7; border-radius:13px; border:1.5px solid #ffe082; box-shadow:0 2px 8px #ffe08266; margin-bottom:0.7em; padding:0.7em 1em;">
+        <b>📝 Your Letter So Far (copy & download below):</b>
+        </div>
+        """, unsafe_allow_html=True
+    )
 
-        # --- Download Button (disabled if empty) ---
-        st.download_button(
-            "⬇️ Download Letter as TXT",
-            letter_draft.encode("utf-8"),
-            file_name="my_letter.txt",
-            disabled=not bool(letter_draft.strip())
-        )
-        if not letter_draft.strip():
-            st.info("Select at least one letter line above to enable download.")
+    st.code(letter_draft, language="markdown")
+
+    st.markdown("""
+    <div style="background:#ffe082;padding:0.9em 1.2em;border-radius:10px;margin:0.4em 0 1.2em 0; color:#543c0b; font-weight:600; border-left:6px solid #ffc107;">
+    📋 <span style="font-size:1.09em;">To copy, <b>hover and click</b> the <span style='background:#fff;padding:0 0.35em;border-radius:5px;'>📋</span> copy icon at the top-right of the box above.<br>
+    To download, use the button below.</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.download_button(
+        "⬇️ Download Letter as TXT", 
+        letter_draft.encode("utf-8"), 
+        file_name="my_letter.txt"
+    )
 
 
 
