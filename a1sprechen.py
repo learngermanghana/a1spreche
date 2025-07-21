@@ -3924,7 +3924,6 @@ if tab == "Schreiben Trainer":
         st.session_state.selected_letter_lines = []
         st.session_state.letter_coach_uploaded = False
         st.rerun()
-
     # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
     user_msgs = [
         msg["content"]
@@ -3956,66 +3955,30 @@ if tab == "Schreiben Trainer":
 
     letter_draft = "\n".join(selected_lines)
 
-    # --- Notepad-style display with copy + download ---
-    st.markdown(f"""
-        <div style="
-            background: #fffde7;
-            color: #263238;
-            font-size: 1.15rem;
-            padding: 1.2em 1.4em 1.2em 1.4em;
-            border-radius: 16px;
-            border: 1.7px solid #ffe082;
-            box-shadow: 0 2px 12px rgba(255,193,7,0.12);
-            margin-bottom: 0.7em;
-            min-height: 120px;
-            max-height: 270px;
-            overflow-y: auto;
-            font-family: 'Segoe UI', 'Arial', sans-serif;
-            letter-spacing: 0.015em;
-            position: relative;">
-            <b>📝 Your Letter So Far:</b>
-            <div id="letter-draft" style="margin-top:0.5em;font-size:1.08em;white-space:pre-wrap;">{letter_draft if letter_draft.strip() else "<i>(Your draft will appear here as you write!)</i>"}</div>
-            <div style="margin-top:1em;">
-                <button id="copy-button" style="
-                    background: #ffd54f;
-                    border: none;
-                    color: #5d4037;
-                    padding: 0.55em 1.1em;
-                    font-size: 1.07em;
-                    font-weight: 600;
-                    border-radius: 8px;
-                    margin-right: 16px;
-                    cursor: pointer;
-                    box-shadow: 0 2px 5px rgba(0,0,0,0.03);
-                    transition: background 0.19s;">
-                    📋 Copy Text
-                </button>
-                <span id="copy-success" style="color:#43a047;font-weight:bold;font-size:1em;display:none;">Copied!</span>
-            </div>
+    # --- Show as code box (with Streamlit's copy button) ---
+    st.markdown(
+        """
+        <div style="background:#fffde7; border-radius:13px; border:1.5px solid #ffe082; box-shadow:0 2px 8px #ffe08266; margin-bottom:0.7em; padding:0.7em 1em;">
+        <b>📝 Your Letter So Far (copy & download below):</b>
         </div>
-        <script>
-        const btn = window.parent.document.getElementById('copy-button');
-        if (btn) {{
-            btn.onclick = function() {{
-                const txt = window.parent.document.getElementById('letter-draft').innerText;
-                navigator.clipboard.writeText(txt);
-                window.parent.document.getElementById('copy-success').style.display = "inline";
-                setTimeout(function(){{
-                    window.parent.document.getElementById('copy-success').style.display = "none";
-                }}, 1300);
-            }}
-        }}
-        </script>
+        """, unsafe_allow_html=True
+    )
+
+    st.code(letter_draft, language="markdown")
+
+    st.markdown("""
+    <div style="background:#ffe082;padding:0.9em 1.2em;border-radius:10px;margin:0.4em 0 1.2em 0; color:#543c0b; font-weight:600; border-left:6px solid #ffc107;">
+    📋 <span style="font-size:1.09em;">To copy, <b>hover and click</b> the <span style='background:#fff;padding:0 0.35em;border-radius:5px;'>📋</span> copy icon at the top-right of the box above.<br>
+    To download, use the button below.</span>
+    </div>
     """, unsafe_allow_html=True)
 
-    # --- Download Button Only (just below box, centered) ---
-    st.markdown("<div style='text-align:center;margin-bottom:1.2em;'>", unsafe_allow_html=True)
     st.download_button(
         "⬇️ Download Letter as TXT", 
         letter_draft.encode("utf-8"), 
         file_name="my_letter.txt"
     )
-    st.markdown("</div>", unsafe_allow_html=True)
+#
 
 
 
