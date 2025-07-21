@@ -3868,7 +3868,6 @@ if tab == "Schreiben Trainer":
                     "Long letters are okay, but usually a good letter is finished in 7–12 turns. "
                     "Try to wrap up, click **END SUMMARY** or download your letter as TXT."
                 )
-
     with st.form("letter_coach_chat_form", clear_on_submit=True):
         user_input = st.text_area(
             "",
@@ -3880,6 +3879,7 @@ if tab == "Schreiben Trainer":
         send = st.form_submit_button("Send")
 
     if send and user_input.strip():
+        chat_history = st.session_state.letter_coach_chat  # <-- Make sure chat_history is defined!
         chat_history.append({"role": "user", "content": user_input})
         student_level = st.session_state.get("schreiben_level", "A1")
         letter_type = st.session_state.letter_coach_type
