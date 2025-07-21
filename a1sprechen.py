@@ -4014,6 +4014,7 @@ if tab == "Schreiben Trainer":
                 st.session_state.letter_coach_prompt = ""
                 st.session_state.letter_coach_type = ""
                 st.session_state.selected_letter_lines = []
+                st.session_state.letter_coach_uploaded = False
                 st.success("Session ended. Download your letter as TXT and use 'Mark My Letter' for final feedback and scoring!")
                 st.stop()
             st.caption("⚠️ Are you sure? You won’t be able to add to this chat after ending.")
@@ -4023,8 +4024,10 @@ if tab == "Schreiben Trainer":
                 st.session_state.letter_coach_prompt = ""
                 st.session_state.letter_coach_type = ""
                 st.session_state.selected_letter_lines = []
+                st.session_state.letter_coach_uploaded = False
                 st.rerun()
 #
+
 
 
 
