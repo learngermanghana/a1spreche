@@ -3780,6 +3780,15 @@ if tab == "Schreiben Trainer":
             except Exception as e:
                 st.warning(f"Could not read the file. Please check format. Error: {e}")
 
+        # --- Show instruction if uploaded ---
+        if st.session_state.get("letter_coach_uploaded", False):
+            st.info(
+                "✅ **Your previous letter was loaded!**\n\n"
+                "Scroll down to continue your chat with Herr Felix, review your draft, or start typing your next step below.\n\n"
+                "If you want feedback, keep chatting or finish your letter, then download as TXT for scoring in 'Mark My Letter'."
+            )
+
+
         # --- Stage 0: Paste Prompt ---
         if st.session_state.letter_coach_stage == 0:
             with st.form("prompt_form", clear_on_submit=True):
