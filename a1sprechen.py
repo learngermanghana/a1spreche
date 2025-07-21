@@ -3925,12 +3925,9 @@ if tab == "Schreiben Trainer":
         st.session_state.letter_coach_uploaded = False
         st.rerun()
 
-    # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
-    user_msgs = [
-        msg["content"]
-        for msg in st.session_state.letter_coach_chat[1:]
-        if msg["role"] == "user"
-    ]
+    # --- Letter Draft Display, Copy, and Download (Mobile Friendly) ---
+
+    import streamlit.components.v1 as components
 
     st.markdown("""
     **📝 Your Letter Draft**
@@ -3942,7 +3939,6 @@ if tab == "Schreiben Trainer":
     # Store selection in session state
     if "selected_letter_lines" not in st.session_state or \
        len(st.session_state.selected_letter_lines) != len(user_msgs):
-        # Initialize: all ticked by default
         st.session_state.selected_letter_lines = [True] * len(user_msgs)
 
     selected_lines = []
@@ -3956,27 +3952,60 @@ if tab == "Schreiben Trainer":
 
     letter_draft = "\n".join(selected_lines)
 
-    # --- Show as code box (with Streamlit's copy button) ---
+    # --- Custom Preview Box: Always Visible, Scrollable, Easy Copy ---
     st.markdown(
-        """
-        <div style="background:#fffde7; border-radius:13px; border:1.5px solid #ffe082; box-shadow:0 2px 8px #ffe08266; margin-bottom:0.7em; padding:0.7em 1em;">
-        <b>📝 Your Letter So Far (copy & download below):</b>
+        f"""
+        <div id='draftbox' style="
+            background:#fffde7;
+            border-radius: 11px;
+            border: 2px solid #ffd600;
+            box-shadow: 0 1px 9px #ffe08244;
+            margin-bottom: 0.48em;
+            padding: 0.8em 0.99em;
+            font-size: 1.18em;
+            min-height: 90px;
+            max-height: 220px;
+            overflow-y: auto;
+            color: #1a237e;
+            font-family: 'Fira Mono', monospace, Arial;
+            white-space: pre-line;
+            word-break: break-word;
+        ">
+        {letter_draft.replace("\n", "<br>")}
         </div>
         """, unsafe_allow_html=True
     )
 
-    st.code(letter_draft, language="markdown")
-
-    st.markdown("""
-    <div style="background:#ffe082;padding:0.9em 1.2em;border-radius:10px;margin:0.4em 0 1.2em 0; color:#543c0b; font-weight:600; border-left:6px solid #ffc107;">
-    📋 <span style="font-size:1.09em;">To copy, <b>hover and click</b> the <span style='background:#fff;padding:0 0.35em;border-radius:5px;'>📋</span> copy icon at the top-right of the box above.<br>
-    To download, use the button below.</span>
-    </div>
-    """, unsafe_allow_html=True)
+    # --- Copy Button (Big, Full Width, Super Visible) ---
+    components.html(
+        f"""
+        <button onclick="navigator.clipboard.writeText(document.getElementById('draftbox').innerText)"
+            style="
+                background:#ffd600;
+                color:#212121;
+                font-weight:700;
+                border-radius:8px;
+                border:none;
+                padding: 1em 0.8em;
+                font-size:1.13em;
+                box-shadow:0 2px 8px #ffe08266;
+                margin:0.18em 0 1.1em 0;
+                width:100%;
+                display:block;
+                transition:background 0.2s;
+            "
+            onmouseover="this.style.background='#ffb300';"
+            onmouseout="this.style.background='#ffd600';"
+        >
+        📋 Copy Letter Text
+        </button>
+        """,
+        height=60
+    )
 
     st.download_button(
-        "⬇️ Download Letter as TXT", 
-        letter_draft.encode("utf-8"), 
+        "⬇️ Download Letter as TXT",
+        letter_draft.encode("utf-8"),
         file_name="my_letter.txt"
     )
 
