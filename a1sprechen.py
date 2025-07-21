@@ -3924,7 +3924,6 @@ if tab == "Schreiben Trainer":
         st.session_state.selected_letter_lines = []
         st.session_state.letter_coach_uploaded = False
         st.rerun()
-
     # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
     user_msgs = [
         msg["content"]
@@ -3955,13 +3954,28 @@ if tab == "Schreiben Trainer":
             selected_lines.append(line)
 
     letter_draft = "\n".join(selected_lines)
-    st.text_area(
-        "Your letter so far", 
-        value=letter_draft, 
-        height=180, 
-        key="live_letter", 
-        disabled=True
-    )
+
+    # Improved notepad-style display instead of st.text_area
+    st.markdown("""
+        <div style="
+            background: #fffde7;
+            color: #263238;
+            font-size: 1.14rem;
+            padding: 1.1em 1.3em 1.1em 1.3em;
+            border-radius: 16px;
+            border: 1.5px solid #ffe082;
+            box-shadow: 0 2px 10px rgba(255,193,7,0.08);
+            margin-bottom: 0.7em;
+            min-height: 100px;
+            max-height: 260px;
+            overflow-y: auto;
+            font-family: 'Segoe UI', 'Arial', sans-serif;
+            letter-spacing: 0.02em;
+            ">
+            <b>📝 Your Letter So Far:</b><br><br>
+            <span style="white-space: pre-wrap;">{}</span>
+        </div>
+    """.format(letter_draft if letter_draft.strip() else "<i>(Your draft will appear here as you write!)</i>"), unsafe_allow_html=True)
 
     colA, colB = st.columns([1, 1])
     with colA:
@@ -3987,7 +4001,8 @@ if tab == "Schreiben Trainer":
                 A small <b>copy</b> button (<span style='background:#fff;padding:0 0.3em;border-radius:5px;'>📋</span>) will appear in the corner.<br>
                 <span style="font-size: 1.12em; color: #ef6c00;">↘️ Click it to copy your letter!</span>
             </div>
-        """, unsafe_allow_html=True)
+
+
 
 
 
