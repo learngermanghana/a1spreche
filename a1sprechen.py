@@ -3740,15 +3740,15 @@ if tab == "Schreiben Trainer":
         """
 
     if sub_tab == "Ideas Generator (Letter Coach)":
-        import pandas as pd
+        import io
 
         st.info(
             "🛟 **How to use this page:**\n"
             "1. Paste your exam prompt or letter task.\n"
             "2. Your writing will build up step by step as you write and chat with Herr Felix.\n"
             "3. See your draft update live below.\n"
-            "4. **Before leaving or refreshing, download your work as CSV using the button below your draft.**\n"
-            "5. You can upload a CSV file here next time to continue from where you stopped.\n"
+            "4. **Before leaving or refreshing, download your work as TXT using the button below your draft.**\n"
+            "5. You can upload a TXT file here next time to continue from where you stopped.\n"
             "6. Paste your draft into **Mark My Letter** for scoring and feedback!"
         )
 
@@ -3769,74 +3769,34 @@ if tab == "Schreiben Trainer":
             st.session_state.letter_coach_type = ""
         if "selected_letter_lines" not in st.session_state:
             st.session_state.selected_letter_lines = []
-
-        # --- Initialize upload flag ---
         if "letter_coach_uploaded" not in st.session_state:
             st.session_state.letter_coach_uploaded = False
 
-        # --- Configuration constant ---
-        SYSTEM_MESSAGE_CONTENT = (
-            "You are a German letter coach. Always explain in English and be supportive."
+        # --- TXT File Upload Logic (at top) ---
+        uploaded_file = st.file_uploader(
+            "⬆️ Upload previous letter as TXT to continue",
+            type=["txt"],
+            key="letter_coach_txt_upload"
         )
 
-        # --- Helper function to load progress from CSV ---
-        def load_letter_coach_progress(uploaded_file) -> bool:
-            """
-            Reads a comma-separated CSV and updates session_state with chat history.
-            Returns True if loading was successful, False otherwise.
-            """
+        if uploaded_file and not st.session_state.get("letter_coach_uploaded"):
             try:
-                df = pd.read_csv(
-                    uploaded_file,
-                    sep=","  # faster parsing for standard CSV
-                )
-            except pd.errors.ParserError as e:
-                st.warning(f"CSV parsing error: {e}")
-                return False
+                content = uploaded_file.read().decode("utf-8")
+                user_steps = [line for line in content.splitlines() if line.strip()]
+                chat = []
+                for step in user_steps:
+                    chat.append({"role": "user", "content": step})
+                system_message = {
+                    "role": "system",
+                    "content": "You are a German letter coach. Always explain in English and be supportive."
+                }
+                st.session_state.letter_coach_chat = [system_message] + chat
+                st.session_state.letter_coach_stage = 2
+                st.session_state.letter_coach_uploaded = True
+                st.success("Letter uploaded! Continue your session below.")
+                st.experimental_rerun()
             except Exception as e:
                 st.warning(f"Could not read the file. Please check format. Error: {e}")
-                return False
-
-            # Verify required columns
-            if not {"Role", "Message"}.issubset(df.columns):
-                st.warning("Please upload a valid CSV (with 'Role' and 'Message' columns)." )
-                return False
-
-            # Build chat history list efficiently
-            chat = []
-            for row in df.itertuples(index=False):
-                role = "user" if getattr(row, 'Role').strip().lower() == "you" else "assistant"
-                chat.append({
-                    "role": role,
-                    "content": getattr(row, 'Message')
-                })
-
-            # Prepend system message
-            system_message = {
-                "role": "system",
-                "content": SYSTEM_MESSAGE_CONTENT
-            }
-            st.session_state.letter_coach_chat = [system_message] + chat
-            st.session_state.letter_coach_stage = 2
-            st.session_state.letter_coach_uploaded = True
-            st.success("Progress uploaded! Continue your session below.")
-            st.experimental_rerun()
-            return True
-
-        # --- File uploader widget ---
-        uploaded_file = st.file_uploader(
-            "⬆️ Upload previous progress CSV to continue",
-            type=["csv"],
-            key="letter_coach_csv_upload_ideas"
-        )  # unique key to avoid duplicate widget error
-
-        # Process upload on change
-        if uploaded_file and not st.session_state.get("letter_coach_uploaded"):
-            success = load_letter_coach_progress(uploaded_file)
-            if not success:
-                # If load fails, reset flag to allow retry
-                st.session_state.letter_coach_uploaded = False
-
 
         # --- Bubble function for chat rendering ---
         def bubble(role, text):
@@ -3953,14 +3913,14 @@ if tab == "Schreiben Trainer":
                 st.warning(
                     "⏰ You have reached 12 writing turns. "
                     "Usually, your letter should be complete by now. "
-                    "If you want feedback, click **END SUMMARY** or download your chat as CSV. "
+                    "If you want feedback, click **END SUMMARY** or download your letter as TXT. "
                     "You can always start a new session for more practice."
                 )
             elif num_student_turns > 12:
                 st.warning(
                     f"🚦 You are now at {num_student_turns} turns. "
                     "Long letters are okay, but usually a good letter is finished in 7–12 turns. "
-                    "Try to wrap up, click **END SUMMARY** or download your chat as CSV."
+                    "Try to wrap up, click **END SUMMARY** or download your letter as TXT."
                 )
 
             with st.form("letter_coach_chat_form", clear_on_submit=True):
@@ -4033,7 +3993,7 @@ if tab == "Schreiben Trainer":
 
             # End-of-letter checklist (after several turns or on request)
             if num_student_turns >= 4 or st.session_state.get("show_checklist"):
-                st.markdown("""
+                st.markdown(\"\"\"
                 **✅ Final Checklist Before Sending Your Letter**
                 - [ ] Greeting (e.g. **Sehr geehrte/r ...**, or **Liebe/r ...**)
                 - [ ] Introduction (**Ich schreibe Ihnen, weil...**)
@@ -4041,20 +4001,8 @@ if tab == "Schreiben Trainer":
                 - [ ] Request (**möchte**, e.g. *Ich möchte...*)
                 - [ ] Closing (e.g. **Mit freundlichen Grüßen**)
                 - [ ] Used at least one connector (**und**, **aber**, **weil**, etc.)
-                """)
+                \"\"\")
                 st.info("If you missed a part, go back and add it before sending!")
-
-            # ==== Download full chat as CSV (for backup/restore) ====
-            if st.session_state.get("letter_coach_chat"):
-                rows = []
-                for msg in st.session_state.letter_coach_chat[1:]:
-                    role = "You" if msg["role"] == "user" else "Herr Felix"
-                    rows.append({"Role": role, "Message": msg["content"]})
-                df_full = pd.DataFrame(rows)
-                csv_full = df_full.to_csv(index=False).encode("utf-8")
-                st.download_button("⬇️ Download Your Letter Coach Chat as CSV", csv_full, file_name="letter_coach_progress.csv", mime="text/csv")
-
-            st.caption("Download your chat as CSV to continue next time (upload at the top of this page).")
 
             # END SUMMARY confirmation & restart
             st.markdown("---")
@@ -4066,7 +4014,7 @@ if tab == "Schreiben Trainer":
                 st.session_state.letter_coach_prompt = ""
                 st.session_state.letter_coach_type = ""
                 st.session_state.selected_letter_lines = []
-                st.success("Session ended. Download your letter as TXT/CSV and use 'Mark My Letter' for final feedback and scoring!")
+                st.success("Session ended. Download your letter as TXT and use 'Mark My Letter' for final feedback and scoring!")
                 st.stop()
             st.caption("⚠️ Are you sure? You won’t be able to add to this chat after ending.")
 
@@ -4076,7 +4024,6 @@ if tab == "Schreiben Trainer":
                 st.session_state.letter_coach_type = ""
                 st.session_state.selected_letter_lines = []
                 st.rerun()
-
 #
 
 
