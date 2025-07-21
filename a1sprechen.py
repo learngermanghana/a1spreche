@@ -3173,11 +3173,21 @@ if tab == "Exams Mode & Custom Chat":
                 df_upload = pd.read_csv(uploaded)
                 if "Used_Topics" in df_upload.columns:
                     st.session_state["used_topics"] = list(df_upload["Used_Topics"].dropna())
-                    st.success("Progress restored! Topics you already did will be skipped next time.")
-                    st.session_state["remaining_topics"] = [
-                        t for t in st.session_state["remaining_topics"]
-                        if t not in st.session_state["used_topics"]
+                    # Always re-calc remaining_topics from ALL topics minus used
+                    teil_num = teil.split()[1]
+                    exam_df = df_exam[
+                        (df_exam["Level"] == level) &
+                        (df_exam["Teil"] == f"Teil {teil_num}")
                     ]
+                    topics = []
+                    for t, k in zip(exam_df["Topic"].astype(str), exam_df["Keyword"].astype(str)):
+                        t, k = t.strip(), k.strip()
+                        if t:
+                            topics.append(f"{t} – {k}" if k else t)
+                    st.session_state["remaining_topics"] = [
+                        t for t in topics if t not in st.session_state["used_topics"]
+                    ]
+                    st.success("Progress restored! Topics you already did will be skipped next time.")
 
         # ---- Show daily usage ----
         used_today = get_sprechen_usage(student_code)
@@ -3308,7 +3318,6 @@ if tab == "Exams Mode & Custom Chat":
 
         # ---- MAIN EXAM TOPIC LOGIC ----
         if is_exam:
-            # Advance/pull topic after every turn
             if not st.session_state.get("falowen_exam_topic") and st.session_state.get("remaining_topics"):
                 next_topic = st.session_state["remaining_topics"].pop(0)
                 if " – " in next_topic:
@@ -3385,7 +3394,6 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("✅ End Session & Show Summary"):
             st.session_state["falowen_stage"] = 5
             st.rerun()
-    # ---- END STAGE 4: MAIN CHAT ----
 
 
 # =========================================
