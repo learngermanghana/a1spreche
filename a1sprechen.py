@@ -3924,6 +3924,7 @@ if tab == "Schreiben Trainer":
         st.session_state.selected_letter_lines = []
         st.session_state.letter_coach_uploaded = False
         st.rerun()
+
     # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
     user_msgs = [
         msg["content"]
@@ -3958,8 +3959,14 @@ if tab == "Schreiben Trainer":
     # --- Show as code box (with Streamlit's copy button) ---
     st.markdown(
         """
-        <div style="background:#fffde7; border-radius:13px; border:1.5px solid #ffe082; box-shadow:0 2px 8px #ffe08266; margin-bottom:0.7em; padding:0.7em 1em;">
-        <b>📝 Your Letter So Far (copy & download below):</b>
+        <div style="
+            background: #fff3e0;
+            border-radius: 13px;
+            border: 2.2px solid #f44336;
+            box-shadow: 0 2px 8px #ffccbc66;
+            margin-bottom: 0.7em;
+            padding: 0.85em 1.1em;">
+        <b>📝 Your Letter So Far <span style='color:#f44336'>(Copy & Download Below)</span>:</b>
         </div>
         """, unsafe_allow_html=True
     )
@@ -3967,9 +3974,21 @@ if tab == "Schreiben Trainer":
     st.code(letter_draft, language="markdown")
 
     st.markdown("""
-    <div style="background:#ffe082;padding:0.9em 1.2em;border-radius:10px;margin:0.4em 0 1.2em 0; color:#543c0b; font-weight:600; border-left:6px solid #ffc107;">
-    📋 <span style="font-size:1.09em;">To copy, <b>hover and click</b> the <span style='background:#fff;padding:0 0.35em;border-radius:5px;'>📋</span> copy icon at the top-right of the box above.<br>
-    To download, use the button below.</span>
+    <div style="
+        background:#f44336;
+        padding:0.98em 1.2em;
+        border-radius:13px;
+        margin:0.38em 0 1.15em 0;
+        color:#fffbe8;
+        font-weight:800;
+        border-left:7px solid #ffc107;
+        font-size:1.13em;
+        line-height:1.45;
+        letter-spacing:0.015em;">
+    📋 <span style="font-size:1.19em;">On phone: <b>Tap inside the box above</b>.<br>
+    <span style='color:#ffd600;font-size:1.1em;'>🔺 Tap the <b>copy icon</b> (<span style='background:#fff;padding:0 0.3em;border-radius:5px;color:#e65100;'>📋</span>) at the top-right to copy your letter!</span><br>
+    <span style="color:#fffde7;font-size:1.07em;">⬇️ Download as text below.</span>
+    </span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -3979,7 +3998,6 @@ if tab == "Schreiben Trainer":
         file_name="my_letter.txt"
     )
 #
-
 
 
 
