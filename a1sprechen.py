@@ -3968,10 +3968,10 @@ if tab == "Schreiben Trainer":
     # --- Mobile-friendly copy/download box ---
     st.markdown(
         """
-        <div style="background:#fffde7;
+        <div style="background:#e1f5fe;  /* Light blue */
                     border-radius:13px;
-                    border:1.5px solid #ffe082;
-                    box-shadow:0 2px 8px #ffe08266;
+                    border:1.5px solid #4fc3f7;
+                    box-shadow:0 2px 8px #4fc3f766;
                     margin-bottom:0.7em;
                     padding:0.7em 1em;
                     font-size:1.13em;">
@@ -3981,7 +3981,6 @@ if tab == "Schreiben Trainer":
         unsafe_allow_html=True
     )
 
-    # Responsive mobile-friendly copy box using Streamlit components
     components.html(f"""
         <textarea id="letterBox" readonly rows="6" style="
             width: 100vw;
