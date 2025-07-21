@@ -3770,18 +3770,26 @@ if tab == "Schreiben Trainer":
         if "selected_letter_lines" not in st.session_state:
             st.session_state.selected_letter_lines = []
 
-                # --- Helper function to load progress from CSV ---
+        # --- Initialize upload flag ---
+        if "letter_coach_uploaded" not in st.session_state:
+            st.session_state.letter_coach_uploaded = False
+
+        # --- Configuration constant ---
+        SYSTEM_MESSAGE_CONTENT = (
+            "You are a German letter coach. Always explain in English and be supportive."
+        )
+
+        # --- Helper function to load progress from CSV ---
         def load_letter_coach_progress(uploaded_file) -> bool:
             """
-            Reads a CSV (comma- or tab-separated) and updates session_state with chat history.
+            Reads a comma-separated CSV and updates session_state with chat history.
             Returns True if loading was successful, False otherwise.
             """
             try:
                 df = pd.read_csv(
                     uploaded_file,
-                    sep=None,
-                    engine="python"
-                )  # auto-detect delimiter
+                    sep=","  # faster parsing for standard CSV
+                )
             except pd.errors.ParserError as e:
                 st.warning(f"CSV parsing error: {e}")
                 return False
@@ -3791,10 +3799,10 @@ if tab == "Schreiben Trainer":
 
             # Verify required columns
             if not {"Role", "Message"}.issubset(df.columns):
-                st.warning("Please upload a valid CSV (with 'Role' and 'Message' columns).")
+                st.warning("Please upload a valid CSV (with 'Role' and 'Message' columns)." )
                 return False
 
-            # Build chat history list
+            # Build chat history list efficiently
             chat = []
             for row in df.itertuples(index=False):
                 role = "user" if getattr(row, 'Role').strip().lower() == "you" else "assistant"
@@ -3806,14 +3814,13 @@ if tab == "Schreiben Trainer":
             # Prepend system message
             system_message = {
                 "role": "system",
-                "content": (
-                    "You are a German letter coach. Always explain in English and be supportive."
-                )
+                "content": SYSTEM_MESSAGE_CONTENT
             }
             st.session_state.letter_coach_chat = [system_message] + chat
             st.session_state.letter_coach_stage = 2
             st.session_state.letter_coach_uploaded = True
             st.success("Progress uploaded! Continue your session below.")
+            st.experimental_rerun()
             return True
 
         # --- File uploader widget ---
@@ -3825,7 +3832,10 @@ if tab == "Schreiben Trainer":
 
         # Process upload on change
         if uploaded_file and not st.session_state.get("letter_coach_uploaded"):
-            load_letter_coach_progress(uploaded_file)
+            success = load_letter_coach_progress(uploaded_file)
+            if not success:
+                # If load fails, reset flag to allow retry
+                st.session_state.letter_coach_uploaded = False
 
 
         # --- Bubble function for chat rendering ---
