@@ -3770,8 +3770,8 @@ if tab == "Schreiben Trainer":
         if "selected_letter_lines" not in st.session_state:
             st.session_state.selected_letter_lines = []
 
-        # ==== Upload Progress as CSV (at the top) ====
         uploaded_file = st.file_uploader("⬆️ Upload previous progress CSV to continue", type=["csv"], key="letter_coach_csv_upload")
+
         if uploaded_file and not st.session_state.get("letter_coach_uploaded"):
             try:
                 df_uploaded = pd.read_csv(uploaded_file)
@@ -3792,8 +3792,10 @@ if tab == "Schreiben Trainer":
             except Exception as e:
                 st.warning("Could not read the file. Please check format.")
                 st.stop()
-        if not uploaded_file and st.session_state.get("letter_coach_uploaded"):
-            st.session_state["letter_coach_uploaded"] = False
+        elif st.session_state.get("letter_coach_uploaded"):
+            # Skip upload logic after successful upload, avoid double warning
+            pass
+
 
         # --- Bubble function for chat rendering ---
         def bubble(role, text):
