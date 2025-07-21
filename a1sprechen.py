@@ -1069,7 +1069,7 @@ def get_a1_schedule():
             "assignment": True,
             "instruction": "Write all the two letters in this document and send to your tutor for corrections",
             "schreiben_sprechen": {
-                "video": "",
+                "video": "https://youtu.be/sHRHE1soH6I",
                 "workbook_link": "https://drive.google.com/file/d/1SjaDH1bYR7O-BnIbM2N82XOEjeLCfPFb/view?usp=sharing"
             }
         },
@@ -1180,8 +1180,9 @@ def get_a2_schedule():
             "goal": "Describe people and their appearance.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Subordinate Clauses (Nebensätze) with dass and weil",
             "video": "",
-            "grammarbook_link": "https://drive.google.com/file/d/1VB_nXEfdeTgkzCYjh0tvE75zFJleMlyU/view?usp=sharing",
+            "grammarbook_link": "https://drive.google.com/file/d/1xMpEAPD8C0HtIFsmgqYO-wZaKDrQtiYp/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/128lWaKgCZ2V-3tActM-dwNy6igLLlzH3/view?usp=sharing"
         },
         # DAY 3
@@ -2824,7 +2825,7 @@ if tab == "Exams Mode & Custom Chat":
                 "Suggest useful phrases student can use to begin their phrases"
                 "Check if student is writing on C1 Level"
                 "When there is error, correct for the student and teach them how to say it correctly"
-                "Stay on one topic and always ask next question. After 5 questions on a topic, give the student their performance and scores and suggestions to improve"
+                "Stay on one topic and always ask next question. After 5 intelligent questions only on a topic, give the student their performance and scores and suggestions to improve"
                 "Help student progress from B2 to C1 with your support and guidance"
             )
         if level in ["A1", "A2", "B1", "B2"]:
@@ -2926,7 +2927,8 @@ if tab == "Exams Mode & Custom Chat":
             st.rerun()
         st.stop()
 
-        # =====================
+
+    # =====================
     #   STAGE 3: Exam Topic Picker (Exam Mode) and Custom Chat Topic Input
     # =====================
     if st.session_state["falowen_stage"] == 3:
@@ -3100,94 +3102,18 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["falowen_messages"] = []
                     st.session_state["custom_topic_intro_done"] = False
                     st.rerun()
-                    
+
+
+    # =========================================
     # ---- STAGE 4: MAIN CHAT ----
     if st.session_state["falowen_stage"] == 4:
         import re
-        import pandas as pd
 
         level = st.session_state["falowen_level"]
         teil = st.session_state["falowen_teil"]
         mode = st.session_state["falowen_mode"]
         is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
         is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
-        MAX_BUFFER_SIZE = 50
-
-        # ---- Seed remaining_topics from Google Sheet if empty ----
-        if is_exam and not st.session_state.get("remaining_topics"):
-            teil_num = teil.split()[1]
-            exam_df = df_exam[
-                (df_exam["Level"] == level) &
-                (df_exam["Teil"] == f"Teil {teil_num}")
-            ]
-            topics = []
-            for t, k in zip(exam_df["Topic"].astype(str), exam_df["Keyword"].astype(str)):
-                t, k = t.strip(), k.strip()
-                if t:
-                    topics.append(f"{t} – {k}" if k else t)
-            st.session_state["remaining_topics"] = topics.copy()
-            st.session_state["used_topics"] = []
-
-        # ====== Exams Mode: CSV Progress Save/Upload + Progress Bar ======
-        if is_exam:
-            st.info(
-                "💾 **Download your progress as CSV after each session. "
-                "Upload it next time to continue—so you don't repeat topics.**"
-            )
-
-            if "remaining_topics" not in st.session_state:
-                st.session_state["remaining_topics"] = []
-            if "used_topics" not in st.session_state:
-                st.session_state["used_topics"] = []
-
-            total_topics = st.session_state["remaining_topics"] + st.session_state["used_topics"]
-            num_total = len(total_topics) if len(total_topics) > 0 else 1
-            num_used = len(st.session_state["used_topics"])
-            st.progress(
-                num_used / num_total,
-                text=f"{num_used} of {num_total} topics completed"
-            )
-
-            # --- Download progress as CSV ---
-            if num_used > 0:
-                df = pd.DataFrame({"Used_Topics": st.session_state["used_topics"]})
-                csv = df.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    label="⬇️ Download Exam Progress as CSV",
-                    data=csv,
-                    file_name="falowen_exam_progress.csv",
-                    mime="text/csv",
-                    key=f"download_progress_{level}_{teil}"
-                )
-            else:
-                st.caption("No topics done yet.")
-
-            # --- Upload progress from CSV ---
-            upload_key = f"upload_progress_{level}_{teil}"
-            uploaded = st.file_uploader(
-                "⬆️ Upload Previous Exam Progress (CSV)",
-                type=["csv"],
-                key=upload_key
-            )
-            if uploaded:
-                df_upload = pd.read_csv(uploaded)
-                if "Used_Topics" in df_upload.columns:
-                    st.session_state["used_topics"] = list(df_upload["Used_Topics"].dropna())
-                    # Always re-calc remaining_topics from ALL topics minus used
-                    teil_num = teil.split()[1]
-                    exam_df = df_exam[
-                        (df_exam["Level"] == level) &
-                        (df_exam["Teil"] == f"Teil {teil_num}")
-                    ]
-                    topics = []
-                    for t, k in zip(exam_df["Topic"].astype(str), exam_df["Keyword"].astype(str)):
-                        t, k = t.strip(), k.strip()
-                        if t:
-                            topics.append(f"{t} – {k}" if k else t)
-                    st.session_state["remaining_topics"] = [
-                        t for t in topics if t not in st.session_state["used_topics"]
-                    ]
-                    st.success("Progress restored! Topics you already did will be skipped next time.")
 
         # ---- Show daily usage ----
         used_today = get_sprechen_usage(student_code)
@@ -3225,7 +3151,9 @@ if tab == "Exams Mode & Custom Chat":
                 "falowen_messages": []
             })
             st.rerun()
+            
 
+        # ---- Bubble Styles (MOBILE FRIENDLY) ----
         bubble_user = (
             "background: #1976d2;"
             "color: #fff;"
@@ -3279,13 +3207,23 @@ if tab == "Exams Mode & Custom Chat":
         </style>
         """, unsafe_allow_html=True)
 
+        # ---- Word Highlighting ----
+        def highlight_keywords(text, keywords):
+            if not keywords: return text
+            def repl(match):
+                word = match.group(0)
+                return f"<span style='background:#fff3b0;border-radius:0.4em;padding:0.12em 0.4em'>{word}</span>"
+            for word in keywords:
+                text = re.sub(rf'\b{re.escape(word)}\b', repl, text, flags=re.IGNORECASE)
+            return text
+
         highlight_words = []
         if is_exam:
             if st.session_state.get("falowen_exam_keyword"):
                 highlight_words.append(st.session_state["falowen_exam_keyword"])
             highlight_words += ["weil", "möchte", "deshalb"]
 
-        # ---- Render Chat History ----
+        # ---- Render Chat History (bubbles and highlights) ----
         for msg in st.session_state["falowen_messages"]:
             if msg["role"] == "assistant":
                 with st.chat_message("assistant", avatar="🧑‍🏫"):
@@ -3302,6 +3240,20 @@ if tab == "Exams Mode & Custom Chat":
                         unsafe_allow_html=True
                     )
 
+        # ---- PDF Download Button ----
+        if st.session_state["falowen_messages"]:
+            pdf_bytes = falowen_download_pdf(
+                st.session_state["falowen_messages"],
+                f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}"
+            )
+            st.download_button(
+                "⬇️ Download Chat as PDF",
+                pdf_bytes,
+                file_name=f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}.pdf",
+                mime="application/pdf"
+            )
+
+        # ---- Session Buttons ----
         col1, col2, col3 = st.columns(3)
         with col1:
             if st.button("Restart Chat"): reset_chat()
@@ -3310,15 +3262,16 @@ if tab == "Exams Mode & Custom Chat":
         with col3:
             if st.button("Change Level"): change_level()
 
+        # ---- Initial Instruction ----
         if not st.session_state["falowen_messages"]:
             instruction = build_exam_instruction(level, teil) if is_exam else (
                 "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
             )
             st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
 
-        # ---- MAIN EXAM TOPIC LOGIC ----
+        # ---- Build System Prompt including topic/context ----
         if is_exam:
-            if not st.session_state.get("falowen_exam_topic") and st.session_state.get("remaining_topics"):
+            if (not st.session_state.get("falowen_exam_topic")) and st.session_state.get("remaining_topics"):
                 next_topic = st.session_state["remaining_topics"].pop(0)
                 if " – " in next_topic:
                     topic, keyword = next_topic.split(" – ", 1)
@@ -3327,6 +3280,7 @@ if tab == "Exams Mode & Custom Chat":
                 else:
                     st.session_state["falowen_exam_topic"] = next_topic
                     st.session_state["falowen_exam_keyword"] = None
+                st.session_state["used_topics"].append(next_topic)
             base_prompt = build_exam_system_prompt(level, teil)
             topic = st.session_state.get("falowen_exam_topic")
             if topic:
@@ -3336,23 +3290,11 @@ if tab == "Exams Mode & Custom Chat":
         else:
             system_prompt = build_custom_chat_prompt(level)
 
+        # ---- Chat Input & Assistant Response ----
         user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
-        if user_input and user_input.strip():
+        if user_input:
             st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
-
-            # Mark the just-finished topic as used and clear for next
-            if is_exam:
-                topic = st.session_state.get("falowen_exam_topic", "")
-                keyword = st.session_state.get("falowen_exam_keyword")
-                if topic:
-                    finished_pair = f"{topic} – {keyword}" if keyword else topic
-                    if finished_pair not in st.session_state["used_topics"]:
-                        st.session_state["used_topics"].append(finished_pair)
-                    st.session_state["falowen_exam_topic"] = None
-                    st.session_state["falowen_exam_keyword"] = None
-
-            if len(st.session_state["falowen_messages"]) > MAX_BUFFER_SIZE:
-                st.session_state["falowen_messages"] = st.session_state["falowen_messages"][-MAX_BUFFER_SIZE:]
+            inc_sprechen_usage(student_code)
 
             with st.chat_message("user"):
                 st.markdown(
@@ -3385,24 +3327,71 @@ if tab == "Exams Mode & Custom Chat":
                 )
 
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
-            if len(st.session_state["falowen_messages"]) > MAX_BUFFER_SIZE:
-                st.session_state["falowen_messages"] = st.session_state["falowen_messages"][-MAX_BUFFER_SIZE:]
 
-            inc_sprechen_usage(student_code)
-
+        # ---- END SESSION BUTTON & SUMMARY ----
         st.divider()
         if st.button("✅ End Session & Show Summary"):
             st.session_state["falowen_stage"] = 5
             st.rerun()
 
 
+    # ---- STAGE 5: End-of-Session Summary ----
+    if st.session_state.get("falowen_stage") == 5:
+        st.subheader("📝 End-of-Session Summary")
+
+        messages = st.session_state.get("falowen_messages", [])
+
+        # 1. Total Turns
+        user_turns = len([m for m in messages if m["role"] == "user"])
+        st.markdown(f"- **Total Messages Sent:** {user_turns}")
+
+        # 2. Words Used
+        import re
+        user_text = " ".join([m["content"] for m in messages if m["role"] == "user"])
+        user_words = set(re.findall(r'\b\w+\b', user_text.lower()))
+        st.markdown(f"- **Unique Words Used:** {len(user_words)}")
+        if user_words:
+            st.markdown(f"`{', '.join(list(user_words)[:20])}`")
+
+        # 3. Corrections/Highlights
+        corrections = []
+        for m in messages:
+            if m["role"] == "assistant":
+                # Simple extraction: lines mentioning 'correct', 'should', 'mistake', 'improve'
+                lines = m["content"].split("\n")
+                for line in lines:
+                    if any(word in line.lower() for word in ["correct", "should", "mistake", "improve", "tip"]):
+                        if len(line) < 130:  # avoid overly long
+                            corrections.append(line)
+        if corrections:
+            st.markdown("**Common Corrections & Tips:**")
+            for corr in corrections[:8]:
+                st.markdown(f"- {corr}")
+
+        # 4. Recent AI Feedback
+        last_feedback = "\n\n".join([m["content"] for m in messages if m["role"] == "assistant"][-2:])
+        st.markdown("**Recent Feedback:**")
+        st.markdown(last_feedback)
+
+        # 5. Download Chat as PDF
+        pdf_bytes = falowen_download_pdf(messages, f"Falowen_Summary_{st.session_state.get('student_code','')}")
+        st.download_button("⬇️ Download Chat as PDF", pdf_bytes, file_name="Falowen_Summary.pdf", mime="application/pdf")
+
+        # 6. Start new session
+        st.divider()
+        if st.button("🔄 Start New Session"):
+            for key in [
+                "falowen_stage", "falowen_messages", "falowen_teil", "falowen_mode",
+                "custom_topic_intro_done", "falowen_turn_count",
+                "falowen_exam_topic", "falowen_exam_keyword", "remaining_topics", "used_topics"
+            ]:
+                st.session_state[key] = None
+            st.session_state["falowen_stage"] = 1
+            st.rerun()
+
 # =========================================
 # End
 # =========================================
-
-
-
-
 
 
 
@@ -3564,6 +3553,181 @@ if tab == "Vocab Trainer":
                 st.session_state[k] = defaults[k]
                 
 
+
+if tab == "Schreiben Trainer":
+    st.markdown(
+        '''
+        <div style="
+            padding: 8px 12px;
+            background: #d63384;
+            color: #fff;
+            border-radius: 6px;
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 1.3rem;">
+            ✍️ Schreiben Trainer (Writing Practice)
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
+    st.divider()
+
+    # Sub-tabs: Mark My Letter, Ideas Generator (Letter Coach)
+    sub_tab = st.radio(
+        "Choose Mode",
+        ["Mark My Letter", "Ideas Generator (Letter Coach)"],
+        horizontal=True,
+        key="schreiben_sub_tab"
+    )
+
+    # Level picker
+    schreiben_levels = ["A1", "A2", "B1", "B2", "C1"]
+    prev_level = st.session_state.get("schreiben_level", "A1")
+    schreiben_level = st.selectbox(
+        "Choose your writing level:",
+        schreiben_levels,
+        index=schreiben_levels.index(prev_level) if prev_level in schreiben_levels else 0,
+        key="schreiben_level_selector"
+    )
+    st.session_state["schreiben_level"] = schreiben_level
+
+    st.divider()
+
+    # --- 1. MARK MY LETTER SUB-TAB ---
+    if sub_tab == "Mark My Letter":
+        st.markdown(
+            '''
+            <div style="
+                padding: 8px 12px;
+                background: #d63384;
+                color: #fff;
+                border-radius: 6px;
+                text-align: center;
+                margin-bottom: 8px;
+                font-size: 1.2rem;">
+                ✍️ Mark My Letter (AI Feedback & Score)
+            </div>
+            ''',
+            unsafe_allow_html=True
+        )
+        student_code = st.session_state.get("student_code", "demo")
+        student_name = st.session_state.get("student_name", "")
+
+        # Daily usage
+        SCHREIBEN_DAILY_LIMIT = 5
+        daily_so_far = get_schreiben_usage(student_code)
+        st.markdown(f"**Daily usage:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}")
+
+        user_letter = st.text_area(
+            "Paste or type your German letter/essay here.",
+            key="schreiben_input",
+            disabled=(daily_so_far >= SCHREIBEN_DAILY_LIMIT),
+            height=200,
+            placeholder="Write your German letter here..."
+        )
+
+        # Word/char count
+        if user_letter.strip():
+            words = re.findall(r'\b\w+\b', user_letter)
+            chars = len(user_letter)
+            st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
+
+        ai_prompt = (
+            f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
+            f"The student has submitted a {schreiben_level} German letter or essay. "
+            "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
+            "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
+            "Don't just say errors—show exactly where the mistakes are. "
+            "1. Give a score out of 25 marks and always display the score clearly. "
+            "2. If the score is 17 or more, write: '**Passed: You may submit to your tutor!**'. "
+            "3. If the score is 16 or less, write: '**Keep improving before you submit.**'. "
+            "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
+            "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
+            "6. Also check for AI usage or if the student wrote with their own effort. "
+            "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
+            "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score."
+        )
+
+        submit_disabled = daily_so_far >= SCHREIBEN_DAILY_LIMIT or not user_letter.strip()
+        if submit_disabled and daily_so_far >= SCHREIBEN_DAILY_LIMIT:
+            st.warning("You have reached today's writing practice limit. Please come back tomorrow.")
+
+        if st.button("Get Feedback", type="primary", disabled=submit_disabled):
+            with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                try:
+                    completion = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": ai_prompt},
+                            {"role": "user", "content": user_letter},
+                        ],
+                        temperature=0.6,
+                    )
+                    feedback = completion.choices[0].message.content
+                except Exception as e:
+                    st.error("AI feedback failed. Please check your OpenAI setup.")
+                    feedback = None
+
+            if feedback:
+                # Extract score
+                score_match = re.search(r"score\s*(?:[:=]|is)?\s*(\d+)\s*/\s*25", feedback, re.IGNORECASE)
+                if not score_match:
+                    score_match = re.search(r"Score[:\s]+(\d+)\s*/\s*25", feedback, re.IGNORECASE)
+                score = int(score_match.group(1)) if score_match else 0
+
+                # Save to DB if needed here
+                inc_schreiben_usage(student_code)
+                save_schreiben_attempt(student_code, student_name, schreiben_level, score)
+
+                st.markdown("---")
+                st.markdown("#### 📝 Feedback from Herr Felix")
+                st.markdown(feedback)
+
+                # Download as PDF
+                def sanitize_text(text):
+                    return text.encode('latin-1', errors='replace').decode('latin-1')
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_font("Arial", size=12)
+                safe_user_letter = sanitize_text(user_letter)
+                safe_feedback = sanitize_text(feedback)
+                pdf.multi_cell(0, 10, f"Your Letter:\n\n{safe_user_letter}\n\nFeedback from Herr Felix:\n\n{safe_feedback}")
+                pdf_output = f"Feedback_{student_code}_{schreiben_level}.pdf"
+                pdf.output(pdf_output)
+                with open(pdf_output, "rb") as f:
+                    pdf_bytes = f.read()
+                st.download_button(
+                    "⬇️ Download Feedback as PDF",
+                    pdf_bytes,
+                    file_name=pdf_output,
+                    mime="application/pdf"
+                )
+                import os
+                os.remove(pdf_output)
+
+                wa_message = f"Hi, here is my German letter and AI feedback:\n\n{user_letter}\n\nFeedback:\n{feedback}"
+                wa_url = (
+                    "https://api.whatsapp.com/send"
+                    "?phone=233205706589"
+                    f"&text={urllib.parse.quote(wa_message)}"
+                )
+                st.markdown(
+                    f"[📲 Send to Tutor on WhatsApp]({wa_url})",
+                    unsafe_allow_html=True
+                )
+
+    # ===== BUBBLE FUNCTION =====
+    def bubble(role, text):
+        color = "#7b2ff2" if role == "assistant" else "#222"
+        bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
+        name = "Herr Felix" if role == "assistant" else "You"
+        return f"""
+            <div style="background:{bg};color:{color};margin-bottom:8px;padding:13px 15px;
+            border-radius:14px;max-width:98vw;font-size:1.09rem;">
+                <b>{name}:</b><br>{text}
+            </div>
+        """
+
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
 
@@ -3615,14 +3779,6 @@ if tab == "Vocab Trainer":
                 st.rerun()
             except Exception as e:
                 st.warning(f"Could not read the file. Please check format. Error: {e}")
-
-        # --- Show next-step instruction if uploaded ---
-        if st.session_state.get("letter_coach_uploaded", False):
-            st.info(
-                "✅ **Your previous letter was loaded!**\n\n"
-                "Scroll down to continue your chat with Herr Felix, review your draft, or just start typing your next step below.\n\n"
-                "If you want feedback, keep chatting or finish your letter, then download as TXT for scoring in 'Mark My Letter'."
-            )
 
         # --- Stage 0: Paste Prompt ---
         if st.session_state.letter_coach_stage == 0:
@@ -3807,7 +3963,6 @@ if tab == "Vocab Trainer":
                 st.session_state.letter_coach_uploaded = False
                 st.rerun()
 #
-
 
 
 
