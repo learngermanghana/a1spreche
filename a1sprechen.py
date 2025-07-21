@@ -3956,54 +3956,66 @@ if tab == "Schreiben Trainer":
 
     letter_draft = "\n".join(selected_lines)
 
-    # Improved notepad-style display instead of st.text_area
-    st.markdown("""
+    # --- Notepad-style display with copy + download ---
+    st.markdown(f"""
         <div style="
             background: #fffde7;
             color: #263238;
-            font-size: 1.14rem;
-            padding: 1.1em 1.3em 1.1em 1.3em;
+            font-size: 1.15rem;
+            padding: 1.2em 1.4em 1.2em 1.4em;
             border-radius: 16px;
-            border: 1.5px solid #ffe082;
-            box-shadow: 0 2px 10px rgba(255,193,7,0.08);
+            border: 1.7px solid #ffe082;
+            box-shadow: 0 2px 12px rgba(255,193,7,0.12);
             margin-bottom: 0.7em;
-            min-height: 100px;
-            max-height: 260px;
+            min-height: 120px;
+            max-height: 270px;
             overflow-y: auto;
             font-family: 'Segoe UI', 'Arial', sans-serif;
-            letter-spacing: 0.02em;
-            ">
-            <b>📝 Your Letter So Far:</b><br><br>
-            <span style="white-space: pre-wrap;">{}</span>
-        </div>
-    """.format(letter_draft if letter_draft.strip() else "<i>(Your draft will appear here as you write!)</i>"), unsafe_allow_html=True)
-
-    colA, colB = st.columns([1, 1])
-    with colA:
-        st.download_button(
-            "⬇️ Download Letter as TXT", 
-            letter_draft.encode("utf-8"), 
-            file_name="my_letter.txt"
-        )
-    with colB:
-        st.code(letter_draft, language="markdown")
-        st.markdown("""
-            <div style="
-                margin-top: 0.4em; 
-                background: #ffe082; 
-                color: #3e2723; 
-                font-weight: bold; 
-                border-radius: 9px; 
-                padding: 0.6em 1em;
-                font-size: 1.11rem;
-                box-shadow: 0 2px 7px rgba(0,0,0,0.04);
-                border-left: 5px solid #ffb300;">
-                📋 <span style="font-size: 1.13em;">Click <b>inside</b> the code box above.<br>
-                A small <b>copy</b> button (<span style='background:#fff;padding:0 0.3em;border-radius:5px;'>📋</span>) will appear in the corner.<br>
-                <span style="font-size: 1.12em; color: #ef6c00;">↘️ Click it to copy your letter!</span>
+            letter-spacing: 0.015em;
+            position: relative;">
+            <b>📝 Your Letter So Far:</b>
+            <div id="letter-draft" style="margin-top:0.5em;font-size:1.08em;white-space:pre-wrap;">{letter_draft if letter_draft.strip() else "<i>(Your draft will appear here as you write!)</i>"}</div>
+            <div style="margin-top:1em;">
+                <button id="copy-button" style="
+                    background: #ffd54f;
+                    border: none;
+                    color: #5d4037;
+                    padding: 0.55em 1.1em;
+                    font-size: 1.07em;
+                    font-weight: 600;
+                    border-radius: 8px;
+                    margin-right: 16px;
+                    cursor: pointer;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+                    transition: background 0.19s;">
+                    📋 Copy Text
+                </button>
+                <span id="copy-success" style="color:#43a047;font-weight:bold;font-size:1em;display:none;">Copied!</span>
             </div>
-        """, unsafe_allow_html=True)
-#
+        </div>
+        <script>
+        const btn = window.parent.document.getElementById('copy-button');
+        if (btn) {{
+            btn.onclick = function() {{
+                const txt = window.parent.document.getElementById('letter-draft').innerText;
+                navigator.clipboard.writeText(txt);
+                window.parent.document.getElementById('copy-success').style.display = "inline";
+                setTimeout(function(){{
+                    window.parent.document.getElementById('copy-success').style.display = "none";
+                }}, 1300);
+            }}
+        }}
+        </script>
+    """, unsafe_allow_html=True)
+
+    # --- Download Button Only (just below box, centered) ---
+    st.markdown("<div style='text-align:center;margin-bottom:1.2em;'>", unsafe_allow_html=True)
+    st.download_button(
+        "⬇️ Download Letter as TXT", 
+        letter_draft.encode("utf-8"), 
+        file_name="my_letter.txt"
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 
