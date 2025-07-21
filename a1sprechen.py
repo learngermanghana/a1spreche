@@ -3915,130 +3915,129 @@ if tab == "Schreiben Trainer":
                 st.session_state.letter_coach_chat = chat_history
                 st.rerun()
 
-        # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
-        import streamlit.components.v1 as components
+            # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
+            import streamlit.components.v1 as components
 
-        # Collect student messages from session chat
-        user_msgs = [
-            msg["content"]
-            for msg in st.session_state.letter_coach_chat[1:]
-            if msg.get("role") == "user"
-        ]
+            # Collect student messages from session chat
+            user_msgs = [
+                msg["content"]
+                for msg in st.session_state.letter_coach_chat[1:]
+                if msg.get("role") == "user"
+            ]
 
-        st.markdown("""
-            **📝 Your Letter Draft**
-            - Tick the lines you want to include in your letter draft.
-            - You can untick any part you want to leave out.
-            - Only ticked lines will appear in your downloadable draft below.
-        """)
+            st.markdown("""
+                **📝 Your Letter Draft**
+                - Tick the lines you want to include in your letter draft.
+                - You can untick any part you want to leave out.
+                - Only ticked lines will appear in your downloadable draft below.
+            """)
 
-        # Store selection in session state
-        if "selected_letter_lines" not in st.session_state or \
-           len(st.session_state.selected_letter_lines) != len(user_msgs):
-            st.session_state.selected_letter_lines = [True] * len(user_msgs)
+            # Store selection in session state
+            if "selected_letter_lines" not in st.session_state or \
+               len(st.session_state.selected_letter_lines) != len(user_msgs):
+                st.session_state.selected_letter_lines = [True] * len(user_msgs)
 
-        selected_lines = []
-        for i, line in enumerate(user_msgs):
-            st.session_state.selected_letter_lines[i] = st.checkbox(
-                line,
-                value=st.session_state.selected_letter_lines[i],
-                key=f"letter_line_{i}"
-            )
-            if st.session_state.selected_letter_lines[i]:
-                selected_lines.append(line)
+            selected_lines = []
+            for i, line in enumerate(user_msgs):
+                st.session_state.selected_letter_lines[i] = st.checkbox(
+                    line,
+                    value=st.session_state.selected_letter_lines[i],
+                    key=f"letter_line_{i}"
+                )
+                if st.session_state.selected_letter_lines[i]:
+                    selected_lines.append(line)
 
-        letter_draft = "\n".join(selected_lines)
+            letter_draft = "\n".join(selected_lines)
 
-        # --- Modern, soft header (copy/download) ---
-        st.markdown(
-            """
-            <div style="
-                background:#23272b;
-                color:#eee;
-                border-radius:10px;
-                padding:0.72em 1.04em;
-                margin-bottom:0.4em;
-                font-size:1.07em;
-                font-weight:400;
-                border:1px solid #343a40;
-                box-shadow:0 2px 10px #0002;
-                text-align:left;
-            ">
-                <span style="font-size:1.12em; color:#ffe082;">📝 Your Letter So Far</span><br>
-                <span style="font-size:1.00em; color:#b0b0b0;">copy &amp; download below</span>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-        # --- Mobile-friendly copy/download box ---
-        components.html(f"""
-            <textarea id="letterBox" readonly rows="6" style="
-                width: 100%;
-                border-radius: 12px;
-                background: #f9fbe7;
-                border: 1.7px solid #ffe082;
-                color: #222;
-                font-size: 1.12em;
-                font-family: 'Fira Mono', 'Consolas', monospace;
-                padding: 1em 0.7em;
-                box-shadow: 0 2px 8px #ffe08266;
-                margin-bottom: 0.5em;
-                resize: none;
-                overflow:auto;
-            " onclick="this.select()">{letter_draft}</textarea>
-            <button onclick="navigator.clipboard.writeText(document.getElementById('letterBox').value)" 
-                style="
-                    background:#ffc107;
-                    color:#3e2723;
-                    font-size:1.08em;
-                    font-weight:bold;
-                    padding:0.48em 1.12em;
-                    margin-top:0.4em;
-                    border:none;
-                    border-radius:7px;
-                    cursor:pointer;
-                    box-shadow:0 2px 8px #ffe08255;
-                    width:100%;
-                    max-width:320px;
-                    display:block;
-                    margin-left:auto;
-                    margin-right:auto;
+            # --- Modern, soft header (copy/download) ---
+            st.markdown(
+                """
+                <div style="
+                    background:#23272b;
+                    color:#eee;
+                    border-radius:10px;
+                    padding:0.72em 1.04em;
+                    margin-bottom:0.4em;
+                    font-size:1.07em;
+                    font-weight:400;
+                    border:1px solid #343a40;
+                    box-shadow:0 2px 10px #0002;
+                    text-align:left;
                 ">
-                📋 Copy Text
-            </button>
-            <style>
-                @media (max-width: 480px) {{
-                    #letterBox {{
-                        font-size: 1.16em !important;
-                        min-width: 93vw !important;
+                    <span style="font-size:1.12em; color:#ffe082;">📝 Your Letter So Far</span><br>
+                    <span style="font-size:1.00em; color:#b0b0b0;">copy &amp; download below</span>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            # --- Mobile-friendly copy/download box ---
+            components.html(f"""
+                <textarea id="letterBox" readonly rows="6" style="
+                    width: 100%;
+                    border-radius: 12px;
+                    background: #f9fbe7;
+                    border: 1.7px solid #ffe082;
+                    color: #222;
+                    font-size: 1.12em;
+                    font-family: 'Fira Mono', 'Consolas', monospace;
+                    padding: 1em 0.7em;
+                    box-shadow: 0 2px 8px #ffe08266;
+                    margin-bottom: 0.5em;
+                    resize: none;
+                    overflow:auto;
+                " onclick="this.select()">{letter_draft}</textarea>
+                <button onclick="navigator.clipboard.writeText(document.getElementById('letterBox').value)" 
+                    style="
+                        background:#ffc107;
+                        color:#3e2723;
+                        font-size:1.08em;
+                        font-weight:bold;
+                        padding:0.48em 1.12em;
+                        margin-top:0.4em;
+                        border:none;
+                        border-radius:7px;
+                        cursor:pointer;
+                        box-shadow:0 2px 8px #ffe08255;
+                        width:100%;
+                        max-width:320px;
+                        display:block;
+                        margin-left:auto;
+                        margin-right:auto;
+                    ">
+                    📋 Copy Text
+                </button>
+                <style>
+                    @media (max-width: 480px) {{
+                        #letterBox {{
+                            font-size: 1.16em !important;
+                            min-width: 93vw !important;
+                        }}
                     }}
-                }}
-            </style>
-        """, height=175)
+                </style>
+            """, height=175)
 
-        st.markdown("""
-            <div style="
-                background:#ffe082;
-                padding:0.9em 1.2em;
-                border-radius:10px;
-                margin:0.4em 0 1.2em 0;
-                color:#543c0b;
-                font-weight:600;
-                border-left:6px solid #ffc107;
-                font-size:1.08em;">
-                📋 <span>On phone, tap in the box above to select all for copy.<br>
-                Or just tap <b>Copy Text</b>.<br>
-                To download, use the button below.</span>
-            </div>
-        """, unsafe_allow_html=True)
+            st.markdown("""
+                <div style="
+                    background:#ffe082;
+                    padding:0.9em 1.2em;
+                    border-radius:10px;
+                    margin:0.4em 0 1.2em 0;
+                    color:#543c0b;
+                    font-weight:600;
+                    border-left:6px solid #ffc107;
+                    font-size:1.08em;">
+                    📋 <span>On phone, tap in the box above to select all for copy.<br>
+                    Or just tap <b>Copy Text</b>.<br>
+                    To download, use the button below.</span>
+                </div>
+            """, unsafe_allow_html=True)
 
-        st.download_button(
-            "⬇️ Download Letter as TXT",
-            letter_draft.encode("utf-8"),
-            file_name="my_letter.txt"
-        )
-
+            st.download_button(
+                "⬇️ Download Letter as TXT",
+                letter_draft.encode("utf-8"),
+                file_name="my_letter.txt"
+            )
 
 
             if st.button("Start New Letter Coach"):
