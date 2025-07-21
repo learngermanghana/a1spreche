@@ -3794,7 +3794,7 @@ if tab == "Schreiben Trainer":
                 st.session_state.letter_coach_stage = 2
                 st.session_state.letter_coach_uploaded = True
                 st.success("Letter uploaded! Continue your session below.")
-                st.experimental_rerun()
+                st.rerun()
             except Exception as e:
                 st.warning(f"Could not read the file. Please check format. Error: {e}")
 
