@@ -3812,7 +3812,7 @@ if tab == "Schreiben Trainer":
                     {"role": "user", "content": prompt}
                 ]
                 inc_letter_coach_usage(student_code)
-                st.experimental_rerun()
+                st.rerun()
             if prompt:
                 st.markdown("---")
                 st.markdown(f"📝 **Letter/Essay Prompt or Draft:**\n\n{prompt}")
