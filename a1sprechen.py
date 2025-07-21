@@ -3852,75 +3852,85 @@ if tab == "Schreiben Trainer":
                 st.session_state.letter_coach_type = type_guess
                 st.rerun()
 
-        # --- Stage 2+: Coaching Chat ---
-        elif st.session_state.letter_coach_stage >= 2:
-            st.markdown("---")
-            st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{st.session_state.letter_coach_prompt}")
-            chat_history = st.session_state.letter_coach_chat
-            for msg in chat_history[1:]:
-                st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
-            num_student_turns = sum(1 for msg in chat_history[1:] if msg["role"] == "user")
-            if num_student_turns == 10:
-                st.info("🔔 You have written 10 steps. Most students finish in 7–10 turns. Try to complete your letter soon!")
-            elif num_student_turns == 12:
-                st.warning(
-                    "⏰ You have reached 12 writing turns. "
-                    "Usually, your letter should be complete by now. "
-                    "If you want feedback, click **END SUMMARY** or download your letter as TXT. "
-                    "You can always start a new session for more practice."
-                )
-            elif num_student_turns > 12:
-                st.warning(
-                    f"🚦 You are now at {num_student_turns} turns. "
-                    "Long letters are okay, but usually a good letter is finished in 7–12 turns. "
-                    "Try to wrap up, click **END SUMMARY** or download your letter as TXT."
-                )
+    # --- Stage 2+: Coaching Chat ---
+    elif st.session_state.letter_coach_stage >= 2:
+        st.markdown("---")
+        st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{st.session_state.letter_coach_prompt}")
 
-            with st.form("letter_coach_chat_form", clear_on_submit=True):
-                user_input = st.text_area(
-                    "",
-                    value="",
-                    key="letter_coach_user_input",
-                    height=110,
-                    placeholder="Type your reply, ask about a section, or paste your draft here..."
-                )
-                send = st.form_submit_button("Send")
-            if send and user_input.strip():
-                chat_history.append({"role": "user", "content": user_input})
-                student_level = st.session_state.get("schreiben_level", "A1")
-                letter_type = st.session_state.letter_coach_type
-                system_prompt = (
-                    f"You are Herr Felix, a creative and supportive German letter-writing coach for A1–C1 students.\n"
-                    f"The prompt is: '{st.session_state.letter_coach_prompt}'.\n"
-                    f"The student thinks it is a {letter_type} letter. Their level is {student_level}.\n"
-                    "Always reply in simple English.\n"
-                    "If this is your first reply after the student shares their letter question or prompt, start by explaining the main parts of the letter in English, using bullet points. For each part, tell the student exactly how to begin, with examples for greetings, introductions, and connectors.\n"
-                    "Always say: 'Let's begin with the greeting. How would you start your letter?' and wait for the student's greeting before moving to the next step.\n"
-                    "For FORMAL letters: Explain that you should start with a greeting like 'Sehr geehrte/r ...,' and you can add 'Ich hoffe, es geht Ihnen gut.'\n"
-                    "For INFORMAL letters: Start with 'Liebe ...,' or 'Lieber ...,' and you can add 'Wie geht es dir?' or 'Ich hoffe, es geht dir gut.'\n"
-                    "For introductions: Use 'Ich schreibe Ihnen, weil ich ...' for formal, or 'Ich schreibe dir, weil ich ...' for informal. At A1 level, always end main request with 'möchte'.\n"
-                    "For OPINION ESSAYS: Suggest starting with 'Heutzutage ist ... ein wichtiges Thema.' or 'Ich bin der Meinung, dass...'.\n"
-                    "Suggest easy connectors for the student's level (A1: 'und', 'aber', 'weil', 'denn', 'deshalb', 'ich möchte wissen'; higher: 'außerdem', 'trotzdem').\n"
-                    "After the greeting, guide the student to the next section: introduction, reason, request, closing, etc., always one step at a time, with clear bullet points and classic examples for each.\n"
-                    "Highlight connectors (like **weil**) and modal verbs (like **möchte**) in bold so the student notices them.\n"
-                    "If the student uses a word incorrectly (e.g. 'teilnehmen' instead of 'wahrnehmen'), gently explain why the correction is needed (e.g. 'wahrnehmen' is the right verb for appointments, not 'teilnehmen').\n"
-                    "Always move step by step: after each feedback, only suggest the next step in a clear bullet. Never list all steps at once.\n"
-                    "NEVER write the full letter—only help with the part being worked on. Only move to the next section if the previous section is done.\n"
-                    "If a part is missing (like greeting, reason, or closing), gently remind the student to add it before moving on.\n"
-                    "Highlight corrections, connectors, or important words in **bold**.\n"
-                    "At the end of the letter, help the student check their work with a quick checklist: Greeting, Introduction, Reason, Request, Closing, Connector.\n"
-                    "Always finish with: 'If you are okay or confident, click END SUMMARY below to copy your text and send to your tutor—or type your next idea/question.'"
-                )
-                resp = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[{"role": "system", "content": system_prompt}] + chat_history[1:] + [{"role": "user", "content": user_input}],
-                    temperature=0.22,
-                    max_tokens=380
-                )
-                ai_reply = resp.choices[0].message.content
-                chat_history.append({"role": "assistant", "content": ai_reply})
-                st.session_state.letter_coach_chat = chat_history
-                st.rerun()
+        # Show a "resume" instruction ONLY after upload
+        if st.session_state.get("letter_coach_uploaded"):
+            st.info(
+                "✅ **Your previous letter was loaded!**\n\n"
+                "Continue your writing below — you can type your next sentence, ask a question, or finish your letter. "
+                "When you're ready, download your draft as TXT or click **END SUMMARY** to finish."
+            )
+            st.session_state.letter_coach_uploaded = False  # so this only appears once
+
+        chat_history = st.session_state.letter_coach_chat
+        for msg in chat_history[1:]:
+            st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
+        num_student_turns = sum(1 for msg in chat_history[1:] if msg["role"] == "user")
+        if num_student_turns == 10:
+            st.info("🔔 You have written 10 steps. Most students finish in 7–10 turns. Try to complete your letter soon!")
+        elif num_student_turns == 12:
+            st.warning(
+                "⏰ You have reached 12 writing turns. "
+                "Usually, your letter should be complete by now. "
+                "If you want feedback, click **END SUMMARY** or download your letter as TXT. "
+                "You can always start a new session for more practice."
+            )
+        elif num_student_turns > 12:
+            st.warning(
+                f"🚦 You are now at {num_student_turns} turns. "
+                "Long letters are okay, but usually a good letter is finished in 7–12 turns. "
+                "Try to wrap up, click **END SUMMARY** or download your letter as TXT."
+            )
+
+        with st.form("letter_coach_chat_form", clear_on_submit=True):
+            user_input = st.text_area(
+                "",
+                value="",
+                key="letter_coach_user_input",
+                height=110,
+                placeholder="Type your reply, ask about a section, or paste your draft here..."
+            )
+            send = st.form_submit_button("Send")
+        if send and user_input.strip():
+            chat_history.append({"role": "user", "content": user_input})
+            student_level = st.session_state.get("schreiben_level", "A1")
+            letter_type = st.session_state.letter_coach_type
+            system_prompt = (
+                f"You are Herr Felix, a creative and supportive German letter-writing coach for A1–C1 students.\n"
+                f"The prompt is: '{st.session_state.letter_coach_prompt}'.\n"
+                f"The student thinks it is a {letter_type} letter. Their level is {student_level}.\n"
+                "Always reply in simple English.\n"
+                "If this is your first reply after the student shares their letter question or prompt, start by explaining the main parts of the letter in English, using bullet points. For each part, tell the student exactly how to begin, with examples for greetings, introductions, and connectors.\n"
+                "Always say: 'Let's begin with the greeting. How would you start your letter?' and wait for the student's greeting before moving to the next step.\n"
+                "For FORMAL letters: Explain that you should start with a greeting like 'Sehr geehrte/r ...,' and you can add 'Ich hoffe, es geht Ihnen gut.'\n"
+                "For INFORMAL letters: Start with 'Liebe ...,' or 'Lieber ...,' and you can add 'Wie geht es dir?' or 'Ich hoffe, es geht dir gut.'\n"
+                "For introductions: Use 'Ich schreibe Ihnen, weil ich ...' for formal, or 'Ich schreibe dir, weil ich ...' for informal. At A1 level, always end main request with 'möchte'.\n"
+                "For OPINION ESSAYS: Suggest starting with 'Heutzutage ist ... ein wichtiges Thema.' or 'Ich bin der Meinung, dass...'.\n"
+                "Suggest easy connectors for the student's level (A1: 'und', 'aber', 'weil', 'denn', 'deshalb', 'ich möchte wissen'; higher: 'außerdem', 'trotzdem').\n"
+                "After the greeting, guide the student to the next section: introduction, reason, request, closing, etc., always one step at a time, with clear bullet points and classic examples for each.\n"
+                "Highlight connectors (like **weil**) and modal verbs (like **möchte**) in bold so the student notices them.\n"
+                "If the student uses a word incorrectly (e.g. 'teilnehmen' instead of 'wahrnehmen'), gently explain why the correction is needed (e.g. 'wahrnehmen' is the right verb for appointments, not 'teilnehmen').\n"
+                "Always move step by step: after each feedback, only suggest the next step in a clear bullet. Never list all steps at once.\n"
+                "NEVER write the full letter—only help with the part being worked on. Only move to the next section if the previous section is done.\n"
+                "If a part is missing (like greeting, reason, or closing), gently remind the student to add it before moving on.\n"
+                "Highlight corrections, connectors, or important words in **bold**.\n"
+                "At the end of the letter, help the student check their work with a quick checklist: Greeting, Introduction, Reason, Request, Closing, Connector.\n"
+                "Always finish with: 'If you are okay or confident, click END SUMMARY below to copy your text and send to your tutor—or type your next idea/question.'"
+            )
+            resp = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "system", "content": system_prompt}] + chat_history[1:] + [{"role": "user", "content": user_input}],
+                temperature=0.22,
+                max_tokens=380
+            )
+            ai_reply = resp.choices[0].message.content
+            chat_history.append({"role": "assistant", "content": ai_reply})
+            st.session_state.letter_coach_chat = chat_history
+            st.rerun()
 
             # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
             user_msgs = [
