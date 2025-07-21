@@ -3925,9 +3925,12 @@ if tab == "Schreiben Trainer":
         st.session_state.letter_coach_uploaded = False
         st.rerun()
 
-    # --- Letter Draft Display, Copy, and Download (Mobile Friendly) ---
-
-    import streamlit.components.v1 as components
+    # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
+    user_msgs = [
+        msg["content"]
+        for msg in st.session_state.letter_coach_chat[1:]
+        if msg["role"] == "user"
+    ]
 
     st.markdown("""
     **📝 Your Letter Draft**
@@ -3939,6 +3942,7 @@ if tab == "Schreiben Trainer":
     # Store selection in session state
     if "selected_letter_lines" not in st.session_state or \
        len(st.session_state.selected_letter_lines) != len(user_msgs):
+        # Initialize: all ticked by default
         st.session_state.selected_letter_lines = [True] * len(user_msgs)
 
     selected_lines = []
@@ -3977,6 +3981,7 @@ if tab == "Schreiben Trainer":
     )
 
     # --- Copy Button (Big, Full Width, Super Visible) ---
+    import streamlit.components.v1 as components
     components.html(
         f"""
         <button onclick="navigator.clipboard.writeText(document.getElementById('draftbox').innerText)"
