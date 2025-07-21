@@ -3993,7 +3993,7 @@ if tab == "Schreiben Trainer":
 
             # End-of-letter checklist (after several turns or on request)
             if num_student_turns >= 4 or st.session_state.get("show_checklist"):
-                st.markdown(\"\"\"
+                st.markdown("""
                 **✅ Final Checklist Before Sending Your Letter**
                 - [ ] Greeting (e.g. **Sehr geehrte/r ...**, or **Liebe/r ...**)
                 - [ ] Introduction (**Ich schreibe Ihnen, weil...**)
@@ -4001,7 +4001,7 @@ if tab == "Schreiben Trainer":
                 - [ ] Request (**möchte**, e.g. *Ich möchte...*)
                 - [ ] Closing (e.g. **Mit freundlichen Grüßen**)
                 - [ ] Used at least one connector (**und**, **aber**, **weil**, etc.)
-                \"\"\")
+                """)
                 st.info("If you missed a part, go back and add it before sending!")
 
             # END SUMMARY confirmation & restart
@@ -4025,7 +4025,6 @@ if tab == "Schreiben Trainer":
                 st.session_state.selected_letter_lines = []
                 st.rerun()
 #
-
 
 
 
