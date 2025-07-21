@@ -3770,31 +3770,50 @@ if tab == "Schreiben Trainer":
         if "selected_letter_lines" not in st.session_state:
             st.session_state.selected_letter_lines = []
 
-        uploaded_file = st.file_uploader("⬆️ Upload previous progress CSV to continue", type=["csv"], key="letter_coach_csv_upload")
+        uploaded_file = st.file_uploader("⬆️ Upload previous progress CSV to continue", type=["csv"], key="letter_coach_csv_upload_ideas")  # unique key to avoid duplicate widget error
 
+        # Process upload once, update session and continue UI
         if uploaded_file and not st.session_state.get("letter_coach_uploaded"):
             try:
-                df_uploaded = pd.read_csv(uploaded_file, sep=None, engine="python")  # auto-detect delimiter (handles comma or tab-separated files)
+                # Auto-detect delimiter for comma or tab-separated CSV
+                df_uploaded = pd.read_csv(
+                    uploaded_file,
+                    sep=None,
+                    engine="python"
+                )
+                # Verify required columns
                 if not {"Role", "Message"}.issubset(df_uploaded.columns):
-                    st.warning("Please upload a valid CSV (with 'Role' and 'Message' columns).")
-                    st.stop()
-                chat = []
-                for _, row in df_uploaded.iterrows():
-                    role = "user" if row["Role"] == "You" else "assistant"
-                    chat.append({"role": role, "content": row["Message"]})
-                system_message = {"role": "system", "content": "You are a German letter coach. Always explain in English. Short and supportive!"}
-                chat = [system_message] + chat
-                st.session_state.letter_coach_chat = chat
-                st.session_state.letter_coach_stage = 2
-                st.session_state.letter_coach_uploaded = True
-                st.success("Progress uploaded! Continue your session below.")
-                st.experimental_rerun()
-            except Exception as e:
-                st.warning("Could not read the file. Please check format.")
-                st.stop()
-        elif st.session_state.get("letter_coach_uploaded"):
-            # Skip upload logic after successful upload, avoid double warning
-            pass
+                    st.warning(
+                        "Please upload a valid CSV (with 'Role' and 'Message' columns)."
+                    )
+                else:
+                    # Rebuild chat history from CSV
+                    chat = []
+                    for _, row in df_uploaded.iterrows():
+                        role = "user" if row["Role"] == "You" else "assistant"
+                        chat.append({
+                            "role": role,
+                            "content": row["Message"]
+                        })
+                    # Prepend system message
+                    system_message = {
+                        "role": "system",
+                        "content": (
+                            "You are a German letter coach. Always explain in English. "
+                            "Short and supportive!"
+                        )
+                    }
+                    st.session_state.letter_coach_chat = [system_message] + chat
+                    st.session_state.letter_coach_stage = 2
+                    st.session_state.letter_coach_uploaded = True
+                    st.success(
+                        "Progress uploaded! Continue your session below."
+                    )
+            except Exception:
+                st.warning(
+                    "Could not read the file. Please check format."
+                )
+#
 
 
         # --- Bubble function for chat rendering ---
