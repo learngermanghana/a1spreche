@@ -3965,21 +3965,28 @@ if tab == "Schreiben Trainer":
 
     letter_draft = "\n".join(selected_lines)
 
-    # --- Mobile-friendly copy/download box ---
     st.markdown(
         """
-        <div style="background:#e1f5fe;  /* Light blue */
-                    border-radius:13px;
-                    border:1.5px solid #4fc3f7;
-                    box-shadow:0 2px 8px #4fc3f766;
-                    margin-bottom:0.7em;
-                    padding:0.7em 1em;
-                    font-size:1.13em;">
-            <b>📝 Your Letter So Far<br>(copy & download below):</b>
+        <div style="
+            background:#1565c0;
+            color:#fff;
+            border-radius:14px;
+            border: none;
+            margin-bottom:0.7em;
+            padding:0.9em 1.05em 0.9em 1.05em;
+            font-size:1.16em;
+            font-weight:bold;
+            text-align:center;
+            letter-spacing:0.02em;
+            box-shadow:0 2px 8px #90caf9cc;
+        ">
+            📝 Your Letter So Far<br>
+            <span style='font-size:0.98em; font-weight:normal;'>copy & download below</span>
         </div>
         """,
         unsafe_allow_html=True
     )
+
 
     components.html(f"""
         <textarea id="letterBox" readonly rows="6" style="
