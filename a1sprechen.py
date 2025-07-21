@@ -3737,6 +3737,41 @@ if tab == "Schreiben Trainer":
                 <b>{name}:</b><br>{text}
             </div>
         """
+
+    # --- SUB-TAB: Start/Continue Letter ---
+    if sub_tab == "Start/Continue Letter":
+        st.header("How do you want to begin?")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✍️ Start New Letter"):
+                st.session_state.letter_coach_stage = 0
+                st.session_state.letter_coach_chat = []
+                st.session_state.letter_coach_prompt = ""
+                st.session_state.letter_coach_type = ""
+                st.session_state.selected_letter_lines = []
+                st.session_state.letter_coach_uploaded = False
+                st.experimental_rerun()
+        with col2:
+            uploaded_file = st.file_uploader(
+                "⬆️ Upload your previous letter (CSV)", 
+                type=["csv"], 
+                key="letter_coach_csv_upload_start"
+            )
+            if uploaded_file and not st.session_state.get("letter_coach_uploaded"):
+                import pandas as pd
+                df_uploaded = pd.read_csv(uploaded_file)
+                user_lines = list(df_uploaded["Letter"].dropna())
+                system_message = {"role": "system", "content": "You are a German letter coach. Always explain in English. Short and supportive!"}
+                chat = [system_message]
+                for line in user_lines:
+                    chat.append({"role": "user", "content": line})
+                st.session_state.letter_coach_chat = chat
+                st.session_state.letter_coach_stage = 2
+                st.session_state.letter_coach_uploaded = True
+                st.success("Letter uploaded! Continue your session below.")
+                st.experimental_rerun()
+        st.info("You can always copy, download, and edit your letter as you write. All your progress is shown live in the Ideas Generator tab.")
+
     # --- 2. IDEAS GENERATOR SUB-TAB ---
     if sub_tab == "Ideas Generator (Letter Coach)":
         st.markdown(
@@ -3763,42 +3798,8 @@ if tab == "Schreiben Trainer":
             st.session_state.letter_coach_prompt = ""
         if "letter_coach_type" not in st.session_state:
             st.session_state.letter_coach_type = ""
-        if "letter_coach_uploaded" not in st.session_state:
-            st.session_state.letter_coach_uploaded = False
 
         import pandas as pd
-
-        # ==== Download Progress as CSV (Only User Lines) ====
-        if st.session_state.get("letter_coach_chat"):
-            user_msgs = [
-                msg["content"]
-                for msg in st.session_state.letter_coach_chat[1:]
-                if msg["role"] == "user"
-            ]
-            if user_msgs:
-                df = pd.DataFrame({"Letter": user_msgs})
-                st.download_button("⬇️ Download Letter as CSV", df.to_csv(index=False).encode("utf-8"), file_name="mein_brief.csv", mime="text/csv")
-
-        # ==== Upload Progress as CSV (Only User Lines) ====
-        uploaded_file = st.file_uploader("⬆️ Upload previous letter text (CSV)", type=["csv"], key="letter_coach_csv_upload")
-        if uploaded_file and not st.session_state.get("letter_coach_uploaded"):
-            df_uploaded = pd.read_csv(uploaded_file)
-            if "Letter" in df_uploaded.columns:
-                user_lines = list(df_uploaded["Letter"].dropna())
-                system_message = {"role": "system", "content": "You are a German letter coach. Always explain in English. Short and supportive!"}
-                chat = [system_message]
-                for line in user_lines:
-                    chat.append({"role": "user", "content": line})
-                st.session_state.letter_coach_chat = chat
-                st.session_state.letter_coach_stage = 2
-                st.session_state.letter_coach_uploaded = True
-                st.success("Letter uploaded! Continue your session below.")
-                st.stop()
-            else:
-                st.warning("The uploaded CSV must have a column named 'Letter'. Please check your file.")
-                st.session_state["letter_coach_uploaded"] = False
-        if not uploaded_file and st.session_state.get("letter_coach_uploaded"):
-            st.session_state["letter_coach_uploaded"] = False
 
         # ------ STAGE 0: GET PROMPT -------
         if st.session_state.letter_coach_stage == 0:
@@ -3923,28 +3924,38 @@ if tab == "Schreiben Trainer":
                     st.session_state.letter_coach_type = ""
                     st.rerun()
 
-        # ---- Final step: Only allow to copy the user's draft, nothing else ----
-        if (
-            st.session_state.get("letter_coach_stage", 0) == 0
-            and st.session_state.get("letter_coach_chat")
-        ):
-            st.subheader("📝 Your Letter Draft")
-
+        # ---- LIVE DRAFT: Select, copy, and download while writing ----
+        if st.session_state.get("letter_coach_chat"):
+            st.subheader("📝 Your Letter Draft (Select lines to keep)")
             user_msgs = [
-                msg["content"]
-                for msg in st.session_state.letter_coach_chat[1:]
+                (i, msg["content"])
+                for i, msg in enumerate(st.session_state.letter_coach_chat[1:], start=1)
                 if msg["role"] == "user"
             ]
+            if "selected_letter_lines" not in st.session_state or len(st.session_state.selected_letter_lines) != len(user_msgs):
+                st.session_state.selected_letter_lines = [True] * len(user_msgs)
+            st.markdown("**✅ Tick which parts to include in your letter:**")
+            selected = []
+            for idx, (msg_idx, content) in enumerate(user_msgs):
+                checked = st.checkbox(
+                    content,
+                    value=st.session_state.selected_letter_lines[idx] if idx < len(st.session_state.selected_letter_lines) else True,
+                    key=f"letter_line_{msg_idx}"
+                )
+                selected.append(checked)
+            st.session_state.selected_letter_lines = selected
+            arranged_letter = [content for (i, (msg_idx, content)) in enumerate(user_msgs) if st.session_state.selected_letter_lines[i]]
+            if arranged_letter:
+                st.markdown("**Copy your selected draft below and paste it in the 'Mark My Letter' tab for feedback and scoring. You can also download it as CSV.**")
+                st.code("\n".join(arranged_letter), language="markdown")
+                df_letter = pd.DataFrame({"Letter": arranged_letter})
+                csv = df_letter.to_csv(index=False).encode("utf-8")
+                st.download_button("⬇️ Download Selected Letter as CSV", csv, file_name="mein_brief.csv", mime="text/csv")
+            else:
+                st.info("Select at least one line to copy or download your letter.")
+            st.warning("**Don't forget:** You can copy your draft, edit, or download anytime while working. When you're ready, paste it in the 'Mark My Letter' tab for feedback and a score!")
 
-            if user_msgs:
-                st.markdown("**✅ Copy your final draft below and paste it in the 'Mark My Letter' tab for feedback and scoring!**")
-                st.code("\n".join(user_msgs), language="markdown")
 
-            if st.button("Start New Letter Coach"):
-                st.session_state.letter_coach_chat = []
-                st.session_state.letter_coach_prompt = ""
-                st.session_state.letter_coach_user_input = ""
-                st.rerun()
 
 
 
