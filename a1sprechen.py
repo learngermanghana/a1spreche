@@ -3818,7 +3818,6 @@ if tab == "Schreiben Trainer":
                 "If you want feedback, keep chatting or finish your letter, then download as TXT for scoring in 'Mark My Letter'."
             )
 
-
         # --- Stage 0: Paste Prompt ---
         if st.session_state.letter_coach_stage == 0:
             with st.form("prompt_form", clear_on_submit=True):
@@ -3833,7 +3832,6 @@ if tab == "Schreiben Trainer":
             if send and prompt:
                 st.session_state.letter_coach_prompt = prompt
                 st.session_state.letter_coach_stage = 2  # jump straight to main chat!
-                # Start chat history with a system prompt, add prompt as user input if needed
                 st.session_state.letter_coach_chat = [
                     {"role": "system", "content": "You are a German letter coach. Always explain in English. Be supportive and pick up from wherever the student starts, whether it's a prompt or a draft. Never ask about letter type—just continue from the draft or prompt."},
                     {"role": "user", "content": prompt}
@@ -3843,7 +3841,6 @@ if tab == "Schreiben Trainer":
             if prompt:
                 st.markdown("---")
                 st.markdown(f"📝 **Letter/Essay Prompt or Draft:**\n\n{prompt}")
-
 
         # --- Stage 2+: Coaching Chat ---
         elif st.session_state.letter_coach_stage >= 2:
@@ -3868,63 +3865,62 @@ if tab == "Schreiben Trainer":
                     "Long letters are okay, but usually a good letter is finished in 7–12 turns. "
                     "Try to wrap up, click **END SUMMARY** or download your letter as TXT."
                 )
-    with st.form("letter_coach_chat_form", clear_on_submit=True):
-        user_input = st.text_area(
-            "",
-            value="",
-            key="letter_coach_user_input",
-            height=110,
-            placeholder="Type your reply, ask about a section, or paste your draft here..."
-        )
-        send = st.form_submit_button("Send")
+            with st.form("letter_coach_chat_form", clear_on_submit=True):
+                user_input = st.text_area(
+                    "",
+                    value="",
+                    key="letter_coach_user_input",
+                    height=110,
+                    placeholder="Type your reply, ask about a section, or paste your draft here..."
+                )
+                send = st.form_submit_button("Send")
 
-    if send and user_input.strip():
-        chat_history = st.session_state.letter_coach_chat  # <-- Make sure chat_history is defined!
-        chat_history.append({"role": "user", "content": user_input})
-        student_level = st.session_state.get("schreiben_level", "A1")
-        letter_type = st.session_state.letter_coach_type
-        system_prompt = (
-            f"You are Herr Felix, a creative and supportive German letter-writing coach for A1–C1 students.\n"
-            f"The prompt is: '{st.session_state.letter_coach_prompt}'.\n"
-            f"The student thinks it is a {letter_type} letter. Their level is {student_level}.\n"
-            "Always reply in simple English.\n"
-            "If this is your first reply after the student shares their letter question or prompt, start by explaining the main parts of the letter in English, using bullet points. For each part, tell the student exactly how to begin, with examples for greetings, introductions, and connectors.\n"
-            "Always say: 'Let's begin with the greeting. How would you start your letter?' and wait for the student's greeting before moving to the next step.\n"
-            "For FORMAL letters: Explain that you should start with a greeting like 'Sehr geehrte/r ...,' and you can add 'Ich hoffe, es geht Ihnen gut.'\n"
-            "For INFORMAL letters: Start with 'Liebe ...,' or 'Lieber ...,' and you can add 'Wie geht es dir?' or 'Ich hoffe, es geht dir gut.'\n"
-            "For introductions: Use 'Ich schreibe Ihnen, weil ich ...' for formal, or 'Ich schreibe dir, weil ich ...' for informal. At A1 level, always end main request with 'möchte'.\n"
-            "For OPINION ESSAYS: Suggest starting with 'Heutzutage ist ... ein wichtiges Thema.' or 'Ich bin der Meinung, dass...'.\n"
-            "Suggest easy connectors for the student's level (A1: 'und', 'aber', 'weil', 'denn', 'deshalb', 'ich möchte wissen'; higher: 'außerdem', 'trotzdem').\n"
-            "After the greeting, guide the student to the next section: introduction, reason, request, closing, etc., always one step at a time, with clear bullet points and classic examples for each.\n"
-            "Highlight connectors (like **weil**) and modal verbs (like **möchte**) in bold so the student notices them.\n"
-            "If the student uses a word incorrectly (e.g. 'teilnehmen' instead of 'wahrnehmen'), gently explain why the correction is needed (e.g. 'wahrnehmen' is the right verb for appointments, not 'teilnehmen').\n"
-            "Always move step by step: after each feedback, only suggest the next step in a clear bullet. Never list all steps at once.\n"
-            "NEVER write the full letter—only help with the part being worked on. Only move to the next section if the previous section is done.\n"
-            "If a part is missing (like greeting, reason, or closing), gently remind the student to add it before moving on.\n"
-            "Highlight corrections, connectors, or important words in **bold**.\n"
-            "At the end of the letter, help the student check their work with a quick checklist: Greeting, Introduction, Reason, Request, Closing, Connector.\n"
-            "Always finish with: 'If you are okay or confident, click END SUMMARY below to copy your text and send to your tutor—or type your next idea/question.'"
-        )
-        with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-            resp = client.chat.completions.create(
-                model="gpt-4o",
-                messages=[{"role": "system", "content": system_prompt}] + chat_history[1:] + [{"role": "user", "content": user_input}],
-                temperature=0.22,
-                max_tokens=380
-            )
-            ai_reply = resp.choices[0].message.content
-        chat_history.append({"role": "assistant", "content": ai_reply})
-        st.session_state.letter_coach_chat = chat_history
-        st.rerun()
+            if send and user_input.strip():
+                chat_history = st.session_state.letter_coach_chat
+                chat_history.append({"role": "user", "content": user_input})
+                student_level = st.session_state.get("schreiben_level", "A1")
+                letter_type = st.session_state.letter_coach_type
+                system_prompt = (
+                    f"You are Herr Felix, a creative and supportive German letter-writing coach for A1–C1 students.\n"
+                    f"The prompt is: '{st.session_state.letter_coach_prompt}'.\n"
+                    f"The student thinks it is a {letter_type} letter. Their level is {student_level}.\n"
+                    "Always reply in simple English.\n"
+                    "If this is your first reply after the student shares their letter question or prompt, start by explaining the main parts of the letter in English, using bullet points. For each part, tell the student exactly how to begin, with examples for greetings, introductions, and connectors.\n"
+                    "Always say: 'Let's begin with the greeting. How would you start your letter?' and wait for the student's greeting before moving to the next step.\n"
+                    "For FORMAL letters: Explain that you should start with a greeting like 'Sehr geehrte/r ...,' and you can add 'Ich hoffe, es geht Ihnen gut.'\n"
+                    "For INFORMAL letters: Start with 'Liebe ...,' or 'Lieber ...,' and you can add 'Wie geht es dir?' or 'Ich hoffe, es geht dir gut.'\n"
+                    "For introductions: Use 'Ich schreibe Ihnen, weil ich ...' for formal, or 'Ich schreibe dir, weil ich ...' for informal. At A1 level, always end main request with 'möchte'.\n"
+                    "For OPINION ESSAYS: Suggest starting with 'Heutzutage ist ... ein wichtiges Thema.' or 'Ich bin der Meinung, dass...'.\n"
+                    "Suggest easy connectors for the student's level (A1: 'und', 'aber', 'weil', 'denn', 'deshalb', 'ich möchte wissen'; higher: 'außerdem', 'trotzdem').\n"
+                    "After the greeting, guide the student to the next section: introduction, reason, request, closing, etc., always one step at a time, with clear bullet points and classic examples for each.\n"
+                    "Highlight connectors (like **weil**) and modal verbs (like **möchte**) in bold so the student notices them.\n"
+                    "If the student uses a word incorrectly (e.g. 'teilnehmen' instead of 'wahrnehmen'), gently explain why the correction is needed (e.g. 'wahrnehmen' is the right verb for appointments, not 'teilnehmen').\n"
+                    "Always move step by step: after each feedback, only suggest the next step in a clear bullet. Never list all steps at once.\n"
+                    "NEVER write the full letter—only help with the part being worked on. Only move to the next section if the previous section is done.\n"
+                    "If a part is missing (like greeting, reason, or closing), gently remind the student to add it before moving on.\n"
+                    "Highlight corrections, connectors, or important words in **bold**.\n"
+                    "At the end of the letter, help the student check their work with a quick checklist: Greeting, Introduction, Reason, Request, Closing, Connector.\n"
+                    "Always finish with: 'If you are okay or confident, click END SUMMARY below to copy your text and send to your tutor—or type your next idea/question.'"
+                )
+                with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                    resp = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[{"role": "system", "content": system_prompt}] + chat_history[1:] + [{"role": "user", "content": user_input}],
+                        temperature=0.22,
+                        max_tokens=380
+                    )
+                    ai_reply = resp.choices[0].message.content
+                chat_history.append({"role": "assistant", "content": ai_reply})
+                st.session_state.letter_coach_chat = chat_history
+                st.rerun()
 
-    if st.button("Start New Letter Coach"):
-        st.session_state.letter_coach_chat = []
-        st.session_state.letter_coach_prompt = ""
-        st.session_state.letter_coach_type = ""
-        st.session_state.selected_letter_lines = []
-        st.session_state.letter_coach_uploaded = False
-        st.rerun()
-
+            if st.button("Start New Letter Coach"):
+                st.session_state.letter_coach_chat = []
+                st.session_state.letter_coach_prompt = ""
+                st.session_state.letter_coach_type = ""
+                st.session_state.selected_letter_lines = []
+                st.session_state.letter_coach_uploaded = False
+                st.rerun()
 
     # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
     import streamlit.components.v1 as components
