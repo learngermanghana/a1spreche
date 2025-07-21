@@ -3918,13 +3918,6 @@ if tab == "Schreiben Trainer":
         st.session_state.letter_coach_chat = chat_history
         st.rerun()
 
-    if st.button("Start New Letter Coach"):
-        st.session_state.letter_coach_chat = []
-        st.session_state.letter_coach_prompt = ""
-        st.session_state.letter_coach_type = ""
-        st.session_state.selected_letter_lines = []
-        st.session_state.letter_coach_uploaded = False
-        st.rerun()
 
     # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
     import streamlit.components.v1 as components
@@ -4057,6 +4050,8 @@ if tab == "Schreiben Trainer":
         letter_draft.encode("utf-8"),
         file_name="my_letter.txt"
     )
+
+    
 
 
 
