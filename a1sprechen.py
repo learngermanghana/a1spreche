@@ -3988,7 +3988,7 @@ if tab == "Schreiben Trainer":
                 st.download_button("⬇️ Download Letter as TXT", letter_draft.encode("utf-8"), file_name="my_letter.txt")
             with colB:
                 st.code(letter_draft, language="markdown")
-                st.caption("📋 Click the clipboard icon above to copy your letter!")
+                st.caption("**📋 Click the clipboard icon above to copy your letter!**")
 
             # End-of-letter checklist (after several turns or on request)
             if num_student_turns >= 4 or st.session_state.get("show_checklist"):
@@ -4036,7 +4036,7 @@ if tab == "Schreiben Trainer":
                 st.session_state.selected_letter_lines = []
                 st.rerun()
 
-
+#
 
 
 
