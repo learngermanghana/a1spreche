@@ -3253,6 +3253,21 @@ if tab == "Exams Mode & Custom Chat":
                 mime="application/pdf"
             )
 
+                # ---- TXT Download Button ----
+        if st.session_state["falowen_messages"]:
+            chat_as_text = "\n".join([
+                f"{msg['role'].capitalize()}: {msg['content']}"
+                for msg in st.session_state["falowen_messages"]
+            ])
+            st.download_button(
+                "⬇️ Download Chat as TXT",
+                chat_as_text.encode("utf-8"),
+                file_name=f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}.txt",
+                mime="text/plain"
+            )
+            st.caption("You can upload this TXT next time, or copy and paste it to continue your chat from where you stopped.")
+
+
         # ---- Session Buttons ----
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -3744,6 +3759,21 @@ if tab == "Schreiben Trainer":
                 return f"""<div style='background: #f4eafd; color: #7b2ff2; border-radius: 16px 16px 16px 3px; margin-bottom: 8px; margin-right: 80px; box-shadow: 0 2px 8px rgba(123,47,242,0.08); padding: 13px 18px; text-align: left; max-width: 88vw; font-size: 1.12rem;'><b>👨‍🏫 Herr Felix:</b><br>{text}</div>"""
             return f"""<div style='background: #eaf4ff; color: #1a237e; border-radius: 16px 16px 3px 16px; margin-bottom: 8px; margin-left: 80px; box-shadow: 0 2px 8px rgba(26,35,126,0.07); padding: 13px 18px; text-align: right; max-width: 88vw; font-size: 1.12rem;'><b>🙋 You:</b><br>{text}</div>"""
 
+        # --- General Instructions for Students ---
+        st.markdown(
+            """
+            👋 **Welcome to Letter Coach!**
+
+            - Paste your **exam question** or **letter prompt** below to get started.
+            - If you are already writing your letter and get stuck, you can **paste your unfinished draft here**.  
+              The AI will help you continue step by step.
+            - You can always **download your letter as TXT** and upload it later to keep working.
+            - Or simply **copy and paste** your text into the chat at any time—the AI will understand and keep helping you!
+
+            *Scroll down to get started, upload a file, or paste your prompt or letter in the chat.*
+            """
+        )
+
         IDEAS_LIMIT = 20
         ideas_so_far = get_letter_coach_usage(student_code)
         st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
@@ -3812,6 +3842,43 @@ if tab == "Schreiben Trainer":
             if prompt:
                 st.markdown("---")
                 st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{prompt}")
+
+        # --- Stage 1: Guess Letter Type ---
+        elif st.session_state.letter_coach_stage == 1:
+            st.markdown("---")
+            st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{st.session_state.letter_coach_prompt}")
+            chat_history = st.session_state.letter_coach_chat
+            for msg in chat_history[1:]:
+                st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
+            with st.form("type_form", clear_on_submit=True):
+                type_guess = st.text_input(
+                    "Which type do you think it is (formal, informal, SMS, opinion essay)?",
+                    value="", key="letter_coach_type_input"
+                )
+                send_type = st.form_submit_button("Send")
+            if send_type and type_guess:
+                ai_check_prompt = (
+                    f"Prompt: {st.session_state.letter_coach_prompt}\n"
+                    f"Student answer: {type_guess}\n"
+                    "1. Is the student correct about the type (formal, informal, SMS, or opinion essay)?\n"
+                    "2. If correct, reply: 👍 Great! That's right. If not, reply: ❌ Actually, this is a [correct type] because [reason].\n"
+                    "Explain in 1-2 sentences in simple English, then ask if they want to start from greeting or a section (e.g. advantages)."
+                )
+                resp = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[{"role": "system", "content": ai_check_prompt}],
+                    temperature=0.2,
+                    max_tokens=150
+                )
+                ai_type_feedback = resp.choices[0].message.content
+                chat_history.extend([
+                    {"role": "user", "content": type_guess},
+                    {"role": "assistant", "content": ai_type_feedback}
+                ])
+                st.session_state.letter_coach_chat = chat_history
+                st.session_state.letter_coach_stage = 2
+                st.session_state.letter_coach_type = type_guess
+                st.rerun()
 
         # --- Stage 2+: Coaching Chat ---
         elif st.session_state.letter_coach_stage >= 2:
@@ -3935,6 +4002,18 @@ if tab == "Schreiben Trainer":
                 st.session_state.letter_coach_uploaded = False
                 st.rerun()
 #
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
