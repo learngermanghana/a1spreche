@@ -3990,13 +3990,13 @@ if tab == "Schreiben Trainer":
             "line-height:1.45;"
         )
 
-                # --- Render Draft Box ---
+                        # --- Render Draft Box ---
         # Use triple-quoted f-string to avoid unterminated literals and correctly replace newlines
         st.markdown(
             f"""
             <div id='letter-draft-box' style="{DRAFT_BOX_STYLE}">
-            {letter_draft.replace("
-", "<br>")}
+            {letter_draft.replace('
+', '<br>')}
             </div>
             """,
             unsafe_allow_html=True
