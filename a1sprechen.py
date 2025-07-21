@@ -3956,48 +3956,61 @@ if tab == "Schreiben Trainer":
 
     letter_draft = "\n".join(selected_lines)
 
-    # --- Show as code box (with Streamlit's copy button) ---
-    st.markdown(
-        """
-        <div style="
-            background: #fff3e0;
-            border-radius: 13px;
-            border: 2.2px solid #f44336;
-            box-shadow: 0 2px 8px #ffccbc66;
-            margin-bottom: 0.7em;
-            padding: 0.85em 1.1em;">
-        <b>📝 Your Letter So Far <span style='color:#f44336'>(Copy & Download Below)</span>:</b>
-        </div>
-        """, unsafe_allow_html=True
-    )
-
-    st.code(letter_draft, language="markdown")
-
+    # --- Custom scrollable box + copy button for max phone visibility ---
     st.markdown("""
-    <div style="
-        background:#f44336;
-        padding:0.98em 1.2em;
-        border-radius:13px;
-        margin:0.38em 0 1.15em 0;
-        color:#fffbe8;
-        font-weight:800;
-        border-left:7px solid #ffc107;
-        font-size:1.13em;
-        line-height:1.45;
-        letter-spacing:0.015em;">
-    📋 <span style="font-size:1.19em;">On phone: <b>Tap inside the box above</b>.<br>
-    <span style='color:#ffd600;font-size:1.1em;'>🔺 Tap the <b>copy icon</b> (<span style='background:#fff;padding:0 0.3em;border-radius:5px;color:#e65100;'>📋</span>) at the top-right to copy your letter!</span><br>
-    <span style="color:#fffde7;font-size:1.07em;">⬇️ Download as text below.</span>
-    </span>
-    </div>
-    """, unsafe_allow_html=True)
+    <div style='
+        background: #fffbe9;
+        border-radius: 12px;
+        border: 2px solid #ffca28;
+        box-shadow: 0 2px 10px #ffe08277;
+        margin-bottom: 0.45em;
+        padding: 0.6em 0.85em 0.9em 0.85em;
+        font-size: 1.15em;
+        min-height: 90px;
+        max-height: 250px;
+        overflow-y: auto;
+        color: #4e342e;
+        font-family: "Fira Mono", monospace, "Arial";
+        white-space: pre-line;
+        word-break: break-word;'
+        id='letter-draft-box'
+    >{}</div>
+    """.format(letter_draft.replace("\n", "<br>")), unsafe_allow_html=True)
+
+    # --- COPY BUTTON with Streamlit clipboard support (beta) ---
+    import streamlit.components.v1 as components
+    st.markdown(
+        "<div style='margin-bottom:0.1em'><b>📋 Copy your letter</b> (tap button below)</div>",
+        unsafe_allow_html=True
+    )
+    components.html(
+        f"""
+        <button onclick="navigator.clipboard.writeText(document.getElementById('letter-draft-box').innerText)"
+            style="
+                background:#ffb300;
+                color:#3e2723;
+                font-weight:700;
+                border-radius:7px;
+                border:none;
+                padding: 0.78em 1.7em;
+                font-size:1.12em;
+                box-shadow:0 2px 8px #ffe08288;
+                margin-bottom:1.12em;
+                margin-top:0.18em;
+                cursor:pointer;
+                width:100%;
+            ">
+            📋 Copy Text
+        </button>
+        """,
+        height=48
+    )
 
     st.download_button(
-        "⬇️ Download Letter as TXT", 
-        letter_draft.encode("utf-8"), 
+        "⬇️ Download Letter as TXT",
+        letter_draft.encode("utf-8"),
         file_name="my_letter.txt"
     )
-#
 
 
 
