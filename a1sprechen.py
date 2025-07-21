@@ -3925,7 +3925,6 @@ if tab == "Schreiben Trainer":
         st.session_state.letter_coach_uploaded = False
         st.rerun()
 
-
         # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
         user_msgs = [
             msg["content"]
@@ -3991,12 +3990,15 @@ if tab == "Schreiben Trainer":
             "line-height:1.45;"
         )
 
-        # --- Render Draft Box ---
+                # --- Render Draft Box ---
+        # Use triple-quoted f-string to avoid unterminated literals and correctly replace newlines
         st.markdown(
-            f"<div id='letter-draft-box' style=\"{DRAFT_BOX_STYLE}\">{letter_draft.replace('
-','<br>')}</div>",
-            unsafe_allow_html=True
-        ),
+            f"""
+            <div id='letter-draft-box' style="{DRAFT_BOX_STYLE}">
+            {letter_draft.replace("
+", "<br>")}
+            </div>
+            """,
             unsafe_allow_html=True
         )
 
@@ -4016,6 +4018,7 @@ if tab == "Schreiben Trainer":
         if not letter_draft.strip():
             st.info("Select at least one letter line above to enable download.")
 #
+
 
 
 
