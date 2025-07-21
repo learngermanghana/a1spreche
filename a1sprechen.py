@@ -3737,7 +3737,6 @@ if tab == "Schreiben Trainer":
                 <b>{name}:</b><br>{text}
             </div>
         """
-
     # --- 2. IDEAS GENERATOR SUB-TAB ---
     if sub_tab == "Ideas Generator (Letter Coach)":
         st.markdown(
@@ -3764,6 +3763,8 @@ if tab == "Schreiben Trainer":
             st.session_state.letter_coach_prompt = ""
         if "letter_coach_type" not in st.session_state:
             st.session_state.letter_coach_type = ""
+        if "letter_coach_uploaded" not in st.session_state:
+            st.session_state.letter_coach_uploaded = False
 
         import pandas as pd
 
@@ -3776,23 +3777,26 @@ if tab == "Schreiben Trainer":
             ]
             if user_msgs:
                 df = pd.DataFrame({"Letter": user_msgs})
-                csv = df.to_csv(index=False).encode("utf-8")
-                st.download_button("⬇️ Download Letter as CSV", csv, file_name="mein_brief.csv", mime="text/csv")
+                st.download_button("⬇️ Download Letter as CSV", df.to_csv(index=False).encode("utf-8"), file_name="mein_brief.csv", mime="text/csv")
 
         # ==== Upload Progress as CSV (Only User Lines) ====
         uploaded_file = st.file_uploader("⬆️ Upload previous letter text (CSV)", type=["csv"], key="letter_coach_csv_upload")
         if uploaded_file and not st.session_state.get("letter_coach_uploaded"):
             df_uploaded = pd.read_csv(uploaded_file)
-            user_lines = list(df_uploaded["Letter"].dropna())
-            system_message = {"role": "system", "content": "You are a German letter coach. Always explain in English. Short and supportive!"}
-            chat = [system_message]
-            for line in user_lines:
-                chat.append({"role": "user", "content": line})
-            st.session_state.letter_coach_chat = chat
-            st.session_state.letter_coach_stage = 2
-            st.session_state.letter_coach_uploaded = True
-            st.success("Letter uploaded! Continue your session below.")
-            st.stop()
+            if "Letter" in df_uploaded.columns:
+                user_lines = list(df_uploaded["Letter"].dropna())
+                system_message = {"role": "system", "content": "You are a German letter coach. Always explain in English. Short and supportive!"}
+                chat = [system_message]
+                for line in user_lines:
+                    chat.append({"role": "user", "content": line})
+                st.session_state.letter_coach_chat = chat
+                st.session_state.letter_coach_stage = 2
+                st.session_state.letter_coach_uploaded = True
+                st.success("Letter uploaded! Continue your session below.")
+                st.stop()
+            else:
+                st.warning("The uploaded CSV must have a column named 'Letter'. Please check your file.")
+                st.session_state["letter_coach_uploaded"] = False
         if not uploaded_file and st.session_state.get("letter_coach_uploaded"):
             st.session_state["letter_coach_uploaded"] = False
 
@@ -3941,8 +3945,6 @@ if tab == "Schreiben Trainer":
                 st.session_state.letter_coach_prompt = ""
                 st.session_state.letter_coach_user_input = ""
                 st.rerun()
-
-
 
 
 
