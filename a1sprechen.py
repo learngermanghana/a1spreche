@@ -3813,43 +3813,6 @@ if tab == "Schreiben Trainer":
                 st.markdown("---")
                 st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{prompt}")
 
-        # --- Stage 1: Guess Letter Type ---
-        elif st.session_state.letter_coach_stage == 1:
-            st.markdown("---")
-            st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{st.session_state.letter_coach_prompt}")
-            chat_history = st.session_state.letter_coach_chat
-            for msg in chat_history[1:]:
-                st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
-            with st.form("type_form", clear_on_submit=True):
-                type_guess = st.text_input(
-                    "Which type do you think it is (formal, informal, SMS, opinion essay)?",
-                    value="", key="letter_coach_type_input"
-                )
-                send_type = st.form_submit_button("Send")
-            if send_type and type_guess:
-                ai_check_prompt = (
-                    f"Prompt: {st.session_state.letter_coach_prompt}\n"
-                    f"Student answer: {type_guess}\n"
-                    "1. Is the student correct about the type (formal, informal, SMS, or opinion essay)?\n"
-                    "2. If correct, reply: 👍 Great! That's right. If not, reply: ❌ Actually, this is a [correct type] because [reason].\n"
-                    "Explain in 1-2 sentences in simple English, then ask if they want to start from greeting or a section (e.g. advantages)."
-                )
-                resp = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[{"role": "system", "content": ai_check_prompt}],
-                    temperature=0.2,
-                    max_tokens=150
-                )
-                ai_type_feedback = resp.choices[0].message.content
-                chat_history.extend([
-                    {"role": "user", "content": type_guess},
-                    {"role": "assistant", "content": ai_type_feedback}
-                ])
-                st.session_state.letter_coach_chat = chat_history
-                st.session_state.letter_coach_stage = 2
-                st.session_state.letter_coach_type = type_guess
-                st.rerun()
-
         # --- Stage 2+: Coaching Chat ---
         elif st.session_state.letter_coach_stage >= 2:
             st.markdown("---")
