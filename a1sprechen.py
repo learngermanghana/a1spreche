@@ -3925,22 +3925,12 @@ if tab == "Schreiben Trainer":
         st.session_state.letter_coach_uploaded = False
         st.rerun()
 
-
     # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
-    import streamlit.components.v1 as components
-
     user_msgs = [
-        "Lieber Felix",
-        "Ich schreibe dir,weil ich dich bald besuchen mochte.",
-        "Konnen wir nachste woche treffen. Haben Sie Zeit?",
-        "Ich mochte ins Kino gehen"
+        msg["content"]
+        for msg in st.session_state.letter_coach_chat[1:]
+        if msg["role"] == "user"
     ]
-    # For actual use, use the real chat history:
-    # user_msgs = [
-    #     msg["content"]
-    #     for msg in st.session_state.letter_coach_chat[1:]
-    #     if msg["role"] == "user"
-    # ]
 
     st.markdown("""
         **📝 Your Letter Draft**
@@ -3952,6 +3942,7 @@ if tab == "Schreiben Trainer":
     # Store selection in session state
     if "selected_letter_lines" not in st.session_state or \
        len(st.session_state.selected_letter_lines) != len(user_msgs):
+        # Initialize: all ticked by default
         st.session_state.selected_letter_lines = [True] * len(user_msgs)
 
     selected_lines = []
@@ -3965,62 +3956,43 @@ if tab == "Schreiben Trainer":
 
     letter_draft = "\n".join(selected_lines)
 
-    # --- Mobile-friendly copy/download box ---
+    # --- Improved visible header for your letter box ---
     st.markdown(
         """
-        <div style="background:#fffde7; border-radius:13px; border:1.5px solid #ffe082; box-shadow:0 2px 8px #ffe08266; margin-bottom:0.7em; padding:0.7em 1em;">
-            <b>📝 Your Letter So Far (copy & download below):</b>
+        <div style="
+            background: linear-gradient(90deg, #ffe082 80%, #fffbe7 100%);
+            border-radius: 11px;
+            border: 2px solid #ffc107;
+            padding: 0.67em 1.1em 0.67em 0.9em;
+            margin-bottom: 0.6em;
+            margin-top: 0.1em;
+            font-size: 1.17em;
+            font-weight: bold;
+            color: #543c0b;
+            letter-spacing: 0.02em;
+            box-shadow: 0 2px 9px #ffe08233;
+            ">
+            📝 <span style="font-weight:900;">Your Letter So Far</span> 
+            <span style="font-size:0.97em;font-weight:600;">(copy & download below)</span>
         </div>
         """, unsafe_allow_html=True
     )
 
-    components.html(f"""
-        <textarea id="letterBox" readonly rows="6" style="
-            width: 100%; 
-            border-radius: 12px; 
-            background: #f9fbe7; 
-            border: 1.7px solid #ffe082;
-            color: #222;
-            font-size: 1.12em;
-            font-family: 'Fira Mono', 'Consolas', monospace;
-            padding: 1em 0.7em;
-            box-shadow: 0 2px 8px #ffe08266;
-            margin-bottom: 0.5em;
-            resize: none;
-            overflow:auto;
-        " onclick="this.select()">{letter_draft}</textarea>
-        <button onclick="navigator.clipboard.writeText(document.getElementById('letterBox').value)" 
-            style="
-            background:#ffc107;
-            color:#3e2723;
-            font-size:1.08em;
-            font-weight:bold;
-            padding:0.48em 1.12em;
-            margin-top:0.4em;
-            border:none;
-            border-radius:7px;
-            cursor:pointer;
-            box-shadow:0 2px 8px #ffe08255;
-            ">
-            📋 Copy Text
-        </button>
-    """, height=175)
+    # --- Show as code box (with Streamlit's copy button) ---
+    st.code(letter_draft, language="markdown")
 
     st.markdown("""
         <div style="background:#ffe082;padding:0.9em 1.2em;border-radius:10px;margin:0.4em 0 1.2em 0; color:#543c0b; font-weight:600; border-left:6px solid #ffc107;">
-            📋 <span style="font-size:1.09em;">On phone, you can tap inside the box above to select all for copy.<br>
-            Or just tap <b>Copy Text</b>.<br>
+            📋 <span style="font-size:1.09em;">To copy, <b>hover and click</b> the <span style='background:#fff;padding:0 0.35em;border-radius:5px;'>📋</span> copy icon at the top-right of the box above.<br>
             To download, use the button below.</span>
         </div>
-        """, unsafe_allow_html=True
-    )
+    """, unsafe_allow_html=True)
 
     st.download_button(
         "⬇️ Download Letter as TXT", 
         letter_draft.encode("utf-8"), 
         file_name="my_letter.txt"
     )
-
 
 
 
