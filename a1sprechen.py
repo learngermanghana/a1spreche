@@ -3740,7 +3740,7 @@ if tab == "Schreiben Trainer":
             </div>
         """
 
-            if sub_tab == "Ideas Generator (Letter Coach)":
+    if sub_tab == "Ideas Generator (Letter Coach)":
         import io
         import streamlit.components.v1 as components
 
