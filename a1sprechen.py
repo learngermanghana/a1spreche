@@ -3760,7 +3760,7 @@ if tab == "Schreiben Trainer":
                 return f"""<div style='background: #f4eafd; color: #7b2ff2; border-radius: 16px 16px 16px 3px; margin-bottom: 8px; margin-right: 80px; box-shadow: 0 2px 8px rgba(123,47,242,0.08); padding: 13px 18px; text-align: left; max-width: 88vw; font-size: 1.12rem;'><b>👨‍🏫 Herr Felix:</b><br>{text}</div>"""
             return f"""<div style='background: #eaf4ff; color: #1a237e; border-radius: 16px 16px 3px 16px; margin-bottom: 8px; margin-left: 80px; box-shadow: 0 2px 8px rgba(26,35,126,0.07); padding: 13px 18px; text-align: right; max-width: 88vw; font-size: 1.12rem;'><b>🙋 You:</b><br>{text}</div>"""
 
-        # --- General Instructions for Students ---
+        # --- General Instructions for Students (Minimal Welcome + Subline) ---
         st.markdown(
             """
             <div style="
@@ -3774,27 +3774,21 @@ if tab == "Schreiben Trainer":
                 color: #4b2976;
                 font-size: 1.03rem;
                 font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+                text-align: center;
                 ">
                 <span style="font-size:1.19em; vertical-align:middle;">✉️</span>
                 <span style="font-size:1.05em; font-weight: 500; margin-left:0.24em;">
                     Welcome to <span style="color:#7b2ff2;">Letter Coach</span>
                 </span>
-                <ul style="margin-top:0.72em;margin-bottom:0.38em;line-height:1.35;">
-                    <li>📄 <b>Paste</b> your <b>exam question</b> or <b>letter prompt</b> below.</li>
-                    <li>✏️ <b>Paste your draft</b> if you get stuck &ndash; Herr Felix will help you step by step.</li>
-                    <li>💾 <b>Download</b> your letter as <b>TXT</b> any time.</li>
-                    <li>🔄 <b>Copy-paste</b> at any stage &ndash; the AI will keep helping!</li>
-                </ul>
-                <div style="color:#b48be6;font-size:0.98em;margin-top:0.22em;">
-                    <b>Scroll down</b> to get started, upload a TXT file, or enter your prompt in the chat.
+                <div style="color:#b48be6; font-size:0.97em; margin-top:0.35em;">
+                    Get started below 👇
                 </div>
             </div>
             """,
             unsafe_allow_html=True
         )
 
-
-        IDEAS_LIMIT = 20
+        IDEAS_LIMIT = 14
         ideas_so_far = get_letter_coach_usage(student_code)
         st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
         if ideas_so_far >= IDEAS_LIMIT:
