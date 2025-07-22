@@ -3565,7 +3565,6 @@ if tab == "Vocab Trainer":
                 st.session_state[k] = defaults[k]
                 
 
-
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
@@ -3584,15 +3583,7 @@ if tab == "Schreiben Trainer":
     )
     st.divider()
 
-    # Sub-tabs: Mark My Letter, Ideas Generator (Letter Coach)
-    sub_tab = st.radio(
-        "Choose Mode",
-        ["Mark My Letter", "Ideas Generator (Letter Coach)"],
-        horizontal=True,
-        key="schreiben_sub_tab"
-    )
-
-    # Level picker
+    # --- Level picker (show only ONCE!) ---
     schreiben_levels = ["A1", "A2", "B1", "B2", "C1"]
     prev_level = st.session_state.get("schreiben_level", "A1")
     schreiben_level = st.selectbox(
@@ -3602,10 +3593,17 @@ if tab == "Schreiben Trainer":
         key="schreiben_level_selector"
     )
     st.session_state["schreiben_level"] = schreiben_level
-
     st.divider()
 
-    # --- 1. MARK MY LETTER SUB-TAB ---
+    # Sub-tabs: Mark My Letter, Ideas Generator (Letter Coach)
+    sub_tab = st.radio(
+        "Choose Mode",
+        ["Mark My Letter", "Ideas Generator (Letter Coach)"],
+        horizontal=True,
+        key="schreiben_sub_tab"
+    )
+
+    # ====== MARK MY LETTER SUB-TAB ======
     if sub_tab == "Mark My Letter":
         st.markdown(
             '''
@@ -3625,7 +3623,6 @@ if tab == "Schreiben Trainer":
         student_code = st.session_state.get("student_code", "demo")
         student_name = st.session_state.get("student_name", "")
 
-        # Daily usage
         SCHREIBEN_DAILY_LIMIT = 5
         daily_so_far = get_schreiben_usage(student_code)
         st.markdown(f"**Daily usage:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}")
@@ -3640,6 +3637,7 @@ if tab == "Schreiben Trainer":
 
         # Word/char count
         if user_letter.strip():
+            import re
             words = re.findall(r'\b\w+\b', user_letter)
             chars = len(user_letter)
             st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
@@ -3682,6 +3680,7 @@ if tab == "Schreiben Trainer":
 
             if feedback:
                 # Extract score
+                import re
                 score_match = re.search(r"score\s*(?:[:=]|is)?\s*(\d+)\s*/\s*25", feedback, re.IGNORECASE)
                 if not score_match:
                     score_match = re.search(r"Score[:\s]+(\d+)\s*/\s*25", feedback, re.IGNORECASE)
@@ -3696,6 +3695,9 @@ if tab == "Schreiben Trainer":
                 st.markdown(feedback)
 
                 # Download as PDF
+                from fpdf import FPDF
+                import urllib.parse, os
+
                 def sanitize_text(text):
                     return text.encode('latin-1', errors='replace').decode('latin-1')
                 pdf = FPDF()
@@ -3714,7 +3716,6 @@ if tab == "Schreiben Trainer":
                     file_name=pdf_output,
                     mime="application/pdf"
                 )
-                import os
                 os.remove(pdf_output)
 
                 wa_message = f"Hi, here is my German letter and AI feedback:\n\n{user_letter}\n\nFeedback:\n{feedback}"
@@ -3740,24 +3741,14 @@ if tab == "Schreiben Trainer":
             </div>
         """
 
+    # ====== IDEAS GENERATOR (LETTER COACH) SUB-TAB ======
     if sub_tab == "Ideas Generator (Letter Coach)":
-        import io
         import streamlit.components.v1 as components
 
-        def reset_letter_coach():
-            for k in [
-                "letter_coach_stage", "letter_coach_chat", "letter_coach_prompt",
-                "letter_coach_type", "selected_letter_lines", "letter_coach_uploaded"
-            ]:
-                st.session_state[k] = (0 if k == "letter_coach_stage" else [])
-            st.session_state.letter_coach_uploaded = False
+        student_code = st.session_state.get("student_code", "demo")
+        student_name = st.session_state.get("student_name", "")
+        student_level = st.session_state["schreiben_level"]
 
-        def bubble(role, text):
-            if role == "assistant":
-                return f"""<div style='background: #f4eafd; color: #7b2ff2; border-radius: 16px 16px 16px 3px; margin-bottom: 8px; margin-right: 80px; box-shadow: 0 2px 8px rgba(123,47,242,0.08); padding: 13px 18px; text-align: left; max-width: 88vw; font-size: 1.12rem;'><b>👨‍🏫 Herr Felix:</b><br>{text}</div>"""
-            return f"""<div style='background: #eaf4ff; color: #1a237e; border-radius: 16px 16px 3px 16px; margin-bottom: 8px; margin-left: 80px; box-shadow: 0 2px 8px rgba(26,35,126,0.07); padding: 13px 18px; text-align: right; max-width: 88vw; font-size: 1.12rem;'><b>🙋 You:</b><br>{text}</div>"""
-
-        # --- General Instructions ---
         st.markdown(
             """
             <div style="
@@ -3785,39 +3776,33 @@ if tab == "Schreiben Trainer":
             unsafe_allow_html=True
         )
 
-        # --- Usage Limits ---
         IDEAS_LIMIT = 14
         ideas_so_far = get_letter_coach_usage(student_code)
         st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
         if ideas_so_far >= IDEAS_LIMIT:
             st.warning("You have reached today's letter coach limit. Please come back tomorrow.")
 
+        # --- Letter type selection ---
+        st.write("### What kind of letter or essay do you want to write?")
+        letter_type = st.radio(
+            "Select type",
+            ("Formal Letter", "Informal Letter", "Opinion Essay", "Not sure"),
+            horizontal=True,
+            index=2 if student_level in ("B1", "B2", "C1") else 0,
+            key="letter_coach_type"
+        )
+        st.session_state["letter_coach_type"] = letter_type
+
         # --- Session State Defaults ---
         for key, default in [
             ("letter_coach_stage", 0),
             ("letter_coach_chat", []),
             ("letter_coach_prompt", ""),
-            ("letter_coach_type", ""),
             ("selected_letter_lines", []),
             ("letter_coach_uploaded", False),
-            ("schreiben_level", "B1"),
         ]:
             if key not in st.session_state:
                 st.session_state[key] = default
-
-        # --- Level and Letter Type Selection ---
-        st.write("### 1. Choose your German level:")
-        st.session_state["schreiben_level"] = st.selectbox(
-            "Select level", ["A1", "A2", "B1", "B2", "C1"], index=["A1", "A2", "B1", "B2", "C1"].index(st.session_state["schreiben_level"])
-        )
-
-        st.write("### 2. What kind of letter or essay do you want to write?")
-        st.session_state["letter_coach_type"] = st.radio(
-            "Select type",
-            ("Formal Letter", "Informal Letter", "Opinion Essay", "Not sure"),
-            horizontal=True,
-            index=2 if st.session_state["schreiben_level"] in ("B1", "B2", "C1") else 0
-        )
 
         # --- Stage 0: Paste Prompt ---
         if st.session_state.letter_coach_stage == 0:
@@ -3870,8 +3855,8 @@ if tab == "Schreiben Trainer":
                 system_prompt = (
                     f"You are Herr Felix, a creative and supportive German letter-writing coach for A1–C1 students.\n"
                     f"The prompt is: '{prompt}'.\n"
-                    f"The student's level is {st.session_state['schreiben_level']}. "
-                    f"The letter type is '{st.session_state['letter_coach_type']}'.\n"
+                    f"The student's level is {student_level}. "
+                    f"The letter type is '{letter_type}'.\n"
                     "Always reply in simple English.\n"
                     "If this is your first reply after the student shares their letter question or prompt or continuation of letter, start by explaining the main parts of the letter in English, using bullet points. For each part, tell the student exactly how to begin or continue already started letter, with examples for greetings, introductions, and connectors.\n"
                     "If the first input is too long, ask the student if it is a letter continuation or question and build from there.\n"
@@ -3989,11 +3974,7 @@ if tab == "Schreiben Trainer":
                 st.session_state.letter_coach_chat = chat_history
                 st.rerun()
 
-        
             # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
-            import streamlit.components.v1 as components
-
-            # Collect student messages from session chat
             user_msgs = [
                 msg["content"]
                 for msg in st.session_state.letter_coach_chat[1:]
@@ -4131,7 +4112,6 @@ if tab == "Schreiben Trainer":
                 st.session_state.selected_letter_lines = []
                 st.session_state.letter_coach_uploaded = False
                 st.rerun()
-#
 
 
 
