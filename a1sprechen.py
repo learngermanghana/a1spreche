@@ -3763,17 +3763,34 @@ if tab == "Schreiben Trainer":
         # --- General Instructions for Students ---
         st.markdown(
             """
-            👋 **Welcome to Letter Coach!**
-
-            - Paste your **exam question** or **letter prompt** below to get started.
-            - If you are already writing your letter and get stuck, you can **paste your unfinished draft here**.  
-              The AI will help you continue step by step.
-            - You can always **download your letter as TXT** and upload it later to keep working.
-            - Or simply **copy and paste** your text into the chat at any time—the AI will understand and keep helping you!
-
-            *Scroll down to get started, upload a file, or paste your prompt or letter in the chat.*
-            """
-        )
+            <div style="
+                background: linear-gradient(97deg, #f4eafd 70%, #ffe0f5 100%);
+                border-radius: 16px;
+                border: 1.5px solid #e6d3fa;
+                box-shadow: 0 4px 18px #e5e1fa1c;
+                padding: 1.2em 1.2em 1.08em 1.2em;
+                margin-bottom: 1.2em;
+                margin-top: 0.2em;
+                color: #4b2976;
+                font-size: 1.13rem;
+                font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+                ">
+                <span style="font-size:1.7em; vertical-align:middle;">✉️</span>
+                <span style="font-size:1.18em; font-weight: 600; margin-left:0.32em;">
+                    Welcome to <span style="color:#7b2ff2;">Letter Coach</span>!
+                </span>
+                <ul style="margin-top:0.85em;margin-bottom:0.6em;line-height:1.55;">
+                    <li>📄 <b>Paste</b> your <b>exam question</b> or <b>letter prompt</b> below to get started.</li>
+                    <li>✏️ Already started writing? <b>Paste your draft</b> here &ndash; Herr Felix will guide you step by step.</li>
+                    <li>💾 <b>Download</b> your letter often as <b>TXT</b> any time to save or upload later and keep working.</li>
+                    <li>🔄 <b>Copy-paste</b> your text at any stage &ndash; the AI will always continue helping!</li>
+                </ul>
+                <div style="color:#c17bfa;font-size:1.06em;margin-top:0.48em;">
+                    <b>Scroll down</b> to get started, upload a TXT file, or enter your prompt in the chat!
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
 
         IDEAS_LIMIT = 20
         ideas_so_far = get_letter_coach_usage(student_code)
