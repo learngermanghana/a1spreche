@@ -4036,6 +4036,16 @@ if tab == "Schreiben Trainer":
 
             letter_draft = "\n".join(selected_lines)
 
+            # --- Live word/character count for the letter draft ---
+            draft_word_count = len(letter_draft.split())
+            draft_char_count = len(letter_draft)
+            st.markdown(
+                f"<div style='color:#7b2ff2; font-size:0.97em; margin-bottom:0.18em;'>"
+                f"Words: <b>{draft_word_count}</b> &nbsp;|&nbsp; Characters: <b>{draft_char_count}</b>"
+                "</div>",
+                unsafe_allow_html=True
+            )
+
             # --- Modern, soft header (copy/download) ---
             st.markdown(
                 """
@@ -4126,7 +4136,6 @@ if tab == "Schreiben Trainer":
                 file_name="my_letter.txt"
             )
 
-
             if st.button("Start New Letter Coach"):
                 st.session_state.letter_coach_chat = []
                 st.session_state.letter_coach_prompt = ""
@@ -4134,7 +4143,8 @@ if tab == "Schreiben Trainer":
                 st.session_state.selected_letter_lines = []
                 st.session_state.letter_coach_uploaded = False
                 st.rerun()
-#
+
+
 
 
 
