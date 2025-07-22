@@ -3813,40 +3813,63 @@ if tab == "Schreiben Trainer":
             key="letter_coach_txt_upload"
         )
 
-        # Hold the content in session so it can persist after rerun
         if uploaded_file and "upload_content" not in st.session_state:
             try:
                 st.session_state.upload_content = uploaded_file.read().decode("utf-8")
-                st.success("Letter uploaded! Click below to continue.")
+                st.success("Letter uploaded! Copy below and paste into the chat box.")
             except Exception as e:
                 st.warning(f"Could not read the file. Please check format. Error: {e}")
 
-        # If we have uploaded content, show preview and continue button
         if "upload_content" in st.session_state and not st.session_state.get("letter_coach_uploaded", False):
-            st.text_area("Preview:", value=st.session_state.upload_content, height=120, disabled=True)
-            if st.button("➡️ Continue to Chat"):
-                chat = [{"role": "user", "content": line} for line in st.session_state.upload_content.splitlines() if line.strip()]
-                st.session_state.letter_coach_chat = [
-                    {"role": "system", "content": "You are a German letter coach. Always explain in English and be supportive."}
-                ] + chat
-                st.session_state.letter_coach_stage = 2
-                st.session_state.letter_coach_uploaded = True
-                del st.session_state.upload_content
-                st.rerun()
+            import streamlit.components.v1 as components
+            components.html(f"""
+                <textarea id="uploadedLetter" readonly rows="8" style="
+                    width: 100%;
+                    border-radius: 12px;
+                    background: #f9fbe7;
+                    border: 1.7px solid #ffe082;
+                    color: #222;
+                    font-size: 1.09em;
+                    font-family: 'Fira Mono', 'Consolas', monospace;
+                    padding: 1em 0.7em;
+                    box-shadow: 0 2px 8px #ffe08266;
+                    margin-bottom: 0.5em;
+                    resize: none;
+                    overflow:auto;
+                " onclick="this.select()">{st.session_state.upload_content}</textarea>
+                <button onclick="navigator.clipboard.writeText(document.getElementById('uploadedLetter').value)" 
+                    style="
+                        background:#ffc107;
+                        color:#3e2723;
+                        font-size:1.07em;
+                        font-weight:bold;
+                        padding:0.48em 1.12em;
+                        margin-top:0.4em;
+                        border:none;
+                        border-radius:7px;
+                        cursor:pointer;
+                        box-shadow:0 2px 8px #ffe08255;
+                        width:100%;
+                        max-width:320px;
+                        display:block;
+                        margin-left:auto;
+                        margin-right:auto;
+                    ">
+                    📋 Copy Text
+                </button>
+                <div style="color:#b48be6;font-size:0.98em;margin-top:0.35em;">
+                    <b>Tip:</b> Click/tap in the box above to select all, or tap <b>Copy Text</b> and then paste it in the chat box below!
+                </div>
+                <style>
+                    @media (max-width: 480px) {{
+                        #uploadedLetter {{
+                            font-size: 1.14em !important;
+                            min-width: 93vw !important;
+                        }}
+                    }}
+                </style>
+            """, height=200)
 
-        # --- Show instruction if uploaded ---
-        if st.session_state.get("letter_coach_uploaded", False):
-            st.info(
-                "✅ **Your previous letter was loaded!**\n\n"
-                "Scroll down to continue your chat with Herr Felix, review your draft, or start typing your next step below.\n\n"
-                "If you want feedback, keep chatting or finish your letter, then download as TXT for scoring in 'Mark My Letter'."
-            )
-
-            # Only show the continue button if this is right after upload (optional)
-            if st.session_state.get("show_continue_button", False):
-                if st.button("➡️ Continue to Chat"):
-                    st.session_state.show_continue_button = False
-                    st.rerun()
 
         # --- Stage 0: Paste Prompt ---
         if st.session_state.letter_coach_stage == 0:
