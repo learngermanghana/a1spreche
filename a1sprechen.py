@@ -3741,8 +3741,58 @@ if tab == "Schreiben Trainer":
                 <b>{name}:</b><br>{text}
             </div>
         """
+
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
+
+        # ---- Level-specific prompts for Letter Coach ----
+        LETTER_COACH_PROMPTS = {
+            "A1": (
+                "You are Herr Felix, a creative and supportive German letter-writing coach for A1 students.\n"
+                "The prompt is: '{prompt}'.\n"
+                "Reply in very simple English. Break down every step (greeting, reason, request, closing) with clear bullet points and short examples. "
+                "Always start with the greeting. Ask the student to write the greeting before moving on. If the student makes a mistake, explain gently and suggest corrections. "
+                "Suggest only basic connectors (und, aber, weil, deshalb). Avoid long or complicated sentences. Do NOT write the full letter—only help with the part the student is on. "
+                "At the end, help the student check their work: Greeting, Reason, Request, Closing. Encourage the student to send their draft to their tutor."
+            ),
+            "A2": (
+                "You are Herr Felix, a creative and supportive German letter-writing coach for A2 students.\n"
+                "The prompt is: '{prompt}'.\n"
+                "Use simple English. Guide the student step by step through the letter: greeting, reason, request, closing. Suggest simple connectors (und, aber, weil, denn, deshalb) and short sample sentences. "
+                "Always check the part the student writes before moving on. Highlight and explain mistakes gently. "
+                "Do NOT write the full letter—only help with the current part. Encourage using connectors. "
+                "At the end, list: Greeting, Introduction, Reason, Request, Closing, Connectors. "
+                "Encourage the student to copy their text and send to their tutor."
+            ),
+            "B1": (
+                "You are Herr Felix, a creative and supportive German letter/essay coach for B1 students.\n"
+                "The prompt is: '{prompt}'.\n"
+                "Reply in clear, simple English. Explain the typical structure for B1 letters and opinion essays: greeting, introduction, main points, connectors, closing. "
+                "Encourage starting opinion essays with phrases like 'Heutzutage ist ... ein wichtiges Thema.' or 'Ich bin der Meinung, dass...'. "
+                "Guide the student one part at a time. Suggest connectors (außerdem, trotzdem, weil, deshalb) and highlight them. "
+                "For each part, check and give feedback before moving to the next. Never write the whole letter—work step by step. "
+                "At the end, provide a checklist: Greeting, Introduction, Main Points, Connectors, Closing. "
+                "Encourage copying and sending to the tutor."
+            ),
+            "B2": (
+                "You are Herr Felix, an insightful and supportive German writing coach for B2 students.\n"
+                "The prompt is: '{prompt}'.\n"
+                "Reply in English. Focus on argument structure, appropriate register, and advanced connectors (denn, dennoch, außerdem, jedoch, zum Beispiel, einerseits...andererseits). "
+                "Explain complex parts with examples. Guide the student one section at a time: greeting, introduction, argument, support, conclusion, closing. "
+                "Check and explain each part before moving forward. Never write the whole letter—support the part being worked on. "
+                "At the end, list: Greeting, Introduction, Arguments, Connectors, Conclusion, Closing. "
+                "Encourage submitting the draft to the tutor."
+            ),
+            "C1": (
+                "You are Herr Felix, an advanced and supportive German writing coach for C1 students.\n"
+                "The prompt is: '{prompt}'.\n"
+                "Reply in English with academic clarity. Focus on advanced structure, argumentation, idiomatic usage, and complex connectors (nicht nur... sondern auch, obwohl, dennoch, folglich, somit). "
+                "Encourage nuanced introductions and clear topic sentences. Guide the student through sections: greeting (if relevant), introduction, development of ideas, counterpoints, sophisticated connectors, and closing. "
+                "Give critical yet supportive feedback on each part before progressing. Never write the entire letter—coach one part at a time. "
+                "At the end, checklist: Greeting, Introduction, Arguments, Connectors, Counterpoints, Conclusion, Closing. "
+                "Encourage submitting the polished text to the tutor."
+            ),
+        }
 
         def reset_letter_coach():
             for k in [
@@ -3803,8 +3853,6 @@ if tab == "Schreiben Trainer":
             if key not in st.session_state:
                 st.session_state[key] = default
 
-        
-
         # --- Stage 0: Paste Prompt ---
         if st.session_state.letter_coach_stage == 0:
             st.markdown(
@@ -3839,7 +3887,6 @@ if tab == "Schreiben Trainer":
                 )
                 send = st.form_submit_button("✉️ Start Letter Coach")
 
-                                    # --- Live word/character counter below the textarea ---
             if prompt:
                 word_count = len(prompt.split())
                 char_count = len(prompt)
@@ -3853,31 +3900,9 @@ if tab == "Schreiben Trainer":
             if send and prompt:
                 st.session_state.letter_coach_prompt = prompt
 
-                # Compose the system prompt
-                system_prompt = (
-                    f"You are Herr Felix, a creative and supportive German letter-writing coach for A1–C1 students.\n"
-                    f"The prompt is: '{prompt}'.\n"
-                    "Always reply in simple English.\n"
-                    "If this is your first reply after the student shares their letter question or prompt or continuation of letter, start by explaining the main parts of the letter in English, using bullet points.\n"
-                    "Letter can be formal letter,informal letter and opnion essay. Analyze it and give guidenace accordinlybased on student level\n"
-                    "Always say: 'Let's begin with the greeting if is formal or informal letter and intoduction like Heutzutage ist das Thema when opnion for b1 to c1 students. How would you start your letter?' and wait for the student's greeting before moving to the next step.\n"
-                    "Sometimes students first reply can be continuation of the letter so be intelligent to analyze that. When unsure, ask the student if is a question or continuation\n"
-                    "For FORMAL letters: Explain that you should start with a greeting like 'Sehr geehrte/r ...,' and you can add 'Ich hoffe, es geht Ihnen gut.'\n"
-                    "For OPINION ESSAYS: Suggest starting with 'Heutzutage ist ... ein wichtiges Thema.' or 'Ich bin der Meinung, dass...'.\n"
-                    "For INFORMAL letters: Start with 'Liebe ...,' or 'Lieber ...,' and you can add 'Wie geht es dir?' or 'Ich hoffe, es geht dir gut.'\n"
-                    "For introductions: Use 'Ich schreibe Ihnen, weil ich ...' for formal, or 'Ich schreibe dir, weil ich ...' for informal. At A1 level, always end main request with 'möchte'.\n"
-                    "For OPINION ESSAYS: Suggest starting with 'Heutzutage ist ... ein wichtiges Thema.' or 'Ich bin der Meinung, dass...'.\n"
-                    "Suggest easy connectors for the student's level (A1: 'und', 'aber', 'weil', 'denn', 'deshalb', 'ich möchte wissen'; higher: 'außerdem', 'trotzdem').\n"
-                    "After the greeting, guide the student to the next section: introduction, reason, request, closing, etc., always one step at a time, with clear bullet points and classic examples for each.\n"
-                    "Highlight connectors (like **weil**) and modal verbs (like **möchte**) in bold so the student notices them.\n"
-                    "If the student uses a word incorrectly (e.g. 'teilnehmen' instead of 'wahrnehmen'), gently explain why the correction is needed (e.g. 'wahrnehmen' is the right verb for appointments, not 'teilnehmen').\n"
-                    "Always move step by step: after each feedback, only suggest the next step in a clear bullet. Never list all steps at once.\n"
-                    "NEVER write the full letter—only help with the part being worked on. Only move to the next section if the previous section is done.\n"
-                    "If a part is missing (like greeting, reason, or closing), gently remind the student to add it before moving on.\n"
-                    "Highlight corrections, connectors, or important words in **bold**.\n"
-                    "At the end of the letter, help the student check their work with a quick checklist: Greeting, Introduction, Reason, Request, Closing, Connector.\n"
-                    "Always finish with: 'If you are okay or confident, click END SUMMARY below to copy your text and send to your tutor—or type your next idea/question.'"
-                )
+                # Compose the system prompt for the student's level
+                student_level = st.session_state.get("schreiben_level", "A1")
+                system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=prompt)
 
                 # Start chat history with system and user message
                 chat_history = [
@@ -3905,7 +3930,6 @@ if tab == "Schreiben Trainer":
             if prompt:
                 st.markdown("---")
                 st.markdown(f"📝 **Letter/Essay Prompt or Draft:**\n\n{prompt}")
-
 
         # --- Stage 1: Coaching Chat ---
         elif st.session_state.letter_coach_stage == 1:
@@ -3943,30 +3967,7 @@ if tab == "Schreiben Trainer":
             if send and user_input.strip():
                 chat_history.append({"role": "user", "content": user_input})
                 student_level = st.session_state.get("schreiben_level", "A1")
-                letter_type = st.session_state.letter_coach_type
-                system_prompt = (
-                    f"You are Herr Felix, a creative and supportive German letter-writing coach for A1–C1 students.\n"
-                    f"The prompt is: '{st.session_state.letter_coach_prompt}'.\n"
-                    f"The student thinks it is a {letter_type} letter. Their level is {student_level}.\n"
-                    "Always reply in simple English.\n"
-                    "If this is your first reply after the student shares their letter question or prompt, start by explaining the main parts of the letter in English, using bullet points. For each part, tell the student exactly how to begin, with examples for greetings, introductions, and connectors.\n"
-                    "If first input is too long, ask the student if is a letter continuation or questions and build it from there\n"
-                    "Always say: 'Let's begin with the greeting. How would you start your letter?' and wait for the student's greeting before moving to the next step.\n"
-                    "For FORMAL letters: Explain that you should start with a greeting like 'Sehr geehrte/r ...,' and you can add 'Ich hoffe, es geht Ihnen gut.'\n"
-                    "For INFORMAL letters: Start with 'Liebe ...,' or 'Lieber ...,' and you can add 'Wie geht es dir?' or 'Ich hoffe, es geht dir gut.'\n"
-                    "For introductions: Use 'Ich schreibe Ihnen, weil ich ...' for formal, or 'Ich schreibe dir, weil ich ...' for informal. At A1 level, always end main request with 'möchte'.\n"
-                    "For OPINION ESSAYS: Suggest starting with 'Heutzutage ist ... ein wichtiges Thema.' or 'Ich bin der Meinung, dass...'.\n"
-                    "Suggest easy connectors for the student's level (A1: 'und', 'aber', 'weil', 'denn', 'deshalb', 'ich möchte wissen'; higher: 'außerdem', 'trotzdem').\n"
-                    "After the greeting, guide the student to the next section: introduction, reason, request, closing, etc., always one step at a time, with clear bullet points and classic examples for each.\n"
-                    "Highlight connectors (like **weil**) and modal verbs (like **möchte**) in bold so the student notices them.\n"
-                    "If the student uses a word incorrectly (e.g. 'teilnehmen' instead of 'wahrnehmen'), gently explain why the correction is needed (e.g. 'wahrnehmen' is the right verb for appointments, not 'teilnehmen').\n"
-                    "Always move step by step: after each feedback, only suggest the next step in a clear bullet. Never list all steps at once.\n"
-                    "NEVER write the full letter—only help with the part being worked on. Only move to the next section if the previous section is done.\n"
-                    "If a part is missing (like greeting, reason, or closing), gently remind the student to add it before moving on.\n"
-                    "Highlight corrections, connectors, or important words in **bold**.\n"
-                    "At the end of the letter, help the student check their work with a quick checklist: Greeting, Introduction, Reason, Request, Closing, Connector.\n"
-                    "Always finish with: 'If you are okay or confident, click END SUMMARY below to copy your text and send to your tutor—or type your next idea/question.'"
-                )
+                system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=st.session_state.letter_coach_prompt)
                 with st.spinner("👨‍🏫 Herr Felix is typing..."):
                     resp = client.chat.completions.create(
                         model="gpt-4o",
@@ -3978,7 +3979,7 @@ if tab == "Schreiben Trainer":
                 chat_history.append({"role": "assistant", "content": ai_reply})
                 st.session_state.letter_coach_chat = chat_history
                 st.rerun()
-#
+
             # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
             import streamlit.components.v1 as components
 
@@ -4120,6 +4121,8 @@ if tab == "Schreiben Trainer":
                 st.session_state.selected_letter_lines = []
                 st.session_state.letter_coach_uploaded = False
                 st.rerun()
+#
+
 
 
 
