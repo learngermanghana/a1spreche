@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import time
 import requests
 import io
+import streamlit.components.v1 as components
 from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -3741,8 +3742,8 @@ if tab == "Schreiben Trainer":
     # ====== IDEAS GENERATOR (LETTER COACH) SUB-TAB ======
     if sub_tab == "Ideas Generator (Letter Coach)":
 
-    import io
-    import streamlit.components.v1 as components
+
+
 
     def reset_letter_coach():
         for k in [
