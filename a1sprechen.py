@@ -3812,15 +3812,20 @@ if tab == "Schreiben Trainer":
             type=["txt"],
             key="letter_coach_txt_upload"
         )
-        if uploaded_file and not st.session_state["letter_coach_uploaded"]:
+
+        # Preview & confirm before processing
+        if uploaded_file and not st.session_state.get("letter_coach_uploaded", False):
             try:
                 content = uploaded_file.read().decode("utf-8")
-                chat = [{"role": "user", "content": line} for line in content.splitlines() if line.strip()]
-                st.session_state.letter_coach_chat = [{"role": "system", "content": "You are a German letter coach. Always explain in English and be supportive."}] + chat
-                st.session_state.letter_coach_stage = 2
-                st.session_state.letter_coach_uploaded = True
+                # Preview file content (optional)
                 st.success("Letter uploaded! Click below to continue.")
-                st.session_state.show_continue_button = True  # Set flag for the button
+                st.text_area("Preview:", value=content, height=120, disabled=True)
+                if st.button("➡️ Continue to Chat"):
+                    chat = [{"role": "user", "content": line} for line in content.splitlines() if line.strip()]
+                    st.session_state.letter_coach_chat = [{"role": "system", "content": "You are a German letter coach. Always explain in English and be supportive."}] + chat
+                    st.session_state.letter_coach_stage = 2
+                    st.session_state.letter_coach_uploaded = True
+                    st.rerun()
             except Exception as e:
                 st.warning(f"Could not read the file. Please check format. Error: {e}")
 
