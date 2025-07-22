@@ -3583,7 +3583,15 @@ if tab == "Schreiben Trainer":
     )
     st.divider()
 
-    # --- Level picker (show only ONCE!) ---
+    # --- 1. Sub-tabs: Mark My Letter, Ideas Generator (Letter Coach) ---
+    sub_tab = st.radio(
+        "Choose Mode",
+        ["Mark My Letter", "Ideas Generator (Letter Coach)"],
+        horizontal=True,
+        key="schreiben_sub_tab"
+    )
+
+    # --- 2. Level picker (now directly after sub_tab) ---
     schreiben_levels = ["A1", "A2", "B1", "B2", "C1"]
     prev_level = st.session_state.get("schreiben_level", "A1")
     schreiben_level = st.selectbox(
@@ -3593,17 +3601,10 @@ if tab == "Schreiben Trainer":
         key="schreiben_level_selector"
     )
     st.session_state["schreiben_level"] = schreiben_level
+
     st.divider()
 
-    # Sub-tabs: Mark My Letter, Ideas Generator (Letter Coach)
-    sub_tab = st.radio(
-        "Choose Mode",
-        ["Mark My Letter", "Ideas Generator (Letter Coach)"],
-        horizontal=True,
-        key="schreiben_sub_tab"
-    )
-
-    # ====== MARK MY LETTER SUB-TAB ======
+    # --- 3. MARK MY LETTER SUB-TAB ---
     if sub_tab == "Mark My Letter":
         st.markdown(
             '''
@@ -3623,6 +3624,7 @@ if tab == "Schreiben Trainer":
         student_code = st.session_state.get("student_code", "demo")
         student_name = st.session_state.get("student_name", "")
 
+        # Daily usage
         SCHREIBEN_DAILY_LIMIT = 5
         daily_so_far = get_schreiben_usage(student_code)
         st.markdown(f"**Daily usage:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}")
@@ -3637,7 +3639,6 @@ if tab == "Schreiben Trainer":
 
         # Word/char count
         if user_letter.strip():
-            import re
             words = re.findall(r'\b\w+\b', user_letter)
             chars = len(user_letter)
             st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
@@ -3680,7 +3681,6 @@ if tab == "Schreiben Trainer":
 
             if feedback:
                 # Extract score
-                import re
                 score_match = re.search(r"score\s*(?:[:=]|is)?\s*(\d+)\s*/\s*25", feedback, re.IGNORECASE)
                 if not score_match:
                     score_match = re.search(r"Score[:\s]+(\d+)\s*/\s*25", feedback, re.IGNORECASE)
@@ -3695,9 +3695,6 @@ if tab == "Schreiben Trainer":
                 st.markdown(feedback)
 
                 # Download as PDF
-                from fpdf import FPDF
-                import urllib.parse, os
-
                 def sanitize_text(text):
                     return text.encode('latin-1', errors='replace').decode('latin-1')
                 pdf = FPDF()
@@ -3716,6 +3713,7 @@ if tab == "Schreiben Trainer":
                     file_name=pdf_output,
                     mime="application/pdf"
                 )
+                import os
                 os.remove(pdf_output)
 
                 wa_message = f"Hi, here is my German letter and AI feedback:\n\n{user_letter}\n\nFeedback:\n{feedback}"
