@@ -3819,8 +3819,8 @@ if tab == "Schreiben Trainer":
                 st.session_state.letter_coach_chat = [{"role": "system", "content": "You are a German letter coach. Always explain in English and be supportive."}] + chat
                 st.session_state.letter_coach_stage = 2
                 st.session_state.letter_coach_uploaded = True
-                st.success("Letter uploaded! Continue your session below.")
-                st.rerun()
+                st.success("Letter uploaded! Click below to continue.")
+                st.session_state.show_continue_button = True  # Set flag for the button
             except Exception as e:
                 st.warning(f"Could not read the file. Please check format. Error: {e}")
 
@@ -3831,6 +3831,13 @@ if tab == "Schreiben Trainer":
                 "Scroll down to continue your chat with Herr Felix, review your draft, or start typing your next step below.\n\n"
                 "If you want feedback, keep chatting or finish your letter, then download as TXT for scoring in 'Mark My Letter'."
             )
+
+            # Only show the continue button if this is right after upload (optional)
+            if st.session_state.get("show_continue_button", False):
+                if st.button("➡️ Continue to Chat"):
+                    st.session_state.show_continue_button = False
+                    st.rerun()
+
         # --- Stage 0: Paste Prompt ---
         if st.session_state.letter_coach_stage == 0:
             st.markdown(
@@ -3876,7 +3883,7 @@ if tab == "Schreiben Trainer":
                     "</div>",
                     unsafe_allow_html=True
                 )
-
+#
             if send and prompt:
                 st.session_state.letter_coach_prompt = prompt
 
