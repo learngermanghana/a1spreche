@@ -3739,7 +3739,7 @@ if tab == "Schreiben Trainer":
             </div>
         """
 
-    # ====== IDEAS GENERATOR (LETTER COACH) SUB-TAB ======
+            # ====== IDEAS GENERATOR (LETTER COACH) SUB-TAB ======
     if sub_tab == "Ideas Generator (Letter Coach)":
         import streamlit.components.v1 as components
 
@@ -3782,14 +3782,16 @@ if tab == "Schreiben Trainer":
 
         # --- Letter type selection ---
         st.write("### What kind of letter or essay do you want to write?")
-        letter_type = st.radio(
+        student_level = st.session_state.get("schreiben_level", "A1")
+        st.radio(
             "Select type",
             ("Formal Letter", "Informal Letter", "Opinion Essay", "Not sure"),
             horizontal=True,
             index=2 if student_level in ("B1", "B2", "C1") else 0,
             key="letter_coach_type"
         )
-        st.session_state["letter_coach_type"] = letter_type
+        # To use later:
+        # letter_type = st.session_state["letter_coach_type"]
 
         # --- Session State Defaults ---
         for key, default in [
