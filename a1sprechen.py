@@ -3814,7 +3814,7 @@ if tab == "Schreiben Trainer":
 
         # --- File Upload (Resume Letter) ---
         uploaded_file = st.file_uploader(
-            "⬆️ Upload previous letter as TXT to continue",
+            "⬇️ Upload previous letter as TXT to continue",
             type=["txt"],
             key="letter_coach_txt_upload"
         )
@@ -3839,15 +3839,38 @@ if tab == "Schreiben Trainer":
             )
         # --- Stage 0: Paste Prompt ---
         if st.session_state.letter_coach_stage == 0:
+            st.markdown(
+                """
+                <div style="
+                    background: linear-gradient(90deg, #f9fbe7 70%, #eaf4ff 100%);
+                    border-radius: 9px;
+                    border: 1px solid #e0e0e0;
+                    box-shadow: 0 2px 8px #c0caf01c;
+                    padding: 0.74em 1.1em 0.58em 1.1em;
+                    margin-bottom: 0.55em;
+                    margin-top: 0.05em;
+                    color: #4a6276;
+                    font-size: 1.05rem;
+                    font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+                    ">
+                    <span style="font-size:1.15em; font-weight: 500; vertical-align:middle;">📝 Enter your exam prompt or letter draft below</span>
+                    <div style="color:#668b8b;font-size:0.99em;margin-top:0.22em;">
+                        Paste the <b>question</b>, a <b>draft</b>, or any <b>unfinished letter</b>.<br>
+                        Herr Felix will guide you step by step.
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
             with st.form("prompt_form", clear_on_submit=True):
                 prompt = st.text_area(
-                    "Paste your letter/essay question or prompt here (or paste your unfinished draft to continue):",
+                    "",
                     value=st.session_state.letter_coach_prompt,
-                    height=140,
+                    height=120,
                     disabled=(ideas_so_far >= IDEAS_LIMIT),
-                    placeholder="e.g., Schreiben Sie eine formelle E-Mail ..."
+                    placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ..."
                 )
-                send = st.form_submit_button("Send")
+                send = st.form_submit_button("✉️ Start Letter Coach")
             if send and prompt:
                 st.session_state.letter_coach_prompt = prompt
 
