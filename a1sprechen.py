@@ -3813,21 +3813,26 @@ if tab == "Schreiben Trainer":
             key="letter_coach_txt_upload"
         )
 
-        # Preview & confirm before processing
-        if uploaded_file and not st.session_state.get("letter_coach_uploaded", False):
+        # Hold the content in session so it can persist after rerun
+        if uploaded_file and "upload_content" not in st.session_state:
             try:
-                content = uploaded_file.read().decode("utf-8")
-                # Preview file content (optional)
+                st.session_state.upload_content = uploaded_file.read().decode("utf-8")
                 st.success("Letter uploaded! Click below to continue.")
-                st.text_area("Preview:", value=content, height=120, disabled=True)
-                if st.button("➡️ Continue to Chat"):
-                    chat = [{"role": "user", "content": line} for line in content.splitlines() if line.strip()]
-                    st.session_state.letter_coach_chat = [{"role": "system", "content": "You are a German letter coach. Always explain in English and be supportive."}] + chat
-                    st.session_state.letter_coach_stage = 2
-                    st.session_state.letter_coach_uploaded = True
-                    st.rerun()
             except Exception as e:
                 st.warning(f"Could not read the file. Please check format. Error: {e}")
+
+        # If we have uploaded content, show preview and continue button
+        if "upload_content" in st.session_state and not st.session_state.get("letter_coach_uploaded", False):
+            st.text_area("Preview:", value=st.session_state.upload_content, height=120, disabled=True)
+            if st.button("➡️ Continue to Chat"):
+                chat = [{"role": "user", "content": line} for line in st.session_state.upload_content.splitlines() if line.strip()]
+                st.session_state.letter_coach_chat = [
+                    {"role": "system", "content": "You are a German letter coach. Always explain in English and be supportive."}
+                ] + chat
+                st.session_state.letter_coach_stage = 2
+                st.session_state.letter_coach_uploaded = True
+                del st.session_state.upload_content
+                st.rerun()
 
         # --- Show instruction if uploaded ---
         if st.session_state.get("letter_coach_uploaded", False):
