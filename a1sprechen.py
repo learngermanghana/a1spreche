@@ -3740,71 +3740,72 @@ if tab == "Schreiben Trainer":
             </div>
         """
 
-            if sub_tab == "Ideas Generator (Letter Coach)":
-        import io
+if sub_tab == "Ideas Generator (Letter Coach)":
+    import io
 
-        def reset_letter_coach():
-            for k in [
-                "letter_coach_stage", "letter_coach_chat", "letter_coach_prompt",
-                "letter_coach_type", "selected_letter_lines", "letter_coach_uploaded"
-            ]:
-                st.session_state[k] = (0 if k == "letter_coach_stage" else [])
-            st.session_state.letter_coach_uploaded = False
+    def reset_letter_coach():
+        for k in [
+            "letter_coach_stage", "letter_coach_chat", "letter_coach_prompt",
+            "letter_coach_type", "selected_letter_lines", "letter_coach_uploaded"
+        ]:
+            st.session_state[k] = (0 if k == "letter_coach_stage" else [])
+        st.session_state.letter_coach_uploaded = False
 
-        def bubble(role, text):
-            if role == "assistant":
-                return (
-                    "<div style='background: #f4eafd; color: #7b2ff2; "
-                    "border-radius: 16px 16px 16px 3px; margin-bottom: 8px; margin-right: 80px; "
-                    "box-shadow: 0 2px 8px rgba(123,47,242,0.08); padding: 13px 18px; text-align: left; "
-                    "max-width: 88vw; font-size: 1.12rem;'><b>👨‍🏫 Herr Felix:</b><br>"
-                    f"{text}</div>"
-                )
+    def bubble(role, text):
+        if role == "assistant":
             return (
-                "<div style='background: #eaf4ff; color: #1a237e; "
-                "border-radius: 16px 16px 3px 16px; margin-bottom: 8px; margin-left: 80px; "
-                "box-shadow: 0 2px 8px rgba(26,35,126,0.07); padding: 13px 18px; text-align: right; "
-                "max-width: 88vw; font-size: 1.12rem;'><b>🙋 You:</b><br>"
+                "<div style='background: #f4eafd; color: #7b2ff2; "
+                "border-radius: 16px 16px 16px 3px; margin-bottom: 8px; margin-right: 80px; "
+                "box-shadow: 0 2px 8px rgba(123,47,242,0.08); padding: 13px 18px; text-align: left; "
+                "max-width: 88vw; font-size: 1.12rem;'><b>👨‍🏫 Herr Felix:</b><br>"
                 f"{text}</div>"
             )
+        return (
+            "<div style='background: #eaf4ff; color: #1a237e; "
+            "border-radius: 16px 16px 3px 16px; margin-bottom: 8px; margin-left: 80px; "
+            "box-shadow: 0 2px 8px rgba(26,35,126,0.07); padding: 13px 18px; text-align: right; "
+            "max-width: 88vw; font-size: 1.12rem;'><b>🙋 You:</b><br>"
+            f"{text}</div>"
+        )
 
-        # --- Level-specific prompts for each continued chat ---
-        prompts_by_level = {
-            "A1": (
-                "You are Herr Felix, an A1 German writing coach for exam candidates.\n"
-                "Guide the student step by step: Greet, Introduction, Reason, Request, Closing.\n"
-                "Use simple phrases. For formal, use 'Sehr geehrte/r ...', informal 'Liebe/Lieber ...'.\n"
-                "For introduction, 'Ich schreibe Ihnen, weil ich ... möchte' or 'Ich schreibe dir, weil ich ... möchte'.\n"
-                "Highlight use of connectors like 'weil', 'deshalb', 'ich möchte wissen, ob'.\n"
-                "End with 'Ich freue mich auf Ihre Antwort.' (formal) or 'Ich freue mich auf deine Antwort.' (informal).\n"
-                "Correct any missing parts and explain simply in English. Only help with one section at a time."
-            ),
-            "A2": (
-                "You are Herr Felix, an A2 German writing coach for exam candidates.\n"
-                "Check for connectors: 'weil', 'denn', 'deshalb', 'trotzdem', 'außerdem', 'dann', 'zuerst', 'danach', 'zuletzt'.\n"
-                "Help organize logically: 'Erstens, zweitens, außerdem, zuletzt'.\n"
-                "Remind about ending ('Ich freue mich auf Ihre/deine Antwort.').\n"
-                "If parts are missing (greeting, reason, closing), prompt for them. Teach step by step with corrections."
-            ),
-            "B1": (
-                "You are Herr Felix, a B1 German writing coach for exam candidates.\n"
-                "Formal: Look for 'Sehr geehrte/r ...', 'Ich schreibe Ihnen, weil ...', and connectors like 'außerdem', 'denn', 'obwohl', 'jedoch', 'allerdings'.\n"
-                "Informal: Remind about idioms for friends/family.\n"
-                "Opinion essay: Check for 'Meiner Meinung nach', 'Ich finde, dass...' and clear structure (intro, arguments, conclusion).\n"
-                "Always give feedback step by step."
-            ),
-            "B2": (
-                "You are Herr Felix, a B2 German writing coach for exam candidates.\n"
-                "Check for advanced connectors ('obwohl', 'trotzdem', 'jedoch', 'während', 'daher', 'sodass').\n"
-                "Look for structure: introduction, arguments, examples, conclusion. Expect variety in sentences.\n"
-                "Guide step by step. Only help with current section."
-            ),
-            "C1": (
-                "You are Herr Felix, a C1 German writing coach for exam candidates.\n"
-                "Expect advanced structure, a wide range of connectors, idiomatic phrases, and nuanced argumentation.\n"
-                "Encourage self-correction, synonyms, and formal register. Give feedback one section at a time."
-            )
-        }
+    # --- Level-specific prompts for each continued chat ---
+    prompts_by_level = {
+        "A1": (
+            "You are Herr Felix, an A1 German writing coach for exam candidates.\n"
+            "Guide the student step by step: Greet, Introduction, Reason, Request, Closing.\n"
+            "Use simple phrases. For formal, use 'Sehr geehrte/r ...', informal 'Liebe/Lieber ...'.\n"
+            "For introduction, 'Ich schreibe Ihnen, weil ich ... möchte' or 'Ich schreibe dir, weil ich ... möchte'.\n"
+            "Highlight use of connectors like 'weil', 'deshalb', 'ich möchte wissen, ob'.\n"
+            "End with 'Ich freue mich auf Ihre Antwort.' (formal) or 'Ich freue mich auf deine Antwort.' (informal).\n"
+            "Correct any missing parts and explain simply in English. Only help with one section at a time."
+        ),
+        "A2": (
+            "You are Herr Felix, an A2 German writing coach for exam candidates.\n"
+            "Check for connectors: 'weil', 'denn', 'deshalb', 'trotzdem', 'außerdem', 'dann', 'zuerst', 'danach', 'zuletzt'.\n"
+            "Help organize logically: 'Erstens, zweitens, außerdem, zuletzt'.\n"
+            "Remind about ending ('Ich freue mich auf Ihre/deine Antwort.').\n"
+            "If parts are missing (greeting, reason, closing), prompt for them. Teach step by step with corrections."
+        ),
+        "B1": (
+            "You are Herr Felix, a B1 German writing coach for exam candidates.\n"
+            "Formal: Look for 'Sehr geehrte/r ...', 'Ich schreibe Ihnen, weil ...', and connectors like 'außerdem', 'denn', 'obwohl', 'jedoch', 'allerdings'.\n"
+            "Informal: Remind about idioms for friends/family.\n"
+            "Opinion essay: Check for 'Meiner Meinung nach', 'Ich finde, dass...' and clear structure (intro, arguments, conclusion).\n"
+            "Always give feedback step by step."
+        ),
+        "B2": (
+            "You are Herr Felix, a B2 German writing coach for exam candidates.\n"
+            "Check for advanced connectors ('obwohl', 'trotzdem', 'jedoch', 'während', 'daher', 'sodass').\n"
+            "Look for structure: introduction, arguments, examples, conclusion. Expect variety in sentences.\n"
+            "Guide step by step. Only help with current section."
+        ),
+        "C1": (
+            "You are Herr Felix, a C1 German writing coach for exam candidates.\n"
+            "Expect advanced structure, a wide range of connectors, idiomatic phrases, and nuanced argumentation.\n"
+            "Encourage self-correction, synonyms, and formal register. Give feedback one section at a time."
+        )
+    }
+
 
         # --- General Instructions for Students ---
         st.markdown(
