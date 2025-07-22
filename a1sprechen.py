@@ -3865,6 +3865,18 @@ if tab == "Schreiben Trainer":
                     placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ..."
                 )
                 send = st.form_submit_button("✉️ Start Letter Coach")
+
+                        # --- Live word/character counter below the textarea ---
+            if prompt:
+                word_count = len(prompt.split())
+                char_count = len(prompt)
+                st.markdown(
+                    f"<div style='color:#7b2ff2; font-size:0.97em; margin-bottom:0.18em;'>"
+                    f"Words: <b>{word_count}</b> &nbsp;|&nbsp; Characters: <b>{char_count}</b>"
+                    "</div>",
+                    unsafe_allow_html=True
+                )
+
             if send and prompt:
                 st.session_state.letter_coach_prompt = prompt
 
