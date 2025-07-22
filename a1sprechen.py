@@ -3764,29 +3764,29 @@ if tab == "Schreiben Trainer":
         st.markdown(
             """
             <div style="
-                background: linear-gradient(97deg, #f4eafd 70%, #ffe0f5 100%);
-                border-radius: 16px;
-                border: 1.5px solid #e6d3fa;
-                box-shadow: 0 4px 18px #e5e1fa1c;
-                padding: 1.2em 1.2em 1.08em 1.2em;
-                margin-bottom: 1.2em;
-                margin-top: 0.2em;
+                background: linear-gradient(97deg, #f4eafd 75%, #ffe0f5 100%);
+                border-radius: 12px;
+                border: 1px solid #e6d3fa;
+                box-shadow: 0 2px 8px #e5e1fa22;
+                padding: 0.75em 1em 0.72em 1em;
+                margin-bottom: 1.1em;
+                margin-top: 0.1em;
                 color: #4b2976;
-                font-size: 1.13rem;
+                font-size: 1.03rem;
                 font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
                 ">
-                <span style="font-size:1.7em; vertical-align:middle;">✉️</span>
-                <span style="font-size:1.18em; font-weight: 600; margin-left:0.32em;">
-                    Welcome to <span style="color:#7b2ff2;">Letter Coach</span>!
+                <span style="font-size:1.19em; vertical-align:middle;">✉️</span>
+                <span style="font-size:1.05em; font-weight: 500; margin-left:0.24em;">
+                    Welcome to <span style="color:#7b2ff2;">Letter Coach</span>
                 </span>
-                <ul style="margin-top:0.85em;margin-bottom:0.6em;line-height:1.55;">
-                    <li>📄 <b>Paste</b> your <b>exam question</b> or <b>letter prompt</b> below to get started.</li>
-                    <li>✏️ Already started writing? <b>Paste your draft</b> here &ndash; Herr Felix will guide you step by step.</li>
-                    <li>💾 <b>Download</b> your letter as <b>TXT</b> any time to save or upload later and keep working.</li>
-                    <li>🔄 <b>Copy-paste</b> your text at any stage &ndash; the AI will always continue helping!</li>
+                <ul style="margin-top:0.72em;margin-bottom:0.38em;line-height:1.35;">
+                    <li>📄 <b>Paste</b> your <b>exam question</b> or <b>letter prompt</b> below.</li>
+                    <li>✏️ <b>Paste your draft</b> if you get stuck &ndash; Herr Felix will help you step by step.</li>
+                    <li>💾 <b>Download</b> your letter as <b>TXT</b> any time.</li>
+                    <li>🔄 <b>Copy-paste</b> at any stage &ndash; the AI will keep helping!</li>
                 </ul>
-                <div style="color:#c17bfa;font-size:1.06em;margin-top:0.48em;">
-                    <b>Scroll down</b> to get started, upload a TXT file, or enter your prompt in the chat!
+                <div style="color:#b48be6;font-size:0.98em;margin-top:0.22em;">
+                    <b>Scroll down</b> to get started, upload a TXT file, or enter your prompt in the chat.
                 </div>
             </div>
             """,
