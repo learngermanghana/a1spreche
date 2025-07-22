@@ -3739,10 +3739,7 @@ if tab == "Schreiben Trainer":
                 <b>{name}:</b><br>{text}
             </div>
         """
-    # ====== IDEAS GENERATOR (LETTER COACH) SUB-TAB ======
-    if sub_tab == "Ideas Generator (Letter Coach)":
-
-
+if sub_tab == "Ideas Generator (Letter Coach)":
 
 
     def reset_letter_coach():
@@ -3757,6 +3754,7 @@ if tab == "Schreiben Trainer":
         if role == "assistant":
             return f"""<div style='background: #f4eafd; color: #7b2ff2; border-radius: 16px 16px 16px 3px; margin-bottom: 8px; margin-right: 80px; box-shadow: 0 2px 8px rgba(123,47,242,0.08); padding: 13px 18px; text-align: left; max-width: 88vw; font-size: 1.12rem;'><b>👨‍🏫 Herr Felix:</b><br>{text}</div>"""
         return f"""<div style='background: #eaf4ff; color: #1a237e; border-radius: 16px 16px 3px 16px; margin-bottom: 8px; margin-left: 80px; box-shadow: 0 2px 8px rgba(26,35,126,0.07); padding: 13px 18px; text-align: right; max-width: 88vw; font-size: 1.12rem;'><b>🙋 You:</b><br>{text}</div>"""
+
 
     # --- General Instructions for Students (Minimal Welcome + Subline) ---
     st.markdown(
