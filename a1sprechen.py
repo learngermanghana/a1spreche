@@ -3928,7 +3928,6 @@ ONLY say this, and stop.
             if prompt:
                 st.markdown("---")
                 st.markdown(f"📝 **Letter/Essay Prompt or Draft:**\n\n{prompt}")
-
         # ================= Stage 1: Confirm Level + Start Coaching =================
         elif st.session_state.letter_coach_stage == 1:
             st.markdown("---")
@@ -3956,7 +3955,31 @@ ONLY say this, and stop.
                     detected_type = "opinion essay"
 
                 main_prompt = prompts_by_level.get(detected_level, prompts_by_level["A1"])
+
+                # Custom Herr Felix opening for immediate coaching!
+                if detected_type == "formal letter":
+                    opening = (
+                        f"Great! We're working on a formal letter at {detected_level} level. "
+                        "Let's begin step by step. What greeting will you use to start your letter?"
+                    )
+                elif detected_type == "informal letter":
+                    opening = (
+                        f"Awesome! We're working on an informal letter at {detected_level} level. "
+                        "Let's begin! What greeting will you use to start your letter?"
+                    )
+                elif detected_type == "opinion essay":
+                    opening = (
+                        f"Super! This is an opinion essay at {detected_level} level. "
+                        "Let's start together—how would you begin your introduction?"
+                    )
+                else:
+                    opening = (
+                        f"Let's get started with your {detected_level} writing. "
+                        "What would you like to write first?"
+                    )
+
                 chat_history.append({"role": "system", "content": main_prompt})
+                chat_history.append({"role": "assistant", "content": opening})
                 st.session_state.letter_coach_chat = chat_history
                 st.session_state.letter_coach_stage = 2  # Next: interactive coaching chat
                 st.session_state.schreiben_level = detected_level
@@ -3969,11 +3992,34 @@ ONLY say this, and stop.
                     ok = st.form_submit_button("Continue")
                 if ok:
                     main_prompt = prompts_by_level.get(level, prompts_by_level["A1"])
+                    # Custom opening for manual selection as well!
+                    if ltype == "formal letter":
+                        opening = (
+                            f"Great! We're working on a formal letter at {level} level. "
+                            "Let's begin step by step. What greeting will you use to start your letter?"
+                        )
+                    elif ltype == "informal letter":
+                        opening = (
+                            f"Awesome! We're working on an informal letter at {level} level. "
+                            "Let's begin! What greeting will you use to start your letter?"
+                        )
+                    elif ltype == "opinion essay":
+                        opening = (
+                            f"Super! This is an opinion essay at {level} level. "
+                            "Let's start together—how would you begin your introduction?"
+                        )
+                    else:
+                        opening = (
+                            f"Let's get started with your {level} writing. "
+                            "What would you like to write first?"
+                        )
                     chat_history.append({"role": "system", "content": main_prompt})
+                    chat_history.append({"role": "assistant", "content": opening})
                     st.session_state.letter_coach_chat = chat_history
                     st.session_state.letter_coach_stage = 2
                     st.session_state.schreiben_level = level
                     st.rerun()
+
 
         # ================= Stage 2: Interactive Coaching Chat =================
         elif st.session_state.letter_coach_stage == 2:
