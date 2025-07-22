@@ -3565,7 +3565,6 @@ if tab == "Vocab Trainer":
             for k in defaults:
                 st.session_state[k] = defaults[k]
                 
-
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
@@ -3584,7 +3583,7 @@ if tab == "Schreiben Trainer":
     )
     st.divider()
 
-    # --- 1. Sub-tabs: Mark My Letter, Ideas Generator (Letter Coach) ---
+    # --- 1. Sub-tabs ---
     sub_tab = st.radio(
         "Choose Mode",
         ["Mark My Letter", "Ideas Generator (Letter Coach)"],
@@ -3592,7 +3591,7 @@ if tab == "Schreiben Trainer":
         key="schreiben_sub_tab"
     )
 
-    # --- 2. Level picker (now directly after sub_tab) ---
+    # --- 2. Level picker ---
     schreiben_levels = ["A1", "A2", "B1", "B2", "C1"]
     prev_level = st.session_state.get("schreiben_level", "A1")
     schreiben_level = st.selectbox(
@@ -3605,7 +3604,7 @@ if tab == "Schreiben Trainer":
 
     st.divider()
 
-    # --- 3. MARK MY LETTER SUB-TAB ---
+    # ========== MARK MY LETTER SUB-TAB ==========
     if sub_tab == "Mark My Letter":
         st.markdown(
             '''
@@ -3728,173 +3727,172 @@ if tab == "Schreiben Trainer":
                     unsafe_allow_html=True
                 )
 
-    # ===== BUBBLE FUNCTION =====
-    def bubble(role, text):
-        color = "#7b2ff2" if role == "assistant" else "#222"
-        bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
-        name = "Herr Felix" if role == "assistant" else "You"
-        return f"""
-            <div style="background:{bg};color:{color};margin-bottom:8px;padding:13px 15px;
-            border-radius:14px;max-width:98vw;font-size:1.09rem;">
-                <b>{name}:</b><br>{text}
-            </div>
-        """
-if sub_tab == "Ideas Generator (Letter Coach)":
+        # ===== BUBBLE FUNCTION =====
+        def bubble(role, text):
+            color = "#7b2ff2" if role == "assistant" else "#222"
+            bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
+            name = "Herr Felix" if role == "assistant" else "You"
+            return f"""
+                <div style="background:{bg};color:{color};margin-bottom:8px;padding:13px 15px;
+                border-radius:14px;max-width:98vw;font-size:1.09rem;">
+                    <b>{name}:</b><br>{text}
+                </div>
+            """
 
+    # ========== IDEAS GENERATOR (LETTER COACH) SUB-TAB ==========
+    elif sub_tab == "Ideas Generator (Letter Coach)":
+        def reset_letter_coach():
+            for k in [
+                "letter_coach_stage", "letter_coach_chat", "letter_coach_prompt",
+                "letter_coach_type", "selected_letter_lines", "letter_coach_uploaded"
+            ]:
+                st.session_state[k] = (0 if k == "letter_coach_stage" else [])
+            st.session_state.letter_coach_uploaded = False
 
-    def reset_letter_coach():
-        for k in [
-            "letter_coach_stage", "letter_coach_chat", "letter_coach_prompt",
-            "letter_coach_type", "selected_letter_lines", "letter_coach_uploaded"
-        ]:
-            st.session_state[k] = (0 if k == "letter_coach_stage" else [])
-        st.session_state.letter_coach_uploaded = False
+        def bubble(role, text):
+            if role == "assistant":
+                return f"""<div style='background: #f4eafd; color: #7b2ff2; border-radius: 16px 16px 16px 3px; margin-bottom: 8px; margin-right: 80px; box-shadow: 0 2px 8px rgba(123,47,242,0.08); padding: 13px 18px; text-align: left; max-width: 88vw; font-size: 1.12rem;'><b>👨‍🏫 Herr Felix:</b><br>{text}</div>"""
+            return f"""<div style='background: #eaf4ff; color: #1a237e; border-radius: 16px 16px 3px 16px; margin-bottom: 8px; margin-left: 80px; box-shadow: 0 2px 8px rgba(26,35,126,0.07); padding: 13px 18px; text-align: right; max-width: 88vw; font-size: 1.12rem;'><b>🙋 You:</b><br>{text}</div>"""
 
-    def bubble(role, text):
-        if role == "assistant":
-            return f"""<div style='background: #f4eafd; color: #7b2ff2; border-radius: 16px 16px 16px 3px; margin-bottom: 8px; margin-right: 80px; box-shadow: 0 2px 8px rgba(123,47,242,0.08); padding: 13px 18px; text-align: left; max-width: 88vw; font-size: 1.12rem;'><b>👨‍🏫 Herr Felix:</b><br>{text}</div>"""
-        return f"""<div style='background: #eaf4ff; color: #1a237e; border-radius: 16px 16px 3px 16px; margin-bottom: 8px; margin-left: 80px; box-shadow: 0 2px 8px rgba(26,35,126,0.07); padding: 13px 18px; text-align: right; max-width: 88vw; font-size: 1.12rem;'><b>🙋 You:</b><br>{text}</div>"""
-
-
-    # --- General Instructions for Students (Minimal Welcome + Subline) ---
-    st.markdown(
-        """
-        <div style="
-            background: linear-gradient(97deg, #f4eafd 75%, #ffe0f5 100%);
-            border-radius: 12px;
-            border: 1px solid #e6d3fa;
-            box-shadow: 0 2px 8px #e5e1fa22;
-            padding: 0.75em 1em 0.72em 1em;
-            margin-bottom: 1.1em;
-            margin-top: 0.1em;
-            color: #4b2976;
-            font-size: 1.03rem;
-            font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
-            text-align: center;
-            ">
-            <span style="font-size:1.19em; vertical-align:middle;">✉️</span>
-            <span style="font-size:1.05em; font-weight: 500; margin-left:0.24em;">
-                Welcome to <span style="color:#7b2ff2;">Letter Coach</span>
-            </span>
-            <div style="color:#b48be6; font-size:0.97em; margin-top:0.35em;">
-                Get started below 👇
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    IDEAS_LIMIT = 14
-    student_code = st.session_state.get("student_code", "demo")
-    ideas_so_far = get_letter_coach_usage(student_code)
-    st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
-    if ideas_so_far >= IDEAS_LIMIT:
-        st.warning("You have reached today's letter coach limit. Please come back tomorrow.")
-
-    # --- Session State Defaults ---
-    for key, default in [
-        ("letter_coach_stage", 0),
-        ("letter_coach_chat", []),
-        ("letter_coach_prompt", ""),
-        ("letter_coach_type", ""),
-        ("selected_letter_lines", []),
-        ("letter_coach_uploaded", False)
-    ]:
-        if key not in st.session_state:
-            st.session_state[key] = default
-
-    # ------------- PROMPTS FOR EACH LEVEL -------------
-    prompts_by_level = {
-        "A1": (
-            "You are Herr Felix, an A1 German writing coach for exam candidates.\n"
-            "Check if the greeting uses 'Sehr geehrte/r ...' for formal or 'Liebe/Lieber ...' for informal.\n"
-            "For formal, look for 'Ich hoffe, es geht Ihnen gut.' and for informal, 'Wie geht es dir?'.\n"
-            "Encourage using 'Ich schreibe Ihnen, weil ich ... möchte' (formal) or 'Ich schreibe dir, weil ich ... möchte' (informal).\n"
-            "Highlight and teach the use of these connectors: 'weil', 'deshalb', 'ich möchte wissen, ob'.\n"
-            "At the end, teach students to close with 'Ich freue mich auf Ihre Antwort.' (formal) or 'Ich freue mich auf deine Antwort.' (informal).\n"
-            "Correct any missing parts and explain simply in English. Ask the student to write or improve the next part step by step."
-        ),
-        "A2": (
-            "You are Herr Felix, an A2 German writing coach for exam candidates.\n"
-            "Check for connectors and conjunctions like: 'weil', 'denn', 'deshalb', 'trotzdem', 'außerdem', 'dann', 'zuerst', 'danach', 'zuletzt'.\n"
-            "Guide students to organize their letter logically using 'Erstens, zweitens, außerdem, zuletzt'.\n"
-            "Remind students to use 'Ich freue mich auf Ihre Antwort.' or 'Ich freue mich auf deine Antwort.'\n"
-            "If parts are missing (greeting, reason, closing), ask for them. Teach one step at a time, with corrections and feedback."
-        ),
-        "B1": (
-            "You are Herr Felix, a B1 German writing coach for exam candidates.\n"
-            "For formal: Check for 'Sehr geehrte/r ...', opening sentences like 'Ich schreibe Ihnen, weil ...', more variety in structure, and argument connectors such as 'außerdem', 'denn', 'obwohl', 'jedoch', 'allerdings'.\n"
-            "For informal: Remind about tone and idioms for friends/family.\n"
-            "For opinion essays: Look for opinion starters ('Meiner Meinung nach', 'Ich finde, dass...') and a clear structure (introduction, main arguments, conclusion).\n"
-            "Remind them to close with 'Ich freue mich auf Ihre Antwort.' (if a letter). Guide step by step, giving feedback on structure and vocabulary."
-        ),
-        "B2": (
-            "You are Herr Felix, a B2 German writing coach for exam candidates.\n"
-            "Check for advanced connectors: 'denn', 'obwohl', 'trotzdem', 'jedoch', 'während', 'daher', 'sodass', 'weder ... noch'.\n"
-            "Look for a clear structure with an introduction, developed arguments, examples, and a conclusion.\n"
-            "Formal: Expect sophisticated openings/closings, and variety in modal verbs/structure.\n"
-            "Opinion: Arguments should be balanced and show personal stance clearly.\n"
-            "Remind to close formally, and to use connectors throughout. Give suggestions for improvement and structure step by step."
-        ),
-        "C1": (
-            "You are Herr Felix, a C1 German writing coach for exam candidates.\n"
-            "Expect advanced structure, a wide range of connectors, idiomatic phrases, and nuanced argumentation.\n"
-            "Formal: Polished style, varied sentence openings, advanced grammar.\n"
-            "Opinion: Well-balanced arguments, clear thesis, sophisticated transitions, summary/conclusion.\n"
-            "Encourage C1 students to self-correct, experiment with synonyms, and maintain a formal register. Give feedback step by step."
-        )
-    }
-
-    # --- Stage 0: Paste Prompt ---
-    if st.session_state.letter_coach_stage == 0:
+        # --- General Instructions for Students ---
         st.markdown(
             """
             <div style="
-                background: linear-gradient(90deg, #f9fbe7 70%, #eaf4ff 100%);
-                border-radius: 9px;
-                border: 1px solid #e0e0e0;
-                box-shadow: 0 2px 8px #c0caf01c;
-                padding: 0.74em 1.1em 0.58em 1.1em;
-                margin-bottom: 0.55em;
-                margin-top: 0.05em;
-                color: #4a6276;
-                font-size: 1.05rem;
+                background: linear-gradient(97deg, #f4eafd 75%, #ffe0f5 100%);
+                border-radius: 12px;
+                border: 1px solid #e6d3fa;
+                box-shadow: 0 2px 8px #e5e1fa22;
+                padding: 0.75em 1em 0.72em 1em;
+                margin-bottom: 1.1em;
+                margin-top: 0.1em;
+                color: #4b2976;
+                font-size: 1.03rem;
                 font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+                text-align: center;
                 ">
-                <span style="font-size:1.15em; font-weight: 500; vertical-align:middle;">📝 Enter your exam prompt, question, letter, or continuation below</span>
-                <div style="color:#668b8b;font-size:0.99em;margin-top:0.22em;">
-                    Paste the <b>question</b>, a <b>draft</b>, <b>unfinished letter</b>, or a <b>continuation</b>.<br>
+                <span style="font-size:1.19em; vertical-align:middle;">✉️</span>
+                <span style="font-size:1.05em; font-weight: 500; margin-left:0.24em;">
+                    Welcome to <span style="color:#7b2ff2;">Letter Coach</span>
+                </span>
+                <div style="color:#b48be6; font-size:0.97em; margin-top:0.35em;">
+                    Get started below 👇
                 </div>
             </div>
             """,
             unsafe_allow_html=True
         )
-        with st.form("prompt_form", clear_on_submit=True):
-            prompt = st.text_area(
-                "",
-                value=st.session_state.letter_coach_prompt,
-                height=120,
-                disabled=(ideas_so_far >= IDEAS_LIMIT),
-                placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ..."
-            )
-            send = st.form_submit_button("✉️ Start Letter Coach")
 
-        # --- Live word/character counter below the textarea ---
-        if prompt:
-            word_count = len(prompt.split())
-            char_count = len(prompt)
+        IDEAS_LIMIT = 14
+        student_code = st.session_state.get("student_code", "demo")
+        ideas_so_far = get_letter_coach_usage(student_code)
+        st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
+        if ideas_so_far >= IDEAS_LIMIT:
+            st.warning("You have reached today's letter coach limit. Please come back tomorrow.")
+
+        # --- Session State Defaults ---
+        for key, default in [
+            ("letter_coach_stage", 0),
+            ("letter_coach_chat", []),
+            ("letter_coach_prompt", ""),
+            ("letter_coach_type", ""),
+            ("selected_letter_lines", []),
+            ("letter_coach_uploaded", False)
+        ]:
+            if key not in st.session_state:
+                st.session_state[key] = default
+
+        # ------------- PROMPTS FOR EACH LEVEL -------------
+        prompts_by_level = {
+            "A1": (
+                "You are Herr Felix, an A1 German writing coach for exam candidates.\n"
+                "Check if the greeting uses 'Sehr geehrte/r ...' for formal or 'Liebe/Lieber ...' for informal.\n"
+                "For formal, look for 'Ich hoffe, es geht Ihnen gut.' and for informal, 'Wie geht es dir?'.\n"
+                "Encourage using 'Ich schreibe Ihnen, weil ich ... möchte' (formal) or 'Ich schreibe dir, weil ich ... möchte' (informal).\n"
+                "Highlight and teach the use of these connectors: 'weil', 'deshalb', 'ich möchte wissen, ob'.\n"
+                "At the end, teach students to close with 'Ich freue mich auf Ihre Antwort.' (formal) or 'Ich freue mich auf deine Antwort.' (informal).\n"
+                "Correct any missing parts and explain simply in English. Ask the student to write or improve the next part step by step."
+            ),
+            "A2": (
+                "You are Herr Felix, an A2 German writing coach for exam candidates.\n"
+                "Check for connectors and conjunctions like: 'weil', 'denn', 'deshalb', 'trotzdem', 'außerdem', 'dann', 'zuerst', 'danach', 'zuletzt'.\n"
+                "Guide students to organize their letter logically using 'Erstens, zweitens, außerdem, zuletzt'.\n"
+                "Remind students to use 'Ich freue mich auf Ihre Antwort.' or 'Ich freue mich auf deine Antwort.'\n"
+                "If parts are missing (greeting, reason, closing), ask for them. Teach one step at a time, with corrections and feedback."
+            ),
+            "B1": (
+                "You are Herr Felix, a B1 German writing coach for exam candidates.\n"
+                "For formal: Check for 'Sehr geehrte/r ...', opening sentences like 'Ich schreibe Ihnen, weil ...', more variety in structure, and argument connectors such as 'außerdem', 'denn', 'obwohl', 'jedoch', 'allerdings'.\n"
+                "For informal: Remind about tone and idioms for friends/family.\n"
+                "For opinion essays: Look for opinion starters ('Meiner Meinung nach', 'Ich finde, dass...') and a clear structure (introduction, main arguments, conclusion).\n"
+                "Remind them to close with 'Ich freue mich auf Ihre Antwort.' (if a letter). Guide step by step, giving feedback on structure and vocabulary."
+            ),
+            "B2": (
+                "You are Herr Felix, a B2 German writing coach for exam candidates.\n"
+                "Check for advanced connectors: 'denn', 'obwohl', 'trotzdem', 'jedoch', 'während', 'daher', 'sodass', 'weder ... noch'.\n"
+                "Look for a clear structure with an introduction, developed arguments, examples, and a conclusion.\n"
+                "Formal: Expect sophisticated openings/closings, and variety in modal verbs/structure.\n"
+                "Opinion: Arguments should be balanced and show personal stance clearly.\n"
+                "Remind to close formally, and to use connectors throughout. Give suggestions for improvement and structure step by step."
+            ),
+            "C1": (
+                "You are Herr Felix, a C1 German writing coach for exam candidates.\n"
+                "Expect advanced structure, a wide range of connectors, idiomatic phrases, and nuanced argumentation.\n"
+                "Formal: Polished style, varied sentence openings, advanced grammar.\n"
+                "Opinion: Well-balanced arguments, clear thesis, sophisticated transitions, summary/conclusion.\n"
+                "Encourage C1 students to self-correct, experiment with synonyms, and maintain a formal register. Give feedback step by step."
+            )
+        }
+
+        # ================= Stage 0: Paste Prompt =================
+        if st.session_state.letter_coach_stage == 0:
             st.markdown(
-                f"<div style='color:#7b2ff2; font-size:0.97em; margin-bottom:0.18em;'>"
-                f"Words: <b>{word_count}</b> &nbsp;|&nbsp; Characters: <b>{char_count}</b>"
-                "</div>",
+                """
+                <div style="
+                    background: linear-gradient(90deg, #f9fbe7 70%, #eaf4ff 100%);
+                    border-radius: 9px;
+                    border: 1px solid #e0e0e0;
+                    box-shadow: 0 2px 8px #c0caf01c;
+                    padding: 0.74em 1.1em 0.58em 1.1em;
+                    margin-bottom: 0.55em;
+                    margin-top: 0.05em;
+                    color: #4a6276;
+                    font-size: 1.05rem;
+                    font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+                    ">
+                    <span style="font-size:1.15em; font-weight: 500; vertical-align:middle;">📝 Enter your exam prompt, question, letter, or continuation below</span>
+                    <div style="color:#668b8b;font-size:0.99em;margin-top:0.22em;">
+                        Paste the <b>question</b>, a <b>draft</b>, <b>unfinished letter</b>, or a <b>continuation</b>.<br>
+                    </div>
+                </div>
+                """,
                 unsafe_allow_html=True
             )
+            with st.form("prompt_form", clear_on_submit=True):
+                prompt = st.text_area(
+                    "",
+                    value=st.session_state.letter_coach_prompt,
+                    height=120,
+                    disabled=(ideas_so_far >= IDEAS_LIMIT),
+                    placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ..."
+                )
+                send = st.form_submit_button("✉️ Start Letter Coach")
 
-        if send and prompt:
-            st.session_state.letter_coach_prompt = prompt
+            # --- Live word/character counter ---
+            if prompt:
+                word_count = len(prompt.split())
+                char_count = len(prompt)
+                st.markdown(
+                    f"<div style='color:#7b2ff2; font-size:0.97em; margin-bottom:0.18em;'>"
+                    f"Words: <b>{word_count}</b> &nbsp;|&nbsp; Characters: <b>{char_count}</b>"
+                    "</div>",
+                    unsafe_allow_html=True
+                )
 
-            # -------- LEVEL DETECTION PROMPT --------
-            level_detect_prompt = f"""
+            if send and prompt:
+                st.session_state.letter_coach_prompt = prompt
+
+                # -------- LEVEL DETECTION PROMPT --------
+                level_detect_prompt = f"""
 You are a German teacher for exam candidates A1–C1.  
 The student pasted:  
 ---
@@ -3908,107 +3906,104 @@ The student pasted:
 - 'Do you want to continue at [level] or change it?'
 ONLY say this, and stop.
 """
-            try:
-                resp = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[{"role": "system", "content": level_detect_prompt}],
-                    temperature=0.22,
-                    max_tokens=140
-                )
-                level_suggested = resp.choices[0].message.content
-            except Exception as e:
-                level_suggested = "Sorry, I couldn't detect the level. Please pick manually."
+                try:
+                    resp = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[{"role": "system", "content": level_detect_prompt}],
+                        temperature=0.22,
+                        max_tokens=140
+                    )
+                    level_suggested = resp.choices[0].message.content
+                except Exception as e:
+                    level_suggested = "Sorry, I couldn't detect the level. Please pick manually."
 
-            # Store detected or ask for confirmation
-            st.session_state.letter_coach_chat = [
-                {"role": "assistant", "content": level_suggested}
-            ]
-            st.session_state.letter_coach_stage = 1  # Step 1: chat view
-            inc_letter_coach_usage(student_code)
-            st.rerun()
-
-        if prompt:
-            st.markdown("---")
-            st.markdown(f"📝 **Letter/Essay Prompt or Draft:**\n\n{prompt}")
-
-    # --- Stage 1: Confirm Level + Start Coaching ---
-    elif st.session_state.letter_coach_stage == 1:
-        st.markdown("---")
-        chat_history = st.session_state.letter_coach_chat
-        for msg in chat_history:
-            st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
-
-        with st.form("level_confirm_form", clear_on_submit=True):
-            confirm = st.form_submit_button("Continue with this level / type")
-            change_level = st.form_submit_button("Change Level/Type Manually")
-
-        if confirm:
-            # Fetch detected level/type for system prompt
-            detected_msg = chat_history[-1]["content"]
-            # --- LEVEL-BASED PROMPT SELECTION ---
-            detected_level = "A1"  # default fallback
-            detected_type = "letter"  # default fallback
-            for l in ["A1", "A2", "B1", "B2", "C1"]:
-                if l in detected_msg:
-                    detected_level = l
-                    break
-            if "formal" in detected_msg.lower():
-                detected_type = "formal letter"
-            elif "informal" in detected_msg.lower():
-                detected_type = "informal letter"
-            elif "opinion" in detected_msg.lower():
-                detected_type = "opinion essay"
-
-            main_prompt = prompts_by_level.get(detected_level, prompts_by_level["A1"])
-            chat_history.append({"role": "system", "content": main_prompt})
-            st.session_state.letter_coach_chat = chat_history
-            st.session_state.letter_coach_stage = 2  # Next: interactive coaching chat
-            st.session_state.schreiben_level = detected_level
-            st.rerun()
-
-        elif change_level:
-            with st.form("manual_level_form", clear_on_submit=True):
-                level = st.selectbox("Choose your writing level:", ["A1", "A2", "B1", "B2", "C1"])
-                ltype = st.selectbox("Choose type:", ["formal letter", "informal letter", "opinion essay"])
-                ok = st.form_submit_button("Continue")
-            if ok:
-                main_prompt = prompts_by_level.get(level, prompts_by_level["A1"])
-                chat_history.append({"role": "system", "content": main_prompt})
-                st.session_state.letter_coach_chat = chat_history
-                st.session_state.letter_coach_stage = 2
-                st.session_state.schreiben_level = level
+                # Store detected or ask for confirmation
+                st.session_state.letter_coach_chat = [
+                    {"role": "assistant", "content": level_suggested}
+                ]
+                st.session_state.letter_coach_stage = 1  # Step 1: chat view
+                inc_letter_coach_usage(student_code)
                 st.rerun()
 
-    # --- Stage 2: Interactive Coaching Chat ---
-    elif st.session_state.letter_coach_stage == 2:
-        chat_history = st.session_state.letter_coach_chat
-        for msg in chat_history[1:]:
-            st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
-        with st.form("letter_coach_chat_form", clear_on_submit=True):
-            user_input = st.text_area(
-                "",
-                value="",
-                key="letter_coach_user_input",
-                height=110,
-                placeholder="Type your reply, ask about a section, or paste your draft here..."
-            )
-            send = st.form_submit_button("Send")
-        if send and user_input.strip():
-            chat_history.append({"role": "user", "content": user_input})
-            level = st.session_state.get("schreiben_level", "A1")
-            main_prompt = prompts_by_level.get(level, prompts_by_level["A1"])
-            with st.spinner("👨‍🏫 Herr Felix is typing..."):
-                resp = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[{"role": "system", "content": main_prompt}] + chat_history[1:],
-                    temperature=0.22,
-                    max_tokens=400
-                )
-                ai_reply = resp.choices[0].message.content
-            chat_history.append({"role": "assistant", "content": ai_reply})
-            st.session_state.letter_coach_chat = chat_history
-            st.rerun()
+            if prompt:
+                st.markdown("---")
+                st.markdown(f"📝 **Letter/Essay Prompt or Draft:**\n\n{prompt}")
 
+        # ================= Stage 1: Confirm Level + Start Coaching =================
+        elif st.session_state.letter_coach_stage == 1:
+            st.markdown("---")
+            chat_history = st.session_state.letter_coach_chat
+            for msg in chat_history:
+                st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
+
+            with st.form("level_confirm_form", clear_on_submit=True):
+                confirm = st.form_submit_button("Continue with this level / type")
+                change_level = st.form_submit_button("Change Level/Type Manually")
+
+            if confirm:
+                detected_msg = chat_history[-1]["content"]
+                detected_level = "A1"  # fallback
+                detected_type = "letter"  # fallback
+                for l in ["A1", "A2", "B1", "B2", "C1"]:
+                    if l in detected_msg:
+                        detected_level = l
+                        break
+                if "formal" in detected_msg.lower():
+                    detected_type = "formal letter"
+                elif "informal" in detected_msg.lower():
+                    detected_type = "informal letter"
+                elif "opinion" in detected_msg.lower():
+                    detected_type = "opinion essay"
+
+                main_prompt = prompts_by_level.get(detected_level, prompts_by_level["A1"])
+                chat_history.append({"role": "system", "content": main_prompt})
+                st.session_state.letter_coach_chat = chat_history
+                st.session_state.letter_coach_stage = 2  # Next: interactive coaching chat
+                st.session_state.schreiben_level = detected_level
+                st.rerun()
+
+            elif change_level:
+                with st.form("manual_level_form", clear_on_submit=True):
+                    level = st.selectbox("Choose your writing level:", ["A1", "A2", "B1", "B2", "C1"])
+                    ltype = st.selectbox("Choose type:", ["formal letter", "informal letter", "opinion essay"])
+                    ok = st.form_submit_button("Continue")
+                if ok:
+                    main_prompt = prompts_by_level.get(level, prompts_by_level["A1"])
+                    chat_history.append({"role": "system", "content": main_prompt})
+                    st.session_state.letter_coach_chat = chat_history
+                    st.session_state.letter_coach_stage = 2
+                    st.session_state.schreiben_level = level
+                    st.rerun()
+
+        # ================= Stage 2: Interactive Coaching Chat =================
+        elif st.session_state.letter_coach_stage == 2:
+            chat_history = st.session_state.letter_coach_chat
+            for msg in chat_history[1:]:
+                st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
+            with st.form("letter_coach_chat_form", clear_on_submit=True):
+                user_input = st.text_area(
+                    "",
+                    value="",
+                    key="letter_coach_user_input",
+                    height=110,
+                    placeholder="Type your reply, ask about a section, or paste your draft here..."
+                )
+                send = st.form_submit_button("Send")
+            if send and user_input.strip():
+                chat_history.append({"role": "user", "content": user_input})
+                level = st.session_state.get("schreiben_level", "A1")
+                main_prompt = prompts_by_level.get(level, prompts_by_level["A1"])
+                with st.spinner("👨‍🏫 Herr Felix is typing..."):
+                    resp = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[{"role": "system", "content": main_prompt}] + chat_history[1:],
+                        temperature=0.22,
+                        max_tokens=400
+                    )
+                    ai_reply = resp.choices[0].message.content
+                chat_history.append({"role": "assistant", "content": ai_reply})
+                st.session_state.letter_coach_chat = chat_history
+                st.rerun()
 
             # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
             user_msgs = [
@@ -4148,6 +4143,7 @@ ONLY say this, and stop.
                 st.session_state.selected_letter_lines = []
                 st.session_state.letter_coach_uploaded = False
                 st.rerun()
+
 
 
 
