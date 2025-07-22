@@ -3782,7 +3782,7 @@ if tab == "Schreiben Trainer":
                 <ul style="margin-top:0.85em;margin-bottom:0.6em;line-height:1.55;">
                     <li>📄 <b>Paste</b> your <b>exam question</b> or <b>letter prompt</b> below to get started.</li>
                     <li>✏️ Already started writing? <b>Paste your draft</b> here &ndash; Herr Felix will guide you step by step.</li>
-                    <li>💾 <b>Download</b> your letter often as <b>TXT</b> any time to save or upload later and keep working.</li>
+                    <li>💾 <b>Download</b> your letter as <b>TXT</b> any time to save or upload later and keep working.</li>
                     <li>🔄 <b>Copy-paste</b> your text at any stage &ndash; the AI will always continue helping!</li>
                 </ul>
                 <div style="color:#c17bfa;font-size:1.06em;margin-top:0.48em;">
@@ -3791,6 +3791,8 @@ if tab == "Schreiben Trainer":
             </div>
             """,
             unsafe_allow_html=True
+        )
+
 
         IDEAS_LIMIT = 20
         ideas_so_far = get_letter_coach_usage(student_code)
