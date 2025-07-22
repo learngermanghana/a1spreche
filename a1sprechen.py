@@ -3566,6 +3566,8 @@ if tab == "Vocab Trainer":
                 st.session_state[k] = defaults[k]
                 
 
+
+
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
@@ -3738,8 +3740,6 @@ if tab == "Schreiben Trainer":
             border-radius:14px;max-width:98vw;font-size:1.09rem;">
                 <b>{name}:</b><br>{text}
             </div>
-        """
-
         """
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
@@ -4120,7 +4120,8 @@ if tab == "Schreiben Trainer":
                 st.session_state.selected_letter_lines = []
                 st.session_state.letter_coach_uploaded = False
                 st.rerun()
-#
+
+
 
 
 
