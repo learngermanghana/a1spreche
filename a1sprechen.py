@@ -3738,7 +3738,6 @@ if tab == "Schreiben Trainer":
                 <b>{name}:</b><br>{text}
             </div>
         """
-
     # ====== IDEAS GENERATOR (LETTER COACH) SUB-TAB ======
     if sub_tab == "Ideas Generator (Letter Coach)":
 
@@ -3758,7 +3757,6 @@ if tab == "Schreiben Trainer":
                 return f"""<div style='background: #f4eafd; color: #7b2ff2; border-radius: 16px 16px 16px 3px; margin-bottom: 8px; margin-right: 80px; box-shadow: 0 2px 8px rgba(123,47,242,0.08); padding: 13px 18px; text-align: left; max-width: 88vw; font-size: 1.12rem;'><b>👨‍🏫 Herr Felix:</b><br>{text}</div>"""
             return f"""<div style='background: #eaf4ff; color: #1a237e; border-radius: 16px 16px 3px 16px; margin-bottom: 8px; margin-left: 80px; box-shadow: 0 2px 8px rgba(26,35,126,0.07); padding: 13px 18px; text-align: right; max-width: 88vw; font-size: 1.12rem;'><b>🙋 You:</b><br>{text}</div>"""
 
-        # --- General Instructions for Students (Minimal Welcome + Subline) ---
         st.markdown(
             """
             <div style="
@@ -3844,29 +3842,30 @@ if tab == "Schreiben Trainer":
                 word_count = len(prompt.split())
                 char_count = len(prompt)
                 st.markdown(
-                    f"<div style='color:#7b2ff2; font-size:0.97em; margin-bottom:0.18em;'>
-                    Words: <b>{word_count}</b> &nbsp;|&nbsp; Characters: <b>{char_count}</b>
-                    </div>",
+                    f"<div style='color:#7b2ff2; font-size:0.97em; margin-bottom:0.18em;'>"
+                    f"Words: <b>{word_count}</b> &nbsp;|&nbsp; Characters: <b>{char_count}</b>"
+                    "</div>",
                     unsafe_allow_html=True
                 )
 
             if send and prompt:
                 st.session_state.letter_coach_prompt = prompt
+
                 # -------- LEVEL DETECTION PROMPT --------
-                level_detect_prompt = f"""
-You are a German teacher for exam candidates A1–C1.  
-The student pasted:  
----  
-{prompt}  
----  
-1. Is this a formal letter, informal letter, or opinion essay?  
-2. Estimate the most likely exam level (A1, A2, B1, B2, or C1) based on the vocabulary, structure, connectors, and opening/closing.  
-3. Reply:  
-- 'I think this is a [type] for [level].'  
-- 'If this is not correct, tell me.'  
-- 'Do you want to continue at [level] or change it?'  
-ONLY say this, and stop.
-"""
+                level_detect_prompt = f\"\"\"\n\
+You are a German teacher for exam candidates A1–C1.\n\
+The student pasted:\n\
+---\n\
+{prompt}\n\
+---\n\
+1. Is this a formal letter, informal letter, or opinion essay?\n\
+2. Estimate the most likely exam level (A1, A2, B1, B2, or C1) based on the vocabulary, structure, connectors, and opening/closing.\n\
+3. Reply:\n\
+- 'I think this is a [type] for [level].'\n\
+- 'If this is not correct, tell me.'\n\
+- 'Do you want to continue at [level] or change it?'\n\
+ONLY say this, and stop.\n\
+\"\"\"\n
 
                 try:
                     resp = client.chat.completions.create(
@@ -3879,7 +3878,6 @@ ONLY say this, and stop.
                 except Exception as e:
                     level_suggested = "Sorry, I couldn't detect the level. Please pick manually."
 
-                # Store detected or ask for confirmation
                 st.session_state.letter_coach_chat = [
                     {"role": "assistant", "content": level_suggested}
                 ]
@@ -3890,6 +3888,25 @@ ONLY say this, and stop.
             if prompt:
                 st.markdown("---")
                 st.markdown(f"📝 **Letter/Essay Prompt or Draft:**\n\n{prompt}")
+
+        # ====== PROMPTS FOR ALL LEVELS ======
+        prompts_by_level = {
+            "A1": """
+You are Herr Felix, an A1 German writing coach. For FORMAL letters: Always check for 'Sehr geehrte/r' greeting and 'Ich hoffe, es geht Ihnen gut.' introduction. For INFORMAL: look for 'Wie geht es dir?' and 'Ich schreibe dir, weil ich ... möchte...'. Teach student to end the main request with 'möchte'. Check if they use simple connectors: 'weil', 'deshalb', 'ich möchte wissen, ob'. At the end, teach them to close with 'Ich freue mich auf Ihre/Ihre Antwort.' For each part, give a bullet-point guide and short examples. If any of these are missing, ask the student to add. Only handle one section at a time, wait for student's input before moving to the next.
+            """,
+            "A2": """
+You are Herr Felix, an A2 German writing coach. For FORMAL and INFORMAL letters, check that the student uses proper greetings ('Sehr geehrte/r', 'Hallo...'), organizes ideas into clear paragraphs, and starts to use more connectors: 'zuerst', 'danach', 'außerdem', 'deshalb', 'trotzdem'. Check for conjunctions like 'dass', 'ob', 'weil'. At the end, remind them to use 'Ich freue mich auf Ihre Antwort.' Highlight and explain if any of these are missing. Always help them organize their ideas clearly, moving step by step.
+            """,
+            "B1": """
+You are Herr Felix, a B1 German writing coach. For FORMAL, INFORMAL, and OPINION essays, check for: correct greeting and closing, clear structure (introduction, arguments, conclusion), and varied connectors: 'denn', 'doch', 'obwohl', 'damit', 'trotzdem', 'außerdem', 'deshalb'. For opinion, look for: 'Meiner Meinung nach', 'Ich finde, dass...'. Guide students to organize main points and respond to all bullet points in the prompt. For each step, correct errors, explain why, and move to the next. Always wait for their input before continuing.
+            """,
+            "B2": """
+You are Herr Felix, a B2 German writing coach. For all texts: check for advanced structure, use of more formal phrases, complex connectors: 'sowohl ... als auch', 'einerseits ... andererseits', 'zum einen ... zum anderen', 'weder ... noch', 'in Bezug auf'. Opinion essays should include: thesis, arguments with examples, counter-arguments, and a clear conclusion. For FORMAL: advanced greetings/closings, appropriate register. Always explain errors and suggest improvements, one section at a time, waiting for student to finish each before moving on.
+            """,
+            "C1": """
+You are Herr Felix, a C1 German writing coach. Check for sophisticated, well-structured texts with high-level connectors: 'folglich', 'infolgedessen', 'demnach', 'nichtsdestotrotz', 'hingegen', 'allerdings', and complex grammar. For OPINION: expect nuanced argumentation, rhetorical devices, and formal style. Guide the student in refining their language, correcting style/tone, and building up their essay with critical thinking. Always give advanced tips, highlight all mistakes, and encourage creative use of German.
+            """
+        }
 
         # --- Stage 1: Confirm Level + Start Coaching ---
         elif st.session_state.letter_coach_stage == 1:
@@ -3904,12 +3921,9 @@ ONLY say this, and stop.
                 change_level = st.form_submit_button("Change Level/Type Manually")
 
             if confirm:
-                # Fetch detected level/type for system prompt
                 detected_msg = chat_history[-1]["content"]
-                # --- LEVEL-BASED PROMPT SELECTION ---
-                # Example parsing: 'I think this is a formal letter for A1.'
-                detected_level = "A1"  # default fallback
-                detected_type = "letter"  # default fallback
+                detected_level = "A1"
+                detected_type = "letter"
                 for l in ["A1", "A2", "B1", "B2", "C1"]:
                     if l in detected_msg:
                         detected_level = l
@@ -3921,22 +3935,14 @@ ONLY say this, and stop.
                 elif "opinion" in detected_msg.lower():
                     detected_type = "opinion essay"
 
-                # Define prompts for each level (use your custom strings from above)
-                prompts_by_level = {
-                    "A1": """You are Herr Felix, an A1 German writing coach... [A1 instructions here]""",
-                    "A2": """You are Herr Felix, an A2 German writing coach... [A2 instructions here]""",
-                    "B1": """You are Herr Felix, a B1 German writing coach... [B1 instructions here]""",
-                    "B2": """You are Herr Felix, a B2 German writing coach... [B2 instructions here]""",
-                    "C1": """You are Herr Felix, a C1 German writing coach... [C1 instructions here]""",
-                }
                 main_prompt = prompts_by_level.get(detected_level, prompts_by_level["A1"])
                 chat_history.append({"role": "system", "content": main_prompt})
                 st.session_state.letter_coach_chat = chat_history
                 st.session_state.letter_coach_stage = 2  # Next: interactive coaching chat
                 st.session_state.schreiben_level = detected_level
                 st.rerun()
+
             elif change_level:
-                # Manual select fallback
                 with st.form("manual_level_form", clear_on_submit=True):
                     level = st.selectbox("Choose your writing level:", ["A1", "A2", "B1", "B2", "C1"])
                     ltype = st.selectbox("Choose type:", ["formal letter", "informal letter", "opinion essay"])
@@ -3968,7 +3974,6 @@ ONLY say this, and stop.
             if send and user_input.strip():
                 chat_history.append({"role": "user", "content": user_input})
                 level = st.session_state.get("schreiben_level", "A1")
-                # Choose system prompt again for continuity
                 main_prompt = prompts_by_level.get(level, prompts_by_level["A1"])
                 with st.spinner("👨‍🏫 Herr Felix is typing..."):
                     resp = client.chat.completions.create(
@@ -3981,7 +3986,7 @@ ONLY say this, and stop.
                 chat_history.append({"role": "assistant", "content": ai_reply})
                 st.session_state.letter_coach_chat = chat_history
                 st.rerun()
-#
+
 
             # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
             user_msgs = [
