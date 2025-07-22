@@ -11,7 +11,6 @@ import re
 import matplotlib.pyplot as plt
 import time
 import requests
-import streamlit.components.v1 as components
 import io
 from openai import OpenAI
 from fpdf import FPDF
@@ -842,8 +841,8 @@ def get_a1_schedule():
             "assignment": False,
             "instruction": "Use self-practice workbook and review answers for self-check.",
             "schreiben_sprechen": {
-                "video": "",
-                "workbook_link": "https://drive.google.com/file/d/1x_u_tyICY-8xFuxsuOW2tqTzs7g8TquM/view?usp=sharing"
+                "video": "https://youtu.be/JrYSpnZN6P0",
+                "workbook_link": "https://drive.google.com/file/d/1xellIzaxzoBTFOUdaCEHu_OiiuEnFeWT/view?usp=sharing"
             }
         },
         # DAY 7
@@ -1025,7 +1024,7 @@ def get_a1_schedule():
             "topic": "Lesen & Hören 12.1 and 12.2",
             "chapter": "12.1_12.2",
             "goal": "Learn about German professions and how to use two-way prepositions",
-            "instruction": "This lesson has two Lesen & Hören assignments (12.1 and 12.2) and one Schreiben & Sprechen practice (5.8) for practice to understand chapter 12",
+            "instruction": "Two Case Preposition",
             "lesen_hören": [
                 {
                     "chapter": "12.1",
@@ -1054,7 +1053,8 @@ def get_a1_schedule():
             "topic": "Schreiben & Sprechen 5.9",
             "chapter": "5.9",
             "goal": "Understand the difference between Erlaubt and Verboten and how to use it in the exams hall",
-            "instruction": "",
+            "instruction": "Review the workbook and do the practicals in it. Answers are attached",
+            "grammar_topic": "Erlaubt and Verboten",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/MqAp84GthAo",
                 "assignment": False,
@@ -1081,16 +1081,13 @@ def get_a1_schedule():
             "chapter": "13",
             "assignment": True,
             "goal": "",
-            "instruction": "",
+            "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
+            "grammar_topic": "Weather and Past Tense. How to form Perfekt statement in German",
             "lesen_hören": {
-                "video": "",
+                "video": "https://youtu.be/6cBs3Qfvdk4",
                 "assignment": True,
                 "grammarbook_link": "https://drive.google.com/file/d/1PCXsTIg9iNlaAUkwH8BYekw_3v1HJjGq/view?usp=sharing",
-                "workbook_link": "https://drive.google.com/file/d/1zCnIoVHlfRwOQ9mX2NxVFuHgsqfHUkDK/view?usp=sharing"
-            },
-            "schreiben_sprechen": {
-                "video": "",
-                "workbook_link": ""
+                "workbook_link": "https://drive.google.com/file/d/1GZeUi5p6ayDGnPcebFVFfaNavmoWyoVM/view?usp=sharing"
             }
         },
         # DAY 22
@@ -3266,8 +3263,7 @@ if tab == "Exams Mode & Custom Chat":
                 file_name=f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}.txt",
                 mime="text/plain"
             )
-            st.caption("You can upload this TXT next time, or copy and paste it to continue your chat from where you stopped.")
-
+            st.caption("To save progress, download as TXT before you leave chat. Open and Copy the text file and paste in a fresh chat and the A.I will continue the chat from where you left.")
 
         # ---- Session Buttons ----
         col1, col2, col3 = st.columns(3)
@@ -3567,7 +3563,7 @@ if tab == "Vocab Trainer":
         if st.button("Practice Again", key="vt_again"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
-
+                
 
 
 if tab == "Schreiben Trainer":
@@ -3744,8 +3740,9 @@ if tab == "Schreiben Trainer":
             </div>
         """
 
-    if sub_tab == "Ideas Generator (Letter Coach)":
+            if sub_tab == "Ideas Generator (Letter Coach)":
         import io
+        import streamlit.components.v1 as components
 
         def reset_letter_coach():
             for k in [
@@ -3760,7 +3757,7 @@ if tab == "Schreiben Trainer":
                 return f"""<div style='background: #f4eafd; color: #7b2ff2; border-radius: 16px 16px 16px 3px; margin-bottom: 8px; margin-right: 80px; box-shadow: 0 2px 8px rgba(123,47,242,0.08); padding: 13px 18px; text-align: left; max-width: 88vw; font-size: 1.12rem;'><b>👨‍🏫 Herr Felix:</b><br>{text}</div>"""
             return f"""<div style='background: #eaf4ff; color: #1a237e; border-radius: 16px 16px 3px 16px; margin-bottom: 8px; margin-left: 80px; box-shadow: 0 2px 8px rgba(26,35,126,0.07); padding: 13px 18px; text-align: right; max-width: 88vw; font-size: 1.12rem;'><b>🙋 You:</b><br>{text}</div>"""
 
-        # --- General Instructions for Students (Minimal Welcome + Subline) ---
+        # --- General Instructions ---
         st.markdown(
             """
             <div style="
@@ -3788,6 +3785,7 @@ if tab == "Schreiben Trainer":
             unsafe_allow_html=True
         )
 
+        # --- Usage Limits ---
         IDEAS_LIMIT = 14
         ideas_so_far = get_letter_coach_usage(student_code)
         st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
@@ -3801,79 +3799,25 @@ if tab == "Schreiben Trainer":
             ("letter_coach_prompt", ""),
             ("letter_coach_type", ""),
             ("selected_letter_lines", []),
-            ("letter_coach_uploaded", False)
+            ("letter_coach_uploaded", False),
+            ("schreiben_level", "B1"),
         ]:
             if key not in st.session_state:
                 st.session_state[key] = default
 
-        # --- File Upload (Resume Letter) ---
-        uploaded_file = st.file_uploader(
-            "⬇️ Upload previous letter as TXT to continue",
-            type=["txt"],
-            key="letter_coach_txt_upload"
+        # --- Level and Letter Type Selection ---
+        st.write("### 1. Choose your German level:")
+        st.session_state["schreiben_level"] = st.selectbox(
+            "Select level", ["A1", "A2", "B1", "B2", "C1"], index=["A1", "A2", "B1", "B2", "C1"].index(st.session_state["schreiben_level"])
         )
 
-        if uploaded_file and "upload_content" not in st.session_state:
-            try:
-                st.session_state.upload_content = uploaded_file.read().decode("utf-8")
-                st.success("Letter uploaded! Copy below and paste into the chat box.")
-            except Exception as e:
-                st.warning(f"Could not read the file. Please check format. Error: {e}")
-
-#
-
-        if "upload_content" in st.session_state and not st.session_state.get("letter_coach_uploaded", False):
-            import streamlit.components.v1 as components
-            components.html(f"""
-                <textarea id="uploadedLetter" readonly rows="8" style="
-                    width: 100%;
-                    border-radius: 12px;
-                    background: #f9fbe7;
-                    border: 1.7px solid #ffe082;
-                    color: #222;
-                    font-size: 1.09em;
-                    font-family: 'Fira Mono', 'Consolas', monospace;
-                    padding: 1em 0.7em;
-                    box-shadow: 0 2px 8px #ffe08266;
-                    margin-bottom: 0.5em;
-                    resize: none;
-                    overflow:auto;
-                " onclick="this.select()">{st.session_state.upload_content}</textarea>
-                <button onclick="navigator.clipboard.writeText(document.getElementById('uploadedLetter').value)" 
-                    style="
-                        background:#ffc107;
-                        color:#3e2723;
-                        font-size:1.07em;
-                        font-weight:bold;
-                        padding:0.48em 1.12em;
-                        margin-top:0.4em;
-                        border:none;
-                        border-radius:7px;
-                        cursor:pointer;
-                        box-shadow:0 2px 8px #ffe08255;
-                        width:100%;
-                        max-width:320px;
-                        display:block;
-                        margin-left:auto;
-                        margin-right:auto;
-                    ">
-                    📋 Copy Text
-                </button>
-                <div style="color:#b48be6;font-size:0.98em;margin-top:0.35em;">
-                    <b>Tip:</b> Click/tap in the box above to select all, or tap <b>Copy Text</b> and then paste it in the chat box below. Paste it twice if the A.I undertands it as question the first time!
-                </div>
-                <style>
-                    @media (max-width: 480px) {{
-                        #uploadedLetter {{
-                            font-size: 1.14em !important;
-                            min-width: 93vw !important;
-                        }}
-                    }}
-                </style>
-            """, height=200)
-
-    #
-
+        st.write("### 2. What kind of letter or essay do you want to write?")
+        st.session_state["letter_coach_type"] = st.radio(
+            "Select type",
+            ("Formal Letter", "Informal Letter", "Opinion Essay", "Not sure"),
+            horizontal=True,
+            index=2 if st.session_state["schreiben_level"] in ("B1", "B2", "C1") else 0
+        )
 
         # --- Stage 0: Paste Prompt ---
         if st.session_state.letter_coach_stage == 0:
@@ -3894,7 +3838,6 @@ if tab == "Schreiben Trainer":
                     <span style="font-size:1.15em; font-weight: 500; vertical-align:middle;">📝 Enter your exam prompt or letter draft below</span>
                     <div style="color:#668b8b;font-size:0.99em;margin-top:0.22em;">
                         Paste the <b>question</b>, a <b>draft</b>, or any <b>unfinished letter</b>.<br>
-                        Herr Felix will guide you step by step.
                     </div>
                 </div>
                 """,
@@ -3910,7 +3853,7 @@ if tab == "Schreiben Trainer":
                 )
                 send = st.form_submit_button("✉️ Start Letter Coach")
 
-                        # --- Live word/character counter below the textarea ---
+            # --- Live word/character counter below the textarea ---
             if prompt:
                 word_count = len(prompt.split())
                 char_count = len(prompt)
@@ -3920,22 +3863,22 @@ if tab == "Schreiben Trainer":
                     "</div>",
                     unsafe_allow_html=True
                 )
-#
+
             if send and prompt:
                 st.session_state.letter_coach_prompt = prompt
-
                 # Compose the system prompt
                 system_prompt = (
                     f"You are Herr Felix, a creative and supportive German letter-writing coach for A1–C1 students.\n"
                     f"The prompt is: '{prompt}'.\n"
+                    f"The student's level is {st.session_state['schreiben_level']}. "
+                    f"The letter type is '{st.session_state['letter_coach_type']}'.\n"
                     "Always reply in simple English.\n"
-                    "If this is your first reply after the student shares their letter question or prompt or continuation of letter, start by explaining the main parts of the letter in English, using bullet points. For each part, tell the student exactly how to begin or continue already started leter, with examples for greetings, introductions, and connectors.\n"
-                    "If first input is too long, ask the student if is a letter continuation or questions and build it from there\n"
-                    "Always say: 'Let's begin with the greeting. How would you start your letter?' and wait for the student's greeting before moving to the next step.\n"
+                    "If this is your first reply after the student shares their letter question or prompt or continuation of letter, start by explaining the main parts of the letter in English, using bullet points. For each part, tell the student exactly how to begin or continue already started letter, with examples for greetings, introductions, and connectors.\n"
+                    "If the first input is too long, ask the student if it is a letter continuation or question and build from there.\n"
                     "For FORMAL letters: Explain that you should start with a greeting like 'Sehr geehrte/r ...,' and you can add 'Ich hoffe, es geht Ihnen gut.'\n"
                     "For INFORMAL letters: Start with 'Liebe ...,' or 'Lieber ...,' and you can add 'Wie geht es dir?' or 'Ich hoffe, es geht dir gut.'\n"
                     "For introductions: Use 'Ich schreibe Ihnen, weil ich ...' for formal, or 'Ich schreibe dir, weil ich ...' for informal. At A1 level, always end main request with 'möchte'.\n"
-                    "For OPINION ESSAYS: Suggest starting with 'Heutzutage ist ... ein wichtiges Thema.' or 'Ich bin der Meinung, dass...'.\n"
+                    "For OPINION ESSAYS: Suggest starting with 'Heutzutage ist ... ein wichtiges Thema.' or 'Ich bin der Meinung, dass...'. (Only for B1-C1 students.)\n"
                     "Suggest easy connectors for the student's level (A1: 'und', 'aber', 'weil', 'denn', 'deshalb', 'ich möchte wissen'; higher: 'außerdem', 'trotzdem').\n"
                     "After the greeting, guide the student to the next section: introduction, reason, request, closing, etc., always one step at a time, with clear bullet points and classic examples for each.\n"
                     "Highlight connectors (like **weil**) and modal verbs (like **möchte**) in bold so the student notices them.\n"
@@ -3945,9 +3888,8 @@ if tab == "Schreiben Trainer":
                     "If a part is missing (like greeting, reason, or closing), gently remind the student to add it before moving on.\n"
                     "Highlight corrections, connectors, or important words in **bold**.\n"
                     "At the end of the letter, help the student check their work with a quick checklist: Greeting, Introduction, Reason, Request, Closing, Connector.\n"
-                    "Always finish with: 'If you are okay or confident, click END SUMMARY below to copy your text and send to your tutor—or type your next idea/question.'"
+                    "Always finish with: 'If you are okay or want a break, download or copy your text below or type your next idea/question.'"
                 )
-
                 # Start chat history with system and user message
                 chat_history = [
                     {"role": "system", "content": system_prompt},
@@ -3974,7 +3916,6 @@ if tab == "Schreiben Trainer":
             if prompt:
                 st.markdown("---")
                 st.markdown(f"📝 **Letter/Essay Prompt or Draft:**\n\n{prompt}")
-
 
         # --- Stage 1: Coaching Chat ---
         elif st.session_state.letter_coach_stage == 1:
@@ -4016,15 +3957,15 @@ if tab == "Schreiben Trainer":
                 system_prompt = (
                     f"You are Herr Felix, a creative and supportive German letter-writing coach for A1–C1 students.\n"
                     f"The prompt is: '{st.session_state.letter_coach_prompt}'.\n"
-                    f"The student thinks it is a {letter_type} letter. Their level is {student_level}.\n"
+                    f"The student's level is {student_level}. "
+                    f"The letter type is '{letter_type}'.\n"
                     "Always reply in simple English.\n"
-                    "If this is your first reply after the student shares their letter question or prompt, start by explaining the main parts of the letter in English, using bullet points. For each part, tell the student exactly how to begin, with examples for greetings, introductions, and connectors.\n"
-                    "If first input is too long, ask the student if is a letter continuation or questions and build it from there\n"
-                    "Always say: 'Let's begin with the greeting. How would you start your letter?' and wait for the student's greeting before moving to the next step.\n"
+                    "If this is your first reply after the student shares their letter question or prompt or continuation of letter, start by explaining the main parts of the letter in English, using bullet points. For each part, tell the student exactly how to begin or continue already started letter, with examples for greetings, introductions, and connectors.\n"
+                    "If the first input is too long, ask the student if it is a letter continuation or question and build from there.\n"
                     "For FORMAL letters: Explain that you should start with a greeting like 'Sehr geehrte/r ...,' and you can add 'Ich hoffe, es geht Ihnen gut.'\n"
                     "For INFORMAL letters: Start with 'Liebe ...,' or 'Lieber ...,' and you can add 'Wie geht es dir?' or 'Ich hoffe, es geht dir gut.'\n"
                     "For introductions: Use 'Ich schreibe Ihnen, weil ich ...' for formal, or 'Ich schreibe dir, weil ich ...' for informal. At A1 level, always end main request with 'möchte'.\n"
-                    "For OPINION ESSAYS: Suggest starting with 'Heutzutage ist ... ein wichtiges Thema.' or 'Ich bin der Meinung, dass...'.\n"
+                    "For OPINION ESSAYS: Suggest starting with 'Heutzutage ist ... ein wichtiges Thema.' or 'Ich bin der Meinung, dass...'. (Only for B1-C1 students.)\n"
                     "Suggest easy connectors for the student's level (A1: 'und', 'aber', 'weil', 'denn', 'deshalb', 'ich möchte wissen'; higher: 'außerdem', 'trotzdem').\n"
                     "After the greeting, guide the student to the next section: introduction, reason, request, closing, etc., always one step at a time, with clear bullet points and classic examples for each.\n"
                     "Highlight connectors (like **weil**) and modal verbs (like **möchte**) in bold so the student notices them.\n"
@@ -4034,7 +3975,7 @@ if tab == "Schreiben Trainer":
                     "If a part is missing (like greeting, reason, or closing), gently remind the student to add it before moving on.\n"
                     "Highlight corrections, connectors, or important words in **bold**.\n"
                     "At the end of the letter, help the student check their work with a quick checklist: Greeting, Introduction, Reason, Request, Closing, Connector.\n"
-                    "Always finish with: 'If you are okay or confident, click END SUMMARY below to copy your text and send to your tutor—or type your next idea/question.'"
+                    "Always finish with: 'If you are okay or want a break, download or copy your text below or type your next idea/question.'"
                 )
                 with st.spinner("👨‍🏫 Herr Felix is typing..."):
                     resp = client.chat.completions.create(
@@ -4048,8 +3989,7 @@ if tab == "Schreiben Trainer":
                 st.session_state.letter_coach_chat = chat_history
                 st.rerun()
 
-            
-
+        
             # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
             import streamlit.components.v1 as components
 
@@ -4110,7 +4050,7 @@ if tab == "Schreiben Trainer":
                     text-align:left;
                 ">
                     <span style="font-size:1.12em; color:#ffe082;">📝 Your Letter So Far</span><br>
-                    <span style="font-size:1.00em; color:#b0b0b0;">copy &amp; download below</span>
+                    <span style="font-size:1.00em; color:#b0b0b0;">copy often or download below to prevent data loss</span>
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -4191,6 +4131,12 @@ if tab == "Schreiben Trainer":
                 st.session_state.selected_letter_lines = []
                 st.session_state.letter_coach_uploaded = False
                 st.rerun()
+#
+
+
+
+
+
 
 
 
