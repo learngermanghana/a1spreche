@@ -3489,31 +3489,20 @@ if tab == "Exams Mode & Custom Chat":
 # =========================================
 
 
-
 # =========================================
 # VOCAB TRAINER TAB (A1–C1) — MOBILE OPTIMIZED
 # =========================================
 
-# Your Google Sheets link
+# ---- Your Google Sheets Link ----
 sheet_id = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
 sheet_name = "Sheet1"
-
-# Get export CSV link
 csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={sheet_name}"
 
-# ========== Mobile-friendly message bubble ==========
-BUBBLE_STYLE = (
-    "padding:6px 10px; border-radius:6px; max-width:98vw; "
-    "margin-bottom:8px; text-align:{align}; background:{bgcolor}; "
-    "font-size:1em; word-break:break-word;"
-)
-
+# ---- Mobile-friendly message bubble ----
 def render_message(role, msg):
-    # Improved style for mobile readability!
     align = "left" if role == "assistant" else "right"
-    # High-contrast light bubble for both themes
     bgcolor = "#FAFAFA" if role == "assistant" else "#D2F8D2"
-    textcolor = "#222"  # nearly black text
+    textcolor = "#222"
     bordcol = "#cccccc"
     label = "Herr Felix" if role == "assistant" else "You"
     style = (
@@ -3528,13 +3517,20 @@ def render_message(role, msg):
         unsafe_allow_html=True
     )
 
-# ====================================================
-
-# Helper to normalize user input
+# ---- Helper functions ----
 def clean_text(text):
     return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
 
-# Load vocab lists once (cached)
+def is_correct_answer(user_input, answer):
+    # Accept any valid answer separated by ',', '/', or ';'
+    possible = [a.strip().lower() for a in re.split(r'[,/;]', answer)]
+    given = clean_text(user_input)
+    if given in possible:
+        return True
+    # Optional: fuzzy matching for typo tolerance
+    # return any(fuzz.ratio(given, a) > 85 for a in possible)
+    return False
+
 @st.cache_data
 def load_vocab_lists():
     df = pd.read_csv(csv_url)
@@ -3545,8 +3541,6 @@ def load_vocab_lists():
     return lists
 
 VOCAB_LISTS = load_vocab_lists()
-
-
 
 # ==========================
 # FIRESTORE STATS HELPERS
@@ -3709,9 +3703,7 @@ if tab == "Vocab Trainer":
         user_input = st.text_input(f"{word} = ?", key=f"vt_input_{idx}")
         if user_input and st.button("Check", key=f"vt_check_{idx}"):
             st.session_state.vt_history.append(("user", user_input))
-            given = clean_text(user_input)
-            correct = clean_text(answer)
-            if given == correct:
+            if is_correct_answer(user_input, answer):
                 st.session_state.vt_score += 1
                 fb = f"✅ Correct! '{word}' = '{answer}'"
             else:
