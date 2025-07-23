@@ -3773,7 +3773,7 @@ if tab == "Schreiben Trainer":
         if stats.get("last_letter"):
             if st.button("Restore Last Letter"):
                 st.session_state["schreiben_input"] = stats["last_letter"]
-                st.experimental_rerun()
+                st.rerun()
 
         # Daily usage
         SCHREIBEN_DAILY_LIMIT = 5
