@@ -3643,6 +3643,8 @@ if tab == "Vocab Trainer":
             for k in defaults:
                 st.session_state[k] = defaults[k]
                 
+import re
+from datetime import datetime
 
 if tab == "Schreiben Trainer":
     st.markdown(
@@ -3703,12 +3705,8 @@ if tab == "Schreiben Trainer":
         student_code = st.session_state.get("student_code", "demo")
         student_name = st.session_state.get("student_name", "")
 
-        # ==========================
-        # ====== LETTER STATS ======
-        # ==========================
-        from datetime import datetime
-
-        def save_schreiben_attempt(student_code, student_name, level, score):
+        # ====== LETTER STATS FUNCTIONS ======
+        def save_schreiben_attempt(student_code, student_name, level, score, letter, breakdown=None):
             doc_ref = db.collection("schreiben_stats").document(student_code)
             doc = doc_ref.get()
             data = doc.to_dict() if doc.exists else {}
@@ -3718,7 +3716,9 @@ if tab == "Schreiben Trainer":
                 "student_name": student_name,
                 "level": level,
                 "score": score,
+                "letter": letter,
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "breakdown": breakdown or {},
             }
             stats.append(attempt)
 
@@ -3736,6 +3736,7 @@ if tab == "Schreiben Trainer":
                 "best_score": best_score,
                 "pass_rate": pass_rate,
                 "last_attempt": attempt["timestamp"],
+                "last_letter": letter,
             })
 
         def get_schreiben_stats(student_code):
@@ -3746,7 +3747,7 @@ if tab == "Schreiben Trainer":
             else:
                 return {
                     "total": 0, "passed": 0, "average_score": 0, "best_score": 0,
-                    "pass_rate": 0, "last_attempt": None, "attempts": []
+                    "pass_rate": 0, "last_attempt": None, "attempts": [], "last_letter": ""
                 }
 
         # Show stats panel
@@ -3768,6 +3769,11 @@ if tab == "Schreiben Trainer":
         else:
             st.info("No letter attempts saved yet.")
 
+        # Restore last letter button
+        if stats.get("last_letter"):
+            if st.button("Restore Last Letter"):
+                st.session_state["schreiben_input"] = stats["last_letter"]
+                st.experimental_rerun()
 
         # Daily usage
         SCHREIBEN_DAILY_LIMIT = 5
@@ -3777,6 +3783,7 @@ if tab == "Schreiben Trainer":
         user_letter = st.text_area(
             "Paste or type your German letter/essay here.",
             key="schreiben_input",
+            value=st.session_state.get("schreiben_input", ""),
             disabled=(daily_so_far >= SCHREIBEN_DAILY_LIMIT),
             height=200,
             placeholder="Write your German letter here..."
@@ -3787,7 +3794,7 @@ if tab == "Schreiben Trainer":
             words = re.findall(r'\b\w+\b', user_letter)
             chars = len(user_letter)
             st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
-
+            
         ai_prompt = (
             f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
             f"The student has submitted a {schreiben_level} German letter or essay. "
@@ -3809,7 +3816,6 @@ if tab == "Schreiben Trainer":
             "Structure: [score/5, one-sentence tip]\n"
             "For each area, rate out of 5 and give a specific, actionable tip in English."
         )
-        #
 
         submit_disabled = daily_so_far >= SCHREIBEN_DAILY_LIMIT or not user_letter.strip()
         if submit_disabled and daily_so_far >= SCHREIBEN_DAILY_LIMIT:
@@ -3838,17 +3844,7 @@ if tab == "Schreiben Trainer":
                     score_match = re.search(r"Score[:\s]+(\d+)\s*/\s*25", feedback, re.IGNORECASE)
                 score = int(score_match.group(1)) if score_match else 0
 
-                # Save to DB if needed here
-                inc_schreiben_usage(student_code)
-                save_schreiben_attempt(student_code, student_name, schreiben_level, score)
-
-                st.markdown("---")
-                st.markdown("#### 📝 Feedback from Herr Felix")
-                st.markdown(feedback)
-
-                # ----------------- Breakdown Block START -----------------
-                # (This is the new feature you requested)
-                import re
+                # Parse breakdown
                 breakdown = {}
                 areas = ["Grammar", "Vocabulary", "Spelling", "Structure"]
                 for area in areas:
@@ -3861,16 +3857,24 @@ if tab == "Schreiben Trainer":
                     else:
                         breakdown[area] = ("-", "Not found")
 
+                # Save to DB
+                inc_schreiben_usage(student_code)
+                save_schreiben_attempt(student_code, student_name, schreiben_level, score, user_letter, breakdown)
+
+                st.markdown("---")
+                st.markdown("#### 📝 Feedback from Herr Felix")
+                st.markdown(feedback)
+
+                # Show breakdown nicely
                 st.markdown("### 📊 **Your Writing Breakdown**")
                 for area in areas:
-                    score, tip = breakdown[area]
-                    color = "#8bc34a" if score != "-" and int(score) >= 4 else "#ff9800" if score != "-" and int(score) == 3 else "#f44336"
+                    s, tip = breakdown[area]
+                    color = "#8bc34a" if s != "-" and int(s) >= 4 else "#ff9800" if s != "-" and int(s) == 3 else "#f44336"
                     st.markdown(
-                        f"<div style='margin-bottom:8px;'><b>{area}:</b> <span style='color:{color};font-weight:600;'>{score}/5</span>"
+                        f"<div style='margin-bottom:8px;'><b>{area}:</b> <span style='color:{color};font-weight:600;'>{s}/5</span>"
                         f"<br><i style='color:#666;'>{tip}</i></div>",
                         unsafe_allow_html=True
                     )
-                # ----------------- Breakdown Block END ------------------
 
                 # Download as PDF
                 def sanitize_text(text):
@@ -3904,6 +3908,7 @@ if tab == "Schreiben Trainer":
                     f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                     unsafe_allow_html=True
                 )
+
 
     # ===== BUBBLE FUNCTION =====
     def bubble(role, text):
