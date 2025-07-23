@@ -53,6 +53,11 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 db = firestore.client()
 
+doc_ref = db.collection("test").document("hello")
+doc_ref.set({"field": "test!"})
+result = doc_ref.get()
+print(result.to_dict())  # Should print {'field': 'test!'}
+
 # ==== DB CONNECTION ====
 def get_connection():
     if "conn" not in st.session_state:
