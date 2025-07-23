@@ -1,20 +1,24 @@
+# ==== Standard Library ====
 import os
 import random
 import difflib
 import sqlite3
 import atexit
 import json
+import re
 from datetime import date, datetime
+import time
+import io
+
+# ==== Third-Party Packages ====
 import pandas as pd
 import streamlit as st
-import re
 import matplotlib.pyplot as plt
-import time
 import requests
-import io
 from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
+
 
 # ===== HIDE STREAMLIT DEFAULT FOOTER/MENU =====
 st.markdown(
@@ -3542,8 +3546,57 @@ def load_vocab_lists():
 
 VOCAB_LISTS = load_vocab_lists()
 
+
+
+# ==========================
+# FIRESTORE STATS HELPERS
+# ==========================
+
+def save_vocab_attempt(student_code, level, total, correct, practiced_words):
+    doc_ref = db.collection("vocab_stats").document(student_code)
+    doc = doc_ref.get()
+    data = doc.to_dict() if doc.exists else {}
+    history = data.get("history", [])
+
+    attempt = {
+        "level": level,
+        "total": total,
+        "correct": correct,
+        "practiced_words": practiced_words,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+    }
+    history.append(attempt)
+    best = max([a["correct"] for a in history] or [0])
+    last_practiced = attempt["timestamp"]
+    completed_words = set(sum([a["practiced_words"] for a in history], []))
+
+    doc_ref.set({
+        "history": history,
+        "best": best,
+        "last_practiced": last_practiced,
+        "completed_words": list(completed_words),
+        "total_sessions": len(history),
+    })
+
+def get_vocab_stats(student_code):
+    doc_ref = db.collection("vocab_stats").document(student_code)
+    doc = doc_ref.get()
+    if doc.exists:
+        return doc.to_dict()
+    else:
+        return {
+            "history": [],
+            "best": 0,
+            "last_practiced": None,
+            "completed_words": [],
+            "total_sessions": 0,
+        }
+
+# =========================================
+# VOCAB TRAINER TAB (A1–C1)
+# =========================================
+
 if tab == "Vocab Trainer":
-    # 📚 Compact Vocab Trainer header
     st.markdown(
         '''
         <div style="
@@ -3561,7 +3614,7 @@ if tab == "Vocab Trainer":
         unsafe_allow_html=True
     )
     st.divider()
-    
+
     HERR_FELIX = "Herr Felix 👨‍🏫"
     defaults = {
         "vt_history": [],
@@ -3573,35 +3626,66 @@ if tab == "Vocab Trainer":
     for key, val in defaults.items():
         st.session_state.setdefault(key, val)
 
-    # Choose level
+    # Student code (from session)
+    student_code = st.session_state.get("student_code", "demo")
+
+    # ===== Show Vocab Stats =====
+    vocab_stats = get_vocab_stats(student_code)
+    st.markdown("### 📝 **Your Vocab Practice Stats**")
+    st.markdown(f"- **Sessions:** {vocab_stats['total_sessions']}")
+    st.markdown(f"- **Best Score:** {vocab_stats['best']}")
+    st.markdown(f"- **Last Practiced:** {vocab_stats['last_practiced']}")
+    st.markdown(f"- **Total Unique Words Completed:** {len(vocab_stats['completed_words'])}")
+
+    if st.toggle("Show Last 5 Sessions"):
+        for attempt in vocab_stats["history"][-5:][::-1]:
+            st.markdown(
+                f"- **Date:** {attempt['timestamp']} | **Score:** {attempt['correct']}/{attempt['total']} | **Level:** {attempt['level']}<br>"
+                f"<span style='font-size:0.97em;'>Words: {', '.join(attempt['practiced_words'])}</span>",
+                unsafe_allow_html=True
+            )
+
+    # ---- Load vocab lists ----
     level = st.selectbox("Choose level", list(VOCAB_LISTS.keys()), key="vt_level")
     vocab_items = VOCAB_LISTS.get(level, [])
     max_words = len(vocab_items)
+    completed_set = set(vocab_stats["completed_words"])
 
     if max_words == 0:
         st.warning(f"No vocabulary available for level {level}. Please add entries in your sheet.")
         st.stop()
+
+    # Show how many you haven't done yet
+    not_done = [pair for pair in vocab_items if pair[0] not in completed_set]
+    st.info(f"You have {len(not_done)} words NOT yet practiced at {level}.")
 
     # Start new practice resets
     if st.button("🔁 Start New Practice", key="vt_reset"):
         for k in defaults:
             st.session_state[k] = defaults[k]
 
-    
-    # Show number of available words for the selected level
-    st.info(f"There are {max_words} words available in {level}.")
+    # Option to practice only new or all words
+    practice_mode = st.radio("Choose word selection:", ["Only new words", "All words"], horizontal=True, key="vt_mode")
+    if practice_mode == "Only new words":
+        session_vocab = not_done.copy()
+    else:
+        session_vocab = vocab_items.copy()
 
     # Step 1: ask how many words to practice
     if st.session_state.vt_total is None:
+        max_count = len(session_vocab)
+        if max_count == 0:
+            st.warning("🎉 You've completed all words at this level! Switch to 'All words' if you want to practice again.")
+            st.stop()
         count = st.number_input(
-            "How many words can you practice today. You can also type the number?",
+            "How many words can you practice today? (Type a number)",
             min_value=1,
-            max_value=max_words,
-            value=min(7, max_words),
+            max_value=max_count,
+            value=min(7, max_count),
             key="vt_count"
         )
         if st.button("Start Practice", key="vt_start"):
-            shuffled = vocab_items.copy()
+            shuffled = session_vocab.copy()
             random.shuffle(shuffled)
             st.session_state.vt_list = shuffled[:int(count)]
             st.session_state.vt_total = int(count)
@@ -3638,13 +3722,18 @@ if tab == "Vocab Trainer":
     # Show results when done
     if isinstance(total, int) and idx >= total:
         score = st.session_state.vt_score
+        practiced_words = [pair[0] for pair in st.session_state.vt_list]
         st.markdown(f"### 🏁 Finished! You got {score}/{total} correct.")
+
+        # Save to Firestore!
+        save_vocab_attempt(student_code, level, total, score, practiced_words)
+
         if st.button("Practice Again", key="vt_again"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
-                
-import re
-from datetime import datetime
+
+
+
 
 if tab == "Schreiben Trainer":
     st.markdown(
