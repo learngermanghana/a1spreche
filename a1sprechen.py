@@ -603,6 +603,24 @@ if st.button("Log out"):
 
 
 # ======= Data Loading Functions =======
+
+# --- Streak calculation function ---
+def get_streak(date_list):
+    """Returns the current streak (days) given a list of dates (datetime.date)."""
+    if not date_list:
+        return 0
+    date_list = sorted(set(date_list))
+    today = datetime.today().date()
+    streak = 0
+    for i in range(len(date_list)):
+        day = today - timedelta(days=i)
+        if day in date_list:
+            streak += 1
+        else:
+            break
+    return streak
+
+# --- Data Loading Functions ---
 @st.cache_data
 def load_student_data():
     SHEET_ID = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
@@ -613,18 +631,35 @@ def load_student_data():
     return df
 
 @st.cache_data
-def load_stats_data():
+def load_assignment_data():
     SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
-    SHEET_NAME = "Sheet1"
+    SHEET_NAME = "assignments"   # update if your tab has a different name
     csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
     df = pd.read_csv(csv_url)
-    # Clean columns for easier access
+    df.columns = df.columns.str.strip().str.lower()
+    return df
+
+@st.cache_data
+def load_vocab_trainer():
+    SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
+    SHEET_NAME = "vocab"  # update to your vocab tab name
+    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
+    df = pd.read_csv(csv_url)
+    df.columns = df.columns.str.strip().str.lower()
+    return df
+
+@st.cache_data
+def load_schreiben_trainer():
+    SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
+    SHEET_NAME = "SchreibenTrainer"  # update to your schreiben tab name
+    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
+    df = pd.read_csv(csv_url)
     df.columns = df.columns.str.strip().str.lower()
     return df
 
 @st.cache_data
 def load_reviews():
-    SHEET_ID   = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
+    SHEET_ID = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
     SHEET_NAME = "Sheet1"
     url = (
         f"https://docs.google.com/spreadsheets/d/{SHEET_ID}"
@@ -634,13 +669,9 @@ def load_reviews():
     df.columns = df.columns.str.strip().str.lower()
     return df
 
-
-from datetime import datetime
-
 def parse_contract_end(date_str):
     if not date_str or str(date_str).lower() in ("nan", "none", ""):
         return None
-    # US format first
     for fmt in ("%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
         try:
             return datetime.strptime(date_str, fmt)
@@ -661,7 +692,7 @@ if st.session_state.get("logged_in"):
     display_name = student_row.get('Name') or student_name or "Student"
     first_name = str(display_name).strip().split()[0].title() if display_name else "Student"
 
-    # --- Contract End and Renewal Policy (ALWAYS VISIBLE) ---
+    # --- Contract End and Renewal Policy ---
     MONTHLY_RENEWAL = 1000
     contract_end_str = student_row.get("ContractEnd", "")
     today = datetime.today()
@@ -700,7 +731,6 @@ if st.session_state.get("logged_in"):
     )
 
     if tab == "Dashboard":
-        # 🏠 Compact Dashboard header
         st.markdown(
             '''
             <div style="
@@ -719,7 +749,7 @@ if st.session_state.get("logged_in"):
         )
         st.divider()
 
-        # --- Minimal, super-visible greeting for mobile ---
+        # --- Greeting ---
         st.success(f"Hello, {first_name}! 👋")
         st.info("Great to see you. Let's keep learning!")
 
@@ -741,8 +771,37 @@ if st.session_state.get("logged_in"):
                 st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
         except:
             pass
-            
-        # --- Announcements & Ads (auto-rotating, reduced size) ---
+
+        # --- Streaks Section ---
+        st.markdown("### 🔥 Your Consistency Streaks")
+
+        # Vocab streak
+        df_vocab = load_vocab_trainer()
+        vocab_dates = df_vocab[df_vocab["studentcode"].str.lower() == student_code]["date"].dropna()
+        vocab_dates = pd.to_datetime(vocab_dates, errors="coerce").dt.date.dropna().tolist()
+        vocab_streak = get_streak(vocab_dates)
+
+        # Assignment streak
+        df_assignment = load_assignment_data()
+        assignment_dates = df_assignment[df_assignment["studentcode"].str.lower() == student_code]["date"].dropna()
+        assignment_dates = pd.to_datetime(assignment_dates, errors="coerce").dt.date.dropna().tolist()
+        assignment_streak = get_streak(assignment_dates)
+
+        # Schreiben streak
+        df_schreiben = load_schreiben_trainer()
+        schreiben_dates = df_schreiben[df_schreiben["studentcode"].str.lower() == student_code]["date"].dropna()
+        schreiben_dates = pd.to_datetime(schreiben_dates, errors="coerce").dt.date.dropna().tolist()
+        schreiben_streak = get_streak(schreiben_dates)
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Vocab Trainer Streak", f"{vocab_streak} days" if vocab_streak else "No data")
+        with col2:
+            st.metric("Assignment Submission Streak", f"{assignment_streak} days" if assignment_streak else "No data")
+        with col3:
+            st.metric("Schreiben Trainer Streak", f"{schreiben_streak} days" if schreiben_streak else "No data")
+
+        # --- Announcements & Ads (auto-rotating) ---
         st.markdown("### 🖼️ Announcements & Ads")
         ad_images = [
             "https://i.imgur.com/IjZl191.png",
@@ -766,7 +825,7 @@ if st.session_state.get("logged_in"):
             st.rerun()
 
         idx = st.session_state["ad_idx"]
-        st.image(ad_images[idx], caption=ad_captions[idx], width=400)  # change width if needed
+        st.image(ad_images[idx], caption=ad_captions[idx], width=400)
 
         # --- Simple Goethe Exam Section ---
         with st.expander("📅 Goethe Exam Dates & Fees", expanded=True):
@@ -790,11 +849,9 @@ if st.session_state.get("logged_in"):
         - SWIFT Code: **ECOCGHAC**
 - **IMPORTANT:** Use your **full name** as payment reference!
 - After payment, send your proof to: registrations-accra@goethe.de
-
                 """,
                 unsafe_allow_html=True
             )
-
 
         # --- Auto-Rotating Student Reviews ---
         st.markdown("### 🗣️ What Our Students Say")
@@ -821,6 +878,7 @@ if st.session_state.get("logged_in"):
                 f"> — **{r.get('student_name','')}**  \n"
                 f"> {stars}"
             )
+
 
 
 def get_a1_schedule():
