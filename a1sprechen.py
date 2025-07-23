@@ -702,102 +702,112 @@ if st.session_state.get("logged_in"):
     )
 
     if tab == "Dashboard":
-        # 🏠 Compact Dashboard header
-        st.markdown(
-            '''
-            <div style="
-                padding: 8px 12px;
-                background: #343a40;
-                color: #ffffff;
-                border-radius: 6px;
-                text-align: center;
-                margin-bottom: 8px;
-                font-size: 1.3rem;
-            ">
-                📊 Student Dashboard
-            </div>
-            ''',
-            unsafe_allow_html=True
-        )
-        st.divider()
+    # 🏠 Compact Dashboard header
+    st.markdown(
+        '''
+        <div style="
+            padding: 8px 12px;
+            background: #343a40;
+            color: #ffffff;
+            border-radius: 6px;
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 1.3rem;
+        ">
+            📊 Student Dashboard
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
+    st.divider()
 
-        # --- Minimal, super-visible greeting for mobile ---
-        st.success(f"Hello, {first_name}! 👋")
-        st.info("Great to see you. Let's keep learning!")
+    # --- Minimal, super-visible greeting for mobile ---
+    st.success(f"Hello, {first_name}! 👋")
+    st.info("Great to see you. Let's keep learning!")
 
-        # =============================
-        # YOUR PRACTICE STREAK DASHBOARD
-        # =============================
+    # =============================
+    # YOUR PRACTICE STREAK DASHBOARD
+    # =============================
 
-        # --- 1. VOCAB STREAK/STATS (from Firestore) ---
-        vocab_stats = get_vocab_stats(student_code)  # Already defined in your app
+    # --- 1. VOCAB STREAK/STATS (from Firestore) ---
+    try:
+        vocab_stats = get_vocab_stats(student_code)
+        if vocab_stats is None:
+            vocab_stats = {"total_sessions": 0, "best": 0, "last_practiced": None, "completed_words": []}
+    except Exception:
+        vocab_stats = {"total_sessions": 0, "best": 0, "last_practiced": None, "completed_words": []}
 
-        # --- 2. SCHREIBEN STREAK/STATS (from Firestore) ---
-        schreiben_stats = get_schreiben_stats(student_code)  # Already defined in your app
+    # --- 2. SCHREIBEN STREAK/STATS (from Firestore) ---
+    try:
+        schreiben_stats = get_schreiben_stats(student_code)
+        if schreiben_stats is None:
+            schreiben_stats = {"total": 0, "best_score": 0, "average_score": 0, "last_attempt": None}
+    except Exception:
+        schreiben_stats = {"total": 0, "best_score": 0, "average_score": 0, "last_attempt": None}
 
-        # --- 3. ASSIGNMENT SUBMISSION STREAK (from Google Sheet) ---
-        @st.cache_data
-        def load_assignment_scores():
-            SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
-            SHEET_NAME = "Sheet1"
-            url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
-            df = pd.read_csv(url)
-            df.columns = df.columns.str.strip().str.lower()
-            return df
+    # --- 3. ASSIGNMENT SUBMISSION STREAK (from Google Sheet) ---
+    @st.cache_data
+    def load_assignment_scores():
+        SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
+        SHEET_NAME = "Sheet1"
+        url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
+        df = pd.read_csv(url)
+        df.columns = df.columns.str.strip().str.lower()
+        return df
 
-        df_assign = load_assignment_scores()
-        assignments = df_assign[df_assign['studentcode'].str.lower() == student_code]
-        assignments = assignments.sort_values('date')
+    df_assign = load_assignment_scores()
+    assignments = df_assign[df_assign['studentcode'].str.lower() == student_code]
+    assignments = assignments.sort_values('date')
 
-        # Calculate assignment streak (e.g., consecutive days with submissions)
-        def get_assignment_streak(df):
-            if df.empty or 'date' not in df.columns:
-                return 0, None
-            # Parse date column to datetime
-            dates = pd.to_datetime(df['date'], errors='coerce').dropna().sort_values()
-            if dates.empty:
-                return 0, None
-            streak = 1
-            max_streak = 1
-            prev = dates.iloc[0]
-            for d in dates.iloc[1:]:
-                if (d - prev).days == 1:
-                    streak += 1
-                    max_streak = max(max_streak, streak)
-                else:
-                    streak = 1
-                prev = d
-            last_date = dates.iloc[-1].strftime('%d %b %Y')
-            return max_streak, last_date
+    # Calculate assignment streak (e.g., consecutive days with submissions)
+    def get_assignment_streak(df):
+        if df.empty or 'date' not in df.columns:
+            return 0, None
+        # Parse date column to datetime
+        dates = pd.to_datetime(df['date'], errors='coerce').dropna().sort_values()
+        if dates.empty:
+            return 0, None
+        streak = 1
+        max_streak = 1
+        prev = dates.iloc[0]
+        for d in dates.iloc[1:]:
+            if (d - prev).days == 1:
+                streak += 1
+                max_streak = max(max_streak, streak)
+            else:
+                streak = 1
+            prev = d
+        last_date = dates.iloc[-1].strftime('%d %b %Y')
+        return max_streak, last_date
 
-        assign_streak, last_submission = get_assignment_streak(assignments)
+    assign_streak, last_submission = get_assignment_streak(assignments)
 
-        # === DASHBOARD CARDS ===
-        st.markdown("### 📈 Your Practice Streaks")
+    # === DASHBOARD CARDS ===
+    st.markdown("### 📈 Your Practice Streaks")
 
-        col1, col2, col3 = st.columns(3)
+    col1, col2, col3 = st.columns(3)
 
-        with col1:
-            st.markdown("#### 📚 Vocab Trainer")
-            st.markdown(f"- **Sessions:** {vocab_stats['total_sessions']}")
-            st.markdown(f"- **Best Score:** {vocab_stats['best']}")
-            st.markdown(f"- **Last Practiced:** {vocab_stats['last_practiced'] or 'N/A'}")
-            st.markdown(f"- **Words Practiced:** {len(vocab_stats['completed_words'])}")
+    with col1:
+        st.markdown("#### 📚 Vocab Trainer")
+        st.markdown(f"- **Sessions:** {vocab_stats['total_sessions']}")
+        st.markdown(f"- **Best Score:** {vocab_stats['best']}")
+        st.markdown(f"- **Last Practiced:** {vocab_stats['last_practiced'] or 'N/A'}")
+        st.markdown(f"- **Words Practiced:** {len(vocab_stats['completed_words'])}")
 
-        with col2:
-            st.markdown("#### ✍️ Schreiben Trainer")
-            st.markdown(f"- **Total Attempts:** {schreiben_stats.get('total', 0)}")
-            st.markdown(f"- **Best Score:** {schreiben_stats.get('best_score', 0)} / 25")
-            st.markdown(f"- **Average Score:** {schreiben_stats.get('average_score', 0):.1f} / 25")
-            st.markdown(f"- **Last Attempt:** {schreiben_stats.get('last_attempt', 'N/A')}")
+    with col2:
+        st.markdown("#### ✍️ Schreiben Trainer")
+        st.markdown(f"- **Total Attempts:** {schreiben_stats.get('total', 0)}")
+        st.markdown(f"- **Best Score:** {schreiben_stats.get('best_score', 0)} / 25")
+        st.markdown(f"- **Average Score:** {schreiben_stats.get('average_score', 0):.1f} / 25")
+        st.markdown(f"- **Last Attempt:** {schreiben_stats.get('last_attempt', 'N/A')}")
 
-        with col3:
-            st.markdown("#### 📝 Assignment Submission")
-            st.markdown(f"- **Total Submitted:** {len(assignments)}")
-            st.markdown(f"- **Max Streak:** {assign_streak} days")
-            st.markdown(f"- **Last Submission:** {last_submission or 'N/A'}")
+    with col3:
+        st.markdown("#### 📝 Assignment Submission")
+        st.markdown(f"- **Total Submitted:** {len(assignments)}")
+        st.markdown(f"- **Max Streak:** {assign_streak} days")
+        st.markdown(f"- **Last Submission:** {last_submission or 'N/A'}")
 
-        st.divider()
+    st.divider()
 
 
         # --- Student Info & Balance ---
