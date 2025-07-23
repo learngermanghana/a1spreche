@@ -3644,8 +3644,6 @@ if tab == "Vocab Trainer":
                 st.session_state[k] = defaults[k]
                 
 
-
-
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
@@ -3704,6 +3702,72 @@ if tab == "Schreiben Trainer":
         )
         student_code = st.session_state.get("student_code", "demo")
         student_name = st.session_state.get("student_name", "")
+
+        # ==========================
+        # ====== LETTER STATS ======
+        # ==========================
+        from datetime import datetime
+
+        def save_schreiben_attempt(student_code, student_name, level, score):
+            doc_ref = db.collection("schreiben_stats").document(student_code)
+            doc = doc_ref.get()
+            data = doc.to_dict() if doc.exists else {}
+            stats = data.get("attempts", [])
+
+            attempt = {
+                "student_name": student_name,
+                "level": level,
+                "score": score,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            }
+            stats.append(attempt)
+
+            total = len(stats)
+            passed = len([a for a in stats if a["score"] >= 15])
+            avg_score = sum([a["score"] for a in stats]) / total if total > 0 else 0
+            best_score = max([a["score"] for a in stats]) if total > 0 else 0
+            pass_rate = round(100 * passed / total, 1) if total > 0 else 0
+
+            doc_ref.set({
+                "attempts": stats,
+                "total": total,
+                "passed": passed,
+                "average_score": avg_score,
+                "best_score": best_score,
+                "pass_rate": pass_rate,
+                "last_attempt": attempt["timestamp"],
+            })
+
+        def get_schreiben_stats(student_code):
+            doc_ref = db.collection("schreiben_stats").document(student_code)
+            doc = doc_ref.get()
+            if doc.exists:
+                return doc.to_dict()
+            else:
+                return {
+                    "total": 0, "passed": 0, "average_score": 0, "best_score": 0,
+                    "pass_rate": 0, "last_attempt": None, "attempts": []
+                }
+
+        # Show stats panel
+        stats = get_schreiben_stats(student_code)
+        st.markdown("### 📝 **Your Letter Writing Stats**")
+        if stats["total"]:
+            st.markdown(f"- **Submitted:** {stats['total']}")
+            st.markdown(f"- **Passed (score ≥ 15):** {stats['passed']}")
+            st.markdown(f"- **Pass Rate:** {stats['pass_rate']}%")
+            st.markdown(f"- **Average Score:** {stats['average_score']:.2f} / 25")
+            st.markdown(f"- **Best Score:** {stats['best_score']} / 25")
+            st.markdown(f"- **Last Attempt:** {stats['last_attempt']}")
+            if st.toggle("Show last 5 attempts"):
+                for i, attempt in enumerate(stats["attempts"][-5:][::-1]):
+                    passed = "✅" if attempt["score"] >= 15 else "❌"
+                    st.markdown(
+                        f"- **Date:** {attempt['timestamp']} | **Score:** {attempt['score']}/25 {passed} | **Level:** {attempt['level']}"
+                    )
+        else:
+            st.info("No letter attempts saved yet.")
+
 
         # Daily usage
         SCHREIBEN_DAILY_LIMIT = 5
