@@ -3801,8 +3801,15 @@ if tab == "Schreiben Trainer":
             "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
             "6. Also check for AI usage or if the student wrote with their own effort. "
             "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
-            "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score."
+            "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score. "
+            "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
+            "Grammar: [score/5, one-sentence tip]\n"
+            "Vocabulary: [score/5, one-sentence tip]\n"
+            "Spelling: [score/5, one-sentence tip]\n"
+            "Structure: [score/5, one-sentence tip]\n"
+            "For each area, rate out of 5 and give a specific, actionable tip in English."
         )
+        #
 
         submit_disabled = daily_so_far >= SCHREIBEN_DAILY_LIMIT or not user_letter.strip()
         if submit_disabled and daily_so_far >= SCHREIBEN_DAILY_LIMIT:
@@ -3838,6 +3845,32 @@ if tab == "Schreiben Trainer":
                 st.markdown("---")
                 st.markdown("#### 📝 Feedback from Herr Felix")
                 st.markdown(feedback)
+
+                # ----------------- Breakdown Block START -----------------
+                # (This is the new feature you requested)
+                import re
+                breakdown = {}
+                areas = ["Grammar", "Vocabulary", "Spelling", "Structure"]
+                for area in areas:
+                    pattern = rf"{area}:\s*\[?(\d)/5[,\s]+([^\n\]]+)"
+                    match = re.search(pattern, feedback, re.IGNORECASE)
+                    if match:
+                        s = int(match.group(1))
+                        tip = match.group(2).strip()
+                        breakdown[area] = (s, tip)
+                    else:
+                        breakdown[area] = ("-", "Not found")
+
+                st.markdown("### 📊 **Your Writing Breakdown**")
+                for area in areas:
+                    score, tip = breakdown[area]
+                    color = "#8bc34a" if score != "-" and int(score) >= 4 else "#ff9800" if score != "-" and int(score) == 3 else "#f44336"
+                    st.markdown(
+                        f"<div style='margin-bottom:8px;'><b>{area}:</b> <span style='color:{color};font-weight:600;'>{score}/5</span>"
+                        f"<br><i style='color:#666;'>{tip}</i></div>",
+                        unsafe_allow_html=True
+                    )
+                # ----------------- Breakdown Block END ------------------
 
                 # Download as PDF
                 def sanitize_text(text):
@@ -3883,6 +3916,7 @@ if tab == "Schreiben Trainer":
                 <b>{name}:</b><br>{text}
             </div>
         """
+
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
 
