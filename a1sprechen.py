@@ -3220,8 +3220,6 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["falowen_messages"] = []
                     st.session_state["custom_topic_intro_done"] = False
                     st.rerun()
-
-
     # =========================================
     # ---- STAGE 4: MAIN CHAT ----
     if st.session_state["falowen_stage"] == 4:
@@ -3283,9 +3281,9 @@ if tab == "Exams Mode & Custom Chat":
             })
             st.rerun()
 
-        # [Bubble styles, highlight_keywords, etc. unchanged, indent here if in this block]
+        # ---- Bubble styles, highlight_keywords (insert here if not global) ----
 
-        # ---- Render Chat History (bubbles and highlights) ----
+        # ---- Render Chat History ----
         for msg in st.session_state["falowen_messages"]:
             if msg["role"] == "assistant":
                 with st.chat_message("assistant", avatar="🧑‍🏫"):
@@ -3302,7 +3300,7 @@ if tab == "Exams Mode & Custom Chat":
                         unsafe_allow_html=True
                     )
 
-        # ---- PDF Download, TXT Download, Session Buttons... [unchanged] ----
+        # ---- PDF Download, TXT Download, Session Buttons, etc... ----
 
         # ---- Initial Instruction ----
         if not st.session_state["falowen_messages"]:
@@ -3379,7 +3377,6 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("✅ End Session & Show Summary"):
             st.session_state["falowen_stage"] = 5
             st.rerun()
-
 
 
     # ---- STAGE 5: End-of-Session Summary ----
