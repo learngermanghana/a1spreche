@@ -600,11 +600,6 @@ if st.button("Log out"):
     st.rerun()
 
 
-import streamlit as st
-import pandas as pd
-import time
-from datetime import datetime, date
-
 # ======= Data Loading Functions =======
 @st.cache_data
 def load_student_data():
@@ -613,15 +608,6 @@ def load_student_data():
     csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
     df = pd.read_csv(csv_url)
     df.columns = df.columns.str.strip().str.replace(" ", "")
-    return df
-
-@st.cache_data
-def load_stats_data():
-    SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
-    SHEET_NAME = "Sheet1"
-    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
-    df = pd.read_csv(csv_url)
-    df.columns = df.columns.str.strip().str.lower()
     return df
 
 @st.cache_data
@@ -749,43 +735,56 @@ if st.session_state.get("logged_in"):
         st.success(f"Hello, {first_name}! 👋")
         st.info("Great to see you. Let's keep learning!")
 
-        # ========== GAMIFIED STREAKS BLOCK ========== #
-        import datetime as dt
-        today = dt.date.today()
+        # ========== STREAKS BLOCK (GAMIFIED & WEEKLY) ========== #
+        # ---- Fetch vocab_stats and schreiben_stats (replace below with your Firestore logic!) ----
+        try:
+            vocab_stats = get_vocab_stats(student_code)
+            if vocab_stats is None:
+                vocab_stats = {"history": []}
+        except Exception:
+            vocab_stats = {"history": []}
+        try:
+            schreiben_stats = get_schreiben_stats(student_code)
+            if schreiben_stats is None:
+                schreiben_stats = {"attempts": []}
+        except Exception:
+            schreiben_stats = {"attempts": []}
 
-                # — calculate week start (Monday) —
+        df_assign = load_assignment_scores()
+        assignments = df_assign[df_assign['studentcode'].str.lower() == student_code]
+
+        # --- Calculate "this week" data ---
         from datetime import date, timedelta, datetime
         today = date.today()
         monday = today - timedelta(days=today.weekday())
 
-        # 1) Vocab
-        # assume vocab_stats["history"] is a list of {"timestamp":"YYYY‑MM‑DD HH:MM",...}
+        # Vocab
         vocab_dates = {
             datetime.strptime(a["timestamp"], "%Y-%m-%d %H:%M").date()
             for a in vocab_stats.get("history", [])
+            if a.get("timestamp")
         }
         vocab_this_week = sum(1 for d in vocab_dates if d >= monday)
-        vocab_last       = max(vocab_dates) if vocab_dates else None
-        vocab_status     = "🔥 On fire!" if vocab_this_week >= 3 else "😴 Start practicing"
+        vocab_last = max(vocab_dates) if vocab_dates else None
+        vocab_status = "🔥 On fire!" if vocab_this_week >= 3 else "😴 Start practicing"
 
-        # 2) Schreiben
+        # Schreiben
         schreiben_dates = {
             datetime.strptime(a["timestamp"], "%Y-%m-%d %H:%M").date()
             for a in schreiben_stats.get("attempts", [])
+            if a.get("timestamp")
         }
         schreiben_this_week = sum(1 for d in schreiben_dates if d >= monday)
-        schreiben_last      = max(schreiben_dates) if schreiben_dates else None
-        schreiben_status    = "✍️ You’re writing!" if schreiben_this_week >= 1 else "😴 No writing yet"
+        schreiben_last = max(schreiben_dates) if schreiben_dates else None
+        schreiben_status = "✍️ You’re writing!" if schreiben_this_week >= 1 else "😴 No writing yet"
 
-        # 3) Assignments
-        # 'assignments' is your filtered DataFrame with a 'date' column
+        # Assignments
         assignment_dates = pd.to_datetime(assignments["date"], errors="coerce").dt.date.dropna().unique()
         assignment_this_week = sum(1 for d in assignment_dates if d >= monday)
-        last_assignment      = max(assignment_dates) if len(assignment_dates) else None
-        assignment_status    = "📝 Looks good!" if assignment_this_week >= 1 else "😴 No submissions yet"
+        last_assignment = max(assignment_dates) if len(assignment_dates) else None
+        assignment_status = "📝 Looks good!" if assignment_this_week >= 1 else "😴 No submissions yet"
 
-
-         # 🎯 Your Practice Streaks This Week
+        # 🎯 Your Practice Streaks This Week
         st.markdown("### 🎯 Your Practice Streaks This Week")
         col1, col2, col3 = st.columns(3)
 
@@ -809,7 +808,6 @@ if st.session_state.get("logged_in"):
 
         st.info("Practice or submit at least once per week to keep your streak going! 🚀")
         st.divider()
-
 
         # --- Student Info & Balance ---
         st.markdown(f"### 👤 {student_row.get('Name','')}")
@@ -908,6 +906,7 @@ if st.session_state.get("logged_in"):
                 f"> — **{r.get('student_name','')}**  \n"
                 f"> {stars}"
             )
+
 
             
 def get_a1_schedule():
