@@ -3266,7 +3266,21 @@ if tab == "Exams Mode & Custom Chat":
             })
             st.rerun()
 
-        # [Bubble styles, highlight_keywords, etc. unchanged, indent here if in this block]
+        # ---- Bubble Styles, highlight_keywords, etc. ----
+        # ... [Place your bubble_user, bubble_assistant, highlight_keywords here]
+
+        # ---- Fix chat format (AVOID KeyError/TypeError forever) ----
+        def ensure_message_format(msg):
+            if isinstance(msg, dict) and "role" in msg and "content" in msg:
+                return msg
+            if isinstance(msg, (list, tuple)) and len(msg) == 2:
+                return {"role": msg[0], "content": msg[1]}
+            if isinstance(msg, str):
+                return {"role": "user", "content": msg}
+            return None
+        msgs = [ensure_message_format(m) for m in st.session_state["falowen_messages"]]
+        msgs = [m for m in msgs if m is not None]
+        st.session_state["falowen_messages"] = msgs
 
         # ---- Render Chat History (bubbles and highlights) ----
         for msg in st.session_state["falowen_messages"]:
@@ -3362,6 +3376,8 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("✅ End Session & Show Summary"):
             st.session_state["falowen_stage"] = 5
             st.rerun()
+
+
 
 
 
