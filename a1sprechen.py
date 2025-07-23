@@ -599,10 +599,7 @@ if st.button("Log out"):
     st.success("You have been logged out.")
     st.rerun()
 
-import streamlit as st
-import pandas as pd
-import time
-from datetime import datetime
+
 
 # ======= Data Loading Functions =======
 @st.cache_data
@@ -754,53 +751,53 @@ if st.session_state.get("logged_in"):
         # YOUR PRACTICE STREAK DASHBOARD
         # =============================
 
-        # --- 1. VOCAB STREAK/STATS (from Firestore) ---
-        try:
-            vocab_stats = get_vocab_stats(student_code)
-            if vocab_stats is None:
-                vocab_stats = {"total_sessions": 0, "best": 0, "last_practiced": None, "completed_words": []}
-        except Exception:
-            vocab_stats = {"total_sessions": 0, "best": 0, "last_practiced": None, "completed_words": []}
+        # Example implementation: You need to define these “days_this_week” stats in your backend!
+        # Here we simulate some numbers:
+        vocab_days_this_week = vocab_stats.get("days_this_week", 0)
+        schreiben_days_this_week = schreiben_stats.get("days_this_week", 0)
+        assign_days_this_week = assign_streak  # For assignments, use calculated streak or "days active this week"
 
-        # --- 2. SCHREIBEN STREAK/STATS (from Firestore) ---
-        try:
-            schreiben_stats = get_schreiben_stats(student_code)
-            if schreiben_stats is None:
-                schreiben_stats = {"total": 0, "best_score": 0, "average_score": 0, "last_attempt": None}
-        except Exception:
-            schreiben_stats = {"total": 0, "best_score": 0, "average_score": 0, "last_attempt": None}
-
-        # --- 3. ASSIGNMENT SUBMISSION STREAK (from Google Sheet) ---
-        df_assign = load_assignment_scores()
-        assignments = df_assign[df_assign['studentcode'].str.lower() == student_code]
-        assignments = assignments.sort_values('date')
-
-        # Calculate assignment streak (e.g., consecutive days with submissions)
-        assign_streak, last_submission = get_assignment_streak(assignments)
-
-        # === DASHBOARD CARDS ===
-        st.markdown("### 📈 Your Practice Streaks")
         col1, col2, col3 = st.columns(3)
 
         with col1:
             st.markdown("#### 📚 Vocab Trainer")
-            st.markdown(f"- **Sessions:** {vocab_stats['total_sessions']}")
-            st.markdown(f"- **Best Score:** {vocab_stats['best']}")
-            st.markdown(f"- **Last Practiced:** {vocab_stats['last_practiced'] or 'N/A'}")
-            st.markdown(f"- **Words Practiced:** {len(vocab_stats['completed_words'])}")
+            if vocab_days_this_week > 0:
+                st.success(f"**You practiced on {vocab_days_this_week} day(s) this week!**")
+                if vocab_days_this_week >= 5:
+                    st.balloons()
+                    st.markdown("🎉 **Awesome! You're building a great habit!**")
+                else:
+                    st.markdown("⭐ Try to get 5 days next week!")
+            else:
+                st.warning("No practice yet this week. Start your streak today!")
 
         with col2:
             st.markdown("#### ✍️ Schreiben Trainer")
-            st.markdown(f"- **Total Attempts:** {schreiben_stats.get('total', 0)}")
-            st.markdown(f"- **Best Score:** {schreiben_stats.get('best_score', 0)} / 25")
-            st.markdown(f"- **Average Score:** {schreiben_stats.get('average_score', 0):.1f} / 25")
-            st.markdown(f"- **Last Attempt:** {schreiben_stats.get('last_attempt', 'N/A')}")
+            if schreiben_days_this_week > 0:
+                st.success(f"**{schreiben_days_this_week} writing session(s) this week!**")
+                if schreiben_days_this_week >= 3:
+                    st.markdown("📝 Keep your momentum going!")
+                else:
+                    st.markdown("✍️ Aim for 3+ days for max results!")
+            else:
+                st.warning("No writing practice yet this week.")
 
         with col3:
             st.markdown("#### 📝 Assignment Submission")
-            st.markdown(f"- **Total Submitted:** {len(assignments)}")
-            st.markdown(f"- **Max Streak:** {assign_streak} days")
-            st.markdown(f"- **Last Submission:** {last_submission or 'N/A'}")
+            if assign_days_this_week > 0:
+                st.success(f"**Assignments on {assign_days_this_week} day(s) this week!**")
+                if assign_days_this_week >= 3:
+                    st.markdown("👏 Nice work! Keep it up.")
+                else:
+                    st.markdown("Try submitting at least 3 times a week!")
+            else:
+                st.warning("No assignment submissions this week.")
+
+        st.markdown(
+            "<div style='text-align:center; margin:20px 0; color:#008000; font-weight:bold;'>"
+            "Consistency wins! Check each tab for your detailed stats."
+            "</div>", unsafe_allow_html=True
+        )
 
         st.divider()
 
