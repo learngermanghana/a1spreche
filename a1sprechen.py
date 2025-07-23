@@ -602,25 +602,9 @@ if st.button("Log out"):
 
 
 
+
+
 # ======= Data Loading Functions =======
-
-# --- Streak calculation function ---
-def get_streak(date_list):
-    """Returns the current streak (days) given a list of dates (datetime.date)."""
-    if not date_list:
-        return 0
-    date_list = sorted(set(date_list))
-    today = datetime.today().date()
-    streak = 0
-    for i in range(len(date_list)):
-        day = today - timedelta(days=i)
-        if day in date_list:
-            streak += 1
-        else:
-            break
-    return streak
-
-# --- Data Loading Functions ---
 @st.cache_data
 def load_student_data():
     SHEET_ID = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
@@ -631,35 +615,18 @@ def load_student_data():
     return df
 
 @st.cache_data
-def load_assignment_data():
+def load_stats_data():
     SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
-    SHEET_NAME = "assignments"   # update if your tab has a different name
+    SHEET_NAME = "Sheet1"
     csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
     df = pd.read_csv(csv_url)
-    df.columns = df.columns.str.strip().str.lower()
-    return df
-
-@st.cache_data
-def load_vocab_trainer():
-    SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
-    SHEET_NAME = "vocab"  # update to your vocab tab name
-    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
-    df = pd.read_csv(csv_url)
-    df.columns = df.columns.str.strip().str.lower()
-    return df
-
-@st.cache_data
-def load_schreiben_trainer():
-    SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
-    SHEET_NAME = "SchreibenTrainer"  # update to your schreiben tab name
-    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
-    df = pd.read_csv(csv_url)
+    # Clean columns for easier access
     df.columns = df.columns.str.strip().str.lower()
     return df
 
 @st.cache_data
 def load_reviews():
-    SHEET_ID = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
+    SHEET_ID   = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
     SHEET_NAME = "Sheet1"
     url = (
         f"https://docs.google.com/spreadsheets/d/{SHEET_ID}"
@@ -669,9 +636,13 @@ def load_reviews():
     df.columns = df.columns.str.strip().str.lower()
     return df
 
+
+from datetime import datetime
+
 def parse_contract_end(date_str):
     if not date_str or str(date_str).lower() in ("nan", "none", ""):
         return None
+    # US format first
     for fmt in ("%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
         try:
             return datetime.strptime(date_str, fmt)
@@ -692,7 +663,7 @@ if st.session_state.get("logged_in"):
     display_name = student_row.get('Name') or student_name or "Student"
     first_name = str(display_name).strip().split()[0].title() if display_name else "Student"
 
-    # --- Contract End and Renewal Policy ---
+    # --- Contract End and Renewal Policy (ALWAYS VISIBLE) ---
     MONTHLY_RENEWAL = 1000
     contract_end_str = student_row.get("ContractEnd", "")
     today = datetime.today()
@@ -731,6 +702,7 @@ if st.session_state.get("logged_in"):
     )
 
     if tab == "Dashboard":
+        # 🏠 Compact Dashboard header
         st.markdown(
             '''
             <div style="
@@ -749,9 +721,84 @@ if st.session_state.get("logged_in"):
         )
         st.divider()
 
-        # --- Greeting ---
+        # --- Minimal, super-visible greeting for mobile ---
         st.success(f"Hello, {first_name}! 👋")
         st.info("Great to see you. Let's keep learning!")
+
+        # =============================
+        # YOUR PRACTICE STREAK DASHBOARD
+        # =============================
+
+        # --- 1. VOCAB STREAK/STATS (from Firestore) ---
+        vocab_stats = get_vocab_stats(student_code)  # Already defined in your app
+
+        # --- 2. SCHREIBEN STREAK/STATS (from Firestore) ---
+        schreiben_stats = get_schreiben_stats(student_code)  # Already defined in your app
+
+        # --- 3. ASSIGNMENT SUBMISSION STREAK (from Google Sheet) ---
+        @st.cache_data
+        def load_assignment_scores():
+            SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
+            SHEET_NAME = "Sheet1"
+            url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
+            df = pd.read_csv(url)
+            df.columns = df.columns.str.strip().str.lower()
+            return df
+
+        df_assign = load_assignment_scores()
+        assignments = df_assign[df_assign['studentcode'].str.lower() == student_code]
+        assignments = assignments.sort_values('date')
+
+        # Calculate assignment streak (e.g., consecutive days with submissions)
+        def get_assignment_streak(df):
+            if df.empty or 'date' not in df.columns:
+                return 0, None
+            # Parse date column to datetime
+            dates = pd.to_datetime(df['date'], errors='coerce').dropna().sort_values()
+            if dates.empty:
+                return 0, None
+            streak = 1
+            max_streak = 1
+            prev = dates.iloc[0]
+            for d in dates.iloc[1:]:
+                if (d - prev).days == 1:
+                    streak += 1
+                    max_streak = max(max_streak, streak)
+                else:
+                    streak = 1
+                prev = d
+            last_date = dates.iloc[-1].strftime('%d %b %Y')
+            return max_streak, last_date
+
+        assign_streak, last_submission = get_assignment_streak(assignments)
+
+        # === DASHBOARD CARDS ===
+        st.markdown("### 📈 Your Practice Streaks")
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.markdown("#### 📚 Vocab Trainer")
+            st.markdown(f"- **Sessions:** {vocab_stats['total_sessions']}")
+            st.markdown(f"- **Best Score:** {vocab_stats['best']}")
+            st.markdown(f"- **Last Practiced:** {vocab_stats['last_practiced'] or 'N/A'}")
+            st.markdown(f"- **Words Practiced:** {len(vocab_stats['completed_words'])}")
+
+        with col2:
+            st.markdown("#### ✍️ Schreiben Trainer")
+            st.markdown(f"- **Total Attempts:** {schreiben_stats.get('total', 0)}")
+            st.markdown(f"- **Best Score:** {schreiben_stats.get('best_score', 0)} / 25")
+            st.markdown(f"- **Average Score:** {schreiben_stats.get('average_score', 0):.1f} / 25")
+            st.markdown(f"- **Last Attempt:** {schreiben_stats.get('last_attempt', 'N/A')}")
+
+        with col3:
+            st.markdown("#### 📝 Assignment Submission")
+            st.markdown(f"- **Total Submitted:** {len(assignments)}")
+            st.markdown(f"- **Max Streak:** {assign_streak} days")
+            st.markdown(f"- **Last Submission:** {last_submission or 'N/A'}")
+
+        st.divider()
+
 
         # --- Student Info & Balance ---
         st.markdown(f"### 👤 {student_row.get('Name','')}")
@@ -771,37 +818,8 @@ if st.session_state.get("logged_in"):
                 st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
         except:
             pass
-
-        # --- Streaks Section ---
-        st.markdown("### 🔥 Your Consistency Streaks")
-
-        # Vocab streak
-        df_vocab = load_vocab_trainer()
-        vocab_dates = df_vocab[df_vocab["studentcode"].str.lower() == student_code]["date"].dropna()
-        vocab_dates = pd.to_datetime(vocab_dates, errors="coerce").dt.date.dropna().tolist()
-        vocab_streak = get_streak(vocab_dates)
-
-        # Assignment streak
-        df_assignment = load_assignment_data()
-        assignment_dates = df_assignment[df_assignment["studentcode"].str.lower() == student_code]["date"].dropna()
-        assignment_dates = pd.to_datetime(assignment_dates, errors="coerce").dt.date.dropna().tolist()
-        assignment_streak = get_streak(assignment_dates)
-
-        # Schreiben streak
-        df_schreiben = load_schreiben_trainer()
-        schreiben_dates = df_schreiben[df_schreiben["studentcode"].str.lower() == student_code]["date"].dropna()
-        schreiben_dates = pd.to_datetime(schreiben_dates, errors="coerce").dt.date.dropna().tolist()
-        schreiben_streak = get_streak(schreiben_dates)
-
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Vocab Trainer Streak", f"{vocab_streak} days" if vocab_streak else "No data")
-        with col2:
-            st.metric("Assignment Submission Streak", f"{assignment_streak} days" if assignment_streak else "No data")
-        with col3:
-            st.metric("Schreiben Trainer Streak", f"{schreiben_streak} days" if schreiben_streak else "No data")
-
-        # --- Announcements & Ads (auto-rotating) ---
+            
+        # --- Announcements & Ads (auto-rotating, reduced size) ---
         st.markdown("### 🖼️ Announcements & Ads")
         ad_images = [
             "https://i.imgur.com/IjZl191.png",
@@ -825,7 +843,7 @@ if st.session_state.get("logged_in"):
             st.rerun()
 
         idx = st.session_state["ad_idx"]
-        st.image(ad_images[idx], caption=ad_captions[idx], width=400)
+        st.image(ad_images[idx], caption=ad_captions[idx], width=400)  # change width if needed
 
         # --- Simple Goethe Exam Section ---
         with st.expander("📅 Goethe Exam Dates & Fees", expanded=True):
@@ -849,9 +867,11 @@ if st.session_state.get("logged_in"):
         - SWIFT Code: **ECOCGHAC**
 - **IMPORTANT:** Use your **full name** as payment reference!
 - After payment, send your proof to: registrations-accra@goethe.de
+
                 """,
                 unsafe_allow_html=True
             )
+
 
         # --- Auto-Rotating Student Reviews ---
         st.markdown("### 🗣️ What Our Students Say")
@@ -878,9 +898,7 @@ if st.session_state.get("logged_in"):
                 f"> — **{r.get('student_name','')}**  \n"
                 f"> {stars}"
             )
-
-
-
+            
 def get_a1_schedule():
     return [
         # DAY 1
