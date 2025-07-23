@@ -2633,43 +2633,6 @@ How to prepare for your B1 oral exam.
         """
     )
 
-# ==============================
-# --- FIRESTORE CHAT HELPERS ---
-# ==============================
-def save_falowen_chat(student_code, level, teil, mode, messages, used_topics):
-    doc_ref = db.collection("falowen_chats").document(student_code)
-    doc = doc_ref.get()
-    data = doc.to_dict() if doc.exists else {}
-    history = data.get("history", [])
-    chat_entry = {
-        "level": level,
-        "teil": teil,
-        "mode": mode,
-        "messages": messages,
-        "used_topics": used_topics,
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-    }
-    history.append(chat_entry)
-    doc_ref.set({
-        "history": history[-10:],   # keep only last 10 sessions
-        "last_mode": mode,
-        "last_level": level,
-        "last_teil": teil,
-        "last_used_topics": used_topics,
-        "last_messages": messages,
-        "last_time": chat_entry["timestamp"]
-    })
-
-def load_falowen_chat(student_code, level, teil, mode):
-    doc_ref = db.collection("falowen_chats").document(student_code)
-    doc = doc_ref.get()
-    if doc.exists:
-        data = doc.to_dict()
-        for chat in reversed(data.get("history", [])):
-            # Only resume if matches the current selection
-            if chat["level"] == level and chat["teil"] == teil and chat["mode"] == mode:
-                return chat["messages"], chat.get("used_topics", [])
-    return [], []
 
 
 # ================================
@@ -3220,6 +3183,28 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["falowen_messages"] = []
                     st.session_state["custom_topic_intro_done"] = False
                     st.rerun()
+                    
+    # ==========================
+    # FIRESTORE CHAT HELPERS
+    # ==========================
+    def save_falowen_chat(student_code, mode, level, teil, messages):
+        doc_ref = db.collection("falowen_chats").document(student_code)
+        doc = doc_ref.get()
+        data = doc.to_dict() if doc.exists else {}
+        chats = data.get("chats", {})
+        chat_key = f"{mode}_{level}_{teil or 'custom'}"
+        chats[chat_key] = messages
+        doc_ref.set({"chats": chats}, merge=True)
+
+    def load_falowen_chat(student_code, mode, level, teil):
+        doc_ref = db.collection("falowen_chats").document(student_code)
+        doc = doc_ref.get()
+        if not doc.exists:
+            return []
+        chats = doc.to_dict().get("chats", {})
+        chat_key = f"{mode}_{level}_{teil or 'custom'}"
+        return chats.get(chat_key, [])
+
     # =========================================
     # ---- STAGE 4: MAIN CHAT ----
     if st.session_state["falowen_stage"] == 4:
@@ -3281,9 +3266,9 @@ if tab == "Exams Mode & Custom Chat":
             })
             st.rerun()
 
-        # ---- Bubble styles, highlight_keywords (insert here if not global) ----
+        # [Bubble styles, highlight_keywords, etc. unchanged, indent here if in this block]
 
-        # ---- Render Chat History ----
+        # ---- Render Chat History (bubbles and highlights) ----
         for msg in st.session_state["falowen_messages"]:
             if msg["role"] == "assistant":
                 with st.chat_message("assistant", avatar="🧑‍🏫"):
@@ -3300,7 +3285,7 @@ if tab == "Exams Mode & Custom Chat":
                         unsafe_allow_html=True
                     )
 
-        # ---- PDF Download, TXT Download, Session Buttons, etc... ----
+        # ---- PDF Download, TXT Download, Session Buttons... [unchanged] ----
 
         # ---- Initial Instruction ----
         if not st.session_state["falowen_messages"]:
@@ -3377,6 +3362,7 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("✅ End Session & Show Summary"):
             st.session_state["falowen_stage"] = 5
             st.rerun()
+
 
 
     # ---- STAGE 5: End-of-Session Summary ----
