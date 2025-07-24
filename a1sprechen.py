@@ -646,69 +646,57 @@ def get_assignment_streak(df):
     return max_streak, last_date
 
 
-# ======= Dashboard Code =======
+# ===== Dashboard Code =====
 if st.session_state.get("logged_in"):
     student_code = st.session_state.get("student_code", "").strip().lower()
     student_name = st.session_state.get("student_name", "")
 
-    # --- Get student_row first (always before any UI) ---
+    # --- Load student info ---
     df_students = load_student_data()
     matches = df_students[df_students["StudentCode"].str.lower() == student_code]
     student_row = matches.iloc[0].to_dict() if not matches.empty else {}
 
+    # --- Name and greeting ---
     display_name = student_row.get('Name') or student_name or "Student"
-    first_name = str(display_name).strip().split()[0].title() if display_name else "Student"
+    first_name = str(display_name).split()[0].title()
 
-    # --- Contract End and Renewal Policy (ALWAYS VISIBLE) ---
+    # --- Contract renewal banner ---
     MONTHLY_RENEWAL = 1000
-    contract_end_str = student_row.get("ContractEnd", "")
-    today = datetime.today()
-    contract_end = parse_contract_end(contract_end_str)
+    contract_end = parse_contract_end(student_row.get("ContractEnd", ""))
     if contract_end:
-        days_left = (contract_end - today).days
+        days_left = (contract_end - datetime.today()).days
         if 0 < days_left <= 30:
             st.warning(
-                f"⏰ **Your contract ends in {days_left} days ({contract_end.strftime('%d %b %Y')}).**\n"
-                f"If you need more time, you can renew for **₵{MONTHLY_RENEWAL:,} per month**."
+                f"⏰ Your contract ends in {days_left} days ({contract_end.strftime('%d %b %Y')}). "
+                f"Renew for ₵{MONTHLY_RENEWAL:,}/month."
             )
         elif days_left < 0:
             st.error(
-                f"⚠️ **Your contract has ended!** Please contact the office to renew for **₵{MONTHLY_RENEWAL:,} per month**."
+                f"⚠️ Your contract has ended! Please renew for ₵{MONTHLY_RENEWAL:,}/month."
             )
     else:
         st.info("Contract end date unavailable or in wrong format.")
-
-    st.info(
-        f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
-        "Do your best to complete your course on time to avoid extra fees!"
-    )
+    st.info(f"🔄 Renewal Policy: ₵{MONTHLY_RENEWAL:,}/month if you extend early.")
 
     # --- Main Tab Selection ---
     tab = st.radio(
         "How do you want to practice?",
-        [
-            "Dashboard",
-            "Course Book",
-            "My Results and Resources",
-            "Exams Mode & Custom Chat",
-            "Vocab Trainer",
-            "Schreiben Trainer",
-        ],
+        ["Dashboard", "Course Book", "My Results and Resources", "Exams Mode & Custom Chat", "Vocab Trainer", "Schreiben Trainer"],
         key="main_tab_select"
     )
 
     if tab == "Dashboard":
-        # 🏠 Compact Dashboard header
+        # Header
         st.markdown(
             '''
             <div style="
-                padding: 8px 12px;
-                background: #343a40;
-                color: #ffffff;
-                border-radius: 6px;
-                text-align: center;
-                margin-bottom: 8px;
-                font-size: 1.3rem;
+                padding:8px 12px;
+                background:#343a40;
+                color:#fff;
+                border-radius:6px;
+                text-align:center;
+                margin-bottom:8px;
+                font-size:1.3rem;
             ">
                 📊 Student Dashboard
             </div>
@@ -717,20 +705,20 @@ if st.session_state.get("logged_in"):
         )
         st.divider()
 
-        # --- Minimal, super-visible greeting for mobile ---
+        # Greeting
         st.success(f"Hello, {first_name}! 👋")
         st.info("Great to see you. Let's keep learning!")
 
         # === Weekly Assignment Goal ===
         df_assign = load_assignment_scores()
-        # parse your US‑style dates (YYYY‑MM‑DD)
+        # parse US-style dates YYYY-MM-DD
         df_assign['date'] = pd.to_datetime(
             df_assign['date'],
             format="%Y-%m-%d",
             errors="coerce"
         ).dt.date
 
-        # filter this student & this week
+        # Filter by student and week
         mask_student = df_assign['studentcode'].str.lower().str.strip() == student_code
         today = date.today()
         monday = today - timedelta(days=today.weekday())
@@ -749,7 +737,6 @@ if st.session_state.get("logged_in"):
 
         st.divider()
 
-
         # --- Student Info & Balance ---
         st.markdown(f"### 👤 {student_row.get('Name','')}")
         st.markdown(
@@ -757,10 +744,7 @@ if st.session_state.get("logged_in"):
             f"- **Code:** `{student_row.get('StudentCode','')}`\n"
             f"- **Email:** {student_row.get('Email','')}\n"
             f"- **Phone:** {student_row.get('Phone','')}\n"
-            f"- **Location:** {student_row.get('Location','')}\n"
             f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}\n"
-            f"- **Enroll Date:** {student_row.get('EnrollDate','')}\n"
-            f"- **Status:** {student_row.get('Status','')}"
         )
         try:
             bal = float(student_row.get("Balance", 0))
@@ -769,60 +753,29 @@ if st.session_state.get("logged_in"):
         except:
             pass
 
-        # --- Announcements & Ads (auto-rotating, reduced size) ---
+        # --- Announcements & Ads ---
         st.markdown("### 🖼️ Announcements & Ads")
         ad_images = [
             "https://i.imgur.com/IjZl191.png",
             "https://i.imgur.com/2PzOOvn.jpg",
-            "https://i.imgur.com/Q9mpvRY.jpg",
+            "https://i.imgur.com/Q9mpvRY.jpg"
         ]
         ad_captions = [
             "New A2 Classes—Limited Seats!",
             "New B1 Classes—Limited Seats!",
-            "Join our classes live in person or online!",
+            "Join live or online!"
         ]
         if "ad_idx" not in st.session_state:
             st.session_state["ad_idx"] = 0
             st.session_state["ad_last_time"] = time.time()
-
-        ROTATE_AD_SEC = 6
-        now = time.time()
-        if now - st.session_state["ad_last_time"] > ROTATE_AD_SEC:
+        if time.time() - st.session_state["ad_last_time"] > 6:
             st.session_state["ad_idx"] = (st.session_state["ad_idx"] + 1) % len(ad_images)
-            st.session_state["ad_last_time"] = now
+            st.session_state["ad_last_time"] = time.time()
             st.rerun()
-
         idx = st.session_state["ad_idx"]
         st.image(ad_images[idx], caption=ad_captions[idx], width=400)
 
-        # --- Simple Goethe Exam Section ---
-        with st.expander("📅 Goethe Exam Dates & Fees", expanded=True):
-            st.markdown(
-                """
-| Level | Online Registration | Fee (GHS) | Single Module (GHS) |
-|-------|---------------------|-----------|---------------------|
-| A1    | 13.10.2025          | 2,850     | —                   |
-| A2    | 14.10.2025          | 2,400     | —                   |
-| B1    | 15.10.2025          | 2,750     | 880                 |
-| B2    | 16.10.2025          | 2,500     | 840                 |
-| C1    | 17.10.2025          | 2,450     | 700                 |
-
-**How to Pay:**
-- [Register here](https://www.goethe.de/ins/gh/en/spr/prf.html)
-- Pay your exam fee by **bank deposit or Mobile Money transfer to the bank account below**:
-    - **Ecobank Ghana**
-        - Account Name: **GOETHE-INSTITUT GHANA**
-        - Account Number: **1441 001 701 903**
-        - Branch: **Ring Road Central**
-        - SWIFT Code: **ECOCGHAC**
-- **IMPORTANT:** Use your **full name** as payment reference!
-- After payment, send your proof to: registrations-accra@goethe.de
-
-                """,
-                unsafe_allow_html=True
-            )
-
-        # --- Auto-Rotating Student Reviews ---
+        # --- Student Reviews ---
         st.markdown("### 🗣️ What Our Students Say")
         reviews = load_reviews()
         if reviews.empty:
@@ -832,22 +785,17 @@ if st.session_state.get("logged_in"):
             if "rev_idx" not in st.session_state:
                 st.session_state["rev_idx"] = 0
                 st.session_state["rev_last_time"] = time.time()
-
-            ROTATE_REV_SEC = 8
-            now = time.time()
-            if now - st.session_state["rev_last_time"] > ROTATE_REV_SEC:
+            if time.time() - st.session_state["rev_last_time"] > 8:
                 st.session_state["rev_idx"] = (st.session_state["rev_idx"] + 1) % len(rev_list)
-                st.session_state["rev_last_time"] = now
+                st.session_state["rev_last_time"] = time.time()
                 st.rerun()
-
             r = rev_list[st.session_state["rev_idx"]]
-            stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
+            stars = "★" * int(r.get("rating", 5)) + "☆" * (5-int(r.get("rating",5)))
             st.markdown(
                 f"> {r.get('review_text','')}\n"
                 f"> — **{r.get('student_name','')}**  \n"
                 f"> {stars}"
             )
-
 
             
 def get_a1_schedule():
