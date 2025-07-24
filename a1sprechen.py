@@ -2699,6 +2699,29 @@ How to prepare for your B1 oral exam.
 # 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
 # ================================
 
+def save_exam_progress(student_code, progress_items):
+    doc_ref = db.collection("exam_progress").document(student_code)
+    doc = doc_ref.get()
+    data = doc.to_dict() if doc.exists else {}
+    all_progress = data.get("completed", [])
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    for item in progress_items:
+        # Only add if not already present (avoid duplicates)
+        already = any(
+            p["level"] == item["level"] and
+            p["teil"] == item["teil"] and
+            p["topic"] == item["topic"]
+            for p in all_progress
+        )
+        if not already:
+            all_progress.append({
+                "level": item["level"],
+                "teil": item["teil"],
+                "topic": item["topic"],
+                "date": now
+            })
+    doc_ref.set({"completed": all_progress}, merge=True)
+
 # --- CONFIG ---
 exam_sheet_id = "1zaAT5NjRGKiITV7EpuSHvYMBHHENMs9Piw3pNcyQtho"
 exam_sheet_name = "exam_topics"   # <-- update if your tab is named differently
@@ -2733,12 +2756,16 @@ if tab == "Exams Mode & Custom Chat":
                 "falowen_messages", "falowen_stage", "falowen_teil", "falowen_mode",
                 "custom_topic_intro_done", "falowen_turn_count",
                 "falowen_exam_topic", "falowen_exam_keyword", "remaining_topics", "used_topics",
-                "_falowen_loaded"
+                "_falowen_loaded", "falowen_practiced_topics"
             ]:
                 if k in st.session_state: del st.session_state[k]
             st.session_state["last_logged_code"] = code
             st.rerun()
-    
+
+    # --- PROGRESS TRACKING: PRACTICED TOPICS (unique per login) ---
+    if "falowen_practiced_topics" not in st.session_state:
+        st.session_state["falowen_practiced_topics"] = []
+        
     # 🗣️ Compact tab header
     st.markdown(
         '''
@@ -3035,6 +3062,46 @@ if tab == "Exams Mode & Custom Chat":
     # ---- STAGE 1: Mode Selection ----
     if st.session_state["falowen_stage"] == 1:
         st.subheader("Step 1: Choose Practice Mode")
+
+            # ==== Progress Dashboard (inserted at the start of Stage 1) ====
+    import math
+
+    # Student's practiced topics list
+    practiced = st.session_state.get("falowen_practiced_topics", [])
+
+    # Optionally, show progress for the *last level/teil practiced*
+    last_level = st.session_state.get("falowen_level")
+    last_teil = st.session_state.get("falowen_teil")
+    teil_number = None
+    if last_teil and "Teil" in last_teil:
+        teil_number = last_teil.split()[1]
+    if last_level and teil_number:
+        all_topics = df_exam[
+            (df_exam["Level"] == last_level) & (df_exam["Teil"] == f"Teil {teil_number}")
+        ]["Topic/Prompt"].dropna().unique().tolist()
+    else:
+        all_topics = []
+    num_practiced = len([t for t in practiced if t in all_topics])
+    total = len(all_topics)
+    percent = int((num_practiced / total) * 100) if total > 0 else 0
+
+    st.markdown("### 🏆 Your Exam Practice Progress")
+    st.progress(percent)
+    st.markdown(f"**{num_practiced} / {total} topics completed** ({percent}%)")
+    if all_topics:
+        done = [t for t in all_topics if t in practiced]
+        todo = [t for t in all_topics if t not in practiced]
+        if done:
+            st.markdown("**✅ Completed:**")
+            for t in done:
+                st.markdown(f"- <span style='color:green'>{t}</span>", unsafe_allow_html=True)
+        if todo:
+            st.markdown("**🕓 Remaining:**")
+            for t in todo:
+                st.markdown(f"- <span style='color:gray'>{t}</span>", unsafe_allow_html=True)
+    else:
+        st.caption("No topics loaded yet. Select your level/Teil to view progress.")
+    st.divider()
 
         st.info(
             """
