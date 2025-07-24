@@ -3058,50 +3058,49 @@ if tab == "Exams Mode & Custom Chat":
         if key not in st.session_state:
             st.session_state[key] = val
 
-
-    # ---- STAGE 1: Mode Selection ----
+        # ---- STAGE 1: Mode Selection ----
     if st.session_state["falowen_stage"] == 1:
         st.subheader("Step 1: Choose Practice Mode")
 
-            # ==== Progress Dashboard (inserted at the start of Stage 1) ====
-    import math
+        # ==== Progress Dashboard (inserted at the start of Stage 1) ====
+        import math
 
-    # Student's practiced topics list
-    practiced = st.session_state.get("falowen_practiced_topics", [])
+        # Student's practiced topics list
+        practiced = st.session_state.get("falowen_practiced_topics", [])
 
-    # Optionally, show progress for the *last level/teil practiced*
-    last_level = st.session_state.get("falowen_level")
-    last_teil = st.session_state.get("falowen_teil")
-    teil_number = None
-    if last_teil and "Teil" in last_teil:
-        teil_number = last_teil.split()[1]
-    if last_level and teil_number:
-        all_topics = df_exam[
-            (df_exam["Level"] == last_level) & (df_exam["Teil"] == f"Teil {teil_number}")
-        ]["Topic/Prompt"].dropna().unique().tolist()
-    else:
-        all_topics = []
-    num_practiced = len([t for t in practiced if t in all_topics])
-    total = len(all_topics)
-    percent = int((num_practiced / total) * 100) if total > 0 else 0
+        # Optionally, show progress for the *last level/teil practiced*
+        last_level = st.session_state.get("falowen_level")
+        last_teil = st.session_state.get("falowen_teil")
+        teil_number = None
+        if last_teil and "Teil" in last_teil:
+            teil_number = last_teil.split()[1]
+        if last_level and teil_number:
+            all_topics = df_exam[
+                (df_exam["Level"] == last_level) & (df_exam["Teil"] == f"Teil {teil_number}")
+            ]["Topic/Prompt"].dropna().unique().tolist()
+        else:
+            all_topics = []
+        num_practiced = len([t for t in practiced if t in all_topics])
+        total = len(all_topics)
+        percent = int((num_practiced / total) * 100) if total > 0 else 0
 
-    st.markdown("### 🏆 Your Exam Practice Progress")
-    st.progress(percent)
-    st.markdown(f"**{num_practiced} / {total} topics completed** ({percent}%)")
-    if all_topics:
-        done = [t for t in all_topics if t in practiced]
-        todo = [t for t in all_topics if t not in practiced]
-        if done:
-            st.markdown("**✅ Completed:**")
-            for t in done:
-                st.markdown(f"- <span style='color:green'>{t}</span>", unsafe_allow_html=True)
-        if todo:
-            st.markdown("**🕓 Remaining:**")
-            for t in todo:
-                st.markdown(f"- <span style='color:gray'>{t}</span>", unsafe_allow_html=True)
-    else:
-        st.caption("No topics loaded yet. Select your level/Teil to view progress.")
-    st.divider()
+        st.markdown("### 🏆 Your Exam Practice Progress")
+        st.progress(percent)
+        st.markdown(f"**{num_practiced} / {total} topics completed** ({percent}%)")
+        if all_topics:
+            done = [t for t in all_topics if t in practiced]
+            todo = [t for t in all_topics if t not in practiced]
+            if done:
+                st.markdown("**✅ Completed:**")
+                for t in done:
+                    st.markdown(f"- <span style='color:green'>{t}</span>", unsafe_allow_html=True)
+            if todo:
+                st.markdown("**🕓 Remaining:**")
+                for t in todo:
+                    st.markdown(f"- <span style='color:gray'>{t}</span>", unsafe_allow_html=True)
+        else:
+            st.caption("No topics loaded yet. Select your level/Teil to view progress.")
+        st.divider()
 
         st.info(
             """
@@ -3134,6 +3133,7 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["custom_topic_intro_done"] = False
             st.rerun()
         st.stop()
+
 
     # ---- STAGE 2: Level Selection ----
     if st.session_state["falowen_stage"] == 2:
