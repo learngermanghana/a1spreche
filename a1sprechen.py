@@ -3725,78 +3725,110 @@ if tab == "Vocab Trainer":
             for k in defaults:
                 st.session_state[k] = defaults[k]
 
-if sub_tab == "Mark My Letter":
+if tab == "Schreiben Trainer":
     st.markdown(
         '''
-        <div style="
-            padding: 8px 12px;
-            background: #d63384;
-            color: #fff;
-            border-radius: 6px;
-            text-align: center;
-            margin-bottom: 8px;
-            font-size: 1.2rem;">
-            ✍️ Mark My Letter (AI Feedback & Score)
+        <div style="padding: 8px 12px; background: #d63384; color: #fff; border-radius: 6px; text-align: center; margin-bottom: 8px; font-size: 1.3rem;">
+            ✍️ Schreiben Trainer (Writing Practice)
         </div>
         ''',
         unsafe_allow_html=True
     )
+    st.divider()
 
-    # --- LIMITS ---
-    MAX_TRIES_PER_LETTER = 3
-    MAX_LETTERS_PER_DAY = 3  # For overall daily usage
+    student_code = st.session_state.get("student_code", "demo")
+    prev_student_code = st.session_state.get("prev_student_code", None)
+    if student_code != prev_student_code:
+        last_prompt, last_chat = load_letter_coach_progress(student_code)
+        st.session_state["letter_coach_prompt"] = last_prompt or ""
+        st.session_state["letter_coach_chat"] = last_chat or []
+        st.session_state["letter_coach_stage"] = 1 if last_chat else 0
+        st.session_state["prev_student_code"] = student_code
 
-    # --- Track Attempts (per letter, per day) ---
-    if "correction_history" not in st.session_state:
-        st.session_state["correction_history"] = []
-    if "tries_left" not in st.session_state:
-        st.session_state["tries_left"] = MAX_TRIES_PER_LETTER
-
-    stats = get_schreiben_stats(student_code)
-    daily_so_far = get_schreiben_usage(student_code)  # Should track daily letters submitted
-    st.markdown(f"**Letters checked today:** {daily_so_far} / {MAX_LETTERS_PER_DAY}")
-
-    if st.session_state.get("tries_left", MAX_TRIES_PER_LETTER) < 1:
-        st.warning("You have used all your correction attempts for this letter. Please start a new letter tomorrow!")
-        st.stop()
-    elif daily_so_far >= MAX_LETTERS_PER_DAY:
-        st.warning("You have reached your daily writing limit. Please come back tomorrow.")
-        st.stop()
-
-    # --- Main Input ---
-    user_letter = st.text_area(
-        "Paste or type your German letter/essay here.",
-        key="schreiben_input",
-        value=st.session_state.get("schreiben_input", ""),
-        height=200,
-        placeholder="Write your German letter here...",
-        disabled=(daily_so_far >= MAX_LETTERS_PER_DAY)
+    sub_tab = st.radio(
+        "Choose Mode",
+        ["Mark My Letter", "Ideas Generator (Letter Coach)"],
+        horizontal=True,
+        key="schreiben_sub_tab"
     )
 
-    # Word/char count
-    if user_letter.strip():
-        words = re.findall(r'\b\w+\b', user_letter)
-        chars = len(user_letter)
-        st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
+    schreiben_levels = ["A1", "A2", "B1", "B2", "C1"]
+    prev_level = st.session_state.get("schreiben_level", "A1")
+    schreiben_level = st.selectbox(
+        "Choose your writing level:",
+        schreiben_levels,
+        index=schreiben_levels.index(prev_level) if prev_level in schreiben_levels else 0,
+        key="schreiben_level_selector"
+    )
+    st.session_state["schreiben_level"] = schreiben_level
+    st.divider()
 
-    # Show tries left
-    st.markdown(f"**Correction attempts left for this letter:** {st.session_state['tries_left']} / {MAX_TRIES_PER_LETTER}")
+    # ----------- 1. MARK MY LETTER -----------
+    if sub_tab == "Mark My Letter":
+        st.markdown(
+            '''
+            <div style="padding: 8px 12px; background: #d63384; color: #fff; border-radius: 6px; text-align: center; margin-bottom: 8px; font-size: 1.2rem;">
+                ✍️ Mark My Letter (AI Feedback & Score)
+            </div>
+            ''',
+            unsafe_allow_html=True
+        )
 
-    # For the main workflow, let's use state
-    if "last_feedback" not in st.session_state:
-        st.session_state["last_feedback"] = ""
-    if "last_score" not in st.session_state:
-        st.session_state["last_score"] = 0
-    if "show_model_answer" not in st.session_state:
-        st.session_state["show_model_answer"] = False
-    if "correction_history" not in st.session_state:
-        st.session_state["correction_history"] = []
+        # Submission Limit (max 3 per day)
+        MARK_LIMIT = 3
+        def get_schreiben_usage(student_code):
+            # Implement your Firestore logic or local logic here!
+            today = datetime.now().date()
+            doc_ref = db.collection("schreiben_usage").document(student_code)
+            doc = doc_ref.get()
+            data = doc.to_dict() if doc.exists else {}
+            return data.get(str(today), 0)
 
-    # --- Submit for Feedback ---
-    submit_disabled = not user_letter.strip() or (daily_so_far >= MAX_LETTERS_PER_DAY)
-    if st.button("Get Feedback", type="primary", disabled=submit_disabled, key=f"feedback_btn_{student_code}"):
-        with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-            # Feedback AI logic (same as before)
+        def inc_schreiben_usage(student_code):
+            today = datetime.now().date()
+            doc_ref = db.collection("schreiben_usage").document(student_code)
+            doc = doc_ref.get()
+            data = doc.to_dict() if doc.exists else {}
+            today_key = str(today)
+            data[today_key] = data.get(today_key, 0) + 1
+            doc_ref.set(data)
+
+        daily_so_far = get_schreiben_usage(student_code)
+        st.markdown(f"**Daily usage:** {daily_so_far} / {MARK_LIMIT}")
+
+        # Letter Textarea
+        user_letter = st.text_area(
+            "Paste or type your German letter/essay here.",
+            key="schreiben_input",
+            value=st.session_state.get("schreiben_input", ""),
+            disabled=(daily_so_far >= MARK_LIMIT),
+            height=200,
+            placeholder="Write your German letter here..."
+        )
+
+        # Word count
+        if user_letter.strip():
+            words = re.findall(r'\b\w+\b', user_letter)
+            chars = len(user_letter)
+            st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
+
+        # Track state for correction loop
+        if "last_feedback" not in st.session_state:
+            st.session_state["last_feedback"] = None
+        if "last_user_letter" not in st.session_state:
+            st.session_state["last_user_letter"] = None
+        if "awaiting_correction" not in st.session_state:
+            st.session_state["awaiting_correction"] = False
+        if "correction_points" not in st.session_state:
+            st.session_state["correction_points"] = 0
+
+        # Submit button
+        submit_disabled = daily_so_far >= MARK_LIMIT or not user_letter.strip()
+        feedback_btn = st.button("Get Feedback", type="primary", disabled=submit_disabled, key=f"feedback_btn_{student_code}")
+
+        # Feedback logic
+        if feedback_btn:
+            st.session_state["awaiting_correction"] = True
             ai_prompt = (
                 f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
                 f"The student has submitted a {schreiben_level} German letter or essay. "
@@ -3810,89 +3842,102 @@ if sub_tab == "Mark My Letter":
                 "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
                 "6. Also check for AI usage or if the student wrote with their own effort. "
                 "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
-                "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score. "
                 "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
-                "9. For A1 and A2, dont recommed any relative clauses or sentence longer than 7 or 8 word. Bring full stop to seperate long phrases."
-                "10. For A2,B1,B2, C1 make sure students work is organized into paragraphs using sequences like erstens and so on based on their level"
-                "11. Always recommend conjunctions based on student level. For A1 and A2 stick to weil,deshalb and ich mochte wissen,und,oder and so on"
                 "Grammar: [score/5, one-sentence tip]\n"
                 "Vocabulary: [score/5, one-sentence tip]\n"
                 "Spelling: [score/5, one-sentence tip]\n"
                 "Structure: [score/5, one-sentence tip]\n"
                 "For each area, rate out of 5 and give a specific, actionable tip in English."
             )
-            try:
-                completion = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {"role": "system", "content": ai_prompt},
-                        {"role": "user", "content": user_letter},
-                    ],
-                    temperature=0.6,
+            with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                try:
+                    completion = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": ai_prompt},
+                            {"role": "user", "content": user_letter},
+                        ],
+                        temperature=0.6,
+                    )
+                    feedback = completion.choices[0].message.content
+                    st.session_state["last_feedback"] = feedback
+                    st.session_state["last_user_letter"] = user_letter
+                except Exception as e:
+                    st.error("AI feedback failed. Please check your OpenAI setup.")
+                    feedback = None
+
+            if feedback:
+                inc_schreiben_usage(student_code)
+                st.markdown("---")
+                st.markdown("#### 📝 Feedback from Herr Felix")
+                st.markdown(feedback)
+                # Show correction button
+                st.session_state["awaiting_correction"] = True
+                st.session_state["correction_points"] = 0
+
+        # Error Correction Loop
+        if st.session_state.get("awaiting_correction") and st.session_state.get("last_feedback"):
+            st.info("👉 Try to fix your mistakes using the feedback above, then resubmit below for a bonus!")
+            correction = st.text_area(
+                "Your corrected version:",
+                key="correction_input",
+                height=180,
+                value=""
+            )
+            col1, col2 = st.columns(2)
+            try_correction = col1.button("Submit My Correction", key="submit_correction")
+            show_model = col2.button("Show me a correct version (I tried myself first!)", key="show_model_btn")
+
+            if try_correction and correction.strip():
+                ai_prompt2 = (
+                    f"As Herr Felix, the student has tried to fix their errors after feedback. "
+                    "Give a brief review ONLY on what was improved or still needs fixing, and give up to 2 bonus points if you see clear corrections. "
+                    "Do NOT regrade from scratch. Reward visible fixes, encourage, and then show the corrected score as: Score: [old score]+[bonus] / 25."
                 )
-                feedback = completion.choices[0].message.content
-            except Exception as e:
-                st.error("AI feedback failed. Please check your OpenAI setup.")
-                feedback = None
+                with st.spinner("🧑‍🏫 Reviewing your corrections..."):
+                    completion2 = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": ai_prompt2},
+                            {"role": "user", "content": f"Original:\n{st.session_state['last_user_letter']}\n\nCorrection:\n{correction}"},
+                        ],
+                        temperature=0.5,
+                    )
+                    feedback2 = completion2.choices[0].message.content
+                st.session_state["correction_points"] += 1  # Simple bonus system, or parse bonus from feedback2
+                st.markdown("#### 📝 Correction Feedback")
+                st.markdown(feedback2)
 
-        if feedback:
-            # Extract score and breakdown as before
-            import re
-            score_match = re.search(r"score\s*(?:[:=]|is)?\s*(\d+)\s*/\s*25", feedback, re.IGNORECASE)
-            if not score_match:
-                score_match = re.search(r"Score[:\s]+(\d+)\s*/\s*25", feedback, re.IGNORECASE)
-            score = int(score_match.group(1)) if score_match else 0
-
-            breakdown = {}
-            areas = ["Grammar", "Vocabulary", "Spelling", "Structure"]
-            for area in areas:
-                pattern = rf"{area}:\s*\[?(\d)/5[,\s]+([^\n\]]+)"
-                match = re.search(pattern, feedback, re.IGNORECASE)
-                if match:
-                    s = int(match.group(1))
-                    tip = match.group(2).strip()
-                    breakdown[area] = (s, tip)
-                else:
-                    breakdown[area] = ("-", "Not found")
-
-            # Save to Firestore!
-            save_schreiben_attempt(student_code, student_name, schreiben_level, score, user_letter, breakdown)
-
-            # Save correction in session history
-            st.session_state["correction_history"].append({
-                "letter": user_letter,
-                "feedback": feedback,
-                "score": score,
-                "breakdown": breakdown
-            })
-            st.session_state["last_feedback"] = feedback
-            st.session_state["last_score"] = score
-            st.session_state["tries_left"] = st.session_state["tries_left"] - 1
-
-            st.markdown("---")
-            st.markdown("#### 📝 Feedback from Herr Felix")
-            st.markdown(feedback)
-
-            # Show breakdown
-            st.markdown("### 📊 **Your Writing Breakdown**")
-            for area in areas:
-                s, tip = breakdown[area]
-                color = "#8bc34a" if s != "-" and int(s) >= 4 else "#ff9800" if s != "-" and int(s) == 3 else "#f44336"
-                st.markdown(
-                    f"<div style='margin-bottom:8px;'><b>{area}:</b> <span style='color:{color};font-weight:600;'>{s}/5</span>"
-                    f"<br><i style='color:#666;'>{tip}</i></div>",
-                    unsafe_allow_html=True
+            # Model answer unlock
+            if show_model:
+                ai_prompt3 = (
+                    f"As Herr Felix, write a model-correct version of the student's letter at level {schreiben_level}. "
+                    "ONLY show one correct example of their letter, using simple, direct German for their level."
                 )
+                with st.spinner("🧑‍🏫 Herr Felix is preparing a model answer..."):
+                    completion3 = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": ai_prompt3},
+                            {"role": "user", "content": st.session_state["last_user_letter"]},
+                        ],
+                        temperature=0.2,
+                    )
+                    model_answer = completion3.choices[0].message.content
+                st.success("✅ Here is one correct version (for learning!):")
+                st.markdown(model_answer)
 
-            # PDF Download
+        # PDF + WhatsApp sharing
+        if st.session_state.get("last_feedback") and st.session_state.get("last_user_letter"):
             from fpdf import FPDF
+            import urllib.parse, os
             def sanitize_text(text):
                 return text.encode('latin-1', errors='replace').decode('latin-1')
             pdf = FPDF()
             pdf.add_page()
             pdf.set_font("Arial", size=12)
-            safe_user_letter = sanitize_text(user_letter)
-            safe_feedback = sanitize_text(feedback)
+            safe_user_letter = sanitize_text(st.session_state["last_user_letter"])
+            safe_feedback = sanitize_text(st.session_state["last_feedback"])
             pdf.multi_cell(0, 10, f"Your Letter:\n\n{safe_user_letter}\n\nFeedback from Herr Felix:\n\n{safe_feedback}")
             pdf_output = f"Feedback_{student_code}_{schreiben_level}.pdf"
             pdf.output(pdf_output)
@@ -3904,12 +3949,9 @@ if sub_tab == "Mark My Letter":
                 file_name=pdf_output,
                 mime="application/pdf"
             )
-            import os
             os.remove(pdf_output)
 
-            # WhatsApp share
-            import urllib.parse
-            wa_message = f"Hi, here is my German letter and AI feedback:\n\n{user_letter}\n\nFeedback:\n{feedback}"
+            wa_message = f"Hi, here is my German letter and AI feedback:\n\n{st.session_state['last_user_letter']}\n\nFeedback:\n{st.session_state['last_feedback']}"
             wa_url = (
                 "https://api.whatsapp.com/send"
                 "?phone=233205706589"
@@ -3919,48 +3961,6 @@ if sub_tab == "Mark My Letter":
                 f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                 unsafe_allow_html=True
             )
-
-    # -- Correction Loop: Only show after at least 1 feedback given
-    if st.session_state.get("last_feedback", "") and st.session_state.get("tries_left", MAX_TRIES_PER_LETTER) > 0:
-        st.markdown("#### ❗ **Correct your mistakes and try again for a better score!**")
-        if st.button("Try to fix your mistakes and resubmit (uses 1 try)", key="try_again"):
-            # Copy last letter back for editing
-            st.session_state["schreiben_input"] = st.session_state["correction_history"][-1]["letter"]
-            st.experimental_rerun()
-
-        # --- Model Answer button: Only after at least 1 correction, or a checkbox
-        show_model_locked = st.session_state["tries_left"] == MAX_TRIES_PER_LETTER
-        if show_model_locked:
-            st.checkbox("I tried to correct my letter myself first!", key="unlock_model")
-        if (not show_model_locked) or st.session_state.get("unlock_model"):
-            if st.button("Show me one correct version of my letter (model answer)", key="show_model_answer_btn"):
-                # Use AI to generate a correct version
-                with st.spinner("Generating correct version..."):
-                    model_prompt = (
-                        f"You are Herr Felix, a German teacher. Please rewrite the following letter as a correct version "
-                        f"for {schreiben_level} level. Use simple language, no explanations, just the corrected letter. "
-                        f"Keep the student's ideas but fix all errors. Don't add extra points, don't write an essay, only correct what is there."
-                    )
-                    try:
-                        completion = client.chat.completions.create(
-                            model="gpt-4o",
-                            messages=[
-                                {"role": "system", "content": model_prompt},
-                                {"role": "user", "content": st.session_state['correction_history'][-1]["letter"]},
-                            ],
-                            temperature=0.3,
-                        )
-                        model_answer = completion.choices[0].message.content
-                    except Exception as e:
-                        model_answer = "Sorry, could not generate a model answer."
-                st.session_state["show_model_answer"] = True
-                st.session_state["model_answer_text"] = model_answer
-                st.experimental_rerun()
-
-    # --- Show Model Answer if available
-    if st.session_state.get("show_model_answer", False):
-        st.markdown("### ✅ Example Corrected Version")
-        st.info(st.session_state.get("model_answer_text", "No model answer available."))
 
 
                 
