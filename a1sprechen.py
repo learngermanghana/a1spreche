@@ -35,9 +35,9 @@ st.markdown(
 # ==== FIREBASE ADMIN INIT ====
 # Make sure to place your service account JSON in your project and reference the correct path.
 if not firebase_admin._apps:
-    cred = credentials.Certificate("path/to/serviceAccountKey.json")
+    cred = credentials.Certificate("serviceAccountKey.json")
     firebase_admin.initialize_app(cred)
-db = firestore.client()  # << You can use db for Firestore ops anywhere below this line
+db = firestore.client()
 
 # ==== OPENAI CLIENT SETUP (Optional, Remove if not needed) ====
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
