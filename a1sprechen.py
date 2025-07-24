@@ -3640,7 +3640,7 @@ if tab == "Vocab Trainer":
             for k in defaults:
                 st.session_state[k] = defaults[k]
 
-    if tab == "Schreiben Trainer":
+if tab == "Schreiben Trainer":
     st.markdown(
         '''
         <div style="
@@ -3937,7 +3937,6 @@ if tab == "Vocab Trainer":
                 # Option to reset and start new correction
                 if st.session_state.correction_tries >= 3:
                     st.info("You have reached the maximum number of feedback tries for this letter. Please start a new letter to continue.")
-
 
                 
     # ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
