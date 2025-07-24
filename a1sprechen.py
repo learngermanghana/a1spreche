@@ -3789,19 +3789,20 @@ if tab == "Schreiben Trainer":
     student_code = st.session_state.get("student_code", "demo")
     prev_student_code = st.session_state.get("prev_student_code", None)
 
-    # On student change, load their last letter/draft
+    # On student change, clear all Schreiben-related session state and load last draft
     if student_code != prev_student_code:
+        # CLEAR ALL relevant session state for Schreiben Trainer
+        for k in [
+            "schreiben_input", "last_feedback", "last_user_letter",
+            "awaiting_correction", "correction_points", "correction_input"
+        ]:
+            if k in st.session_state:
+                del st.session_state[k]
+        # Now, load only this student's last letter (if any)
         stats = get_schreiben_stats(student_code)
         st.session_state["schreiben_input"] = stats.get("last_letter", "")
         st.session_state["prev_student_code"] = student_code
 
-    # Sub-tabs
-    sub_tab = st.radio(
-        "Choose Mode",
-        ["Mark My Letter", "Ideas Generator (Letter Coach)"],
-        horizontal=True,
-        key="schreiben_sub_tab"
-    )
 
     # Level picker
     schreiben_levels = ["A1", "A2", "B1", "B2", "C1"]
