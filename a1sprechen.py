@@ -3968,133 +3968,131 @@ if tab == "Schreiben Trainer":
             height=200,
             placeholder="Write your German letter here..."
         )
-    # Word/char count
-    if user_letter.strip():
-        words = re.findall(r'\b\w+\b', user_letter)
-        chars = len(user_letter)
-        st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
 
-    submit_disabled = (daily_so_far >= SCHREIBEN_DAILY_LIMIT) or (not user_letter.strip())
+        # Word/char count
+        if user_letter.strip():
+            words = re.findall(r'\b\w+\b', user_letter)
+            chars = len(user_letter)
+            st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
 
-    if st.button("Submit for Feedback & Score", disabled=submit_disabled, key=f"feedback_btn_{student_code}"):
-        with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-            try:
-                ai_prompt = (
-                    f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
-                    f"The student has submitted a {schreiben_level} German letter or essay. "
-                    "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
-                    "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
-                    "Don't just say errors—show exactly where the mistakes are. "
-                    "1. Give a score out of 25 marks and always display the score clearly. "
-                    "2. If the score is 17 or more, write: '**Passed: You may submit to your tutor!**'. "
-                    "3. If the score is 16 or less, write: '**Keep improving before you submit.**'. "
-                    "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
-                    "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
-                    "6. Also check for AI usage or if the student wrote with their own effort. "
-                    "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
-                    "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score. "
-                    "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
-                    "Grammar: [score/5, one-sentence tip]\n"
-                    "Vocabulary: [score/5, one-sentence tip]\n"
-                    "Spelling: [score/5, one-sentence tip]\n"
-                    "Structure: [score/5, one-sentence tip]\n"
-                    "For each area, rate out of 5 and give a specific, actionable tip in English."
-                )
-                completion = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {"role": "system", "content": ai_prompt},
-                        {"role": "user", "content": user_letter},
-                    ],
-                    temperature=0.6,
-                )
-                feedback = completion.choices[0].message.content
+        submit_disabled = (daily_so_far >= SCHREIBEN_DAILY_LIMIT) or (not user_letter.strip())
 
-                # ---- Count usage immediately ----
-                inc_schreiben_usage(student_code)
-                st.session_state["schreiben_usage"] = st.session_state.get("schreiben_usage", 0) + 1
+        if st.button("Submit for Feedback & Score", disabled=submit_disabled, key=f"feedback_btn_{student_code}"):
+            with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                try:
+                    ai_prompt = (
+                        f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
+                        f"The student has submitted a {schreiben_level} German letter or essay. "
+                        "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
+                        "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
+                        "Don't just say errors—show exactly where the mistakes are. "
+                        "1. Give a score out of 25 marks and always display the score clearly. "
+                        "2. If the score is 17 or more, write: '**Passed: You may submit to your tutor!**'. "
+                        "3. If the score is 16 or less, write: '**Keep improving before you submit.**'. "
+                        "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
+                        "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
+                        "6. Also check for AI usage or if the student wrote with their own effort. "
+                        "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
+                        "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score. "
+                        "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
+                        "Grammar: [score/5, one-sentence tip]\n"
+                        "Vocabulary: [score/5, one-sentence tip]\n"
+                        "Spelling: [score/5, one-sentence tip]\n"
+                        "Structure: [score/5, one-sentence tip]\n"
+                        "For each area, rate out of 5 and give a specific, actionable tip in English."
+                    )
+                    completion = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": ai_prompt},
+                            {"role": "user", "content": user_letter},
+                        ],
+                        temperature=0.6,
+                    )
+                    feedback = completion.choices[0].message.content
 
-            except Exception as e:
-                st.error("AI feedback failed. Please check your OpenAI setup.")
-                feedback = None
+                    # ---- Count usage immediately ----
+                    inc_schreiben_usage(student_code)
+                    st.session_state["schreiben_usage"] = st.session_state.get("schreiben_usage", 0) + 1
 
-            if feedback:
-                import re
-                # Extract score
-                score_match = re.search(r"score\s*(?:[:=]|is)?\s*(\d+)\s*/\s*25", feedback, re.IGNORECASE)
-                if not score_match:
-                    score_match = re.search(r"Score[:\s]+(\d+)\s*/\s*25", feedback, re.IGNORECASE)
-                score = int(score_match.group(1)) if score_match else 0
+                except Exception as e:
+                    st.error("AI feedback failed. Please check your OpenAI setup.")
+                    feedback = None
 
-                # Parse breakdown
-                breakdown = {}
-                areas = ["Grammar", "Vocabulary", "Spelling", "Structure"]
-                for area in areas:
-                    pattern = rf"{area}:\s*\[?(\d)/5[,\s]+([^\n\]]+)"
-                    match = re.search(pattern, feedback, re.IGNORECASE)
-                    if match:
-                        s = int(match.group(1))
-                        tip = match.group(2).strip()
-                        breakdown[area] = (s, tip)
-                    else:
-                        breakdown[area] = ("-", "Not found")
+                if feedback:
+                    import re
+                    # Extract score
+                    score_match = re.search(r"score\s*(?:[:=]|is)?\s*(\d+)\s*/\s*25", feedback, re.IGNORECASE)
+                    if not score_match:
+                        score_match = re.search(r"Score[:\s]+(\d+)\s*/\s*25", feedback, re.IGNORECASE)
+                    score = int(score_match.group(1)) if score_match else 0
 
+                    # Parse breakdown
+                    breakdown = {}
+                    areas = ["Grammar", "Vocabulary", "Spelling", "Structure"]
+                    for area in areas:
+                        pattern = rf"{area}:\s*\[?(\d)/5[,\s]+([^\n\]]+)"
+                        match = re.search(pattern, feedback, re.IGNORECASE)
+                        if match:
+                            s = int(match.group(1))
+                            tip = match.group(2).strip()
+                            breakdown[area] = (s, tip)
+                        else:
+                            breakdown[area] = ("-", "Not found")
 
+                    # Save to Firestore (per student!)
+                    save_schreiben_attempt(student_code, student_code, schreiben_level, score, user_letter, breakdown)
 
-                # Save to Firestore (per student!)
-                inc_schreiben_usage(student_code)
-                save_schreiben_attempt(student_code, student_name, schreiben_level, score, user_letter, breakdown)
+                    st.markdown("---")
+                    st.markdown("#### 📝 Feedback from Herr Felix")
+                    st.markdown(feedback)
 
-                st.markdown("---")
-                st.markdown("#### 📝 Feedback from Herr Felix")
-                st.markdown(feedback)
+                    # Show breakdown nicely
+                    st.markdown("### 📊 **Your Writing Breakdown**")
+                    for area in areas:
+                        s, tip = breakdown[area]
+                        color = "#8bc34a" if s != "-" and int(s) >= 4 else "#ff9800" if s != "-" and int(s) == 3 else "#f44336"
+                        st.markdown(
+                            f"<div style='margin-bottom:8px;'><b>{area}:</b> <span style='color:{color};font-weight:600;'>{s}/5</span>"
+                            f"<br><i style='color:#666;'>{tip}</i></div>",
+                            unsafe_allow_html=True
+                        )
 
-                # Show breakdown nicely
-                st.markdown("### 📊 **Your Writing Breakdown**")
-                for area in areas:
-                    s, tip = breakdown[area]
-                    color = "#8bc34a" if s != "-" and int(s) >= 4 else "#ff9800" if s != "-" and int(s) == 3 else "#f44336"
+                    # Download as PDF (safe text)
+                    from fpdf import FPDF
+                    def sanitize_text(text):
+                        return text.encode('latin-1', errors='replace').decode('latin-1')
+                    pdf = FPDF()
+                    pdf.add_page()
+                    pdf.set_font("Arial", size=12)
+                    safe_user_letter = sanitize_text(user_letter)
+                    safe_feedback = sanitize_text(feedback)
+                    pdf.multi_cell(0, 10, f"Your Letter:\n\n{safe_user_letter}\n\nFeedback from Herr Felix:\n\n{safe_feedback}")
+                    pdf_output = f"Feedback_{student_code}_{schreiben_level}.pdf"
+                    pdf.output(pdf_output)
+                    with open(pdf_output, "rb") as f:
+                        pdf_bytes = f.read()
+                    st.download_button(
+                        "⬇️ Download Feedback as PDF",
+                        pdf_bytes,
+                        file_name=pdf_output,
+                        mime="application/pdf"
+                    )
+                    import os
+                    os.remove(pdf_output)
+
+                    # WhatsApp share
+                    import urllib.parse
+                    wa_message = f"Hi, here is my German letter and AI feedback:\n\n{user_letter}\n\nFeedback:\n{feedback}"
+                    wa_url = (
+                        "https://api.whatsapp.com/send"
+                        "?phone=233205706589"
+                        f"&text={urllib.parse.quote(wa_message)}"
+                    )
                     st.markdown(
-                        f"<div style='margin-bottom:8px;'><b>{area}:</b> <span style='color:{color};font-weight:600;'>{s}/5</span>"
-                        f"<br><i style='color:#666;'>{tip}</i></div>",
+                        f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                         unsafe_allow_html=True
                     )
-
-                # Download as PDF (safe text)
-                from fpdf import FPDF
-                def sanitize_text(text):
-                    return text.encode('latin-1', errors='replace').decode('latin-1')
-                pdf = FPDF()
-                pdf.add_page()
-                pdf.set_font("Arial", size=12)
-                safe_user_letter = sanitize_text(user_letter)
-                safe_feedback = sanitize_text(feedback)
-                pdf.multi_cell(0, 10, f"Your Letter:\n\n{safe_user_letter}\n\nFeedback from Herr Felix:\n\n{safe_feedback}")
-                pdf_output = f"Feedback_{student_code}_{schreiben_level}.pdf"
-                pdf.output(pdf_output)
-                with open(pdf_output, "rb") as f:
-                    pdf_bytes = f.read()
-                st.download_button(
-                    "⬇️ Download Feedback as PDF",
-                    pdf_bytes,
-                    file_name=pdf_output,
-                    mime="application/pdf"
-                )
-                import os
-                os.remove(pdf_output)
-
-                # WhatsApp share
-                import urllib.parse
-                wa_message = f"Hi, here is my German letter and AI feedback:\n\n{user_letter}\n\nFeedback:\n{feedback}"
-                wa_url = (
-                    "https://api.whatsapp.com/send"
-                    "?phone=233205706589"
-                    f"&text={urllib.parse.quote(wa_message)}"
-                )
-                st.markdown(
-                    f"[📲 Send to Tutor on WhatsApp]({wa_url})",
-                    unsafe_allow_html=True
-                )
 
                 
     # ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
