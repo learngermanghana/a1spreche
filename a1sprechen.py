@@ -4062,6 +4062,8 @@ if tab == "Schreiben Trainer":
             </div>
         """
 
+    # 2. IDEAS GENERATOR
+    
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
 
@@ -4078,44 +4080,19 @@ if tab == "Schreiben Trainer":
             return row[0] if row else 0
 
         # === NAMESPACED SESSION KEYS (per student) ===
-        ns_prefix = f"{student_code}_letter_coach_"
+        ns_prefix = f"{st.session_state.get('student_code', 'demo')}_letter_coach_"
         def ns(key):
             return ns_prefix + key
 
-        # --- Auto‑restore progress for this student only ---
+        # --- Auto-restore progress for this student only ---
         if not st.session_state.get(ns("prompt")) and not st.session_state.get(ns("chat")):
-            last_prompt, last_chat = load_letter_coach_progress(student_code)
+            last_prompt, last_chat = load_letter_coach_progress(st.session_state.get("student_code", "demo"))
             if last_prompt or last_chat:
                 st.session_state[ns("prompt")] = last_prompt
                 st.session_state[ns("chat")] = last_chat
                 st.session_state[ns("stage")] = 1 if last_chat else 0
 
-        # --- Session‑state defaults (per student) ---
-        for key, default in [
-            ("stage", 0), ("chat", []), ("prompt", ""), 
-            ("type", ""), ("selected_letter_lines", []), ("uploaded", False)
-        ]:
-            if ns(key) not in st.session_state:
-                st.session_state[ns(key)] = default
-
-        # --- Stage 0: Paste Prompt ---
-        if st.session_state[ns("stage")] == 0:
-            prompt = st.text_area(
-                "Paste your exam prompt or draft below",
-                value=st.session_state[ns("prompt")],
-                key=ns("prompt_textarea"),
-                height=120
-            )
-            if st.button("✉️ Start Letter Coach", key=ns("start_btn")):
-                st.session_state[ns("prompt")] = prompt
-                st.session_state[ns("stage")] = 1
-                # initialize chat history...
-        
-        # --- Stage 1: Coaching Chat ---
-        elif st.session_state[ns("stage")] == 1:
-            # render chat using st.session_state[ns("chat")]
-            # use st.session_state[ns("chat")], ns("stage"), etc.
-            pass
+        render_letter_coach()
 
 
         LETTER_COACH_PROMPTS = {
