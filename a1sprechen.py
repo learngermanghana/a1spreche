@@ -1,4 +1,3 @@
-# ==== Standard Library ====
 import os
 import random
 import difflib
@@ -10,7 +9,6 @@ from datetime import date, datetime, timedelta
 import time
 import io
 
-# ==== Third-Party Packages ====
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
@@ -21,7 +19,7 @@ from firebase_admin import credentials, firestore
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
-# ==== HIDE STREAMLIT DEFAULT FOOTER/MENU ====
+# Hide Streamlit default footer/menu
 st.markdown(
     """
     <style>
@@ -32,12 +30,12 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# ==== FIREBASE ADMIN INIT ====
-FIREBASE_CRED_PATH = "serviceAccountKey.json"   # <- CHANGE THIS TO YOUR FILE PATH!
+# ==== FIREBASE ADMIN INIT FROM SECRETS ====
 if not firebase_admin._apps:
     cred = credentials.Certificate(st.secrets["firebase"])
     firebase_admin.initialize_app(cred)
 db = firestore.client()
+
 
 # ==== OPENAI CLIENT SETUP ====
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
