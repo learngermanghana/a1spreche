@@ -4002,6 +4002,18 @@ if tab == "Schreiben Trainer":
                 st.session_state["awaiting_correction"] = True
                 st.session_state["correction_points"] = 0
 
+               # --- Save submission button (show only after feedback) ---
+               import datetime
+               import re
+               score_match = re.search(r"Score[: ]+(\d+)", feedback)
+               score = int(score_match.group(1)) if score_match else 0
+               passed = score >= 17  # adjust pass threshold as needed
+               if st.button("Save This Submission"):
+                   save_submission(student_code, score, passed, datetime.datetime.now())
+                   st.success("Submission saved for your stats! Reload to see updated stats.")
+                   st.rerun()
+
+                                                                    
 
         # Error Correction Loop
         if st.session_state.get("awaiting_correction") and st.session_state.get("last_feedback"):
