@@ -3640,7 +3640,6 @@ if tab == "Vocab Trainer":
             for k in defaults:
                 st.session_state[k] = defaults[k]
 
-
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
@@ -3692,8 +3691,7 @@ if tab == "Schreiben Trainer":
 
     st.divider()
 
-
-    # --- 1. MARK MY LETTER SUB-TAB ---
+    # --- MARK MY LETTER SUB-TAB ---
     if sub_tab == "Mark My Letter":
         st.markdown(
             '''
@@ -3711,14 +3709,11 @@ if tab == "Schreiben Trainer":
             unsafe_allow_html=True
         )
 
-
-        # ====== LETTER STATS FUNCTIONS ======
         def save_schreiben_attempt(student_code, student_name, level, score, letter, breakdown=None):
             doc_ref = db.collection("schreiben_stats").document(student_code)
             doc = doc_ref.get()
             data = doc.to_dict() if doc.exists else {}
             stats = data.get("attempts", [])
-
             attempt = {
                 "student_name": student_name,
                 "level": level,
@@ -3728,13 +3723,11 @@ if tab == "Schreiben Trainer":
                 "breakdown": breakdown or {},
             }
             stats.append(attempt)
-
             total = len(stats)
             passed = len([a for a in stats if a["score"] >= 15])
             avg_score = sum([a["score"] for a in stats]) / total if total > 0 else 0
             best_score = max([a["score"] for a in stats]) if total > 0 else 0
             pass_rate = round(100 * passed / total, 1) if total > 0 else 0
-
             doc_ref.set({
                 "attempts": stats,
                 "total": total,
@@ -3761,7 +3754,12 @@ if tab == "Schreiben Trainer":
             # TODO: Replace with your actual Firestore logic if needed
             return 0
 
-        # Show stats panel
+        # Correction tries limiter (max 3 per session)
+        if "correction_tries" not in st.session_state:
+            st.session_state.correction_tries = 0
+        if "last_letter_for_correction" not in st.session_state:
+            st.session_state.last_letter_for_correction = ""
+
         stats = get_schreiben_stats(student_code)
         st.markdown("### 📝 **Your Letter Writing Stats**")
         if stats["total"]:
@@ -3784,6 +3782,8 @@ if tab == "Schreiben Trainer":
         if stats.get("last_letter"):
             if st.button("Restore Last Letter"):
                 st.session_state["schreiben_input"] = stats["last_letter"]
+                st.session_state.correction_tries = 0
+                st.session_state.last_letter_for_correction = stats["last_letter"]
                 st.rerun()
 
         # Daily usage
@@ -3795,7 +3795,7 @@ if tab == "Schreiben Trainer":
             "Paste or type your German letter/essay here.",
             key="schreiben_input",
             value=st.session_state.get("schreiben_input", ""),
-            disabled=(daily_so_far >= SCHREIBEN_DAILY_LIMIT),
+            disabled=(daily_so_far >= SCHREIBEN_DAILY_LIMIT or st.session_state.correction_tries >= 3),
             height=200,
             placeholder="Write your German letter here..."
         )
@@ -3805,7 +3805,6 @@ if tab == "Schreiben Trainer":
             words = re.findall(r'\b\w+\b', user_letter)
             chars = len(user_letter)
             st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
-
 
         # AI prompt for feedback
         ai_prompt = (
@@ -3833,11 +3832,17 @@ if tab == "Schreiben Trainer":
             "For each area, rate out of 5 and give a specific, actionable tip in English."
         )
 
-        submit_disabled = daily_so_far >= SCHREIBEN_DAILY_LIMIT or not user_letter.strip()
-        if submit_disabled and daily_so_far >= SCHREIBEN_DAILY_LIMIT:
-            st.warning("You have reached today's writing practice limit. Please come back tomorrow.")
+        submit_disabled = (daily_so_far >= SCHREIBEN_DAILY_LIMIT or 
+                          st.session_state.correction_tries >= 3 or 
+                          not user_letter.strip())
 
-        if st.button("Get Feedback", type="primary", disabled=submit_disabled, key=f"feedback_btn_{student_code}"):
+        if submit_disabled:
+            if st.session_state.correction_tries >= 3:
+                st.warning("You have reached the maximum number of 3 feedback attempts for this letter. Start a new letter to try again.")
+            elif daily_so_far >= SCHREIBEN_DAILY_LIMIT:
+                st.warning("You have reached today's writing practice limit. Please come back tomorrow.")
+
+        if st.button("Get Feedback", type="primary", disabled=submit_disabled, key=f"feedback_btn_{student_code}_{st.session_state.correction_tries}"):
             with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                 try:
                     completion = client.chat.completions.create(
@@ -3874,9 +3879,16 @@ if tab == "Schreiben Trainer":
                     else:
                         breakdown[area] = ("-", "Not found")
 
-                # Save to Firestore (per student!)
+                # Save to Firestore (per student & every correction!)
                 inc_schreiben_usage(student_code)
                 save_schreiben_attempt(student_code, student_name, schreiben_level, score, user_letter, breakdown)
+
+                # Track correction tries per letter
+                if user_letter != st.session_state.get("last_letter_for_correction", ""):
+                    st.session_state.correction_tries = 1
+                    st.session_state.last_letter_for_correction = user_letter
+                else:
+                    st.session_state.correction_tries += 1
 
                 st.markdown("---")
                 st.markdown("#### 📝 Feedback from Herr Felix")
@@ -3928,6 +3940,16 @@ if tab == "Schreiben Trainer":
                     f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                     unsafe_allow_html=True
                 )
+
+                # Option to reset and start new correction
+                if st.session_state.correction_tries >= 3:
+                    st.info("You have reached the maximum number of feedback tries for this letter. Please start a new letter to continue.")
+
+    # --- IDEAS GENERATOR (Letter Coach) SUBTAB ---
+    if sub_tab == "Ideas Generator (Letter Coach)":
+        st.info("Letter Coach coming here! (Your logic here.)")
+        # Paste your full Letter Coach code in this block
+
                 
     # ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
     def bubble(role, text):
