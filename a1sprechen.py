@@ -232,21 +232,18 @@ def inc_schreiben_usage(student_code):
     today = str(date.today())
     conn = get_connection()
     c = conn.cursor()
-    usage = get_schreiben_usage(student_code)
-    if usage == 0:
-        c.execute(
-            "INSERT INTO schreiben_usage (student_code, date, count) VALUES (?, ?, ?)",
-            (student_code, today, 1)
-        )
-    else:
-        c.execute(
-            "UPDATE schreiben_usage SET count = ? WHERE student_code = ? AND date = ?",
-            (usage + 1, student_code, today)
-        )
+    c.execute(
+        """
+        INSERT INTO schreiben_usage (student_code, date, count)
+        VALUES (?, ?, 1)
+        ON CONFLICT(student_code, date)
+        DO UPDATE SET count = count + 1
+        """,
+        (student_code, today)
+    )
     conn.commit()
 
-def has_schreiben_quota(student_code, limit=SCHREIBEN_DAILY_LIMIT):
-    return get_schreiben_usage(student_code) < limit
+
 
 def get_writing_stats(student_code):
     conn = get_connection()
@@ -274,16 +271,21 @@ def get_student_stats(student_code):
         stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
     return stats
 
-def get_letter_coach_usage(student_code):
+def inc_letter_coach_usage(student_code):
     today = str(date.today())
     conn = get_connection()
     c = conn.cursor()
     c.execute(
-        "SELECT count FROM letter_coach_usage WHERE student_code=? AND date=?",
+        """
+        INSERT INTO letter_coach_usage (student_code, date, count)
+        VALUES (?, ?, 1)
+        ON CONFLICT(student_code, date)
+        DO UPDATE SET count = count + 1
+        """,
         (student_code, today)
     )
-    row = c.fetchone()
-    return row[0] if row else 0
+    conn.commit()
+
 
 def inc_letter_coach_usage(student_code):
     today = str(date.today())
@@ -4090,9 +4092,21 @@ if tab == "Schreiben Trainer":
                 <b>{name}:</b><br>{text}
             </div>
         """
-
+        
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
+
+        # --- Define get_letter_coach_usage HERE if needed inside the block ---
+        def get_letter_coach_usage(student_code):
+            today = str(date.today())
+            conn = get_connection()
+            c = conn.cursor()
+            c.execute(
+                "SELECT count FROM letter_coach_usage WHERE student_code=? AND date=?",
+                (student_code, today)
+            )
+            row = c.fetchone()
+            return row[0] if row else 0
 
         # === NAMESPACED SESSION KEYS (per student) ===
         ns_prefix = f"{student_code}_letter_coach_"
@@ -4105,7 +4119,6 @@ if tab == "Schreiben Trainer":
                 st.session_state[ns("prompt")] = last_prompt
                 st.session_state[ns("chat")] = last_chat
                 st.session_state[ns("stage")] = 1 if last_chat else 0
-
 
         LETTER_COACH_PROMPTS = {
             "A1": (
@@ -4270,146 +4283,149 @@ if tab == "Schreiben Trainer":
             if key not in st.session_state:
                 st.session_state[key] = default
 
-        # --- Stage 0: Paste Prompt ---
-        if st.session_state.letter_coach_stage == 0:
-            st.markdown(
-                """
-                <div style="
-                    background: linear-gradient(90deg, #f9fbe7 70%, #eaf4ff 100%);
-                    border-radius: 9px;
-                    border: 1px solid #e0e0e0;
-                    box-shadow: 0 2px 8px #c0caf01c;
-                    padding: 0.74em 1.1em 0.58em 1.1em;
-                    margin-bottom: 0.55em;
-                    margin-top: 0.05em;
-                    color: #4a6276;
-                    font-size: 1.05rem;
-                    font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
-                    ">
-                    <span style="font-size:1.15em; font-weight: 500; vertical-align:middle;">📝 Enter your exam prompt or letter draft below</span>
-                    <div style="color:#668b8b;font-size:0.99em;margin-top:0.22em;">
-                        Paste the <b>question</b>, a <b>draft</b>, or any <b>unfinished letter</b>.<br>
-                    </div>
+      # --- Stage 0: Paste Prompt ---
+    if st.session_state.get("letter_coach_stage", 0) == 0:
+        st.markdown(
+            """
+            <div style="
+                background: linear-gradient(90deg, #f9fbe7 70%, #eaf4ff 100%);
+                border-radius: 9px;
+                border: 1px solid #e0e0e0;
+                box-shadow: 0 2px 8px #c0caf01c;
+                padding: 0.74em 1.1em 0.58em 1.1em;
+                margin-bottom: 0.55em;
+                margin-top: 0.05em;
+                color: #4a6276;
+                font-size: 1.05rem;
+                font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+                ">
+                <span style="font-size:1.15em; font-weight: 500; vertical-align:middle;">📝 Enter your exam prompt or letter draft below</span>
+                <div style="color:#668b8b;font-size:0.99em;margin-top:0.22em;">
+                    Paste the <b>question</b>, a <b>draft</b>, or any <b>unfinished letter</b>.<br>
                 </div>
-                """,
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        with st.form("prompt_form", clear_on_submit=True):
+            prompt = st.text_area(
+                "",
+                value=st.session_state.get("letter_coach_prompt", ""),
+                height=120,
+                disabled=(ideas_so_far >= IDEAS_LIMIT),
+                placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ..."
+            )
+            send = st.form_submit_button("✉️ Start Letter Coach")
+
+        if prompt:
+            word_count = len(prompt.split())
+            char_count = len(prompt)
+            st.markdown(
+                f"<div style='color:#7b2ff2; font-size:0.97em; margin-bottom:0.18em;'>"
+                f"Words: <b>{word_count}</b> &nbsp;|&nbsp; Characters: <b>{char_count}</b>"
+                "</div>",
                 unsafe_allow_html=True
             )
-            with st.form("prompt_form", clear_on_submit=True):
-                prompt = st.text_area(
-                    "",
-                    value=st.session_state.letter_coach_prompt,
-                    height=120,
-                    disabled=(ideas_so_far >= IDEAS_LIMIT),
-                    placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ..."
+
+        if send and prompt:
+            # Save to session state
+            st.session_state.letter_coach_prompt = prompt
+
+            # Compose system prompt for selected level
+            student_level = st.session_state.get("schreiben_level", "A1")
+            system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=prompt)
+
+            # Start chat history
+            chat_history = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ]
+            # Immediate AI reply
+            try:
+                resp = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=chat_history,
+                    temperature=0.22,
+                    max_tokens=380
                 )
-                send = st.form_submit_button("✉️ Start Letter Coach")
+                ai_reply = resp.choices[0].message.content
+            except Exception as e:
+                ai_reply = "Sorry, there was an error generating a response. Please try again."
+            chat_history.append({"role": "assistant", "content": ai_reply})
 
-            if prompt:
-                word_count = len(prompt.split())
-                char_count = len(prompt)
-                st.markdown(
-                    f"<div style='color:#7b2ff2; font-size:0.97em; margin-bottom:0.18em;'>"
-                    f"Words: <b>{word_count}</b> &nbsp;|&nbsp; Characters: <b>{char_count}</b>"
-                    "</div>",
-                    unsafe_allow_html=True
-                )
+            # Save progress, increment usage, and advance stage
+            st.session_state.letter_coach_chat = chat_history
+            st.session_state.letter_coach_stage = 1
+            inc_letter_coach_usage(student_code)   # DAILY LIMIT counts!
+            save_letter_coach_progress(
+                student_code,
+                student_level,
+                st.session_state.letter_coach_prompt,
+                st.session_state.letter_coach_chat,
+            )
+            st.rerun()
 
-            if send and prompt:
-                st.session_state.letter_coach_prompt = prompt
-
-                # Compose the system prompt for the student's level
-                student_level = st.session_state.get("schreiben_level", "A1")
-                system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=prompt)
-
-                # Start chat history with system and user message
-                chat_history = [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt}
-                ]
-                # Generate immediate AI reply
-                try:
-                    resp = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=chat_history,
-                        temperature=0.22,
-                        max_tokens=380
-                    )
-                    ai_reply = resp.choices[0].message.content
-                except Exception as e:
-                    ai_reply = "Sorry, there was an error generating a response. Please try again."
-                chat_history.append({"role": "assistant", "content": ai_reply})
-
-                st.session_state.letter_coach_chat = chat_history
-                st.session_state.letter_coach_stage = 1  # Step 1: chat view
-                inc_letter_coach_usage(student_code)
-                # --- SAVE TO FIRESTORE ---
-                save_letter_coach_progress(
-                    student_code,
-                    st.session_state.get("schreiben_level", "A1"),
-                    st.session_state.letter_coach_prompt,
-                    st.session_state.letter_coach_chat,
-                )
-                st.rerun()
-
-            if prompt:
-                st.markdown("---")
-                st.markdown(f"📝 **Letter/Essay Prompt or Draft:**\n\n{prompt}")
-
-        # --- Stage 1: Coaching Chat ---
-        elif st.session_state.letter_coach_stage == 1:
+        if prompt:
             st.markdown("---")
-            st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{st.session_state.letter_coach_prompt}")
-            chat_history = st.session_state.letter_coach_chat
-            for msg in chat_history[1:]:
-                st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
-            num_student_turns = sum(1 for msg in chat_history[1:] if msg["role"] == "user")
-            if num_student_turns == 10:
-                st.info("🔔 You have written 10 steps. Most students finish in 7–10 turns. Try to complete your letter soon!")
-            elif num_student_turns == 12:
-                st.warning(
-                    "⏰ You have reached 12 writing turns. "
-                    "Usually, your letter should be complete by now. "
-                    "If you want feedback, click **END SUMMARY** or download your letter as TXT. "
-                    "You can always start a new session for more practice."
-                )
-            elif num_student_turns > 12:
-                st.warning(
-                    f"🚦 You are now at {num_student_turns} turns. "
-                    "Long letters are okay, but usually a good letter is finished in 7–12 turns. "
-                    "Try to wrap up, click **END SUMMARY** or download your letter as TXT."
-                )
+            st.markdown(f"📝 **Letter/Essay Prompt or Draft:**\n\n{prompt}")
 
-            with st.form("letter_coach_chat_form", clear_on_submit=True):
-                user_input = st.text_area(
-                    "",
-                    value="",
-                    key="letter_coach_user_input",
-                    height=400,
-                    placeholder="Type your reply, ask about a section, or paste your draft here..."
+    # --- Stage 1: Coaching Chat ---
+    elif st.session_state.get("letter_coach_stage", 0) == 1:
+        st.markdown("---")
+        st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{st.session_state.letter_coach_prompt}")
+        chat_history = st.session_state.letter_coach_chat
+        for msg in chat_history[1:]:
+            st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
+        num_student_turns = sum(1 for msg in chat_history[1:] if msg["role"] == "user")
+        if num_student_turns == 10:
+            st.info("🔔 You have written 10 steps. Most students finish in 7–10 turns. Try to complete your letter soon!")
+        elif num_student_turns == 12:
+            st.warning(
+                "⏰ You have reached 12 writing turns. "
+                "Usually, your letter should be complete by now. "
+                "If you want feedback, click **END SUMMARY** or download your letter as TXT. "
+                "You can always start a new session for more practice."
+            )
+        elif num_student_turns > 12:
+            st.warning(
+                f"🚦 You are now at {num_student_turns} turns. "
+                "Long letters are okay, but usually a good letter is finished in 7–12 turns. "
+                "Try to wrap up, click **END SUMMARY** or download your letter as TXT."
+            )
+
+        with st.form("letter_coach_chat_form", clear_on_submit=True):
+            user_input = st.text_area(
+                "",
+                value="",
+                key="letter_coach_user_input",
+                height=400,
+                placeholder="Type your reply, ask about a section, or paste your draft here..."
+            )
+            send = st.form_submit_button("Send")
+        if send and user_input.strip():
+            chat_history.append({"role": "user", "content": user_input})
+            student_level = st.session_state.get("schreiben_level", "A1")
+            system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=st.session_state.letter_coach_prompt)
+            with st.spinner("👨‍🏫 Herr Felix is typing..."):
+                resp = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[{"role": "system", "content": system_prompt}] + chat_history[1:] + [{"role": "user", "content": user_input}],
+                    temperature=0.22,
+                    max_tokens=380
                 )
-                send = st.form_submit_button("Send")
-            if send and user_input.strip():
-                chat_history.append({"role": "user", "content": user_input})
-                student_level = st.session_state.get("schreiben_level", "A1")
-                system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=st.session_state.letter_coach_prompt)
-                with st.spinner("👨‍🏫 Herr Felix is typing..."):
-                    resp = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[{"role": "system", "content": system_prompt}] + chat_history[1:] + [{"role": "user", "content": user_input}],
-                        temperature=0.22,
-                        max_tokens=380
-                    )
-                    ai_reply = resp.choices[0].message.content
-                chat_history.append({"role": "assistant", "content": ai_reply})
-                st.session_state.letter_coach_chat = chat_history
-                # --- SAVE TO FIRESTORE ---
-                save_letter_coach_progress(
-                    student_code,
-                    st.session_state.get("schreiben_level", "A1"),
-                    st.session_state.letter_coach_prompt,
-                    st.session_state.letter_coach_chat,
-                )
-                st.rerun()
+                ai_reply = resp.choices[0].message.content
+            chat_history.append({"role": "assistant", "content": ai_reply})
+            st.session_state.letter_coach_chat = chat_history
+            # --- SAVE TO FIRESTORE ---
+            save_letter_coach_progress(
+                student_code,
+                st.session_state.get("schreiben_level", "A1"),
+                st.session_state.letter_coach_prompt,
+                st.session_state.letter_coach_chat,
+            )
+            st.rerun()
+
+
 
             # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
             import streamlit.components.v1 as components
