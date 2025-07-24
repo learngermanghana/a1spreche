@@ -4063,40 +4063,36 @@ if tab == "Schreiben Trainer":
             </div>
         """
         
-    # 2. IDEAS GENERATOR
-
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
 
-        # --- Letter Coach usage tracker ---
-        def get_letter_coach_usage(student_code):
-            today = str(date.today())
-            conn = get_connection()
-            c = conn.cursor()
-            c.execute(
-                "SELECT count FROM letter_coach_usage WHERE student_code=? AND date=?",
-                (student_code, today)
-            )
-            row = c.fetchone()
-            return row[0] if row else 0
-
-        # === NAMESPACED SESSION KEYS (per student) ===
+        # --- Namespaced session keys (per student) ---
         student_code = st.session_state.get("student_code", "demo")
         ns_prefix = f"{student_code}_letter_coach_"
         def ns(key): return ns_prefix + key
 
-        # --- Auto-restore progress for this student only ---
-        if not st.session_state.get(ns("prompt")) and not st.session_state.get(ns("chat")):
+        # --- Reset per-student Letter Coach state on student change ---
+        prev_student_code = st.session_state.get("prev_student_code", None)
+        if student_code != prev_student_code:
             last_prompt, last_chat = load_letter_coach_progress(student_code)
-            if last_prompt or last_chat:
-                st.session_state[ns("prompt")] = last_prompt
-                st.session_state[ns("chat")] = last_chat
-                st.session_state[ns("stage")] = 1 if last_chat else 0
+            st.session_state[ns("prompt")] = last_prompt or ""
+            st.session_state[ns("chat")] = last_chat or []
+            st.session_state[ns("stage")] = 1 if last_chat else 0
+            st.session_state["prev_student_code"] = student_code
 
-        # --- Set default state if missing (prevents KeyError) ---
+        # --- Set default state for this student if missing ---
         for k, default in [("prompt", ""), ("chat", []), ("stage", 0)]:
-            if not ns(k) in st.session_state:
+            if ns(k) not in st.session_state:
                 st.session_state[ns(k)] = default
+
+        # --- Example UI: (replace with your real logic) ---
+        st.markdown("## Your Letter Coach Chat")
+        st.write("Chat:", st.session_state[ns("chat")])
+        st.text_area("Prompt", key=ns("prompt"))
+
+        # Example: add to chat
+        if st.button("Add Hello"):
+            st.session_state[ns("chat")].append(f"Hello from {student_code}")
 
 
         LETTER_COACH_PROMPTS = {
