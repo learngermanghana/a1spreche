@@ -2762,9 +2762,7 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["last_logged_code"] = code
             st.rerun()
 
-    # --- PROGRESS TRACKING: PRACTICED TOPICS (unique per login) ---
-    if "falowen_practiced_topics" not in st.session_state:
-        st.session_state["falowen_practiced_topics"] = []
+
         
     # 🗣️ Compact tab header
     st.markdown(
@@ -3549,10 +3547,6 @@ if tab == "Exams Mode & Custom Chat":
                     f"<div style='{bubble_assistant}'>{highlight_keywords(ai_reply, highlight_words)}</div>",
                     unsafe_allow_html=True
                 )
-
-            st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
-            # SAVE CHAT after each message
-            save_falowen_chat(student_code, mode, level, teil, st.session_state["falowen_messages"])
 
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
             # SAVE CHAT after each message
