@@ -171,16 +171,18 @@ def inc_sprechen_usage(student_code):
     today = str(date.today())
     conn = get_connection()
     c = conn.cursor()
+    # Try to update first
     c.execute(
-        """
-        INSERT INTO sprechen_usage (student_code, date, count)
-        VALUES (?, ?, 1)
-        ON CONFLICT(student_code, date)
-        DO UPDATE SET count = count + 1
-        """,
+        "UPDATE sprechen_usage SET count = count + 1 WHERE student_code = ? AND date = ?",
         (student_code, today)
     )
+    if c.rowcount == 0:
+        c.execute(
+            "INSERT INTO sprechen_usage (student_code, date, count) VALUES (?, ?, 1)",
+            (student_code, today)
+        )
     conn.commit()
+    conn.close()
 
 def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
     return get_sprechen_usage(student_code) < limit
@@ -200,16 +202,18 @@ def inc_schreiben_usage(student_code):
     today = str(date.today())
     conn = get_connection()
     c = conn.cursor()
+    # Try to update first
     c.execute(
-        """
-        INSERT INTO schreiben_usage (student_code, date, count)
-        VALUES (?, ?, 1)
-        ON CONFLICT(student_code, date)
-        DO UPDATE SET count = count + 1
-        """,
+        "UPDATE schreiben_usage SET count = count + 1 WHERE student_code = ? AND date = ?",
         (student_code, today)
     )
+    if c.rowcount == 0:
+        c.execute(
+            "INSERT INTO schreiben_usage (student_code, date, count) VALUES (?, ?, 1)",
+            (student_code, today)
+        )
     conn.commit()
+    conn.close()
 
 def get_writing_stats(student_code):
     conn = get_connection()
@@ -252,16 +256,19 @@ def inc_letter_coach_usage(student_code):
     today = str(date.today())
     conn = get_connection()
     c = conn.cursor()
+    # Try to update first
     c.execute(
-        """
-        INSERT INTO letter_coach_usage (student_code, date, count)
-        VALUES (?, ?, 1)
-        ON CONFLICT(student_code, date)
-        DO UPDATE SET count = count + 1
-        """,
+        "UPDATE letter_coach_usage SET count = count + 1 WHERE student_code = ? AND date = ?",
         (student_code, today)
     )
+    if c.rowcount == 0:
+        c.execute(
+            "INSERT INTO letter_coach_usage (student_code, date, count) VALUES (?, ?, 1)",
+            (student_code, today)
+        )
     conn.commit()
+    conn.close()
+
 
 
 # === Firestore Auto-Save/Restore for Letter Coach ===
