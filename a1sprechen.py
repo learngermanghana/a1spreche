@@ -721,79 +721,34 @@ if st.session_state.get("logged_in"):
         st.success(f"Hello, {first_name}! 👋")
         st.info("Great to see you. Let's keep learning!")
 
-        # ========== STREAKS BLOCK (GAMIFIED & WEEKLY) ========== #
-        # ---- Fetch vocab_stats and schreiben_stats (replace below with your Firestore logic!) ----
-        try:
-            vocab_stats = get_vocab_stats(student_code)
-            if vocab_stats is None:
-                vocab_stats = {"history": []}
-        except Exception:
-            vocab_stats = {"history": []}
-        try:
-            schreiben_stats = get_schreiben_stats(student_code)
-            if schreiben_stats is None:
-                schreiben_stats = {"attempts": []}
-        except Exception:
-            schreiben_stats = {"attempts": []}
-
+        # === Weekly Assignment Goal ===
         df_assign = load_assignment_scores()
-        assignments = df_assign[df_assign['studentcode'].str.lower() == student_code]
+        # parse your US‑style dates (YYYY‑MM‑DD)
+        df_assign['date'] = pd.to_datetime(
+            df_assign['date'],
+            format="%Y-%m-%d",
+            errors="coerce"
+        ).dt.date
 
-        # --- Calculate "this week" data ---
-        from datetime import date, timedelta, datetime
+        # filter this student & this week
+        mask_student = df_assign['studentcode'].str.lower().str.strip() == student_code
         today = date.today()
         monday = today - timedelta(days=today.weekday())
+        mask_week = df_assign['date'] >= monday
 
-        # Vocab
-        vocab_dates = {
-            datetime.strptime(a["timestamp"], "%Y-%m-%d %H:%M").date()
-            for a in vocab_stats.get("history", [])
-            if a.get("timestamp")
-        }
-        vocab_this_week = sum(1 for d in vocab_dates if d >= monday)
-        vocab_last = max(vocab_dates) if vocab_dates else None
-        vocab_status = "🔥 On fire!" if vocab_this_week >= 3 else "😴 Start practicing"
+        assignment_this_week = df_assign[mask_student & mask_week].shape[0]
+        WEEKLY_GOAL = 3
 
-        # Schreiben
-        schreiben_dates = {
-            datetime.strptime(a["timestamp"], "%Y-%m-%d %H:%M").date()
-            for a in schreiben_stats.get("attempts", [])
-            if a.get("timestamp")
-        }
-        schreiben_this_week = sum(1 for d in schreiben_dates if d >= monday)
-        schreiben_last = max(schreiben_dates) if schreiben_dates else None
-        schreiben_status = "✍️ You’re writing!" if schreiben_this_week >= 1 else "😴 No writing yet"
+        st.markdown("### 📝 Weekly Assignment Goal")
+        st.metric("Submitted", f"{assignment_this_week} / {WEEKLY_GOAL}")
+        if assignment_this_week >= WEEKLY_GOAL:
+            st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
+        else:
+            remaining = WEEKLY_GOAL - assignment_this_week
+            st.info(f"Submit {remaining} more assignment{'s' if remaining>1 else ''} by Sunday to hit your goal.")
 
-        # Assignments
-        assignment_dates = pd.to_datetime(assignments["date"], errors="coerce").dt.date.dropna().unique()
-        assignment_this_week = sum(1 for d in assignment_dates if d >= monday)
-        last_assignment = max(assignment_dates) if len(assignment_dates) else None
-        assignment_status = "📝 Looks good!" if assignment_this_week >= 1 else "😴 No submissions yet"
-
-        # 🎯 Your Practice Streaks This Week
-        st.markdown("### 🎯 Your Practice Streaks This Week")
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            st.markdown("#### 📚 Vocab")
-            st.metric("Days Practiced", vocab_this_week)
-            st.markdown(f"<span style='font-size:1.3em'>{vocab_status}</span>", unsafe_allow_html=True)
-            st.caption(f"Last: {vocab_last.strftime('%d %b') if vocab_last else 'N/A'}")
-
-        with col2:
-            st.markdown("#### ✍️ Schreiben")
-            st.metric("Days Practiced", schreiben_this_week)
-            st.markdown(f"<span style='font-size:1.3em'>{schreiben_status}</span>", unsafe_allow_html=True)
-            st.caption(f"Last: {schreiben_last.strftime('%d %b') if schreiben_last else 'N/A'}")
-
-        with col3:
-            st.markdown("#### 📝 Assignments")
-            st.metric("Submitted This Week", assignment_this_week)
-            st.markdown(f"<span style='font-size:1.3em'>{assignment_status}</span>", unsafe_allow_html=True)
-            st.caption(f"Last: {last_assignment.strftime('%d %b') if pd.notnull(last_assignment) else 'N/A'}")
-
-        st.info("Practice or submit at least once per week to keep your streak going! 🚀")
         st.divider()
+
 
         # --- Student Info & Balance ---
         st.markdown(f"### 👤 {student_row.get('Name','')}")
