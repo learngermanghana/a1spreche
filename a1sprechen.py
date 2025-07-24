@@ -4092,7 +4092,6 @@ if tab == "Schreiben Trainer":
                 st.session_state[ns("chat")] = last_chat
                 st.session_state[ns("stage")] = 1 if last_chat else 0
 
-        render_letter_coach()
 
 
         LETTER_COACH_PROMPTS = {
