@@ -3975,9 +3975,7 @@ if tab == "Schreiben Trainer":
             chars = len(user_letter)
             st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
 
-        submit_disabled = daily_so_far >= SCHREIBEN_DAILY_LIMIT or not user_letter.strip()
-        if submit_disabled and daily_so_far >= SCHREIBEN_DAILY_LIMIT:
-            st.warning("You have reached today's writing practice limit. Please come back tomorrow.")
+    submit_disabled = (daily_so_far >= SCHREIBEN_DAILY_LIMIT) or (not user_letter.strip())
 
     if st.button("Submit for Feedback & Score", disabled=submit_disabled, key=f"feedback_btn_{student_code}"):
         with st.spinner("🧑‍🏫 Herr Felix is typing..."):
@@ -4041,8 +4039,6 @@ if tab == "Schreiben Trainer":
                         breakdown[area] = (s, tip)
                     else:
                         breakdown[area] = ("-", "Not found")
-
-
 
 
 
