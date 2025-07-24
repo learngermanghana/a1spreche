@@ -59,14 +59,18 @@ def get_connection():
         atexit.register(st.session_state["conn"].close)
     return st.session_state["conn"]
 
-# Initialize the app (run once at start)
+# === Firestore Initialization (must be BEFORE using db) ===
 if not firebase_admin._apps:
     cred = credentials.Certificate("path/to/serviceAccountKey.json")
     firebase_admin.initialize_app(cred)
 db = firestore.client()
 
-# Now you can use db.collection(...)
+# Test Firestore connection only after init
 doc_ref = db.collection("test").document("hello")
+doc_ref.set({"field": "test!"})
+result = doc_ref.get()
+print(result.to_dict())
+
 
 # ==== INITIALIZE DB TABLES ====
 def init_db():
