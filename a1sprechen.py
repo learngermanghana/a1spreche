@@ -741,7 +741,7 @@ if st.session_state.get("logged_in"):
                 unsafe_allow_html=True
             )
 
-        # --- Auto-Rotating Student Reviews ---
+        # --- Reviews Section ---
         st.markdown("### 🗣️ What Our Students Say")
         reviews = load_reviews()
         if reviews.empty:
@@ -751,21 +751,18 @@ if st.session_state.get("logged_in"):
             if "rev_idx" not in st.session_state:
                 st.session_state["rev_idx"] = 0
                 st.session_state["rev_last_time"] = time.time()
-
-            ROTATE_REV_SEC = 8
-            now = time.time()
-            if now - st.session_state["rev_last_time"] > ROTATE_REV_SEC:
+            if time.time() - st.session_state["rev_last_time"] > 8:
                 st.session_state["rev_idx"] = (st.session_state["rev_idx"] + 1) % len(rev_list)
-                st.session_state["rev_last_time"] = now
+                st.session_state["rev_last_time"] = time.time()
                 st.rerun()
-
             r = rev_list[st.session_state["rev_idx"]]
-            stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
+            stars = "★" * int(r.get("rating", 5)) + "☆" * (5-int(r.get("rating",5)))
             st.markdown(
                 f"> {r.get('review_text','')}\n"
                 f"> — **{r.get('student_name','')}**  \n"
                 f"> {stars}"
             )
+
 
             
 def get_a1_schedule():
