@@ -416,6 +416,7 @@ def get_schreiben_stats(student_code):
         return {
             "total": 0, "passed": 0, "average_score": 0, "best_score": 0,
             "pass_rate": 0, "last_attempt": None, "attempts": [], "last_letter": ""
+        }
             
 # -- ALIAS for legacy code (use this so your old code works without errors!) --
 has_falowen_quota = has_sprechen_quota
