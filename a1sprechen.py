@@ -3812,6 +3812,18 @@ if tab == "Schreiben Trainer":
     )
     st.divider()
 
+    # Track previous student code in session
+    student_code = st.session_state.get("student_code", "demo")
+    prev_student_code = st.session_state.get("prev_student_code", None)
+
+    if student_code != prev_student_code:
+        # Try to restore previous chat for this student_code
+        last_prompt, last_chat = load_letter_coach_progress(student_code)
+        st.session_state["letter_coach_prompt"] = last_prompt or ""
+        st.session_state["letter_coach_chat"] = last_chat or []
+        st.session_state["letter_coach_stage"] = 1 if last_chat else 0
+        st.session_state["prev_student_code"] = student_code
+
     # Sub-tabs
     sub_tab = st.radio(
         "Choose Mode",
@@ -3833,21 +3845,6 @@ if tab == "Schreiben Trainer":
 
     st.divider()
 
-    # === Always get student code and reset session vars if changed ===
-    student_code = st.session_state.get("student_code", "demo")
-    student_name = st.session_state.get("student_name", "")
-
-    prev_student_code = st.session_state.get("prev_student_code", None)
-    current_student_code = student_code
-
-    if prev_student_code != current_student_code:
-        for k in [
-            "letter_coach_stage", "letter_coach_chat", "letter_coach_prompt",
-            "letter_coach_type", "selected_letter_lines", "letter_coach_uploaded"
-        ]:
-            if k in st.session_state:
-                del st.session_state[k]
-        st.session_state["prev_student_code"] = current_student_code
 
     # --- 1. MARK MY LETTER SUB-TAB ---
     if sub_tab == "Mark My Letter":
