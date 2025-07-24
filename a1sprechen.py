@@ -3794,8 +3794,6 @@ if tab == "Vocab Trainer":
                 st.session_state[k] = defaults[k]
 
 
-
-
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
@@ -3814,34 +3812,28 @@ if tab == "Schreiben Trainer":
     )
     st.divider()
 
-    # Student-specific keys
-    student_code = st.session_state.get("student_code", "demo")
-    student_name = st.session_state.get("student_name", "")
-
-    # Sub-tabs: Mark My Letter, Ideas Generator (Letter Coach)
-    schreiben_subtab_key = f"schreiben_sub_tab_{student_code}"
+    # Sub-tabs
     sub_tab = st.radio(
         "Choose Mode",
         ["Mark My Letter", "Ideas Generator (Letter Coach)"],
         horizontal=True,
-        key=schreiben_subtab_key
+        key="schreiben_sub_tab"
     )
 
-    # Level picker (per student)
+    # Level picker
     schreiben_levels = ["A1", "A2", "B1", "B2", "C1"]
-    prev_level_key = f"schreiben_level_{student_code}"
-    prev_level = st.session_state.get(prev_level_key, "A1")
+    prev_level = st.session_state.get("schreiben_level", "A1")
     schreiben_level = st.selectbox(
         "Choose your writing level:",
         schreiben_levels,
         index=schreiben_levels.index(prev_level) if prev_level in schreiben_levels else 0,
-        key=f"schreiben_level_selector_{student_code}"
+        key="schreiben_level_selector"
     )
-    st.session_state[prev_level_key] = schreiben_level
+    st.session_state["schreiben_level"] = schreiben_level
 
     st.divider()
 
-    # === MARK MY LETTER SUBTAB ===
+    # --- 1. MARK MY LETTER SUB-TAB ---
     if sub_tab == "Mark My Letter":
         st.markdown(
             '''
@@ -3858,13 +3850,59 @@ if tab == "Schreiben Trainer":
             ''',
             unsafe_allow_html=True
         )
+        student_code = st.session_state.get("student_code", "demo")
+        student_name = st.session_state.get("student_name", "")
 
-        # Namespaced session state for input
-        schreiben_input_key = f"schreiben_input_{student_code}"
-        if schreiben_input_key not in st.session_state:
-            st.session_state[schreiben_input_key] = ""
+        # ====== LETTER STATS FUNCTIONS ======
+        def save_schreiben_attempt(student_code, student_name, level, score, letter, breakdown=None):
+            doc_ref = db.collection("schreiben_stats").document(student_code)
+            doc = doc_ref.get()
+            data = doc.to_dict() if doc.exists else {}
+            stats = data.get("attempts", [])
 
-        # Get current stats for this student
+            attempt = {
+                "student_name": student_name,
+                "level": level,
+                "score": score,
+                "letter": letter,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "breakdown": breakdown or {},
+            }
+            stats.append(attempt)
+
+            total = len(stats)
+            passed = len([a for a in stats if a["score"] >= 15])
+            avg_score = sum([a["score"] for a in stats]) / total if total > 0 else 0
+            best_score = max([a["score"] for a in stats]) if total > 0 else 0
+            pass_rate = round(100 * passed / total, 1) if total > 0 else 0
+
+            doc_ref.set({
+                "attempts": stats,
+                "total": total,
+                "passed": passed,
+                "average_score": avg_score,
+                "best_score": best_score,
+                "pass_rate": pass_rate,
+                "last_attempt": attempt["timestamp"],
+                "last_letter": letter,
+            })
+
+        def get_schreiben_stats(student_code):
+            doc_ref = db.collection("schreiben_stats").document(student_code)
+            doc = doc_ref.get()
+            if doc.exists:
+                return doc.to_dict()
+            else:
+                return {
+                    "total": 0, "passed": 0, "average_score": 0, "best_score": 0,
+                    "pass_rate": 0, "last_attempt": None, "attempts": [], "last_letter": ""
+                }
+
+        def get_schreiben_usage(student_code):
+            # TODO: Replace with your actual Firestore logic if needed
+            return 0
+
+        # Show stats panel
         stats = get_schreiben_stats(student_code)
         st.markdown("### 📝 **Your Letter Writing Stats**")
         if stats["total"]:
@@ -3874,7 +3912,7 @@ if tab == "Schreiben Trainer":
             st.markdown(f"- **Average Score:** {stats['average_score']:.2f} / 25")
             st.markdown(f"- **Best Score:** {stats['best_score']} / 25")
             st.markdown(f"- **Last Attempt:** {stats['last_attempt']}")
-            if st.toggle("Show last 5 attempts", key=f"show5_{student_code}"):
+            if st.toggle("Show last 5 attempts"):
                 for i, attempt in enumerate(stats["attempts"][-5:][::-1]):
                     passed = "✅" if attempt["score"] >= 15 else "❌"
                     st.markdown(
@@ -3883,33 +3921,32 @@ if tab == "Schreiben Trainer":
         else:
             st.info("No letter attempts saved yet.")
 
-        # Restore last letter button (namespaced)
+        # Restore last letter button
         if stats.get("last_letter"):
-            if st.button("Restore Last Letter", key=f"restore_last_{student_code}"):
-                st.session_state[schreiben_input_key] = stats["last_letter"]
+            if st.button("Restore Last Letter"):
+                st.session_state["schreiben_input"] = stats["last_letter"]
                 st.rerun()
 
-        # Daily usage (namespaced)
+        # Daily usage
         SCHREIBEN_DAILY_LIMIT = 5
         daily_so_far = get_schreiben_usage(student_code)
         st.markdown(f"**Daily usage:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}")
 
-        # Input area (namespaced)
         user_letter = st.text_area(
             "Paste or type your German letter/essay here.",
-            key=schreiben_input_key,
-            value=st.session_state.get(schreiben_input_key, ""),
+            key="schreiben_input",
+            value=st.session_state.get("schreiben_input", ""),
             disabled=(daily_so_far >= SCHREIBEN_DAILY_LIMIT),
             height=200,
             placeholder="Write your German letter here..."
         )
 
-        # --- Word/char count (live) ---
+        # Word/char count
         if user_letter.strip():
-            import re
             words = re.findall(r'\b\w+\b', user_letter)
             chars = len(user_letter)
             st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
+
 
         # AI prompt for feedback
         ai_prompt = (
