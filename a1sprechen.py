@@ -3969,11 +3969,11 @@ if tab == "Schreiben Trainer":
             placeholder="Write your German letter here..."
         )
 
-        # Word/char count
-        if user_letter.strip():
-            words = re.findall(r'\b\w+\b', user_letter)
-            chars = len(user_letter)
-            st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
+    # Word/char count
+    if user_letter.strip():
+        words = re.findall(r'\b\w+\b', user_letter)
+        chars = len(user_letter)
+        st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
 
     submit_disabled = (daily_so_far >= SCHREIBEN_DAILY_LIMIT) or (not user_letter.strip())
 
@@ -4039,8 +4039,6 @@ if tab == "Schreiben Trainer":
                         breakdown[area] = (s, tip)
                     else:
                         breakdown[area] = ("-", "Not found")
-
-
 
                 # Save to Firestore (per student!)
                 inc_schreiben_usage(student_code)
