@@ -3980,43 +3980,46 @@ if tab == "Schreiben Trainer":
             st.warning("You have reached today's writing practice limit. Please come back tomorrow.")
 
         if st.button("Submit for Feedback & Score", disabled=submit_disabled, key=f"feedback_btn_{student_code}"):
-            with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-                try:
-                    ai_prompt = (
-                        f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
-                        f"The student has submitted a {schreiben_level} German letter or essay. "
-                        "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
-                        "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
-                        "Don't just say errors—show exactly where the mistakes are. "
-                        "1. Give a score out of 25 marks and always display the score clearly. "
-                        "2. If the score is 17 or more, write: '**Passed: You may submit to your tutor!**'. "
-                        "3. If the score is 16 or less, write: '**Keep improving before you submit.**'. "
-                        "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
-                        "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
-                        "6. Also check for AI usage or if the student wrote with their own effort. "
-                        "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
-                        "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score. "
-                        "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
-                        "Grammar: [score/5, one-sentence tip]\n"
-                        "Vocabulary: [score/5, one-sentence tip]\n"
-                        "Spelling: [score/5, one-sentence tip]\n"
-                        "Structure: [score/5, one-sentence tip]\n"
-                        "For each area, rate out of 5 and give a specific, actionable tip in English."
-                    )
-                    completion = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[
-                            {"role": "system", "content": ai_prompt},
-                            {"role": "user", "content": user_letter},
-                        ],
-                        temperature=0.6,
-                    )
-                    feedback = completion.choices[0].message.content
+        with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+            try:
+                ai_prompt = (
+                    f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
+                    f"The student has submitted a {schreiben_level} German letter or essay. "
+                    "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
+                    "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
+                    "Don't just say errors—show exactly where the mistakes are. "
+                    "1. Give a score out of 25 marks and always display the score clearly. "
+                    "2. If the score is 17 or more, write: '**Passed: You may submit to your tutor!**'. "
+                    "3. If the score is 16 or less, write: '**Keep improving before you submit.**'. "
+                    "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
+                    "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
+                    "6. Also check for AI usage or if the student wrote with their own effort. "
+                    "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
+                    "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score. "
+                    "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
+                    "Grammar: [score/5, one-sentence tip]\n"
+                    "Vocabulary: [score/5, one-sentence tip]\n"
+                    "Spelling: [score/5, one-sentence tip]\n"
+                    "Structure: [score/5, one-sentence tip]\n"
+                    "For each area, rate out of 5 and give a specific, actionable tip in English."
+                )
+                completion = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {"role": "system", "content": ai_prompt},
+                        {"role": "user", "content": user_letter},
+                    ],
+                    temperature=0.6,
+                )
+                feedback = completion.choices[0].message.content
 
-                    # ---- Count usage immediately ----
-                    inc_schreiben_usage(student_code)
-                    st.session_state["schreiben_usage"] = st.session_state.get("schreiben_usage", 0) + 1
+                # ---- Count usage immediately ----
+                inc_schreiben_usage(student_code)
+                st.session_state["schreiben_usage"] = st.session_state.get("schreiben_usage", 0) + 1
 
+            except Exception as e:
+                st.error("AI feedback failed. Please check your OpenAI setup.")
+                feedback = None
 
             if feedback:
                 import re
@@ -4038,6 +4041,8 @@ if tab == "Schreiben Trainer":
                         breakdown[area] = (s, tip)
                     else:
                         breakdown[area] = ("-", "Not found")
+
+
 
                 # Save to Firestore (per student!)
                 inc_schreiben_usage(student_code)
