@@ -47,18 +47,6 @@ os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
-# ===== FIREBASE ADMIN SDK SETUP =====
-import firebase_admin
-from firebase_admin import credentials, firestore
-
-# Only initialize Firebase once!
-if not firebase_admin._apps:
-    # Converts Streamlit TOML secret (dict) to proper dict for credentials.Certificate
-    firebase_creds = dict(st.secrets["firebase"])
-    cred = credentials.Certificate(firebase_creds)
-    firebase_admin.initialize_app(cred)
-
-
 doc_ref = db.collection("test").document("hello")
 doc_ref.set({"field": "test!"})
 result = doc_ref.get()
@@ -585,8 +573,7 @@ if st.button("Log out"):
         st.session_state[k] = False if k == "logged_in" else ""
     st.success("You have been logged out.")
     st.rerun()
-
-
+    
 # ======= Data Loading Functions =======
 
 @st.cache_data
@@ -600,7 +587,7 @@ def load_student_data():
 
 @st.cache_data
 def load_reviews():
-    SHEET_ID   = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
+    SHEET_ID = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
     SHEET_NAME = "Sheet1"
     url = (
         f"https://docs.google.com/spreadsheets/d/{SHEET_ID}"
@@ -620,44 +607,16 @@ def load_assignment_scores():
     return df
 
 def parse_contract_end(date_str):
-    """
-    Attempts to parse contract end dates in multiple formats.
-    Returns a datetime object or None.
-    """
     if not date_str or str(date_str).lower() in ("nan", "none", ""):
         return None
-    for fmt in ("%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):
         try:
             return datetime.strptime(date_str, fmt)
         except ValueError:
             continue
     return None
 
-def get_assignment_streak(df):
-    """
-    Calculates the longest consecutive streak of assignment dates.
-    Returns (max_streak, last_date).
-    """
-    if df.empty or 'date' not in df.columns:
-        return 0, None
-    dates = pd.to_datetime(df['date'], errors='coerce').dropna().sort_values()
-    if dates.empty:
-        return 0, None
-    streak = 1
-    max_streak = 1
-    prev = dates.iloc[0]
-    for d in dates.iloc[1:]:
-        if (d - prev).days == 1:
-            streak += 1
-            max_streak = max(max_streak, streak)
-        else:
-            streak = 1
-        prev = d
-    last_date = dates.iloc[-1].strftime('%d %b %Y')
-    return max_streak, last_date
-
-
-# ===== Dashboard Code =====
+# ======= Dashboard Code =======
 if st.session_state.get("logged_in"):
     student_code = st.session_state.get("student_code", "").strip().lower()
     student_name = st.session_state.get("student_name", "")
