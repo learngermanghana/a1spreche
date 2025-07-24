@@ -4043,7 +4043,7 @@ if tab == "Schreiben Trainer":
                 <b>{name}:</b><br>{text}
             </div>
         """
-        
+
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
 
@@ -4061,7 +4061,8 @@ if tab == "Schreiben Trainer":
 
         # === NAMESPACED SESSION KEYS (per student) ===
         ns_prefix = f"{student_code}_letter_coach_"
-        def ns(key): return ns_prefix + key
+        def ns(key):
+            return ns_prefix + key
 
         # --- Auto-restore progress for this student only
         if not st.session_state.get(ns("prompt")) and not st.session_state.get(ns("chat")):
@@ -4070,6 +4071,7 @@ if tab == "Schreiben Trainer":
                 st.session_state[ns("prompt")] = last_prompt
                 st.session_state[ns("chat")] = last_chat
                 st.session_state[ns("stage")] = 1 if last_chat else 0
+
 
         LETTER_COACH_PROMPTS = {
             "A1": (
