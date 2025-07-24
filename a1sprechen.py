@@ -3778,12 +3778,13 @@ def init_student_session():
         stats = get_schreiben_stats(code)
         # Load last saved draft
         st.session_state["schreiben_input"] = stats.get("last_letter", "")
-        # Reset letter coach sub-state
-        st.session_state["letter_coach_prompt"] = ""
-        st.session_state["letter_coach_chat"] = []
-        st.session_state["letter_coach_stage"] = 0
+        # Reset NAMESPACED letter coach sub-state
+        st.session_state[f"{code}_letter_coach_prompt"] = ""
+        st.session_state[f"{code}_letter_coach_chat"] = []
+        st.session_state[f"{code}_letter_coach_stage"] = 0
         # Update tracker
         st.session_state["prev_student_code"] = code
+
 
 if tab == "Schreiben Trainer":
     st.markdown(
@@ -4061,13 +4062,13 @@ if tab == "Schreiben Trainer":
                 <b>{name}:</b><br>{text}
             </div>
         """
-
+        
     # 2. IDEAS GENERATOR
-    
+
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
 
-        # --- Define get_letter_coach_usage HERE if needed inside the block ---
+        # --- Letter Coach usage tracker ---
         def get_letter_coach_usage(student_code):
             today = str(date.today())
             conn = get_connection()
@@ -4080,18 +4081,22 @@ if tab == "Schreiben Trainer":
             return row[0] if row else 0
 
         # === NAMESPACED SESSION KEYS (per student) ===
-        ns_prefix = f"{st.session_state.get('student_code', 'demo')}_letter_coach_"
-        def ns(key):
-            return ns_prefix + key
+        student_code = st.session_state.get("student_code", "demo")
+        ns_prefix = f"{student_code}_letter_coach_"
+        def ns(key): return ns_prefix + key
 
         # --- Auto-restore progress for this student only ---
         if not st.session_state.get(ns("prompt")) and not st.session_state.get(ns("chat")):
-            last_prompt, last_chat = load_letter_coach_progress(st.session_state.get("student_code", "demo"))
+            last_prompt, last_chat = load_letter_coach_progress(student_code)
             if last_prompt or last_chat:
                 st.session_state[ns("prompt")] = last_prompt
                 st.session_state[ns("chat")] = last_chat
                 st.session_state[ns("stage")] = 1 if last_chat else 0
 
+        # --- Set default state if missing (prevents KeyError) ---
+        for k, default in [("prompt", ""), ("chat", []), ("stage", 0)]:
+            if not ns(k) in st.session_state:
+                st.session_state[ns(k)] = default
 
 
         LETTER_COACH_PROMPTS = {
