@@ -3794,6 +3794,8 @@ if tab == "Vocab Trainer":
         if st.button("Practice Again", key="vt_again"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
+
+
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
@@ -4010,9 +4012,11 @@ if tab == "Schreiben Trainer":
                         temperature=0.6,
                     )
                     feedback = completion.choices[0].message.content
-                except Exception as e:
-                    st.error("AI feedback failed. Please check your OpenAI setup.")
-                    feedback = None
+
+                    # ---- Count usage immediately ----
+                    inc_schreiben_usage(student_code)
+                    st.session_state["schreiben_usage"] = st.session_state.get("schreiben_usage", 0) + 1
+
 
             if feedback:
                 import re
