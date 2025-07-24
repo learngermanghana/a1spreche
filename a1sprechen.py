@@ -3885,22 +3885,6 @@ if tab == "Schreiben Trainer":
             """, unsafe_allow_html=True
         )
 
-        # (Your original Mark My Letter code continues below...)
-
-        # Example: After feedback is generated, SAVE the submission:
-        # Parse score and passed status from the feedback (replace these lines with your logic!)
-        # Assume feedback is in st.session_state["last_feedback"]
-        import re
-        import datetime
-        feedback = st.session_state.get("last_feedback", "")
-        score_match = re.search(r"Score[: ]+(\d+)", feedback)
-        score = int(score_match.group(1)) if score_match else 0
-        passed = score >= 17   # Or use your passing threshold
-        if feedback and st.button("Save This Submission"):
-            save_submission(student_code, score, passed, datetime.datetime.now())
-            st.success("Submission saved for your stats! Reload to see updated stats.")
-
-
 
         # Submission Limit (max 3 per day)
         MARK_LIMIT = 3
