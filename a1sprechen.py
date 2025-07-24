@@ -3554,6 +3554,11 @@ if tab == "Exams Mode & Custom Chat":
             # SAVE CHAT after each message
             save_falowen_chat(student_code, mode, level, teil, st.session_state["falowen_messages"])
 
+            st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
+            # SAVE CHAT after each message
+            save_falowen_chat(student_code, mode, level, teil, st.session_state["falowen_messages"])
+
+
         # ---- END SESSION BUTTON & SUMMARY ----
         st.divider()
         if st.button("✅ End Session & Show Summary"):
