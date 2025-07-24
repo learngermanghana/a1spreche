@@ -6,7 +6,7 @@ import sqlite3
 import atexit
 import json
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import time
 import io
 
@@ -21,55 +21,31 @@ from firebase_admin import credentials, firestore
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
-
-# ===== HIDE STREAMLIT DEFAULT FOOTER/MENU =====
+# ==== HIDE STREAMLIT DEFAULT FOOTER/MENU ====
 st.markdown(
     """
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    footer:after {content:""; display:none;}
-    .st-emotion-cache-1v0mbdj {display: none;}
-    .css-164nlkn {display: none;}
-    .css-1lsmgbg.egzxvld1 {display: none;}
-    .st-emotion-cache-7ym5gk {display: none;}
     </style>
     """,
     unsafe_allow_html=True
 )
 
-# ===== OPENAI CLIENT SETUP =====
+# ==== FIREBASE ADMIN INIT ====
+# Make sure to place your service account JSON in your project and reference the correct path.
+if not firebase_admin._apps:
+    cred = credentials.Certificate("path/to/serviceAccountKey.json")
+    firebase_admin.initialize_app(cred)
+db = firestore.client()  # << You can use db for Firestore ops anywhere below this line
+
+# ==== OPENAI CLIENT SETUP (Optional, Remove if not needed) ====
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     st.error("Missing OpenAI API key. Please add OPENAI_API_KEY in Streamlit secrets.")
     st.stop()
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
-
-
-doc_ref = db.collection("test").document("hello")
-doc_ref.set({"field": "test!"})
-result = doc_ref.get()
-print(result.to_dict())  # Should print {'field': 'test!'}
-
-# ==== DB CONNECTION ====
-def get_connection():
-    if "conn" not in st.session_state:
-        st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
-        atexit.register(st.session_state["conn"].close)
-    return st.session_state["conn"]
-
-# === Firestore Initialization (must be BEFORE using db) ===
-if not firebase_admin._apps:
-    cred = credentials.Certificate("path/to/serviceAccountKey.json")
-    firebase_admin.initialize_app(cred)
-db = firestore.client()
-
-# Test Firestore connection only after init
-doc_ref = db.collection("test").document("hello")
-doc_ref.set({"field": "test!"})
-result = doc_ref.get()
-print(result.to_dict())
 
 
 # ==== INITIALIZE DB TABLES ====
@@ -578,7 +554,7 @@ if st.button("Log out"):
     st.success("You have been logged out.")
     st.rerun()
 
-# ======= Data Loading Functions =======
+# ==== GOOGLE SHEET LOADING FUNCTIONS ====
 @st.cache_data
 def load_student_data():
     SHEET_ID = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
@@ -586,18 +562,6 @@ def load_student_data():
     csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
     df = pd.read_csv(csv_url)
     df.columns = df.columns.str.strip().str.replace(" ", "")
-    return df
-
-@st.cache_data
-def load_reviews():
-    SHEET_ID   = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
-    SHEET_NAME = "Sheet1"
-    url = (
-        f"https://docs.google.com/spreadsheets/d/{SHEET_ID}"
-        f"/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
-    )
-    df = pd.read_csv(url)
-    df.columns = df.columns.str.strip().str.lower()
     return df
 
 @st.cache_data
@@ -609,71 +573,44 @@ def load_assignment_scores():
     df.columns = df.columns.str.strip().str.lower()
     return df
 
+# ==== PARSE CONTRACT END ====
 def parse_contract_end(date_str):
     if not date_str or str(date_str).lower() in ("nan", "none", ""):
         return None
-    for fmt in ("%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):
         try:
             return datetime.strptime(date_str, fmt)
         except ValueError:
             continue
     return None
 
-def get_assignment_streak(df):
-    if df.empty or 'date' not in df.columns:
-        return 0, None
-    dates = pd.to_datetime(df['date'], errors='coerce').dropna().sort_values()
-    if dates.empty:
-        return 0, None
-    streak = 1
-    max_streak = 1
-    prev = dates.iloc[0]
-    for d in dates.iloc[1:]:
-        if (d - prev).days == 1:
-            streak += 1
-            max_streak = max(max_streak, streak)
-        else:
-            streak = 1
-        prev = d
-    last_date = dates.iloc[-1].strftime('%d %b %Y')
-    return max_streak, last_date
-
-# ======= Dashboard Code =======
+# ========== DASHBOARD ==========
 if st.session_state.get("logged_in"):
     student_code = st.session_state.get("student_code", "").strip().lower()
     student_name = st.session_state.get("student_name", "")
 
-    # --- Get student_row first (always before any UI) ---
+    # Load student info
     df_students = load_student_data()
     matches = df_students[df_students["StudentCode"].str.lower() == student_code]
     student_row = matches.iloc[0].to_dict() if not matches.empty else {}
 
+    # Greeting
     display_name = student_row.get('Name') or student_name or "Student"
-    first_name = str(display_name).strip().split()[0].title() if display_name else "Student"
+    first_name = str(display_name).split()[0].title()
 
-    # --- Contract End and Renewal Policy (ALWAYS VISIBLE) ---
+    # Contract banner
     MONTHLY_RENEWAL = 1000
-    contract_end_str = student_row.get("ContractEnd", "")
-    today = datetime.today()
-    contract_end = parse_contract_end(contract_end_str)
+    contract_end = parse_contract_end(student_row.get("ContractEnd", ""))
     if contract_end:
-        days_left = (contract_end - today).days
+        days_left = (contract_end - datetime.today()).days
         if 0 < days_left <= 30:
-            st.warning(
-                f"⏰ **Your contract ends in {days_left} days ({contract_end.strftime('%d %b %Y')}).**\n"
-                f"If you need more time, you can renew for **₵{MONTHLY_RENEWAL:,} per month**."
-            )
+            st.warning(f"⏰ Your contract ends in {days_left} days ({contract_end.strftime('%d %b %Y')}). Renew for ₵{MONTHLY_RENEWAL:,}/month.")
         elif days_left < 0:
-            st.error(
-                f"⚠️ **Your contract has ended!** Please contact the office to renew for **₵{MONTHLY_RENEWAL:,} per month**."
-            )
+            st.error(f"⚠️ Your contract has ended! Please renew for ₵{MONTHLY_RENEWAL:,}/month.")
     else:
         st.info("Contract end date unavailable or in wrong format.")
 
-    st.info(
-        f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
-        "Do your best to complete your course on time to avoid extra fees!"
-    )
+    st.info(f"🔄 Renewal Policy: ₵{MONTHLY_RENEWAL:,}/month if you extend early.")
 
     # --- Main Tab Selection ---
     tab = st.radio(
@@ -690,102 +627,57 @@ if st.session_state.get("logged_in"):
     )
 
     if tab == "Dashboard":
-        # 🏠 Compact Dashboard header
         st.markdown(
             '''
             <div style="
-                padding: 8px 12px;
-                background: #343a40;
-                color: #ffffff;
-                border-radius: 6px;
-                text-align: center;
-                margin-bottom: 8px;
-                font-size: 1.3rem;
-            ">
+                padding:8px 12px;
+                background:#343a40;
+                color:#fff;
+                border-radius:6px;
+                text-align:center;
+                margin-bottom:8px;
+                font-size:1.3rem;">
                 📊 Student Dashboard
             </div>
             ''',
             unsafe_allow_html=True
         )
-        st.divider()
-
-        # --- Minimal, super-visible greeting for mobile ---
         st.success(f"Hello, {first_name}! 👋")
         st.info("Great to see you. Let's keep learning!")
 
-        # ========== STREAKS BLOCK (GAMIFIED & WEEKLY) ========== #
-        # ---- Fetch vocab_stats and schreiben_stats (replace below with your Firestore logic!) ----
-        try:
-            vocab_stats = get_vocab_stats(student_code)
-            if vocab_stats is None:
-                vocab_stats = {"history": []}
-        except Exception:
-            vocab_stats = {"history": []}
-        try:
-            schreiben_stats = get_schreiben_stats(student_code)
-            if schreiben_stats is None:
-                schreiben_stats = {"attempts": []}
-        except Exception:
-            schreiben_stats = {"attempts": []}
-
+        # --- Assignment gamification only ---
         df_assign = load_assignment_scores()
-        assignments = df_assign[df_assign['studentcode'].str.lower() == student_code]
-
-        # --- Calculate "this week" data ---
-        from datetime import date, timedelta, datetime
+        df_assign['date'] = pd.to_datetime(df_assign['date'], format="%Y-%m-%d", errors="coerce").dt.date
+        mask_student = df_assign['studentcode'].str.lower().str.strip() == student_code
         today = date.today()
         monday = today - timedelta(days=today.weekday())
+        mask_week = df_assign['date'] >= monday
+        assignment_this_week = df_assign[mask_student & mask_week].shape[0]
+        WEEKLY_GOAL = 3
+        st.markdown("### 📝 Weekly Assignment Goal")
+        st.metric("Submitted", f"{assignment_this_week} / {WEEKLY_GOAL}")
+        if assignment_this_week >= WEEKLY_GOAL:
+            st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
+        else:
+            remaining = WEEKLY_GOAL - assignment_this_week
+            st.info(f"Submit {remaining} more assignment{'s' if remaining>1 else ''} by Sunday to hit your goal.")
 
-        # Vocab
-        vocab_dates = {
-            datetime.strptime(a["timestamp"], "%Y-%m-%d %H:%M").date()
-            for a in vocab_stats.get("history", [])
-            if a.get("timestamp")
-        }
-        vocab_this_week = sum(1 for d in vocab_dates if d >= monday)
-        vocab_last = max(vocab_dates) if vocab_dates else None
-        vocab_status = "🔥 On fire!" if vocab_this_week >= 3 else "😴 Start practicing"
-
-        # Schreiben
-        schreiben_dates = {
-            datetime.strptime(a["timestamp"], "%Y-%m-%d %H:%M").date()
-            for a in schreiben_stats.get("attempts", [])
-            if a.get("timestamp")
-        }
-        schreiben_this_week = sum(1 for d in schreiben_dates if d >= monday)
-        schreiben_last = max(schreiben_dates) if schreiben_dates else None
-        schreiben_status = "✍️ You’re writing!" if schreiben_this_week >= 1 else "😴 No writing yet"
-
-        # Assignments
-        assignment_dates = pd.to_datetime(assignments["date"], errors="coerce").dt.date.dropna().unique()
-        assignment_this_week = sum(1 for d in assignment_dates if d >= monday)
-        last_assignment = max(assignment_dates) if len(assignment_dates) else None
-        assignment_status = "📝 Looks good!" if assignment_this_week >= 1 else "😴 No submissions yet"
-
-        # 🎯 Your Practice Streaks This Week
-        st.markdown("### 🎯 Your Practice Streaks This Week")
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            st.markdown("#### 📚 Vocab")
-            st.metric("Days Practiced", vocab_this_week)
-            st.markdown(f"<span style='font-size:1.3em'>{vocab_status}</span>", unsafe_allow_html=True)
-            st.caption(f"Last: {vocab_last.strftime('%d %b') if vocab_last else 'N/A'}")
-
-        with col2:
-            st.markdown("#### ✍️ Schreiben")
-            st.metric("Days Practiced", schreiben_this_week)
-            st.markdown(f"<span style='font-size:1.3em'>{schreiben_status}</span>", unsafe_allow_html=True)
-            st.caption(f"Last: {schreiben_last.strftime('%d %b') if schreiben_last else 'N/A'}")
-
-        with col3:
-            st.markdown("#### 📝 Assignments")
-            st.metric("Submitted This Week", assignment_this_week)
-            st.markdown(f"<span style='font-size:1.3em'>{assignment_status}</span>", unsafe_allow_html=True)
-            st.caption(f"Last: {last_assignment.strftime('%d %b') if pd.notnull(last_assignment) else 'N/A'}")
-
-        st.info("Practice or submit at least once per week to keep your streak going! 🚀")
         st.divider()
+        st.markdown(f"### 👤 {student_row.get('Name','')}")
+        st.markdown(
+            f"- **Level:** {student_row.get('Level','')}\n"
+            f"- **Code:** `{student_row.get('StudentCode','')}`\n"
+            f"- **Email:** {student_row.get('Email','')}\n"
+            f"- **Phone:** {student_row.get('Phone','')}\n"
+            f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}\n"
+        )
+        try:
+            bal = float(student_row.get("Balance", 0))
+            if bal > 0:
+                st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
+        except:
+            pass
+
 
         # --- Student Info & Balance ---
         st.markdown(f"### 👤 {student_row.get('Name','')}")
