@@ -652,6 +652,54 @@ if st.session_state.get("logged_in"):
             rem = WEEKLY_GOAL - assignment_count
             st.info(f"Submit {rem} more assignment{'s' if rem>1 else ''} by Sunday to hit your goal.")
 
+    # Upcoming Exam Countdown (by level mapping)
+    GOETHE_EXAM_DATES = {
+        "A1": date(2025, 10, 13),
+        "A2": date(2025, 10, 14),
+        "B1": date(2025, 10, 15),
+        "B2": date(2025, 10, 16),
+        "C1": date(2025, 10, 17),
+    }
+    level = student_row.get("Level", "").upper()
+    exam_date = GOETHE_EXAM_DATES.get(level)
+    if exam_date:
+        days_to_exam = (exam_date - date.today()).days
+        st.subheader("⏳ Upcoming Exam Countdown")
+        if days_to_exam > 0:
+            st.info(f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).")
+        elif days_to_exam == 0:
+            st.success("🚀 Exam is today! Good luck!")
+        else:
+            st.error(f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.")
+    else:
+        st.warning(f"No exam date configured for level {level}.")
+
+    # --- Goethe Exam Dates & Fees ---
+    with st.expander("📅 Goethe Exam Dates & Fees", expanded=True):
+        st.markdown(
+            """
+| Level | Online Registration | Fee (GHS) | Single Module (GHS) |
+|-------|---------------------|-----------|---------------------|
+| A1    | 13.10.2025          | 2,850     | —                   |
+| A2    | 14.10.2025          | 2,400     | —                   |
+| B1    | 15.10.2025          | 2,750     | 880                 |
+| B2    | 16.10.2025          | 2,500     | 840                 |
+| C1    | 17.10.2025          | 2,450     | 700                 |
+
+**How to Pay:**
+- [Register here](https://www.goethe.de/ins/gh/en/spr/prf.html)
+- Pay your exam fee by **bank deposit or Mobile Money transfer to the bank account below**:
+    - **Ecobank Ghana**
+        - Account Name: **GOETHE-INSTITUT GHANA**
+        - Account Number: **1441 001 701 903**
+        - Branch: **Ring Road Central**
+        - SWIFT Code: **ECOCGHAC**
+- **IMPORTANT:** Use your **full name** as payment reference!
+- After payment, send your proof to: registrations-accra@goethe.de
+            """,
+            unsafe_allow_html=True
+        )
+
         # --- Student Information & Balance ---
         st.markdown(f"### 👤 {student_row.get('Name','')}")
         st.markdown(
