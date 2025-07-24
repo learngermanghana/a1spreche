@@ -3728,7 +3728,14 @@ if tab == "Vocab Trainer":
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
-        <div style="padding: 8px 12px; background: #d63384; color: #fff; border-radius: 6px; text-align: center; margin-bottom: 8px; font-size: 1.3rem;">
+        <div style="
+            padding: 8px 12px;
+            background: #d63384;
+            color: #fff;
+            border-radius: 6px;
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 1.3rem;">
             ✍️ Schreiben Trainer (Writing Practice)
         </div>
         ''',
@@ -3736,15 +3743,17 @@ if tab == "Schreiben Trainer":
     )
     st.divider()
 
+    # --- STUDENT SESSION MANAGEMENT (per user) ---
     student_code = st.session_state.get("student_code", "demo")
     prev_student_code = st.session_state.get("prev_student_code", None)
+
+    # On student change, load their last letter/draft
     if student_code != prev_student_code:
-        last_prompt, last_chat = load_letter_coach_progress(student_code)
-        st.session_state["letter_coach_prompt"] = last_prompt or ""
-        st.session_state["letter_coach_chat"] = last_chat or []
-        st.session_state["letter_coach_stage"] = 1 if last_chat else 0
+        stats = get_schreiben_stats(student_code)
+        st.session_state["schreiben_input"] = stats.get("last_letter", "")
         st.session_state["prev_student_code"] = student_code
 
+    # Sub-tabs
     sub_tab = st.radio(
         "Choose Mode",
         ["Mark My Letter", "Ideas Generator (Letter Coach)"],
@@ -3752,6 +3761,7 @@ if tab == "Schreiben Trainer":
         key="schreiben_sub_tab"
     )
 
+    # Level picker
     schreiben_levels = ["A1", "A2", "B1", "B2", "C1"]
     prev_level = st.session_state.get("schreiben_level", "A1")
     schreiben_level = st.selectbox(
@@ -3761,6 +3771,7 @@ if tab == "Schreiben Trainer":
         key="schreiben_level_selector"
     )
     st.session_state["schreiben_level"] = schreiben_level
+
     st.divider()
 
     # ----------- 1. MARK MY LETTER -----------
@@ -3802,7 +3813,7 @@ if tab == "Schreiben Trainer":
             key="schreiben_input",
             value=st.session_state.get("schreiben_input", ""),
             disabled=(daily_so_far >= MARK_LIMIT),
-            height=200,
+            height=600,
             placeholder="Write your German letter here..."
         )
 
@@ -3961,7 +3972,6 @@ if tab == "Schreiben Trainer":
                 f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                 unsafe_allow_html=True
             )
-
 
                 
     # ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
