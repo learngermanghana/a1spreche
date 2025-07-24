@@ -652,24 +652,17 @@ if st.session_state.get("logged_in"):
             rem = WEEKLY_GOAL - assignment_count
             st.info(f"Submit {rem} more assignment{'s' if rem>1 else ''} by Sunday to hit your goal.")
 
-        st.divider()
+                st.divider()
         # --- Student Information & Balance ---
         st.markdown(f"### 👤 {student_row.get('Name','')}")
         st.markdown(
-            f"- **Level:** {student_row.get('Level','')}
-"
-            f"- **Code:** `{student_row.get('StudentCode','')}`
-"
-            f"- **Email:** {student_row.get('Email','')}
-"
-            f"- **Phone:** {student_row.get('Phone','')}
-"
-            f"- **Location:** {student_row.get('Location','')}
-"
-            f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}
-"
-            f"- **Enroll Date:** {student_row.get('EnrollDate','')}
-"
+            f"- **Level:** {student_row.get('Level','')}\n"
+            f"- **Code:** `{student_row.get('StudentCode','')}`\n"
+            f"- **Email:** {student_row.get('Email','')}\n"
+            f"- **Phone:** {student_row.get('Phone','')}\n"
+            f"- **Location:** {student_row.get('Location','')}\n"
+            f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}\n"
+            f"- **Enroll Date:** {student_row.get('EnrollDate','')}\n"
             f"- **Status:** {student_row.get('Status','')}"
         )
         try:
@@ -678,6 +671,7 @@ if st.session_state.get("logged_in"):
                 st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
         except:
             pass
+
 
         # --- Reviews Section ---
         st.markdown("### 🗣️ What Our Students Say")
