@@ -33,13 +33,13 @@ st.markdown(
 )
 
 # ==== FIREBASE ADMIN INIT ====
-# Make sure to place your service account JSON in your project and reference the correct path.
+FIREBASE_CRED_PATH = "serviceAccountKey.json"   # <- CHANGE THIS TO YOUR FILE PATH!
 if not firebase_admin._apps:
-    cred = credentials.Certificate("serviceAccountKey.json")
+    cred = credentials.Certificate(FIREBASE_CRED_PATH)
     firebase_admin.initialize_app(cred)
 db = firestore.client()
 
-# ==== OPENAI CLIENT SETUP (Optional, Remove if not needed) ====
+# ==== OPENAI CLIENT SETUP ====
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     st.error("Missing OpenAI API key. Please add OPENAI_API_KEY in Streamlit secrets.")
