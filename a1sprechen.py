@@ -4062,37 +4062,29 @@ if tab == "Schreiben Trainer":
                 <b>{name}:</b><br>{text}
             </div>
         """
-        
+
+
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
 
-        # --- Namespaced session keys (per student) ---
+        # === NAMESPACED SESSION KEYS (per student) ===
         student_code = st.session_state.get("student_code", "demo")
         ns_prefix = f"{student_code}_letter_coach_"
         def ns(key): return ns_prefix + key
 
         # --- Reset per-student Letter Coach state on student change ---
-        prev_student_code = st.session_state.get("prev_student_code", None)
-        if student_code != prev_student_code:
+        prev_letter_coach_code = st.session_state.get("prev_letter_coach_code", None)
+        if student_code != prev_letter_coach_code:
             last_prompt, last_chat = load_letter_coach_progress(student_code)
             st.session_state[ns("prompt")] = last_prompt or ""
             st.session_state[ns("chat")] = last_chat or []
             st.session_state[ns("stage")] = 1 if last_chat else 0
-            st.session_state["prev_student_code"] = student_code
+            st.session_state["prev_letter_coach_code"] = student_code
 
-        # --- Set default state for this student if missing ---
+        # --- Set per-student defaults if missing ---
         for k, default in [("prompt", ""), ("chat", []), ("stage", 0)]:
             if ns(k) not in st.session_state:
                 st.session_state[ns(k)] = default
-
-        # --- Example UI: (replace with your real logic) ---
-        st.markdown("## Your Letter Coach Chat")
-        st.write("Chat:", st.session_state[ns("chat")])
-        st.text_area("Prompt", key=ns("prompt"))
-
-        # Example: add to chat
-        if st.button("Add Hello"):
-            st.session_state[ns("chat")].append(f"Hello from {student_code}")
 
 
         LETTER_COACH_PROMPTS = {
@@ -4240,54 +4232,22 @@ if tab == "Schreiben Trainer":
             unsafe_allow_html=True
         )
 
+ 
         IDEAS_LIMIT = 14
         ideas_so_far = get_letter_coach_usage(student_code)
         st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
         if ideas_so_far >= IDEAS_LIMIT:
             st.warning("You have reached today's letter coach limit. Please come back tomorrow.")
+            st.stop()
 
-        # --- Session State Defaults ---
-        for key, default in [
-            ("letter_coach_stage", 0),
-            ("letter_coach_chat", []),
-            ("letter_coach_prompt", ""),
-            ("letter_coach_type", ""),
-            ("selected_letter_lines", []),
-            ("letter_coach_uploaded", False)
-        ]:
-            if key not in st.session_state:
-                st.session_state[key] = default
-
-        # --- Stage 0: Paste Prompt ---
-        if st.session_state.letter_coach_stage == 0:
-            st.markdown(
-                """
-                <div style="
-                    background: linear-gradient(90deg, #f9fbe7 70%, #eaf4ff 100%);
-                    border-radius: 9px;
-                    border: 1px solid #e0e0e0;
-                    box-shadow: 0 2px 8px #c0caf01c;
-                    padding: 0.74em 1.1em 0.58em 1.1em;
-                    margin-bottom: 0.55em;
-                    margin-top: 0.05em;
-                    color: #4a6276;
-                    font-size: 1.05rem;
-                    font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
-                    ">
-                    <span style="font-size:1.15em; font-weight: 500; vertical-align:middle;">📝 Enter your exam prompt or letter draft below</span>
-                    <div style="color:#668b8b;font-size:0.99em;margin-top:0.22em;">
-                        Paste the <b>question</b>, a <b>draft</b>, or any <b>unfinished letter</b>.<br>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-            with st.form("prompt_form", clear_on_submit=True):
+        # --- Stage 0: Prompt input ---
+        if st.session_state[ns("stage")] == 0:
+            st.markdown("### ✏️ Enter your exam prompt or draft to start coaching")
+            with st.form(ns("prompt_form"), clear_on_submit=True):
                 prompt = st.text_area(
                     "",
-                    value=st.session_state.letter_coach_prompt,
+                    value=st.session_state[ns("prompt")],
                     height=120,
-                    disabled=(ideas_so_far >= IDEAS_LIMIT),
                     placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ..."
                 )
                 send = st.form_submit_button("✉️ Start Letter Coach")
@@ -4303,18 +4263,13 @@ if tab == "Schreiben Trainer":
                 )
 
             if send and prompt:
-                st.session_state.letter_coach_prompt = prompt
-
-                # Compose the system prompt for the student's level
+                st.session_state[ns("prompt")] = prompt
                 student_level = st.session_state.get("schreiben_level", "A1")
                 system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=prompt)
-
-                # Start chat history with system and user message
                 chat_history = [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ]
-                # Generate immediate AI reply
                 try:
                     resp = client.chat.completions.create(
                         model="gpt-4o",
@@ -4327,15 +4282,14 @@ if tab == "Schreiben Trainer":
                     ai_reply = "Sorry, there was an error generating a response. Please try again."
                 chat_history.append({"role": "assistant", "content": ai_reply})
 
-                st.session_state.letter_coach_chat = chat_history
-                st.session_state.letter_coach_stage = 1  # Step 1: chat view
+                st.session_state[ns("chat")] = chat_history
+                st.session_state[ns("stage")] = 1
                 inc_letter_coach_usage(student_code)
-                # --- SAVE TO FIRESTORE ---
                 save_letter_coach_progress(
                     student_code,
-                    st.session_state.get("schreiben_level", "A1"),
-                    st.session_state.letter_coach_prompt,
-                    st.session_state.letter_coach_chat,
+                    student_level,
+                    st.session_state[ns("prompt")],
+                    st.session_state[ns("chat")],
                 )
                 st.rerun()
 
@@ -4344,10 +4298,10 @@ if tab == "Schreiben Trainer":
                 st.markdown(f"📝 **Letter/Essay Prompt or Draft:**\n\n{prompt}")
 
         # --- Stage 1: Coaching Chat ---
-        elif st.session_state.letter_coach_stage == 1:
+        elif st.session_state[ns("stage")] == 1:
             st.markdown("---")
-            st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{st.session_state.letter_coach_prompt}")
-            chat_history = st.session_state.letter_coach_chat
+            st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{st.session_state[ns('prompt')]}")
+            chat_history = st.session_state[ns("chat")]
             for msg in chat_history[1:]:
                 st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
             num_student_turns = sum(1 for msg in chat_history[1:] if msg["role"] == "user")
@@ -4367,11 +4321,11 @@ if tab == "Schreiben Trainer":
                     "Try to wrap up, click **END SUMMARY** or download your letter as TXT."
                 )
 
-            with st.form("letter_coach_chat_form", clear_on_submit=True):
+            with st.form(ns("letter_coach_chat_form"), clear_on_submit=True):
                 user_input = st.text_area(
                     "",
                     value="",
-                    key="letter_coach_user_input",
+                    key=ns("user_input"),
                     height=400,
                     placeholder="Type your reply, ask about a section, or paste your draft here..."
                 )
@@ -4379,7 +4333,7 @@ if tab == "Schreiben Trainer":
             if send and user_input.strip():
                 chat_history.append({"role": "user", "content": user_input})
                 student_level = st.session_state.get("schreiben_level", "A1")
-                system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=st.session_state.letter_coach_prompt)
+                system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=st.session_state[ns("prompt")])
                 with st.spinner("👨‍🏫 Herr Felix is typing..."):
                     resp = client.chat.completions.create(
                         model="gpt-4o",
@@ -4389,23 +4343,21 @@ if tab == "Schreiben Trainer":
                     )
                     ai_reply = resp.choices[0].message.content
                 chat_history.append({"role": "assistant", "content": ai_reply})
-                st.session_state.letter_coach_chat = chat_history
-                # --- SAVE TO FIRESTORE ---
+                st.session_state[ns("chat")] = chat_history
                 save_letter_coach_progress(
                     student_code,
-                    st.session_state.get("schreiben_level", "A1"),
-                    st.session_state.letter_coach_prompt,
-                    st.session_state.letter_coach_chat,
+                    student_level,
+                    st.session_state[ns("prompt")],
+                    st.session_state[ns("chat")],
                 )
                 st.rerun()
 
             # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
             import streamlit.components.v1 as components
 
-            # Collect student messages from session chat
             user_msgs = [
                 msg["content"]
-                for msg in st.session_state.letter_coach_chat[1:]
+                for msg in st.session_state[ns("chat")][1:]
                 if msg.get("role") == "user"
             ]
 
@@ -4417,18 +4369,18 @@ if tab == "Schreiben Trainer":
             """)
 
             # Store selection in session state (keeps selection per student)
-            if "selected_letter_lines" not in st.session_state or \
-               len(st.session_state.selected_letter_lines) != len(user_msgs):
-                st.session_state.selected_letter_lines = [True] * len(user_msgs)
+            if ns("selected_letter_lines") not in st.session_state or \
+                len(st.session_state[ns("selected_letter_lines")]) != len(user_msgs):
+                st.session_state[ns("selected_letter_lines")] = [True] * len(user_msgs)
 
             selected_lines = []
             for i, line in enumerate(user_msgs):
-                st.session_state.selected_letter_lines[i] = st.checkbox(
+                st.session_state[ns("selected_letter_lines")][i] = st.checkbox(
                     line,
-                    value=st.session_state.selected_letter_lines[i],
-                    key=f"letter_line_{i}"
+                    value=st.session_state[ns("selected_letter_lines")][i],
+                    key=ns(f"letter_line_{i}")
                 )
-                if st.session_state.selected_letter_lines[i]:
+                if st.session_state[ns("selected_letter_lines")][i]:
                     selected_lines.append(line)
 
             letter_draft = "\n".join(selected_lines)
@@ -4467,7 +4419,7 @@ if tab == "Schreiben Trainer":
 
             # --- Mobile-friendly copy/download box ---
             components.html(f"""
-                <textarea id="letterBox" readonly rows="6" style="
+                <textarea id="letterBox_{student_code}" readonly rows="6" style="
                     width: 100%;
                     border-radius: 12px;
                     background: #f9fbe7;
@@ -4481,7 +4433,7 @@ if tab == "Schreiben Trainer":
                     resize: none;
                     overflow:auto;
                 " onclick="this.select()">{letter_draft}</textarea>
-                <button onclick="navigator.clipboard.writeText(document.getElementById('letterBox').value)" 
+                <button onclick="navigator.clipboard.writeText(document.getElementById('letterBox_{student_code}').value)" 
                     style="
                         background:#ffc107;
                         color:#3e2723;
@@ -4503,7 +4455,7 @@ if tab == "Schreiben Trainer":
                 </button>
                 <style>
                     @media (max-width: 480px) {{
-                        #letterBox {{
+                        #letterBox_{student_code} {{
                             font-size: 1.16em !important;
                             min-width: 93vw !important;
                         }}
@@ -4534,12 +4486,10 @@ if tab == "Schreiben Trainer":
             )
 
             if st.button("Start New Letter Coach"):
-                st.session_state.letter_coach_chat = []
-                st.session_state.letter_coach_prompt = ""
-                st.session_state.letter_coach_type = ""
-                st.session_state.selected_letter_lines = []
-                st.session_state.letter_coach_uploaded = False
-                # --- SAVE RESET TO FIRESTORE ---
+                st.session_state[ns("chat")] = []
+                st.session_state[ns("prompt")] = ""
+                st.session_state[ns("selected_letter_lines")] = []
+                st.session_state[ns("stage")] = 0
                 save_letter_coach_progress(
                     student_code,
                     st.session_state.get("schreiben_level", "A1"),
@@ -4547,5 +4497,6 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
-#
+
+
 
