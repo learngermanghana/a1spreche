@@ -3767,7 +3767,7 @@ if tab == "Vocab Trainer":
             for k in defaults:
                 st.session_state[k] = defaults[k]
 
-
+#Schreiben
 def init_student_session():
     """
     Reset and load per-student state when the logged-in student_code changes.
@@ -3835,16 +3835,72 @@ if tab == "Schreiben Trainer":
 
     st.divider()
 
+    
     # ----------- 1. MARK MY LETTER -----------
     if sub_tab == "Mark My Letter":
+        # --- Writing Stats Block (INSERTED HERE) ---
+        def get_schreiben_stats_all(student_code):
+            """
+            Load all submission stats for this student. 
+            You should adapt this to your DB logic (Firestore, SQLite, etc.).
+            Returns: list of dicts with 'score', 'passed', 'date' fields.
+            """
+            doc_ref = db.collection("schreiben_submissions").document(student_code)
+            doc = doc_ref.get()
+            data = doc.to_dict() if doc.exists else {}
+            # Example: data["submissions"] = [{ "score": 19, "date": "...", "passed": True }, ... ]
+            return data.get("submissions", [])
+        
+        def save_submission(student_code, score, passed, date):
+            """
+            Save a letter submission for this student.
+            """
+            doc_ref = db.collection("schreiben_submissions").document(student_code)
+            doc = doc_ref.get()
+            data = doc.to_dict() if doc.exists else {}
+            submissions = data.get("submissions", [])
+            submissions.append({
+                "score": score,
+                "passed": passed,
+                "date": date.strftime("%Y-%m-%d")
+            })
+            doc_ref.set({"submissions": submissions}, merge=True)
+
+        # Load stats for display
+        submissions = get_schreiben_stats_all(student_code)
+        total = len(submissions)
+        num_passed = sum(1 for sub in submissions if sub.get("passed"))
+        avg_score = round(sum(sub.get("score", 0) for sub in submissions) / total, 2) if total else 0
+        pass_rate = round((num_passed / total) * 100, 1) if total else 0
+
         st.markdown(
-            '''
-            <div style="padding: 8px 12px; background: #d63384; color: #fff; border-radius: 6px; text-align: center; margin-bottom: 8px; font-size: 1.2rem;">
-                ✍️ Mark My Letter (AI Feedback & Score)
+            f"""
+            <div style="background:#e3ffe9;padding:10px;border-radius:8px;margin-bottom:10px;">
+            <b>📈 Your Writing Stats:</b><br>
+            Total Letters: <b>{total}</b><br>
+            Passes: <b>{num_passed}</b> <br>
+            Pass Rate: <b>{pass_rate}%</b> <br>
+            Avg Score: <b>{avg_score}/25</b>
             </div>
-            ''',
-            unsafe_allow_html=True
+            """, unsafe_allow_html=True
         )
+
+        # (Your original Mark My Letter code continues below...)
+
+        # Example: After feedback is generated, SAVE the submission:
+        # Parse score and passed status from the feedback (replace these lines with your logic!)
+        # Assume feedback is in st.session_state["last_feedback"]
+        import re
+        import datetime
+        feedback = st.session_state.get("last_feedback", "")
+        score_match = re.search(r"Score[: ]+(\d+)", feedback)
+        score = int(score_match.group(1)) if score_match else 0
+        passed = score >= 17   # Or use your passing threshold
+        if feedback and st.button("Save This Submission"):
+            save_submission(student_code, score, passed, datetime.datetime.now())
+            st.success("Submission saved for your stats! Reload to see updated stats.")
+
+
 
         # Submission Limit (max 3 per day)
         MARK_LIMIT = 3
