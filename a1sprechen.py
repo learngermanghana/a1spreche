@@ -1,3 +1,4 @@
+# ==== Standard Library ====
 import os
 import random
 import difflib
@@ -9,6 +10,7 @@ from datetime import date, datetime, timedelta
 import time
 import io
 
+# ==== Third-Party Packages ====
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
@@ -19,7 +21,7 @@ from firebase_admin import credentials, firestore
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
-# Hide Streamlit default footer/menu
+# ==== HIDE STREAMLIT FOOTER/MENU ====
 st.markdown(
     """
     <style>
@@ -30,15 +32,13 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# ==== FIREBASE ADMIN INIT FROM SECRETS ====
+# ==== FIREBASE ADMIN INIT ====
 if not firebase_admin._apps:
-    # st.secrets["firebase"] is a SecretDict; wrap in dict() so Certificate() sees a plain dict
+    # Convert SecretDict to plain dict for Certificate()
     cred_dict = dict(st.secrets["firebase"])
     cred = credentials.Certificate(cred_dict)
     firebase_admin.initialize_app(cred)
 db = firestore.client()
-
-
 
 # ==== OPENAI CLIENT SETUP ====
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
@@ -48,6 +48,14 @@ if not OPENAI_API_KEY:
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
 
+# ==== DB CONNECTION ====
+def get_connection():
+    if "conn" not in st.session_state:
+        st.session_state["conn"] = sqlite3.connect(
+            "vocab_progress.db", check_same_thread=False
+        )
+        atexit.register(st.session_state["conn"].close)
+    return st.session_state["conn"]
 
 # ==== INITIALIZE DB TABLES ====
 def init_db():
@@ -128,36 +136,17 @@ def init_db():
             date_added TEXT
         )
     """)
-    # Sprechen Daily Usage Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS sprechen_usage (
-            student_code TEXT,
-            date TEXT,
-            count INTEGER,
-            PRIMARY KEY (student_code, date)
-        )
-    """)
-    # Letter Coach Daily Usage Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS letter_coach_usage (
-            student_code TEXT,
-            date TEXT,
-            count INTEGER,
-            PRIMARY KEY (student_code, date)
-        )
-    """)
-    # Schreiben Daily Usage Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS schreiben_usage (
-            student_code TEXT,
-            date TEXT,
-            count INTEGER,
-            PRIMARY KEY (student_code, date)
-        )
-    """)
+    # Daily Usage Tables
+    for tbl in ["sprechen_usage", "letter_coach_usage", "schreiben_usage"]:
+        c.execute(f"""
+            CREATE TABLE IF NOT EXISTS {tbl} (
+                student_code TEXT,
+                date TEXT,
+                count INTEGER,
+                PRIMARY KEY (student_code, date)
+            )
+        """)
     conn.commit()
-
-init_db()  # <<-- Make sure this is before any other DB calls!
 
 
 # ==== CONSTANTS ====
