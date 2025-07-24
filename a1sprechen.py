@@ -4047,30 +4047,42 @@ if tab == "Schreiben Trainer":
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
 
-        # --- Define get_letter_coach_usage HERE if needed inside the block ---
-        def get_letter_coach_usage(student_code):
-            today = str(date.today())
-            conn = get_connection()
-            c = conn.cursor()
-            c.execute(
-                "SELECT count FROM letter_coach_usage WHERE student_code=? AND date=?",
-                (student_code, today)
-            )
-            row = c.fetchone()
-            return row[0] if row else 0
-
-        # === NAMESPACED SESSION KEYS (per student) ===
+        # --- Helper: namespaced session keys
         ns_prefix = f"{student_code}_letter_coach_"
         def ns(key):
             return ns_prefix + key
 
-        # --- Auto-restore progress for this student only
-        if not st.session_state.get(ns("prompt")) and not st.session_state.get(ns("chat")):
+        # --- Restore progress for this student only
+        if ns("prompt") not in st.session_state and ns("chat") not in st.session_state:
             last_prompt, last_chat = load_letter_coach_progress(student_code)
             if last_prompt or last_chat:
                 st.session_state[ns("prompt")] = last_prompt
                 st.session_state[ns("chat")] = last_chat
                 st.session_state[ns("stage")] = 1 if last_chat else 0
+
+        # --- Set default values for this student
+        for key, default in [
+            ("stage", 0), ("chat", []), ("prompt", ""),
+            ("type", ""), ("selected_lines", []), ("uploaded", False)
+        ]:
+            if ns(key) not in st.session_state:
+                st.session_state[ns(key)] = default
+
+        # Example: Using namespaced keys everywhere below!
+        if st.session_state[ns("stage")] == 0:
+            prompt = st.text_area(
+                "Paste your exam prompt or draft below",
+                value=st.session_state[ns("prompt")],
+                key=ns("prompt_textarea")
+            )
+            if st.button("Start Letter Coach"):
+                st.session_state[ns("prompt")] = prompt
+                st.session_state[ns("stage")] = 1
+                # ... your code to initialize chat, etc.
+
+        elif st.session_state[ns("stage")] == 1:
+            # ... show chat, always use st.session_state[ns("chat")], etc.
+            pass
 
 
         LETTER_COACH_PROMPTS = {
