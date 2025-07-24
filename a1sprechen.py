@@ -71,6 +71,15 @@ def get_connection():
         atexit.register(st.session_state["conn"].close)
     return st.session_state["conn"]
 
+# Initialize the app (run once at start)
+if not firebase_admin._apps:
+    cred = credentials.Certificate("path/to/serviceAccountKey.json")
+    firebase_admin.initialize_app(cred)
+db = firestore.client()
+
+# Now you can use db.collection(...)
+doc_ref = db.collection("test").document("hello")
+
 # ==== INITIALIZE DB TABLES ====
 def init_db():
     conn = get_connection()
