@@ -67,32 +67,36 @@ def init_db():
 
 init_db()
 
-# ==== USAGE COUNTERS & HELPERS ====
-# (get_sprechen_usage, inc_sprechen_usage, get_schreiben_usage, inc_schreiben_usage, etc.)
+# ==== USAGE COUNTERS ====
 
-def save_letter_coach_progress(student_code, schreiben_level, letter_coach_prompt, chat_history):
-    """
-    Auto-saves the student's Letter Coach (Ideen Generator) progress in Firestore.
-    """
-    if not db:
-        st.warning("Firestore not initialized. Progress not saved.")
-        return
-    try:
-        doc_ref = db.collection("letter_coach_progress").document(student_code)
-        doc_ref.set({
-            "level": schreiben_level,
-            "prompt": letter_coach_prompt,
-            "chat": chat_history,
-            "last_update": firestore.SERVER_TIMESTAMP
-        })
-    except Exception as e:
-        st.error(f"Failed to save letter coach progress for {student_code}: {e}")
-        # Log to a file for later inspection
-        try:
-            with open("error.log", "a") as log_file:
-                log_file.write(f"{datetime.now()}: Error saving progress for {student_code}: {e}\n")
-        except Exception:
-            pass
+def get_schreiben_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT count FROM schreiben_usage WHERE student_code=? AND date=?",
+        (student_code, today)
+    )
+    row = c.fetchone()
+    return row[0] if row else 0
+
+def inc_schreiben_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    # bump if exists
+    c.execute(
+        "UPDATE schreiben_usage SET count = count + 1 WHERE student_code = ? AND date = ?",
+        (student_code, today)
+    )
+    # otherwise insert
+    if c.rowcount == 0:
+        c.execute(
+            "INSERT INTO schreiben_usage (student_code, date, count) VALUES (?, ?, 1)",
+            (student_code, today)
+        )
+    conn.commit()
+
 
 # ==== STREAMLIT PAGE CONFIG & HEADER ====
 st.set_page_config(page_title="Falowen – Your German Conversation Partner", layout="centered")
