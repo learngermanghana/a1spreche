@@ -3999,18 +3999,33 @@ if tab == "Schreiben Trainer":
         
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
+        from datetime import date
 
-        # --- Define get_letter_coach_usage HERE if needed inside the block ---
+        # ---- Firestore: Get daily letter coach usage ----
         def get_letter_coach_usage(student_code):
             today = str(date.today())
-            conn = get_connection()
-            c = conn.cursor()
-            c.execute(
-                "SELECT count FROM letter_coach_usage WHERE student_code=? AND date=?",
-                (student_code, today)
-            )
-            row = c.fetchone()
-            return row[0] if row else 0
+            doc_ref = db.collection("letter_coach_usage").document(student_code)
+            doc = doc_ref.get()
+            if doc.exists:
+                data = doc.to_dict()
+                if data.get("date") == today:
+                    return data.get("count", 0)
+            return 0
+
+        # ---- Firestore: Increment daily usage ----
+        def inc_letter_coach_usage(student_code):
+            today = str(date.today())
+            doc_ref = db.collection("letter_coach_usage").document(student_code)
+            doc = doc_ref.get()
+            if doc.exists:
+                data = doc.to_dict()
+                if data.get("date") == today:
+                    count = data.get("count", 0) + 1
+                    doc_ref.set({"count": count, "date": today})
+                else:
+                    doc_ref.set({"count": 1, "date": today})
+            else:
+                doc_ref.set({"count": 1, "date": today})
 
         # === NAMESPACED SESSION KEYS (per student) ===
         ns_prefix = f"{student_code}_letter_coach_"
@@ -4128,6 +4143,7 @@ if tab == "Schreiben Trainer":
             ),
         }
 
+
         def reset_letter_coach():
             for k in [
                 "letter_coach_stage", "letter_coach_chat", "letter_coach_prompt",
@@ -4234,16 +4250,16 @@ if tab == "Schreiben Trainer":
             if send and prompt:
                 st.session_state.letter_coach_prompt = prompt
 
-                # Compose the system prompt for the student's level
+                # Compose system prompt for selected level
                 student_level = st.session_state.get("schreiben_level", "A1")
                 system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=prompt)
 
-                # Start chat history with system and user message
+                # Start chat history
                 chat_history = [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ]
-                # Generate immediate AI reply
+                # Immediate AI reply
                 try:
                     resp = client.chat.completions.create(
                         model="gpt-4o",
@@ -4256,13 +4272,13 @@ if tab == "Schreiben Trainer":
                     ai_reply = "Sorry, there was an error generating a response. Please try again."
                 chat_history.append({"role": "assistant", "content": ai_reply})
 
+                # Save progress, increment usage, and advance stage
                 st.session_state.letter_coach_chat = chat_history
-                st.session_state.letter_coach_stage = 1  # Step 1: chat view
+                st.session_state.letter_coach_stage = 1
                 inc_letter_coach_usage(student_code)
-                # --- SAVE TO FIRESTORE ---
                 save_letter_coach_progress(
                     student_code,
-                    st.session_state.get("schreiben_level", "A1"),
+                    student_level,
                     st.session_state.letter_coach_prompt,
                     st.session_state.letter_coach_chat,
                 )
@@ -4347,7 +4363,7 @@ if tab == "Schreiben Trainer":
 
             # Store selection in session state (keeps selection per student)
             if "selected_letter_lines" not in st.session_state or \
-               len(st.session_state.selected_letter_lines) != len(user_msgs):
+                len(st.session_state.selected_letter_lines) != len(user_msgs):
                 st.session_state.selected_letter_lines = [True] * len(user_msgs)
 
             selected_lines = []
@@ -4384,99 +4400,9 @@ if tab == "Schreiben Trainer":
                     font-size:1.07em;
                     font-weight:400;
                     border:1px solid #343a40;
-                    box-shadow:0 2px 10px #0002;
-                    text-align:left;
-                ">
-                    <span style="font-size:1.12em; color:#ffe082;">📝 Your Letter So Far</span><br>
-                    <span style="font-size:1.00em; color:#b0b0b0;">copy often or download below to prevent data loss</span>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+                    box
 
-            # --- Mobile-friendly copy/download box ---
-            components.html(f"""
-                <textarea id="letterBox" readonly rows="6" style="
-                    width: 100%;
-                    border-radius: 12px;
-                    background: #f9fbe7;
-                    border: 1.7px solid #ffe082;
-                    color: #222;
-                    font-size: 1.12em;
-                    font-family: 'Fira Mono', 'Consolas', monospace;
-                    padding: 1em 0.7em;
-                    box-shadow: 0 2px 8px #ffe08266;
-                    margin-bottom: 0.5em;
-                    resize: none;
-                    overflow:auto;
-                " onclick="this.select()">{letter_draft}</textarea>
-                <button onclick="navigator.clipboard.writeText(document.getElementById('letterBox').value)" 
-                    style="
-                        background:#ffc107;
-                        color:#3e2723;
-                        font-size:1.08em;
-                        font-weight:bold;
-                        padding:0.48em 1.12em;
-                        margin-top:0.4em;
-                        border:none;
-                        border-radius:7px;
-                        cursor:pointer;
-                        box-shadow:0 2px 8px #ffe08255;
-                        width:100%;
-                        max-width:320px;
-                        display:block;
-                        margin-left:auto;
-                        margin-right:auto;
-                    ">
-                    📋 Copy Text
-                </button>
-                <style>
-                    @media (max-width: 480px) {{
-                        #letterBox {{
-                            font-size: 1.16em !important;
-                            min-width: 93vw !important;
-                        }}
-                    }}
-                </style>
-            """, height=175)
 
-            st.markdown("""
-                <div style="
-                    background:#ffe082;
-                    padding:0.9em 1.2em;
-                    border-radius:10px;
-                    margin:0.4em 0 1.2em 0;
-                    color:#543c0b;
-                    font-weight:600;
-                    border-left:6px solid #ffc107;
-                    font-size:1.08em;">
-                    📋 <span>On phone, tap in the box above to select all for copy.<br>
-                    Or just tap <b>Copy Text</b>.<br>
-                    To download, use the button below.</span>
-                </div>
-            """, unsafe_allow_html=True)
-
-            st.download_button(
-                "⬇️ Download Letter as TXT",
-                letter_draft.encode("utf-8"),
-                file_name="my_letter.txt"
-            )
-
-            if st.button("Start New Letter Coach"):
-                st.session_state.letter_coach_chat = []
-                st.session_state.letter_coach_prompt = ""
-                st.session_state.letter_coach_type = ""
-                st.session_state.selected_letter_lines = []
-                st.session_state.letter_coach_uploaded = False
-                # --- SAVE RESET TO FIRESTORE ---
-                save_letter_coach_progress(
-                    student_code,
-                    st.session_state.get("schreiben_level", "A1"),
-                    "",
-                    [],
-                )
-                st.rerun()
-#
 
 
 
