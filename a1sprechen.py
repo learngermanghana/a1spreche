@@ -35,7 +35,7 @@ st.markdown(
 # ==== FIREBASE ADMIN INIT ====
 FIREBASE_CRED_PATH = "serviceAccountKey.json"   # <- CHANGE THIS TO YOUR FILE PATH!
 if not firebase_admin._apps:
-    cred = credentials.Certificate(FIREBASE_CRED_PATH)
+    cred = credentials.Certificate(st.secrets["firebase"])
     firebase_admin.initialize_app(cred)
 db = firestore.client()
 
