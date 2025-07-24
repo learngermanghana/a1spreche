@@ -55,7 +55,7 @@ if not firebase_admin._apps:
     firebase_creds = dict(st.secrets["firebase"])
     cred = credentials.Certificate(firebase_creds)
     firebase_admin.initialize_app(cred)
-db = firestore.client()
+
 
 doc_ref = db.collection("test").document("hello")
 doc_ref.set({"field": "test!"})
@@ -186,6 +186,7 @@ VOCAB_DAILY_LIMIT = 20
 SCHREIBEN_DAILY_LIMIT = 5
 
 # ==== USAGE COUNTERS ====
+
 def get_sprechen_usage(student_code):
     today = str(date.today())
     conn = get_connection()
@@ -201,17 +202,15 @@ def inc_sprechen_usage(student_code):
     today = str(date.today())
     conn = get_connection()
     c = conn.cursor()
-    usage = get_sprechen_usage(student_code)
-    if usage == 0:
-        c.execute(
-            "INSERT INTO sprechen_usage (student_code, date, count) VALUES (?, ?, ?)",
-            (student_code, today, 1)
-        )
-    else:
-        c.execute(
-            "UPDATE sprechen_usage SET count = ? WHERE student_code = ? AND date = ?",
-            (usage + 1, student_code, today)
-        )
+    c.execute(
+        """
+        INSERT INTO sprechen_usage (student_code, date, count)
+        VALUES (?, ?, 1)
+        ON CONFLICT(student_code, date)
+        DO UPDATE SET count = count + 1
+        """,
+        (student_code, today)
+    )
     conn.commit()
 
 def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
@@ -243,8 +242,6 @@ def inc_schreiben_usage(student_code):
     )
     conn.commit()
 
-
-
 def get_writing_stats(student_code):
     conn = get_connection()
     c = conn.cursor()
@@ -271,6 +268,17 @@ def get_student_stats(student_code):
         stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
     return stats
 
+def get_letter_coach_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT count FROM letter_coach_usage WHERE student_code=? AND date=?",
+        (student_code, today)
+    )
+    row = c.fetchone()
+    return row[0] if row else 0
+
 def inc_letter_coach_usage(student_code):
     today = str(date.today())
     conn = get_connection()
@@ -286,22 +294,6 @@ def inc_letter_coach_usage(student_code):
     )
     conn.commit()
 
-
-def inc_letter_coach_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    usage = get_letter_coach_usage(student_code)
-    if usage == 0:
-        c.execute(
-            "INSERT INTO letter_coach_usage (student_code, date, count) VALUES (?, ?, ?)",
-            (student_code, today, 1)
-        )
-    else:
-        c.execute(
-            "UPDATE letter_coach_usage SET count = ? WHERE student_code = ? AND date = ?",
-            (usage + 1, student_code, today)
-        )
 
 # === Firestore Auto-Save/Restore for Letter Coach ===
 
@@ -328,14 +320,9 @@ def load_letter_coach_progress(student_code):
         data = doc.to_dict()
         return data.get("prompt", ""), data.get("chat", [])
     return "", []
-    conn.commit()
-
 
 # -- ALIAS for legacy code (use this so your old code works without errors!) --
 has_falowen_quota = has_sprechen_quota
-
-# (Now your whole app can use has_falowen_quota(student_code, FALOWEN_DAILY_LIMIT)
-# OR has_sprechen_quota(student_code, FALOWEN_DAILY_LIMIT) and it will always work.)
 
 
 
@@ -418,23 +405,10 @@ def highlight_keywords(text, words):
     return re.sub(pattern, r"<span style='color:#d63384;font-weight:600'>\1</span>", text, flags=re.IGNORECASE)
 
 
-
-# ====================================
-# 5. CONSTANTS & VOCAB LISTS
-# ====================================
-
-FALOWEN_DAILY_LIMIT = 20
-VOCAB_DAILY_LIMIT = 20
-SCHREIBEN_DAILY_LIMIT = 5
-max_turns = 25
     
-
-# ====================================
-# 1. Load student data from Google Sheet
-# ====================================
-
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
 
+@st.cache_data
 def load_student_data():
     # 1) Fetch CSV
     try:
@@ -603,6 +577,7 @@ if st.button("Log out"):
 
 
 # ======= Data Loading Functions =======
+
 @st.cache_data
 def load_student_data():
     SHEET_ID = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
@@ -634,6 +609,10 @@ def load_assignment_scores():
     return df
 
 def parse_contract_end(date_str):
+    """
+    Attempts to parse contract end dates in multiple formats.
+    Returns a datetime object or None.
+    """
     if not date_str or str(date_str).lower() in ("nan", "none", ""):
         return None
     for fmt in ("%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
@@ -644,6 +623,10 @@ def parse_contract_end(date_str):
     return None
 
 def get_assignment_streak(df):
+    """
+    Calculates the longest consecutive streak of assignment dates.
+    Returns (max_streak, last_date).
+    """
     if df.empty or 'date' not in df.columns:
         return 0, None
     dates = pd.to_datetime(df['date'], errors='coerce').dropna().sort_values()
@@ -661,6 +644,7 @@ def get_assignment_streak(df):
         prev = d
     last_date = dates.iloc[-1].strftime('%d %b %Y')
     return max_streak, last_date
+
 
 # ======= Dashboard Code =======
 if st.session_state.get("logged_in"):
