@@ -3979,7 +3979,7 @@ if tab == "Schreiben Trainer":
         if submit_disabled and daily_so_far >= SCHREIBEN_DAILY_LIMIT:
             st.warning("You have reached today's writing practice limit. Please come back tomorrow.")
 
-        if st.button("Submit for Feedback & Score", disabled=submit_disabled, key=f"feedback_btn_{student_code}"):
+    if st.button("Submit for Feedback & Score", disabled=submit_disabled, key=f"feedback_btn_{student_code}"):
         with st.spinner("🧑‍🏫 Herr Felix is typing..."):
             try:
                 ai_prompt = (
@@ -4041,6 +4041,8 @@ if tab == "Schreiben Trainer":
                         breakdown[area] = (s, tip)
                     else:
                         breakdown[area] = ("-", "Not found")
+
+
 
 
 
