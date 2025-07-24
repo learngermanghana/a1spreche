@@ -16,6 +16,8 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import requests
 from openai import OpenAI
+import firebase_admin
+from firebase_admin import credentials, firestore
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
