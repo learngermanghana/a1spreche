@@ -3817,6 +3817,19 @@ if tab == "Schreiben Trainer":
             placeholder="Write your German letter here..."
         )
 
+        # --- AUTOSAVE LOGIC: Save latest draft per student in Firestore ---
+        # Only autosave if the letter text actually changed and is not empty
+        if (
+            user_letter.strip() and
+            user_letter != get_schreiben_stats(student_code).get("last_letter", "")
+        ):
+            # Save the latest draft without a score or feedback (just as last_letter)
+            doc_ref = db.collection("schreiben_stats").document(student_code)
+            doc = doc_ref.get()
+            data = doc.to_dict() if doc.exists else {}
+            data["last_letter"] = user_letter
+            doc_ref.set(data, merge=True)
+
         # Word count
         if user_letter.strip():
             words = re.findall(r'\b\w+\b', user_letter)
