@@ -3968,7 +3968,6 @@ if tab == "Schreiben Trainer":
             height=200,
             placeholder="Write your German letter here..."
         )
-
     # Word/char count
     if user_letter.strip():
         words = re.findall(r'\b\w+\b', user_letter)
@@ -4039,6 +4038,8 @@ if tab == "Schreiben Trainer":
                         breakdown[area] = (s, tip)
                     else:
                         breakdown[area] = ("-", "Not found")
+
+
 
                 # Save to Firestore (per student!)
                 inc_schreiben_usage(student_code)
