@@ -3640,7 +3640,7 @@ if tab == "Vocab Trainer":
             for k in defaults:
                 st.session_state[k] = defaults[k]
 
-if tab == "Schreiben Trainer":
+    if tab == "Schreiben Trainer":
     st.markdown(
         '''
         <div style="
@@ -3663,14 +3663,12 @@ if tab == "Schreiben Trainer":
     prev_student_code = st.session_state.get("prev_student_code", None)
 
     if student_code != prev_student_code:
-        # Try to restore previous chat for this student_code
         last_prompt, last_chat = load_letter_coach_progress(student_code)
         st.session_state["letter_coach_prompt"] = last_prompt or ""
         st.session_state["letter_coach_chat"] = last_chat or []
         st.session_state["letter_coach_stage"] = 1 if last_chat else 0
         st.session_state["prev_student_code"] = student_code
 
-    # Sub-tabs
     sub_tab = st.radio(
         "Choose Mode",
         ["Mark My Letter", "Ideas Generator (Letter Coach)"],
@@ -3678,7 +3676,6 @@ if tab == "Schreiben Trainer":
         key="schreiben_sub_tab"
     )
 
-    # Level picker
     schreiben_levels = ["A1", "A2", "B1", "B2", "C1"]
     prev_level = st.session_state.get("schreiben_level", "A1")
     schreiben_level = st.selectbox(
@@ -3709,6 +3706,7 @@ if tab == "Schreiben Trainer":
             unsafe_allow_html=True
         )
 
+        # --- Firestore save functions ---
         def save_schreiben_attempt(student_code, student_name, level, score, letter, breakdown=None):
             doc_ref = db.collection("schreiben_stats").document(student_code)
             doc = doc_ref.get()
@@ -3751,10 +3749,10 @@ if tab == "Schreiben Trainer":
                 }
 
         def get_schreiben_usage(student_code):
-            # TODO: Replace with your actual Firestore logic if needed
+            # TODO: Replace with your actual Firestore or SQLite logic if needed
             return 0
 
-        # Correction tries limiter (max 3 per session)
+        # 3 feedback tries limiter
         if "correction_tries" not in st.session_state:
             st.session_state.correction_tries = 0
         if "last_letter_for_correction" not in st.session_state:
@@ -3778,7 +3776,6 @@ if tab == "Schreiben Trainer":
         else:
             st.info("No letter attempts saved yet.")
 
-        # Restore last letter button
         if stats.get("last_letter"):
             if st.button("Restore Last Letter"):
                 st.session_state["schreiben_input"] = stats["last_letter"]
@@ -3786,7 +3783,6 @@ if tab == "Schreiben Trainer":
                 st.session_state.last_letter_for_correction = stats["last_letter"]
                 st.rerun()
 
-        # Daily usage
         SCHREIBEN_DAILY_LIMIT = 5
         daily_so_far = get_schreiben_usage(student_code)
         st.markdown(f"**Daily usage:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}")
@@ -3800,13 +3796,11 @@ if tab == "Schreiben Trainer":
             placeholder="Write your German letter here..."
         )
 
-        # Word/char count
         if user_letter.strip():
             words = re.findall(r'\b\w+\b', user_letter)
             chars = len(user_letter)
             st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
 
-        # AI prompt for feedback
         ai_prompt = (
             f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
             f"The student has submitted a {schreiben_level} German letter or essay. "
@@ -3866,7 +3860,6 @@ if tab == "Schreiben Trainer":
                     score_match = re.search(r"Score[:\s]+(\d+)\s*/\s*25", feedback, re.IGNORECASE)
                 score = int(score_match.group(1)) if score_match else 0
 
-                # Parse breakdown
                 breakdown = {}
                 areas = ["Grammar", "Vocabulary", "Spelling", "Structure"]
                 for area in areas:
@@ -3905,7 +3898,7 @@ if tab == "Schreiben Trainer":
                         unsafe_allow_html=True
                     )
 
-                # Download as PDF (safe text)
+                # Download as PDF
                 from fpdf import FPDF
                 def sanitize_text(text):
                     return text.encode('latin-1', errors='replace').decode('latin-1')
@@ -3945,10 +3938,6 @@ if tab == "Schreiben Trainer":
                 if st.session_state.correction_tries >= 3:
                     st.info("You have reached the maximum number of feedback tries for this letter. Please start a new letter to continue.")
 
-    # --- IDEAS GENERATOR (Letter Coach) SUBTAB ---
-    if sub_tab == "Ideas Generator (Letter Coach)":
-        st.info("Letter Coach coming here! (Your logic here.)")
-        # Paste your full Letter Coach code in this block
 
                 
     # ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
