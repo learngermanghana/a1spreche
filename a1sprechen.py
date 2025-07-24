@@ -3767,6 +3767,24 @@ if tab == "Vocab Trainer":
             for k in defaults:
                 st.session_state[k] = defaults[k]
 
+
+def init_student_session():
+    """
+    Reset and load per-student state when the logged-in student_code changes.
+    """
+    code = st.session_state.get("student_code", "demo")
+    prev = st.session_state.get("prev_student_code")
+    if code != prev:
+        stats = get_schreiben_stats(code)
+        # Load last saved draft
+        st.session_state["schreiben_input"] = stats.get("last_letter", "")
+        # Reset letter coach sub-state
+        st.session_state["letter_coach_prompt"] = ""
+        st.session_state["letter_coach_chat"] = []
+        st.session_state["letter_coach_stage"] = 0
+        # Update tracker
+        st.session_state["prev_student_code"] = code
+
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
