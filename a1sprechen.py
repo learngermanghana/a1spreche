@@ -32,9 +32,12 @@ st.markdown(
 
 # ==== FIREBASE ADMIN INIT FROM SECRETS ====
 if not firebase_admin._apps:
-    cred = credentials.Certificate(st.secrets["firebase"])
+    # st.secrets["firebase"] is a SecretDict; wrap in dict() so Certificate() sees a plain dict
+    cred_dict = dict(st.secrets["firebase"])
+    cred = credentials.Certificate(cred_dict)
     firebase_admin.initialize_app(cred)
 db = firestore.client()
+
 
 
 # ==== OPENAI CLIENT SETUP ====
