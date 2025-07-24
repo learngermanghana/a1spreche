@@ -593,18 +593,29 @@ if st.session_state.get("logged_in"):
     # Greeting
     first_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
 
-    # Contract banner
+    # --- Contract End and Renewal Policy (ALWAYS VISIBLE) ---
     MONTHLY_RENEWAL = 1000
-    contract_end = parse_contract_end(student_row.get("ContractEnd", ""))
+    contract_end_str = student_row.get("ContractEnd", "")
+    today = datetime.today()
+    contract_end = parse_contract_end(contract_end_str)
     if contract_end:
-        days_left = (contract_end - datetime.today()).days
+        days_left = (contract_end - today).days
         if 0 < days_left <= 30:
-            st.warning(f"⏰ Your contract ends in {days_left} days ({contract_end.strftime('%d %b %Y')}). Renew for ₵{MONTHLY_RENEWAL:,}/month.")
+            st.warning(
+                f"⏰ **Your contract ends in {days_left} days ({contract_end.strftime('%d %b %Y')}).**\n"
+                f"If you need more time, you can renew for **₵{MONTHLY_RENEWAL:,} per month**."
+            )
         elif days_left < 0:
-            st.error(f"⚠️ Your contract has ended! Please renew for ₵{MONTHLY_RENEWAL:,}/month.")
+            st.error(
+                f"⚠️ **Your contract has ended!** Please contact the office to renew for **₵{MONTHLY_RENEWAL:,} per month**."
+            )
     else:
         st.info("Contract end date unavailable or in wrong format.")
-    st.info(f"🔄 Renewal Policy: ₵{MONTHLY_RENEWAL:,}/month if you extend early.")
+
+    st.info(
+        f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
+        "Do your best to complete your course on time to avoid extra fees!"
+    )
 
     # --- Main Tab Selection ---
     tab = st.radio(
