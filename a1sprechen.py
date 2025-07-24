@@ -3997,7 +3997,6 @@ if tab == "Schreiben Trainer":
             </div>
         """
         
-
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
         from datetime import date
@@ -4040,36 +4039,10 @@ if tab == "Schreiben Trainer":
                 st.session_state[ns("chat")] = last_chat
                 st.session_state[ns("stage")] = 1 if last_chat else 0
 
+        # --- Your Letter Coach Prompts Dictionary ---
         LETTER_COACH_PROMPTS = {
-            "A1": (
-                "You are Herr Felix, a creative and supportive German letter-writing coach for A1 students. "
-                "Always reply in English, never in German. "
-                "When a student submits something, first congratulate them with ideas about how to go about the letter. "
-                "Analyze if their message is a new prompt, a continuation, or a question. "
-                "If it's a question, answer simply and encourage them to keep building their letter step by step. "
-                "If it's a continuation, review their writing so far and guide them to the next step. "
-                "1. Always give students short ideas, structure and tips and phrases on how to build their points for the conversation in English and simple German. Don't overfeed students, help them but let them think by themselves also. "
-                "2. For conjunctions, only suggest weil, deshalb, ich möchte wissen, ob and ich mochte wissen, wann. Don't recommend da, dass and relative clauses. "
-                "3. For requests, teach them how to use Könnten Sie and how it ends with a main verb to make request when necessary. "
-                "4. Ich schreibe Ihnen/dir for formal and informal letter, guide them how they can use weil with ich and end with möchte or any modal verb mostly to prevent mistakes. Be strict with this. "
-                "5. Always check that the student statement is not too long and complicated. For example, the usage of two conjunctions in a sentence should be warned and break it down for them. "
-                "6. For requests, teach them how to use Könnten Sie and how it ends with a main verb to make request when necessary. "
-                "7. Always add your ideas after student submit their sentence if necessary. "
-                "8. Warn students if their statement per input is too long or complicated. When student statement has more than 7 or 8 words, break it down for them with full stops and simple conjunctions. "
-                "9. Always be sure that students complete letter is between 30 to 40 words. "
-                "Always make grammar correction or suggest a better phrase when necessary. "
-                "If it's a continuation, review their writing so far and guide them to the next step. "
-                "If it's a new prompt, give a brief, simple overview (in English) of how to build their letter (greeting, introduction, reason, request, closing), with short examples for each. "
-                "For the introduction, always remind the student to use: 'Ich schreibe Ihnen, weil ich ...' for formal letters or 'Ich schreibe dir, weil ich ...' for informal letters. "
-                "For the main request, always recommend ending the sentence with 'möchte' or another basic modal verb, as this is the easiest and most correct way at A1 (e.g., 'Ich möchte einen Termin machen.'). "
-                "After your overview or advice, always use the phrase 'Your next recommended step:' and ask for only the next part—first the greeting (wait for it), then only the introduction (wait for it), then reason, then request, then closing—one after the other, never more than one at a time. "
-                "After each student reply, check their answer, give gentle feedback, and then again state 'Your next recommended step:' and prompt for just the next section. "
-                "Only help with basic connectors ('und', 'aber', 'weil', 'deshalb', 'ich mochte wissen'). Never write the full letter yourself—coach one part at a time. "
-                "The chat session should last for about 10 student replies. If the student is not done by then, gently remind them: 'Most letters can be completed in about 10 steps. Please try to finish soon.' "
-                "If after 14 student replies, the letter is still not finished, end the session with: 'We have reached the end of this coaching session. Please copy your letter so far and paste it into the “Mark My Letter” tool for full AI feedback and a score.' "
-                "Throughout, your questions must be progressive, one at a time, and always guide the student logically through the structure."
-            ),
-            # ... A2, B1, B2, C1 (identical to your existing prompts)
+            "A1": "You are Herr Felix, ...",  # [YOUR PROMPT HERE]
+            # ... (fill out as in your code)
         }
 
         def reset_letter_coach():
@@ -4088,19 +4061,13 @@ if tab == "Schreiben Trainer":
         # --- General Instructions for Students ---
         st.markdown(
             """
-            <div style="
-                background: linear-gradient(97deg, #f4eafd 75%, #ffe0f5 100%);
-                border-radius: 12px;
-                border: 1px solid #e6d3fa;
+            <div style="background: linear-gradient(97deg, #f4eafd 75%, #ffe0f5 100%);
+                border-radius: 12px; border: 1px solid #e6d3fa;
                 box-shadow: 0 2px 8px #e5e1fa22;
-                padding: 0.75em 1em 0.72em 1em;
-                margin-bottom: 1.1em;
-                margin-top: 0.1em;
-                color: #4b2976;
-                font-size: 1.03rem;
+                padding: 0.75em 1em 0.72em 1em; margin-bottom: 1.1em; margin-top: 0.1em;
+                color: #4b2976; font-size: 1.03rem;
                 font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
-                text-align: center;
-                ">
+                text-align: center;">
                 <span style="font-size:1.19em; vertical-align:middle;">✉️</span>
                 <span style="font-size:1.05em; font-weight: 500; margin-left:0.24em;">
                     Welcome to <span style="color:#7b2ff2;">Letter Coach</span>
@@ -4113,10 +4080,9 @@ if tab == "Schreiben Trainer":
             unsafe_allow_html=True
         )
 
-        IDEAS_LIMIT = 14
         ideas_so_far = get_letter_coach_usage(student_code)
-        st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
-        if ideas_so_far >= IDEAS_LIMIT:
+        st.markdown(f"**Daily usage:** {ideas_so_far} / {SCHREIBEN_DAILY_LIMIT}")
+        if ideas_so_far >= SCHREIBEN_DAILY_LIMIT:
             st.warning("You have reached today's letter coach limit. Please come back tomorrow.")
 
         # --- Session State Defaults ---
@@ -4160,7 +4126,7 @@ if tab == "Schreiben Trainer":
                     "",
                     value=st.session_state.letter_coach_prompt,
                     height=120,
-                    disabled=(ideas_so_far >= IDEAS_LIMIT),
+                    disabled=(ideas_so_far >= SCHREIBEN_DAILY_LIMIT),
                     placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ..."
                 )
                 send = st.form_submit_button("✉️ Start Letter Coach")
@@ -4177,17 +4143,12 @@ if tab == "Schreiben Trainer":
 
             if send and prompt:
                 st.session_state.letter_coach_prompt = prompt
-
-                # Compose the system prompt for the student's level
                 student_level = st.session_state.get("schreiben_level", "A1")
                 system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=prompt)
-
-                # Start chat history with system and user message
                 chat_history = [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ]
-                # Generate immediate AI reply
                 try:
                     resp = client.chat.completions.create(
                         model="gpt-4o",
@@ -4201,11 +4162,11 @@ if tab == "Schreiben Trainer":
                 chat_history.append({"role": "assistant", "content": ai_reply})
 
                 st.session_state.letter_coach_chat = chat_history
-                st.session_state.letter_coach_stage = 1  # Step 1: chat view
+                st.session_state.letter_coach_stage = 1
                 inc_letter_coach_usage(student_code)
                 save_letter_coach_progress(
                     student_code,
-                    st.session_state.get("schreiben_level", "A1"),
+                    student_level,
                     st.session_state.letter_coach_prompt,
                     st.session_state.letter_coach_chat,
                 )
@@ -4214,6 +4175,9 @@ if tab == "Schreiben Trainer":
             if prompt:
                 st.markdown("---")
                 st.markdown(f"📝 **Letter/Essay Prompt or Draft:**\n\n{prompt}")
+
+        # --- Stage 1: Coaching Chat ---
+        elif st.session_state.letter_coach_stage == 1:
 
         # --- Stage 1: Coaching Chat ---
         elif st.session_state.letter_coach_stage == 1:
