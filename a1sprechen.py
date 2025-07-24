@@ -19,7 +19,6 @@ from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
-
 # ===== HIDE STREAMLIT DEFAULT FOOTER/MENU =====
 st.markdown(
     """
@@ -44,14 +43,11 @@ if not OPENAI_API_KEY:
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-
 # ===== FIREBASE ADMIN SDK SETUP =====
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-# Only initialize Firebase once!
 if not firebase_admin._apps:
-    # Converts Streamlit TOML secret (dict) to proper dict for credentials.Certificate
     firebase_creds = dict(st.secrets["firebase"])
     cred = credentials.Certificate(firebase_creds)
     firebase_admin.initialize_app(cred)
@@ -62,14 +58,14 @@ doc_ref.set({"field": "test!"})
 result = doc_ref.get()
 print(result.to_dict())  # Should print {'field': 'test!'}
 
-# ==== DB CONNECTION ====
+# ==== DB CONNECTION FOR NON-USAGE TABLES ====
 def get_connection():
     if "conn" not in st.session_state:
         st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
         atexit.register(st.session_state["conn"].close)
     return st.session_state["conn"]
 
-# ==== INITIALIZE DB TABLES ====
+# ==== INITIALIZE DB TABLES (NO USAGE TABLES) ====
 def init_db():
     conn = get_connection()
     c = conn.cursor()
@@ -86,7 +82,7 @@ def init_db():
             date TEXT
         )
     """)
-    # Schreiben Progress Table (DAILY LIMIT)
+    # Schreiben Progress Table (DAILY LIMIT tracked by Firestore now)
     c.execute("""
         CREATE TABLE IF NOT EXISTS schreiben_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -99,7 +95,7 @@ def init_db():
             date TEXT
         )
     """)
-    # Sprechen Progress Table (DAILY LIMIT)
+    # Sprechen Progress Table (DAILY LIMIT tracked by Firestore now)
     c.execute("""
         CREATE TABLE IF NOT EXISTS sprechen_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -148,167 +144,55 @@ def init_db():
             date_added TEXT
         )
     """)
-    # Sprechen Daily Usage Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS sprechen_usage (
-            student_code TEXT,
-            date TEXT,
-            count INTEGER,
-            PRIMARY KEY (student_code, date)
-        )
-    """)
-    # Letter Coach Daily Usage Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS letter_coach_usage (
-            student_code TEXT,
-            date TEXT,
-            count INTEGER,
-            PRIMARY KEY (student_code, date)
-        )
-    """)
-    # Schreiben Daily Usage Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS schreiben_usage (
-            student_code TEXT,
-            date TEXT,
-            count INTEGER,
-            PRIMARY KEY (student_code, date)
-        )
-    """)
     conn.commit()
 
 init_db()  # <<-- Make sure this is before any other DB calls!
-
 
 # ==== CONSTANTS ====
 FALOWEN_DAILY_LIMIT = 20
 VOCAB_DAILY_LIMIT = 20
 SCHREIBEN_DAILY_LIMIT = 5
 
-# ==== USAGE COUNTERS ====
-def get_sprechen_usage(student_code):
+# ==== USAGE COUNTERS USING FIRESTORE ONLY ====
+def get_letter_coach_usage(student_code):
     today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "SELECT count FROM sprechen_usage WHERE student_code=? AND date=?",
-        (student_code, today)
-    )
-    row = c.fetchone()
-    return row[0] if row else 0
+    doc_ref = db.collection("letter_coach_usage").document(student_code)
+    doc = doc_ref.get()
+    if doc.exists and doc.to_dict().get("date") == today:
+        return doc.to_dict().get("count", 0)
+    return 0
 
-def inc_sprechen_usage(student_code):
+def inc_letter_coach_usage(student_code):
     today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    usage = get_sprechen_usage(student_code)
-    if usage == 0:
-        c.execute(
-            "INSERT INTO sprechen_usage (student_code, date, count) VALUES (?, ?, ?)",
-            (student_code, today, 1)
-        )
+    doc_ref = db.collection("letter_coach_usage").document(student_code)
+    doc = doc_ref.get()
+    if doc.exists and doc.to_dict().get("date") == today:
+        count = doc.to_dict().get("count", 0) + 1
+        doc_ref.update({"count": count})
     else:
-        c.execute(
-            "UPDATE sprechen_usage SET count = ? WHERE student_code = ? AND date = ?",
-            (usage + 1, student_code, today)
-        )
-    conn.commit()
-
-def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
-    return get_sprechen_usage(student_code) < limit
+        doc_ref.set({"date": today, "count": 1})
 
 def get_schreiben_usage(student_code):
     today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "SELECT count FROM schreiben_usage WHERE student_code=? AND date=?",
-        (student_code, today)
-    )
-    row = c.fetchone()
-    return row[0] if row else 0
+    doc_ref = db.collection("schreiben_usage").document(student_code)
+    doc = doc_ref.get()
+    if doc.exists and doc.to_dict().get("date") == today:
+        return doc.to_dict().get("count", 0)
+    return 0
 
 def inc_schreiben_usage(student_code):
     today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        """
-        INSERT INTO schreiben_usage (student_code, date, count)
-        VALUES (?, ?, 1)
-        ON CONFLICT(student_code, date)
-        DO UPDATE SET count = count + 1
-        """,
-        (student_code, today)
-    )
-    conn.commit()
-
-
-
-def get_writing_stats(student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT COUNT(*), SUM(score>=17) FROM schreiben_progress WHERE student_code=?
-    """, (student_code,))
-    result = c.fetchone()
-    attempted = result[0] or 0
-    passed = result[1] if result[1] is not None else 0
-    accuracy = round(100 * passed / attempted) if attempted > 0 else 0
-    return attempted, passed, accuracy
-
-def get_student_stats(student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT level, SUM(score >= 17), COUNT(*) 
-        FROM schreiben_progress 
-        WHERE student_code=?
-        GROUP BY level
-    """, (student_code,))
-    stats = {}
-    for level, correct, attempted in c.fetchall():
-        stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
-    return stats
-
-def inc_letter_coach_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        """
-        INSERT INTO letter_coach_usage (student_code, date, count)
-        VALUES (?, ?, 1)
-        ON CONFLICT(student_code, date)
-        DO UPDATE SET count = count + 1
-        """,
-        (student_code, today)
-    )
-    conn.commit()
-
-
-def inc_letter_coach_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    usage = get_letter_coach_usage(student_code)
-    if usage == 0:
-        c.execute(
-            "INSERT INTO letter_coach_usage (student_code, date, count) VALUES (?, ?, ?)",
-            (student_code, today, 1)
-        )
+    doc_ref = db.collection("schreiben_usage").document(student_code)
+    doc = doc_ref.get()
+    if doc.exists and doc.to_dict().get("date") == today:
+        count = doc.to_dict().get("count", 0) + 1
+        doc_ref.update({"count": count})
     else:
-        c.execute(
-            "UPDATE letter_coach_usage SET count = ? WHERE student_code = ? AND date = ?",
-            (usage + 1, student_code, today)
-        )
+        doc_ref.set({"date": today, "count": 1})
 
 # === Firestore Auto-Save/Restore for Letter Coach ===
 
 def save_letter_coach_progress(student_code, schreiben_level, letter_coach_prompt, chat_history):
-    """
-    Auto-saves the student's Letter Coach (Ideen Generator) progress in Firestore.
-    """
     doc_ref = db.collection("letter_coach_progress").document(student_code)
     doc_ref.set({
         "level": schreiben_level,
@@ -318,26 +202,12 @@ def save_letter_coach_progress(student_code, schreiben_level, letter_coach_promp
     })
 
 def load_letter_coach_progress(student_code):
-    """
-    Loads the student's most recent Letter Coach (Ideen Generator) progress from Firestore.
-    Returns (prompt, chat_history), or ("", []) if nothing saved.
-    """
     doc_ref = db.collection("letter_coach_progress").document(student_code)
     doc = doc_ref.get()
     if doc.exists:
         data = doc.to_dict()
         return data.get("prompt", ""), data.get("chat", [])
     return "", []
-    conn.commit()
-
-
-# -- ALIAS for legacy code (use this so your old code works without errors!) --
-has_falowen_quota = has_sprechen_quota
-
-# (Now your whole app can use has_falowen_quota(student_code, FALOWEN_DAILY_LIMIT)
-# OR has_sprechen_quota(student_code, FALOWEN_DAILY_LIMIT) and it will always work.)
-
-
 
 # --- Streamlit page config ---
 st.set_page_config(
@@ -381,6 +251,8 @@ st.markdown(
 
 # ==== 2) Helpers to load & save progress ====
 def load_progress(student_code, level, teil):
+    conn = get_connection()
+    c = conn.cursor()
     c.execute(
         "SELECT remaining, used FROM exam_progress WHERE student_code=? AND level=? AND teil=?",
         (student_code, level, teil)
@@ -391,6 +263,8 @@ def load_progress(student_code, level, teil):
     return None, None
 
 def save_progress(student_code, level, teil, remaining, used):
+    conn = get_connection()
+    c = conn.cursor()
     c.execute(
         "REPLACE INTO exam_progress (student_code, level, teil, remaining, used) VALUES (?,?,?,?,?)",
         (student_code, level, teil, json.dumps(remaining), json.dumps(used))
@@ -413,10 +287,8 @@ bubble_assistant = "background:#fff9c4;padding:12px 20px;border-radius:18px 18px
 # Highlight function and words
 highlight_words = ["correct", "should", "mistake", "improve", "tip"]
 def highlight_keywords(text, words):
-    import re
     pattern = r'(' + '|'.join(map(re.escape, words)) + r')'
     return re.sub(pattern, r"<span style='color:#d63384;font-weight:600'>\1</span>", text, flags=re.IGNORECASE)
-
 
 
 # ====================================
@@ -3847,6 +3719,45 @@ if tab == "Schreiben Trainer":
 
     st.divider()
 
+    # ---------- FIRESTORE USAGE COUNTERS -----------
+    def get_schreiben_usage(student_code):
+        today = str(date.today())
+        doc_ref = db.collection("schreiben_usage").document(student_code)
+        doc = doc_ref.get()
+        if doc.exists and doc.to_dict().get("date") == today:
+            return doc.to_dict().get("count", 0)
+        return 0
+
+    def inc_schreiben_usage(student_code):
+        today = str(date.today())
+        doc_ref = db.collection("schreiben_usage").document(student_code)
+        doc = doc_ref.get()
+        data = doc.to_dict() if doc.exists else {}
+        if data.get("date") == today:
+            count = data.get("count", 0) + 1
+        else:
+            count = 1
+        doc_ref.set({"date": today, "count": count})
+
+    def get_letter_coach_usage(student_code):
+        today = str(date.today())
+        doc_ref = db.collection("letter_coach_usage").document(student_code)
+        doc = doc_ref.get()
+        if doc.exists and doc.to_dict().get("date") == today:
+            return doc.to_dict().get("count", 0)
+        return 0
+
+    def inc_letter_coach_usage(student_code):
+        today = str(date.today())
+        doc_ref = db.collection("letter_coach_usage").document(student_code)
+        doc = doc_ref.get()
+        data = doc.to_dict() if doc.exists else {}
+        if data.get("date") == today:
+            count = data.get("count", 0) + 1
+        else:
+            count = 1
+        doc_ref.set({"date": today, "count": count})
+
     # --- 1. MARK MY LETTER SUB-TAB ---
     if sub_tab == "Mark My Letter":
         st.markdown(
@@ -3865,7 +3776,6 @@ if tab == "Schreiben Trainer":
             unsafe_allow_html=True
         )
 
-        # ====== LETTER STATS FUNCTIONS ======
         def save_schreiben_attempt(student_code, student_name, level, score, letter, breakdown=None):
             doc_ref = db.collection("schreiben_stats").document(student_code)
             doc = doc_ref.get()
@@ -3909,26 +3819,6 @@ if tab == "Schreiben Trainer":
                     "total": 0, "passed": 0, "average_score": 0, "best_score": 0,
                     "pass_rate": 0, "last_attempt": None, "attempts": [], "last_letter": ""
                 }
-
-        def get_schreiben_usage(student_code):
-            today = datetime.now().strftime("%Y-%m-%d")
-            doc_ref = db.collection("schreiben_usage").document(student_code)
-            doc = doc_ref.get()
-            if doc.exists:
-                usage = doc.to_dict().get("usage", {})
-                return usage.get(today, 0)
-            return 0
-
-        def inc_schreiben_usage(student_code):
-            today = datetime.now().strftime("%Y-%m-%d")
-            doc_ref = db.collection("schreiben_usage").document(student_code)
-            doc = doc_ref.get()
-            if doc.exists:
-                usage = doc.to_dict().get("usage", {})
-            else:
-                usage = {}
-            usage[today] = usage.get(today, 0) + 1
-            doc_ref.set({"usage": usage})
 
         # Show stats panel
         stats = get_schreiben_stats(student_code)
@@ -3975,32 +3865,36 @@ if tab == "Schreiben Trainer":
             chars = len(user_letter)
             st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
 
-        submit_disabled = (daily_so_far >= SCHREIBEN_DAILY_LIMIT) or (not user_letter.strip())
+        # AI prompt for feedback
+        ai_prompt = (
+            f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
+            f"The student has submitted a {schreiben_level} German letter or essay. "
+            "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
+            "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
+            "Don't just say errors—show exactly where the mistakes are. "
+            "1. Give a score out of 25 marks and always display the score clearly. "
+            "2. If the score is 17 or more, write: '**Passed: You may submit to your tutor!**'. "
+            "3. If the score is 16 or less, write: '**Keep improving before you submit.**'. "
+            "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
+            "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
+            "6. Also check for AI usage or if the student wrote with their own effort. "
+            "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
+            "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score. "
+            "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
+            "Grammar: [score/5, one-sentence tip]\n"
+            "Vocabulary: [score/5, one-sentence tip]\n"
+            "Spelling: [score/5, one-sentence tip]\n"
+            "Structure: [score/5, one-sentence tip]\n"
+            "For each area, rate out of 5 and give a specific, actionable tip in English."
+        )
 
-        if st.button("Submit for Feedback & Score", disabled=submit_disabled, key=f"feedback_btn_{student_code}"):
+        submit_disabled = daily_so_far >= SCHREIBEN_DAILY_LIMIT or not user_letter.strip()
+        if submit_disabled and daily_so_far >= SCHREIBEN_DAILY_LIMIT:
+            st.warning("You have reached today's writing practice limit. Please come back tomorrow.")
+
+        if st.button("Get Feedback", type="primary", disabled=submit_disabled, key=f"feedback_btn_{student_code}"):
             with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                 try:
-                    ai_prompt = (
-                        f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
-                        f"The student has submitted a {schreiben_level} German letter or essay. "
-                        "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
-                        "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
-                        "Don't just say errors—show exactly where the mistakes are. "
-                        "1. Give a score out of 25 marks and always display the score clearly. "
-                        "2. If the score is 17 or more, write: '**Passed: You may submit to your tutor!**'. "
-                        "3. If the score is 16 or less, write: '**Keep improving before you submit.**'. "
-                        "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
-                        "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
-                        "6. Also check for AI usage or if the student wrote with their own effort. "
-                        "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
-                        "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score. "
-                        "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
-                        "Grammar: [score/5, one-sentence tip]\n"
-                        "Vocabulary: [score/5, one-sentence tip]\n"
-                        "Spelling: [score/5, one-sentence tip]\n"
-                        "Structure: [score/5, one-sentence tip]\n"
-                        "For each area, rate out of 5 and give a specific, actionable tip in English."
-                    )
                     completion = client.chat.completions.create(
                         model="gpt-4o",
                         messages=[
@@ -4010,90 +3904,86 @@ if tab == "Schreiben Trainer":
                         temperature=0.6,
                     )
                     feedback = completion.choices[0].message.content
-
-                    # ---- Count usage immediately ----
-                    inc_schreiben_usage(student_code)
-                    st.session_state["schreiben_usage"] = st.session_state.get("schreiben_usage", 0) + 1
-
                 except Exception as e:
                     st.error("AI feedback failed. Please check your OpenAI setup.")
                     feedback = None
 
-                if feedback:
-                    import re
-                    # Extract score
-                    score_match = re.search(r"score\s*(?:[:=]|is)?\s*(\d+)\s*/\s*25", feedback, re.IGNORECASE)
-                    if not score_match:
-                        score_match = re.search(r"Score[:\s]+(\d+)\s*/\s*25", feedback, re.IGNORECASE)
-                    score = int(score_match.group(1)) if score_match else 0
+            if feedback:
+                import re
+                # Extract score
+                score_match = re.search(r"score\s*(?:[:=]|is)?\s*(\d+)\s*/\s*25", feedback, re.IGNORECASE)
+                if not score_match:
+                    score_match = re.search(r"Score[:\s]+(\d+)\s*/\s*25", feedback, re.IGNORECASE)
+                score = int(score_match.group(1)) if score_match else 0
 
-                    # Parse breakdown
-                    breakdown = {}
-                    areas = ["Grammar", "Vocabulary", "Spelling", "Structure"]
-                    for area in areas:
-                        pattern = rf"{area}:\s*\[?(\d)/5[,\s]+([^\n\]]+)"
-                        match = re.search(pattern, feedback, re.IGNORECASE)
-                        if match:
-                            s = int(match.group(1))
-                            tip = match.group(2).strip()
-                            breakdown[area] = (s, tip)
-                        else:
-                            breakdown[area] = ("-", "Not found")
+                # Parse breakdown
+                breakdown = {}
+                areas = ["Grammar", "Vocabulary", "Spelling", "Structure"]
+                for area in areas:
+                    pattern = rf"{area}:\s*\[?(\d)/5[,\s]+([^\n\]]+)"
+                    match = re.search(pattern, feedback, re.IGNORECASE)
+                    if match:
+                        s = int(match.group(1))
+                        tip = match.group(2).strip()
+                        breakdown[area] = (s, tip)
+                    else:
+                        breakdown[area] = ("-", "Not found")
 
-                    # Save to Firestore (per student!)
-                    save_schreiben_attempt(student_code, student_code, schreiben_level, score, user_letter, breakdown)
+                # Save to Firestore (per student!)
+                inc_schreiben_usage(student_code)
+                student_name = st.session_state.get("student_name", "")
+                save_schreiben_attempt(student_code, student_name, schreiben_level, score, user_letter, breakdown)
 
-                    st.markdown("---")
-                    st.markdown("#### 📝 Feedback from Herr Felix")
-                    st.markdown(feedback)
+                st.markdown("---")
+                st.markdown("#### 📝 Feedback from Herr Felix")
+                st.markdown(feedback)
 
-                    # Show breakdown nicely
-                    st.markdown("### 📊 **Your Writing Breakdown**")
-                    for area in areas:
-                        s, tip = breakdown[area]
-                        color = "#8bc34a" if s != "-" and int(s) >= 4 else "#ff9800" if s != "-" and int(s) == 3 else "#f44336"
-                        st.markdown(
-                            f"<div style='margin-bottom:8px;'><b>{area}:</b> <span style='color:{color};font-weight:600;'>{s}/5</span>"
-                            f"<br><i style='color:#666;'>{tip}</i></div>",
-                            unsafe_allow_html=True
-                        )
-
-                    # Download as PDF (safe text)
-                    from fpdf import FPDF
-                    def sanitize_text(text):
-                        return text.encode('latin-1', errors='replace').decode('latin-1')
-                    pdf = FPDF()
-                    pdf.add_page()
-                    pdf.set_font("Arial", size=12)
-                    safe_user_letter = sanitize_text(user_letter)
-                    safe_feedback = sanitize_text(feedback)
-                    pdf.multi_cell(0, 10, f"Your Letter:\n\n{safe_user_letter}\n\nFeedback from Herr Felix:\n\n{safe_feedback}")
-                    pdf_output = f"Feedback_{student_code}_{schreiben_level}.pdf"
-                    pdf.output(pdf_output)
-                    with open(pdf_output, "rb") as f:
-                        pdf_bytes = f.read()
-                    st.download_button(
-                        "⬇️ Download Feedback as PDF",
-                        pdf_bytes,
-                        file_name=pdf_output,
-                        mime="application/pdf"
-                    )
-                    import os
-                    os.remove(pdf_output)
-
-                    # WhatsApp share
-                    import urllib.parse
-                    wa_message = f"Hi, here is my German letter and AI feedback:\n\n{user_letter}\n\nFeedback:\n{feedback}"
-                    wa_url = (
-                        "https://api.whatsapp.com/send"
-                        "?phone=233205706589"
-                        f"&text={urllib.parse.quote(wa_message)}"
-                    )
+                # Show breakdown nicely
+                st.markdown("### 📊 **Your Writing Breakdown**")
+                for area in areas:
+                    s, tip = breakdown[area]
+                    color = "#8bc34a" if s != "-" and int(s) >= 4 else "#ff9800" if s != "-" and int(s) == 3 else "#f44336"
                     st.markdown(
-                        f"[📲 Send to Tutor on WhatsApp]({wa_url})",
+                        f"<div style='margin-bottom:8px;'><b>{area}:</b> <span style='color:{color};font-weight:600;'>{s}/5</span>"
+                        f"<br><i style='color:#666;'>{tip}</i></div>",
                         unsafe_allow_html=True
                     )
 
+                # Download as PDF (safe text)
+                from fpdf import FPDF
+                def sanitize_text(text):
+                    return text.encode('latin-1', errors='replace').decode('latin-1')
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_font("Arial", size=12)
+                safe_user_letter = sanitize_text(user_letter)
+                safe_feedback = sanitize_text(feedback)
+                pdf.multi_cell(0, 10, f"Your Letter:\n\n{safe_user_letter}\n\nFeedback from Herr Felix:\n\n{safe_feedback}")
+                pdf_output = f"Feedback_{student_code}_{schreiben_level}.pdf"
+                pdf.output(pdf_output)
+                with open(pdf_output, "rb") as f:
+                    pdf_bytes = f.read()
+                st.download_button(
+                    "⬇️ Download Feedback as PDF",
+                    pdf_bytes,
+                    file_name=pdf_output,
+                    mime="application/pdf"
+                )
+                import os
+                os.remove(pdf_output)
+
+                # WhatsApp share
+                import urllib.parse
+                wa_message = f"Hi, here is my German letter and AI feedback:\n\n{user_letter}\n\nFeedback:\n{feedback}"
+                wa_url = (
+                    "https://api.whatsapp.com/send"
+                    "?phone=233205706589"
+                    f"&text={urllib.parse.quote(wa_message)}"
+                )
+                st.markdown(
+                    f"[📲 Send to Tutor on WhatsApp]({wa_url})",
+                    unsafe_allow_html=True
+                )
                 
     # ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
     def bubble(role, text):
@@ -4107,32 +3997,48 @@ if tab == "Schreiben Trainer":
             </div>
         """
         
-    if sub_tab == "Ideas Generator (Letter Coach)":
-        import io
+        if sub_tab == "Ideas Generator (Letter Coach)":
+            import io
+            from datetime import date
 
-        # --- Define get_letter_coach_usage HERE if needed inside the block ---
-        def get_letter_coach_usage(student_code):
-            today = str(date.today())
-            conn = get_connection()
-            c = conn.cursor()
-            c.execute(
-                "SELECT count FROM letter_coach_usage WHERE student_code=? AND date=?",
-                (student_code, today)
-            )
-            row = c.fetchone()
-            return row[0] if row else 0
+            # ---- Firestore: Get daily letter coach usage ----
+            def get_letter_coach_usage(student_code):
+                today = str(date.today())
+                doc_ref = db.collection("letter_coach_usage").document(student_code)
+                doc = doc_ref.get()
+                if doc.exists:
+                    data = doc.to_dict()
+                    if data.get("date") == today:
+                        return data.get("count", 0)
+                return 0
 
-        # === NAMESPACED SESSION KEYS (per student) ===
-        ns_prefix = f"{student_code}_letter_coach_"
-        def ns(key): return ns_prefix + key
+            # ---- Firestore: Increment daily usage ----
+            def inc_letter_coach_usage(student_code):
+                today = str(date.today())
+                doc_ref = db.collection("letter_coach_usage").document(student_code)
+                doc = doc_ref.get()
+                if doc.exists:
+                    data = doc.to_dict()
+                    if data.get("date") == today:
+                        count = data.get("count", 0) + 1
+                        doc_ref.set({"count": count, "date": today})
+                    else:
+                        doc_ref.set({"count": 1, "date": today})
+                else:
+                    doc_ref.set({"count": 1, "date": today})
 
-        # --- Auto-restore progress for this student only
-        if not st.session_state.get(ns("prompt")) and not st.session_state.get(ns("chat")):
-            last_prompt, last_chat = load_letter_coach_progress(student_code)
-            if last_prompt or last_chat:
-                st.session_state[ns("prompt")] = last_prompt
-                st.session_state[ns("chat")] = last_chat
-                st.session_state[ns("stage")] = 1 if last_chat else 0
+            # --- NAMESPACED SESSION KEYS (per student) ---
+            ns_prefix = f"{student_code}_letter_coach_"
+            def ns(key): return ns_prefix + key
+
+            # --- Auto-restore progress for this student only
+            if not st.session_state.get(ns("prompt")) and not st.session_state.get(ns("chat")):
+                last_prompt, last_chat = load_letter_coach_progress(student_code)
+                if last_prompt or last_chat:
+                    st.session_state[ns("prompt")] = last_prompt
+                    st.session_state[ns("chat")] = last_chat
+                    st.session_state[ns("stage")] = 1 if last_chat else 0
+
 
         LETTER_COACH_PROMPTS = {
             "A1": (
@@ -4246,349 +4152,346 @@ if tab == "Schreiben Trainer":
                 st.session_state[k] = 0 if k == "letter_coach_stage" else []
             st.session_state["letter_coach_uploaded"] = False
 
-        def bubble(role, text):
-            if role == "assistant":
-                return f"""<div style='background: #f4eafd; color: #7b2ff2; border-radius: 16px 16px 16px 3px; margin-bottom: 8px; margin-right: 80px; box-shadow: 0 2px 8px rgba(123,47,242,0.08); padding: 13px 18px; text-align: left; max-width: 88vw; font-size: 1.12rem;'><b>👨‍🏫 Herr Felix:</b><br>{text}</div>"""
-            return f"""<div style='background: #eaf4ff; color: #1a237e; border-radius: 16px 16px 3px 16px; margin-bottom: 8px; margin-left: 80px; box-shadow: 0 2px 8px rgba(26,35,126,0.07); padding: 13px 18px; text-align: right; max-width: 88vw; font-size: 1.12rem;'><b>🙋 You:</b><br>{text}</div>"""
+              # --- Bubble Function ---
+            def bubble(role, text):
+                if role == "assistant":
+                    return f"""<div style='background: #f4eafd; color: #7b2ff2; border-radius: 16px 16px 16px 3px; margin-bottom: 8px; margin-right: 80px; box-shadow: 0 2px 8px rgba(123,47,242,0.08); padding: 13px 18px; text-align: left; max-width: 88vw; font-size: 1.12rem;'><b>👨‍🏫 Herr Felix:</b><br>{text}</div>"""
+                return f"""<div style='background: #eaf4ff; color: #1a237e; border-radius: 16px 16px 3px 16px; margin-bottom: 8px; margin-left: 80px; box-shadow: 0 2px 8px rgba(26,35,126,0.07); padding: 13px 18px; text-align: right; max-width: 88vw; font-size: 1.12rem;'><b>🙋 You:</b><br>{text}</div>"""
 
-        # --- General Instructions for Students (Minimal Welcome + Subline) ---
-        st.markdown(
-            """
-            <div style="
-                background: linear-gradient(97deg, #f4eafd 75%, #ffe0f5 100%);
-                border-radius: 12px;
-                border: 1px solid #e6d3fa;
-                box-shadow: 0 2px 8px #e5e1fa22;
-                padding: 0.75em 1em 0.72em 1em;
-                margin-bottom: 1.1em;
-                margin-top: 0.1em;
-                color: #4b2976;
-                font-size: 1.03rem;
-                font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
-                text-align: center;
-                ">
-                <span style="font-size:1.19em; vertical-align:middle;">✉️</span>
-                <span style="font-size:1.05em; font-weight: 500; margin-left:0.24em;">
-                    Welcome to <span style="color:#7b2ff2;">Letter Coach</span>
-                </span>
-                <div style="color:#b48be6; font-size:0.97em; margin-top:0.35em;">
-                    Get started below 👇
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-        IDEAS_LIMIT = 14
-        ideas_so_far = get_letter_coach_usage(student_code)
-        st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
-        if ideas_so_far >= IDEAS_LIMIT:
-            st.warning("You have reached today's letter coach limit. Please come back tomorrow.")
-
-        # --- Session State Defaults ---
-        for key, default in [
-            ("letter_coach_stage", 0),
-            ("letter_coach_chat", []),
-            ("letter_coach_prompt", ""),
-            ("letter_coach_type", ""),
-            ("selected_letter_lines", []),
-            ("letter_coach_uploaded", False)
-        ]:
-            if key not in st.session_state:
-                st.session_state[key] = default
-
-      # --- Stage 0: Paste Prompt ---
-    if st.session_state.get("letter_coach_stage", 0) == 0:
-        st.markdown(
-            """
-            <div style="
-                background: linear-gradient(90deg, #f9fbe7 70%, #eaf4ff 100%);
-                border-radius: 9px;
-                border: 1px solid #e0e0e0;
-                box-shadow: 0 2px 8px #c0caf01c;
-                padding: 0.74em 1.1em 0.58em 1.1em;
-                margin-bottom: 0.55em;
-                margin-top: 0.05em;
-                color: #4a6276;
-                font-size: 1.05rem;
-                font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
-                ">
-                <span style="font-size:1.15em; font-weight: 500; vertical-align:middle;">📝 Enter your exam prompt or letter draft below</span>
-                <div style="color:#668b8b;font-size:0.99em;margin-top:0.22em;">
-                    Paste the <b>question</b>, a <b>draft</b>, or any <b>unfinished letter</b>.<br>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-        with st.form("prompt_form", clear_on_submit=True):
-            prompt = st.text_area(
-                "",
-                value=st.session_state.get("letter_coach_prompt", ""),
-                height=120,
-                disabled=(ideas_so_far >= IDEAS_LIMIT),
-                placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ..."
-            )
-            send = st.form_submit_button("✉️ Start Letter Coach")
-
-        if prompt:
-            word_count = len(prompt.split())
-            char_count = len(prompt)
-            st.markdown(
-                f"<div style='color:#7b2ff2; font-size:0.97em; margin-bottom:0.18em;'>"
-                f"Words: <b>{word_count}</b> &nbsp;|&nbsp; Characters: <b>{char_count}</b>"
-                "</div>",
-                unsafe_allow_html=True
-            )
-
-        if send and prompt:
-            # Save to session state
-            st.session_state.letter_coach_prompt = prompt
-
-            # Compose system prompt for selected level
-            student_level = st.session_state.get("schreiben_level", "A1")
-            system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=prompt)
-
-            # Start chat history
-            chat_history = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
-            ]
-            # Immediate AI reply
-            try:
-                resp = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=chat_history,
-                    temperature=0.22,
-                    max_tokens=380
-                )
-                ai_reply = resp.choices[0].message.content
-            except Exception as e:
-                ai_reply = "Sorry, there was an error generating a response. Please try again."
-            chat_history.append({"role": "assistant", "content": ai_reply})
-
-            # Save progress, increment usage, and advance stage
-            st.session_state.letter_coach_chat = chat_history
-            st.session_state.letter_coach_stage = 1
-            inc_letter_coach_usage(student_code)   # DAILY LIMIT counts!
-            save_letter_coach_progress(
-                student_code,
-                student_level,
-                st.session_state.letter_coach_prompt,
-                st.session_state.letter_coach_chat,
-            )
-            st.rerun()
-
-        if prompt:
-            st.markdown("---")
-            st.markdown(f"📝 **Letter/Essay Prompt or Draft:**\n\n{prompt}")
-
-    # --- Stage 1: Coaching Chat ---
-    elif st.session_state.get("letter_coach_stage", 0) == 1:
-        st.markdown("---")
-        st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{st.session_state.letter_coach_prompt}")
-        chat_history = st.session_state.letter_coach_chat
-        for msg in chat_history[1:]:
-            st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
-        num_student_turns = sum(1 for msg in chat_history[1:] if msg["role"] == "user")
-        if num_student_turns == 10:
-            st.info("🔔 You have written 10 steps. Most students finish in 7–10 turns. Try to complete your letter soon!")
-        elif num_student_turns == 12:
-            st.warning(
-                "⏰ You have reached 12 writing turns. "
-                "Usually, your letter should be complete by now. "
-                "If you want feedback, click **END SUMMARY** or download your letter as TXT. "
-                "You can always start a new session for more practice."
-            )
-        elif num_student_turns > 12:
-            st.warning(
-                f"🚦 You are now at {num_student_turns} turns. "
-                "Long letters are okay, but usually a good letter is finished in 7–12 turns. "
-                "Try to wrap up, click **END SUMMARY** or download your letter as TXT."
-            )
-
-        with st.form("letter_coach_chat_form", clear_on_submit=True):
-            user_input = st.text_area(
-                "",
-                value="",
-                key="letter_coach_user_input",
-                height=400,
-                placeholder="Type your reply, ask about a section, or paste your draft here..."
-            )
-            send = st.form_submit_button("Send")
-        if send and user_input.strip():
-            chat_history.append({"role": "user", "content": user_input})
-            student_level = st.session_state.get("schreiben_level", "A1")
-            system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=st.session_state.letter_coach_prompt)
-            with st.spinner("👨‍🏫 Herr Felix is typing..."):
-                resp = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[{"role": "system", "content": system_prompt}] + chat_history[1:] + [{"role": "user", "content": user_input}],
-                    temperature=0.22,
-                    max_tokens=380
-                )
-                ai_reply = resp.choices[0].message.content
-            chat_history.append({"role": "assistant", "content": ai_reply})
-            st.session_state.letter_coach_chat = chat_history
-            # --- SAVE TO FIRESTORE ---
-            save_letter_coach_progress(
-                student_code,
-                st.session_state.get("schreiben_level", "A1"),
-                st.session_state.letter_coach_prompt,
-                st.session_state.letter_coach_chat,
-            )
-            st.rerun()
-
-
-
-            # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
-            import streamlit.components.v1 as components
-
-            # Collect student messages from session chat
-            user_msgs = [
-                msg["content"]
-                for msg in st.session_state.letter_coach_chat[1:]
-                if msg.get("role") == "user"
-            ]
-
-            st.markdown("""
-                **📝 Your Letter Draft**
-                - Tick the lines you want to include in your letter draft.
-                - You can untick any part you want to leave out.
-                - Only ticked lines will appear in your downloadable draft below.
-            """)
-
-            # Store selection in session state (keeps selection per student)
-            if "selected_letter_lines" not in st.session_state or \
-               len(st.session_state.selected_letter_lines) != len(user_msgs):
-                st.session_state.selected_letter_lines = [True] * len(user_msgs)
-
-            selected_lines = []
-            for i, line in enumerate(user_msgs):
-                st.session_state.selected_letter_lines[i] = st.checkbox(
-                    line,
-                    value=st.session_state.selected_letter_lines[i],
-                    key=f"letter_line_{i}"
-                )
-                if st.session_state.selected_letter_lines[i]:
-                    selected_lines.append(line)
-
-            letter_draft = "\n".join(selected_lines)
-
-            # --- Live word/character count for the letter draft ---
-            draft_word_count = len(letter_draft.split())
-            draft_char_count = len(letter_draft)
-            st.markdown(
-                f"<div style='color:#7b2ff2; font-size:0.97em; margin-bottom:0.18em;'>"
-                f"Words: <b>{draft_word_count}</b> &nbsp;|&nbsp; Characters: <b>{draft_char_count}</b>"
-                "</div>",
-                unsafe_allow_html=True
-            )
-
-            # --- Modern, soft header (copy/download) ---
+            # --- General Instructions ---
             st.markdown(
                 """
                 <div style="
-                    background:#23272b;
-                    color:#eee;
-                    border-radius:10px;
-                    padding:0.72em 1.04em;
-                    margin-bottom:0.4em;
-                    font-size:1.07em;
-                    font-weight:400;
-                    border:1px solid #343a40;
-                    box-shadow:0 2px 10px #0002;
-                    text-align:left;
-                ">
-                    <span style="font-size:1.12em; color:#ffe082;">📝 Your Letter So Far</span><br>
-                    <span style="font-size:1.00em; color:#b0b0b0;">copy often or download below to prevent data loss</span>
+                    background: linear-gradient(97deg, #f4eafd 75%, #ffe0f5 100%);
+                    border-radius: 12px;
+                    border: 1px solid #e6d3fa;
+                    box-shadow: 0 2px 8px #e5e1fa22;
+                    padding: 0.75em 1em 0.72em 1em;
+                    margin-bottom: 1.1em;
+                    margin-top: 0.1em;
+                    color: #4b2976;
+                    font-size: 1.03rem;
+                    font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+                    text-align: center;
+                    ">
+                    <span style="font-size:1.19em; vertical-align:middle;">✉️</span>
+                    <span style="font-size:1.05em; font-weight: 500; margin-left:0.24em;">
+                        Welcome to <span style="color:#7b2ff2;">Letter Coach</span>
+                    </span>
+                    <div style="color:#b48be6; font-size:0.97em; margin-top:0.35em;">
+                        Get started below 👇
+                    </div>
                 </div>
                 """,
                 unsafe_allow_html=True
             )
 
-            # --- Mobile-friendly copy/download box ---
-            components.html(f"""
-                <textarea id="letterBox" readonly rows="6" style="
-                    width: 100%;
-                    border-radius: 12px;
-                    background: #f9fbe7;
-                    border: 1.7px solid #ffe082;
-                    color: #222;
-                    font-size: 1.12em;
-                    font-family: 'Fira Mono', 'Consolas', monospace;
-                    padding: 1em 0.7em;
-                    box-shadow: 0 2px 8px #ffe08266;
-                    margin-bottom: 0.5em;
-                    resize: none;
-                    overflow:auto;
-                " onclick="this.select()">{letter_draft}</textarea>
-                <button onclick="navigator.clipboard.writeText(document.getElementById('letterBox').value)" 
-                    style="
-                        background:#ffc107;
-                        color:#3e2723;
-                        font-size:1.08em;
-                        font-weight:bold;
-                        padding:0.48em 1.12em;
-                        margin-top:0.4em;
-                        border:none;
-                        border-radius:7px;
-                        cursor:pointer;
-                        box-shadow:0 2px 8px #ffe08255;
-                        width:100%;
-                        max-width:320px;
-                        display:block;
-                        margin-left:auto;
-                        margin-right:auto;
-                    ">
-                    📋 Copy Text
-                </button>
-                <style>
-                    @media (max-width: 480px) {{
-                        #letterBox {{
-                            font-size: 1.16em !important;
-                            min-width: 93vw !important;
-                        }}
-                    }}
-                </style>
-            """, height=175)
+            IDEAS_LIMIT = 14
+            ideas_so_far = get_letter_coach_usage(student_code)
+            st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
+            if ideas_so_far >= IDEAS_LIMIT:
+                st.warning("You have reached today's letter coach limit. Please come back tomorrow.")
 
-            st.markdown("""
-                <div style="
-                    background:#ffe082;
-                    padding:0.9em 1.2em;
-                    border-radius:10px;
-                    margin:0.4em 0 1.2em 0;
-                    color:#543c0b;
-                    font-weight:600;
-                    border-left:6px solid #ffc107;
-                    font-size:1.08em;">
-                    📋 <span>On phone, tap in the box above to select all for copy.<br>
-                    Or just tap <b>Copy Text</b>.<br>
-                    To download, use the button below.</span>
-                </div>
-            """, unsafe_allow_html=True)
+            # --- Session State Defaults ---
+            for key, default in [
+                ("letter_coach_stage", 0),
+                ("letter_coach_chat", []),
+                ("letter_coach_prompt", ""),
+                ("letter_coach_type", ""),
+                ("selected_letter_lines", []),
+                ("letter_coach_uploaded", False)
+            ]:
+                if key not in st.session_state:
+                    st.session_state[key] = default
 
-            st.download_button(
-                "⬇️ Download Letter as TXT",
-                letter_draft.encode("utf-8"),
-                file_name="my_letter.txt"
-            )
-
-            if st.button("Start New Letter Coach"):
-                st.session_state.letter_coach_chat = []
-                st.session_state.letter_coach_prompt = ""
-                st.session_state.letter_coach_type = ""
-                st.session_state.selected_letter_lines = []
-                st.session_state.letter_coach_uploaded = False
-                # --- SAVE RESET TO FIRESTORE ---
-                save_letter_coach_progress(
-                    student_code,
-                    st.session_state.get("schreiben_level", "A1"),
-                    "",
-                    [],
+            # --- Stage 0: Paste Prompt ---
+            if st.session_state.get("letter_coach_stage", 0) == 0:
+                st.markdown(
+                    """
+                    <div style="
+                        background: linear-gradient(90deg, #f9fbe7 70%, #eaf4ff 100%);
+                        border-radius: 9px;
+                        border: 1px solid #e0e0e0;
+                        box-shadow: 0 2px 8px #c0caf01c;
+                        padding: 0.74em 1.1em 0.58em 1.1em;
+                        margin-bottom: 0.55em;
+                        margin-top: 0.05em;
+                        color: #4a6276;
+                        font-size: 1.05rem;
+                        font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+                        ">
+                        <span style="font-size:1.15em; font-weight: 500; vertical-align:middle;">📝 Enter your exam prompt or letter draft below</span>
+                        <div style="color:#668b8b;font-size:0.99em;margin-top:0.22em;">
+                            Paste the <b>question</b>, a <b>draft</b>, or any <b>unfinished letter</b>.<br>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
                 )
-                st.rerun()
+                with st.form("prompt_form", clear_on_submit=True):
+                    prompt = st.text_area(
+                        "",
+                        value=st.session_state.get("letter_coach_prompt", ""),
+                        height=120,
+                        disabled=(ideas_so_far >= IDEAS_LIMIT),
+                        placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ..."
+                    )
+                    send = st.form_submit_button("✉️ Start Letter Coach")
+
+                if prompt:
+                    word_count = len(prompt.split())
+                    char_count = len(prompt)
+                    st.markdown(
+                        f"<div style='color:#7b2ff2; font-size:0.97em; margin-bottom:0.18em;'>"
+                        f"Words: <b>{word_count}</b> &nbsp;|&nbsp; Characters: <b>{char_count}</b>"
+                        "</div>",
+                        unsafe_allow_html=True
+                    )
+
+                if send and prompt:
+                    st.session_state.letter_coach_prompt = prompt
+
+                    # Compose system prompt for selected level
+                    student_level = st.session_state.get("schreiben_level", "A1")
+                    system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=prompt)
+
+                    # Start chat history
+                    chat_history = [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": prompt}
+                    ]
+                    # Immediate AI reply
+                    try:
+                        resp = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=chat_history,
+                            temperature=0.22,
+                            max_tokens=380
+                        )
+                        ai_reply = resp.choices[0].message.content
+                    except Exception as e:
+                        ai_reply = "Sorry, there was an error generating a response. Please try again."
+                    chat_history.append({"role": "assistant", "content": ai_reply})
+
+                    # Save progress, increment usage, and advance stage
+                    st.session_state.letter_coach_chat = chat_history
+                    st.session_state.letter_coach_stage = 1
+                    inc_letter_coach_usage(student_code)
+                    save_letter_coach_progress(
+                        student_code,
+                        student_level,
+                        st.session_state.letter_coach_prompt,
+                        st.session_state.letter_coach_chat,
+                    )
+                    st.rerun()
+
+                if prompt:
+                    st.markdown("---")
+                    st.markdown(f"📝 **Letter/Essay Prompt or Draft:**\n\n{prompt}")
+
+            # --- Stage 1: Coaching Chat ---
+            elif st.session_state.get("letter_coach_stage", 0) == 1:
+                st.markdown("---")
+                st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{st.session_state.letter_coach_prompt}")
+                chat_history = st.session_state.letter_coach_chat
+                for msg in chat_history[1:]:
+                    st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
+                num_student_turns = sum(1 for msg in chat_history[1:] if msg["role"] == "user")
+                if num_student_turns == 10:
+                    st.info("🔔 You have written 10 steps. Most students finish in 7–10 turns. Try to complete your letter soon!")
+                elif num_student_turns == 12:
+                    st.warning(
+                        "⏰ You have reached 12 writing turns. "
+                        "Usually, your letter should be complete by now. "
+                        "If you want feedback, click **END SUMMARY** or download your letter as TXT. "
+                        "You can always start a new session for more practice."
+                    )
+                elif num_student_turns > 12:
+                    st.warning(
+                        f"🚦 You are now at {num_student_turns} turns. "
+                        "Long letters are okay, but usually a good letter is finished in 7–12 turns. "
+                        "Try to wrap up, click **END SUMMARY** or download your letter as TXT."
+                    )
+
+                with st.form("letter_coach_chat_form", clear_on_submit=True):
+                    user_input = st.text_area(
+                        "",
+                        value="",
+                        key="letter_coach_user_input",
+                        height=400,
+                        placeholder="Type your reply, ask about a section, or paste your draft here..."
+                    )
+                    send = st.form_submit_button("Send")
+                if send and user_input.strip():
+                    chat_history.append({"role": "user", "content": user_input})
+                    student_level = st.session_state.get("schreiben_level", "A1")
+                    system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=st.session_state.letter_coach_prompt)
+                    with st.spinner("👨‍🏫 Herr Felix is typing..."):
+                        resp = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[{"role": "system", "content": system_prompt}] + chat_history[1:] + [{"role": "user", "content": user_input}],
+                            temperature=0.22,
+                            max_tokens=380
+                        )
+                        ai_reply = resp.choices[0].message.content
+                    chat_history.append({"role": "assistant", "content": ai_reply})
+                    st.session_state.letter_coach_chat = chat_history
+                    save_letter_coach_progress(
+                        student_code,
+                        st.session_state.get("schreiben_level", "A1"),
+                        st.session_state.letter_coach_prompt,
+                        st.session_state.letter_coach_chat,
+                    )
+                    st.rerun()
+
+                # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
+                import streamlit.components.v1 as components
+
+                # Collect student messages from session chat
+                user_msgs = [
+                    msg["content"]
+                    for msg in st.session_state.letter_coach_chat[1:]
+                    if msg.get("role") == "user"
+                ]
+
+                st.markdown("""
+                    **📝 Your Letter Draft**
+                    - Tick the lines you want to include in your letter draft.
+                    - You can untick any part you want to leave out.
+                    - Only ticked lines will appear in your downloadable draft below.
+                """)
+
+                # Store selection in session state (keeps selection per student)
+                if "selected_letter_lines" not in st.session_state or \
+                   len(st.session_state.selected_letter_lines) != len(user_msgs):
+                    st.session_state.selected_letter_lines = [True] * len(user_msgs)
+
+                selected_lines = []
+                for i, line in enumerate(user_msgs):
+                    st.session_state.selected_letter_lines[i] = st.checkbox(
+                        line,
+                        value=st.session_state.selected_letter_lines[i],
+                        key=f"letter_line_{i}"
+                    )
+                    if st.session_state.selected_letter_lines[i]:
+                        selected_lines.append(line)
+
+                letter_draft = "\n".join(selected_lines)
+
+                # --- Live word/character count for the letter draft ---
+                draft_word_count = len(letter_draft.split())
+                draft_char_count = len(letter_draft)
+                st.markdown(
+                    f"<div style='color:#7b2ff2; font-size:0.97em; margin-bottom:0.18em;'>"
+                    f"Words: <b>{draft_word_count}</b> &nbsp;|&nbsp; Characters: <b>{draft_char_count}</b>"
+                    "</div>",
+                    unsafe_allow_html=True
+                )
+
+                # --- Modern, soft header (copy/download) ---
+                st.markdown(
+                    """
+                    <div style="
+                        background:#23272b;
+                        color:#eee;
+                        border-radius:10px;
+                        padding:0.72em 1.04em;
+                        margin-bottom:0.4em;
+                        font-size:1.07em;
+                        font-weight:400;
+                        border:1px solid #343a40;
+                        box-shadow:0 2px 10px #0002;
+                        text-align:left;
+                    ">
+                        <span style="font-size:1.12em; color:#ffe082;">📝 Your Letter So Far</span><br>
+                        <span style="font-size:1.00em; color:#b0b0b0;">copy often or download below to prevent data loss</span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+                # --- Mobile-friendly copy/download box ---
+                components.html(f"""
+                    <textarea id="letterBox" readonly rows="6" style="
+                        width: 100%;
+                        border-radius: 12px;
+                        background: #f9fbe7;
+                        border: 1.7px solid #ffe082;
+                        color: #222;
+                        font-size: 1.12em;
+                        font-family: 'Fira Mono', 'Consolas', monospace;
+                        padding: 1em 0.7em;
+                        box-shadow: 0 2px 8px #ffe08266;
+                        margin-bottom: 0.5em;
+                        resize: none;
+                        overflow:auto;
+                    " onclick="this.select()">{letter_draft}</textarea>
+                    <button onclick="navigator.clipboard.writeText(document.getElementById('letterBox').value)" 
+                        style="
+                            background:#ffc107;
+                            color:#3e2723;
+                            font-size:1.08em;
+                            font-weight:bold;
+                            padding:0.48em 1.12em;
+                            margin-top:0.4em;
+                            border:none;
+                            border-radius:7px;
+                            cursor:pointer;
+                            box-shadow:0 2px 8px #ffe08255;
+                            width:100%;
+                            max-width:320px;
+                            display:block;
+                            margin-left:auto;
+                            margin-right:auto;
+                        ">
+                        📋 Copy Text
+                    </button>
+                    <style>
+                        @media (max-width: 480px) {{
+                            #letterBox {{
+                                font-size: 1.16em !important;
+                                min-width: 93vw !important;
+                            }}
+                        }}
+                    </style>
+                """, height=175)
+
+                st.markdown("""
+                    <div style="
+                        background:#ffe082;
+                        padding:0.9em 1.2em;
+                        border-radius:10px;
+                        margin:0.4em 0 1.2em 0;
+                        color:#543c0b;
+                        font-weight:600;
+                        border-left:6px solid #ffc107;
+                        font-size:1.08em;">
+                        📋 <span>On phone, tap in the box above to select all for copy.<br>
+                        Or just tap <b>Copy Text</b>.<br>
+                        To download, use the button below.</span>
+                    </div>
+                """, unsafe_allow_html=True)
+
+                st.download_button(
+                    "⬇️ Download Letter as TXT",
+                    letter_draft.encode("utf-8"),
+                    file_name="my_letter.txt"
+                )
+
+                if st.button("Start New Letter Coach"):
+                    st.session_state.letter_coach_chat = []
+                    st.session_state.letter_coach_prompt = ""
+                    st.session_state.letter_coach_type = ""
+                    st.session_state.selected_letter_lines = []
+                    st.session_state.letter_coach_uploaded = False
+                    save_letter_coach_progress(
+                        student_code,
+                        st.session_state.get("schreiben_level", "A1"),
+                        "",
+                        [],
+                    )
+                    st.rerun()
+
 
 
 
