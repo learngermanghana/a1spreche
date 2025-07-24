@@ -19,6 +19,7 @@ from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
+
 # ===== HIDE STREAMLIT DEFAULT FOOTER/MENU =====
 st.markdown(
     """
@@ -43,11 +44,14 @@ if not OPENAI_API_KEY:
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
 
+
 # ===== FIREBASE ADMIN SDK SETUP =====
 import firebase_admin
 from firebase_admin import credentials, firestore
 
+# Only initialize Firebase once!
 if not firebase_admin._apps:
+    # Converts Streamlit TOML secret (dict) to proper dict for credentials.Certificate
     firebase_creds = dict(st.secrets["firebase"])
     cred = credentials.Certificate(firebase_creds)
     firebase_admin.initialize_app(cred)
@@ -58,14 +62,14 @@ doc_ref.set({"field": "test!"})
 result = doc_ref.get()
 print(result.to_dict())  # Should print {'field': 'test!'}
 
-# ==== DB CONNECTION FOR NON-USAGE TABLES ====
+# ==== DB CONNECTION ====
 def get_connection():
     if "conn" not in st.session_state:
         st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
         atexit.register(st.session_state["conn"].close)
     return st.session_state["conn"]
 
-# ==== INITIALIZE DB TABLES (NO USAGE TABLES) ====
+# ==== INITIALIZE DB TABLES ====
 def init_db():
     conn = get_connection()
     c = conn.cursor()
@@ -82,7 +86,7 @@ def init_db():
             date TEXT
         )
     """)
-    # Schreiben Progress Table (DAILY LIMIT tracked by Firestore now)
+    # Schreiben Progress Table (DAILY LIMIT)
     c.execute("""
         CREATE TABLE IF NOT EXISTS schreiben_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -95,7 +99,7 @@ def init_db():
             date TEXT
         )
     """)
-    # Sprechen Progress Table (DAILY LIMIT tracked by Firestore now)
+    # Sprechen Progress Table (DAILY LIMIT)
     c.execute("""
         CREATE TABLE IF NOT EXISTS sprechen_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -144,55 +148,167 @@ def init_db():
             date_added TEXT
         )
     """)
+    # Sprechen Daily Usage Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS sprechen_usage (
+            student_code TEXT,
+            date TEXT,
+            count INTEGER,
+            PRIMARY KEY (student_code, date)
+        )
+    """)
+    # Letter Coach Daily Usage Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS letter_coach_usage (
+            student_code TEXT,
+            date TEXT,
+            count INTEGER,
+            PRIMARY KEY (student_code, date)
+        )
+    """)
+    # Schreiben Daily Usage Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS schreiben_usage (
+            student_code TEXT,
+            date TEXT,
+            count INTEGER,
+            PRIMARY KEY (student_code, date)
+        )
+    """)
     conn.commit()
 
 init_db()  # <<-- Make sure this is before any other DB calls!
+
 
 # ==== CONSTANTS ====
 FALOWEN_DAILY_LIMIT = 20
 VOCAB_DAILY_LIMIT = 20
 SCHREIBEN_DAILY_LIMIT = 5
 
-# ==== USAGE COUNTERS USING FIRESTORE ONLY ====
-def get_letter_coach_usage(student_code):
+# ==== USAGE COUNTERS ====
+def get_sprechen_usage(student_code):
     today = str(date.today())
-    doc_ref = db.collection("letter_coach_usage").document(student_code)
-    doc = doc_ref.get()
-    if doc.exists and doc.to_dict().get("date") == today:
-        return doc.to_dict().get("count", 0)
-    return 0
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT count FROM sprechen_usage WHERE student_code=? AND date=?",
+        (student_code, today)
+    )
+    row = c.fetchone()
+    return row[0] if row else 0
 
-def inc_letter_coach_usage(student_code):
+def inc_sprechen_usage(student_code):
     today = str(date.today())
-    doc_ref = db.collection("letter_coach_usage").document(student_code)
-    doc = doc_ref.get()
-    if doc.exists and doc.to_dict().get("date") == today:
-        count = doc.to_dict().get("count", 0) + 1
-        doc_ref.update({"count": count})
+    conn = get_connection()
+    c = conn.cursor()
+    usage = get_sprechen_usage(student_code)
+    if usage == 0:
+        c.execute(
+            "INSERT INTO sprechen_usage (student_code, date, count) VALUES (?, ?, ?)",
+            (student_code, today, 1)
+        )
     else:
-        doc_ref.set({"date": today, "count": 1})
+        c.execute(
+            "UPDATE sprechen_usage SET count = ? WHERE student_code = ? AND date = ?",
+            (usage + 1, student_code, today)
+        )
+    conn.commit()
+
+def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
+    return get_sprechen_usage(student_code) < limit
 
 def get_schreiben_usage(student_code):
     today = str(date.today())
-    doc_ref = db.collection("schreiben_usage").document(student_code)
-    doc = doc_ref.get()
-    if doc.exists and doc.to_dict().get("date") == today:
-        return doc.to_dict().get("count", 0)
-    return 0
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT count FROM schreiben_usage WHERE student_code=? AND date=?",
+        (student_code, today)
+    )
+    row = c.fetchone()
+    return row[0] if row else 0
 
 def inc_schreiben_usage(student_code):
     today = str(date.today())
-    doc_ref = db.collection("schreiben_usage").document(student_code)
-    doc = doc_ref.get()
-    if doc.exists and doc.to_dict().get("date") == today:
-        count = doc.to_dict().get("count", 0) + 1
-        doc_ref.update({"count": count})
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        """
+        INSERT INTO schreiben_usage (student_code, date, count)
+        VALUES (?, ?, 1)
+        ON CONFLICT(student_code, date)
+        DO UPDATE SET count = count + 1
+        """,
+        (student_code, today)
+    )
+    conn.commit()
+
+
+
+def get_writing_stats(student_code):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT COUNT(*), SUM(score>=17) FROM schreiben_progress WHERE student_code=?
+    """, (student_code,))
+    result = c.fetchone()
+    attempted = result[0] or 0
+    passed = result[1] if result[1] is not None else 0
+    accuracy = round(100 * passed / attempted) if attempted > 0 else 0
+    return attempted, passed, accuracy
+
+def get_student_stats(student_code):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT level, SUM(score >= 17), COUNT(*) 
+        FROM schreiben_progress 
+        WHERE student_code=?
+        GROUP BY level
+    """, (student_code,))
+    stats = {}
+    for level, correct, attempted in c.fetchall():
+        stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
+    return stats
+
+def inc_letter_coach_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        """
+        INSERT INTO letter_coach_usage (student_code, date, count)
+        VALUES (?, ?, 1)
+        ON CONFLICT(student_code, date)
+        DO UPDATE SET count = count + 1
+        """,
+        (student_code, today)
+    )
+    conn.commit()
+
+
+def inc_letter_coach_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    usage = get_letter_coach_usage(student_code)
+    if usage == 0:
+        c.execute(
+            "INSERT INTO letter_coach_usage (student_code, date, count) VALUES (?, ?, ?)",
+            (student_code, today, 1)
+        )
     else:
-        doc_ref.set({"date": today, "count": 1})
+        c.execute(
+            "UPDATE letter_coach_usage SET count = ? WHERE student_code = ? AND date = ?",
+            (usage + 1, student_code, today)
+        )
 
 # === Firestore Auto-Save/Restore for Letter Coach ===
 
 def save_letter_coach_progress(student_code, schreiben_level, letter_coach_prompt, chat_history):
+    """
+    Auto-saves the student's Letter Coach (Ideen Generator) progress in Firestore.
+    """
     doc_ref = db.collection("letter_coach_progress").document(student_code)
     doc_ref.set({
         "level": schreiben_level,
@@ -202,12 +318,26 @@ def save_letter_coach_progress(student_code, schreiben_level, letter_coach_promp
     })
 
 def load_letter_coach_progress(student_code):
+    """
+    Loads the student's most recent Letter Coach (Ideen Generator) progress from Firestore.
+    Returns (prompt, chat_history), or ("", []) if nothing saved.
+    """
     doc_ref = db.collection("letter_coach_progress").document(student_code)
     doc = doc_ref.get()
     if doc.exists:
         data = doc.to_dict()
         return data.get("prompt", ""), data.get("chat", [])
     return "", []
+    conn.commit()
+
+
+# -- ALIAS for legacy code (use this so your old code works without errors!) --
+has_falowen_quota = has_sprechen_quota
+
+# (Now your whole app can use has_falowen_quota(student_code, FALOWEN_DAILY_LIMIT)
+# OR has_sprechen_quota(student_code, FALOWEN_DAILY_LIMIT) and it will always work.)
+
+
 
 # --- Streamlit page config ---
 st.set_page_config(
@@ -251,8 +381,6 @@ st.markdown(
 
 # ==== 2) Helpers to load & save progress ====
 def load_progress(student_code, level, teil):
-    conn = get_connection()
-    c = conn.cursor()
     c.execute(
         "SELECT remaining, used FROM exam_progress WHERE student_code=? AND level=? AND teil=?",
         (student_code, level, teil)
@@ -263,8 +391,6 @@ def load_progress(student_code, level, teil):
     return None, None
 
 def save_progress(student_code, level, teil, remaining, used):
-    conn = get_connection()
-    c = conn.cursor()
     c.execute(
         "REPLACE INTO exam_progress (student_code, level, teil, remaining, used) VALUES (?,?,?,?,?)",
         (student_code, level, teil, json.dumps(remaining), json.dumps(used))
@@ -287,8 +413,10 @@ bubble_assistant = "background:#fff9c4;padding:12px 20px;border-radius:18px 18px
 # Highlight function and words
 highlight_words = ["correct", "should", "mistake", "improve", "tip"]
 def highlight_keywords(text, words):
+    import re
     pattern = r'(' + '|'.join(map(re.escape, words)) + r')'
     return re.sub(pattern, r"<span style='color:#d63384;font-weight:600'>\1</span>", text, flags=re.IGNORECASE)
+
 
 
 # ====================================
@@ -3719,44 +3847,6 @@ if tab == "Schreiben Trainer":
 
     st.divider()
 
-    # ---------- FIRESTORE USAGE COUNTERS -----------
-    def get_schreiben_usage(student_code):
-        today = str(date.today())
-        doc_ref = db.collection("schreiben_usage").document(student_code)
-        doc = doc_ref.get()
-        if doc.exists and doc.to_dict().get("date") == today:
-            return doc.to_dict().get("count", 0)
-        return 0
-
-    def inc_schreiben_usage(student_code):
-        today = str(date.today())
-        doc_ref = db.collection("schreiben_usage").document(student_code)
-        doc = doc_ref.get()
-        data = doc.to_dict() if doc.exists else {}
-        if data.get("date") == today:
-            count = data.get("count", 0) + 1
-        else:
-            count = 1
-        doc_ref.set({"date": today, "count": count})
-
-    def get_letter_coach_usage(student_code):
-        today = str(date.today())
-        doc_ref = db.collection("letter_coach_usage").document(student_code)
-        doc = doc_ref.get()
-        if doc.exists and doc.to_dict().get("date") == today:
-            return doc.to_dict().get("count", 0)
-        return 0
-
-    def inc_letter_coach_usage(student_code):
-        today = str(date.today())
-        doc_ref = db.collection("letter_coach_usage").document(student_code)
-        doc = doc_ref.get()
-        data = doc.to_dict() if doc.exists else {}
-        if data.get("date") == today:
-            count = data.get("count", 0) + 1
-        else:
-            count = 1
-        doc_ref.set({"date": today, "count": count})
 
     # --- 1. MARK MY LETTER SUB-TAB ---
     if sub_tab == "Mark My Letter":
@@ -3776,6 +3866,8 @@ if tab == "Schreiben Trainer":
             unsafe_allow_html=True
         )
 
+
+        # ====== LETTER STATS FUNCTIONS ======
         def save_schreiben_attempt(student_code, student_name, level, score, letter, breakdown=None):
             doc_ref = db.collection("schreiben_stats").document(student_code)
             doc = doc_ref.get()
@@ -3819,6 +3911,10 @@ if tab == "Schreiben Trainer":
                     "total": 0, "passed": 0, "average_score": 0, "best_score": 0,
                     "pass_rate": 0, "last_attempt": None, "attempts": [], "last_letter": ""
                 }
+
+        def get_schreiben_usage(student_code):
+            # TODO: Replace with your actual Firestore logic if needed
+            return 0
 
         # Show stats panel
         stats = get_schreiben_stats(student_code)
@@ -3865,6 +3961,7 @@ if tab == "Schreiben Trainer":
             chars = len(user_letter)
             st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
 
+
         # AI prompt for feedback
         ai_prompt = (
             f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
@@ -3881,6 +3978,9 @@ if tab == "Schreiben Trainer":
             "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
             "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score. "
             "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
+            "9. For A1 and A2, dont recommed any relative clauses or sentence longer than 7 or 8 word. Bring full stop to seperate long phrases."
+            "10. For A2,B1,B2, C1 make sure students work is organized into paragraphs using sequences like erstens and so on based on their level"
+            "11. Always recommend conjunctions based on student level. For A1 and A2 stick to weil,deshalb and ich mochte wissen,und,oder and so on"
             "Grammar: [score/5, one-sentence tip]\n"
             "Vocabulary: [score/5, one-sentence tip]\n"
             "Spelling: [score/5, one-sentence tip]\n"
@@ -3931,7 +4031,6 @@ if tab == "Schreiben Trainer":
 
                 # Save to Firestore (per student!)
                 inc_schreiben_usage(student_code)
-                student_name = st.session_state.get("student_name", "")
                 save_schreiben_attempt(student_code, student_name, schreiben_level, score, user_letter, breakdown)
 
                 st.markdown("---")
@@ -3999,33 +4098,18 @@ if tab == "Schreiben Trainer":
         
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
-        from datetime import date
 
-        # --- Firestore: Get daily letter coach usage ---
+        # --- Define get_letter_coach_usage HERE if needed inside the block ---
         def get_letter_coach_usage(student_code):
             today = str(date.today())
-            doc_ref = db.collection("letter_coach_usage").document(student_code)
-            doc = doc_ref.get()
-            if doc.exists:
-                data = doc.to_dict()
-                if data.get("date") == today:
-                    return data.get("count", 0)
-            return 0
-
-        # --- Firestore: Increment daily usage ---
-        def inc_letter_coach_usage(student_code):
-            today = str(date.today())
-            doc_ref = db.collection("letter_coach_usage").document(student_code)
-            doc = doc_ref.get()
-            if doc.exists:
-                data = doc.to_dict()
-                if data.get("date") == today:
-                    count = data.get("count", 0) + 1
-                    doc_ref.set({"count": count, "date": today})
-                else:
-                    doc_ref.set({"count": 1, "date": today})
-            else:
-                doc_ref.set({"count": 1, "date": today})
+            conn = get_connection()
+            c = conn.cursor()
+            c.execute(
+                "SELECT count FROM letter_coach_usage WHERE student_code=? AND date=?",
+                (student_code, today)
+            )
+            row = c.fetchone()
+            return row[0] if row else 0
 
         # === NAMESPACED SESSION KEYS (per student) ===
         ns_prefix = f"{student_code}_letter_coach_"
@@ -4039,10 +4123,108 @@ if tab == "Schreiben Trainer":
                 st.session_state[ns("chat")] = last_chat
                 st.session_state[ns("stage")] = 1 if last_chat else 0
 
-        # --- Your Letter Coach Prompts Dictionary ---
         LETTER_COACH_PROMPTS = {
-            "A1": "You are Herr Felix, ...",  # [YOUR PROMPT HERE]
-            # ... (fill out as in your code)
+            "A1": (
+                "You are Herr Felix, a creative and supportive German letter-writing coach for A1 students. "
+                "Always reply in English, never in German. "
+                "When a student submits something, first congratulate them with ideas about how to go about the letter. "
+                "Analyze if their message is a new prompt, a continuation, or a question. "
+                "If it's a question, answer simply and encourage them to keep building their letter step by step. "
+                "If it's a continuation, review their writing so far and guide them to the next step. "
+                f"1. Always give students short ideas,structure and tips and phrases on how to build their points for the conversation in English and simple German. Dont overfeed students, help them but let them think by themselves also "
+                f"2. For conjunctions, only suggest weil,deshalb, ich möchte wissen,ob and ich mochte wissen, wann. Dont recommend, da, dass and relative clauses "
+                f"3. For requests, teach them how to use Könnten Sie and how it ends with a main verb to make request when necessary. "
+                f"4. Ich schreibe Ihnen/dir for formal and informal letter, guide them how they can use weil with ich and end with möchte or any modal verb mostly to prevent mistakes. Be strict with this"
+                f"5. Always check that the student statement is not too long and complicated. For example, the usage of two conjunctions in a sentence should be warned and break it down for them. "
+                f"6. For requests, teach them how to use Könnten Sie and how it ends with a main verb to make request when necessary. "
+                f"7. Always add your ideas after student submmit their sentence if necessary "
+                f"8. Warn students if their statement per input is too long or complicated. When student statement has more than 7 or 8 words, break it down for them with full stops and simple conjunctions. "
+                f"9. Always be sure that students complete letter is between 30 to 40 words "
+                "Always make grammar correction or suggest a better phrase when necessary. "
+                "If it's a continuation, review their writing so far and guide them to the next step. "
+                "If it's a new prompt, give a brief, simple overview (in English) of how to build their letter (greeting, introduction, reason, request, closing), with short examples for each. "
+                "For the introduction, always remind the student to use: 'Ich schreibe Ihnen, weil ich ...' for formal letters or 'Ich schreibe dir, weil ich ...' for informal letters. "
+                "For the main request, always recommend ending the sentence with 'möchte' or another basic modal verb, as this is the easiest and most correct way at A1 (e.g., 'Ich möchte einen Termin machen.'). "
+                "After your overview or advice, always use the phrase 'Your next recommended step:' and ask for only the next part—first the greeting (wait for it), then only the introduction (wait for it), then reason, then request, then closing—one after the other, never more than one at a time. "
+                "After each student reply, check their answer, give gentle feedback, and then again state 'Your next recommended step:' and prompt for just the next section. "
+                "Only help with basic connectors ('und', 'aber', 'weil', 'deshalb', 'ich mochte wissen'). Never write the full letter yourself—coach one part at a time. "
+                "The chat session should last for about 10 student replies. If the student is not done by then, gently remind them: 'Most letters can be completed in about 10 steps. Please try to finish soon.' "
+                "If after 14 student replies, the letter is still not finished, end the session with: 'We have reached the end of this coaching session. Please copy your letter so far and paste it into the “Mark My Letter” tool for full AI feedback and a score.' "
+                "Throughout, your questions must be progressive, one at a time, and always guide the student logically through the structure."
+            ),
+            "A2": (
+                "You are Herr Felix, a creative and supportive German letter-writing coach for A2 students. "
+                "Always reply in English, never in German. "
+                "Congratulate the student on first submission with ideas about how to go about the letter. Analyze whether it is a prompt, a continuation, or a question. "
+                f"1. Always give students short ideas,structure and tips and phrases on how to build their points for the conversation in English and simple German. Dont overfeed students, help them but let them think by themselves also "
+                f"2. Always check to be sure their letters are organized with paragraphs using sequence like erstens,zum schluss and so on "
+                f"3. Always add your ideas after student submmit their sentence if necessary "
+                f"4. Always check that the student statement is not too long and complicated. For example, the usage of two conjunctions in a sentence should be warned and break it down for them. Students shouldnt write more than 7 to 8 words in a sentence. Divide for them with full stops "
+                f"5. Always be sure that students complete letter is between 30 to 40 words "
+                "For a prompt, give a short, clear overview (in English) of the structure (greeting, introduction, reason, request, closing), with classic examples for each. "
+                "For the introduction, always remind the student to use: 'Ich schreibe Ihnen, weil ich ...' for formal letters or 'Ich schreibe dir, weil ich ...' for informal letters. "
+                "Always make grammar correction or suggest a better phrase when necessary. "
+                "For the main request, always recommend ending the sentence with 'möchte' or another simple modal verb (e.g., 'Ich möchte Informationen bekommen.' or 'Ich kann ...'). "
+                "For continuations, review the student’s writing and guide them to the next missing part. For questions, answer them and encourage further writing. "
+                "At every turn, use the phrase 'Your next recommended step:' and ask for only one section at a time—first the greeting, wait, give feedback, then the introduction, then the reason, request, and closing—never more than one at a time. "
+                "After each student reply, give feedback, then say 'Your next recommended step:' and prompt for the next part. "
+                "Guide with simple connectors ('und', 'aber', 'weil', 'denn', 'deshalb') and helpful linking phrases as needed. "
+                "End the chat after 10 student turns by encouraging them to finish, and after 14, end the session and instruct the student to copy their letter so far and paste it in the 'Mark My Letter' tab for feedback."
+            ),
+            "B1": (
+                "You are Herr Felix, a supportive German letter/essay coach for B1 students. "
+                "Always reply in English, never in German. "
+                "Congratulate the student with ideas about how to go about the letter, analyze the type of submission, and determine whether it is a formal letter, informal letter, or opinion essay. "
+                "If you are not sure, politely ask the student what type of writing they need help with. "
+                f"1. Always give students short ideas,structure and tips and phrases on how to build their points for the conversation in English and simple German. Dont overfeed students, help them but let them think by themselves also "
+                f"2. Always check to be sure their letters are organized with paragraphs using sequences and sentence starters "
+                f"3. Always add your ideas after student submmit their sentence if necessary "
+                f"4. Always be sure that students complete formal letter is between 40 to 50 words,informal letter and opinion essay between 80 to 90 words "
+                "For a formal letter, give a brief overview of the structure (greeting, introduction, main reason/request, closing), with useful examples. "
+                "Always make grammar correction or suggest a better phrase when necessary. "
+                "For an informal letter, outline the friendly structure (greeting, introduction, reason, personal info, closing), with simple examples. "
+                "For an opinion essay, provide a short overview: introduction (with phrases like 'Heutzutage ist ... ein wichtiges Thema.' or 'Ich bin der Meinung, dass...'), main points (advantages, disadvantages, opinion), connectors, and closing. "
+                "After your overview, always use the phrase 'Your next recommended step:' and ask for only one section at a time—greeting, then introduction, then main points, then closing—never more than one at a time. "
+                "After each answer, provide feedback, then again prompt with 'Your next recommended step:'. "
+                "Encourage the use of appropriate connectors ('außerdem', 'trotzdem', 'weil', 'deshalb'). "
+                "If the student is still writing after 10 turns, encourage them to finish. At 14, end the chat, reminding them to paste their draft in 'Mark My Letter' for feedback."
+            ),
+            "B2": (
+                "You are Herr Felix, a supportive German writing coach for B2 students. "
+                "Always reply in English, never in German. "
+                "Congratulate the student with ideas about how to go about the letter, analyze the type of input, and determine if it is a formal letter, informal letter, or an opinion/argumentative essay. "
+                "If you are not sure, politely ask the student what type of writing they need help with. "
+                f"1. Always give students short ideas,structure and tips and phrases on how to build their points for the conversation in English and simple German. Dont overfeed students, help them but let them think by themselves also "
+                f"2. Always check to be sure their letters are organized with paragraphs using sequences and sentence starters "
+                f"3. Always add your ideas after student submmit their sentence if necessary "
+                f"4. Always be sure that students complete formal letter is between 100 to 150 words and opinion essay is 150 to 170 words "
+                "Always make grammar correction or suggest a better phrase when necessary. "
+                "For a formal letter, briefly outline the advanced structure: greeting, introduction, clear argument/reason, supporting details, closing—with examples. "
+                "For an informal letter, outline a friendly but organized structure: greeting, personal introduction, main point/reason, examples, closing. "
+                "For an opinion or argumentative essay, outline: introduction (with a strong thesis), arguments (with connectors and examples), counterarguments, connectors, conclusion, closing. "
+                "After your overview or advice, always use the phrase 'Your next recommended step:' and ask for only one section at a time. "
+                "After each student reply, give feedback, then use 'Your next recommended step:' again. "
+                "Suggest and model advanced connectors ('denn', 'dennoch', 'außerdem', 'jedoch', 'zum Beispiel', 'einerseits...andererseits'). "
+                "If the student is still writing after 10 turns, gently encourage finishing; after 14, end the chat and ask the student to paste their draft in 'Mark My Letter' for feedback."
+            ),
+            "C1": (
+                "You are Herr Felix, an advanced and supportive German writing coach for C1 students. "
+                "Always reply in English, and in German when neccessary. If the German is difficult, explain it to the student "
+                "Congratulate the student with ideas about how to go about the letter, analyze the type of input, and determine if it is a formal letter, informal letter, or an academic/opinion essay. "
+                f"1. Always give students short ideas,structure and tips and phrases on how to build their points for the conversation in English and simple German. Dont overfeed students, help them but let them think by themselves also "
+                f"2. Always check to be sure their letters are organized with paragraphs using sequence and sentence starters "
+                f"3. Always add your ideas after student submmit their sentence if necessary "
+                f"4. Always be sure that students complete formal letter is between 120 to 150 words and opinion essay is 230 to 250 words "
+                "If you are not sure, politely ask the student what type of writing they need help with. "
+                "For a formal letter, give a precise overview: greeting, sophisticated introduction, detailed argument, supporting evidence, closing, with nuanced examples. "
+                "Always make grammar correction or suggest a better phrase when necessary. "
+                "For an informal letter, outline a nuanced and expressive structure: greeting, detailed introduction, main point/reason, personal opinion, nuanced closing. "
+                "For academic or opinion essays, provide a clear outline: introduction (with a strong thesis and background), well-structured arguments, counterpoints, advanced connectors, conclusion, and closing—with C1-level examples. "
+                "After your overview or advice, always use the phrase 'Your next recommended step:' and ask for only one section at a time. "
+                "After each answer, provide feedback, then again prompt with 'Your next recommended step:'. "
+                "Model and suggest advanced connectors ('nicht nur... sondern auch', 'obwohl', 'dennoch', 'folglich', 'somit'). "
+                "If the student is still writing after 10 turns, gently encourage finishing; after 14, end the chat and ask the student to paste their draft in 'Mark My Letter' for feedback and a score."
+            ),
         }
 
         def reset_letter_coach():
@@ -4058,16 +4240,22 @@ if tab == "Schreiben Trainer":
                 return f"""<div style='background: #f4eafd; color: #7b2ff2; border-radius: 16px 16px 16px 3px; margin-bottom: 8px; margin-right: 80px; box-shadow: 0 2px 8px rgba(123,47,242,0.08); padding: 13px 18px; text-align: left; max-width: 88vw; font-size: 1.12rem;'><b>👨‍🏫 Herr Felix:</b><br>{text}</div>"""
             return f"""<div style='background: #eaf4ff; color: #1a237e; border-radius: 16px 16px 3px 16px; margin-bottom: 8px; margin-left: 80px; box-shadow: 0 2px 8px rgba(26,35,126,0.07); padding: 13px 18px; text-align: right; max-width: 88vw; font-size: 1.12rem;'><b>🙋 You:</b><br>{text}</div>"""
 
-        # --- General Instructions for Students ---
+        # --- General Instructions for Students (Minimal Welcome + Subline) ---
         st.markdown(
             """
-            <div style="background: linear-gradient(97deg, #f4eafd 75%, #ffe0f5 100%);
-                border-radius: 12px; border: 1px solid #e6d3fa;
+            <div style="
+                background: linear-gradient(97deg, #f4eafd 75%, #ffe0f5 100%);
+                border-radius: 12px;
+                border: 1px solid #e6d3fa;
                 box-shadow: 0 2px 8px #e5e1fa22;
-                padding: 0.75em 1em 0.72em 1em; margin-bottom: 1.1em; margin-top: 0.1em;
-                color: #4b2976; font-size: 1.03rem;
+                padding: 0.75em 1em 0.72em 1em;
+                margin-bottom: 1.1em;
+                margin-top: 0.1em;
+                color: #4b2976;
+                font-size: 1.03rem;
                 font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
-                text-align: center;">
+                text-align: center;
+                ">
                 <span style="font-size:1.19em; vertical-align:middle;">✉️</span>
                 <span style="font-size:1.05em; font-weight: 500; margin-left:0.24em;">
                     Welcome to <span style="color:#7b2ff2;">Letter Coach</span>
@@ -4080,9 +4268,10 @@ if tab == "Schreiben Trainer":
             unsafe_allow_html=True
         )
 
+        IDEAS_LIMIT = 14
         ideas_so_far = get_letter_coach_usage(student_code)
-        st.markdown(f"**Daily usage:** {ideas_so_far} / {SCHREIBEN_DAILY_LIMIT}")
-        if ideas_so_far >= SCHREIBEN_DAILY_LIMIT:
+        st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
+        if ideas_so_far >= IDEAS_LIMIT:
             st.warning("You have reached today's letter coach limit. Please come back tomorrow.")
 
         # --- Session State Defaults ---
@@ -4126,7 +4315,7 @@ if tab == "Schreiben Trainer":
                     "",
                     value=st.session_state.letter_coach_prompt,
                     height=120,
-                    disabled=(ideas_so_far >= SCHREIBEN_DAILY_LIMIT),
+                    disabled=(ideas_so_far >= IDEAS_LIMIT),
                     placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ..."
                 )
                 send = st.form_submit_button("✉️ Start Letter Coach")
@@ -4143,12 +4332,17 @@ if tab == "Schreiben Trainer":
 
             if send and prompt:
                 st.session_state.letter_coach_prompt = prompt
+
+                # Compose the system prompt for the student's level
                 student_level = st.session_state.get("schreiben_level", "A1")
                 system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=prompt)
+
+                # Start chat history with system and user message
                 chat_history = [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ]
+                # Generate immediate AI reply
                 try:
                     resp = client.chat.completions.create(
                         model="gpt-4o",
@@ -4162,11 +4356,12 @@ if tab == "Schreiben Trainer":
                 chat_history.append({"role": "assistant", "content": ai_reply})
 
                 st.session_state.letter_coach_chat = chat_history
-                st.session_state.letter_coach_stage = 1
+                st.session_state.letter_coach_stage = 1  # Step 1: chat view
                 inc_letter_coach_usage(student_code)
+                # --- SAVE TO FIRESTORE ---
                 save_letter_coach_progress(
                     student_code,
-                    student_level,
+                    st.session_state.get("schreiben_level", "A1"),
                     st.session_state.letter_coach_prompt,
                     st.session_state.letter_coach_chat,
                 )
@@ -4175,9 +4370,6 @@ if tab == "Schreiben Trainer":
             if prompt:
                 st.markdown("---")
                 st.markdown(f"📝 **Letter/Essay Prompt or Draft:**\n\n{prompt}")
-
-        # --- Stage 1: Coaching Chat ---
-        elif st.session_state.letter_coach_stage == 1:
 
         # --- Stage 1: Coaching Chat ---
         elif st.session_state.letter_coach_stage == 1:
@@ -4226,6 +4418,7 @@ if tab == "Schreiben Trainer":
                     ai_reply = resp.choices[0].message.content
                 chat_history.append({"role": "assistant", "content": ai_reply})
                 st.session_state.letter_coach_chat = chat_history
+                # --- SAVE TO FIRESTORE ---
                 save_letter_coach_progress(
                     student_code,
                     st.session_state.get("schreiben_level", "A1"),
@@ -4374,6 +4567,7 @@ if tab == "Schreiben Trainer":
                 st.session_state.letter_coach_type = ""
                 st.session_state.selected_letter_lines = []
                 st.session_state.letter_coach_uploaded = False
+                # --- SAVE RESET TO FIRESTORE ---
                 save_letter_coach_progress(
                     student_code,
                     st.session_state.get("schreiben_level", "A1"),
@@ -4382,8 +4576,4 @@ if tab == "Schreiben Trainer":
                 )
                 st.rerun()
 #
-
-
-
-
 
