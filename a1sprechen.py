@@ -3885,7 +3885,6 @@ if tab == "Schreiben Trainer":
             """, unsafe_allow_html=True
         )
 
-
         # Submission Limit (max 3 per day)
         MARK_LIMIT = 3
 
@@ -4002,14 +4001,17 @@ if tab == "Schreiben Trainer":
                 st.session_state["awaiting_correction"] = True
                 st.session_state["correction_points"] = 0
 
-               # --- Save submission button (show only after feedback) ---
-               score_match = re.search(r"Score[: ]+(\d+)", feedback)
-               score = int(score_match.group(1)) if score_match else 0
-               passed = score >= 17  # adjust pass threshold as needed
-               if st.button("Save This Submission"):
-                   save_submission(student_code, score, passed, datetime.datetime.now())
-                   st.success("Submission saved for your stats! Reload to see updated stats.")
-                   st.rerun()
+                # --- Save submission button (show only after feedback) ---
+                import datetime
+                import re
+                score_match = re.search(r"Score[: ]+(\d+)", feedback)
+                score = int(score_match.group(1)) if score_match else 0
+                passed = score >= 17  # adjust pass threshold as needed
+                if st.button("Save This Submission"):
+                    save_submission(student_code, score, passed, datetime.datetime.now())
+                    st.success("Submission saved for your stats! Reload to see updated stats.")
+                    st.rerun()
+
 
                                                                     
 
