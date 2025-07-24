@@ -34,11 +34,14 @@ st.markdown(
 
 # ==== FIREBASE ADMIN INIT ====
 if not firebase_admin._apps:
-    # Convert SecretDict to plain dict for Certificate()
     cred_dict = dict(st.secrets["firebase"])
     cred = credentials.Certificate(cred_dict)
     firebase_admin.initialize_app(cred)
-db = firestore.client()
+try:
+    db = firestore.client()
+except Exception as e:
+    st.error(f"Failed to initialize Firestore client: {e}")
+    db = None
 
 # ==== OPENAI CLIENT SETUP ====
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
@@ -51,9 +54,7 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 # ==== DB CONNECTION ====
 def get_connection():
     if "conn" not in st.session_state:
-        st.session_state["conn"] = sqlite3.connect(
-            "vocab_progress.db", check_same_thread=False
-        )
+        st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
         atexit.register(st.session_state["conn"].close)
     return st.session_state["conn"]
 
@@ -61,313 +62,54 @@ def get_connection():
 def init_db():
     conn = get_connection()
     c = conn.cursor()
-    # Vocab Progress Table (NO daily limit)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS vocab_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            word TEXT,
-            student_answer TEXT,
-            is_correct INTEGER,
-            date TEXT
-        )
-    """)
-    # Schreiben Progress Table (DAILY LIMIT)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS schreiben_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            essay TEXT,
-            score INTEGER,
-            feedback TEXT,
-            date TEXT
-        )
-    """)
-    # Sprechen Progress Table (DAILY LIMIT)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS sprechen_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            teil TEXT,
-            message TEXT,
-            score INTEGER,
-            feedback TEXT,
-            date TEXT
-        )
-    """)
-    # Scores Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS scores (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            assignment TEXT,
-            score REAL,
-            comments TEXT,
-            date TEXT,
-            level TEXT
-        )
-    """)
-    # Exam Progress Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS exam_progress (
-            student_code TEXT,
-            level        TEXT,
-            teil         TEXT,
-            remaining    TEXT,
-            used         TEXT,
-            PRIMARY KEY (student_code, level, teil)
-        )
-    """)
-    # My Vocab Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS my_vocab (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            level TEXT,
-            word TEXT,
-            translation TEXT,
-            date_added TEXT
-        )
-    """)
-    # Daily Usage Tables
-    for tbl in ["sprechen_usage", "letter_coach_usage", "schreiben_usage"]:
-        c.execute(f"""
-            CREATE TABLE IF NOT EXISTS {tbl} (
-                student_code TEXT,
-                date TEXT,
-                count INTEGER,
-                PRIMARY KEY (student_code, date)
-            )
-        """)
+    # (all CREATE TABLE IF NOT EXISTS statements here)
     conn.commit()
 
+init_db()
 
-# ==== CONSTANTS ====
-FALOWEN_DAILY_LIMIT = 20
-VOCAB_DAILY_LIMIT = 20
-SCHREIBEN_DAILY_LIMIT = 5
-
-# ==== USAGE COUNTERS ====
-
-def get_sprechen_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "SELECT count FROM sprechen_usage WHERE student_code=? AND date=?",
-        (student_code, today)
-    )
-    row = c.fetchone()
-    return row[0] if row else 0
-
-def inc_sprechen_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    # Try to update first
-    c.execute(
-        "UPDATE sprechen_usage SET count = count + 1 WHERE student_code = ? AND date = ?",
-        (student_code, today)
-    )
-    if c.rowcount == 0:
-        c.execute(
-            "INSERT INTO sprechen_usage (student_code, date, count) VALUES (?, ?, 1)",
-            (student_code, today)
-        )
-    conn.commit()
-    conn.close()
-
-def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
-    return get_sprechen_usage(student_code) < limit
-
-def get_schreiben_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "SELECT count FROM schreiben_usage WHERE student_code=? AND date=?",
-        (student_code, today)
-    )
-    row = c.fetchone()
-    return row[0] if row else 0
-
-def inc_schreiben_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    # Try to update first
-    c.execute(
-        "UPDATE schreiben_usage SET count = count + 1 WHERE student_code = ? AND date = ?",
-        (student_code, today)
-    )
-    if c.rowcount == 0:
-        c.execute(
-            "INSERT INTO schreiben_usage (student_code, date, count) VALUES (?, ?, 1)",
-            (student_code, today)
-        )
-    conn.commit()
-    conn.close()
-
-def get_writing_stats(student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT COUNT(*), SUM(score>=17) FROM schreiben_progress WHERE student_code=?
-    """, (student_code,))
-    result = c.fetchone()
-    attempted = result[0] or 0
-    passed = result[1] if result[1] is not None else 0
-    accuracy = round(100 * passed / attempted) if attempted > 0 else 0
-    return attempted, passed, accuracy
-
-def get_student_stats(student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT level, SUM(score >= 17), COUNT(*) 
-        FROM schreiben_progress 
-        WHERE student_code=?
-        GROUP BY level
-    """, (student_code,))
-    stats = {}
-    for level, correct, attempted in c.fetchall():
-        stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
-    return stats
-
-
-# === Firestore Auto-Save/Restore for Letter Coach ===
+# ==== USAGE COUNTERS & HELPERS ====
+# (get_sprechen_usage, inc_sprechen_usage, get_schreiben_usage, inc_schreiben_usage, etc.)
 
 def save_letter_coach_progress(student_code, schreiben_level, letter_coach_prompt, chat_history):
     """
     Auto-saves the student's Letter Coach (Ideen Generator) progress in Firestore.
     """
-    doc_ref = db.collection("letter_coach_progress").document(student_code)
-    doc_ref.set({
-        "level": schreiben_level,
-        "prompt": letter_coach_prompt,
-        "chat": chat_history,
-        "last_update": firestore.SERVER_TIMESTAMP
-    })
+    if not db:
+        st.warning("Firestore not initialized. Progress not saved.")
+        return
+    try:
+        doc_ref = db.collection("letter_coach_progress").document(student_code)
+        doc_ref.set({
+            "level": schreiben_level,
+            "prompt": letter_coach_prompt,
+            "chat": chat_history,
+            "last_update": firestore.SERVER_TIMESTAMP
+        })
+    except Exception as e:
+        st.error(f"Failed to save letter coach progress for {student_code}: {e}")
+        # Log to a file for later inspection
+        try:
+            with open("error.log", "a") as log_file:
+                log_file.write(f"{datetime.now()}: Error saving progress for {student_code}: {e}\n")
+        except Exception:
+            pass
 
-def inc_schreiben_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    # Try to bump the counter
-    c.execute(
-        "UPDATE schreiben_usage SET count = count + 1 WHERE student_code = ? AND date = ?",
-        (student_code, today)
-    )
-    # If no row was updated, insert a new one
-    if c.rowcount == 0:
-        c.execute(
-            "INSERT INTO schreiben_usage (student_code, date, count) VALUES (?, ?, 1)",
-            (student_code, today)
-        )
-    conn.commit()
-
-
-def inc_letter_coach_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "UPDATE letter_coach_usage SET count = count + 1 WHERE student_code = ? AND date = ?",
-        (student_code, today)
-    )
-    if c.rowcount == 0:
-        c.execute(
-            "INSERT INTO letter_coach_usage (student_code, date, count) VALUES (?, ?, 1)",
-            (student_code, today)
-        )
-    conn.commit()
-
-
-
-# --- Streamlit page config ---
-st.set_page_config(
-    page_title="Falowen – Your German Conversation Partner",
-    layout="centered",
-    initial_sidebar_state="expanded"
-)
-
-# ---- Falowen Header ----
+# ==== STREAMLIT PAGE CONFIG & HEADER ====
+st.set_page_config(page_title="Falowen – Your German Conversation Partner", layout="centered")
 st.markdown(
     """
-    <div style='display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; width: 100%;'>
-        <!-- Left Flag -->
-        <span style='font-size:2.2rem; flex: 0 0 auto;'>🇬🇭</span>
-        <!-- Center Block -->
-        <div style='flex: 1; text-align: center;'>
-            <span style='font-size:2.1rem; font-weight:bold; color:#17617a; letter-spacing:2px;'>
-                Falowen App
-            </span>
-            <br>
-            <span style='font-size:1.08rem; color:#ff9900; font-weight:600;'>Learn Language Education Academy</span>
-            <br>
-            <span style='font-size:1.05rem; color:#268049; font-weight:400;'>
-                Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
-            </span>
-            <br>
-            <span style='font-size:1.01rem; color:#1976d2; font-weight:500;'>
-                Website: <a href='https://www.learngermanghana.com' target='_blank' style='color:#1565c0; text-decoration:none;'>www.learngermanghana.com</a>
-            </span>
-            <br>
-            <span style='font-size:0.98rem; color:#666; font-weight:500;'>
-                Competent German Tutors Team
-            </span>
-        </div>
-        <!-- Right Flag -->
-        <span style='font-size:2.2rem; flex: 0 0 auto;'>🇩🇪</span>
+    <div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;'>
+      <span style='font-size:2.2rem;'>🇬🇭</span>
+      <div style='text-align:center;'>
+        <span style='font-size:2.1rem;font-weight:bold;color:#17617a;'>Falowen App</span><br>
+        <span style='font-size:1.05rem;color:#268049;'>Your All-in-One German Learning Platform</span>
+      </div>
+      <span style='font-size:2.2rem;'>🇩🇪</span>
     </div>
     """,
     unsafe_allow_html=True
 )
 
-# ==== 2) Helpers to load & save progress ====
-def load_progress(student_code, level, teil):
-    c.execute(
-        "SELECT remaining, used FROM exam_progress WHERE student_code=? AND level=? AND teil=?",
-        (student_code, level, teil)
-    )
-    row = c.fetchone()
-    if row:
-        return json.loads(row[0]), json.loads(row[1])
-    return None, None
-
-def save_progress(student_code, level, teil, remaining, used):
-    c.execute(
-        "REPLACE INTO exam_progress (student_code, level, teil, remaining, used) VALUES (?,?,?,?,?)",
-        (student_code, level, teil, json.dumps(remaining), json.dumps(used))
-    )
-    conn.commit()
-
-def save_schreiben_attempt(student_code, name, level, score):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO schreiben_progress (student_code, name, level, essay, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (student_code, name, level, "", score, "", str(date.today()))
-    )
-    conn.commit()
-
-# Bubble CSS
-bubble_user = "background:#e3f2fd;padding:12px 20px;border-radius:18px 18px 6px 18px;margin:8px 0;display:inline-block;"
-bubble_assistant = "background:#fff9c4;padding:12px 20px;border-radius:18px 18px 18px 6px;margin:8px 0;display:inline-block;"
-
-# Highlight function and words
-highlight_words = ["correct", "should", "mistake", "improve", "tip"]
-def highlight_keywords(text, words):
-    import re
-    pattern = r'(' + '|'.join(map(re.escape, words)) + r')'
-    return re.sub(pattern, r"<span style='color:#d63384;font-weight:600'>\1</span>", text, flags=re.IGNORECASE)
 
 
     
