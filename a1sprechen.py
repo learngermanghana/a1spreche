@@ -652,7 +652,6 @@ if st.session_state.get("logged_in"):
             rem = WEEKLY_GOAL - assignment_count
             st.info(f"Submit {rem} more assignment{'s' if rem>1 else ''} by Sunday to hit your goal.")
 
-                st.divider()
         # --- Student Information & Balance ---
         st.markdown(f"### 👤 {student_row.get('Name','')}")
         st.markdown(
