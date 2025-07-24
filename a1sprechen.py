@@ -3997,48 +3997,32 @@ if tab == "Schreiben Trainer":
             </div>
         """
         
-        if sub_tab == "Ideas Generator (Letter Coach)":
-            import io
-            from datetime import date
+    if sub_tab == "Ideas Generator (Letter Coach)":
+        import io
 
-            # ---- Firestore: Get daily letter coach usage ----
-            def get_letter_coach_usage(student_code):
-                today = str(date.today())
-                doc_ref = db.collection("letter_coach_usage").document(student_code)
-                doc = doc_ref.get()
-                if doc.exists:
-                    data = doc.to_dict()
-                    if data.get("date") == today:
-                        return data.get("count", 0)
-                return 0
+        # --- Define get_letter_coach_usage HERE if needed inside the block ---
+        def get_letter_coach_usage(student_code):
+            today = str(date.today())
+            conn = get_connection()
+            c = conn.cursor()
+            c.execute(
+                "SELECT count FROM letter_coach_usage WHERE student_code=? AND date=?",
+                (student_code, today)
+            )
+            row = c.fetchone()
+            return row[0] if row else 0
 
-            # ---- Firestore: Increment daily usage ----
-            def inc_letter_coach_usage(student_code):
-                today = str(date.today())
-                doc_ref = db.collection("letter_coach_usage").document(student_code)
-                doc = doc_ref.get()
-                if doc.exists:
-                    data = doc.to_dict()
-                    if data.get("date") == today:
-                        count = data.get("count", 0) + 1
-                        doc_ref.set({"count": count, "date": today})
-                    else:
-                        doc_ref.set({"count": 1, "date": today})
-                else:
-                    doc_ref.set({"count": 1, "date": today})
+        # === NAMESPACED SESSION KEYS (per student) ===
+        ns_prefix = f"{student_code}_letter_coach_"
+        def ns(key): return ns_prefix + key
 
-            # --- NAMESPACED SESSION KEYS (per student) ---
-            ns_prefix = f"{student_code}_letter_coach_"
-            def ns(key): return ns_prefix + key
-
-            # --- Auto-restore progress for this student only
-            if not st.session_state.get(ns("prompt")) and not st.session_state.get(ns("chat")):
-                last_prompt, last_chat = load_letter_coach_progress(student_code)
-                if last_prompt or last_chat:
-                    st.session_state[ns("prompt")] = last_prompt
-                    st.session_state[ns("chat")] = last_chat
-                    st.session_state[ns("stage")] = 1 if last_chat else 0
-
+        # --- Auto-restore progress for this student only
+        if not st.session_state.get(ns("prompt")) and not st.session_state.get(ns("chat")):
+            last_prompt, last_chat = load_letter_coach_progress(student_code)
+            if last_prompt or last_chat:
+                st.session_state[ns("prompt")] = last_prompt
+                st.session_state[ns("chat")] = last_chat
+                st.session_state[ns("stage")] = 1 if last_chat else 0
 
         LETTER_COACH_PROMPTS = {
             "A1": (
@@ -4152,66 +4136,61 @@ if tab == "Schreiben Trainer":
                 st.session_state[k] = 0 if k == "letter_coach_stage" else []
             st.session_state["letter_coach_uploaded"] = False
 
-              # --- Bubble Function ---
-            def bubble(role, text):
-                if role == "assistant":
-                    return f"""<div style='background: #f4eafd; color: #7b2ff2; border-radius: 16px 16px 16px 3px; margin-bottom: 8px; margin-right: 80px; box-shadow: 0 2px 8px rgba(123,47,242,0.08); padding: 13px 18px; text-align: left; max-width: 88vw; font-size: 1.12rem;'><b>👨‍🏫 Herr Felix:</b><br>{text}</div>"""
-                return f"""<div style='background: #eaf4ff; color: #1a237e; border-radius: 16px 16px 3px 16px; margin-bottom: 8px; margin-left: 80px; box-shadow: 0 2px 8px rgba(26,35,126,0.07); padding: 13px 18px; text-align: right; max-width: 88vw; font-size: 1.12rem;'><b>🙋 You:</b><br>{text}</div>"""
+        def bubble(role, text):
+            if role == "assistant":
+                return f"""<div style='background: #f4eafd; color: #7b2ff2; border-radius: 16px 16px 16px 3px; margin-bottom: 8px; margin-right: 80px; box-shadow: 0 2px 8px rgba(123,47,242,0.08); padding: 13px 18px; text-align: left; max-width: 88vw; font-size: 1.12rem;'><b>👨‍🏫 Herr Felix:</b><br>{text}</div>"""
+            return f"""<div style='background: #eaf4ff; color: #1a237e; border-radius: 16px 16px 3px 16px; margin-bottom: 8px; margin-left: 80px; box-shadow: 0 2px 8px rgba(26,35,126,0.07); padding: 13px 18px; text-align: right; max-width: 88vw; font-size: 1.12rem;'><b>🙋 You:</b><br>{text}</div>"""
 
-            # --- General Instructions ---
+        # --- General Instructions for Students (Minimal Welcome + Subline) ---
+        st.markdown(
+            """
+            <div style="
+                background: linear-gradient(97deg, #f4eafd 75%, #ffe0f5 100%);
+                border-radius: 12px;
+                border: 1px solid #e6d3fa;
+                box-shadow: 0 2px 8px #e5e1fa22;
+                padding: 0.75em 1em 0.72em 1em;
+                margin-bottom: 1.1em;
+                margin-top: 0.1em;
+                color: #4b2976;
+                font-size: 1.03rem;
+                font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+                text-align: center;
+                ">
+                <span style="font-size:1.19em; vertical-align:middle;">✉️</span>
+                <span style="font-size:1.05em; font-weight: 500; margin-left:0.24em;">
+                    Welcome to <span style="color:#7b2ff2;">Letter Coach</span>
+                </span>
+                <div style="color:#b48be6; font-size:0.97em; margin-top:0.35em;">
+                    Get started below 👇
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        IDEAS_LIMIT = 14
+        ideas_so_far = get_letter_coach_usage(student_code)
+        st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
+        if ideas_so_far >= IDEAS_LIMIT:
+            st.warning("You have reached today's letter coach limit. Please come back tomorrow.")
+
+        # --- Session State Defaults ---
+        for key, default in [
+            ("letter_coach_stage", 0),
+            ("letter_coach_chat", []),
+            ("letter_coach_prompt", ""),
+            ("letter_coach_type", ""),
+            ("selected_letter_lines", []),
+            ("letter_coach_uploaded", False)
+        ]:
+            if key not in st.session_state:
+                st.session_state[key] = default
+
+        # --- Stage 0: Paste Prompt ---
+        if st.session_state.letter_coach_stage == 0:
             st.markdown(
                 """
-                <div style="
-                    background: linear-gradient(97deg, #f4eafd 75%, #ffe0f5 100%);
-                    border-radius: 12px;
-                    border: 1px solid #e6d3fa;
-                    box-shadow: 0 2px 8px #e5e1fa22;
-                    padding: 0.75em 1em 0.72em 1em;
-                    margin-bottom: 1.1em;
-                    margin-top: 0.1em;
-                    color: #4b2976;
-                    font-size: 1.03rem;
-                    font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
-                    text-align: center;
-                    ">
-                    <span style="font-size:1.19em; vertical-align:middle;">✉️</span>
-                    <span style="font-size:1.05em; font-weight: 500; margin-left:0.24em;">
-                        Welcome to <span style="color:#7b2ff2;">Letter Coach</span>
-                    </span>
-                    <div style="color:#b48be6; font-size:0.97em; margin-top:0.35em;">
-                        Get started below 👇
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-            IDEAS_LIMIT = 14
-            ideas_so_far = get_letter_coach_usage(student_code)
-            st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
-            if ideas_so_far >= IDEAS_LIMIT:
-                st.warning("You have reached today's letter coach limit. Please come back tomorrow.")
-
-            # --- Session State Defaults ---
-            for key, default in [
-                ("letter_coach_stage", 0),
-                ("letter_coach_chat", []),
-                ("letter_coach_prompt", ""),
-                ("letter_coach_type", ""),
-                ("selected_letter_lines", []),
-                ("letter_coach_uploaded", False)
-            ]:
-                if key not in st.session_state:
-                    st.session_state[key] = default
-
-                    # --- Stage 0: Paste Prompt or Use Default Example ---
-        if st.session_state.get("letter_coach_stage", 0) == 0:
-            default_prompt = (
-                "Schreiben Sie eine formelle E-Mail an Ihre Nachbarin und bitten Sie um Hilfe beim Umzug. "
-                "Nennen Sie den Termin, die Uhrzeit und den Treffpunkt."
-            )
-            st.markdown(
-                f"""
                 <div style="
                     background: linear-gradient(90deg, #f9fbe7 70%, #eaf4ff 100%);
                     border-radius: 9px;
@@ -4223,10 +4202,8 @@ if tab == "Schreiben Trainer":
                     color: #4a6276;
                     font-size: 1.05rem;
                     font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
-                ">
-                    <span style="font-size:1.15em; font-weight: 500; vertical-align:middle;">
-                        📝 Enter your exam prompt or letter draft below, or use the example.
-                    </span>
+                    ">
+                    <span style="font-size:1.15em; font-weight: 500; vertical-align:middle;">📝 Enter your exam prompt or letter draft below</span>
                     <div style="color:#668b8b;font-size:0.99em;margin-top:0.22em;">
                         Paste the <b>question</b>, a <b>draft</b>, or any <b>unfinished letter</b>.<br>
                     </div>
@@ -4234,17 +4211,17 @@ if tab == "Schreiben Trainer":
                 """,
                 unsafe_allow_html=True
             )
+            with st.form("prompt_form", clear_on_submit=True):
+                prompt = st.text_area(
+                    "",
+                    value=st.session_state.letter_coach_prompt,
+                    height=120,
+                    disabled=(ideas_so_far >= IDEAS_LIMIT),
+                    placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ..."
+                )
+                send = st.form_submit_button("✉️ Start Letter Coach")
 
-            # Allow typing a custom prompt or use default
-            prompt = st.text_area(
-                "Paste your own prompt or edit the example below:",
-                value=st.session_state.get("letter_coach_prompt", default_prompt),
-                height=120,
-                disabled=(ideas_so_far >= IDEAS_LIMIT),
-                placeholder=default_prompt
-            )
-            col1, col2 = st.columns([2, 1])
-            with col1:
+            if prompt:
                 word_count = len(prompt.split())
                 char_count = len(prompt)
                 st.markdown(
@@ -4253,22 +4230,20 @@ if tab == "Schreiben Trainer":
                     "</div>",
                     unsafe_allow_html=True
                 )
-            with col2:
-                send = st.button("✉️ Start Letter Coach", disabled=(ideas_so_far >= IDEAS_LIMIT))
 
             if send and prompt:
                 st.session_state.letter_coach_prompt = prompt
 
-                # Compose system prompt for selected level
+                # Compose the system prompt for the student's level
                 student_level = st.session_state.get("schreiben_level", "A1")
                 system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=prompt)
 
-                # Start chat history
+                # Start chat history with system and user message
                 chat_history = [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ]
-                # Immediate AI reply
+                # Generate immediate AI reply
                 try:
                     resp = client.chat.completions.create(
                         model="gpt-4o",
@@ -4281,13 +4256,13 @@ if tab == "Schreiben Trainer":
                     ai_reply = "Sorry, there was an error generating a response. Please try again."
                 chat_history.append({"role": "assistant", "content": ai_reply})
 
-                # Save progress, increment usage, and advance stage
                 st.session_state.letter_coach_chat = chat_history
-                st.session_state.letter_coach_stage = 1
+                st.session_state.letter_coach_stage = 1  # Step 1: chat view
                 inc_letter_coach_usage(student_code)
+                # --- SAVE TO FIRESTORE ---
                 save_letter_coach_progress(
                     student_code,
-                    student_level,
+                    st.session_state.get("schreiben_level", "A1"),
                     st.session_state.letter_coach_prompt,
                     st.session_state.letter_coach_chat,
                 )
@@ -4297,209 +4272,211 @@ if tab == "Schreiben Trainer":
                 st.markdown("---")
                 st.markdown(f"📝 **Letter/Essay Prompt or Draft:**\n\n{prompt}")
 
-
-            # --- Stage 1: Coaching Chat ---
-            elif st.session_state.get("letter_coach_stage", 0) == 1:
-                st.markdown("---")
-                st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{st.session_state.letter_coach_prompt}")
-                chat_history = st.session_state.letter_coach_chat
-                for msg in chat_history[1:]:
-                    st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
-                num_student_turns = sum(1 for msg in chat_history[1:] if msg["role"] == "user")
-                if num_student_turns == 10:
-                    st.info("🔔 You have written 10 steps. Most students finish in 7–10 turns. Try to complete your letter soon!")
-                elif num_student_turns == 12:
-                    st.warning(
-                        "⏰ You have reached 12 writing turns. "
-                        "Usually, your letter should be complete by now. "
-                        "If you want feedback, click **END SUMMARY** or download your letter as TXT. "
-                        "You can always start a new session for more practice."
-                    )
-                elif num_student_turns > 12:
-                    st.warning(
-                        f"🚦 You are now at {num_student_turns} turns. "
-                        "Long letters are okay, but usually a good letter is finished in 7–12 turns. "
-                        "Try to wrap up, click **END SUMMARY** or download your letter as TXT."
-                    )
-
-                with st.form("letter_coach_chat_form", clear_on_submit=True):
-                    user_input = st.text_area(
-                        "",
-                        value="",
-                        key="letter_coach_user_input",
-                        height=400,
-                        placeholder="Type your reply, ask about a section, or paste your draft here..."
-                    )
-                    send = st.form_submit_button("Send")
-                if send and user_input.strip():
-                    chat_history.append({"role": "user", "content": user_input})
-                    student_level = st.session_state.get("schreiben_level", "A1")
-                    system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=st.session_state.letter_coach_prompt)
-                    with st.spinner("👨‍🏫 Herr Felix is typing..."):
-                        resp = client.chat.completions.create(
-                            model="gpt-4o",
-                            messages=[{"role": "system", "content": system_prompt}] + chat_history[1:] + [{"role": "user", "content": user_input}],
-                            temperature=0.22,
-                            max_tokens=380
-                        )
-                        ai_reply = resp.choices[0].message.content
-                    chat_history.append({"role": "assistant", "content": ai_reply})
-                    st.session_state.letter_coach_chat = chat_history
-                    save_letter_coach_progress(
-                        student_code,
-                        st.session_state.get("schreiben_level", "A1"),
-                        st.session_state.letter_coach_prompt,
-                        st.session_state.letter_coach_chat,
-                    )
-                    st.rerun()
-
-                # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
-                import streamlit.components.v1 as components
-
-                # Collect student messages from session chat
-                user_msgs = [
-                    msg["content"]
-                    for msg in st.session_state.letter_coach_chat[1:]
-                    if msg.get("role") == "user"
-                ]
-
-                st.markdown("""
-                    **📝 Your Letter Draft**
-                    - Tick the lines you want to include in your letter draft.
-                    - You can untick any part you want to leave out.
-                    - Only ticked lines will appear in your downloadable draft below.
-                """)
-
-                # Store selection in session state (keeps selection per student)
-                if "selected_letter_lines" not in st.session_state or \
-                   len(st.session_state.selected_letter_lines) != len(user_msgs):
-                    st.session_state.selected_letter_lines = [True] * len(user_msgs)
-
-                selected_lines = []
-                for i, line in enumerate(user_msgs):
-                    st.session_state.selected_letter_lines[i] = st.checkbox(
-                        line,
-                        value=st.session_state.selected_letter_lines[i],
-                        key=f"letter_line_{i}"
-                    )
-                    if st.session_state.selected_letter_lines[i]:
-                        selected_lines.append(line)
-
-                letter_draft = "\n".join(selected_lines)
-
-                # --- Live word/character count for the letter draft ---
-                draft_word_count = len(letter_draft.split())
-                draft_char_count = len(letter_draft)
-                st.markdown(
-                    f"<div style='color:#7b2ff2; font-size:0.97em; margin-bottom:0.18em;'>"
-                    f"Words: <b>{draft_word_count}</b> &nbsp;|&nbsp; Characters: <b>{draft_char_count}</b>"
-                    "</div>",
-                    unsafe_allow_html=True
+        # --- Stage 1: Coaching Chat ---
+        elif st.session_state.letter_coach_stage == 1:
+            st.markdown("---")
+            st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{st.session_state.letter_coach_prompt}")
+            chat_history = st.session_state.letter_coach_chat
+            for msg in chat_history[1:]:
+                st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
+            num_student_turns = sum(1 for msg in chat_history[1:] if msg["role"] == "user")
+            if num_student_turns == 10:
+                st.info("🔔 You have written 10 steps. Most students finish in 7–10 turns. Try to complete your letter soon!")
+            elif num_student_turns == 12:
+                st.warning(
+                    "⏰ You have reached 12 writing turns. "
+                    "Usually, your letter should be complete by now. "
+                    "If you want feedback, click **END SUMMARY** or download your letter as TXT. "
+                    "You can always start a new session for more practice."
+                )
+            elif num_student_turns > 12:
+                st.warning(
+                    f"🚦 You are now at {num_student_turns} turns. "
+                    "Long letters are okay, but usually a good letter is finished in 7–12 turns. "
+                    "Try to wrap up, click **END SUMMARY** or download your letter as TXT."
                 )
 
-                # --- Modern, soft header (copy/download) ---
-                st.markdown(
-                    """
-                    <div style="
-                        background:#23272b;
-                        color:#eee;
-                        border-radius:10px;
-                        padding:0.72em 1.04em;
-                        margin-bottom:0.4em;
-                        font-size:1.07em;
-                        font-weight:400;
-                        border:1px solid #343a40;
-                        box-shadow:0 2px 10px #0002;
-                        text-align:left;
+            with st.form("letter_coach_chat_form", clear_on_submit=True):
+                user_input = st.text_area(
+                    "",
+                    value="",
+                    key="letter_coach_user_input",
+                    height=400,
+                    placeholder="Type your reply, ask about a section, or paste your draft here..."
+                )
+                send = st.form_submit_button("Send")
+            if send and user_input.strip():
+                chat_history.append({"role": "user", "content": user_input})
+                student_level = st.session_state.get("schreiben_level", "A1")
+                system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=st.session_state.letter_coach_prompt)
+                with st.spinner("👨‍🏫 Herr Felix is typing..."):
+                    resp = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[{"role": "system", "content": system_prompt}] + chat_history[1:] + [{"role": "user", "content": user_input}],
+                        temperature=0.22,
+                        max_tokens=380
+                    )
+                    ai_reply = resp.choices[0].message.content
+                chat_history.append({"role": "assistant", "content": ai_reply})
+                st.session_state.letter_coach_chat = chat_history
+                # --- SAVE TO FIRESTORE ---
+                save_letter_coach_progress(
+                    student_code,
+                    st.session_state.get("schreiben_level", "A1"),
+                    st.session_state.letter_coach_prompt,
+                    st.session_state.letter_coach_chat,
+                )
+                st.rerun()
+
+            # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
+            import streamlit.components.v1 as components
+
+            # Collect student messages from session chat
+            user_msgs = [
+                msg["content"]
+                for msg in st.session_state.letter_coach_chat[1:]
+                if msg.get("role") == "user"
+            ]
+
+            st.markdown("""
+                **📝 Your Letter Draft**
+                - Tick the lines you want to include in your letter draft.
+                - You can untick any part you want to leave out.
+                - Only ticked lines will appear in your downloadable draft below.
+            """)
+
+            # Store selection in session state (keeps selection per student)
+            if "selected_letter_lines" not in st.session_state or \
+               len(st.session_state.selected_letter_lines) != len(user_msgs):
+                st.session_state.selected_letter_lines = [True] * len(user_msgs)
+
+            selected_lines = []
+            for i, line in enumerate(user_msgs):
+                st.session_state.selected_letter_lines[i] = st.checkbox(
+                    line,
+                    value=st.session_state.selected_letter_lines[i],
+                    key=f"letter_line_{i}"
+                )
+                if st.session_state.selected_letter_lines[i]:
+                    selected_lines.append(line)
+
+            letter_draft = "\n".join(selected_lines)
+
+            # --- Live word/character count for the letter draft ---
+            draft_word_count = len(letter_draft.split())
+            draft_char_count = len(letter_draft)
+            st.markdown(
+                f"<div style='color:#7b2ff2; font-size:0.97em; margin-bottom:0.18em;'>"
+                f"Words: <b>{draft_word_count}</b> &nbsp;|&nbsp; Characters: <b>{draft_char_count}</b>"
+                "</div>",
+                unsafe_allow_html=True
+            )
+
+            # --- Modern, soft header (copy/download) ---
+            st.markdown(
+                """
+                <div style="
+                    background:#23272b;
+                    color:#eee;
+                    border-radius:10px;
+                    padding:0.72em 1.04em;
+                    margin-bottom:0.4em;
+                    font-size:1.07em;
+                    font-weight:400;
+                    border:1px solid #343a40;
+                    box-shadow:0 2px 10px #0002;
+                    text-align:left;
+                ">
+                    <span style="font-size:1.12em; color:#ffe082;">📝 Your Letter So Far</span><br>
+                    <span style="font-size:1.00em; color:#b0b0b0;">copy often or download below to prevent data loss</span>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            # --- Mobile-friendly copy/download box ---
+            components.html(f"""
+                <textarea id="letterBox" readonly rows="6" style="
+                    width: 100%;
+                    border-radius: 12px;
+                    background: #f9fbe7;
+                    border: 1.7px solid #ffe082;
+                    color: #222;
+                    font-size: 1.12em;
+                    font-family: 'Fira Mono', 'Consolas', monospace;
+                    padding: 1em 0.7em;
+                    box-shadow: 0 2px 8px #ffe08266;
+                    margin-bottom: 0.5em;
+                    resize: none;
+                    overflow:auto;
+                " onclick="this.select()">{letter_draft}</textarea>
+                <button onclick="navigator.clipboard.writeText(document.getElementById('letterBox').value)" 
+                    style="
+                        background:#ffc107;
+                        color:#3e2723;
+                        font-size:1.08em;
+                        font-weight:bold;
+                        padding:0.48em 1.12em;
+                        margin-top:0.4em;
+                        border:none;
+                        border-radius:7px;
+                        cursor:pointer;
+                        box-shadow:0 2px 8px #ffe08255;
+                        width:100%;
+                        max-width:320px;
+                        display:block;
+                        margin-left:auto;
+                        margin-right:auto;
                     ">
-                        <span style="font-size:1.12em; color:#ffe082;">📝 Your Letter So Far</span><br>
-                        <span style="font-size:1.00em; color:#b0b0b0;">copy often or download below to prevent data loss</span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-
-                # --- Mobile-friendly copy/download box ---
-                components.html(f"""
-                    <textarea id="letterBox" readonly rows="6" style="
-                        width: 100%;
-                        border-radius: 12px;
-                        background: #f9fbe7;
-                        border: 1.7px solid #ffe082;
-                        color: #222;
-                        font-size: 1.12em;
-                        font-family: 'Fira Mono', 'Consolas', monospace;
-                        padding: 1em 0.7em;
-                        box-shadow: 0 2px 8px #ffe08266;
-                        margin-bottom: 0.5em;
-                        resize: none;
-                        overflow:auto;
-                    " onclick="this.select()">{letter_draft}</textarea>
-                    <button onclick="navigator.clipboard.writeText(document.getElementById('letterBox').value)" 
-                        style="
-                            background:#ffc107;
-                            color:#3e2723;
-                            font-size:1.08em;
-                            font-weight:bold;
-                            padding:0.48em 1.12em;
-                            margin-top:0.4em;
-                            border:none;
-                            border-radius:7px;
-                            cursor:pointer;
-                            box-shadow:0 2px 8px #ffe08255;
-                            width:100%;
-                            max-width:320px;
-                            display:block;
-                            margin-left:auto;
-                            margin-right:auto;
-                        ">
-                        📋 Copy Text
-                    </button>
-                    <style>
-                        @media (max-width: 480px) {{
-                            #letterBox {{
-                                font-size: 1.16em !important;
-                                min-width: 93vw !important;
-                            }}
+                    📋 Copy Text
+                </button>
+                <style>
+                    @media (max-width: 480px) {{
+                        #letterBox {{
+                            font-size: 1.16em !important;
+                            min-width: 93vw !important;
                         }}
-                    </style>
-                """, height=175)
+                    }}
+                </style>
+            """, height=175)
 
-                st.markdown("""
-                    <div style="
-                        background:#ffe082;
-                        padding:0.9em 1.2em;
-                        border-radius:10px;
-                        margin:0.4em 0 1.2em 0;
-                        color:#543c0b;
-                        font-weight:600;
-                        border-left:6px solid #ffc107;
-                        font-size:1.08em;">
-                        📋 <span>On phone, tap in the box above to select all for copy.<br>
-                        Or just tap <b>Copy Text</b>.<br>
-                        To download, use the button below.</span>
-                    </div>
-                """, unsafe_allow_html=True)
+            st.markdown("""
+                <div style="
+                    background:#ffe082;
+                    padding:0.9em 1.2em;
+                    border-radius:10px;
+                    margin:0.4em 0 1.2em 0;
+                    color:#543c0b;
+                    font-weight:600;
+                    border-left:6px solid #ffc107;
+                    font-size:1.08em;">
+                    📋 <span>On phone, tap in the box above to select all for copy.<br>
+                    Or just tap <b>Copy Text</b>.<br>
+                    To download, use the button below.</span>
+                </div>
+            """, unsafe_allow_html=True)
 
-                st.download_button(
-                    "⬇️ Download Letter as TXT",
-                    letter_draft.encode("utf-8"),
-                    file_name="my_letter.txt"
+            st.download_button(
+                "⬇️ Download Letter as TXT",
+                letter_draft.encode("utf-8"),
+                file_name="my_letter.txt"
+            )
+
+            if st.button("Start New Letter Coach"):
+                st.session_state.letter_coach_chat = []
+                st.session_state.letter_coach_prompt = ""
+                st.session_state.letter_coach_type = ""
+                st.session_state.selected_letter_lines = []
+                st.session_state.letter_coach_uploaded = False
+                # --- SAVE RESET TO FIRESTORE ---
+                save_letter_coach_progress(
+                    student_code,
+                    st.session_state.get("schreiben_level", "A1"),
+                    "",
+                    [],
                 )
-
-                if st.button("Start New Letter Coach"):
-                    st.session_state.letter_coach_chat = []
-                    st.session_state.letter_coach_prompt = ""
-                    st.session_state.letter_coach_type = ""
-                    st.session_state.selected_letter_lines = []
-                    st.session_state.letter_coach_uploaded = False
-                    save_letter_coach_progress(
-                        student_code,
-                        st.session_state.get("schreiben_level", "A1"),
-                        "",
-                        [],
-                    )
-                    st.rerun()
+                st.rerun()
+#
 
 
 
