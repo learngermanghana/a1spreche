@@ -548,8 +548,7 @@ if st.button("Log out"):
 @st.cache_data
 def load_student_data():
     SHEET_ID = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
-    SHEET_NAME = "Sheet1"
-    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
+    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
     df = pd.read_csv(csv_url)
     df.columns = df.columns.str.strip().str.replace(" ", "")
     return df
@@ -557,8 +556,15 @@ def load_student_data():
 @st.cache_data
 def load_assignment_scores():
     SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
-    SHEET_NAME = "Sheet1"
-    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
+    df = pd.read_csv(url)
+    df.columns = df.columns.str.strip().str.lower()
+    return df
+
+@st.cache_data
+def load_reviews():
+    SHEET_ID = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
     df = pd.read_csv(url)
     df.columns = df.columns.str.strip().str.lower()
     return df
@@ -567,7 +573,7 @@ def load_assignment_scores():
 def parse_contract_end(date_str):
     if not date_str or str(date_str).lower() in ("nan", "none", ""):
         return None
-    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):  
         try:
             return datetime.strptime(date_str, fmt)
         except ValueError:
@@ -576,8 +582,8 @@ def parse_contract_end(date_str):
 
 # ========== DASHBOARD ==========
 if st.session_state.get("logged_in"):
-    student_code = st.session_state.get("student_code", "").strip().lower()
-    student_name = st.session_state.get("student_name", "")
+    student_code = st.session_state["student_code"].strip().lower()
+    student_name = st.session_state["student_name"]
 
     # Load student info
     df_students = load_student_data()
@@ -585,8 +591,7 @@ if st.session_state.get("logged_in"):
     student_row = matches.iloc[0].to_dict() if not matches.empty else {}
 
     # Greeting
-    display_name = student_row.get('Name') or student_name or "Student"
-    first_name = str(display_name).split()[0].title()
+    first_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
 
     # Contract banner
     MONTHLY_RENEWAL = 1000
@@ -599,7 +604,6 @@ if st.session_state.get("logged_in"):
             st.error(f"⚠️ Your contract has ended! Please renew for ₵{MONTHLY_RENEWAL:,}/month.")
     else:
         st.info("Contract end date unavailable or in wrong format.")
-
     st.info(f"🔄 Renewal Policy: ₵{MONTHLY_RENEWAL:,}/month if you extend early.")
 
     # --- Main Tab Selection ---
@@ -619,14 +623,8 @@ if st.session_state.get("logged_in"):
     if tab == "Dashboard":
         st.markdown(
             '''
-            <div style="
-                padding:8px 12px;
-                background:#343a40;
-                color:#fff;
-                border-radius:6px;
-                text-align:center;
-                margin-bottom:8px;
-                font-size:1.3rem;">
+            <div style="padding:8px 12px; background:#343a40; color:#fff; border-radius:6px;
+                text-align:center; margin-bottom:8px; font-size:1.3rem;">
                 📊 Student Dashboard
             </div>
             ''',
@@ -635,50 +633,43 @@ if st.session_state.get("logged_in"):
         st.success(f"Hello, {first_name}! 👋")
         st.info("Great to see you. Let's keep learning!")
 
-        # --- Assignment gamification only ---
+        # --- Assignment Gamification Only ---
         df_assign = load_assignment_scores()
-        df_assign['date'] = pd.to_datetime(df_assign['date'], format="%Y-%m-%d", errors="coerce").dt.date
+        df_assign['date'] = pd.to_datetime(
+            df_assign['date'], format="%Y-%m-%d", errors="coerce"
+        ).dt.date
         mask_student = df_assign['studentcode'].str.lower().str.strip() == student_code
         today = date.today()
         monday = today - timedelta(days=today.weekday())
-        mask_week = df_assign['date'] >= monday
-        assignment_this_week = df_assign[mask_student & mask_week].shape[0]
+        assignment_count = df_assign[mask_student & (df_assign['date'] >= monday)].shape[0]
         WEEKLY_GOAL = 3
+
         st.markdown("### 📝 Weekly Assignment Goal")
-        st.metric("Submitted", f"{assignment_this_week} / {WEEKLY_GOAL}")
-        if assignment_this_week >= WEEKLY_GOAL:
+        st.metric("Submitted", f"{assignment_count} / {WEEKLY_GOAL}")
+        if assignment_count >= WEEKLY_GOAL:
             st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
         else:
-            remaining = WEEKLY_GOAL - assignment_this_week
-            st.info(f"Submit {remaining} more assignment{'s' if remaining>1 else ''} by Sunday to hit your goal.")
+            rem = WEEKLY_GOAL - assignment_count
+            st.info(f"Submit {rem} more assignment{'s' if rem>1 else ''} by Sunday to hit your goal.")
 
         st.divider()
+        # --- Student Information & Balance ---
         st.markdown(f"### 👤 {student_row.get('Name','')}")
         st.markdown(
-            f"- **Level:** {student_row.get('Level','')}\n"
-            f"- **Code:** `{student_row.get('StudentCode','')}`\n"
-            f"- **Email:** {student_row.get('Email','')}\n"
-            f"- **Phone:** {student_row.get('Phone','')}\n"
-            f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}\n"
-        )
-        try:
-            bal = float(student_row.get("Balance", 0))
-            if bal > 0:
-                st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
-        except:
-            pass
-
-
-        # --- Student Info & Balance ---
-        st.markdown(f"### 👤 {student_row.get('Name','')}")
-        st.markdown(
-            f"- **Level:** {student_row.get('Level','')}\n"
-            f"- **Code:** `{student_row.get('StudentCode','')}`\n"
-            f"- **Email:** {student_row.get('Email','')}\n"
-            f"- **Phone:** {student_row.get('Phone','')}\n"
-            f"- **Location:** {student_row.get('Location','')}\n"
-            f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}\n"
-            f"- **Enroll Date:** {student_row.get('EnrollDate','')}\n"
+            f"- **Level:** {student_row.get('Level','')}
+"
+            f"- **Code:** `{student_row.get('StudentCode','')}`
+"
+            f"- **Email:** {student_row.get('Email','')}
+"
+            f"- **Phone:** {student_row.get('Phone','')}
+"
+            f"- **Location:** {student_row.get('Location','')}
+"
+            f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}
+"
+            f"- **Enroll Date:** {student_row.get('EnrollDate','')}
+"
             f"- **Status:** {student_row.get('Status','')}"
         )
         try:
@@ -687,59 +678,6 @@ if st.session_state.get("logged_in"):
                 st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
         except:
             pass
-
-        # --- Announcements & Ads (auto-rotating, reduced size) ---
-        st.markdown("### 🖼️ Announcements & Ads")
-        ad_images = [
-            "https://i.imgur.com/IjZl191.png",
-            "https://i.imgur.com/2PzOOvn.jpg",
-            "https://i.imgur.com/Q9mpvRY.jpg",
-        ]
-        ad_captions = [
-            "New A2 Classes—Limited Seats!",
-            "New B1 Classes—Limited Seats!",
-            "Join our classes live in person or online!",
-        ]
-        if "ad_idx" not in st.session_state:
-            st.session_state["ad_idx"] = 0
-            st.session_state["ad_last_time"] = time.time()
-
-        ROTATE_AD_SEC = 6
-        now = time.time()
-        if now - st.session_state["ad_last_time"] > ROTATE_AD_SEC:
-            st.session_state["ad_idx"] = (st.session_state["ad_idx"] + 1) % len(ad_images)
-            st.session_state["ad_last_time"] = now
-            st.rerun()
-
-        idx = st.session_state["ad_idx"]
-        st.image(ad_images[idx], caption=ad_captions[idx], width=400)
-
-        # --- Simple Goethe Exam Section ---
-        with st.expander("📅 Goethe Exam Dates & Fees", expanded=True):
-            st.markdown(
-                """
-| Level | Online Registration | Fee (GHS) | Single Module (GHS) |
-|-------|---------------------|-----------|---------------------|
-| A1    | 13.10.2025          | 2,850     | —                   |
-| A2    | 14.10.2025          | 2,400     | —                   |
-| B1    | 15.10.2025          | 2,750     | 880                 |
-| B2    | 16.10.2025          | 2,500     | 840                 |
-| C1    | 17.10.2025          | 2,450     | 700                 |
-
-**How to Pay:**
-- [Register here](https://www.goethe.de/ins/gh/en/spr/prf.html)
-- Pay your exam fee by **bank deposit or Mobile Money transfer to the bank account below**:
-    - **Ecobank Ghana**
-        - Account Name: **GOETHE-INSTITUT GHANA**
-        - Account Number: **1441 001 701 903**
-        - Branch: **Ring Road Central**
-        - SWIFT Code: **ECOCGHAC**
-- **IMPORTANT:** Use your **full name** as payment reference!
-- After payment, send your proof to: registrations-accra@goethe.de
-
-                """,
-                unsafe_allow_html=True
-            )
 
         # --- Reviews Section ---
         st.markdown("### 🗣️ What Our Students Say")
@@ -762,6 +700,7 @@ if st.session_state.get("logged_in"):
                 f"> — **{r.get('student_name','')}**  \n"
                 f"> {stars}"
             )
+
 
 
             
