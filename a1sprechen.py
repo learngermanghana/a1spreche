@@ -573,9 +573,8 @@ if st.button("Log out"):
         st.session_state[k] = False if k == "logged_in" else ""
     st.success("You have been logged out.")
     st.rerun()
-    
-# ======= Data Loading Functions =======
 
+# ======= Data Loading Functions =======
 @st.cache_data
 def load_student_data():
     SHEET_ID = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
@@ -587,7 +586,7 @@ def load_student_data():
 
 @st.cache_data
 def load_reviews():
-    SHEET_ID = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
+    SHEET_ID   = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
     SHEET_NAME = "Sheet1"
     url = (
         f"https://docs.google.com/spreadsheets/d/{SHEET_ID}"
@@ -609,64 +608,95 @@ def load_assignment_scores():
 def parse_contract_end(date_str):
     if not date_str or str(date_str).lower() in ("nan", "none", ""):
         return None
-    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):
+    for fmt in ("%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
         try:
             return datetime.strptime(date_str, fmt)
         except ValueError:
             continue
     return None
 
+def get_assignment_streak(df):
+    if df.empty or 'date' not in df.columns:
+        return 0, None
+    dates = pd.to_datetime(df['date'], errors='coerce').dropna().sort_values()
+    if dates.empty:
+        return 0, None
+    streak = 1
+    max_streak = 1
+    prev = dates.iloc[0]
+    for d in dates.iloc[1:]:
+        if (d - prev).days == 1:
+            streak += 1
+            max_streak = max(max_streak, streak)
+        else:
+            streak = 1
+        prev = d
+    last_date = dates.iloc[-1].strftime('%d %b %Y')
+    return max_streak, last_date
+
 # ======= Dashboard Code =======
 if st.session_state.get("logged_in"):
     student_code = st.session_state.get("student_code", "").strip().lower()
     student_name = st.session_state.get("student_name", "")
 
-    # --- Load student info ---
+    # --- Get student_row first (always before any UI) ---
     df_students = load_student_data()
     matches = df_students[df_students["StudentCode"].str.lower() == student_code]
     student_row = matches.iloc[0].to_dict() if not matches.empty else {}
 
-    # --- Name and greeting ---
     display_name = student_row.get('Name') or student_name or "Student"
-    first_name = str(display_name).split()[0].title()
+    first_name = str(display_name).strip().split()[0].title() if display_name else "Student"
 
-    # --- Contract renewal banner ---
+    # --- Contract End and Renewal Policy (ALWAYS VISIBLE) ---
     MONTHLY_RENEWAL = 1000
-    contract_end = parse_contract_end(student_row.get("ContractEnd", ""))
+    contract_end_str = student_row.get("ContractEnd", "")
+    today = datetime.today()
+    contract_end = parse_contract_end(contract_end_str)
     if contract_end:
-        days_left = (contract_end - datetime.today()).days
+        days_left = (contract_end - today).days
         if 0 < days_left <= 30:
             st.warning(
-                f"⏰ Your contract ends in {days_left} days ({contract_end.strftime('%d %b %Y')}). "
-                f"Renew for ₵{MONTHLY_RENEWAL:,}/month."
+                f"⏰ **Your contract ends in {days_left} days ({contract_end.strftime('%d %b %Y')}).**\n"
+                f"If you need more time, you can renew for **₵{MONTHLY_RENEWAL:,} per month**."
             )
         elif days_left < 0:
             st.error(
-                f"⚠️ Your contract has ended! Please renew for ₵{MONTHLY_RENEWAL:,}/month."
+                f"⚠️ **Your contract has ended!** Please contact the office to renew for **₵{MONTHLY_RENEWAL:,} per month**."
             )
     else:
         st.info("Contract end date unavailable or in wrong format.")
-    st.info(f"🔄 Renewal Policy: ₵{MONTHLY_RENEWAL:,}/month if you extend early.")
+
+    st.info(
+        f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
+        "Do your best to complete your course on time to avoid extra fees!"
+    )
 
     # --- Main Tab Selection ---
     tab = st.radio(
         "How do you want to practice?",
-        ["Dashboard", "Course Book", "My Results and Resources", "Exams Mode & Custom Chat", "Vocab Trainer", "Schreiben Trainer"],
+        [
+            "Dashboard",
+            "Course Book",
+            "My Results and Resources",
+            "Exams Mode & Custom Chat",
+            "Vocab Trainer",
+            "Schreiben Trainer",
+        ],
         key="main_tab_select"
     )
 
     if tab == "Dashboard":
-        # Header
+        # 🏠 Compact Dashboard header
         st.markdown(
             '''
             <div style="
-                padding:8px 12px;
-                background:#343a40;
-                color:#fff;
-                border-radius:6px;
-                text-align:center;
-                margin-bottom:8px;
-                font-size:1.3rem;
+                padding: 8px 12px;
+                background: #343a40;
+                color: #ffffff;
+                border-radius: 6px;
+                text-align: center;
+                margin-bottom: 8px;
+                font-size: 1.3rem;
             ">
                 📊 Student Dashboard
             </div>
@@ -675,36 +705,82 @@ if st.session_state.get("logged_in"):
         )
         st.divider()
 
-        # Greeting
+        # --- Minimal, super-visible greeting for mobile ---
         st.success(f"Hello, {first_name}! 👋")
         st.info("Great to see you. Let's keep learning!")
 
-        # === Weekly Assignment Goal ===
-        df_assign = load_assignment_scores()
-        # parse US-style dates YYYY-MM-DD
-        df_assign['date'] = pd.to_datetime(
-            df_assign['date'],
-            format="%Y-%m-%d",
-            errors="coerce"
-        ).dt.date
+        # ========== STREAKS BLOCK (GAMIFIED & WEEKLY) ========== #
+        # ---- Fetch vocab_stats and schreiben_stats (replace below with your Firestore logic!) ----
+        try:
+            vocab_stats = get_vocab_stats(student_code)
+            if vocab_stats is None:
+                vocab_stats = {"history": []}
+        except Exception:
+            vocab_stats = {"history": []}
+        try:
+            schreiben_stats = get_schreiben_stats(student_code)
+            if schreiben_stats is None:
+                schreiben_stats = {"attempts": []}
+        except Exception:
+            schreiben_stats = {"attempts": []}
 
-        # Filter by student and week
-        mask_student = df_assign['studentcode'].str.lower().str.strip() == student_code
+        df_assign = load_assignment_scores()
+        assignments = df_assign[df_assign['studentcode'].str.lower() == student_code]
+
+        # --- Calculate "this week" data ---
+        from datetime import date, timedelta, datetime
         today = date.today()
         monday = today - timedelta(days=today.weekday())
-        mask_week = df_assign['date'] >= monday
 
-        assignment_this_week = df_assign[mask_student & mask_week].shape[0]
-        WEEKLY_GOAL = 3
+        # Vocab
+        vocab_dates = {
+            datetime.strptime(a["timestamp"], "%Y-%m-%d %H:%M").date()
+            for a in vocab_stats.get("history", [])
+            if a.get("timestamp")
+        }
+        vocab_this_week = sum(1 for d in vocab_dates if d >= monday)
+        vocab_last = max(vocab_dates) if vocab_dates else None
+        vocab_status = "🔥 On fire!" if vocab_this_week >= 3 else "😴 Start practicing"
 
-        st.markdown("### 📝 Weekly Assignment Goal")
-        st.metric("Submitted", f"{assignment_this_week} / {WEEKLY_GOAL}")
-        if assignment_this_week >= WEEKLY_GOAL:
-            st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
-        else:
-            remaining = WEEKLY_GOAL - assignment_this_week
-            st.info(f"Submit {remaining} more assignment{'s' if remaining>1 else ''} by Sunday to hit your goal.")
+        # Schreiben
+        schreiben_dates = {
+            datetime.strptime(a["timestamp"], "%Y-%m-%d %H:%M").date()
+            for a in schreiben_stats.get("attempts", [])
+            if a.get("timestamp")
+        }
+        schreiben_this_week = sum(1 for d in schreiben_dates if d >= monday)
+        schreiben_last = max(schreiben_dates) if schreiben_dates else None
+        schreiben_status = "✍️ You’re writing!" if schreiben_this_week >= 1 else "😴 No writing yet"
 
+        # Assignments
+        assignment_dates = pd.to_datetime(assignments["date"], errors="coerce").dt.date.dropna().unique()
+        assignment_this_week = sum(1 for d in assignment_dates if d >= monday)
+        last_assignment = max(assignment_dates) if len(assignment_dates) else None
+        assignment_status = "📝 Looks good!" if assignment_this_week >= 1 else "😴 No submissions yet"
+
+        # 🎯 Your Practice Streaks This Week
+        st.markdown("### 🎯 Your Practice Streaks This Week")
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.markdown("#### 📚 Vocab")
+            st.metric("Days Practiced", vocab_this_week)
+            st.markdown(f"<span style='font-size:1.3em'>{vocab_status}</span>", unsafe_allow_html=True)
+            st.caption(f"Last: {vocab_last.strftime('%d %b') if vocab_last else 'N/A'}")
+
+        with col2:
+            st.markdown("#### ✍️ Schreiben")
+            st.metric("Days Practiced", schreiben_this_week)
+            st.markdown(f"<span style='font-size:1.3em'>{schreiben_status}</span>", unsafe_allow_html=True)
+            st.caption(f"Last: {schreiben_last.strftime('%d %b') if schreiben_last else 'N/A'}")
+
+        with col3:
+            st.markdown("#### 📝 Assignments")
+            st.metric("Submitted This Week", assignment_this_week)
+            st.markdown(f"<span style='font-size:1.3em'>{assignment_status}</span>", unsafe_allow_html=True)
+            st.caption(f"Last: {last_assignment.strftime('%d %b') if pd.notnull(last_assignment) else 'N/A'}")
+
+        st.info("Practice or submit at least once per week to keep your streak going! 🚀")
         st.divider()
 
         # --- Student Info & Balance ---
@@ -714,7 +790,10 @@ if st.session_state.get("logged_in"):
             f"- **Code:** `{student_row.get('StudentCode','')}`\n"
             f"- **Email:** {student_row.get('Email','')}\n"
             f"- **Phone:** {student_row.get('Phone','')}\n"
+            f"- **Location:** {student_row.get('Location','')}\n"
             f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}\n"
+            f"- **Enroll Date:** {student_row.get('EnrollDate','')}\n"
+            f"- **Status:** {student_row.get('Status','')}"
         )
         try:
             bal = float(student_row.get("Balance", 0))
@@ -723,29 +802,60 @@ if st.session_state.get("logged_in"):
         except:
             pass
 
-        # --- Announcements & Ads ---
+        # --- Announcements & Ads (auto-rotating, reduced size) ---
         st.markdown("### 🖼️ Announcements & Ads")
         ad_images = [
             "https://i.imgur.com/IjZl191.png",
             "https://i.imgur.com/2PzOOvn.jpg",
-            "https://i.imgur.com/Q9mpvRY.jpg"
+            "https://i.imgur.com/Q9mpvRY.jpg",
         ]
         ad_captions = [
             "New A2 Classes—Limited Seats!",
             "New B1 Classes—Limited Seats!",
-            "Join live or online!"
+            "Join our classes live in person or online!",
         ]
         if "ad_idx" not in st.session_state:
             st.session_state["ad_idx"] = 0
             st.session_state["ad_last_time"] = time.time()
-        if time.time() - st.session_state["ad_last_time"] > 6:
+
+        ROTATE_AD_SEC = 6
+        now = time.time()
+        if now - st.session_state["ad_last_time"] > ROTATE_AD_SEC:
             st.session_state["ad_idx"] = (st.session_state["ad_idx"] + 1) % len(ad_images)
-            st.session_state["ad_last_time"] = time.time()
+            st.session_state["ad_last_time"] = now
             st.rerun()
+
         idx = st.session_state["ad_idx"]
         st.image(ad_images[idx], caption=ad_captions[idx], width=400)
 
-        # --- Student Reviews ---
+        # --- Simple Goethe Exam Section ---
+        with st.expander("📅 Goethe Exam Dates & Fees", expanded=True):
+            st.markdown(
+                """
+| Level | Online Registration | Fee (GHS) | Single Module (GHS) |
+|-------|---------------------|-----------|---------------------|
+| A1    | 13.10.2025          | 2,850     | —                   |
+| A2    | 14.10.2025          | 2,400     | —                   |
+| B1    | 15.10.2025          | 2,750     | 880                 |
+| B2    | 16.10.2025          | 2,500     | 840                 |
+| C1    | 17.10.2025          | 2,450     | 700                 |
+
+**How to Pay:**
+- [Register here](https://www.goethe.de/ins/gh/en/spr/prf.html)
+- Pay your exam fee by **bank deposit or Mobile Money transfer to the bank account below**:
+    - **Ecobank Ghana**
+        - Account Name: **GOETHE-INSTITUT GHANA**
+        - Account Number: **1441 001 701 903**
+        - Branch: **Ring Road Central**
+        - SWIFT Code: **ECOCGHAC**
+- **IMPORTANT:** Use your **full name** as payment reference!
+- After payment, send your proof to: registrations-accra@goethe.de
+
+                """,
+                unsafe_allow_html=True
+            )
+
+        # --- Auto-Rotating Student Reviews ---
         st.markdown("### 🗣️ What Our Students Say")
         reviews = load_reviews()
         if reviews.empty:
@@ -755,12 +865,16 @@ if st.session_state.get("logged_in"):
             if "rev_idx" not in st.session_state:
                 st.session_state["rev_idx"] = 0
                 st.session_state["rev_last_time"] = time.time()
-            if time.time() - st.session_state["rev_last_time"] > 8:
+
+            ROTATE_REV_SEC = 8
+            now = time.time()
+            if now - st.session_state["rev_last_time"] > ROTATE_REV_SEC:
                 st.session_state["rev_idx"] = (st.session_state["rev_idx"] + 1) % len(rev_list)
-                st.session_state["rev_last_time"] = time.time()
+                st.session_state["rev_last_time"] = now
                 st.rerun()
+
             r = rev_list[st.session_state["rev_idx"]]
-            stars = "★" * int(r.get("rating", 5)) + "☆" * (5-int(r.get("rating",5)))
+            stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
             st.markdown(
                 f"> {r.get('review_text','')}\n"
                 f"> — **{r.get('student_name','')}**  \n"
