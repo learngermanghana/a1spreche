@@ -241,35 +241,6 @@ def get_student_stats(student_code):
         stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
     return stats
 
-def get_letter_coach_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "SELECT count FROM letter_coach_usage WHERE student_code=? AND date=?",
-        (student_code, today)
-    )
-    row = c.fetchone()
-    return row[0] if row else 0
-
-def inc_letter_coach_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    # Try to update first
-    c.execute(
-        "UPDATE letter_coach_usage SET count = count + 1 WHERE student_code = ? AND date = ?",
-        (student_code, today)
-    )
-    if c.rowcount == 0:
-        c.execute(
-            "INSERT INTO letter_coach_usage (student_code, date, count) VALUES (?, ?, 1)",
-            (student_code, today)
-        )
-    conn.commit()
-    conn.close()
-
-
 
 # === Firestore Auto-Save/Restore for Letter Coach ===
 
@@ -285,20 +256,38 @@ def save_letter_coach_progress(student_code, schreiben_level, letter_coach_promp
         "last_update": firestore.SERVER_TIMESTAMP
     })
 
-def load_letter_coach_progress(student_code):
-    """
-    Loads the student's most recent Letter Coach (Ideen Generator) progress from Firestore.
-    Returns (prompt, chat_history), or ("", []) if nothing saved.
-    """
-    doc_ref = db.collection("letter_coach_progress").document(student_code)
-    doc = doc_ref.get()
-    if doc.exists:
-        data = doc.to_dict()
-        return data.get("prompt", ""), data.get("chat", [])
-    return "", []
+def inc_schreiben_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    # Try to bump the counter
+    c.execute(
+        "UPDATE schreiben_usage SET count = count + 1 WHERE student_code = ? AND date = ?",
+        (student_code, today)
+    )
+    # If no row was updated, insert a new one
+    if c.rowcount == 0:
+        c.execute(
+            "INSERT INTO schreiben_usage (student_code, date, count) VALUES (?, ?, 1)",
+            (student_code, today)
+        )
+    conn.commit()
 
-# -- ALIAS for legacy code (use this so your old code works without errors!) --
-has_falowen_quota = has_sprechen_quota
+
+def inc_letter_coach_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "UPDATE letter_coach_usage SET count = count + 1 WHERE student_code = ? AND date = ?",
+        (student_code, today)
+    )
+    if c.rowcount == 0:
+        c.execute(
+            "INSERT INTO letter_coach_usage (student_code, date, count) VALUES (?, ?, 1)",
+            (student_code, today)
+        )
+    conn.commit()
 
 
 
