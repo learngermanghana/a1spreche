@@ -4675,45 +4675,43 @@ if tab == "My Learning Notes":
         ''',
         unsafe_allow_html=True
     )
-    st.caption("Save important points, ideas, or anything you want to remember!")
 
-    # --- Note Input Section ---
-    with st.form("add_note", clear_on_submit=True):
-        note_title = st.text_input("Title", placeholder="e.g. Important Verb Conjugations")
-        note_body = st.text_area("Note", height=120, placeholder="Write your note here...")
-        submitted = st.form_submit_button("Add Note")
-        if submitted and (note_title.strip() or note_body.strip()):
-            # Use session_state, or save to DB instead here
-            notes = st.session_state.get("learning_notes", [])
-            # Auto-format: capitalize title, trim note
-            formatted = {
-                "title": note_title.strip().capitalize(),
-                "body": note_body.strip(),
-                "timestamp": datetime.now().strftime("%d %b %Y, %H:%M"),
-            }
-            notes.append(formatted)
-            st.session_state["learning_notes"] = notes
-            st.success("Note added!")
+    note_tab = st.tabs(["➕ Add Note", "📚 My Saved Notes"])
 
-    st.divider()
+    with note_tab[0]:
+        st.caption("Save important points, ideas, or anything you want to remember!")
+        with st.form("add_note", clear_on_submit=True):
+            note_title = st.text_input("Title", placeholder="e.g. Important Verb Conjugations")
+            note_body = st.text_area("Note", height=120, placeholder="Write your note here...")
+            submitted = st.form_submit_button("Add Note")
+            if submitted and (note_title.strip() or note_body.strip()):
+                notes = st.session_state.get("learning_notes", [])
+                formatted = {
+                    "title": note_title.strip().capitalize(),
+                    "body": note_body.strip(),
+                    "timestamp": datetime.now().strftime("%d %b %Y, %H:%M"),
+                }
+                notes.append(formatted)
+                st.session_state["learning_notes"] = notes
+                st.success("Note added!")
 
-    # --- Show Notes List ---
-    notes = st.session_state.get("learning_notes", [])
-    if not notes:
-        st.info("No notes saved yet. Start by adding your first note above! 🚀")
-    else:
-        # Show newest first
-        for idx, note in enumerate(reversed(notes)):
-            st.markdown(
-                f"""
-                <div style="background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(60,40,120,0.06);
-                            padding: 14px 18px; margin-bottom: 18px; border-left: 4px solid #fc5c7d;">
-                    <div style="font-size:1.12rem; font-weight:600; color:#fc5c7d;">{note['title']}</div>
-                    <div style="font-size:1rem; margin: 8px 0 4px 0; color:#333;">{note['body']}</div>
-                    <div style="font-size:0.84rem; color:#555; text-align:right;">🕑 {note['timestamp']}</div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+    with note_tab[1]:
+        st.caption("All your notes are saved below in order of entry (newest at top).")
+        notes = st.session_state.get("learning_notes", [])
+        if not notes:
+            st.info("No notes saved yet. Add your first note in the other tab! 🚀")
+        else:
+            for idx, note in enumerate(reversed(notes)):
+                st.markdown(
+                    f"""
+                    <div style="background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(60,40,120,0.06);
+                                padding: 14px 18px; margin-bottom: 18px; border-left: 4px solid #fc5c7d;">
+                        <div style="font-size:1.12rem; font-weight:600; color:#fc5c7d;">{note['title']}</div>
+                        <div style="font-size:1rem; margin: 8px 0 4px 0; color:#333;">{note['body']}</div>
+                        <div style="font-size:0.84rem; color:#555; text-align:right;">🕑 {note['timestamp']}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
 
