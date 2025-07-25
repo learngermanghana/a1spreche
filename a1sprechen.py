@@ -9,6 +9,8 @@ import re
 from datetime import date, datetime, timedelta
 import time
 import io
+import tempfile
+import urllib.parse   # <-- Add here
 
 # ==== Third-Party Packages ====
 import pandas as pd
@@ -20,6 +22,8 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
+from docx import Document  # (optional, for DOCX notes download)
+
 
 # ==== HIDE STREAMLIT FOOTER/MENU ====
 st.markdown(
@@ -2052,11 +2056,7 @@ if "student_row" not in st.session_state:
         "StudentCode": "demo001"
     }
 
-# --------------------------------------
-# Shared imports and context
-from datetime import datetime
-import urllib.parse
-import streamlit as st
+
 
 student_row = st.session_state.get("student_row", {})
 student_level = student_row.get("Level", "A1").upper()
