@@ -4665,6 +4665,16 @@ def save_notes_to_db(student_code, notes):
     ref = db.collection("learning_notes").document(student_code)
     ref.set({"notes": notes}, merge=True)
 
+
+def render_markdown(pdf, text):
+    # Bold
+    text = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", text)
+    # Italic
+    text = re.sub(r"\*(.*?)\*", r"<i>\1</i>", text)
+    # Simple replacement for now, but fpdf2 can parse HTML
+    pdf.write_html(text.replace('\n', '<br>'))  # if using fpdf2
+
+
 # ------------------------------------
 # Main Tab Logic
 if tab == "My Learning Notes":
@@ -4742,6 +4752,110 @@ if tab == "My Learning Notes":
         if not notes:
             st.info("No notes yet. Add your first note in the ➕ tab!")
         else:
+            # --- Download All Notes Buttons (TXT, PDF, DOCX, supports umlauts) ---
+            # Prepare all notes as TXT
+            all_notes = []
+            for n in notes:
+                note_text = f"Title: {n.get('title','')}\n"
+                if n.get('tag'):
+                    note_text += f"Tag: {n['tag']}\n"
+                note_text += n.get('text','') + "\n"
+                note_text += f"Date: {n.get('updated', n.get('created',''))}\n"
+                note_text += "-"*32 + "\n"
+                all_notes.append(note_text)
+            txt_data = "\n".join(all_notes)
+
+            st.download_button(
+                label="⬇️ Download All Notes (TXT)",
+                data=txt_data.encode("utf-8"),
+                file_name=f"{student_code}_notes.txt",
+                mime="text/plain"
+            )
+
+            # --- PDF Download (with German character support) ---
+            class PDF(FPDF):
+                def header(self):
+                    self.set_font('Arial', 'B', 16)
+                    self.cell(0, 12, "My Learning Notes", align="C", ln=1)
+                    self.ln(5)
+            def safe_latin1(text):
+                # Replace unknown chars with ?
+                return text.encode("latin1", "replace").decode("latin1")
+
+            pdf = PDF()
+            pdf.add_page()
+            pdf.set_auto_page_break(auto=True, margin=15)
+            pdf.set_font("Arial", size=12)
+
+            # Table of Contents
+            pdf.set_font("Arial", "B", 13)
+            pdf.cell(0, 10, "Table of Contents", ln=1)
+            pdf.set_font("Arial", "", 11)
+            for idx, note in enumerate(notes):
+                pdf.cell(0, 8, f"{idx+1}. {safe_latin1(note.get('title',''))} - {note.get('created', note.get('updated',''))}", ln=1)
+            pdf.ln(5)
+
+            # Actual Notes
+            for n in notes:
+                pdf.set_font("Arial", "B", 13)
+                pdf.cell(0, 10, safe_latin1(f"Title: {n.get('title','')}"), ln=1)
+                pdf.set_font("Arial", "I", 11)
+                if n.get("tag"):
+                    pdf.cell(0, 8, safe_latin1(f"Tag: {n['tag']}"), ln=1)
+                pdf.set_font("Arial", "", 12)
+                for line in n.get('text','').split("\n"):
+                    pdf.multi_cell(0, 7, safe_latin1(line))
+                pdf.ln(1)
+                pdf.set_font("Arial", "I", 11)
+                pdf.cell(0, 8, safe_latin1(f"Date: {n.get('updated', n.get('created',''))}"), ln=1)
+                pdf.ln(5)
+                pdf.set_font("Arial", "", 10)
+                pdf.cell(0, 4, '-' * 55, ln=1)
+                pdf.ln(8)
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
+                pdf.output(tmp_pdf.name)
+                tmp_pdf.seek(0)
+                pdf_bytes = tmp_pdf.read()
+            os.remove(tmp_pdf.name)
+            st.download_button(
+                label="⬇️ Download All Notes (PDF)",
+                data=pdf_bytes,
+                file_name=f"{student_code}_notes.pdf",
+                mime="application/pdf"
+            )
+
+            # --- DOCX Download (full Unicode) ---
+            def export_notes_to_docx(notes, student_code="student"):
+                doc = Document()
+                doc.add_heading("My Learning Notes", 0)
+                doc.add_heading("Table of Contents", level=1)
+                for idx, note in enumerate(notes):
+                    doc.add_paragraph(f"{idx+1}. {note.get('title', '(No Title)')} - {note.get('created', note.get('updated',''))}")
+                doc.add_page_break()
+                for note in notes:
+                    doc.add_heading(note.get('title','(No Title)'), level=1)
+                    if note.get("tag"):
+                        doc.add_paragraph(f"Tag: {note.get('tag','')}")
+                    doc.add_paragraph(note.get('text', ''))
+                    doc.add_paragraph(f"Date: {note.get('created', note.get('updated',''))}")
+                    doc.add_paragraph('-' * 40)
+                    doc.add_paragraph("")
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as f:
+                    doc.save(f.name)
+                    return f.name
+            docx_path = export_notes_to_docx(notes, student_code)
+            with open(docx_path, "rb") as f:
+                st.download_button(
+                    label="⬇️ Download All Notes (DOCX)",
+                    data=f.read(),
+                    file_name=f"{student_code}_notes.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
+            os.remove(docx_path)
+
+            st.markdown("---")
+
             # --- Show pinned notes first ---
             pinned_notes = [n for n in notes if n.get("pinned")]
             other_notes = [n for n in notes if not n.get("pinned")]
@@ -4749,12 +4863,14 @@ if tab == "My Learning Notes":
 
             for i, note in enumerate(show_list):
                 st.markdown(
-                    f"<div style='padding:8px 0 3px 0; font-weight:600; color:#7c3aed; font-size:1.13rem;'>"
+                    f"<div style='padding:12px 0 6px 0; font-weight:600; color:#7c3aed; font-size:1.18rem;'>"
                     f"{'📌 ' if note.get('pinned') else ''}{note.get('title','(No Title)')}"
                     f"</div>", unsafe_allow_html=True)
                 if note.get("tag"):
-                    st.caption(f"Tag: {note['tag']}")
-                st.markdown(f"<div style='margin-top:-5px; margin-bottom:3px;'>{note['text']}</div>", unsafe_allow_html=True)
+                    st.caption(f"🏷️ Tag: {note['tag']}")
+                st.markdown(
+                    f"<div style='margin-top:-5px; margin-bottom:6px; font-size:1.08rem; line-height:1.7;'>{note['text']}</div>",
+                    unsafe_allow_html=True)
                 st.caption(f"🕒 {note.get('updated',note.get('created',''))}")
 
                 cols = st.columns([1,1,1,1])
@@ -4788,76 +4904,8 @@ if tab == "My Learning Notes":
                 with cols[3]:
                     st.caption("")
 
-    # ---- Download All Notes Buttons (TXT and PDF, supports umlauts) ----
-    if notes:
-        # Prepare all notes as TXT
-        all_notes = []
-        for n in notes:
-            note_text = f"Title: {n.get('title','')}\n"
-            if n.get('tag'):
-                note_text += f"Tag: {n['tag']}\n"
-            note_text += n.get('text','') + "\n"
-            note_text += f"Date: {n.get('updated', n.get('created',''))}\n"
-            note_text += "-"*32 + "\n"
-            all_notes.append(note_text)
-        txt_data = "\n".join(all_notes)
-
-        st.download_button(
-            label="⬇️ Download All Notes (TXT)",
-            data=txt_data.encode("utf-8"),
-            file_name=f"{student_code}_notes.txt",
-            mime="text/plain"
-        )
-
-        # --- PDF Download (with German character support) ---
-        from fpdf import FPDF
-        import tempfile, os
-
-        class PDF(FPDF):
-            def header(self):
-                self.set_font('Arial', 'B', 14)
-                self.cell(0, 8, "My Learning Notes", align="C", ln=1)
-                self.ln(4)
-
-        def safe_latin1(text):
-            # Replace unknown chars with ?
-            return text.encode("latin1", "replace").decode("latin1")
-
-        pdf = PDF()
-        pdf.add_page()
-        pdf.set_auto_page_break(auto=True, margin=15)
-        pdf.set_font("Arial", size=12)
-
-        for n in notes:
-            title = safe_latin1(f"Title: {n.get('title','')}")
-            tag = safe_latin1(f"Tag: {n.get('tag','')}" if n.get('tag') else "")
-            body = safe_latin1(n.get('text',''))
-            date_ = safe_latin1(f"Date: {n.get('updated', n.get('created',''))}")
-            pdf.set_font("Arial", "B", 12)
-            pdf.cell(0, 8, title, ln=1)
-            pdf.set_font("Arial", "", 12)
-            if tag: pdf.cell(0, 7, tag, ln=1)
-            pdf.multi_cell(0, 7, body)
-            pdf.cell(0, 7, date_, ln=1)
-            pdf.cell(0, 6, "-"*48, ln=1)
-            pdf.ln(1)
-
-        # Save PDF to a temp file, then read and serve
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
-            pdf.output(tmp_pdf.name)
-            tmp_pdf.seek(0)
-            pdf_bytes = tmp_pdf.read()
-        os.remove(tmp_pdf.name)
-
-        st.download_button(
-            label="⬇️ Download All Notes (PDF)",
-            data=pdf_bytes,
-            file_name=f"{student_code}_notes.pdf",
-            mime="application/pdf"
-        )
-
-
 # ---------------------- END TAB -------------------------
+
 
 
 
