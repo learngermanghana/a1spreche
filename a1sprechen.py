@@ -4788,6 +4788,75 @@ if tab == "My Learning Notes":
                 with cols[3]:
                     st.caption("")
 
+    # ---- Download All Notes Buttons (TXT and PDF, supports umlauts) ----
+    if notes:
+        # Prepare all notes as TXT
+        all_notes = []
+        for n in notes:
+            note_text = f"Title: {n.get('title','')}\n"
+            if n.get('tag'):
+                note_text += f"Tag: {n['tag']}\n"
+            note_text += n.get('text','') + "\n"
+            note_text += f"Date: {n.get('updated', n.get('created',''))}\n"
+            note_text += "-"*32 + "\n"
+            all_notes.append(note_text)
+        txt_data = "\n".join(all_notes)
+
+        st.download_button(
+            label="⬇️ Download All Notes (TXT)",
+            data=txt_data.encode("utf-8"),
+            file_name=f"{student_code}_notes.txt",
+            mime="text/plain"
+        )
+
+        # --- PDF Download (with German character support) ---
+        from fpdf import FPDF
+        import tempfile, os
+
+        class PDF(FPDF):
+            def header(self):
+                self.set_font('Arial', 'B', 14)
+                self.cell(0, 8, "My Learning Notes", align="C", ln=1)
+                self.ln(4)
+
+        def safe_latin1(text):
+            # Replace unknown chars with ?
+            return text.encode("latin1", "replace").decode("latin1")
+
+        pdf = PDF()
+        pdf.add_page()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.set_font("Arial", size=12)
+
+        for n in notes:
+            title = safe_latin1(f"Title: {n.get('title','')}")
+            tag = safe_latin1(f"Tag: {n.get('tag','')}" if n.get('tag') else "")
+            body = safe_latin1(n.get('text',''))
+            date_ = safe_latin1(f"Date: {n.get('updated', n.get('created',''))}")
+            pdf.set_font("Arial", "B", 12)
+            pdf.cell(0, 8, title, ln=1)
+            pdf.set_font("Arial", "", 12)
+            if tag: pdf.cell(0, 7, tag, ln=1)
+            pdf.multi_cell(0, 7, body)
+            pdf.cell(0, 7, date_, ln=1)
+            pdf.cell(0, 6, "-"*48, ln=1)
+            pdf.ln(1)
+
+        # Save PDF to a temp file, then read and serve
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
+            pdf.output(tmp_pdf.name)
+            tmp_pdf.seek(0)
+            pdf_bytes = tmp_pdf.read()
+        os.remove(tmp_pdf.name)
+
+        st.download_button(
+            label="⬇️ Download All Notes (PDF)",
+            data=pdf_bytes,
+            file_name=f"{student_code}_notes.pdf",
+            mime="application/pdf"
+        )
+
+
 # ---------------------- END TAB -------------------------
 
 
