@@ -4655,63 +4655,140 @@ if tab == "Schreiben Trainer":
                 )
                 st.rerun()
 
+
+def load_notes_from_db(student_code):
+    ref = db.collection("learning_notes").document(student_code)
+    doc = ref.get()
+    return doc.to_dict().get("notes", []) if doc.exists else []
+
+def save_notes_to_db(student_code, notes):
+    ref = db.collection("learning_notes").document(student_code)
+    ref.set({"notes": notes}, merge=True)
+
+# ------------------------------------
+# Main Tab Logic
 if tab == "My Learning Notes":
-    st.markdown(
-        '''
-        <div style="
-            padding: 18px;
-            background: linear-gradient(90deg,#6a82fb 0%,#fc5c7d 100%);
-            color: #fff;
-            border-radius: 10px;
-            text-align: center;
-            margin-bottom: 18px;
-            font-size: 1.7rem;
-            font-weight: 600;
-            letter-spacing: .02em;
-            box-shadow: 0 4px 12px rgba(60,40,120,0.06);
-        ">
-            📝 My Learning Notes
+    st.markdown("""
+        <div style="padding: 14px; background: #8d4de8; color: #fff; border-radius: 8px; 
+        text-align:center; font-size:1.5rem; font-weight:700; margin-bottom:8px; letter-spacing:.5px;">
+        📒 My Learning Notes
         </div>
-        ''',
-        unsafe_allow_html=True
-    )
+    """, unsafe_allow_html=True)
 
-    note_tab = st.tabs(["➕ Add Note", "📚 My Saved Notes"])
+    # Fetch current student code
+    student_code = st.session_state.get("student_code", "demo001")
+    # Cache key for session state
+    key_notes = f"notes_{student_code}"
 
-    with note_tab[0]:
-        st.caption("Save important points, ideas, or anything you want to remember!")
-        with st.form("add_note", clear_on_submit=True):
-            note_title = st.text_input("Title", placeholder="e.g. Important Verb Conjugations")
-            note_body = st.text_area("Note", height=120, placeholder="Write your note here...")
-            submitted = st.form_submit_button("Add Note")
-            if submitted and (note_title.strip() or note_body.strip()):
-                notes = st.session_state.get("learning_notes", [])
-                formatted = {
-                    "title": note_title.strip().capitalize(),
-                    "body": note_body.strip(),
-                    "timestamp": datetime.now().strftime("%d %b %Y, %H:%M"),
-                }
-                notes.append(formatted)
-                st.session_state["learning_notes"] = notes
-                st.success("Note added!")
+    # ---- Load notes from Firestore on first tab entry ---
+    if key_notes not in st.session_state:
+        st.session_state[key_notes] = load_notes_from_db(student_code)
 
-    with note_tab[1]:
-        st.caption("All your notes are saved below in order of entry (newest at top).")
-        notes = st.session_state.get("learning_notes", [])
-        if not notes:
-            st.info("No notes saved yet. Add your first note in the other tab! 🚀")
+    notes = st.session_state[key_notes]
+
+    # --- Sub-tabs: 1) Add/Edit 2) Library ---
+    subtab = st.radio("Notebook", ["➕ Add/Edit Note", "📚 My Notes Library"], horizontal=True)
+
+    ### --- Add/Edit Note Subtab ---
+    if subtab == "➕ Add/Edit Note":
+        st.markdown("#### ✍️ Create a new note or update an old one")
+        # If editing, load values
+        editing = st.session_state.get("edit_note_idx", None) is not None
+        if editing:
+            idx = st.session_state["edit_note_idx"]
+            title = st.session_state.get("edit_note_title", "")
+            tag = st.session_state.get("edit_note_tag", "")
+            text = st.session_state.get("edit_note_text", "")
         else:
-            for idx, note in enumerate(reversed(notes)):
+            title = ""
+            tag = ""
+            text = ""
+        with st.form("note_form", clear_on_submit=not editing):
+            new_title = st.text_input("Note Title", value=title, max_chars=50)
+            new_tag = st.text_input("Category/Tag (optional)", value=tag, max_chars=20)
+            new_text = st.text_area("Your Note", value=text, height=200, max_chars=3000)
+            if st.form_submit_button("💾 Save Note"):
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+                if not new_title.strip():
+                    st.warning("Please enter a title.")
+                    st.stop()
+                note = {
+                    "title": new_title.strip().title(),
+                    "tag": new_tag.strip().title(),
+                    "text": new_text.strip(),
+                    "pinned": False,
+                    "created": timestamp,
+                    "updated": timestamp
+                }
+                if editing:
+                    notes[idx] = note
+                    for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
+                        if k in st.session_state: del st.session_state[k]
+                    st.success("Note updated!")
+                else:
+                    notes.insert(0, note)  # Newest first
+                    st.success("Note added!")
+                st.session_state[key_notes] = notes
+                save_notes_to_db(student_code, notes)
+                st.rerun()
+            if editing and st.form_submit_button("❌ Cancel Edit"):
+                for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
+                    if k in st.session_state: del st.session_state[k]
+                st.rerun()
+
+    ### --- Notes Library Subtab ---
+    elif subtab == "📚 My Notes Library":
+        st.markdown("#### 📚 All My Notes")
+        if not notes:
+            st.info("No notes yet. Add your first note in the ➕ tab!")
+        else:
+            # --- Show pinned notes first ---
+            pinned_notes = [n for n in notes if n.get("pinned")]
+            other_notes = [n for n in notes if not n.get("pinned")]
+            show_list = pinned_notes + other_notes
+
+            for i, note in enumerate(show_list):
                 st.markdown(
-                    f"""
-                    <div style="background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(60,40,120,0.06);
-                                padding: 14px 18px; margin-bottom: 18px; border-left: 4px solid #fc5c7d;">
-                        <div style="font-size:1.12rem; font-weight:600; color:#fc5c7d;">{note['title']}</div>
-                        <div style="font-size:1rem; margin: 8px 0 4px 0; color:#333;">{note['body']}</div>
-                        <div style="font-size:0.84rem; color:#555; text-align:right;">🕑 {note['timestamp']}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+                    f"<div style='padding:8px 0 3px 0; font-weight:600; color:#7c3aed; font-size:1.13rem;'>"
+                    f"{'📌 ' if note.get('pinned') else ''}{note.get('title','(No Title)')}"
+                    f"</div>", unsafe_allow_html=True)
+                if note.get("tag"):
+                    st.caption(f"Tag: {note['tag']}")
+                st.markdown(f"<div style='margin-top:-5px; margin-bottom:3px;'>{note['text']}</div>", unsafe_allow_html=True)
+                st.caption(f"🕒 {note.get('updated',note.get('created',''))}")
+
+                cols = st.columns([1,1,1,1])
+                with cols[0]:
+                    if st.button("✏️ Edit", key=f"edit_{i}"):
+                        st.session_state["edit_note_idx"] = i
+                        st.session_state["edit_note_title"] = note["title"]
+                        st.session_state["edit_note_text"] = note["text"]
+                        st.session_state["edit_note_tag"] = note.get("tag", "")
+                        st.rerun()
+                with cols[1]:
+                    if st.button("🗑️ Delete", key=f"del_{i}"):
+                        notes.pop(i)
+                        st.session_state[key_notes] = notes
+                        save_notes_to_db(student_code, notes)
+                        st.success("Note deleted.")
+                        st.rerun()
+                with cols[2]:
+                    if note.get("pinned"):
+                        if st.button("📌 Unpin", key=f"unpin_{i}"):
+                            note["pinned"] = False
+                            st.session_state[key_notes] = notes
+                            save_notes_to_db(student_code, notes)
+                            st.rerun()
+                    else:
+                        if st.button("📍 Pin", key=f"pin_{i}"):
+                            note["pinned"] = True
+                            st.session_state[key_notes] = notes
+                            save_notes_to_db(student_code, notes)
+                            st.rerun()
+                with cols[3]:
+                    st.caption("")
+
+# ---------------------- END TAB -------------------------
+
 
 
