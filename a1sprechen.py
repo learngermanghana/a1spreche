@@ -696,14 +696,20 @@ if st.button("Log out"):
     
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 
-# -- Caching data loaders --
+# -- Caching wrappers using dynamic lookup of original loader functions --
 @st.cache_data
 def load_student_data_cached():
-    return load_student_data()
+    loader = globals().get('load_student_data')
+    if not callable(loader):
+        raise NameError("load_student_data is not defined")
+    return loader()
 
 @st.cache_data
 def load_assignment_data_cached():
-    df = load_assignment_scores()
+    loader = globals().get('load_assignment_scores')
+    if not callable(loader):
+        raise NameError("load_assignment_scores is not defined")
+    df = loader()
     df['date'] = pd.to_datetime(df['date'], errors='coerce').dt.date
     return df
 
@@ -764,6 +770,7 @@ def show_random_tip():
 # -- Main --
 if st.session_state.get('logged_in'):
     code = st.session_state['student_code'].strip().lower()
+    # Load data
     students = load_student_data_cached()
     student = students[students['StudentCode'].str.lower() == code].iloc[0].to_dict()
 
@@ -774,7 +781,6 @@ if st.session_state.get('logged_in'):
         index=0 if st.session_state.get('tab_mode', 'quick') == 'quick' else 1,
         key='mode_selector'
     )
-    # internal flag
     st.session_state['tab_mode'] = 'quick' if mode.startswith('Quick') else 'full'
 
     # Header in Quick mode
@@ -787,8 +793,11 @@ if st.session_state.get('logged_in'):
         show_random_tip()
         st.divider()
 
-    # Tabs
-    TABS = ["Dashboard", "Course Book", "Results & Resources", "Exams & Chat", "Vocab Trainer", "Schreiben Trainer", "Notes"]
+    # Tabs setup
+    TABS = [
+        "Dashboard", "Course Book", "Results & Resources", 
+        "Exams & Chat", "Vocab Trainer", "Schreiben Trainer", "Notes"
+    ]
     if st.session_state['tab_mode'] == 'quick':
         tab = st.radio("Navigate:", TABS, key='multi_tab')
     else:
@@ -797,7 +806,6 @@ if st.session_state.get('logged_in'):
             "<b>Full-View Mode:</b> Viewing one tab only"
             "</div>", unsafe_allow_html=True
         )
-        # persist selected tab
         current = st.session_state.get('main_tab', TABS[0])
         idx = TABS.index(current) if current in TABS else 0
         new = st.selectbox("Select tab:", TABS, index=idx, key='single_tab')
@@ -807,7 +815,7 @@ if st.session_state.get('logged_in'):
         tab = new
 
     st.divider()
-    # Content
+    # Content for Dashboard tab
     if tab == "Dashboard":
         st.subheader(f"👤 {student.get('Name','')} | Level: {student.get('Level','')}")
         st.markdown(
@@ -815,7 +823,11 @@ if st.session_state.get('logged_in'):
              - Email: {student.get('Email','')}  \
              - Contract: {student.get('ContractStart','')} → {student.get('ContractEnd','')}"
         )
-        EXAM_DATES = {"A1": date(2025,10,13), "A2": date(2025,10,14), "B1": date(2025,10,15), "B2": date(2025,10,16), "C1": date(2025,10,17)}
+        EXAM_DATES = {
+            "A1": date(2025,10,13), "A2": date(2025,10,14),
+            "B1": date(2025,10,15), "B2": date(2025,10,16),
+            "C1": date(2025,10,17)
+        }
         lvl = student.get('Level','').upper()
         exam = EXAM_DATES.get(lvl)
         if exam:
