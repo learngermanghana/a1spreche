@@ -615,22 +615,33 @@ if not st.session_state["logged_in"] and code_from_cookie:
         })
 
 # --- Manual Login Form ---
+
 if not st.session_state["logged_in"]:
     st.title("🔑 Student Login")
+    # See if student code is auto-filled (from cookie)
+    code_from_cookie = cookie_manager.get("student_code") or ""
+    code_from_cookie = str(code_from_cookie).strip().lower()
+    
     login_input = st.text_input("Enter your Student Code or Email:", value=code_from_cookie).strip().lower()
+
+    # Only show password field if not auto-remembered (cookie is empty or user typed something new)
+    show_pw_field = not code_from_cookie or (login_input != code_from_cookie)
+    if show_pw_field:
+        login_password = st.text_input("Password (leave empty)", type="password", help="(Leave empty)")
+    else:
+        login_password = None  # Or a dummy value
+
     if st.button("Login"):
         df_students = load_student_data()
         df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
-        df_students["Email"]       = df_students["Email"].str.lower().str.strip()
+        df_students["Email"] = df_students["Email"].str.lower().str.strip()
 
         found = df_students[
             (df_students["StudentCode"] == login_input) |
-            (df_students["Email"]       == login_input)
+            (df_students["Email"] == login_input)
         ]
         if not found.empty:
             student_row = found.iloc[0]
-            # Debug: show what we're checking
-            st.write("DEBUG: raw ContractEnd for login:", repr(student_row["ContractEnd"]))
             if is_contract_expired(student_row):
                 st.error("Your contract has expired. Please contact the office for renewal.")
                 st.stop()
@@ -647,23 +658,30 @@ if not st.session_state["logged_in"]:
         else:
             st.error("Login failed. Please check your Student Code or Email.")
 
-    # --- Add extra info for students below the login box ---
+    # --- iPhone/iPad cookie/autofill tip ---
+    st.markdown(
+        """
+        <div style='color:#1976d2;font-size:1rem;margin-top:8px;margin-bottom:4px;'>
+            <b>Tip for iPhone/iPad users:</b> To stay logged in, avoid Private mode and do not clear Safari website data. 
+            <br>To save your code for faster login, tap 'Save Password' or use iCloud Keychain suggestions when prompted.
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # --- Data privacy ---
     st.markdown(
         """
         <div style='text-align:center; margin-top:20px; margin-bottom:12px;'>
             <span style='color:#ff9800;font-weight:600;'>
                 🔒 <b>Data Privacy:</b> Your login details and activity are never shared. Only your teacher can see your learning progress.
             </span>
-            <br>
-            <span style='color:#1976d2;'>
-                🆕 <b>Update:</b> New features have been added to help you prepare for your German exam! Practice as often as you want, within your daily quota.
-            </span>
         </div>
         """,
         unsafe_allow_html=True
     )
-
     st.stop()
+
 
 
 # --- Logged In UI ---
@@ -718,102 +736,135 @@ if st.session_state.get("logged_in"):
     student_code = st.session_state["student_code"].strip().lower()
     student_name = st.session_state["student_name"]
 
-    # Load student info
+    # ------ TAB SELECTOR & MODE SWITCHER -------
+    tab_list = [
+        "Dashboard",
+        "Course Book",
+        "My Results and Resources",
+        "Exams Mode & Custom Chat",
+        "Vocab Trainer",
+        "Schreiben Trainer",
+        "My Learning Notes",
+    ]
+
+    tab_modes = ["Quick Switch (Show all tabs)", "Full-View Mode (Current tab only)"]
+    tab_mode = st.selectbox(
+        "Tab View Mode",
+        tab_modes,
+        index=0,
+        key="tab_mode_select"
+    )
+
+    # --------- Load student info always (for all tabs, any mode) ----------
     df_students = load_student_data()
     matches = df_students[df_students["StudentCode"].str.lower() == student_code]
     student_row = matches.iloc[0].to_dict() if not matches.empty else {}
-
-    # Greeting and contract info
     first_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
 
-    # --- Contract End and Renewal Policy (ALWAYS VISIBLE) ---
-    MONTHLY_RENEWAL = 1000
-    contract_end_str = student_row.get("ContractEnd", "")
-    today = datetime.today()
-    contract_end = parse_contract_end(contract_end_str)
-    if contract_end:
-        days_left = (contract_end - today).days
-        if 0 < days_left <= 30:
-            st.warning(
-                f"⏰ **Your contract ends in {days_left} days ({contract_end.strftime('%d %b %Y')}).**\n"
-                f"If you need more time, you can renew for **₵{MONTHLY_RENEWAL:,} per month**."
-            )
-        elif days_left < 0:
-            st.error(
-                f"⚠️ **Your contract has ended!** Please contact the office to renew for **₵{MONTHLY_RENEWAL:,} per month**."
-            )
-    else:
-        st.info("Contract end date unavailable or in wrong format.")
-
-    st.info(
-        f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
-        "Do your best to complete your course on time to avoid extra fees!"
-    )
-
-    # --- Assignment Streak + Weekly Goal (ALWAYS VISIBLE, BEFORE TAB SELECTION) ---
-    df_assign = load_assignment_scores()
-    df_assign['date'] = pd.to_datetime(
-        df_assign['date'], format="%Y-%m-%d", errors="coerce"
-    ).dt.date
-    mask_student = df_assign['studentcode'].str.lower().str.strip() == student_code
-
-    from datetime import timedelta, date
-    dates = sorted(df_assign[mask_student]['date'].dropna().unique(), reverse=True)
-    streak = 1 if dates else 0
-    for i in range(1, len(dates)):
-        if (dates[i-1] - dates[i]).days == 1:
-            streak += 1
+    # ====== SHOW DASHBOARD HEADER/STREAK ONLY IF NOT FULL-VIEW ======
+    if tab_mode != "Full-View Mode (Current tab only)":
+        # --- Contract End and Renewal Policy ---
+        MONTHLY_RENEWAL = 1000
+        contract_end_str = student_row.get("ContractEnd", "")
+        today = datetime.today()
+        contract_end = parse_contract_end(contract_end_str)
+        if contract_end:
+            days_left = (contract_end - today).days
+            if 0 < days_left <= 30:
+                st.warning(
+                    f"⏰ **Your contract ends in {days_left} days ({contract_end.strftime('%d %b %Y')}).**\n"
+                    f"If you need more time, you can renew for **₵{MONTHLY_RENEWAL:,} per month**."
+                )
+            elif days_left < 0:
+                st.error(
+                    f"⚠️ **Your contract has ended!** Please contact the office to renew for **₵{MONTHLY_RENEWAL:,} per month**."
+                )
         else:
-            break
+            st.info("Contract end date unavailable or in wrong format.")
 
-    today = date.today()
-    monday = today - timedelta(days=today.weekday())
-    assignment_count = df_assign[mask_student & (df_assign['date'] >= monday)].shape[0]
-    WEEKLY_GOAL = 3
+        st.info(
+            f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
+            "Do your best to complete your course on time to avoid extra fees!"
+        )
 
-    st.markdown("### 🏅 Assignment Streak & Weekly Goal")
-    col1, col2 = st.columns(2)
-    col1.metric("Streak", f"{streak} days")
-    col2.metric("Submitted", f"{assignment_count} / {WEEKLY_GOAL}")
-    if assignment_count >= WEEKLY_GOAL:
-        st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
+        # --- Assignment Streak + Weekly Goal (ALWAYS VISIBLE, BEFORE TAB SELECTION) ---
+        df_assign = load_assignment_scores()
+        df_assign['date'] = pd.to_datetime(
+            df_assign['date'], format="%Y-%m-%d", errors="coerce"
+        ).dt.date
+        mask_student = df_assign['studentcode'].str.lower().str.strip() == student_code
+
+        from datetime import timedelta, date
+        dates = sorted(df_assign[mask_student]['date'].dropna().unique(), reverse=True)
+        streak = 1 if dates else 0
+        for i in range(1, len(dates)):
+            if (dates[i-1] - dates[i]).days == 1:
+                streak += 1
+            else:
+                break
+
+        today = date.today()
+        monday = today - timedelta(days=today.weekday())
+        assignment_count = df_assign[mask_student & (df_assign['date'] >= monday)].shape[0]
+        WEEKLY_GOAL = 3
+
+        st.markdown("### 🏅 Assignment Streak & Weekly Goal")
+        col1, col2 = st.columns(2)
+        col1.metric("Streak", f"{streak} days")
+        col2.metric("Submitted", f"{assignment_count} / {WEEKLY_GOAL}")
+        if assignment_count >= WEEKLY_GOAL:
+            st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
+        else:
+            rem = WEEKLY_GOAL - assignment_count
+            st.info(f"Submit {rem} more assignment{'s' if rem>1 else ''} by Sunday to hit your goal.")
+
+        st.divider()
+
+        # ---------- Tab Tips Section (only on Dashboard) ----------
+        DASHBOARD_REMINDERS = [
+            "🤔 **Have you tried the Course Book?** Explore every lesson, see your learning progress, and never miss a topic.",
+            "📊 **Have you checked My Results and Resources?** View your quiz results, download your work, and see where you shine.",
+            "📝 **Have you used Exams Mode & Custom Chat?** Practice real exam questions or ask your own. Get instant writing feedback and AI help!",
+            "🗣️ **Have you done some Vocab Trainer this week?** Practicing new words daily is proven to boost your fluency.",
+            "✍️ **Have you used the Schreiben Trainer?** Try building your letters with the Ideas Generator—then self-check before your tutor does!",
+            "📒 **Have you added notes in My Learning Notes?** Organize, pin, and download your best ideas and study tips.",
+        ]
+        import random
+        dashboard_tip = random.choice(DASHBOARD_REMINDERS)
+        st.info(dashboard_tip)  # This line gives the tip as a friendly info box
+
+    # ===== TAB SELECTOR: Always visible =====
+    if tab_mode == "Full-View Mode (Current tab only)":
+        st.markdown(
+            "<div style='margin: 8px 0 12px 0; background: #22223b; color: #fff; padding: 10px 18px; border-radius: 7px;'>"
+            "<b>You're in Full-View Mode.</b> Only this tab is showing.<br>"
+            "Click below to change tab.</div>",
+            unsafe_allow_html=True
+        )
+        cur_tab = st.session_state.get("main_tab_select", tab_list[0])
+        cur_tab_idx = tab_list.index(cur_tab)
+        new_tab_idx = st.selectbox(
+            "Switch tab:",
+            range(len(tab_list)),
+            format_func=lambda i: tab_list[i],
+            index=cur_tab_idx,
+            key="tab_single_select"
+        )
+        tab = tab_list[new_tab_idx]
+        if new_tab_idx != cur_tab_idx:
+            st.session_state["main_tab_select"] = tab
+            st.rerun()
     else:
-        rem = WEEKLY_GOAL - assignment_count
-        st.info(f"Submit {rem} more assignment{'s' if rem>1 else ''} by Sunday to hit your goal.")
+        tab = st.radio(
+            "How do you want to practice?",
+            tab_list,
+            key="main_tab_select"
+        )
 
     st.divider()
 
-    # ---------- Tab Tips Section (only on Dashboard) ----------
-    DASHBOARD_REMINDERS = [
-        "🤔 **Have you tried the Course Book?** Explore every lesson, see your learning progress, and never miss a topic.",
-        "📊 **Have you checked My Results and Resources?** View your quiz results, download your work, and see where you shine.",
-        "📝 **Have you used Exams Mode & Custom Chat?** Practice real exam questions or ask your own. Get instant writing feedback and AI help!",
-        "🗣️ **Have you done some Vocab Trainer this week?** Practicing new words daily is proven to boost your fluency.",
-        "✍️ **Have you used the Schreiben Trainer?** Try building your letters with the Ideas Generator—then self-check before your tutor does!",
-        "📒 **Have you added notes in My Learning Notes?** Organize, pin, and download your best ideas and study tips.",
-    ]
-    import random
-    dashboard_tip = random.choice(DASHBOARD_REMINDERS)
-    st.info(dashboard_tip)  # This line gives the tip as a friendly info box
-
-    # --- Main Tab Selection ---
-    tab = st.radio(
-        "How do you want to practice?",
-        [
-            "Dashboard",
-            "Course Book",
-            "My Results and Resources",
-            "Exams Mode & Custom Chat",
-            "Vocab Trainer",
-            "Schreiben Trainer",
-            "My Learning Notes",
-        ],
-        key="main_tab_select"
-    )
-
-    # ==== SHOW THE BELOW ONLY ON "Dashboard" TAB ====
+    # ===================== TAB CONTENTS =====================
     if tab == "Dashboard":
-        # --- Student Information & Balance ---
         st.markdown(f"### 👤 {student_row.get('Name','')}")
         st.markdown(
             f"- **Level:** {student_row.get('Level','')}\n"
@@ -901,7 +952,6 @@ if st.session_state.get("logged_in"):
                 f"> — **{r.get('student_name','')}**  \n"
                 f"> {stars}"
             )
-
             
 def get_a1_schedule():
     return [
@@ -1195,7 +1245,8 @@ def get_a1_schedule():
             "topic": "Lesen & Hören 12.1 and 12.2",
             "chapter": "12.1_12.2",
             "goal": "Learn about German professions and how to use two-way prepositions",
-            "instruction": "Two Case Preposition",
+            "instruction": "Do assignments for 12.1 and 12.2 and use the schreiben and sprechen below for practicals for full understanding",
+            "grammar_topic": "Two Case Preposition",
             "lesen_hören": [
                 {
                     "chapter": "12.1",
@@ -1240,6 +1291,7 @@ def get_a1_schedule():
             "goal": "Practice how to write both formal and informal letters",
             "assignment": True,
             "instruction": "Write all the two letters in this document and send to your tutor for corrections",
+            "grammar_topic": "Formal and Informal Letter",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/sHRHE1soH6I",
                 "workbook_link": "https://drive.google.com/file/d/1SjaDH1bYR7O-BnIbM2N82XOEjeLCfPFb/view?usp=sharing"
@@ -1297,7 +1349,8 @@ def get_a1_schedule():
             "topic": "Schreiben & Sprechen 8.13",
             "chapter": "8.13",
             "goal": "Learn about conjunctions and how to apply them in your exams",
-            "instruction": "",
+            "instruction": "This chapter has no assignments. It gives you ideas to progress for A2 and how to use conjunctions",
+            "grammar_topic": "German Conjunctions",
             "assignment": False,
             "schreiben_sprechen": {
                 "video": "",
@@ -1354,6 +1407,7 @@ def get_a2_schedule():
             "goal": "Learn to compare things and people.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Positive, Comparative, and Superlative in German",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1Z3sSDCxPQz27TDSpN9r8lQUpHhBVfhYZ/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/18YXe9mxyyKTars1gL5cgFsXrbM25kiN8/view?usp=sharing"
@@ -1366,6 +1420,7 @@ def get_a2_schedule():
             "goal": "Arrange and discuss meeting places.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Nominalization of Verbs",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/14qE_XJr3mTNr6PF5aa0aCqauh9ngYTJ8/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1RaXTZQ9jHaJYwKrP728zevDSQHFKeR0E/view?usp=sharing"
@@ -1378,6 +1433,7 @@ def get_a2_schedule():
             "goal": "Talk about free time activities.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Dative Preposition",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/11yEcMioSB9x1ZD-x5_67ApFzP53iau-N/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1dIsFg7wNaqyyOHm95h7xv4Ssll5Fm0V1/view?usp=sharing"
@@ -1390,6 +1446,7 @@ def get_a2_schedule():
             "goal": "Identify furniture and rooms.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Two Case Preposition",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1clWbDAvLlXpgWx7pKc71Oq3H2p0_GZnV/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1EF87TdHa6Y-qgLFUx8S6GAom9g5EBQNP/view?usp=sharing"
@@ -1402,7 +1459,8 @@ def get_a2_schedule():
             "goal": "Practice searching for an apartment.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
-            "video": "https://youtu.be/ScU6w8VQgNg",
+            "grammar_topic": "Identifying German Nouns and their Gender",
+            "video": "https://youtu.be/ScU6w8VQgNg", 
             "grammarbook_link": "https://drive.google.com/file/d/1clWbDAvLlXpgWx7pKc71Oq3H2p0_GZnV/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1EF87TdHa6Y-qgLFUx8S6GAom9g5EBQNP/view?usp=sharing"
         },
@@ -1414,6 +1472,7 @@ def get_a2_schedule():
             "assignment": True,
             "goal": "Learn about recipes and food. Practice using sequence words like zuerst', 'nachdem', and 'außerdem' to organize your letter.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Zuerst, Nachdem, and Talking About Sequence in German",
             "video": "https://youtu.be/_xQMNp3qcDQ",
             "grammarbook_link": "https://drive.google.com/file/d/16lh8sPl_IDZ3dLwYNvL73PqOFCixidrI/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1c8JJyVlKYI2mz6xLZZ6RkRHLnH3Dtv0c/view?usp=sharing"
@@ -1426,6 +1485,7 @@ def get_a2_schedule():
             "goal": "Discuss vacation plans.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Understanding Präteritum and Perfekt",
             "video": "https://youtu.be/NxoQH-BY9Js",
             "grammarbook_link": "https://drive.google.com/file/d/1kOb7c08Pkxf21OQE_xIGEaif7Xq7k-ty/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1NzRxbGUe306Vq0mq9kKsc3y3HYqkMhuA/view?usp=sharing"
@@ -1438,6 +1498,7 @@ def get_a2_schedule():
             "assignment": True,
             "goal": "Learn about tourism and festivals.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Präteritum",
             "video": "https://youtu.be/XFxV3GSSm8E",
             "grammarbook_link": "https://drive.google.com/file/d/1snFsDYBK8RrPRq2n3PtWvcIctSph-zvN/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1vijZn-ryhT46cTzGmetuF0c4zys0yGlB/view?usp=sharing"
@@ -1450,6 +1511,7 @@ def get_a2_schedule():
             "assignment": True,
             "goal": "Compare means of transportation.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Prepositions in and naxh",
             "video": "https://youtu.be/RkvfRiPCZI4",
             "grammarbook_link": "https://drive.google.com/file/d/19I7oOHX8r4daxXmx38mNMaZO10AXHEFu/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1c7ITea0iVbCaPO0piark9RnqJgZS-DOi/view?usp=sharing"
@@ -1462,6 +1524,7 @@ def get_a2_schedule():
             "assignment": True,
             "goal": "Learn how to talk about a dream job and future goals.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Konjunktiv II",
             "video": "https://youtu.be/w81bsmssGXQ",
             "grammarbook_link": "https://drive.google.com/file/d/1dyGB5q92EePy8q60eWWYA91LXnsWQFb1/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/18u6FnHpd2nAh1Ev_2mVk5aV3GdVC6Add/view?usp=sharing"
@@ -1474,6 +1537,7 @@ def get_a2_schedule():
             "assignment": True,
             "goal": "Prepare for a job interview.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Konjunktive II with modal verbs",
             "video": "https://youtu.be/urKBrX5VAYU",
             "grammarbook_link": "https://drive.google.com/file/d/1tv2tYzn9mIG57hwWr_ilxV1My7kt-RKQ/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1sW2yKZptnYWPhS7ciYdi0hN5HV-ycsF0/view?usp=sharing"
@@ -1486,6 +1550,7 @@ def get_a2_schedule():
             "assignment": True,
             "goal": "Discuss jobs and careers.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Modal Verbs",
             "video": "https://youtu.be/IyBvx-yVT-0",
             "grammarbook_link": "https://drive.google.com/file/d/13mVpVGfhY1NQn-BEb7xYUivnaZbhXJsK/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1rlZoo49bYBRjt7mu3Ydktzgfdq4IyK2q/view?usp=sharing"
@@ -1498,6 +1563,7 @@ def get_a2_schedule():
             "assignment": True,
             "goal": "Talk about your favorite sport.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Reflexive Pronouns",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1dGZjcHhdN1xAdK2APL54RykGH7_msUyr/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1iiExhUj66r5p0SJZfV7PsmCWOyaF360s/view?usp=sharing"
@@ -1510,9 +1576,10 @@ def get_a2_schedule():
             "goal": "Express well-being and relaxation.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Verbs and Adjectives with Prepositions",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1BiAyDazBR3lTplP7D2yjaYmEm2btUT1D/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1G_sRFKG9Qt5nc0Zyfnax-0WXSMmbWB70/view?usp=sharing"
         },
         # DAY 17
         {
@@ -1522,9 +1589,10 @@ def get_a2_schedule():
             "goal": "Learn phrases for the pharmacy.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Notes on German Indefinite Pronouns",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1O040UoSuBdy4llTK7MbGIsib63uNNcrV/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1vsdVR_ubbu5gbXnm70vZS5xGFivjBYoA/view?usp=sharing"
         },
         # DAY 18
         {
@@ -1534,6 +1602,7 @@ def get_a2_schedule():
             "goal": "Practice calling the bank.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Notes on Opening a Bank Account in Germany",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1qNHtY8MYOXjtBxf6wHi6T_P_X1DGFtPm/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1GD7cCPU8ZFykcwsFQZuQMi2fiNrvrCPg/view?usp=sharing"
@@ -1675,23 +1744,25 @@ def get_b1_schedule():
             "day": 1,
             "topic": "Traumwelten (Übung) 1.1",
             "chapter": "1.1",
-            "goal": "Talk about dream worlds and imagination.",
+            "goal": "Sprich über Traumwelten und Vorstellungskraft.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
-            "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "instruction": "Sieh dir das Video an, wiederhole die Grammatik und bearbeite dein Arbeitsheft.",
+            "grammar_topic": "Präsens & Perfekt",
+            "video": "https://youtu.be/wMrdW2DhD5o",
+            "grammarbook_link": "https://drive.google.com/file/d/17dO2pWXKQ3V3kWZIgLHXpLJ-ozKHKxu5/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1gTcOHHGW2bXKkhxAC38jdl6OikgHCT9g/view?usp=sharing"
         },
         # DAY 2
         {
             "day": 2,
             "topic": "Freunde fürs Leben (Übung) 1.2",
             "chapter": "1.2",
-            "goal": "Discuss friendships and important qualities.",
+            "goal": "Sprich über Freundschaften und wichtige Eigenschaften.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Sieh dir das Video an, wiederhole die Grammatik und bearbeite dein Arbeitsheft.",
+            "grammar_topic": "Präteritum (Simple Past) – Erzählen von vergangenen Erlebnissen",
             "video": "",
-            "grammarbook_link": "",
+            "grammarbook_link": "https://drive.google.com/file/d/1St8MpH616FiJmJjTYI9b6hEpNCQd5V0T/view?usp=sharing",
             "workbook_link": ""
         },
         # DAY 3
@@ -2284,13 +2355,11 @@ if tab == "Course Book":
         unsafe_allow_html=True
     )
     if info.get('grammar_topic'):
-        st.markdown(f"**🔤 Grammar:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
+        st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
     if info.get('goal'):
         st.markdown(f"**🎯 Goal:**  {info['goal']}")
     if info.get('instruction'):
         st.markdown(f"**📝 Instruction:**  {info['instruction']}")
-    if info.get('grammar_topic'):
-        st.markdown(f"**📘 Grammar Focus:**  {info['grammar_topic']}")
 
     render_section(info, 'lesen_hören', 'Lesen & Hören', '📚')
     render_section(info, 'schreiben_sprechen', 'Schreiben & Sprechen', '📝')
