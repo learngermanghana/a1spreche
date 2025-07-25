@@ -506,8 +506,16 @@ def highlight_keywords(text, words):
     return re.sub(pattern, r"<span style='color:#d63384;font-weight:600'>\1</span>", text, flags=re.IGNORECASE)
 
 
-    
-GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
+# ==== GOOGLE SHEET LOADING FUNCTIONS ====
+
+@st.cache_data
+def load_student_data():
+    SHEET_ID = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
+    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
+    df = pd.read_csv(csv_url)
+    df.columns = df.columns.str.strip().str.replace(" ", "")
+    return df
+
 
 @st.cache_data
 def load_student_data():
