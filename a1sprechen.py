@@ -702,151 +702,229 @@ if st.button("Log out"):
     st.success("You have been logged out.")
     st.rerun()
     
+import streamlit as st
+import pandas as pd
+from datetime import datetime, date, timedelta
+import time
+import random
+
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 
-# -- Caching wrappers using dynamic lookup of original loader functions --
 @st.cache_data
-def load_student_data_cached():
-    loader = globals().get('load_student_data')
-    if not callable(loader):
-        raise NameError("load_student_data is not defined")
-    return loader()
-
-@st.cache_data
-def load_assignment_data_cached():
-    loader = globals().get('load_assignment_scores')
-    if not callable(loader):
-        raise NameError("load_assignment_scores is not defined")
-    df = loader()
-    df['date'] = pd.to_datetime(df['date'], errors='coerce').dt.date
+def load_student_data():
+    SHEET_ID = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
+    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
+    df = pd.read_csv(csv_url)
+    df.columns = df.columns.str.strip().str.replace(" ", "")
     return df
 
-# -- Helpers --
-def parse_date(s):
-    try:
-        return parser.parse(s).date()
-    except:
+@st.cache_data
+def load_assignment_scores():
+    SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
+    df = pd.read_csv(url)
+    df.columns = df.columns.str.strip().str.lower()
+    return df
+
+@st.cache_data
+def load_reviews():
+    SHEET_ID = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
+    df = pd.read_csv(url)
+    df.columns = df.columns.str.strip().str.lower()
+    return df
+
+# ==== PARSE CONTRACT END ====
+def parse_contract_end(date_str):
+    if not date_str or str(date_str).lower() in ("nan", "none", ""):
         return None
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):  
+        try:
+            return datetime.strptime(date_str, fmt)
+        except ValueError:
+            continue
+    return None
 
-# -- UI Components --
-def show_contract_banner(student):
-    FEE = 1000
-    end = parse_date(student.get('ContractEnd', ''))
-    if end:
-        days = (end - date.today()).days
-        if 0 < days <= 30:
-            st.warning(f"⏰ Contract ends in {days} days ({end:%d %b %Y}). Renew at ₵{FEE:,}/mo.")
-        elif days < 0:
-            st.error(f"⚠️ Contract expired on {end:%d %b %Y}. Renew at ₵{FEE:,}/mo.")
-    else:
-        st.info("Contract end date unavailable.")
+# ============================ MAIN DASHBOARD ============================
 
+if st.session_state.get("logged_in"):
+    student_code = st.session_state["student_code"].strip().lower()
+    student_name = st.session_state["student_name"]
 
-def show_streak_and_goal(df, code):
-    mask = df['studentcode'].str.lower().str.strip() == code
-    dates = sorted(df[mask]['date'].dropna().unique(), reverse=True)
-    streak = 1 if dates else 0
-    for i in range(1, len(dates)):
-        if (dates[i-1] - dates[i]).days == 1:
-            streak += 1
-        else:
-            break
-    week_start = date.today() - timedelta(days=date.today().weekday())
-    submitted = df[mask & (df['date'] >= week_start)].shape[0]
-    GOAL = 3
-    st.markdown('### 🏅 Your Progress')
-    c1, c2 = st.columns(2)
-    c1.metric('Streak', f'{streak} days')
-    c2.metric('This week', f'{submitted}/{GOAL}')
-    if submitted >= GOAL:
-        st.success("🎉 Weekly goal achieved!")
-    else:
-        st.info(f"Submit {GOAL - submitted} more by Sunday.")
-
-
-def show_random_tip():
-    tips = [
-        "📊 Check 'Results & Resources' for detailed feedback.",
-        "📝 Use 'Exams & Chat' to simulate tests.",
-        "🗣️ Practice daily in 'Vocab Trainer'.",
-        "✍️ Hone your letters in 'Schreiben Trainer'.",
-        "📒 Capture insights in 'Notes'.",
+    tab_list = [
+        "Dashboard",
+        "Course Book",
+        "My Results and Resources",
+        "Exams Mode & Custom Chat",
+        "Vocab Trainer",
+        "Schreiben Trainer",
+        "My Learning Notes",
     ]
-    import random
-    st.info(random.choice(tips))
 
-# -- Main --
-if st.session_state.get('logged_in'):
-    code = st.session_state['student_code'].strip().lower()
-    # Load data
-    students = load_student_data_cached()
-    student = students[students['StudentCode'].str.lower() == code].iloc[0].to_dict()
-
-    # Mode selector
-    mode = st.selectbox(
-        "Tab View Mode", 
-        ["Quick Switch: All Tabs", "Full View: Single Tab"],
-        index=0 if st.session_state.get('tab_mode', 'quick') == 'quick' else 1,
-        key='mode_selector'
+    # ============= ROBUST TAB SWITCHER (UNIQUE KEYS & LOGIC) =============
+    tab_modes = ["Quick Switch (Show all tabs)", "Full-View Mode (Current tab only)"]
+    tab_mode = st.selectbox(
+        "Tab View Mode",
+        tab_modes,
+        index=0,
+        key="tab_mode_select"
     )
-    st.session_state['tab_mode'] = 'quick' if mode.startswith('Quick') else 'full'
 
-    # Header in Quick mode
-    if st.session_state['tab_mode'] == 'quick':
-        show_contract_banner(student)
-        st.info("🔄 Renew anytime at ₵1000/month.")
-        assignments = load_assignment_data_cached()
-        show_streak_and_goal(assignments, code)
-        st.divider()
-        show_random_tip()
-        st.divider()
+    # Always load student info (needed for all tabs)
+    df_students = load_student_data()
+    matches = df_students[df_students["StudentCode"].str.lower() == student_code]
+    student_row = matches.iloc[0].to_dict() if not matches.empty else {}
+    first_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
 
-    # Tabs setup
-    TABS = [
-        "Dashboard", "Course Book", "Results & Resources", 
-        "Exams & Chat", "Vocab Trainer", "Schreiben Trainer", "Notes"
-    ]
-    if st.session_state['tab_mode'] == 'quick':
-        tab = st.radio("Navigate:", TABS, key='multi_tab')
-    else:
+    # ---- Full-View Mode ----
+    if tab_mode == "Full-View Mode (Current tab only)":
         st.markdown(
-            "<div style='background:#22223b;color:#fff;padding:8px;border-radius:5px;'>"
-            "<b>Full-View Mode:</b> Viewing one tab only"
-            "</div>", unsafe_allow_html=True
+            "<div style='margin: 8px 0 12px 0; background: #22223b; color: #fff; padding: 10px 18px; border-radius: 7px;'>"
+            "<b>You're in Full-View Mode.</b> Only this tab is showing.<br>"
+            "Click below to change tab.</div>",
+            unsafe_allow_html=True
         )
-        current = st.session_state.get('main_tab', TABS[0])
-        idx = TABS.index(current) if current in TABS else 0
-        new = st.selectbox("Select tab:", TABS, index=idx, key='single_tab')
-        if new != current:
-            st.session_state['main_tab'] = new
+        cur_tab = st.session_state.get("main_tab_select", tab_list[0])
+        # Use a different key!
+        new_tab = st.selectbox(
+            "Switch tab:",
+            tab_list,
+            index=tab_list.index(cur_tab),
+            key="fullview_tab_select"
+        )
+        if new_tab != cur_tab:
+            st.session_state["main_tab_select"] = new_tab
             st.experimental_rerun()
-        tab = new
+    else:
+        # ---- Quick Switch (Show all tabs as radio) ----
+        cur_tab = st.session_state.get("main_tab_select", tab_list[0])
+        # Use a different key!
+        new_tab = st.radio(
+            "How do you want to practice?",
+            tab_list,
+            index=tab_list.index(cur_tab),
+            key="quick_tab_select"
+        )
+        if new_tab != cur_tab:
+            st.session_state["main_tab_select"] = new_tab
+            st.experimental_rerun()
+
+    tab = st.session_state.get("main_tab_select", tab_list[0])
+
+    # ================= HEADER/REMINDER SECTIONS (not in Full-View) =================
+    if tab_mode != "Full-View Mode (Current tab only)":
+        # --- Contract End and Renewal Policy ---
+        MONTHLY_RENEWAL = 1000
+        contract_end_str = student_row.get("ContractEnd", "")
+        today = datetime.today()
+        contract_end = parse_contract_end(contract_end_str)
+        if contract_end:
+            days_left = (contract_end - today).days
+            if 0 < days_left <= 30:
+                st.warning(
+                    f"⏰ **Your contract ends in {days_left} days ({contract_end.strftime('%d %b %Y')}).**\n"
+                    f"If you need more time, you can renew for **₵{MONTHLY_RENEWAL:,} per month**."
+                )
+            elif days_left < 0:
+                st.error(
+                    f"⚠️ **Your contract has ended!** Please contact the office to renew for **₵{MONTHLY_RENEWAL:,} per month**."
+                )
+        else:
+            st.info("Contract end date unavailable or in wrong format.")
+
+        st.info(
+            f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
+            "Do your best to complete your course on time to avoid extra fees!"
+        )
+
+        # --- Assignment Streak + Weekly Goal (ALWAYS VISIBLE, BEFORE TAB SELECTION) ---
+        df_assign = load_assignment_scores()
+        df_assign['date'] = pd.to_datetime(
+            df_assign['date'], format="%Y-%m-%d", errors="coerce"
+        ).dt.date
+        mask_student = df_assign['studentcode'].str.lower().str.strip() == student_code
+
+        dates = sorted(df_assign[mask_student]['date'].dropna().unique(), reverse=True)
+        streak = 1 if dates else 0
+        for i in range(1, len(dates)):
+            if (dates[i-1] - dates[i]).days == 1:
+                streak += 1
+            else:
+                break
+
+        today = date.today()
+        monday = today - timedelta(days=today.weekday())
+        assignment_count = df_assign[mask_student & (df_assign['date'] >= monday)].shape[0]
+        WEEKLY_GOAL = 3
+
+        st.markdown("### 🏅 Assignment Streak & Weekly Goal")
+        col1, col2 = st.columns(2)
+        col1.metric("Streak", f"{streak} days")
+        col2.metric("Submitted", f"{assignment_count} / {WEEKLY_GOAL}")
+        if assignment_count >= WEEKLY_GOAL:
+            st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
+        else:
+            rem = WEEKLY_GOAL - assignment_count
+            st.info(f"Submit {rem} more assignment{'s' if rem>1 else ''} by Sunday to hit your goal.")
+
+        st.divider()
+
+        # ---------- Tab Tips Section (only on Dashboard) ----------
+        DASHBOARD_REMINDERS = [
+            "🤔 **Have you tried the Course Book?** Explore every lesson, see your learning progress, and never miss a topic.",
+            "📊 **Have you checked My Results and Resources?** View your quiz results, download your work, and see where you shine.",
+            "📝 **Have you used Exams Mode & Custom Chat?** Practice real exam questions or ask your own. Get instant writing feedback and AI help!",
+            "🗣️ **Have you done some Vocab Trainer this week?** Practicing new words daily is proven to boost your fluency.",
+            "✍️ **Have you used the Schreiben Trainer?** Try building your letters with the Ideas Generator—then self-check before your tutor does!",
+            "📒 **Have you added notes in My Learning Notes?** Organize, pin, and download your best ideas and study tips.",
+        ]
+        dashboard_tip = random.choice(DASHBOARD_REMINDERS)
+        st.info(dashboard_tip)  # This line gives the tip as a friendly info box
 
     st.divider()
-    # Content for Dashboard tab
+
+    # ===================== TAB CONTENTS =====================
     if tab == "Dashboard":
-        st.subheader(f"👤 {student.get('Name','')} | Level: {student.get('Level','')}")
+        st.markdown(f"### 👤 {student_row.get('Name','')}")
         st.markdown(
-            f"- Code: `{student.get('StudentCode','')}`  \
-             - Email: {student.get('Email','')}  \
-             - Contract: {student.get('ContractStart','')} → {student.get('ContractEnd','')}"
+            f"- **Level:** {student_row.get('Level','')}\n"
+            f"- **Code:** `{student_row.get('StudentCode','')}`\n"
+            f"- **Email:** {student_row.get('Email','')}\n"
+            f"- **Phone:** {student_row.get('Phone','')}\n"
+            f"- **Location:** {student_row.get('Location','')}\n"
+            f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}\n"
+            f"- **Enroll Date:** {student_row.get('EnrollDate','')}\n"
+            f"- **Status:** {student_row.get('Status','')}"
         )
-        EXAM_DATES = {
-            "A1": date(2025,10,13), "A2": date(2025,10,14),
-            "B1": date(2025,10,15), "B2": date(2025,10,16),
-            "C1": date(2025,10,17)
+        try:
+            bal = float(student_row.get("Balance", 0))
+            if bal > 0:
+                st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
+        except:
+            pass
+
+        # --- Upcoming Exam Countdown (by level mapping) ---
+        GOETHE_EXAM_DATES = {
+            "A1": date(2025, 10, 13),
+            "A2": date(2025, 10, 14),
+            "B1": date(2025, 10, 15),
+            "B2": date(2025, 10, 16),
+            "C1": date(2025, 10, 17),
         }
-        lvl = student.get('Level','').upper()
-        exam = EXAM_DATES.get(lvl)
-        if exam:
-            days = (exam - date.today()).days
-            if days > 0:
-                st.info(f"{lvl} exam in {days} days ({exam:%d %b %Y})")
-            elif days == 0:
-                st.success("🚀 Exam is today!")
+        level = (student_row.get("Level", "") or "").upper().replace(" ", "")
+        exam_date = GOETHE_EXAM_DATES.get(level)
+        if exam_date:
+            days_to_exam = (exam_date - date.today()).days
+            st.subheader("⏳ Upcoming Exam Countdown")
+            if days_to_exam > 0:
+                st.info(f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).")
+            elif days_to_exam == 0:
+                st.success("🚀 Exam is today! Good luck!")
             else:
-                st.error(f"Exam was on {exam:%d %b %Y}, {abs(days)} days ago.")
-                
+                st.error(f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.")
+        else:
+            st.warning(f"No exam date configured for level {level}.")
+
         # --- Goethe Exam Dates & Fees ---
         with st.expander("📅 Goethe Exam Dates & Fees", expanded=True):
             st.markdown(
@@ -894,6 +972,11 @@ if st.session_state.get('logged_in'):
                 f"> — **{r.get('student_name','')}**  \n"
                 f"> {stars}"
             )
+
+    # ------------- ADD YOUR OTHER TAB CONTENTS BELOW -------------
+    # Example: if tab == "Course Book": ... etc.
+
+
             
 def get_a1_schedule():
     return [
