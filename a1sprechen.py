@@ -807,7 +807,7 @@ if st.session_state.get("logged_in"):
         )
         if new_tab != cur_tab:
             st.session_state["main_tab_select"] = new_tab
-            st.experimental_rerun()
+            st.rerun()
 
     tab = st.session_state.get("main_tab_select", tab_list[0])
 
