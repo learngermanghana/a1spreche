@@ -783,6 +783,19 @@ if st.session_state.get("logged_in"):
 
     st.divider()
 
+    # ---------- Tab Tips Section (only on Dashboard) ----------
+    DASHBOARD_REMINDERS = [
+        "🤔 **Have you tried the Course Book?** Explore every lesson, see your learning progress, and never miss a topic.",
+        "📊 **Have you checked My Results and Resources?** View your quiz results, download your work, and see where you shine.",
+        "📝 **Have you used Exams Mode & Custom Chat?** Practice real exam questions or ask your own. Get instant writing feedback and AI help!",
+        "🗣️ **Have you done some Vocab Trainer this week?** Practicing new words daily is proven to boost your fluency.",
+        "✍️ **Have you used the Schreiben Trainer?** Try building your letters with the Ideas Generator—then self-check before your tutor does!",
+        "📒 **Have you added notes in My Learning Notes?** Organize, pin, and download your best ideas and study tips.",
+    ]
+    import random
+    dashboard_tip = random.choice(DASHBOARD_REMINDERS)
+    st.info(dashboard_tip)  # This line gives the tip as a friendly info box
+
     # --- Main Tab Selection ---
     tab = st.radio(
         "How do you want to practice?",
