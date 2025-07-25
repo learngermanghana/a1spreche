@@ -719,7 +719,7 @@ if st.session_state.get("logged_in"):
     matches = df_students[df_students["StudentCode"].str.lower() == student_code]
     student_row = matches.iloc[0].to_dict() if not matches.empty else {}
 
-    # Greeting
+    # Greeting and contract info
     first_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
 
     # --- Contract End and Renewal Policy (ALWAYS VISIBLE) ---
@@ -746,6 +746,39 @@ if st.session_state.get("logged_in"):
         "Do your best to complete your course on time to avoid extra fees!"
     )
 
+    # --- Assignment Streak + Weekly Goal (ALWAYS VISIBLE, BEFORE TAB SELECTION) ---
+    df_assign = load_assignment_scores()
+    df_assign['date'] = pd.to_datetime(
+        df_assign['date'], format="%Y-%m-%d", errors="coerce"
+    ).dt.date
+    mask_student = df_assign['studentcode'].str.lower().str.strip() == student_code
+
+    from datetime import timedelta, date
+    dates = sorted(df_assign[mask_student]['date'].dropna().unique(), reverse=True)
+    streak = 1 if dates else 0
+    for i in range(1, len(dates)):
+        if (dates[i-1] - dates[i]).days == 1:
+            streak += 1
+        else:
+            break
+
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())
+    assignment_count = df_assign[mask_student & (df_assign['date'] >= monday)].shape[0]
+    WEEKLY_GOAL = 3
+
+    st.markdown("### 🏅 Assignment Streak & Weekly Goal")
+    col1, col2 = st.columns(2)
+    col1.metric("Streak", f"{streak} days")
+    col2.metric("Submitted", f"{assignment_count} / {WEEKLY_GOAL}")
+    if assignment_count >= WEEKLY_GOAL:
+        st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
+    else:
+        rem = WEEKLY_GOAL - assignment_count
+        st.info(f"Submit {rem} more assignment{'s' if rem>1 else ''} by Sunday to hit your goal.")
+
+    st.divider()
+
     # --- Main Tab Selection ---
     tab = st.radio(
         "How do you want to practice?",
@@ -756,43 +789,33 @@ if st.session_state.get("logged_in"):
             "Exams Mode & Custom Chat",
             "Vocab Trainer",
             "Schreiben Trainer",
+            "My Learning Notes",
         ],
         key="main_tab_select"
     )
 
+    # ==== SHOW THE BELOW ONLY ON "Dashboard" TAB ====
     if tab == "Dashboard":
+        # --- Student Information & Balance ---
+        st.markdown(f"### 👤 {student_row.get('Name','')}")
         st.markdown(
-            '''
-            <div style="padding:8px 12px; background:#343a40; color:#fff; border-radius:6px;
-                text-align:center; margin-bottom:8px; font-size:1.3rem;">
-                📊 Student Dashboard
-            </div>
-            ''',
-            unsafe_allow_html=True
+            f"- **Level:** {student_row.get('Level','')}\n"
+            f"- **Code:** `{student_row.get('StudentCode','')}`\n"
+            f"- **Email:** {student_row.get('Email','')}\n"
+            f"- **Phone:** {student_row.get('Phone','')}\n"
+            f"- **Location:** {student_row.get('Location','')}\n"
+            f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}\n"
+            f"- **Enroll Date:** {student_row.get('EnrollDate','')}\n"
+            f"- **Status:** {student_row.get('Status','')}"
         )
-        st.success(f"Hello, {first_name}! 👋")
-        st.info("Great to see you. Let's keep learning!")
+        try:
+            bal = float(student_row.get("Balance", 0))
+            if bal > 0:
+                st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
+        except:
+            pass
 
-        # --- Assignment Gamification Only ---
-        df_assign = load_assignment_scores()
-        df_assign['date'] = pd.to_datetime(
-            df_assign['date'], format="%Y-%m-%d", errors="coerce"
-        ).dt.date
-        mask_student = df_assign['studentcode'].str.lower().str.strip() == student_code
-        today = date.today()
-        monday = today - timedelta(days=today.weekday())
-        assignment_count = df_assign[mask_student & (df_assign['date'] >= monday)].shape[0]
-        WEEKLY_GOAL = 3
-
-        st.markdown("### 📝 Weekly Assignment Goal")
-        st.metric("Submitted", f"{assignment_count} / {WEEKLY_GOAL}")
-        if assignment_count >= WEEKLY_GOAL:
-            st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
-        else:
-            rem = WEEKLY_GOAL - assignment_count
-            st.info(f"Submit {rem} more assignment{'s' if rem>1 else ''} by Sunday to hit your goal.")
-
-        # Upcoming Exam Countdown (by level mapping)
+        # --- Upcoming Exam Countdown (by level mapping) ---
         GOETHE_EXAM_DATES = {
             "A1": date(2025, 10, 13),
             "A2": date(2025, 10, 14),
@@ -800,7 +823,7 @@ if st.session_state.get("logged_in"):
             "B2": date(2025, 10, 16),
             "C1": date(2025, 10, 17),
         }
-        level = student_row.get("Level", "").upper()
+        level = (student_row.get("Level", "") or "").upper().replace(" ", "")
         exam_date = GOETHE_EXAM_DATES.get(level)
         if exam_date:
             days_to_exam = (exam_date - date.today()).days
@@ -840,47 +863,27 @@ if st.session_state.get("logged_in"):
                 unsafe_allow_html=True
             )
 
-            # --- Student Information & Balance ---
-            st.markdown(f"### 👤 {student_row.get('Name','')}")
+        # --- Reviews Section ---
+        st.markdown("### 🗣️ What Our Students Say")
+        reviews = load_reviews()
+        if reviews.empty:
+            st.info("No reviews yet. Be the first to share your experience!")
+        else:
+            rev_list = reviews.to_dict("records")
+            if "rev_idx" not in st.session_state:
+                st.session_state["rev_idx"] = 0
+                st.session_state["rev_last_time"] = time.time()
+            if time.time() - st.session_state["rev_last_time"] > 8:
+                st.session_state["rev_idx"] = (st.session_state["rev_idx"] + 1) % len(rev_list)
+                st.session_state["rev_last_time"] = time.time()
+                st.rerun()
+            r = rev_list[st.session_state["rev_idx"]]
+            stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
             st.markdown(
-                f"- **Level:** {student_row.get('Level','')}\n"
-                f"- **Code:** `{student_row.get('StudentCode','')}`\n"
-                f"- **Email:** {student_row.get('Email','')}\n"
-                f"- **Phone:** {student_row.get('Phone','')}\n"
-                f"- **Location:** {student_row.get('Location','')}\n"
-                f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}\n"
-                f"- **Enroll Date:** {student_row.get('EnrollDate','')}\n"
-                f"- **Status:** {student_row.get('Status','')}"
+                f"> {r.get('review_text','')}\n"
+                f"> — **{r.get('student_name','')}**  \n"
+                f"> {stars}"
             )
-            try:
-                bal = float(student_row.get("Balance", 0))
-                if bal > 0:
-                    st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
-            except:
-                pass
-
-            # --- Reviews Section ---
-            st.markdown("### 🗣️ What Our Students Say")
-            reviews = load_reviews()
-            if reviews.empty:
-                st.info("No reviews yet. Be the first to share your experience!")
-            else:
-                rev_list = reviews.to_dict("records")
-                if "rev_idx" not in st.session_state:
-                    st.session_state["rev_idx"] = 0
-                    st.session_state["rev_last_time"] = time.time()
-                if time.time() - st.session_state["rev_last_time"] > 8:
-                    st.session_state["rev_idx"] = (st.session_state["rev_idx"] + 1) % len(rev_list)
-                    st.session_state["rev_last_time"] = time.time()
-                    st.rerun()
-                r = rev_list[st.session_state["rev_idx"]]
-                stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
-                st.markdown(
-                    f"> {r.get('review_text','')}\n"
-                    f"> — **{r.get('student_name','')}**  \n"
-                    f"> {stars}"
-                )
-
 
             
 def get_a1_schedule():
@@ -2203,7 +2206,6 @@ if tab == "Course Book":
             st.stop()
         labels = []
         for _, d in matches:
-            # Highlight all visible fields in results!
             title = highlight_terms(f"Day {d['day']}: {d['topic']}", search_terms)
             grammar = highlight_terms(d.get('grammar_topic', ''), search_terms)
             labels.append(f"{title}  {'<span style=\"color:#007bff\">['+grammar+']</span>' if grammar else ''}")
@@ -2216,6 +2218,53 @@ if tab == "Course Book":
             format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
         )
 
+    # ===== Progress Bar (just for scrolling/selection) =====
+    total_assignments = len(schedule)
+    assignments_done = idx + 1
+    percent = int((assignments_done / total_assignments) * 100) if total_assignments else 0
+    st.progress(percent)
+    st.markdown(f"**You’ve loaded {assignments_done} / {total_assignments} lessons ({percent}%)**")
+
+    # ===== Estimated time for just this lesson =====
+    LEVEL_TIME = {
+        "A1": 15,
+        "A2": 25,
+        "B1": 30,
+        "B2": 40,
+        "C1": 45
+    }
+    current_time = LEVEL_TIME.get(student_level, 20)
+    st.info(f"⏱️ **Recommended:** Invest about {current_time} minutes to complete this lesson fully.")
+
+    # ====== SUGGESTED END DATE CALCULATION (THREE PACES) ======
+    contract_start_str = student_row.get('ContractStart', '')
+    contract_start_date = None
+    for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d/%m/%Y"):
+        try:
+            contract_start_date = datetime.strptime(contract_start_str, fmt).date()
+            break
+        except Exception:
+            continue
+
+    if contract_start_date:
+        # 3 per week
+        weeks_3 = (total_assignments + 2) // 3
+        end_3 = contract_start_date + timedelta(weeks=weeks_3)
+        # 2 per week
+        weeks_2 = (total_assignments + 1) // 2
+        end_2 = contract_start_date + timedelta(weeks=weeks_2)
+        # 1 per week
+        weeks_1 = total_assignments
+        end_1 = contract_start_date + timedelta(weeks=weeks_1)
+
+        st.success(f"🎯 **At 3 lessons/week, you can finish by:** {end_3.strftime('%A, %d %b %Y')}")
+        st.info(f"🟢 **At 2 lessons/week, you can finish by:** {end_2.strftime('%A, %d %b %Y')}")
+        st.warning(f"🟡 **At 1 lesson/week, you can finish by:** {end_1.strftime('%A, %d %b %Y')}")
+        st.caption("Stay consistent – choose your pace and finish on time.")
+    else:
+        st.warning("❓ Start date missing or wrong format. Please contact admin to update your contract start date for end date suggestion.")
+
+
     info = schedule[idx]
     st.markdown(
         f"### {highlight_terms('Day ' + str(info['day']) + ': ' + info['topic'], search_terms)} (Chapter {info['chapter']})",
@@ -2223,7 +2272,6 @@ if tab == "Course Book":
     )
     if info.get('grammar_topic'):
         st.markdown(f"**🔤 Grammar:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
-
     if info.get('goal'):
         st.markdown(f"**🎯 Goal:**  {info['goal']}")
     if info.get('instruction'):
@@ -2272,8 +2320,6 @@ if tab == "Course Book":
         """
     )
 
-def sanitize_pdf_text(text):
-    return text.encode("latin1", errors="replace").decode("latin1")
 
 if tab == "My Results and Resources":
     # 📊 Compact Results & Resources header
@@ -3893,14 +3939,13 @@ if tab == "Schreiben Trainer":
         # --- Writing Stats Block (INSERTED HERE) ---
         def get_schreiben_stats_all(student_code):
             """
-            Load all submission stats for this student. 
+            Load all submission stats for this student.
             You should adapt this to your DB logic (Firestore, SQLite, etc.).
             Returns: list of dicts with 'score', 'passed', 'date' fields.
             """
             doc_ref = db.collection("schreiben_submissions").document(student_code)
             doc = doc_ref.get()
             data = doc.to_dict() if doc.exists else {}
-            # Example: data["submissions"] = [{ "score": 19, "date": "...", "passed": True }, ... ]
             return data.get("submissions", [])
         
         def save_submission(student_code, score, passed, date):
@@ -3925,14 +3970,23 @@ if tab == "Schreiben Trainer":
         avg_score = round(sum(sub.get("score", 0) for sub in submissions) / total, 2) if total else 0
         pass_rate = round((num_passed / total) * 100, 1) if total else 0
 
+        # --- MOBILE & DARK MODE FRIENDLY STATS BOX ---
         st.markdown(
             f"""
-            <div style="background:#e3ffe9;padding:10px;border-radius:8px;margin-bottom:10px;">
-            <b>📈 Your Writing Stats:</b><br>
-            Total Letters: <b>{total}</b><br>
-            Passes: <b>{num_passed}</b> <br>
-            Pass Rate: <b>{pass_rate}%</b> <br>
-            Avg Score: <b>{avg_score}/25</b>
+            <div style="
+                background: linear-gradient(90deg,#222 80%,#3c474d 100%);
+                color: #eaffea;
+                padding: 18px 13px 12px 13px;
+                border-radius: 13px;
+                margin-bottom: 16px;
+                font-size: 1.07em;
+                border: 1.5px solid #1abc9c33;
+                box-shadow: 0 2px 8px #0003;">
+                <span style="font-weight:bold;font-size:1.18em;color:#ffeb3b;">✅ Your Writing Stats</span><br>
+                <b>Total Letters:</b> <span style="color:#fff;">{total}</span><br>
+                <b>Passes:</b> <span style="color:#96ffa3;">{num_passed}</span> <br>
+                <b>Pass Rate:</b> <span style="color:#fff;">{pass_rate}%</span> <br>
+                <b>Avg Score:</b> <span style="color:#ffe3e3;">{avg_score}/25</span>
             </div>
             """, unsafe_allow_html=True
         )
@@ -4099,6 +4153,7 @@ if tab == "Schreiben Trainer":
                 ai_prompt3 = (
                     f"As Herr Felix, write a model-correct version of the student's letter at level {schreiben_level}. "
                     "ONLY show one correct example of their letter, using simple, direct German for their level."
+                    "Always talk as the tutor"
                 )
                 with st.spinner("🧑‍🏫 Herr Felix is preparing a model answer..."):
                     completion3 = client.chat.completions.create(
@@ -4600,5 +4655,65 @@ if tab == "Schreiben Trainer":
                 )
                 st.rerun()
 
+if tab == "My Learning Notes":
+    st.markdown(
+        '''
+        <div style="
+            padding: 18px;
+            background: linear-gradient(90deg,#6a82fb 0%,#fc5c7d 100%);
+            color: #fff;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 18px;
+            font-size: 1.7rem;
+            font-weight: 600;
+            letter-spacing: .02em;
+            box-shadow: 0 4px 12px rgba(60,40,120,0.06);
+        ">
+            📝 My Learning Notes
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
+    st.caption("Save important points, ideas, or anything you want to remember!")
+
+    # --- Note Input Section ---
+    with st.form("add_note", clear_on_submit=True):
+        note_title = st.text_input("Title", placeholder="e.g. Important Verb Conjugations")
+        note_body = st.text_area("Note", height=120, placeholder="Write your note here...")
+        submitted = st.form_submit_button("Add Note")
+        if submitted and (note_title.strip() or note_body.strip()):
+            # Use session_state, or save to DB instead here
+            notes = st.session_state.get("learning_notes", [])
+            # Auto-format: capitalize title, trim note
+            formatted = {
+                "title": note_title.strip().capitalize(),
+                "body": note_body.strip(),
+                "timestamp": datetime.now().strftime("%d %b %Y, %H:%M"),
+            }
+            notes.append(formatted)
+            st.session_state["learning_notes"] = notes
+            st.success("Note added!")
+
+    st.divider()
+
+    # --- Show Notes List ---
+    notes = st.session_state.get("learning_notes", [])
+    if not notes:
+        st.info("No notes saved yet. Start by adding your first note above! 🚀")
+    else:
+        # Show newest first
+        for idx, note in enumerate(reversed(notes)):
+            st.markdown(
+                f"""
+                <div style="background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(60,40,120,0.06);
+                            padding: 14px 18px; margin-bottom: 18px; border-left: 4px solid #fc5c7d;">
+                    <div style="font-size:1.12rem; font-weight:600; color:#fc5c7d;">{note['title']}</div>
+                    <div style="font-size:1rem; margin: 8px 0 4px 0; color:#333;">{note['body']}</div>
+                    <div style="font-size:0.84rem; color:#555; text-align:right;">🕑 {note['timestamp']}</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
 
