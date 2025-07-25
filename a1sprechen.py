@@ -4665,35 +4665,22 @@ def save_notes_to_db(student_code, notes):
     ref = db.collection("learning_notes").document(student_code)
     ref.set({"notes": notes}, merge=True)
 
-
-def render_markdown(pdf, text):
-    # Bold
-    text = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", text)
-    # Italic
-    text = re.sub(r"\*(.*?)\*", r"<i>\1</i>", text)
-    # Simple replacement for now, but fpdf2 can parse HTML
-    pdf.write_html(text.replace('\n', '<br>'))  # if using fpdf2
-
-
 # ------------------------------------
 # Main Tab Logic
 if tab == "My Learning Notes":
     st.markdown("""
         <div style="padding: 14px; background: #8d4de8; color: #fff; border-radius: 8px; 
-        text-align:center; font-size:1.5rem; font-weight:700; margin-bottom:8px; letter-spacing:.5px;">
+        text-align:center; font-size:1.5rem; font-weight:700; margin-bottom:16px; letter-spacing:.5px;">
         📒 My Learning Notes
         </div>
     """, unsafe_allow_html=True)
 
-    # Fetch current student code
     student_code = st.session_state.get("student_code", "demo001")
-    # Cache key for session state
     key_notes = f"notes_{student_code}"
 
     # ---- Load notes from Firestore on first tab entry ---
     if key_notes not in st.session_state:
         st.session_state[key_notes] = load_notes_from_db(student_code)
-
     notes = st.session_state[key_notes]
 
     # --- Sub-tabs: 1) Add/Edit 2) Library ---
@@ -4702,7 +4689,6 @@ if tab == "My Learning Notes":
     ### --- Add/Edit Note Subtab ---
     if subtab == "➕ Add/Edit Note":
         st.markdown("#### ✍️ Create a new note or update an old one")
-        # If editing, load values
         editing = st.session_state.get("edit_note_idx", None) is not None
         if editing:
             idx = st.session_state["edit_note_idx"]
@@ -4710,9 +4696,7 @@ if tab == "My Learning Notes":
             tag = st.session_state.get("edit_note_tag", "")
             text = st.session_state.get("edit_note_text", "")
         else:
-            title = ""
-            tag = ""
-            text = ""
+            title, tag, text = "", "", ""
         with st.form("note_form", clear_on_submit=not editing):
             new_title = st.text_input("Note Title", value=title, max_chars=50)
             new_tag = st.text_input("Category/Tag (optional)", value=tag, max_chars=20)
@@ -4749,13 +4733,30 @@ if tab == "My Learning Notes":
     ### --- Notes Library Subtab ---
     elif subtab == "📚 My Notes Library":
         st.markdown("#### 📚 All My Notes")
+
         if not notes:
             st.info("No notes yet. Add your first note in the ➕ tab!")
         else:
+            # -- Search Notes ---
+            search_term = st.text_input("🔎 Search your notes…", "")
+            if search_term.strip():
+                filtered = []
+                st.markdown('<div style="height:10px"></div>', unsafe_allow_html=True)
+                for n in notes:
+                    if (search_term.lower() in n.get("title","").lower() or 
+                        search_term.lower() in n.get("tag","").lower() or 
+                        search_term.lower() in n.get("text","").lower()):
+                        filtered.append(n)
+                notes_to_show = filtered
+                if not filtered:
+                    st.warning("No matching notes found!")
+            else:
+                notes_to_show = notes
+
             # --- Download All Notes Buttons (TXT, PDF, DOCX, supports umlauts) ---
             # Prepare all notes as TXT
             all_notes = []
-            for n in notes:
+            for n in notes_to_show:
                 note_text = f"Title: {n.get('title','')}\n"
                 if n.get('tag'):
                     note_text += f"Tag: {n['tag']}\n"
@@ -4773,30 +4774,28 @@ if tab == "My Learning Notes":
             )
 
             # --- PDF Download (with German character support) ---
+            import tempfile
+            from fpdf import FPDF
             class PDF(FPDF):
                 def header(self):
                     self.set_font('Arial', 'B', 16)
                     self.cell(0, 12, "My Learning Notes", align="C", ln=1)
                     self.ln(5)
             def safe_latin1(text):
-                # Replace unknown chars with ?
                 return text.encode("latin1", "replace").decode("latin1")
-
             pdf = PDF()
             pdf.add_page()
             pdf.set_auto_page_break(auto=True, margin=15)
             pdf.set_font("Arial", size=12)
-
             # Table of Contents
             pdf.set_font("Arial", "B", 13)
             pdf.cell(0, 10, "Table of Contents", ln=1)
             pdf.set_font("Arial", "", 11)
-            for idx, note in enumerate(notes):
+            for idx, note in enumerate(notes_to_show):
                 pdf.cell(0, 8, f"{idx+1}. {safe_latin1(note.get('title',''))} - {note.get('created', note.get('updated',''))}", ln=1)
             pdf.ln(5)
-
             # Actual Notes
-            for n in notes:
+            for n in notes_to_show:
                 pdf.set_font("Arial", "B", 13)
                 pdf.cell(0, 10, safe_latin1(f"Title: {n.get('title','')}"), ln=1)
                 pdf.set_font("Arial", "I", 11)
@@ -4812,7 +4811,6 @@ if tab == "My Learning Notes":
                 pdf.set_font("Arial", "", 10)
                 pdf.cell(0, 4, '-' * 55, ln=1)
                 pdf.ln(8)
-
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
                 pdf.output(tmp_pdf.name)
                 tmp_pdf.seek(0)
@@ -4824,8 +4822,8 @@ if tab == "My Learning Notes":
                 file_name=f"{student_code}_notes.pdf",
                 mime="application/pdf"
             )
-
             # --- DOCX Download (full Unicode) ---
+            from docx import Document
             def export_notes_to_docx(notes, student_code="student"):
                 doc = Document()
                 doc.add_heading("My Learning Notes", 0)
@@ -4844,7 +4842,7 @@ if tab == "My Learning Notes":
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as f:
                     doc.save(f.name)
                     return f.name
-            docx_path = export_notes_to_docx(notes, student_code)
+            docx_path = export_notes_to_docx(notes_to_show, student_code)
             with open(docx_path, "rb") as f:
                 st.download_button(
                     label="⬇️ Download All Notes (DOCX)",
@@ -4853,14 +4851,11 @@ if tab == "My Learning Notes":
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
             os.remove(docx_path)
-
             st.markdown("---")
-
-            # --- Show pinned notes first ---
-            pinned_notes = [n for n in notes if n.get("pinned")]
-            other_notes = [n for n in notes if not n.get("pinned")]
+            # --- Show pinned notes first, then others ---
+            pinned_notes = [n for n in notes_to_show if n.get("pinned")]
+            other_notes = [n for n in notes_to_show if not n.get("pinned")]
             show_list = pinned_notes + other_notes
-
             for i, note in enumerate(show_list):
                 st.markdown(
                     f"<div style='padding:12px 0 6px 0; font-weight:600; color:#7c3aed; font-size:1.18rem;'>"
@@ -4872,7 +4867,6 @@ if tab == "My Learning Notes":
                     f"<div style='margin-top:-5px; margin-bottom:6px; font-size:1.08rem; line-height:1.7;'>{note['text']}</div>",
                     unsafe_allow_html=True)
                 st.caption(f"🕒 {note.get('updated',note.get('created',''))}")
-
                 cols = st.columns([1,1,1,1])
                 with cols[0]:
                     if st.button("✏️ Edit", key=f"edit_{i}"):
@@ -4883,7 +4877,7 @@ if tab == "My Learning Notes":
                         st.rerun()
                 with cols[1]:
                     if st.button("🗑️ Delete", key=f"del_{i}"):
-                        notes.pop(i)
+                        notes.remove(note)
                         st.session_state[key_notes] = notes
                         save_notes_to_db(student_code, notes)
                         st.success("Note deleted.")
@@ -4903,8 +4897,8 @@ if tab == "My Learning Notes":
                             st.rerun()
                 with cols[3]:
                     st.caption("")
-
 # ---------------------- END TAB -------------------------
+
 
 
 
