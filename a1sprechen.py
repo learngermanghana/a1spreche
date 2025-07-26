@@ -3617,6 +3617,16 @@ if tab == "Exams Mode & Custom Chat":
 
         # ---- Chat Input & Assistant Response ----
         user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
+
+        # ======== AUDIO RECORDER (Voice Answer) ========
+        from streamlit_audiorecorder import audiorecorder
+
+        with st.container():
+            st.markdown("### 🎤 Or record your spoken answer below:")
+            audio = audiorecorder("Click to record", "Click to stop recording")
+            audio_submitted = st.button("Submit Audio Answer 🎤")
+
+        # ---- Handle Text Input ----
         if user_input:
             st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
             inc_sprechen_usage(student_code)
@@ -3654,6 +3664,19 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
             # SAVE CHAT after each message
             save_falowen_chat(student_code, mode, level, teil, st.session_state["falowen_messages"])
+
+        # ---- Handle Audio Submission ----
+        if audio is not None and audio_submitted:
+            # Save or process audio file here (e.g. save to Firestore/Cloud Storage or temp dir)
+            import datetime, os
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{student_code}_{level}_{teil}_{timestamp}.wav"
+            with open(filename, "wb") as f:
+                f.write(audio)
+            st.success(f"Audio answer saved as {filename}!")
+            # You can upload to your storage here, or add logic for feedback/transcription
+
+
 
 
         # ---- END SESSION BUTTON & SUMMARY ----
