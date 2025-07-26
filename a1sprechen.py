@@ -3212,7 +3212,7 @@ if tab == "Exams Mode & Custom Chat":
         if key not in st.session_state:
             st.session_state[key] = val
 
-        # ---- STAGE 1: Mode Selection ----
+    # ---- STAGE 1: Mode Selection ----
     if st.session_state["falowen_stage"] == 1:
         st.subheader("Step 1: Choose Practice Mode")
 
@@ -3221,14 +3221,19 @@ if tab == "Exams Mode & Custom Chat":
             **Which mode should you choose?**
 
             - 📝 **Exam Mode**:  
-                Practice a real speaking exam simulation with real topics and an examiner.  
-                _Use this if you want to prepare for your official speaking test!_
+                Practice for your official Goethe exam!  
+                - Includes **Speaking** (Sprechen) with a live chat examiner  
+                - PLUS quick access to real **Reading (Lesen)** and **Listening (Hören)** past exams  
+                - See official exam instructions and practice with authentic topics
 
             - 💬 **Custom Chat**:  
-                Chat about any topic! Great for practicing class presentations, your own ideas, or having an intelligent conversation partner.
+                Chat about any topic!  
+                - Great for practicing presentations, your own ideas, or general German conversation  
+                - No exam restrictions—learn at your own pace
             """,
             icon="ℹ️"
         )
+
 
         mode = st.radio(
             "How would you like to practice?",
