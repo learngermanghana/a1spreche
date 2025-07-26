@@ -56,6 +56,42 @@ if not OPENAI_API_KEY:
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
 
+# === YouTube Data API Settings ===
+YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
+
+YOUTUBE_PLAYLIST_IDS = {
+    "A1": "PLs7zUO7VPyJ7n29SeiN1tK4Z-Alh1WHyM",
+    "A2": "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
+    "B1": "PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-"
+}
+
+@st.cache_data(ttl=3600*12)  # cache for 12 hours
+def fetch_youtube_playlist_videos(playlist_id, api_key):
+    base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
+    params = {
+        "part": "snippet",
+        "playlistId": playlist_id,
+        "maxResults": 50,
+        "key": api_key,
+    }
+    videos = []
+    next_page = ""
+    while True:
+        if next_page:
+            params["pageToken"] = next_page
+        response = requests.get(base_url, params=params)
+        data = response.json()
+        for item in data.get("items", []):
+            vid = item["snippet"]["resourceId"]["videoId"]
+            url = f"https://www.youtube.com/watch?v={vid}"
+            title = item["snippet"]["title"]
+            videos.append({"title": title, "url": url})
+        next_page = data.get("nextPageToken")
+        if not next_page:
+            break
+    return videos
+
+
 # ==== DB CONNECTION ====
 def get_connection():
     if "conn" not in st.session_state:
@@ -388,6 +424,32 @@ def inc_letter_coach_usage(student_code):
     )
     conn.commit()
 
+
+
+def fetch_youtube_playlist_videos(playlist_id, api_key, max_results=50):
+    base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
+    params = {
+        "part": "snippet",
+        "playlistId": playlist_id,
+        "maxResults": max_results,  # Max per page is 50
+        "key": api_key,
+    }
+    videos = []
+    next_page = ""
+    while True:
+        if next_page:
+            params["pageToken"] = next_page
+        response = requests.get(base_url, params=params)
+        data = response.json()
+        for item in data.get("items", []):
+            vid = item["snippet"]["resourceId"]["videoId"]
+            url = f"https://www.youtube.com/watch?v={vid}"
+            title = item["snippet"]["title"]
+            videos.append({"title": title, "url": url})
+        next_page = data.get("nextPageToken")
+        if not next_page:
+            break
+    return videos
 
 # === Firestore Auto-Save/Restore for Letter Coach ===
 
@@ -857,15 +919,9 @@ if st.session_state.get("logged_in"):
 
         # --- Upcoming Exam Countdown (by level mapping) + Video of the Day ---
         GOETHE_EXAM_DATES = {
-            "A1": (date(2025, 10, 13), 2850, [
-                "https://www.youtube.com/watch?v=4-eDoThe6qo",
-            ]),
-            "A2": (date(2025, 10, 14), 2400, [
-                "https://www.youtube.com/watch?v=S_haCcudQZk",
-            ]),
-            "B1": (date(2025, 10, 15), 2750, [
-                "https://www.youtube.com/watch?v=SrcZ2ud4T3o",
-            ]),
+            "A1": (date(2025, 10, 13), 2850, ["https://www.youtube.com/watch?v=4-eDoThe6qo"]),
+            "A2": (date(2025, 10, 14), 2400, ["https://www.youtube.com/watch?v=S_haCcudQZk"]),
+            "B1": (date(2025, 10, 15), 2750, ["https://www.youtube.com/watch?v=SrcZ2ud4T3o"]),
             "B2": (date(2025, 10, 16), 2500, []),
             "C1": (date(2025, 10, 17), 2450, []),
         }
