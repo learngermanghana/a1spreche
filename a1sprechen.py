@@ -3272,10 +3272,6 @@ if tab == "Exams Mode & Custom Chat":
             st.rerun()
         st.stop()
 
-
-    # =====================
-    #   STAGE 3: Exam Topic Picker (Exam Mode) and Custom Chat Topic Input
-    # =====================
     if st.session_state.get("falowen_mode") == "Geführte Prüfungssimulation (Exam Mode)":
         level = st.session_state["falowen_level"]
 
@@ -3325,15 +3321,24 @@ if tab == "Exams Mode & Custom Chat":
         )
 
         # ------------------------
-        # LESEN / HÖREN SHORTCUTS with BACK BUTTON
+        # LESEN / HÖREN SHORTCUTS with BACK BUTTON (MULTI-LINK)
         # ------------------------
         lesen_links = {
-            "A1": "https://drive.google.com/file/d/1JnerQsEg3iPNIkYDqE0ypBGTjNK1LsRO/view?usp=sharing",
-            "A2": "https://drive.google.com/file/d/1YMjpi2aJ6o3TkLOR3ld81SfNzdZQxMQB/view?usp=sharing",
-            "B1": "https://drive.google.com/file/d/1Iqho5cIe_2RJKz66JMfA22LGHoYwurfy/view?usp=sharing"
+            "A1": [
+                ("Goethe A1 Lesen PDF 1", "https://drive.google.com/file/d/1JnerQsEg3iPNIkYDqE0ypBGTjNK1LsRO/view?usp=sharing"),
+                ("Practice Paper 2", "https://your-other-link.com")
+            ],
+            "A2": [
+                ("A2 Lesen Sample", "https://drive.google.com/file/d/1YMjpi2aJ6o3TkLOR3ld81SfNzdZQxMQB/view?usp=sharing")
+            ],
+            "B1": [
+                ("B1 Original Paper", "https://drive.google.com/file/d/1Iqho5cIe_2RJKz66JMfA22LGHoYwurfy/view?usp=sharing")
+            ]
         }
         hoeren_links = {
-            "A1": "https://drive.google.com/file/d/1TuJKu6c3_KKMX4tp2neummtKieHP59_G/view?usp=sharing"
+            "A1": [
+                ("Goethe A1 Hören Audio", "https://drive.google.com/file/d/1TuJKu6c3_KKMX4tp2neummtKieHP59_G/view?usp=sharing")
+            ]
         }
 
         if "Lesen" in teil or "Hören" in teil:
@@ -3341,20 +3346,32 @@ if tab == "Exams Mode & Custom Chat":
                 st.markdown(f"""
                 <div style="background:#e1f5fe;border-radius:10px;padding:1.1em 1.4em;margin:1.2em 0;">
                     <span style="font-size:1.18em; color:#0277bd;"><b>📖 Past Exam: Lesen (Reading)</b></span><br><br>
-                    <a href="{lesen_links.get(level, '#')}" target="_blank" style="font-size:1.10em;color:#1976d2;font-weight:600;">
-                        👉 Click here for {level} Lesen Past Exam Questions
-                    </a>
-                </div>
                 """, unsafe_allow_html=True)
+                links = lesen_links.get(level, [])
+                if links:
+                    for label, url in links:
+                        st.markdown(
+                            f'<a href="{url}" target="_blank" style="font-size:1.10em;color:#1976d2;font-weight:600;">👉 {label}</a><br>',
+                            unsafe_allow_html=True
+                        )
+                else:
+                    st.warning("No reading links available for this level yet.")
+                st.markdown("</div>", unsafe_allow_html=True)
             if "Hören" in teil:
                 st.markdown(f"""
                 <div style="background:#ede7f6;border-radius:10px;padding:1.1em 1.4em;margin:1.2em 0;">
                     <span style="font-size:1.18em; color:#512da8;"><b>🎧 Past Exam: Hören (Listening)</b></span><br><br>
-                    <a href="{hoeren_links.get(level, '#')}" target="_blank" style="font-size:1.10em;color:#5e35b1;font-weight:600;">
-                        👉 Click here for {level} Hören Past Exam Audio/Questions
-                    </a>
-                </div>
                 """, unsafe_allow_html=True)
+                links = hoeren_links.get(level, [])
+                if links:
+                    for label, url in links:
+                        st.markdown(
+                            f'<a href="{url}" target="_blank" style="font-size:1.10em;color:#5e35b1;font-weight:600;">👉 {label}</a><br>',
+                            unsafe_allow_html=True
+                        )
+                else:
+                    st.warning("No listening links available for this level yet.")
+                st.markdown("</div>", unsafe_allow_html=True)
             if st.button("⬅️ Back", key="lesen_hoeren_back"):
                 st.session_state["falowen_stage"] = 2
                 st.rerun()
@@ -3462,7 +3479,29 @@ if tab == "Exams Mode & Custom Chat":
                 random.shuffle(st.session_state["remaining_topics"])
                 st.session_state["used_topics"] = []
                 st.rerun()
+#
 
+
+    # ==========================
+    # FIRESTORE CHAT HELPERS
+    # ==========================
+    def save_falowen_chat(student_code, mode, level, teil, messages):
+        doc_ref = db.collection("falowen_chats").document(student_code)
+        doc = doc_ref.get()
+        data = doc.to_dict() if doc.exists else {}
+        chats = data.get("chats", {})
+        chat_key = f"{mode}_{level}_{teil or 'custom'}"
+        chats[chat_key] = messages
+        doc_ref.set({"chats": chats}, merge=True)
+
+    def load_falowen_chat(student_code, mode, level, teil):
+        doc_ref = db.collection("falowen_chats").document(student_code)
+        doc = doc_ref.get()
+        if not doc.exists:
+            return []
+        chats = doc.to_dict().get("chats", {})
+        chat_key = f"{mode}_{level}_{teil or 'custom'}"
+        return chats.get(chat_key, [])
 
     # =========================================
     # ---- STAGE 4: MAIN CHAT ----
