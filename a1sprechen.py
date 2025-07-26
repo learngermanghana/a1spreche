@@ -4281,6 +4281,7 @@ if tab == "Schreiben Trainer":
                     "- Tell the student exactly what they improved, and which mistakes were fixed.\n"
                     "- Point out if there are still errors left, with new tips for further improvement.\n"
                     "- Encourage the student. If the improvement is significant, say so.\n"
+                     "1. If student dont improve after the third try, end the chat politely and tell the student to try again tomorrow. Dont continue to give the feedback after third try.\n"
                     "- Give a revised score out of 25 (Score: X/25)."
                 )
                 with st.spinner("👨‍🏫 Herr Felix is comparing your improvement..."):
