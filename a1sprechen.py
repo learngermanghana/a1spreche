@@ -3276,8 +3276,7 @@ if tab == "Exams Mode & Custom Chat":
     # =====================
     #   STAGE 3: Exam Topic Picker (Exam Mode) and Custom Chat Topic Input
     # =====================
-    if st.session_state["falowen_stage"] == 3:
-     if st.session_state.get("falowen_mode") == "Geführte Prüfungssimulation (Exam Mode)":
+    if st.session_state.get("falowen_mode") == "Geführte Prüfungssimulation (Exam Mode)":
         level = st.session_state["falowen_level"]
 
         teil_options = {
@@ -3326,43 +3325,39 @@ if tab == "Exams Mode & Custom Chat":
         )
 
         # ------------------------
-        # LESEN / HÖREN SHORTCUTS
+        # LESEN / HÖREN SHORTCUTS with BACK BUTTON
         # ------------------------
         lesen_links = {
-            "A1": "https://example.com/a1-lesen",
-            "A2": "https://example.com/a2-lesen",
-            "B1": "https://example.com/b1-lesen",
-            "B2": "https://example.com/b2-lesen",
-            "C1": "https://example.com/c1-lesen"
+            "A1": "https://drive.google.com/file/d/1JnerQsEg3iPNIkYDqE0ypBGTjNK1LsRO/view?usp=sharing",
+            "A2": "https://drive.google.com/file/d/1YMjpi2aJ6o3TkLOR3ld81SfNzdZQxMQB/view?usp=sharing",
+            "B1": "https://drive.google.com/file/d/1Iqho5cIe_2RJKz66JMfA22LGHoYwurfy/view?usp=sharing"
         }
         hoeren_links = {
-            "A1": "https://example.com/a1-hoeren",
-            "A2": "https://example.com/a2-hoeren",
-            "B1": "https://example.com/b1-hoeren",
-            "B2": "https://example.com/b2-hoeren",
-            "C1": "https://example.com/c1-hoeren"
+            "A1": "https://drive.google.com/file/d/1TuJKu6c3_KKMX4tp2neummtKieHP59_G/view?usp=sharing"
         }
 
-        if "Lesen" in teil:
-            st.markdown(f"""
-            <div style="background:#e1f5fe;border-radius:10px;padding:1.1em 1.4em;margin:1.2em 0;">
-                <span style="font-size:1.18em; color:#0277bd;"><b>📖 Past Exam: Lesen (Reading)</b></span><br><br>
-                <a href="{lesen_links.get(level, '#')}" target="_blank" style="font-size:1.10em;color:#1976d2;font-weight:600;">
-                    👉 Click here for {level} Lesen Past Exam Questions
-                </a>
-            </div>
-            """, unsafe_allow_html=True)
-            st.stop()
-
-        if "Hören" in teil:
-            st.markdown(f"""
-            <div style="background:#ede7f6;border-radius:10px;padding:1.1em 1.4em;margin:1.2em 0;">
-                <span style="font-size:1.18em; color:#512da8;"><b>🎧 Past Exam: Hören (Listening)</b></span><br><br>
-                <a href="{hoeren_links.get(level, '#')}" target="_blank" style="font-size:1.10em;color:#5e35b1;font-weight:600;">
-                    👉 Click here for {level} Hören Past Exam Audio/Questions
-                </a>
-            </div>
-            """, unsafe_allow_html=True)
+        if "Lesen" in teil or "Hören" in teil:
+            if "Lesen" in teil:
+                st.markdown(f"""
+                <div style="background:#e1f5fe;border-radius:10px;padding:1.1em 1.4em;margin:1.2em 0;">
+                    <span style="font-size:1.18em; color:#0277bd;"><b>📖 Past Exam: Lesen (Reading)</b></span><br><br>
+                    <a href="{lesen_links.get(level, '#')}" target="_blank" style="font-size:1.10em;color:#1976d2;font-weight:600;">
+                        👉 Click here for {level} Lesen Past Exam Questions
+                    </a>
+                </div>
+                """, unsafe_allow_html=True)
+            if "Hören" in teil:
+                st.markdown(f"""
+                <div style="background:#ede7f6;border-radius:10px;padding:1.1em 1.4em;margin:1.2em 0;">
+                    <span style="font-size:1.18em; color:#512da8;"><b>🎧 Past Exam: Hören (Listening)</b></span><br><br>
+                    <a href="{hoeren_links.get(level, '#')}" target="_blank" style="font-size:1.10em;color:#5e35b1;font-weight:600;">
+                        👉 Click here for {level} Hören Past Exam Audio/Questions
+                    </a>
+                </div>
+                """, unsafe_allow_html=True)
+            if st.button("⬅️ Back", key="lesen_hoeren_back"):
+                st.session_state["falowen_stage"] = 2
+                st.rerun()
             st.stop()
 
         teil_number = teil.split()[1] if teil else ""
@@ -3467,6 +3462,7 @@ if tab == "Exams Mode & Custom Chat":
                 random.shuffle(st.session_state["remaining_topics"])
                 st.session_state["used_topics"] = []
                 st.rerun()
+
 
     # =========================================
     # ---- STAGE 4: MAIN CHAT ----
