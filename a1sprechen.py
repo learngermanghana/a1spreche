@@ -60,7 +60,7 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
 
 YOUTUBE_PLAYLIST_IDS = {
-    "A1": "PLs7zUO7VPyJ7n29SeiN1tK4Z-Alh1WHyM",
+    "A1": "PLs7zUO7VPyJ5DV1iBRgSw2uDl832n0bLg",
     "A2": "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
     "B1": "PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-"
 }
