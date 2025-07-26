@@ -24,8 +24,6 @@ from fpdf import FPDF                      # PDF export
 from streamlit_cookies_manager import EncryptedCookieManager   # Cookie/session handling
 from docx import Document                  # Optional: DOCX notes download
 from gtts import gTTS                      # Text-to-speech for vocab audio
-from streamlit_audiorecorder import audiorecorder   # Audio recorder for speaking answers
-
 
 # If you ever add fuzzy matching, you can use:
 # from thefuzz import fuzz, process      # Uncomment if using fuzzy answer checking
@@ -857,53 +855,52 @@ if st.session_state.get("logged_in"):
         except:
             pass
 
-        # --- Upcoming Exam Countdown (by level mapping) ---
+        # --- Upcoming Exam Countdown (by level mapping) + Video of the Day ---
         GOETHE_EXAM_DATES = {
-            "A1": date(2025, 10, 13),
-            "A2": date(2025, 10, 14),
-            "B1": date(2025, 10, 15),
-            "B2": date(2025, 10, 16),
-            "C1": date(2025, 10, 17),
+            "A1": (date(2025, 10, 13), 2850, [
+                "https://www.youtube.com/watch?v=4-eDoThe6qo",
+            ]),
+            "A2": (date(2025, 10, 14), 2400, [
+                "https://www.youtube.com/watch?v=S_haCcudQZk",
+            ]),
+            "B1": (date(2025, 10, 15), 2750, [
+                "https://www.youtube.com/watch?v=SrcZ2ud4T3o",
+            ]),
+            "B2": (date(2025, 10, 16), 2500, []),
+            "C1": (date(2025, 10, 17), 2450, []),
         }
         level = (student_row.get("Level", "") or "").upper().replace(" ", "")
-        exam_date = GOETHE_EXAM_DATES.get(level)
-        if exam_date:
+        exam_info = GOETHE_EXAM_DATES.get(level)
+
+        st.subheader("⏳ Goethe Exam Countdown & Video of the Day")
+        if exam_info:
+            exam_date, fee, video_list = exam_info
             days_to_exam = (exam_date - date.today()).days
-            st.subheader("⏳ Upcoming Exam Countdown")
             if days_to_exam > 0:
-                st.info(f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).")
+                st.info(
+                    f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).  \n"
+                    f"**Fee:** ₵{fee:,}  \n"
+                    "[Register online here](https://www.goethe.de/ins/gh/en/spr/prf.html)"
+                )
             elif days_to_exam == 0:
                 st.success("🚀 Exam is today! Good luck!")
             else:
-                st.error(f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.")
+                st.error(
+                    f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.  \n"
+                    f"**Fee:** ₵{fee:,}"
+                )
+
+            # ---- Video of the Day (rotates by date and level) ----
+            if video_list:
+                today_idx = date.today().toordinal()
+                pick = today_idx % len(video_list)
+                video_url = video_list[pick]
+                st.markdown(f"**🎬 Video of the Day for {level}**")
+                st.video(video_url)
+            else:
+                st.info("No video available for your level yet. Stay tuned!")
         else:
-            st.warning(f"No exam date configured for level {level}.")
-
-        # --- Goethe Exam Dates & Fees ---
-        with st.expander("📅 Goethe Exam Dates & Fees", expanded=True):
-            st.markdown(
-                """
-| Level | Online Registration | Fee (GHS) | Single Module (GHS) |
-|-------|---------------------|-----------|---------------------|
-| A1    | 13.10.2025          | 2,850     | —                   |
-| A2    | 14.10.2025          | 2,400     | —                   |
-| B1    | 15.10.2025          | 2,750     | 880                 |
-| B2    | 16.10.2025          | 2,500     | 840                 |
-| C1    | 17.10.2025          | 2,450     | 700                 |
-
-**How to Pay:**
-- [Register here](https://www.goethe.de/ins/gh/en/spr/prf.html)
-- Pay your exam fee by **bank deposit or Mobile Money transfer to the bank account below**:
-    - **Ecobank Ghana**
-        - Account Name: **GOETHE-INSTITUT GHANA**
-        - Account Number: **1441 001 701 903**
-        - Branch: **Ring Road Central**
-        - SWIFT Code: **ECOCGHAC**
-- **IMPORTANT:** Use your **full name** as payment reference!
-- After payment, send your proof to: registrations-accra@goethe.de
-                """,
-                unsafe_allow_html=True
-            )
+            st.warning("No exam date configured for your level.")
 
         # --- Reviews Section ---
         st.markdown("### 🗣️ What Our Students Say")
@@ -926,6 +923,7 @@ if st.session_state.get("logged_in"):
                 f"> — **{r.get('student_name','')}**  \n"
                 f"> {stars}"
             )
+
 
             
 def get_a1_schedule():
@@ -1423,8 +1421,8 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Two Case Preposition",
             "video": "",
-            "grammarbook_link": "https://drive.google.com/file/d/1clWbDAvLlXpgWx7pKc71Oq3H2p0_GZnV/view?usp=sharing",
-            "workbook_link": "https://drive.google.com/file/d/1EF87TdHa6Y-qgLFUx8S6GAom9g5EBQNP/view?usp=sharing"
+            "grammarbook_link": "https://drive.google.com/file/d/1MSahBEyElIiLnitWoJb5xkvRlB21yo0y/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/16UfBIrL0jxCqWtqqZaLhKWflosNQkwF4/view?usp=sharing"
         },
         # DAY 7
         {
@@ -3080,17 +3078,26 @@ if tab == "Exams Mode & Custom Chat":
         if level == "B1":
             if "Teil 1" in teil:
                 return (
-                    "You are Herr Felix, a Goethe B1 examiner. You and the student plan an activity together. "
+                    "You are Herr Felix, a Goethe B1 supportive examiner. You and the student plan an activity together. "
                     "Always give feedback in both German and English, correct mistakes, suggest improvements, and keep it realistic."
+                    "1. Give short answers that encourages the student to also type back"
+                    "2. Ask only 5 questions and try and end the conversation"
+                    "3. Give score after every presentation whether the reply was okay or not"
                 )
             elif "Teil 2" in teil:
                 return (
                     "You are Herr Felix, a Goethe B1 examiner. Student gives a presentation. Give constructive feedback in German and English, ask for more details, and highlight strengths and weaknesses."
+                    "2. Ask only 3 questions one at a time"
+                    "3. Dont make your reply too long and complicated but friendly"
+                    "4. After your third question, mark and give the student their scores"
                 )
             elif "Teil 3" in teil:
                 return (
                     "You are Herr Felix, a Goethe B1 examiner. Student answers questions about their presentation. "
                     "Give exam-style feedback (in German and English), correct language, and motivate."
+                    "1. Ask only 3 questions one at a time"
+                    "2. Dont make your reply too long and complicated but friendly"
+                    "3. After your third question, mark and give the student their scores"
                 )
         if level == "B2":
             if "Teil 1" in teil:
@@ -3619,15 +3626,6 @@ if tab == "Exams Mode & Custom Chat":
 
         # ---- Chat Input & Assistant Response ----
         user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
-
-        # ======== AUDIO RECORDER (Voice Answer) ========
-
-        with st.container():
-            st.markdown("### 🎤 Or record your spoken answer below:")
-            audio = audiorecorder("Click to record", "Click to stop recording")
-            audio_submitted = st.button("Submit Audio Answer 🎤")
-
-        # ---- Handle Text Input ----
         if user_input:
             st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
             inc_sprechen_usage(student_code)
@@ -3665,19 +3663,6 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
             # SAVE CHAT after each message
             save_falowen_chat(student_code, mode, level, teil, st.session_state["falowen_messages"])
-
-        # ---- Handle Audio Submission ----
-        if audio is not None and audio_submitted:
-            # Save or process audio file here (e.g. save to Firestore/Cloud Storage or temp dir)
-            import datetime, os
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{student_code}_{level}_{teil}_{timestamp}.wav"
-            with open(filename, "wb") as f:
-                f.write(audio)
-            st.success(f"Audio answer saved as {filename}!")
-            # You can upload to your storage here, or add logic for feedback/transcription
-
-
 
 
         # ---- END SESSION BUTTON & SUMMARY ----
@@ -4812,6 +4797,12 @@ if tab == "Schreiben Trainer":
                 st.rerun()
 
 
+
+import streamlit as st
+from datetime import datetime
+import os
+
+# --- Helper functions for Firestore ---
 def load_notes_from_db(student_code):
     ref = db.collection("learning_notes").document(student_code)
     doc = ref.get()
@@ -4821,8 +4812,8 @@ def save_notes_to_db(student_code, notes):
     ref = db.collection("learning_notes").document(student_code)
     ref.set({"notes": notes}, merge=True)
 
-# ------------------------------------
-# Main Tab Logic
+# ======================================
+# == Main Tab Logic ==
 if tab == "My Learning Notes":
     st.markdown("""
         <div style="padding: 14px; background: #8d4de8; color: #fff; border-radius: 8px; 
@@ -4839,10 +4830,23 @@ if tab == "My Learning Notes":
         st.session_state[key_notes] = load_notes_from_db(student_code)
     notes = st.session_state[key_notes]
 
-    # --- Sub-tabs: 1) Add/Edit 2) Library ---
-    subtab = st.radio("Notebook", ["➕ Add/Edit Note", "📚 My Notes Library"], horizontal=True)
+    # ----- PROGRAMMATIC TAB SWITCH HANDLING -----
+    # If flags are set, switch tab before rendering radio
+    if st.session_state.get("switch_to_edit_note"):
+        st.session_state["notebook_radio"] = "➕ Add/Edit Note"
+        del st.session_state["switch_to_edit_note"]
+    elif st.session_state.get("switch_to_library"):
+        st.session_state["notebook_radio"] = "📚 My Notes Library"
+        del st.session_state["switch_to_library"]
 
-    ### --- Add/Edit Note Subtab ---
+    subtab = st.radio(
+        "Notebook", 
+        ["➕ Add/Edit Note", "📚 My Notes Library"], 
+        horizontal=True, 
+        key="notebook_radio"
+    )
+
+    # === Add/Edit Note Subtab ===
     if subtab == "➕ Add/Edit Note":
         st.markdown("#### ✍️ Create a new note or update an old one")
         editing = st.session_state.get("edit_note_idx", None) is not None
@@ -4853,47 +4857,53 @@ if tab == "My Learning Notes":
             text = st.session_state.get("edit_note_text", "")
         else:
             title, tag, text = "", "", ""
+
         with st.form("note_form", clear_on_submit=not editing):
             new_title = st.text_input("Note Title", value=title, max_chars=50)
             new_tag = st.text_input("Category/Tag (optional)", value=tag, max_chars=20)
             new_text = st.text_area("Your Note", value=text, height=200, max_chars=3000)
-            if st.form_submit_button("💾 Save Note"):
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-                if not new_title.strip():
-                    st.warning("Please enter a title.")
-                    st.stop()
-                note = {
-                    "title": new_title.strip().title(),
-                    "tag": new_tag.strip().title(),
-                    "text": new_text.strip(),
-                    "pinned": False,
-                    "created": timestamp,
-                    "updated": timestamp
-                }
-                if editing:
-                    notes[idx] = note
-                    for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
-                        if k in st.session_state: del st.session_state[k]
-                    st.success("Note updated!")
-                else:
-                    notes.insert(0, note)  # Newest first
-                    st.success("Note added!")
-                st.session_state[key_notes] = notes
-                save_notes_to_db(student_code, notes)
-                st.rerun()
-            if editing and st.form_submit_button("❌ Cancel Edit"):
+            save_btn = st.form_submit_button("💾 Save Note")
+            cancel_btn = editing and st.form_submit_button("❌ Cancel Edit")
+
+        if save_btn:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+            if not new_title.strip():
+                st.warning("Please enter a title.")
+                st.stop()
+            note = {
+                "title": new_title.strip().title(),
+                "tag": new_tag.strip().title(),
+                "text": new_text.strip(),
+                "pinned": False,
+                "created": timestamp,
+                "updated": timestamp
+            }
+            if editing:
+                notes[idx] = note
                 for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
                     if k in st.session_state: del st.session_state[k]
-                st.rerun()
+                st.success("Note updated!")
+            else:
+                notes.insert(0, note)
+                st.success("Note added!")
+            st.session_state[key_notes] = notes
+            save_notes_to_db(student_code, notes)
+            st.session_state["switch_to_library"] = True
+            st.experimental_rerun()
 
-    ### --- Notes Library Subtab ---
+        if cancel_btn:
+            for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
+                if k in st.session_state: del st.session_state[k]
+            st.session_state["switch_to_library"] = True
+            st.experimental_rerun()
+
+    # === Notes Library Subtab ===
     elif subtab == "📚 My Notes Library":
         st.markdown("#### 📚 All My Notes")
 
         if not notes:
             st.info("No notes yet. Add your first note in the ➕ tab!")
         else:
-            # -- Search Notes ---
             search_term = st.text_input("🔎 Search your notes…", "")
             if search_term.strip():
                 filtered = []
@@ -4909,8 +4919,7 @@ if tab == "My Learning Notes":
             else:
                 notes_to_show = notes
 
-            # --- Download All Notes Buttons (TXT, PDF, DOCX, supports umlauts) ---
-            # Prepare all notes as TXT
+            # --- Download Buttons (TXT, PDF, DOCX) ---
             all_notes = []
             for n in notes_to_show:
                 note_text = f"Title: {n.get('title','')}\n"
@@ -4929,7 +4938,7 @@ if tab == "My Learning Notes":
                 mime="text/plain"
             )
 
-            # --- PDF Download (with German character support) ---
+            # --- PDF Download ---
             import tempfile
             from fpdf import FPDF
             class PDF(FPDF):
@@ -4943,14 +4952,12 @@ if tab == "My Learning Notes":
             pdf.add_page()
             pdf.set_auto_page_break(auto=True, margin=15)
             pdf.set_font("Arial", size=12)
-            # Table of Contents
             pdf.set_font("Arial", "B", 13)
             pdf.cell(0, 10, "Table of Contents", ln=1)
             pdf.set_font("Arial", "", 11)
             for idx, note in enumerate(notes_to_show):
                 pdf.cell(0, 8, f"{idx+1}. {safe_latin1(note.get('title',''))} - {note.get('created', note.get('updated',''))}", ln=1)
             pdf.ln(5)
-            # Actual Notes
             for n in notes_to_show:
                 pdf.set_font("Arial", "B", 13)
                 pdf.cell(0, 10, safe_latin1(f"Title: {n.get('title','')}"), ln=1)
@@ -4978,7 +4985,8 @@ if tab == "My Learning Notes":
                 file_name=f"{student_code}_notes.pdf",
                 mime="application/pdf"
             )
-            # --- DOCX Download (full Unicode) ---
+
+            # --- DOCX Download ---
             from docx import Document
             def export_notes_to_docx(notes, student_code="student"):
                 doc = Document()
@@ -5007,8 +5015,8 @@ if tab == "My Learning Notes":
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
             os.remove(docx_path)
+
             st.markdown("---")
-            # --- Show pinned notes first, then others ---
             pinned_notes = [n for n in notes_to_show if n.get("pinned")]
             other_notes = [n for n in notes_to_show if not n.get("pinned")]
             show_list = pinned_notes + other_notes
@@ -5030,6 +5038,7 @@ if tab == "My Learning Notes":
                         st.session_state["edit_note_title"] = note["title"]
                         st.session_state["edit_note_text"] = note["text"]
                         st.session_state["edit_note_tag"] = note.get("tag", "")
+                        st.session_state["switch_to_edit_note"] = True
                         st.rerun()
                 with cols[1]:
                     if st.button("🗑️ Delete", key=f"del_{i}"):
@@ -5037,7 +5046,7 @@ if tab == "My Learning Notes":
                         st.session_state[key_notes] = notes
                         save_notes_to_db(student_code, notes)
                         st.success("Note deleted.")
-                        st.rerun()
+                        st.experimental_rerun()
                 with cols[2]:
                     if note.get("pinned"):
                         if st.button("📌 Unpin", key=f"unpin_{i}"):
@@ -5054,7 +5063,6 @@ if tab == "My Learning Notes":
                 with cols[3]:
                     st.caption("")
 # ---------------------- END TAB -------------------------
-
 
 
 
