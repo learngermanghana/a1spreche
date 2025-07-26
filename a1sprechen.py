@@ -896,8 +896,6 @@ if st.session_state.get("logged_in"):
         key="main_tab_select"
     )
 
-     # ==== SHOW THE BELOW ONLY ON "Dashboard" TAB ====
-    if tab == "Dashboard":
         # --- Student Information & Balance ---
         st.markdown(f"### 👤 {student_row.get('Name','')}")
         st.markdown(
