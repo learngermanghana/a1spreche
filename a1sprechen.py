@@ -61,7 +61,7 @@ YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
 
 YOUTUBE_PLAYLIST_IDS = {
     "A1": [
-        "PLs7zUO7VPyJ50sTVsDgfJV6_B3rFYtbFu",   # Playlist 1 for A1
+        "PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b",   # Playlist 1 for A1
     ],
     "A2": [
         "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
