@@ -60,10 +60,21 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
 
 YOUTUBE_PLAYLIST_IDS = {
-    "A1": "PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b",
-    "A2": "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
-    "B1": "PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-"
+    "A1": [
+        "PLs7zUO7VPyJ50sTVsDgfJV6_B3rFYtbFu",   # Playlist 1 for A1
+    ],
+    "A2": [
+        "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
+        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc&index=5",
+        "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c",
+    ],
+    "B1": [
+        "PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-",
+        "PLB92CD6B288E5DB61",
+    ],
+    # etc.
 }
+
 
 @st.cache_data(ttl=3600*12)  # cache for 12 hours
 def fetch_youtube_playlist_videos(playlist_id, api_key):
