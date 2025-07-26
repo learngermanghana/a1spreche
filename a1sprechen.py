@@ -2847,7 +2847,6 @@ How to prepare for your B1 oral exam.
     )
 
 
-
 # ================================
 # 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
 # ================================
@@ -3197,321 +3196,259 @@ if tab == "Exams Mode & Custom Chat":
         st.stop()
 
 # ---- SESSION STATE DEFAULTS ----
-import streamlit as st
+    default_state = {
+        "falowen_stage": 1,
+        "falowen_mode": None,
+        "falowen_level": None,
+        "falowen_teil": None,
+        "falowen_messages": [],
+        "falowen_turn_count": 0,
+        "custom_topic_intro_done": False,
+        "custom_chat_level": None,
+        "falowen_exam_topic": None,
+        "falowen_exam_keyword": None,
+    }
+    for key, val in default_state.items():
+        if key not in st.session_state:
+            st.session_state[key] = val
 
-# ---- SESSION STATE DEFAULTS ----
-default_state = {
-    "falowen_stage": 1,
-    "falowen_mode": None,
-    "falowen_level": None,
-    "falowen_teil": None,
-    "falowen_messages": [],
-    "falowen_turn_count": 0,
-    "custom_topic_intro_done": False,
-    "custom_chat_level": None,
-    "falowen_exam_topic": None,
-    "falowen_exam_keyword": None,
-}
-for key, val in default_state.items():
-    if key not in st.session_state:
-        st.session_state[key] = val
+        # ---- STAGE 1: Mode Selection ----
+    if st.session_state["falowen_stage"] == 1:
+        st.subheader("Step 1: Choose Practice Mode")
 
-# --- UNIQUE LOGIN & SESSION ISOLATION BLOCK ---
-if "student_code" not in st.session_state or not st.session_state["student_code"]:
-    code = st.text_input("Enter your Student Code to continue:", key="login_code")
-    if st.button("Login"):
-        st.session_state["student_code"] = code.strip()
-        st.session_state["last_logged_code"] = code.strip()
-        st.rerun()
-    st.stop()
-else:
-    code = st.session_state["student_code"]
-    last_code = st.session_state.get("last_logged_code", None)
-    if last_code != code:
-        # Clear all chat-related session state for new login
-        for k in [
-            "falowen_messages", "falowen_stage", "falowen_teil", "falowen_mode",
-            "custom_topic_intro_done", "falowen_turn_count",
-            "falowen_exam_topic", "falowen_exam_keyword", "remaining_topics", "used_topics",
-            "_falowen_loaded", "falowen_practiced_topics"
-        ]:
-            if k in st.session_state: del st.session_state[k]
-        st.session_state["last_logged_code"] = code
-        st.rerun()
+        st.info(
+            """
+            **Which mode should you choose?**
 
-# --- PROGRESS TRACKING: PRACTICED TOPICS (unique per login) ---
-if "falowen_practiced_topics" not in st.session_state:
-    st.session_state["falowen_practiced_topics"] = []
+            - 📝 **Exam Mode**:  
+                Practice a real speaking exam simulation with real topics and an examiner.  
+                _Use this if you want to prepare for your official speaking test!_
 
-# ---- STAGE 1: Mode Selection ----
-if st.session_state["falowen_stage"] == 1:
-    st.subheader("Step 1: Choose Practice Mode")
+            - 💬 **Custom Chat**:  
+                Chat about any topic! Great for practicing class presentations, your own ideas, or having an intelligent conversation partner.
+            """,
+            icon="ℹ️"
+        )
 
-    st.info(
-        """
-        **Which mode should you choose?**
+        mode = st.radio(
+            "How would you like to practice?",
+            [
+                "Geführte Prüfungssimulation (Exam Mode)",
+                "Eigenes Thema/Frage (Custom Chat)"
+            ],
+            key="falowen_mode_center"
+        )
+        if st.button("Next ➡️", key="falowen_next_mode"):
+            st.session_state["falowen_mode"] = mode
+            st.session_state["falowen_stage"] = 2
+            st.session_state["falowen_level"] = None
+            st.session_state["falowen_teil"] = None
+            st.session_state["falowen_messages"] = []
+            st.session_state["custom_topic_intro_done"] = False
+            st.rerun()
+        st.stop()
 
-        - 📝 **Exam Mode**:  
-            Practice a real speaking exam simulation with real topics and an examiner.  
-            _Use this if you want to prepare for your official speaking test!_
 
-        - 💬 **Custom Chat**:  
-            Chat about any topic! Great for practicing class presentations, your own ideas, or having an intelligent conversation partner.
-
-        - 📖 **Lesen (Reading)**:  
-            Practice your reading skills with exam-style texts and questions.
-
-        - 🎧 **Hören (Listening)**:  
-            Practice listening skills with audio exercises and questions.
-        """,
-        icon="ℹ️"
-    )
-
-    mode = st.radio(
-        "How would you like to practice?",
-        [
-            "Geführte Prüfungssimulation (Exam Mode)",
-            "Eigenes Thema/Frage (Custom Chat)",
-            "📖 Lesen (Reading)",
-            "🎧 Hören (Listening)"
-        ],
-        key="falowen_mode_center"
-    )
-    if st.button("Next ➡️", key="falowen_next_mode"):
-        st.session_state["falowen_mode"] = mode
-        st.session_state["falowen_stage"] = 2
-        st.session_state["falowen_level"] = None
-        st.session_state["falowen_teil"] = None
-        st.session_state["falowen_messages"] = []
-        st.session_state["custom_topic_intro_done"] = False
-        st.rerun()
-    st.stop()
-
-# ---- STAGE 2: Level Selection ----
-if st.session_state["falowen_stage"] == 2:
-    st.subheader("Step 2: Choose Your Level")
-    level = st.radio(
-        "Select your level:",
-        ["A1", "A2", "B1", "B2", "C1"],
-        key="falowen_level_center"
-    )
-    if st.button("⬅️ Back", key="falowen_back1"):
-        st.session_state["falowen_stage"] = 1
-        st.rerun()
-    if st.button("Next ➡️", key="falowen_next_level"):
-        st.session_state["falowen_level"] = level
-        if st.session_state["falowen_mode"] == "Geführte Prüfungssimulation (Exam Mode)":
-            st.session_state["falowen_stage"] = 3
-        elif st.session_state["falowen_mode"] == "Eigenes Thema/Frage (Custom Chat)":
-            st.session_state["falowen_stage"] = 4
-        elif st.session_state["falowen_mode"] == "📖 Lesen (Reading)":
-            st.session_state["falowen_stage"] = 5
-        elif st.session_state["falowen_mode"] == "🎧 Hören (Listening)":
-            st.session_state["falowen_stage"] = 6
-        st.session_state["falowen_teil"] = None
-        st.session_state["falowen_messages"] = []
-        st.session_state["custom_topic_intro_done"] = False
-        st.rerun()
-    st.stop()
-
-# ---- STAGE 5: LESEN ----
-if st.session_state["falowen_stage"] == 5:
-    st.markdown(
-        """
-        <div style="
-            padding: 8px 12px;
-            background: #0174df;
-            color: #fff;
-            border-radius: 6px;
-            text-align: center;
-            margin-bottom: 8px;
-            font-size: 1.3rem;
-        ">
-            📖 Reading Practice – Lesen
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    st.divider()
-    st.info("Choose a reading text below. Click the link to open the reading passage in a new tab, then answer any questions provided in class or on paper.")
-
-    # ------- Insert your reading links below -----------
-    lesen_links = [
-        {"label": "A1 Beispieltext – Mein Tag", "url": "https://www.goethe.de/prj/mwd/de/spr/ueb.html"},
-        {"label": "A2 Lesetext – In der Stadt", "url": "https://www.deutsch-to-go.de/a2-lesetexte/"},
-        # Add more links here
-    ]
-    for item in lesen_links:
-        st.markdown(f"- [{item['label']}]({item['url']})")
-
-    st.success("After reading, you can write your answers in your exercise book or upload them as instructed.")
-
-# ---- STAGE 6: HÖREN ----
-if st.session_state["falowen_stage"] == 6:
-    st.markdown(
-        """
-        <div style="
-            padding: 8px 12px;
-            background: #feb236;
-            color: #fff;
-            border-radius: 6px;
-            text-align: center;
-            margin-bottom: 8px;
-            font-size: 1.3rem;
-        ">
-            🎧 Listening Practice – Hören
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    st.divider()
-    st.info("Choose a listening exercise below. Click the link to listen to the audio in a new tab. Answer the questions provided in class or on paper.")
-
-    # ------- Insert your listening links below -----------
-    hoeren_links = [
-        {"label": "A1 Hörübung – Einkaufen", "url": "https://learngerman.dw.com/en/overview-a1/s-37317298"},
-        {"label": "A2 Hörverstehen – Im Restaurant", "url": "https://www.hueber.de/audios-und-uebungen/a2"},
-        # Add more links here
-    ]
-    for item in hoeren_links:
-        st.markdown(f"- [{item['label']}]({item['url']})")
+    # ---- STAGE 2: Level Selection ----
+    if st.session_state["falowen_stage"] == 2:
+        st.subheader("Step 2: Choose Your Level")
+        level = st.radio(
+            "Select your level:",
+            ["A1", "A2", "B1", "B2", "C1"],
+            key="falowen_level_center"
+        )
+        if st.button("⬅️ Back", key="falowen_back1"):
+            st.session_state["falowen_stage"] = 1
+            st.rerun()
+        if st.button("Next ➡️", key="falowen_next_level"):
+            st.session_state["falowen_level"] = level
+            if st.session_state["falowen_mode"] == "Geführte Prüfungssimulation (Exam Mode)":
+                st.session_state["falowen_stage"] = 3
+            else:
+                st.session_state["falowen_stage"] = 4
+            st.session_state["falowen_teil"] = None
+            st.session_state["falowen_messages"] = []
+            st.session_state["custom_topic_intro_done"] = False
+            st.rerun()
+        st.stop()
 
 
     # =====================
     #   STAGE 3: Exam Topic Picker (Exam Mode) and Custom Chat Topic Input
     # =====================
     if st.session_state["falowen_stage"] == 3:
-        if st.session_state.get("falowen_mode") == "Geführte Prüfungssimulation (Exam Mode)":
-            level = st.session_state["falowen_level"]
+     if st.session_state.get("falowen_mode") == "Geführte Prüfungssimulation (Exam Mode)":
+        level = st.session_state["falowen_level"]
 
-            teil_options = {
-                "A1": [
-                    "Teil 1 – Basic Introduction",
-                    "Teil 2 – Question and Answer",
-                    "Teil 3 – Making A Request"
-                ],
-                "A2": [
-                    "Teil 1 – Fragen zu Schlüsselwörtern",
-                    "Teil 2 – Über das Thema sprechen",
-                    "Teil 3 – Gemeinsam planen"
-                ],
-                "B1": [
-                    "Teil 1 – Gemeinsam planen (Dialogue)",
-                    "Teil 2 – Präsentation (Monologue)",
-                    "Teil 3 – Feedback & Fragen stellen"
-                ],
-                "B2": [
-                    "Teil 1 – Diskussion",
-                    "Teil 2 – Präsentation",
-                    "Teil 3 – Argumentation"
-                ],
-                "C1": [
-                    "Teil 1 – Vortrag",
-                    "Teil 2 – Diskussion",
-                    "Teil 3 – Bewertung"
-                ]
-            }
+        teil_options = {
+            "A1": [
+                "Teil 1 – Basic Introduction",
+                "Teil 2 – Question and Answer",
+                "Teil 3 – Making A Request",
+                "Lesen – Past Exam Reading",
+                "Hören – Past Exam Listening"
+            ],
+            "A2": [
+                "Teil 1 – Fragen zu Schlüsselwörtern",
+                "Teil 2 – Über das Thema sprechen",
+                "Teil 3 – Gemeinsam planen",
+                "Lesen – Past Exam Reading",
+                "Hören – Past Exam Listening"
+            ],
+            "B1": [
+                "Teil 1 – Gemeinsam planen (Dialogue)",
+                "Teil 2 – Präsentation (Monologue)",
+                "Teil 3 – Feedback & Fragen stellen",
+                "Lesen – Past Exam Reading",
+                "Hören – Past Exam Listening"
+            ],
+            "B2": [
+                "Teil 1 – Diskussion",
+                "Teil 2 – Präsentation",
+                "Teil 3 – Argumentation",
+                "Lesen – Past Exam Reading",
+                "Hören – Past Exam Listening"
+            ],
+            "C1": [
+                "Teil 1 – Vortrag",
+                "Teil 2 – Diskussion",
+                "Teil 3 – Bewertung",
+                "Lesen – Past Exam Reading",
+                "Hören – Past Exam Listening"
+            ]
+        }
 
-            st.subheader("Step 3: Choose Exam Part")
-            teil = st.radio(
-                "Which exam part?",
-                teil_options[level],
-                key="falowen_teil_center"
+        st.subheader("Step 3: Choose Exam Part")
+        teil = st.radio(
+            "Which exam part?",
+            teil_options[level],
+            key="falowen_teil_center"
+        )
+
+        # ------------------------
+        # LESEN / HÖREN SHORTCUTS
+        # ------------------------
+        lesen_links = {
+            "A1": "https://example.com/a1-lesen",
+            "A2": "https://example.com/a2-lesen",
+            "B1": "https://example.com/b1-lesen",
+            "B2": "https://example.com/b2-lesen",
+            "C1": "https://example.com/c1-lesen"
+        }
+        hoeren_links = {
+            "A1": "https://example.com/a1-hoeren",
+            "A2": "https://example.com/a2-hoeren",
+            "B1": "https://example.com/b1-hoeren",
+            "B2": "https://example.com/b2-hoeren",
+            "C1": "https://example.com/c1-hoeren"
+        }
+
+        if "Lesen" in teil:
+            st.markdown(f"""
+            <div style="background:#e1f5fe;border-radius:10px;padding:1.1em 1.4em;margin:1.2em 0;">
+                <span style="font-size:1.18em; color:#0277bd;"><b>📖 Past Exam: Lesen (Reading)</b></span><br><br>
+                <a href="{lesen_links.get(level, '#')}" target="_blank" style="font-size:1.10em;color:#1976d2;font-weight:600;">
+                    👉 Click here for {level} Lesen Past Exam Questions
+                </a>
+            </div>
+            """, unsafe_allow_html=True)
+            st.stop()
+
+        if "Hören" in teil:
+            st.markdown(f"""
+            <div style="background:#ede7f6;border-radius:10px;padding:1.1em 1.4em;margin:1.2em 0;">
+                <span style="font-size:1.18em; color:#512da8;"><b>🎧 Past Exam: Hören (Listening)</b></span><br><br>
+                <a href="{hoeren_links.get(level, '#')}" target="_blank" style="font-size:1.10em;color:#5e35b1;font-weight:600;">
+                    👉 Click here for {level} Hören Past Exam Audio/Questions
+                </a>
+            </div>
+            """, unsafe_allow_html=True)
+            st.stop()
+
+        teil_number = teil.split()[1] if teil else ""
+
+        topic_col = "Topic/Prompt"
+        keyword_col = "Keyword/Subtopic"
+
+        exam_topics = df_exam[
+            (df_exam["Level"] == level) & (df_exam["Teil"] == f"Teil {teil_number}")
+        ] if teil_number else pd.DataFrame()
+
+        if not exam_topics.empty:
+            topic_vals = exam_topics[topic_col].astype(str).str.strip()
+            keyword_vals = exam_topics[keyword_col].astype(str).str.strip()
+            topics_list = [
+                f"{t} – {k}" if k else t
+                for t, k in zip(topic_vals, keyword_vals)
+                if t
+            ]
+        else:
+            topics_list = []
+
+        search = st.text_input("🔍 Search topic or keyword...", "")
+        filtered = [t for t in topics_list if search.lower() in t.lower()] if search else topics_list
+
+        if filtered:
+            st.markdown("**Preview: Available Topics**")
+            preview_n = 6
+            preview_topics = filtered[:preview_n]
+            for t in preview_topics:
+                st.markdown(f"- {t}")
+            if len(filtered) > preview_n:
+                with st.expander(f"See all {len(filtered)} topics"):
+                    col1, col2 = st.columns(2)
+                    for i, t in enumerate(filtered):
+                        if i % 2 == 0:
+                            with col1: st.markdown(f"- {t}")
+                        else:
+                            with col2: st.markdown(f"- {t}")
+        else:
+            st.info("No topics found. Try a different search.")
+
+        picked = None
+        if filtered:
+            st.write("**Pick your topic or select random:**")
+            picked = st.selectbox(
+                "",
+                ["(random)"] + filtered
             )
-            teil_number = teil.split()[1] if teil else ""
-
-            topic_col = "Topic/Prompt"
-            keyword_col = "Keyword/Subtopic"
-
-            exam_topics = df_exam[
-                (df_exam["Level"] == level) & (df_exam["Teil"] == f"Teil {teil_number}")
-            ] if teil_number else pd.DataFrame()
-
-            if not exam_topics.empty:
-                topic_vals = exam_topics[topic_col].astype(str).str.strip()
-                keyword_vals = exam_topics[keyword_col].astype(str).str.strip()
-                topics_list = [
-                    f"{t} – {k}" if k else t
-                    for t, k in zip(topic_vals, keyword_vals)
-                    if t
-                ]
+            if picked == "(random)":
+                chosen_topic = random.choice(filtered)
             else:
-                topics_list = []
+                chosen_topic = picked
 
-            search = st.text_input("🔍 Search topic or keyword...", "")
-            filtered = [t for t in topics_list if search.lower() in t.lower()] if search else topics_list
-
-            if filtered:
-                st.markdown("**Preview: Available Topics**")
-                preview_n = 6
-                preview_topics = filtered[:preview_n]
-                for t in preview_topics:
-                    st.markdown(f"- {t}")
-                if len(filtered) > preview_n:
-                    with st.expander(f"See all {len(filtered)} topics"):
-                        col1, col2 = st.columns(2)
-                        for i, t in enumerate(filtered):
-                            if i % 2 == 0:
-                                with col1: st.markdown(f"- {t}")
-                            else:
-                                with col2: st.markdown(f"- {t}")
+            if " – " in chosen_topic:
+                topic, keyword = chosen_topic.split(" – ", 1)
+                st.session_state["falowen_exam_topic"] = topic
+                st.session_state["falowen_exam_keyword"] = keyword
             else:
-                st.info("No topics found. Try a different search.")
-
-            picked = None
-            if filtered:
-                st.write("**Pick your topic or select random:**")
-                picked = st.selectbox(
-                    "",
-                    ["(random)"] + filtered
-                )
-                if picked == "(random)":
-                    chosen_topic = random.choice(filtered)
-                else:
-                    chosen_topic = picked
-
-                if " – " in chosen_topic:
-                    topic, keyword = chosen_topic.split(" – ", 1)
-                    st.session_state["falowen_exam_topic"] = topic
-                    st.session_state["falowen_exam_keyword"] = keyword
-                else:
-                    st.session_state["falowen_exam_topic"] = chosen_topic
-                    st.session_state["falowen_exam_keyword"] = None
-
-                topic = st.session_state.get("falowen_exam_topic")
-                keyword = st.session_state.get("falowen_exam_keyword")
-                if topic and keyword:
-                    st.success(f"**Your exam topic is:**\n\n{topic} – {keyword}")
-                elif topic:
-                    st.success(f"**Your exam topic is:**\n\n{topic}")
-            else:
-                st.warning("No topics available for this exam part.")
-                st.session_state["falowen_exam_topic"] = None
+                st.session_state["falowen_exam_topic"] = chosen_topic
                 st.session_state["falowen_exam_keyword"] = None
 
-            if st.button("⬅️ Back", key="falowen_back2"):
-                st.session_state["falowen_stage"] = 2
-                st.rerun()
+            topic = st.session_state.get("falowen_exam_topic")
+            keyword = st.session_state.get("falowen_exam_keyword")
+            if topic and keyword:
+                st.success(f"**Your exam topic is:**\n\n{topic} – {keyword}")
+            elif topic:
+                st.success(f"**Your exam topic is:**\n\n{topic}")
+        else:
+            st.warning("No topics available for this exam part.")
+            st.session_state["falowen_exam_topic"] = None
+            st.session_state["falowen_exam_keyword"] = None
 
-            if st.session_state.get("falowen_messages"):
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("Continue Previous Chat", key="falowen_continue_chat"):
-                        st.session_state["falowen_teil"] = teil
-                        st.session_state["falowen_stage"] = 4
-                        st.rerun()
-                with col2:
-                    if st.button("Restart Practice", key="falowen_start_practice"):
-                        st.session_state["falowen_teil"] = teil
-                        st.session_state["falowen_stage"] = 4
-                        st.session_state["falowen_messages"] = []
-                        st.session_state["custom_topic_intro_done"] = False
-                        st.session_state["remaining_topics"] = filtered.copy()
-                        random.shuffle(st.session_state["remaining_topics"])
-                        st.session_state["used_topics"] = []
-                        st.rerun()
-            else:
-                if st.button("Start Practice", key="falowen_start_practice"):
+        if st.button("⬅️ Back", key="falowen_back2"):
+            st.session_state["falowen_stage"] = 2
+            st.rerun()
+
+        if st.session_state.get("falowen_messages"):
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Continue Previous Chat", key="falowen_continue_chat"):
+                    st.session_state["falowen_teil"] = teil
+                    st.session_state["falowen_stage"] = 4
+                    st.rerun()
+            with col2:
+                if st.button("Restart Practice", key="falowen_start_practice"):
                     st.session_state["falowen_teil"] = teil
                     st.session_state["falowen_stage"] = 4
                     st.session_state["falowen_messages"] = []
@@ -3520,58 +3457,16 @@ if st.session_state["falowen_stage"] == 6:
                     random.shuffle(st.session_state["remaining_topics"])
                     st.session_state["used_topics"] = []
                     st.rerun()
-
-        elif st.session_state.get("falowen_mode") == "Eigenes Thema/Frage (Custom Chat)":
-            st.subheader("Step 3: Enter Your Topic")
-            st.info("You'll start a chat with your tutor. No topic needed—just press Start Chat!")
-            st.session_state["falowen_custom_topic"] = ""  # Or set a default value if you want
-
-            if st.button("⬅️ Back", key="falowen_back2_custom"):
-                st.session_state["falowen_stage"] = 2
+        else:
+            if st.button("Start Practice", key="falowen_start_practice"):
+                st.session_state["falowen_teil"] = teil
+                st.session_state["falowen_stage"] = 4
+                st.session_state["falowen_messages"] = []
+                st.session_state["custom_topic_intro_done"] = False
+                st.session_state["remaining_topics"] = filtered.copy()
+                random.shuffle(st.session_state["remaining_topics"])
+                st.session_state["used_topics"] = []
                 st.rerun()
-
-            if st.session_state.get("falowen_messages"):
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("Continue Previous Chat", key="falowen_continue_chat_custom"):
-                        st.session_state["falowen_teil"] = None
-                        st.session_state["falowen_stage"] = 4
-                        st.rerun()
-                with col2:
-                    if st.button("Restart Chat", key="falowen_start_practice_custom"):
-                        st.session_state["falowen_teil"] = None
-                        st.session_state["falowen_stage"] = 4
-                        st.session_state["falowen_messages"] = []
-                        st.session_state["custom_topic_intro_done"] = False
-                        st.rerun()
-            else:
-                if st.button("Start Chat", key="falowen_start_practice_custom"):
-                    st.session_state["falowen_teil"] = None
-                    st.session_state["falowen_stage"] = 4
-                    st.session_state["falowen_messages"] = []
-                    st.session_state["custom_topic_intro_done"] = False
-                    st.rerun()
-                    
-    # ==========================
-    # FIRESTORE CHAT HELPERS
-    # ==========================
-    def save_falowen_chat(student_code, mode, level, teil, messages):
-        doc_ref = db.collection("falowen_chats").document(student_code)
-        doc = doc_ref.get()
-        data = doc.to_dict() if doc.exists else {}
-        chats = data.get("chats", {})
-        chat_key = f"{mode}_{level}_{teil or 'custom'}"
-        chats[chat_key] = messages
-        doc_ref.set({"chats": chats}, merge=True)
-
-    def load_falowen_chat(student_code, mode, level, teil):
-        doc_ref = db.collection("falowen_chats").document(student_code)
-        doc = doc_ref.get()
-        if not doc.exists:
-            return []
-        chats = doc.to_dict().get("chats", {})
-        chat_key = f"{mode}_{level}_{teil or 'custom'}"
-        return chats.get(chat_key, [])
 
     # =========================================
     # ---- STAGE 4: MAIN CHAT ----
@@ -3834,7 +3729,13 @@ if st.session_state["falowen_stage"] == 6:
                 st.session_state[key] = None
             st.session_state["falowen_stage"] = 1
             st.rerun()
-#
+
+# =========================================
+# End
+# =========================================
+
+
+
 # =========================================
 # End
 # =========================================
