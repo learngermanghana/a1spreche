@@ -24,6 +24,8 @@ from fpdf import FPDF                      # PDF export
 from streamlit_cookies_manager import EncryptedCookieManager   # Cookie/session handling
 from docx import Document                  # Optional: DOCX notes download
 from gtts import gTTS                      # Text-to-speech for vocab audio
+from streamlit_audiorecorder import audiorecorder   # Audio recorder for speaking answers
+
 
 # If you ever add fuzzy matching, you can use:
 # from thefuzz import fuzz, process      # Uncomment if using fuzzy answer checking
@@ -3619,7 +3621,6 @@ if tab == "Exams Mode & Custom Chat":
         user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
 
         # ======== AUDIO RECORDER (Voice Answer) ========
-        from streamlit_audiorecorder import audiorecorder
 
         with st.container():
             st.markdown("### 🎤 Or record your spoken answer below:")
