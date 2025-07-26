@@ -4137,7 +4137,7 @@ if tab == "Schreiben Trainer":
 
     # ----------- 1. MARK MY LETTER -----------
     if sub_tab == "Mark My Letter":
-        MARK_LIMIT = 5
+        MARK_LIMIT = 1
         daily_so_far = get_schreiben_usage(student_code)
         st.markdown(f"**Daily usage:** {daily_so_far} / {MARK_LIMIT}")
 
@@ -4264,7 +4264,7 @@ if tab == "Schreiben Trainer":
             improved_letter = st.text_area(
                 "Your improved version (try to fix the mistakes Herr Felix mentioned):",
                 key="improved_letter",
-                height=300,
+                height=400,
                 placeholder="Paste your improved letter here..."
             )
             compare_clicked = st.button("Compare My Improvement")
