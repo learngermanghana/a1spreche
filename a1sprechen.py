@@ -3197,81 +3197,184 @@ if tab == "Exams Mode & Custom Chat":
         st.stop()
 
 # ---- SESSION STATE DEFAULTS ----
-    default_state = {
-        "falowen_stage": 1,
-        "falowen_mode": None,
-        "falowen_level": None,
-        "falowen_teil": None,
-        "falowen_messages": [],
-        "falowen_turn_count": 0,
-        "custom_topic_intro_done": False,
-        "custom_chat_level": None,
-        "falowen_exam_topic": None,
-        "falowen_exam_keyword": None,
-    }
-    for key, val in default_state.items():
-        if key not in st.session_state:
-            st.session_state[key] = val
+import streamlit as st
 
-        # ---- STAGE 1: Mode Selection ----
-    if st.session_state["falowen_stage"] == 1:
-        st.subheader("Step 1: Choose Practice Mode")
+# ---- SESSION STATE DEFAULTS ----
+default_state = {
+    "falowen_stage": 1,
+    "falowen_mode": None,
+    "falowen_level": None,
+    "falowen_teil": None,
+    "falowen_messages": [],
+    "falowen_turn_count": 0,
+    "custom_topic_intro_done": False,
+    "custom_chat_level": None,
+    "falowen_exam_topic": None,
+    "falowen_exam_keyword": None,
+}
+for key, val in default_state.items():
+    if key not in st.session_state:
+        st.session_state[key] = val
 
-        st.info(
-            """
-            **Which mode should you choose?**
+# --- UNIQUE LOGIN & SESSION ISOLATION BLOCK ---
+if "student_code" not in st.session_state or not st.session_state["student_code"]:
+    code = st.text_input("Enter your Student Code to continue:", key="login_code")
+    if st.button("Login"):
+        st.session_state["student_code"] = code.strip()
+        st.session_state["last_logged_code"] = code.strip()
+        st.rerun()
+    st.stop()
+else:
+    code = st.session_state["student_code"]
+    last_code = st.session_state.get("last_logged_code", None)
+    if last_code != code:
+        # Clear all chat-related session state for new login
+        for k in [
+            "falowen_messages", "falowen_stage", "falowen_teil", "falowen_mode",
+            "custom_topic_intro_done", "falowen_turn_count",
+            "falowen_exam_topic", "falowen_exam_keyword", "remaining_topics", "used_topics",
+            "_falowen_loaded", "falowen_practiced_topics"
+        ]:
+            if k in st.session_state: del st.session_state[k]
+        st.session_state["last_logged_code"] = code
+        st.rerun()
 
-            - 📝 **Exam Mode**:  
-                Practice a real speaking exam simulation with real topics and an examiner.  
-                _Use this if you want to prepare for your official speaking test!_
+# --- PROGRESS TRACKING: PRACTICED TOPICS (unique per login) ---
+if "falowen_practiced_topics" not in st.session_state:
+    st.session_state["falowen_practiced_topics"] = []
 
-            - 💬 **Custom Chat**:  
-                Chat about any topic! Great for practicing class presentations, your own ideas, or having an intelligent conversation partner.
-            """,
-            icon="ℹ️"
-        )
+# ---- STAGE 1: Mode Selection ----
+if st.session_state["falowen_stage"] == 1:
+    st.subheader("Step 1: Choose Practice Mode")
 
-        mode = st.radio(
-            "How would you like to practice?",
-            [
-                "Geführte Prüfungssimulation (Exam Mode)",
-                "Eigenes Thema/Frage (Custom Chat)"
-            ],
-            key="falowen_mode_center"
-        )
-        if st.button("Next ➡️", key="falowen_next_mode"):
-            st.session_state["falowen_mode"] = mode
-            st.session_state["falowen_stage"] = 2
-            st.session_state["falowen_level"] = None
-            st.session_state["falowen_teil"] = None
-            st.session_state["falowen_messages"] = []
-            st.session_state["custom_topic_intro_done"] = False
-            st.rerun()
-        st.stop()
+    st.info(
+        """
+        **Which mode should you choose?**
 
+        - 📝 **Exam Mode**:  
+            Practice a real speaking exam simulation with real topics and an examiner.  
+            _Use this if you want to prepare for your official speaking test!_
 
-    # ---- STAGE 2: Level Selection ----
-    if st.session_state["falowen_stage"] == 2:
-        st.subheader("Step 2: Choose Your Level")
-        level = st.radio(
-            "Select your level:",
-            ["A1", "A2", "B1", "B2", "C1"],
-            key="falowen_level_center"
-        )
-        if st.button("⬅️ Back", key="falowen_back1"):
-            st.session_state["falowen_stage"] = 1
-            st.rerun()
-        if st.button("Next ➡️", key="falowen_next_level"):
-            st.session_state["falowen_level"] = level
-            if st.session_state["falowen_mode"] == "Geführte Prüfungssimulation (Exam Mode)":
-                st.session_state["falowen_stage"] = 3
-            else:
-                st.session_state["falowen_stage"] = 4
-            st.session_state["falowen_teil"] = None
-            st.session_state["falowen_messages"] = []
-            st.session_state["custom_topic_intro_done"] = False
-            st.rerun()
-        st.stop()
+        - 💬 **Custom Chat**:  
+            Chat about any topic! Great for practicing class presentations, your own ideas, or having an intelligent conversation partner.
+
+        - 📖 **Lesen (Reading)**:  
+            Practice your reading skills with exam-style texts and questions.
+
+        - 🎧 **Hören (Listening)**:  
+            Practice listening skills with audio exercises and questions.
+        """,
+        icon="ℹ️"
+    )
+
+    mode = st.radio(
+        "How would you like to practice?",
+        [
+            "Geführte Prüfungssimulation (Exam Mode)",
+            "Eigenes Thema/Frage (Custom Chat)",
+            "📖 Lesen (Reading)",
+            "🎧 Hören (Listening)"
+        ],
+        key="falowen_mode_center"
+    )
+    if st.button("Next ➡️", key="falowen_next_mode"):
+        st.session_state["falowen_mode"] = mode
+        st.session_state["falowen_stage"] = 2
+        st.session_state["falowen_level"] = None
+        st.session_state["falowen_teil"] = None
+        st.session_state["falowen_messages"] = []
+        st.session_state["custom_topic_intro_done"] = False
+        st.rerun()
+    st.stop()
+
+# ---- STAGE 2: Level Selection ----
+if st.session_state["falowen_stage"] == 2:
+    st.subheader("Step 2: Choose Your Level")
+    level = st.radio(
+        "Select your level:",
+        ["A1", "A2", "B1", "B2", "C1"],
+        key="falowen_level_center"
+    )
+    if st.button("⬅️ Back", key="falowen_back1"):
+        st.session_state["falowen_stage"] = 1
+        st.rerun()
+    if st.button("Next ➡️", key="falowen_next_level"):
+        st.session_state["falowen_level"] = level
+        if st.session_state["falowen_mode"] == "Geführte Prüfungssimulation (Exam Mode)":
+            st.session_state["falowen_stage"] = 3
+        elif st.session_state["falowen_mode"] == "Eigenes Thema/Frage (Custom Chat)":
+            st.session_state["falowen_stage"] = 4
+        elif st.session_state["falowen_mode"] == "📖 Lesen (Reading)":
+            st.session_state["falowen_stage"] = 5
+        elif st.session_state["falowen_mode"] == "🎧 Hören (Listening)":
+            st.session_state["falowen_stage"] = 6
+        st.session_state["falowen_teil"] = None
+        st.session_state["falowen_messages"] = []
+        st.session_state["custom_topic_intro_done"] = False
+        st.rerun()
+    st.stop()
+
+# ---- STAGE 5: LESEN ----
+if st.session_state["falowen_stage"] == 5:
+    st.markdown(
+        """
+        <div style="
+            padding: 8px 12px;
+            background: #0174df;
+            color: #fff;
+            border-radius: 6px;
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 1.3rem;
+        ">
+            📖 Reading Practice – Lesen
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    st.divider()
+    st.info("Choose a reading text below. Click the link to open the reading passage in a new tab, then answer any questions provided in class or on paper.")
+
+    # ------- Insert your reading links below -----------
+    lesen_links = [
+        {"label": "A1 Beispieltext – Mein Tag", "url": "https://www.goethe.de/prj/mwd/de/spr/ueb.html"},
+        {"label": "A2 Lesetext – In der Stadt", "url": "https://www.deutsch-to-go.de/a2-lesetexte/"},
+        # Add more links here
+    ]
+    for item in lesen_links:
+        st.markdown(f"- [{item['label']}]({item['url']})")
+
+    st.success("After reading, you can write your answers in your exercise book or upload them as instructed.")
+
+# ---- STAGE 6: HÖREN ----
+if st.session_state["falowen_stage"] == 6:
+    st.markdown(
+        """
+        <div style="
+            padding: 8px 12px;
+            background: #feb236;
+            color: #fff;
+            border-radius: 6px;
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 1.3rem;
+        ">
+            🎧 Listening Practice – Hören
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    st.divider()
+    st.info("Choose a listening exercise below. Click the link to listen to the audio in a new tab. Answer the questions provided in class or on paper.")
+
+    # ------- Insert your listening links below -----------
+    hoeren_links = [
+        {"label": "A1 Hörübung – Einkaufen", "url": "https://learngerman.dw.com/en/overview-a1/s-37317298"},
+        {"label": "A2 Hörverstehen – Im Restaurant", "url": "https://www.hueber.de/audios-und-uebungen/a2"},
+        # Add more links here
+    ]
+    for item in hoeren_links:
+        st.markdown(f"- [{item['label']}]({item['url']})")
 
 
     # =====================
@@ -3731,7 +3834,7 @@ if tab == "Exams Mode & Custom Chat":
                 st.session_state[key] = None
             st.session_state["falowen_stage"] = 1
             st.rerun()
-
+#
 # =========================================
 # End
 # =========================================
