@@ -916,71 +916,55 @@ if st.session_state.get("logged_in"):
                 st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
         except:
             pass
+    # --- Upcoming Exam Countdown (by level mapping) + Video of the Day ---
 
-        # --- Upcoming Exam Countdown (by level mapping) + Video of the Day ---
-        GOETHE_EXAM_DATES = {
-            "A1": (
-                date(2025, 10, 13),
-                2850,
-                [
-                    "https://www.youtube.com/watch?v=4-eDoThe6qo",
-                    "https://www.youtube.com/watch?v=XcVXCm3QAVc&list=PLs7zUO7VPyJ4yqjW6XecW42RMjTid_kKF",
-                ]
-            ),
-            "A2": (
-                date(2025, 10, 14),
-                2400,
-                [
-                    "https://www.youtube.com/watch?v=S_haCcudQZk",
-                    "https://www.youtube.com/watch?v=ArpSqpOtYys&list=PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc",
-                    "https://www.youtube.com/watch?v=XcVXCm3QAVc&list=PLs7zUO7VPyJ4yqjW6XecW42RMjTid_kKF",
-                    "https://www.youtube.com/watch?v=ku1xByCG9WA&list=PLs7zUO7VPyJ7AAK5J08RnRw2L16KU_DaS",
-                ]
-            ),
-            "B1": (
-                date(2025, 10, 15),
-                2750,
-                [
-                    "https://www.youtube.com/watch?v=SrcZ2ud4T3o",
-                    "https://www.youtube.com/watch?v=ku1xByCG9WA&list=PLs7zUO7VPyJ7AAK5J08RnRw2L16KU_DaS",
-                    "https://www.youtube.com/watch?v=WAm_S1o1uJM&list=PLs7zUO7VPyJ6-i229_Enu4OCHZKe_PwWO",
-                ]
-            ),
-            "B2": (date(2025, 10, 16), 2500, []),
-            "C1": (date(2025, 10, 17), 2450, []),
-        }
-        level = (student_row.get("Level", "") or "").upper().replace(" ", "")
-        exam_info = GOETHE_EXAM_DATES.get(level)
+    GOETHE_EXAM_DATES = {
+        "A1": (date(2025, 10, 13), 2850),
+        "A2": (date(2025, 10, 14), 2400),
+        "B1": (date(2025, 10, 15), 2750),
+        "B2": (date(2025, 10, 16), 2500),
+        "C1": (date(2025, 10, 17), 2450),
+    }
 
-        st.subheader("⏳ Goethe Exam Countdown & Video of the Day")
-        if exam_info:
-            exam_date, fee, video_list = exam_info
-            days_to_exam = (exam_date - date.today()).days
-            if days_to_exam > 0:
-                st.info(
-                    f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).  \n"
-                    f"**Fee:** ₵{fee:,}  \n"
-                    "[Register online here](https://www.goethe.de/ins/gh/en/spr/prf.html)"
-                )
-            elif days_to_exam == 0:
-                st.success("🚀 Exam is today! Good luck!")
-            else:
-                st.error(
-                    f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.  \n"
-                    f"**Fee:** ₵{fee:,}"
-                )
+    level = (student_row.get("Level", "") or "").upper().replace(" ", "")
+    exam_info = GOETHE_EXAM_DATES.get(level)
 
-            # ---- Video of the Day (rotates by date and level) ----
+    st.subheader("⏳ Goethe Exam Countdown & Video of the Day")
+    if exam_info:
+        exam_date, fee = exam_info
+        days_to_exam = (exam_date - date.today()).days
+        if days_to_exam > 0:
+            st.info(
+                f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).  \n"
+                f"**Fee:** ₵{fee:,}  \n"
+                "[Register online here](https://www.goethe.de/ins/gh/en/spr/prf.html)"
+            )
+        elif days_to_exam == 0:
+            st.success("🚀 Exam is today! Good luck!")
+        else:
+            st.error(
+                f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.  \n"
+                f"**Fee:** ₵{fee:,}"
+            )
+
+        # ---- Fetch playlist and show video of the day ----
+        playlist_id = YOUTUBE_PLAYLIST_IDS.get(level)
+        if playlist_id:
+            video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
             if video_list:
                 today_idx = date.today().toordinal()
                 pick = today_idx % len(video_list)
-                video_url = video_list[pick]
-                st.markdown(f"**🎬 Video of the Day for {level}**")
-                st.video(video_url)
+                video = video_list[pick]
+                st.markdown(f"**🎬 Video of the Day for {level}: {video['title']}**")
+                st.video(video['url'])
             else:
-                st.info("No video available for your level yet. Stay tuned!")
+                st.info("No videos found for your level’s playlist. Check back soon!")
         else:
-            st.warning("No exam date configured for your level.")
+            st.info("No playlist found for your level yet. Stay tuned!")
+
+    else:
+        st.warning("No exam date configured for your level.")
+
 
         # --- Reviews Section ---
         st.markdown("### 🗣️ What Our Students Say")
