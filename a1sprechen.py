@@ -919,9 +919,33 @@ if st.session_state.get("logged_in"):
 
         # --- Upcoming Exam Countdown (by level mapping) + Video of the Day ---
         GOETHE_EXAM_DATES = {
-            "A1": (date(2025, 10, 13), 2850, ["https://www.youtube.com/watch?v=4-eDoThe6qo"]),
-            "A2": (date(2025, 10, 14), 2400, ["https://www.youtube.com/watch?v=S_haCcudQZk"]),
-            "B1": (date(2025, 10, 15), 2750, ["https://www.youtube.com/watch?v=SrcZ2ud4T3o"]),
+            "A1": (
+                date(2025, 10, 13),
+                2850,
+                [
+                    "https://www.youtube.com/watch?v=4-eDoThe6qo",
+                    "https://www.youtube.com/watch?v=XcVXCm3QAVc&list=PLs7zUO7VPyJ4yqjW6XecW42RMjTid_kKF",
+                ]
+            ),
+            "A2": (
+                date(2025, 10, 14),
+                2400,
+                [
+                    "https://www.youtube.com/watch?v=S_haCcudQZk",
+                    "https://www.youtube.com/watch?v=ArpSqpOtYys&list=PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc",
+                    "https://www.youtube.com/watch?v=XcVXCm3QAVc&list=PLs7zUO7VPyJ4yqjW6XecW42RMjTid_kKF",
+                    "https://www.youtube.com/watch?v=ku1xByCG9WA&list=PLs7zUO7VPyJ7AAK5J08RnRw2L16KU_DaS",
+                ]
+            ),
+            "B1": (
+                date(2025, 10, 15),
+                2750,
+                [
+                    "https://www.youtube.com/watch?v=SrcZ2ud4T3o",
+                    "https://www.youtube.com/watch?v=ku1xByCG9WA&list=PLs7zUO7VPyJ7AAK5J08RnRw2L16KU_DaS",
+                    "https://www.youtube.com/watch?v=WAm_S1o1uJM&list=PLs7zUO7VPyJ6-i229_Enu4OCHZKe_PwWO",
+                ]
+            ),
             "B2": (date(2025, 10, 16), 2500, []),
             "C1": (date(2025, 10, 17), 2450, []),
         }
