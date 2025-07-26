@@ -4041,6 +4041,27 @@ def highlight_feedback(text):
 
     return text
 
+def save_submission(student_code, score, passed, date):
+    """
+    Save a letter submission for this student.
+    """
+    doc_ref = db.collection("schreiben_submissions").document(student_code)
+    doc = doc_ref.get()
+    data = doc.to_dict() if doc.exists else {}
+    submissions = data.get("submissions", [])
+    submissions.append({
+        "score": score,
+        "passed": passed,
+        "date": date.strftime("%Y-%m-%d")
+    })
+    doc_ref.set({"submissions": submissions}, merge=True)
+
+def get_schreiben_stats(student_code):
+    doc_ref = db.collection("schreiben_stats").document(student_code)
+    doc = doc_ref.get()
+    return doc.to_dict() if doc.exists else {}
+
+
 
 # ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
 def bubble(role, text):
