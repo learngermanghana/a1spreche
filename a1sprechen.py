@@ -1,29 +1,66 @@
 # ==== Standard Library ====
-import os, io, time, urllib.parse
-from datetime import date, datetime
-import sqlite3, atexit, json, re
+import os
+import random
+import sqlite3
+import atexit
+import json
+import re
+from datetime import date, datetime, timedelta
+import time
+import io
+import tempfile
+import urllib.parse
 
-# ==== Third‑Party Packages ====
+# ==== Third-Party Packages ====
 import pandas as pd
 import streamlit as st
 import requests
-import matplotlib.pyplot as plt
 import firebase_admin
 from firebase_admin import credentials, firestore
 import bcrypt
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 from gtts import gTTS
-from openai import OpenAI
 
 # ==== HIDE STREAMLIT FOOTER/MENU ====
-st.markdown(
-    """
-      <style>
-        #MainMenu {visibility: hidden;}
-        footer    {visibility: hidden;}
-      </style>
-    """, unsafe_allow_html=True)
+st.markdown("""
+<style>
+  #MainMenu {visibility: hidden;}
+  footer    {visibility: hidden;}
+</style>
+""", unsafe_allow_html=True)
+
+# ---- Falowen Header ----
+def show_banner():
+    st.markdown(
+        """
+        <div style='display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; width: 100%;'>
+            <span style='font-size:2.2rem; flex: 0 0 auto;'>🇬🇭</span>
+            <div style='flex: 1; text-align: center;'>
+                <span style='font-size:2.1rem; font-weight:bold; color:#17617a; letter-spacing:2px;'>
+                    Falowen App
+                </span>
+                <br>
+                <span style='font-size:1.08rem; color:#ff9900; font-weight:600;'>Learn Language Education Academy</span>
+                <br>
+                <span style='font-size:1.05rem; color:#268049; font-weight:400;'>
+                    Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
+                </span>
+                <br>
+                <span style='font-size:1.01rem; color:#1976d2; font-weight:500;'>
+                    Website: <a href='https://www.learngermanghana.com' target='_blank' style='color:#1565c0; text-decoration:none;'>www.learngermanghana.com</a>
+                </span>
+                <br>
+                <span style='font-size:0.98rem; color:#666; font-weight:500;'>
+                    Competent German Tutors Team
+                </span>
+            </div>
+            <span style='font-size:2.2rem; flex: 0 0 auto;'>🇩🇪</span>
+        </div>
+        """, unsafe_allow_html=True
+    )
+
+show_banner()
 
 # ==== FIREBASE ADMIN INIT ====
 if not firebase_admin._apps:
@@ -32,234 +69,362 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 db = firestore.client()
 
-# ==== FIRESTORE EMAIL/PASSWORD HANDLING ====
-def fire_get_user(code_or_email: str) -> dict | None:
-    ref = db.collection("students")
-    key = code_or_email.strip().lower()
-    doc = ref.document(key).get()
-    if doc.exists:
-        return doc.to_dict()
-    for user_doc in ref.where("email", "==", key).limit(1).stream():
-        return user_doc.to_dict()
-    return None
+# ==== DB SETUP & TABLES ====
+def get_connection():
+    if "conn" not in st.session_state:
+        conn = sqlite3.connect("vocab_progress.db", check_same_thread=False)
+        atexit.register(conn.close)
+        st.session_state["conn"] = conn
+    return st.session_state["conn"]
 
-
-def fire_create_user(student_code: str, email: str, password: str, google_auth: bool = False, **extras) -> bool:
-    data = {
-        "student_code": student_code,
-        "email": email,
-        "created": datetime.utcnow().isoformat(),
-        "google_auth": google_auth,
-        **extras
-    }
-    if not google_auth and password:
-        data["pw_hash"] = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-    db.collection("students").document(student_code).set(data)
-    return True
-
-
-def fire_check_password(code_or_email: str, password: str) -> dict | None:
-    user = fire_get_user(code_or_email)
-    if not user or user.get("google_auth"):
-        return None
-    pw_hash = user.get("pw_hash", "")
-    if password and pw_hash and bcrypt.checkpw(password.encode(), pw_hash.encode()):
-        return user
-    return None
-
-# ==== OPENAI CLIENT SETUP ====
-OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
-if not OPENAI_API_KEY:
-    st.error("Missing OpenAI API key. Please add OPENAI_API_KEY to Streamlit secrets.")
-    st.stop()
-client = OpenAI(api_key=OPENAI_API_KEY)
-
-# ==== YouTube API SETTINGS ====
-YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY") or os.getenv("YOUTUBE_API_KEY")
-YOUTUBE_PLAYLIST_IDS = {
-    "A1": ["PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b"],
-    "A2": ["PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b", "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc&index=5"],
-    "B1": ["PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-", "PLB92CD6B288E5DB61"]
-}
-
-@st.cache_data(ttl=3600 * 6)
-def fetch_youtube_playlist_videos(playlist_id: str, api_key: str) -> list[dict]:
-    videos, next_page = [], None
-    base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
-    for _ in range(3):  # simple retry
-        try:
-            params = {"part": "snippet", "playlistId": playlist_id, "maxResults": 50, "key": api_key}
-            while True:
-                if next_page:
-                    params["pageToken"] = next_page
-                resp = requests.get(base_url, params=params, timeout=10)
-                resp.raise_for_status()
-                data = resp.json()
-                for item in data.get("items", []):
-                    vid = item["snippet"]["resourceId"]["videoId"]
-                    videos.append({
-                        "title": item["snippet"]["title"],
-                        "url": f"https://www.youtube.com/watch?v={vid}"
-                    })
-                next_page = data.get("nextPageToken")
-                if not next_page:
-                    break
-            return videos
-        except requests.RequestException:
-            time.sleep(2 ** _)
-    st.error("Failed to load YouTube videos. Please try again later.")
-    return []
-
-# ==== DB CONNECTION SINGLETON ====
-class DBConnection:
-    _instance = None
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._conn = sqlite3.connect("vocab_progress.db", check_same_thread=False)
-            atexit.register(cls._instance._conn.close)
-        return cls._instance
-    @property
-    def conn(self):
-        return self._conn
-    def cursor(self):
-        return self._conn.cursor()
-    def commit(self):
-        return self._conn.commit()
-
-# ==== INITIALIZE DB TABLES ====
 def init_db():
-    table_schemas = [
-        ("vocab_progress",     "id INTEGER PRIMARY KEY, student_code TEXT, name TEXT, level TEXT, word TEXT, student_answer TEXT, is_correct INTEGER, date TEXT"),
-        ("schreiben_progress", "id INTEGER PRIMARY KEY, student_code TEXT, name TEXT, level TEXT, essay TEXT, score INTEGER, feedback TEXT, date TEXT"),
-        ("sprechen_progress",  "id INTEGER PRIMARY KEY, student_code TEXT, name TEXT, level TEXT, teil TEXT, message TEXT, score INTEGER, feedback TEXT, date TEXT"),
-        ("scores",             "id INTEGER PRIMARY KEY, student_code TEXT, name TEXT, assignment TEXT, score REAL, comments TEXT, date TEXT, level TEXT"),
-        ("exam_progress",      "student_code TEXT, level TEXT, teil TEXT, remaining TEXT, used TEXT, PRIMARY KEY(student_code, level, teil)"),
-        ("my_vocab",           "id INTEGER PRIMARY KEY, student_code TEXT, level TEXT, word TEXT, translation TEXT, date_added TEXT")
+    conn = get_connection()
+    c = conn.cursor()
+    TABLES = [
+        """
+        CREATE TABLE IF NOT EXISTS vocab_progress (
+            id INTEGER PRIMARY KEY,
+            student_code TEXT, name TEXT, level TEXT,
+            word TEXT, student_answer TEXT,
+            is_correct INTEGER, date TEXT
+        )""",
+        """
+        CREATE TABLE IF NOT EXISTS schreiben_progress (
+            id INTEGER PRIMARY KEY,
+            student_code TEXT, name TEXT, level TEXT,
+            essay TEXT, score INTEGER, feedback TEXT, date TEXT
+        )""",
+        """
+        CREATE TABLE IF NOT EXISTS sprechen_progress (
+            id INTEGER PRIMARY KEY,
+            student_code TEXT, name TEXT, level TEXT,
+            teil TEXT, message TEXT, score INTEGER,
+            feedback TEXT, date TEXT
+        )""",
+        """
+        CREATE TABLE IF NOT EXISTS scores (
+            id INTEGER PRIMARY KEY,
+            student_code TEXT, name TEXT,
+            assignment TEXT, score REAL,
+            comments TEXT, date TEXT, level TEXT
+        )""",
+        """
+        CREATE TABLE IF NOT EXISTS exam_progress (
+            student_code TEXT, level TEXT,
+            teil TEXT, remaining TEXT,
+            used TEXT,
+            PRIMARY KEY (student_code, level, teil)
+        )""",
+        """
+        CREATE TABLE IF NOT EXISTS my_vocab (
+            id INTEGER PRIMARY KEY,
+            student_code TEXT, level TEXT,
+            word TEXT, translation TEXT,
+            date_added TEXT
+        )""",
     ]
-    usage_tables = ["sprechen_usage", "letter_coach_usage", "schreiben_usage"]
-    db_single = DBConnection()
-    c = db_single.cursor()
-    for tbl, cols in table_schemas:
-        c.execute(f"CREATE TABLE IF NOT EXISTS {tbl} ({cols})")
-    for tbl in usage_tables:
-        c.execute(
-            f"CREATE TABLE IF NOT EXISTS {tbl} (student_code TEXT, date TEXT, count INTEGER, PRIMARY KEY(student_code, date))"
-        )
-    db_single.commit()
-
+    for tbl in ("sprechen_usage", "letter_coach_usage", "schreiben_usage"):
+        TABLES.append(f"""
+        CREATE TABLE IF NOT EXISTS {tbl} (
+            student_code TEXT, date TEXT, count INTEGER,
+            PRIMARY KEY (student_code, date)
+        )""")
+    for stmt in TABLES:
+        c.execute(stmt)
+    conn.commit()
 init_db()
 
 # ==== GOOGLE SHEET STUDENT DATA ====
 GOOGLE_SHEET_CSV = (
     "https://docs.google.com/spreadsheets/d/"
-    "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
+    "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
+    "/gviz/tq?tqx=out:csv"
 )
-
-@st.cache_data(ttl=3600)
-def load_student_data() -> pd.DataFrame:
-    for attempt in range(3):
+def load_student_data():
+    for i in range(3):  # Retry logic
         try:
             r = requests.get(GOOGLE_SHEET_CSV, timeout=10)
             r.raise_for_status()
             df = pd.read_csv(io.StringIO(r.text), dtype=str)
-            break
-        except requests.RequestException:
-            time.sleep(2 ** attempt)
-    else:
-        st.error("Could not load student data.")
-        st.stop()
-    df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]
-    df["StudentCode"] = df["StudentCode"].str.strip().str.lower()
-    df["Email"] = df["Email"].str.strip().str.lower()
-    return df.drop_duplicates("StudentCode", keep="first")
+            # unify formatting
+            df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]
+            df["StudentCode"] = df["StudentCode"].str.strip().str.lower()
+            df["Email"]       = df["Email"].str.strip().str.lower()
+            return df.drop_duplicates("StudentCode", keep="first")
+        except Exception as ex:
+            time.sleep(1.5 * (i+1))
+    st.error("❌ Could not load student data. Please try again later.")
+    st.stop()
 
-# ==== LOGIN LOGIC ====
-if not st.session_state.get("logged_in", False):
+def is_contract_expired(row):
+    expiry_str = row.get("ContractEnd", "").strip()
+    if not expiry_str or expiry_str.lower() == "nan":
+        return True
+    for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            exp = datetime.strptime(expiry_str, fmt).date()
+            return exp < date.today()
+        except ValueError:
+            continue
+    parsed = pd.to_datetime(expiry_str, errors="coerce")
+    return parsed is pd.NaT or parsed.date() < date.today()
+
+# ==== YouTube API fetch with error handling ====
+YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
+YOUTUBE_PLAYLIST_IDS = {
+    "A1": ["PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b"],
+    "A2": ["PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
+           "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc&index=5",
+           "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c"],
+    "B1": ["PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-", "PLB92CD6B288E5DB61"],
+}
+def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY, max_results=50):
+    base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
+    params = {
+        "part": "snippet",
+        "playlistId": playlist_id,
+        "maxResults": max_results,
+        "key": api_key,
+    }
+    videos = []
+    for attempt in range(3):
+        try:
+            next_page = ""
+            while True:
+                if next_page:
+                    params["pageToken"] = next_page
+                response = requests.get(base_url, params=params)
+                if response.status_code != 200:
+                    raise Exception("API error")
+                data = response.json()
+                for item in data.get("items", []):
+                    vid = item["snippet"]["resourceId"]["videoId"]
+                    url = f"https://www.youtube.com/watch?v={vid}"
+                    title = item["snippet"]["title"]
+                    videos.append({"title": title, "url": url})
+                next_page = data.get("nextPageToken")
+                if not next_page:
+                    break
+            return videos
+        except Exception:
+            time.sleep(1.5 * (attempt+1))
+    st.error("❌ Could not fetch YouTube videos.")
+    return []
+
+# ==== COOKIE / SESSION SETUP ====
+COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
+if not COOKIE_SECRET:
+    raise ValueError("COOKIE_SECRET not set")
+cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
+cookie_manager.ready()
+if not cookie_manager.ready():
+    st.warning("Cookies not ready—please refresh.")
+    st.stop()
+for k, default in [
+    ("logged_in",  False),
+    ("student_row", None),
+    ("student_code",""),
+    ("student_name","")
+]:
+    st.session_state.setdefault(k, default)
+code_from_cookie = (cookie_manager.get("student_code") or "").strip().lower()
+
+# ==== GOOGLE OAUTH2 MANUAL LOGIN ====
+GOOGLE_CLIENT_ID     = "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET = "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"
+REDIRECT_URI         = "https://a1spreche-h5tsdmmedy3uqcm9ahxfud.streamlit.app/"
+
+def do_google_oauth():
+    params = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": REDIRECT_URI,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "prompt": "select_account"
+    }
+    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
+    st.markdown(f"""
+        <a href="{auth_url}">
+            <button style="background:#4285f4;color:white;padding:8px 20px;border:none;border-radius:8px;font-size:1.1rem;cursor:pointer;">
+                Sign in with Google
+            </button>
+        </a>
+    """, unsafe_allow_html=True)
+    st.stop()
+
+def handle_google_login():
+    query_params = st.query_params
+    if "code" not in query_params:
+        return False  # No Google login
+    code = query_params["code"]
+    if isinstance(code, list):
+        code = code[0]
+    token_url = "https://oauth2.googleapis.com/token"
+    data = {
+        "code": code,
+        "client_id": GOOGLE_CLIENT_ID,
+        "client_secret": GOOGLE_CLIENT_SECRET,
+        "redirect_uri": REDIRECT_URI,
+        "grant_type": "authorization_code"
+    }
+    resp = requests.post(token_url, data=data)
+    token_json = resp.json()
+    access_token = token_json.get("access_token")
+    if not access_token:
+        st.error("Google login failed. Please try again.")
+        st.stop()
+    # Get email
+    userinfo_url = "https://www.googleapis.com/oauth2/v2/userinfo"
+    r = requests.get(userinfo_url, headers={"Authorization": f"Bearer {access_token}"})
+    if not r.ok:
+        st.error("Google login failed (could not fetch email).")
+        st.stop()
+    email = r.json()["email"].strip().lower()
+    # Now, find student by email
+    df = load_student_data()
+    df["Email"] = df["Email"].str.lower().str.strip()
+    matched = df[df["Email"] == email]
+    if matched.empty:
+        st.error("No student account found for this Google email. Use the email you registered with your teacher.")
+        st.stop()
+    student_row = matched.iloc[0]
+    if is_contract_expired(student_row):
+        st.error("Your contract has expired. Please contact the office for renewal.")
+        st.stop()
+    st.session_state.update({
+        "logged_in": True,
+        "student_row": student_row.to_dict(),
+        "student_code": student_row["StudentCode"],
+        "student_name": student_row["Name"]
+    })
+    cookie_manager["student_code"] = student_row["StudentCode"]
+    cookie_manager.save()
+    st.success(f"Welcome, {student_row['Name']}! 🎉")
+    st.rerun()
+    return True
+
+# ==== LOGIN UI LOGIC ====
+def show_login_ui():
     st.set_page_config(page_title="Falowen – Login", layout="centered")
     st.markdown("""
       <style>
       .login-card {
         background:#fff; border-radius:18px; box-shadow:0 2px 16px #0002;
-        max-width:360px; margin:4rem auto; padding:2rem;
+        max-width:390px; margin:2.5rem auto; padding:2rem;
       }
+      .new-user-tip { color:#1b5e20; font-size:1.1rem; margin-bottom:0.8rem;}
       </style>
     """, unsafe_allow_html=True)
-    mode = st.radio("I am a:", ["New student", "Returning student"] )
     with st.container():
         st.markdown('<div class="login-card">', unsafe_allow_html=True)
         st.image("https://www.learngermanghana.com/favicon.ico", width=56)
-        st.markdown("### 🔑 Student Login")
-        login_input = st.text_input(
-            "Student Code or Email", placeholder="e.g. portia1 or you@email.com"
-        ).strip().lower()
-        if mode == "New student":
-            password = st.text_input("Create Password", type="password")
-            confirm = st.text_input("Confirm Password", type="password")
-        else:
-            password = st.text_input("Password", type="password")
+        st.markdown("### 🔑 Student Portal")
         st.markdown("---")
-        google_click = st.button("Sign in with Google")
-        login_click = st.button("🔑 Continue")
-        st.markdown('</div>', unsafe_allow_html=True)
-    if google_click:
-        do_google_oauth()
-    if login_click and login_input:
-        df = load_student_data()
-        df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-        df["Email"] = df["Email"].str.lower().str.strip()
-        match = df[(df["StudentCode"]==login_input)|(df["Email"]==login_input)]
-        if match.empty:
-            st.error("Student not found.")
-            st.stop()
-        row = match.iloc[0]
-        if is_contract_expired(row):
-            st.error("Contract expired.")
-            st.stop()
-        # New student registration
-        user_doc = db.collection("students").document(row["StudentCode"]).get()
-        if mode=="New student":
-            if password and password==confirm:
-                pw_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-                db.collection("students").document(row["StudentCode"]).set({"email":row["Email"],"pw_hash":pw_hash,"name":row.get("Name","")})
-                st.success("Account created! Please sign in now.")
+        # UI for new vs returning student
+        user_type = st.radio("Are you a returning or new student?", ["Returning Student", "New Student"], horizontal=True)
+        if user_type == "New Student":
+            st.markdown(
+                "<div class='new-user-tip'>Enter your registered email or student code (from your teacher), then set your password. Or sign in with Google if your school email is a Gmail.</div>",
+                unsafe_allow_html=True
+            )
+            login_input = st.text_input("Email or Student Code", placeholder="e.g. portia1 or you@email.com").strip().lower()
+            new_password = st.text_input("Create Password", type="password")
+            colA, colB = st.columns(2)
+            google_new = colB.button("Sign in with Google (Gmail only)")
+            register_btn = colA.button("Register Account")
+            if handle_google_login():
                 st.stop()
-            else:
-                st.error("Passwords must match and not be empty.")
+            if google_new:
+                do_google_oauth()
+            if register_btn and login_input and new_password:
+                df = load_student_data()
+                df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+                df["Email"] = df["Email"].str.lower().str.strip()
+                matched = df[
+                    (df["StudentCode"] == login_input) |
+                    (df["Email"] == login_input)
+                ]
+                if matched.empty:
+                    st.error("No record found. Please check your input or contact the office.")
+                    st.stop()
+                student_row = matched.iloc[0]
+                if is_contract_expired(student_row):
+                    st.error("Your contract has expired—contact the office.")
+                    st.stop()
+                pw_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
+                db.collection("students").document(student_row["StudentCode"]).set({
+                    "email": student_row["Email"],
+                    "pw_hash": pw_hash,
+                    "name": student_row["Name"]
+                })
+                st.success("Account created! You can now log in below.")
+                st.experimental_rerun()
+            st.markdown("<hr>", unsafe_allow_html=True)
+            st.markdown("Already registered? [Click here to log in as returning student.](#)")
+        else:  # Returning Student
+            st.markdown(
+                "<div style='color:#1976d2; font-size:1.04rem; margin-bottom:10px;'>Welcome back! Enter your email/student code and password, or continue with Google.</div>",
+                unsafe_allow_html=True
+            )
+            login_input = st.text_input("Email or Student Code", value=code_from_cookie, placeholder="e.g. portia1 or you@email.com").strip().lower()
+            login_password = st.text_input("Password", type="password") if login_input else ""
+            col1, col2 = st.columns(2)
+            login_clicked  = col1.button("Continue / Log in")
+            google_clicked = col2.button("Continue with Google")
+            if handle_google_login():
                 st.stop()
-        # Returning student check
-        if not user_doc.exists or not fire_check_password(login_input, password):
-            st.error("Incorrect credentials.")
-            st.stop()
-        # Successful login
-        st.session_state.update({"logged_in":True,"student_row":row.to_dict(),"student_code":row["StudentCode"],"student_name":row.get("Name","")})
-        cookie_manager["student_code"] = row["StudentCode"]
-        cookie_manager.save()
-        st.success(f"Welcome, {row.get('Name','')} 🎉")
-        st.experimental_rerun()
+            if google_clicked:
+                do_google_oauth()
+            if login_clicked and login_input:
+                df = load_student_data()
+                df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+                df["Email"] = df["Email"].str.lower().str.strip()
+                matched = df[
+                    (df["StudentCode"] == login_input) |
+                    (df["Email"] == login_input)
+                ]
+                if matched.empty:
+                    st.error("Student not found.")
+                    st.stop()
+                student_row = matched.iloc[0]
+                if is_contract_expired(student_row):
+                    st.error("Your contract has expired—contact the office.")
+                    st.stop()
+                user_doc = db.collection("students").document(student_row["StudentCode"]).get()
+                if not user_doc.exists:
+                    st.info("First time login? Please register your account as a new student above.")
+                    st.stop()
+                pw_hash = user_doc.get("pw_hash", "")
+                if not pw_hash or not bcrypt.checkpw(login_password.encode(), pw_hash.encode()):
+                    st.error("Incorrect password.")
+                    st.stop()
+                st.session_state.update({
+                    "logged_in":    True,
+                    "student_row":  student_row.to_dict(),
+                    "student_code": student_row["StudentCode"],
+                    "student_name": student_row["Name"]
+                })
+                cookie_manager["student_code"] = student_row["StudentCode"]
+                cookie_manager.save()
+                st.success(f"Welcome, {student_row.get('Name','')} 🎉")
+                st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
-# ==== POST-LOGIN UI ====
-st.markdown(
-    """
-    <div style='display:flex; align-items:center; justify-content:space-between;margin-bottom:22px;'>
-        <span style='font-size:2.2rem;'>🇬🇭</span>
-        <div style='text-align:center;'>
-            <span style='font-size:2.1rem; font-weight:bold; color:#17617a;'>Falowen App</span><br>
-            <span style='font-size:1.08rem; color:#ff9900;'>Learn Language Education Academy</span>
-        </div>
-        <span style='font-size:2.2rem;'>🇩🇪</span>
-    </div>
-    """, unsafe_allow_html=True)
+# ==== LOGIN LOGIC CALL ====
+if not st.session_state["logged_in"]:
+    show_login_ui()
+
+# ==== LOGGED-IN UI BELOW HERE ====
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 if st.button("Log out"):
     cookie_manager["student_code"] = ""
     cookie_manager.save()
-    for k in ("logged_in","student_row","student_code","student_name"): st.session_state[k]=False if k=="logged_in" else ""
+    for k in ("logged_in","student_row","student_code","student_name"):
+        st.session_state[k] = False if k=="logged_in" else ""
     st.success("Logged out.")
-    st.experimental_rerun()
 
-# === End of app ===
+
 
 
 
