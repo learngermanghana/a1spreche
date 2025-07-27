@@ -1,37 +1,54 @@
-# ==== 1. Standard & Third-Party Libraries ====
-import os, random, difflib, sqlite3, atexit, json, re
+# ==== Standard Library ====
+import os                  # OS file ops
+import random              # Randomization
+import difflib             # Optional: For fuzzy matching
+import sqlite3             # Optional: Local DB (not needed if using Firestore only)
+import atexit              # Optional: Exit hooks
+import json                # JSON ops
+import re                  # Regex
 from datetime import date, datetime, timedelta
-import time, io, tempfile, urllib.parse
+import time                # Timing
+import io                  # IO streams
+import tempfile            # Temp file creation
+import urllib.parse        # URL encoding/decoding
 
-import pandas as pd
-import streamlit as st
-import matplotlib.pyplot as plt
-import requests
-from openai import OpenAI
-import firebase_admin
-from firebase_admin import credentials, firestore
-from fpdf import FPDF
-from streamlit_cookies_manager import EncryptedCookieManager
-from docx import Document
-from gtts import gTTS
+# ==== Third-Party Packages ====
+import pandas as pd                        # Data handling
+import streamlit as st                     # App framework
+import matplotlib.pyplot as plt            # Charts/plots
+import requests                            # HTTP requests (for Google Sheets, etc)
+from openai import OpenAI                  # OpenAI API client
+import firebase_admin                      # Firebase app
+from firebase_admin import credentials, firestore    # Firestore DB
+from fpdf import FPDF                      # PDF export
+from streamlit_cookies_manager import EncryptedCookieManager   # Cookie/session handling
+from docx import Document                  # Optional: DOCX notes download
+from gtts import gTTS                      # Text-to-speech for vocab audio
 
-# ==== 2. Hide Streamlit Branding ====
+# If you ever add fuzzy matching, you can use:
+# from thefuzz import fuzz, process      # Uncomment if using fuzzy answer checking
+
+
+# ==== HIDE STREAMLIT FOOTER/MENU ====
 st.markdown(
     """
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     </style>
-    """, unsafe_allow_html=True
+    """,
+    unsafe_allow_html=True
 )
 
-# ==== 3. Firebase/Firestore & OpenAI Setup ====
+# ==== FIREBASE ADMIN INIT ====
 if not firebase_admin._apps:
+    # Convert SecretDict to plain dict for Certificate()
     cred_dict = dict(st.secrets["firebase"])
     cred = credentials.Certificate(cred_dict)
     firebase_admin.initialize_app(cred)
 db = firestore.client()
 
+# ==== OPENAI CLIENT SETUP ====
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     st.error("Missing OpenAI API key. Please add OPENAI_API_KEY in Streamlit secrets.")
@@ -60,57 +77,45 @@ YOUTUBE_PLAYLIST_IDS = {
 }
 
 
-# ==== 4. Google OAUTH2 & Sheets ====
-GOOGLE_CLIENT_ID     = "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com"
-GOOGLE_CLIENT_SECRET = "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"
-REDIRECT_URI         = "https://a1spreche-h5tsdmmedy3uqcm9ahxfud.streamlit.app/"
-GOOGLE_SHEET_CSV     = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
-
-@st.cache_data(ttl=3600)
-def load_student_data():
-    try:
-        resp = requests.get(GOOGLE_SHEET_CSV, timeout=10)
-        resp.raise_for_status()
-        df = pd.read_csv(io.StringIO(resp.text), dtype=str)
-    except Exception:
-        st.error("❌ Could not load student data.")
-        st.stop()
-    for col in df.columns:
-        df[col] = df[col].astype(str).str.strip()
-    df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]
-    df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-    df["Email"] = df["Email"].str.lower().str.strip()
-    return df.drop_duplicates("StudentCode", keep="first")
-
-def is_contract_expired(row):
-    expiry_str = str(row.get("ContractEnd", "")).strip()
-    if not expiry_str or expiry_str.lower() == "nan":
-        return True
-    expiry_date = None
-    for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
-        try:
-            expiry_date = datetime.strptime(expiry_str, fmt)
+@st.cache_data(ttl=3600*12)  # cache for 12 hours
+def fetch_youtube_playlist_videos(playlist_id, api_key):
+    base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
+    params = {
+        "part": "snippet",
+        "playlistId": playlist_id,
+        "maxResults": 50,
+        "key": api_key,
+    }
+    videos = []
+    next_page = ""
+    while True:
+        if next_page:
+            params["pageToken"] = next_page
+        response = requests.get(base_url, params=params)
+        data = response.json()
+        for item in data.get("items", []):
+            vid = item["snippet"]["resourceId"]["videoId"]
+            url = f"https://www.youtube.com/watch?v={vid}"
+            title = item["snippet"]["title"]
+            videos.append({"title": title, "url": url})
+        next_page = data.get("nextPageToken")
+        if not next_page:
             break
-        except ValueError:
-            continue
-    if expiry_date is None:
-        parsed = pd.to_datetime(expiry_str, errors="coerce")
-        if pd.isnull(parsed):
-            return True
-        expiry_date = parsed.to_pydatetime()
-    today = datetime.now().date()
-    return expiry_date.date() < today
+    return videos
 
-# ==== 5. DB CONNECTION & TABLES ====
+
+# ==== DB CONNECTION ====
 def get_connection():
     if "conn" not in st.session_state:
         st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
         atexit.register(st.session_state["conn"].close)
     return st.session_state["conn"]
 
+# ==== INITIALIZE DB TABLES ====
 def init_db():
     conn = get_connection()
     c = conn.cursor()
+    # Vocab Progress Table (NO daily limit)
     c.execute("""
         CREATE TABLE IF NOT EXISTS vocab_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -121,7 +126,9 @@ def init_db():
             student_answer TEXT,
             is_correct INTEGER,
             date TEXT
-        )""")
+        )
+    """)
+    # Schreiben Progress Table (DAILY LIMIT)
     c.execute("""
         CREATE TABLE IF NOT EXISTS schreiben_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -132,7 +139,9 @@ def init_db():
             score INTEGER,
             feedback TEXT,
             date TEXT
-        )""")
+        )
+    """)
+    # Sprechen Progress Table (DAILY LIMIT)
     c.execute("""
         CREATE TABLE IF NOT EXISTS sprechen_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -144,7 +153,9 @@ def init_db():
             score INTEGER,
             feedback TEXT,
             date TEXT
-        )""")
+        )
+    """)
+    # Scores Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS scores (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -155,16 +166,20 @@ def init_db():
             comments TEXT,
             date TEXT,
             level TEXT
-        )""")
+        )
+    """)
+    # Exam Progress Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS exam_progress (
             student_code TEXT,
-            level TEXT,
-            teil TEXT,
-            remaining TEXT,
-            used TEXT,
+            level        TEXT,
+            teil         TEXT,
+            remaining    TEXT,
+            used         TEXT,
             PRIMARY KEY (student_code, level, teil)
-        )""")
+        )
+    """)
+    # My Vocab Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS my_vocab (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -173,7 +188,128 @@ def init_db():
             word TEXT,
             translation TEXT,
             date_added TEXT
-        )""")
+        )
+    """)
+    # Sprechen Daily Usage Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS sprechen_usage (
+            student_code TEXT,
+            date TEXT,
+            count INTEGER,
+            PRIMARY KEY (student_code, date)
+        )
+    """)
+    # Letter Coach Daily Usage Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS letter_coach_usage (
+            student_code TEXT,
+            date TEXT,
+            count INTEGER,
+            PRIMARY KEY (student_code, date)
+        )
+    """)
+    # Schreiben Daily Usage Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS schreiben_usage (
+            student_code TEXT,
+            date TEXT,
+            count INTEGER,
+            PRIMARY KEY (student_code, date)
+        )
+    """)
+    conn.commit()
+
+init_db()  # <<-- Make sure this is before any other DB calls!
+
+# ==== DB CONNECTION ====
+def get_connection():
+    if "conn" not in st.session_state:
+        st.session_state["conn"] = sqlite3.connect(
+            "vocab_progress.db", check_same_thread=False
+        )
+        atexit.register(st.session_state["conn"].close)
+    return st.session_state["conn"]
+
+# ==== INITIALIZE DB TABLES ====
+def init_db():
+    conn = get_connection()
+    c = conn.cursor()
+    # Vocab Progress Table (NO daily limit)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS vocab_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            name TEXT,
+            level TEXT,
+            word TEXT,
+            student_answer TEXT,
+            is_correct INTEGER,
+            date TEXT
+        )
+    """)
+    # Schreiben Progress Table (DAILY LIMIT)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS schreiben_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            name TEXT,
+            level TEXT,
+            essay TEXT,
+            score INTEGER,
+            feedback TEXT,
+            date TEXT
+        )
+    """)
+    # Sprechen Progress Table (DAILY LIMIT)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS sprechen_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            name TEXT,
+            level TEXT,
+            teil TEXT,
+            message TEXT,
+            score INTEGER,
+            feedback TEXT,
+            date TEXT
+        )
+    """)
+    # Scores Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS scores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            name TEXT,
+            assignment TEXT,
+            score REAL,
+            comments TEXT,
+            date TEXT,
+            level TEXT
+        )
+    """)
+    # Exam Progress Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS exam_progress (
+            student_code TEXT,
+            level        TEXT,
+            teil         TEXT,
+            remaining    TEXT,
+            used         TEXT,
+            PRIMARY KEY (student_code, level, teil)
+        )
+    """)
+    # My Vocab Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS my_vocab (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            level TEXT,
+            word TEXT,
+            translation TEXT,
+            date_added TEXT
+        )
+    """)
+    # Daily Usage Tables
     for tbl in ["sprechen_usage", "letter_coach_usage", "schreiben_usage"]:
         c.execute(f"""
             CREATE TABLE IF NOT EXISTS {tbl} (
@@ -181,74 +317,17 @@ def init_db():
                 date TEXT,
                 count INTEGER,
                 PRIMARY KEY (student_code, date)
-            )""")
+            )
+        """)
     conn.commit()
-init_db()
 
+
+# ==== CONSTANTS ====
 FALOWEN_DAILY_LIMIT = 20
-VOCAB_DAILY_LIMIT   = 20
+VOCAB_DAILY_LIMIT = 20
 SCHREIBEN_DAILY_LIMIT = 5
 
-# ==== 2) Helpers to load & save progress ====
-
-def load_progress(student_code, level, teil):
-    """
-    Fetches a user’s remaining & used exam questions from SQLite.
-    Returns (remaining_list, used_list) or (None, None) if none saved.
-    """
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "SELECT remaining, used FROM exam_progress WHERE student_code=? AND level=? AND teil=?",
-        (student_code, level, teil)
-    )
-    row = c.fetchone()
-    if row:
-        return json.loads(row[0]), json.loads(row[1])
-    return None, None
-
-def save_progress(student_code, level, teil, remaining, used):
-    """
-    Persists a user’s remaining & used exam questions back to SQLite.
-    """
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "REPLACE INTO exam_progress (student_code, level, teil, remaining, used) VALUES (?,?,?,?,?)",
-        (student_code, level, teil, json.dumps(remaining), json.dumps(used))
-    )
-    conn.commit()
-
-def save_schreiben_attempt(student_code, name, level, score):
-    """
-    Records a Schreiben (writing) attempt with its score in SQLite.
-    """
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO schreiben_progress (student_code, name, level, essay, score, feedback, date) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (student_code, name, level, "", score, "", str(date.today()))
-    )
-    conn.commit()
-
-# ==== Bubble CSS & Keyword Highlighting ====
-
-bubble_user = "background:#e3f2fd;padding:12px 20px;border-radius:18px 18px 6px 18px;margin:8px 0;display:inline-block;"
-bubble_assistant = "background:#fff9c4;padding:12px 20px;border-radius:18px 18px 18px 6px;margin:8px 0;display:inline-block;"
-
-highlight_words = ["correct", "should", "mistake", "improve", "tip"]
-
-def highlight_keywords(text, words=highlight_words):
-    """
-    Wraps any of the given keywords in the text with a pink <span> for emphasis.
-    """
-    pattern = r'(' + '|'.join(map(re.escape, words)) + r')'
-    return re.sub(pattern,
-                  r"<span style='color:#d63384;font-weight:600'>\1</span>",
-                  text, flags=re.IGNORECASE)
-
-# ==== Usage Counters (daily quotas) ====
+# ==== USAGE COUNTERS ====
 
 def get_sprechen_usage(student_code):
     today = str(date.today())
@@ -305,34 +384,207 @@ def inc_schreiben_usage(student_code):
     )
     conn.commit()
 
-# ==== YouTube Playlist Fetcher ====
+def get_writing_stats(student_code):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT COUNT(*), SUM(score>=17) FROM schreiben_progress WHERE student_code=?
+    """, (student_code,))
+    result = c.fetchone()
+    attempted = result[0] or 0
+    passed = result[1] if result[1] is not None else 0
+    accuracy = round(100 * passed / attempted) if attempted > 0 else 0
+    return attempted, passed, accuracy
 
-@st.cache_data(ttl=3600*12)
-def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
-    """
-    Returns a list of {"title":…, "url":…} for all videos in a given YouTube playlist.
-    """
+def get_student_stats(student_code):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT level, SUM(score >= 17), COUNT(*) 
+        FROM schreiben_progress 
+        WHERE student_code=?
+        GROUP BY level
+    """, (student_code,))
+    stats = {}
+    for level, correct, attempted in c.fetchall():
+        stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
+    return stats
+
+def get_letter_coach_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT count FROM letter_coach_usage WHERE student_code=? AND date=?",
+        (student_code, today)
+    )
+    row = c.fetchone()
+    return row[0] if row else 0
+
+def inc_letter_coach_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        """
+        INSERT INTO letter_coach_usage (student_code, date, count)
+        VALUES (?, ?, 1)
+        ON CONFLICT(student_code, date)
+        DO UPDATE SET count = count + 1
+        """,
+        (student_code, today)
+    )
+    conn.commit()
+
+
+
+def fetch_youtube_playlist_videos(playlist_id, api_key, max_results=50):
     base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
-    params = {"part": "snippet", "playlistId": playlist_id, "maxResults": 50, "key": api_key}
-    videos, next_page = [], None
+    params = {
+        "part": "snippet",
+        "playlistId": playlist_id,
+        "maxResults": max_results,  # Max per page is 50
+        "key": api_key,
+    }
+    videos = []
+    next_page = ""
     while True:
         if next_page:
             params["pageToken"] = next_page
-        resp = requests.get(base_url, params=params)
-        data = resp.json()
+        response = requests.get(base_url, params=params)
+        data = response.json()
         for item in data.get("items", []):
             vid = item["snippet"]["resourceId"]["videoId"]
-            videos.append({
-                "title": item["snippet"]["title"],
-                "url":   f"https://www.youtube.com/watch?v={vid}"
-            })
+            url = f"https://www.youtube.com/watch?v={vid}"
+            title = item["snippet"]["title"]
+            videos.append({"title": title, "url": url})
         next_page = data.get("nextPageToken")
         if not next_page:
             break
     return videos
 
+# === Firestore Auto-Save/Restore for Letter Coach ===
+
+def save_letter_coach_progress(student_code, schreiben_level, letter_coach_prompt, chat_history):
+    """
+    Auto-saves the student's Letter Coach (Ideen Generator) progress in Firestore.
+    """
+    doc_ref = db.collection("letter_coach_progress").document(student_code)
+    doc_ref.set({
+        "level": schreiben_level,
+        "prompt": letter_coach_prompt,
+        "chat": chat_history,
+        "last_update": firestore.SERVER_TIMESTAMP
+    })
+
+def load_letter_coach_progress(student_code):
+    """
+    Loads the student's most recent Letter Coach (Ideen Generator) progress from Firestore.
+    Returns (prompt, chat_history), or ("", []) if nothing saved.
+    """
+    doc_ref = db.collection("letter_coach_progress").document(student_code)
+    doc = doc_ref.get()
+    if doc.exists:
+        data = doc.to_dict()
+        return data.get("prompt", ""), data.get("chat", [])
+    return "", []
+
+def get_schreiben_stats(student_code):
+    doc_ref = db.collection("schreiben_stats").document(student_code)
+    doc = doc_ref.get()
+    if doc.exists:
+        return doc.to_dict()
+    else:
+        return {
+            "total": 0, "passed": 0, "average_score": 0, "best_score": 0,
+            "pass_rate": 0, "last_attempt": None, "attempts": [], "last_letter": ""
+        }
+            
+# -- ALIAS for legacy code (use this so your old code works without errors!) --
+has_falowen_quota = has_sprechen_quota
 
 
+
+# --- Streamlit page config ---
+st.set_page_config(
+    page_title="Falowen – Your German Conversation Partner",
+    layout="centered",
+    initial_sidebar_state="expanded"
+)
+
+# ---- Falowen Header ----
+st.markdown(
+    """
+    <div style='display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; width: 100%;'>
+        <!-- Left Flag -->
+        <span style='font-size:2.2rem; flex: 0 0 auto;'>🇬🇭</span>
+        <!-- Center Block -->
+        <div style='flex: 1; text-align: center;'>
+            <span style='font-size:2.1rem; font-weight:bold; color:#17617a; letter-spacing:2px;'>
+                Falowen App
+            </span>
+            <br>
+            <span style='font-size:1.08rem; color:#ff9900; font-weight:600;'>Learn Language Education Academy</span>
+            <br>
+            <span style='font-size:1.05rem; color:#268049; font-weight:400;'>
+                Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
+            </span>
+            <br>
+            <span style='font-size:1.01rem; color:#1976d2; font-weight:500;'>
+                Website: <a href='https://www.learngermanghana.com' target='_blank' style='color:#1565c0; text-decoration:none;'>www.learngermanghana.com</a>
+            </span>
+            <br>
+            <span style='font-size:0.98rem; color:#666; font-weight:500;'>
+                Competent German Tutors Team
+            </span>
+        </div>
+        <!-- Right Flag -->
+        <span style='font-size:2.2rem; flex: 0 0 auto;'>🇩🇪</span>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# ==== 2) Helpers to load & save progress ====
+def load_progress(student_code, level, teil):
+    c.execute(
+        "SELECT remaining, used FROM exam_progress WHERE student_code=? AND level=? AND teil=?",
+        (student_code, level, teil)
+    )
+    row = c.fetchone()
+    if row:
+        return json.loads(row[0]), json.loads(row[1])
+    return None, None
+
+def save_progress(student_code, level, teil, remaining, used):
+    c.execute(
+        "REPLACE INTO exam_progress (student_code, level, teil, remaining, used) VALUES (?,?,?,?,?)",
+        (student_code, level, teil, json.dumps(remaining), json.dumps(used))
+    )
+    conn.commit()
+
+def save_schreiben_attempt(student_code, name, level, score):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO schreiben_progress (student_code, name, level, essay, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (student_code, name, level, "", score, "", str(date.today()))
+    )
+    conn.commit()
+
+# Bubble CSS
+bubble_user = "background:#e3f2fd;padding:12px 20px;border-radius:18px 18px 6px 18px;margin:8px 0;display:inline-block;"
+bubble_assistant = "background:#fff9c4;padding:12px 20px;border-radius:18px 18px 18px 6px;margin:8px 0;display:inline-block;"
+
+# Highlight function and words
+highlight_words = ["correct", "should", "mistake", "improve", "tip"]
+def highlight_keywords(text, words):
+    import re
+    pattern = r'(' + '|'.join(map(re.escape, words)) + r')'
+    return re.sub(pattern, r"<span style='color:#d63384;font-weight:600'>\1</span>", text, flags=re.IGNORECASE)
+
+
+    
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
 
 @st.cache_data
@@ -519,7 +771,6 @@ if st.button("Log out"):
         st.session_state[k] = False if k == "logged_in" else ""
     st.success("You have been logged out.")
     st.rerun()
-
     
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 
