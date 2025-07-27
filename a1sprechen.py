@@ -212,8 +212,9 @@ GOOGLE_CLIENT_SECRET = "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"
 REDIRECT_URI = "https://falowen.streamlit.app/"
 
 
-oauth2 = OAuth2Component()
-result = oauth2(
+from streamlit_oauth import OAuth2Component
+
+result = OAuth2Component(
     client_id=GOOGLE_CLIENT_ID,
     client_secret=GOOGLE_CLIENT_SECRET,
     authorize_endpoint="https://accounts.google.com/o/oauth2/auth",
@@ -221,6 +222,7 @@ result = oauth2(
     redirect_uri=REDIRECT_URI,
     scope="openid email profile"
 )
+
 
 if result:
     st.write("Google user info:", result)
