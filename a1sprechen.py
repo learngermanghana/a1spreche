@@ -403,6 +403,261 @@ def highlight_keywords(text, words):
     pattern = r'(' + '|'.join(map(re.escape, words)) + r')'
     return re.sub(pattern, r"<span style='color:#d63384;font-weight:600'>\1</span>", text, flags=re.IGNORECASE)
 
+def get_connection():
+    if "conn" not in st.session_state:
+        st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
+        atexit.register(st.session_state["conn"].close)
+    return st.session_state["conn"]
+
+def init_db():
+    conn = get_connection()
+    c = conn.cursor()
+    # Vocab Progress Table (NO daily limit)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS vocab_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            name TEXT,
+            level TEXT,
+            word TEXT,
+            student_answer TEXT,
+            is_correct INTEGER,
+            date TEXT
+        )
+    """)
+    # Schreiben Progress Table (DAILY LIMIT)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS schreiben_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            name TEXT,
+            level TEXT,
+            essay TEXT,
+            score INTEGER,
+            feedback TEXT,
+            date TEXT
+        )
+    """)
+    # Sprechen Progress Table (DAILY LIMIT)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS sprechen_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            name TEXT,
+            level TEXT,
+            teil TEXT,
+            message TEXT,
+            score INTEGER,
+            feedback TEXT,
+            date TEXT
+        )
+    """)
+    # Scores Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS scores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            name TEXT,
+            assignment TEXT,
+            score REAL,
+            comments TEXT,
+            date TEXT,
+            level TEXT
+        )
+    """)
+    # Exam Progress Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS exam_progress (
+            student_code TEXT,
+            level        TEXT,
+            teil         TEXT,
+            remaining    TEXT,
+            used         TEXT,
+            PRIMARY KEY (student_code, level, teil)
+        )
+    """)
+    # My Vocab Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS my_vocab (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            level TEXT,
+            word TEXT,
+            translation TEXT,
+            date_added TEXT
+        )
+    """)
+    # Usage Tracking Tables
+    for tbl in ["sprechen_usage", "letter_coach_usage", "schreiben_usage"]:
+        c.execute(f"""
+            CREATE TABLE IF NOT EXISTS {tbl} (
+                student_code TEXT,
+                date TEXT,
+                count INTEGER,
+                PRIMARY KEY (student_code, date)
+            )
+        """)
+    conn.commit()
+
+@st.cache_data
+def load_student_data():
+    # 1) Fetch CSV
+    try:
+        resp = requests.get(GOOGLE_SHEET_CSV, timeout=10)
+        resp.raise_for_status()
+        df = pd.read_csv(io.StringIO(resp.text), dtype=str)
+    except Exception:
+        st.error("❌ Could not load student data.")
+        st.stop()
+    # 2) Strip whitespace
+    for col in df.columns:
+        df[col] = df[col].astype(str).str.strip()
+    # 3) Drop rows missing a ContractEnd
+    df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]
+    # 4) Parse ContractEnd into datetime
+    df["ContractEnd_dt"] = pd.to_datetime(
+        df["ContractEnd"], format="%m/%d/%Y", errors="coerce", dayfirst=False
+    )
+    mask = df["ContractEnd_dt"].isna()
+    df.loc[mask, "ContractEnd_dt"] = pd.to_datetime(
+        df.loc[mask, "ContractEnd"], format="%d/%m/%Y", errors="coerce", dayfirst=True
+    )
+    df = df.sort_values("ContractEnd_dt", ascending=False)
+    df = df.drop_duplicates(subset=["StudentCode"], keep="first")
+    df = df.drop(columns=["ContractEnd_dt"])
+    return df
+
+def is_contract_expired(row):
+    expiry_str = str(row.get("ContractEnd", "")).strip()
+    if not expiry_str or expiry_str.lower() == "nan":
+        return True
+    expiry_date = None
+    for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            expiry_date = datetime.strptime(expiry_str, fmt)
+            break
+        except ValueError:
+            continue
+    if expiry_date is None:
+        parsed = pd.to_datetime(expiry_str, errors="coerce")
+        if pd.isnull(parsed):
+            return True
+        expiry_date = parsed.to_pydatetime()
+    today = datetime.now().date()
+    return expiry_date.date() < today
+
+def load_progress(student_code, level, teil):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT remaining, used FROM exam_progress WHERE student_code=? AND level=? AND teil=?",
+        (student_code, level, teil)
+    )
+    row = c.fetchone()
+    if row:
+        return json.loads(row[0]), json.loads(row[1])
+    return None, None
+
+def save_progress(student_code, level, teil, remaining, used):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "REPLACE INTO exam_progress (student_code, level, teil, remaining, used) VALUES (?,?,?,?,?)",
+        (student_code, level, teil, json.dumps(remaining), json.dumps(used))
+    )
+    conn.commit()
+
+def save_schreiben_attempt(student_code, name, level, score):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO schreiben_progress (student_code, name, level, essay, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (student_code, name, level, "", score, "", str(date.today()))
+    )
+    conn.commit()
+
+def get_sprechen_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT count FROM sprechen_usage WHERE student_code=? AND date=?",
+        (student_code, today)
+    )
+    row = c.fetchone()
+    return row[0] if row else 0
+
+def inc_sprechen_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        """
+        INSERT INTO sprechen_usage (student_code, date, count)
+        VALUES (?, ?, 1)
+        ON CONFLICT(student_code, date)
+        DO UPDATE SET count = count + 1
+        """,
+        (student_code, today)
+    )
+    conn.commit()
+
+def has_sprechen_quota(student_code, limit=20):
+    return get_sprechen_usage(student_code) < limit
+
+def get_schreiben_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT count FROM schreiben_usage WHERE student_code=? AND date=?",
+        (student_code, today)
+    )
+    row = c.fetchone()
+    return row[0] if row else 0
+
+def inc_schreiben_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        """
+        INSERT INTO schreiben_usage (student_code, date, count)
+        VALUES (?, ?, 1)
+        ON CONFLICT(student_code, date)
+        DO UPDATE SET count = count + 1
+        """,
+        (student_code, today)
+    )
+    conn.commit()
+
+@st.cache_data(ttl=3600*12)
+def fetch_youtube_playlist_videos(playlist_id, api_key):
+    base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
+    params = {
+        "part": "snippet",
+        "playlistId": playlist_id,
+        "maxResults": 50,
+        "key": api_key,
+    }
+    videos = []
+    next_page = ""
+    while True:
+        if next_page:
+            params["pageToken"] = next_page
+        response = requests.get(base_url, params=params)
+        data = response.json()
+        for item in data.get("items", []):
+            vid = item["snippet"]["resourceId"]["videoId"]
+            url = f"https://www.youtube.com/watch?v={vid}"
+            title = item["snippet"]["title"]
+            videos.append({"title": title, "url": url})
+        next_page = data.get("nextPageToken")
+        if not next_page:
+            break
+    return videos
+
+
 
     
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
