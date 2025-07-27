@@ -321,7 +321,8 @@ def show_login_panel():
                         if not user_doc.exists:
                             login_error = "First time login? Try 'New Student' to set your password."
                         else:
-                            pw_hash = user_doc.get("pw_hash", "")
+                            user_data = user_doc.to_dict() or {}
+                            pw_hash = user_data.get("pw_hash", "")
                             if not pw_hash or not bcrypt.checkpw(login_pw.encode(), pw_hash.encode()):
                                 login_error = "Incorrect password."
                             else:
@@ -335,6 +336,7 @@ def show_login_panel():
                                 cookie_manager.save()
                                 st.success(f"Welcome, {student_row.get('Name','')} 🎉")
                                 st.rerun()
+ 
 
         st.markdown("<div style='text-align:center;margin:12px 0;'>or</div>", unsafe_allow_html=True)
         do_google_oauth()
