@@ -32,6 +32,16 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+
+# ==== OPENAI CLIENT SETUP ====
+OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    st.error("Missing OpenAI API key. Please add OPENAI_API_KEY in Streamlit secrets.")
+    st.stop()
+os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+
 # ==== Banner ====
 def show_banner():
     st.markdown("""
