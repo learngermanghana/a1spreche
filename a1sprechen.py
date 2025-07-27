@@ -57,9 +57,6 @@ if not OPENAI_API_KEY:
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-# === YouTube Data API Settings ===
-YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
-
 
 YOUTUBE_PLAYLIST_IDS = {
     "A1": [
@@ -385,6 +382,32 @@ def inc_schreiben_usage(student_code):
     )
     conn.commit()
 
+def get_letter_coach_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT count FROM letter_coach_usage WHERE student_code=? AND date=?",
+        (student_code, today)
+    )
+    row = c.fetchone()
+    return row[0] if row else 0
+
+def inc_letter_coach_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        """
+        INSERT INTO letter_coach_usage (student_code, date, count)
+        VALUES (?, ?, 1)
+        ON CONFLICT(student_code, date)
+        DO UPDATE SET count = count + 1
+        """,
+        (student_code, today)
+    )
+    conn.commit()
+
 def get_writing_stats(student_code):
     conn = get_connection()
     c = conn.cursor()
@@ -410,6 +433,10 @@ def get_student_stats(student_code):
     for level, correct, attempted in c.fetchall():
         stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
     return stats
+
+# --- ALIAS for legacy code (use this so your old code works without errors!) ---
+has_falowen_quota = has_sprechen_quota
+
 
 def get_letter_coach_usage(student_code):
     today = str(date.today())
@@ -438,13 +465,32 @@ def inc_letter_coach_usage(student_code):
     conn.commit()
 
 
+# ==== YOUTUBE PLAYLIST HELPERS ====
 
-def fetch_youtube_playlist_videos(playlist_id, api_key, max_results=50):
+YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
+
+YOUTUBE_PLAYLIST_IDS = {
+    "A1": [
+        "PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b",
+    ],
+    "A2": [
+        "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
+        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc&index=5",
+        "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c",
+    ],
+    "B1": [
+        "PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-",
+        "PLB92CD6B288E5DB61",
+    ],
+}
+
+@st.cache_data(ttl=43200)  # cache for 12 hours
+def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
     base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
     params = {
         "part": "snippet",
         "playlistId": playlist_id,
-        "maxResults": max_results,  # Max per page is 50
+        "maxResults": 50,
         "key": api_key,
     }
     videos = []
@@ -464,12 +510,10 @@ def fetch_youtube_playlist_videos(playlist_id, api_key, max_results=50):
             break
     return videos
 
-# === Firestore Auto-Save/Restore for Letter Coach ===
+# ==== FIRESTORE HELPERS (LETTER COACH, SCHREIBEN STATS) ====
 
 def save_letter_coach_progress(student_code, schreiben_level, letter_coach_prompt, chat_history):
-    """
-    Auto-saves the student's Letter Coach (Ideen Generator) progress in Firestore.
-    """
+    """Auto-saves the student's Letter Coach progress in Firestore."""
     doc_ref = db.collection("letter_coach_progress").document(student_code)
     doc_ref.set({
         "level": schreiben_level,
@@ -479,10 +523,7 @@ def save_letter_coach_progress(student_code, schreiben_level, letter_coach_promp
     })
 
 def load_letter_coach_progress(student_code):
-    """
-    Loads the student's most recent Letter Coach (Ideen Generator) progress from Firestore.
-    Returns (prompt, chat_history), or ("", []) if nothing saved.
-    """
+    """Loads most recent Letter Coach progress from Firestore."""
     doc_ref = db.collection("letter_coach_progress").document(student_code)
     doc = doc_ref.get()
     if doc.exists:
@@ -500,9 +541,6 @@ def get_schreiben_stats(student_code):
             "total": 0, "passed": 0, "average_score": 0, "best_score": 0,
             "pass_rate": 0, "last_attempt": None, "attempts": [], "last_letter": ""
         }
-            
-# -- ALIAS for legacy code (use this so your old code works without errors!) --
-has_falowen_quota = has_sprechen_quota
 
 
 
