@@ -231,7 +231,7 @@ def handle_google_login():
     cookie_manager["student_code"] = student_row["StudentCode"]
     cookie_manager.save()
     st.success(f"Welcome, {student_row['Name']}! 🎉")
-    st.experimental_rerun()
+    st.rerun()
     return True
 
 # ==== LOGIN LOGIC ====
