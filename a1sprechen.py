@@ -404,7 +404,44 @@ if st.button("Log out"):
     st.success("You have been logged out.")
     st.rerun()
 
+# ==== 2) Helpers to load & save progress ====
+def load_progress(student_code, level, teil):
+    c.execute(
+        "SELECT remaining, used FROM exam_progress WHERE student_code=? AND level=? AND teil=?",
+        (student_code, level, teil)
+    )
+    row = c.fetchone()
+    if row:
+        return json.loads(row[0]), json.loads(row[1])
+    return None, None
 
+def save_progress(student_code, level, teil, remaining, used):
+    c.execute(
+        "REPLACE INTO exam_progress (student_code, level, teil, remaining, used) VALUES (?,?,?,?,?)",
+        (student_code, level, teil, json.dumps(remaining), json.dumps(used))
+    )
+    conn.commit()
+
+def save_schreiben_attempt(student_code, name, level, score):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO schreiben_progress (student_code, name, level, essay, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (student_code, name, level, "", score, "", str(date.today()))
+    )
+    conn.commit()
+
+# Bubble CSS
+bubble_user = "background:#e3f2fd;padding:12px 20px;border-radius:18px 18px 6px 18px;margin:8px 0;display:inline-block;"
+bubble_assistant = "background:#fff9c4;padding:12px 20px;border-radius:18px 18px 18px 6px;margin:8px 0;display:inline-block;"
+
+# Highlight function and words
+highlight_words = ["correct", "should", "mistake", "improve", "tip"]
+def highlight_keywords(text, words):
+    import re
+    pattern = r'(' + '|'.join(map(re.escape, words)) + r')'
+    return re.sub(pattern, r"<span style='color:#d63384;font-weight:600'>\1</span>", text, flags=re.IGNORECASE)
+    
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 
 @st.cache_data
