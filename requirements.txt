@@ -10,6 +10,5 @@ firebase-admin>=6.0.0
 python-docx
 gtts
 bcrypt>=4.0.1
-
-# --- For Google OAuth Login ---
 streamlit-google-oauth>=0.1.1
+
