@@ -13,20 +13,28 @@ import tempfile
 import urllib.parse
 
 # ==== Third-Party Packages ====
-import pandas as pd
-import streamlit as st
-import matplotlib.pyplot as plt
-import requests
-from openai import OpenAI
+import pandas as pd                      # DataFrame handling
+import streamlit as st                   # Streamlit app framework
+import matplotlib.pyplot as plt          # Plotting
+import requests                          # HTTP requests
+from openai import OpenAI                # OpenAI API
 
-import firebase_admin
-from firebase_admin import credentials, firestore
+import firebase_admin                    # Firebase core
+from firebase_admin import credentials, firestore  # Firestore DB
 
-import bcrypt
-from fpdf import FPDF
-from streamlit_cookies_manager import EncryptedCookieManager
+import bcrypt                            # Password hashing
+from fpdf import FPDF                    # PDF export
+from streamlit_cookies_manager import EncryptedCookieManager   # Cookie/session handling
 
-from gtts import gTTS
+from gtts import gTTS                    # Text-to-speech
+
+# ==== OAuth2 (Google Login) ====
+from streamlit_oauth import OAuth2Component   # Google OAuth2 component
+
+# ==== (OPTIONAL / Comment out if unused) ====
+# from thefuzz import fuzz, process           # Fuzzy answer checking
+# from docx import Document                   # Optional: DOCX notes download
+
 
 # ==== HIDE STREAMLIT FOOTER/MENU ====
 st.markdown("""
