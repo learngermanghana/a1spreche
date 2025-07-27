@@ -219,8 +219,10 @@ def do_google_oauth():
 def handle_google_login():
     query_params = get_query_params()
     if "code" not in query_params:
-        return False
-    code = query_params["code"][0]
+        return False  # No Google login attempted
+    code = query_params["code"]
+    if isinstance(code, list):
+        code = code[0]
     token_url = "https://oauth2.googleapis.com/token"
     data = {
         "code": code,
@@ -229,22 +231,31 @@ def handle_google_login():
         "redirect_uri": REDIRECT_URI,
         "grant_type": "authorization_code"
     }
-    resp = requests.post(token_url, data=data)
+    try:
+        resp = requests.post(token_url, data=data, timeout=10)
+    except Exception as e:
+        st.error(f"Google login failed. Network error: {e}")
+        return False
+    if not resp.ok:
+        st.error(f"Google login failed. Details: {resp.text}")
+        return False
     token_json = resp.json()
     access_token = token_json.get("access_token")
     if not access_token:
-        st.error("Google login failed. Please try again.")
+        st.error(f"Google login failed. Error: {token_json}")
         return False
-    # Get email
-    userinfo_url = "https://www.googleapis.com/oauth2/v2/userinfo"
-    r = requests.get(userinfo_url, headers={"Authorization": f"Bearer {access_token}"})
+    # Get email from Google API
+    try:
+        r = requests.get("https://www.googleapis.com/oauth2/v2/userinfo", headers={"Authorization": f"Bearer {access_token}"}, timeout=10)
+    except Exception as e:
+        st.error(f"Google login failed. Error: {e}")
+        return False
     if not r.ok:
         st.error("Google login failed (could not fetch email).")
         return False
     email = r.json()["email"].strip().lower()
-    # Now, find student by email
+    # Find student by email
     df = load_student_data()
-    df["Email"] = df["Email"].str.lower().str.strip()
     matched = df[df["Email"] == email]
     if matched.empty:
         st.error("No student account found for this Google email. Use the email you registered with your teacher.")
@@ -280,11 +291,13 @@ def show_login_panel():
     )
     login_error = ""
 
+    if handle_google_login():
+        st.stop()
+
     if student_type == "Returning Student":
         st.caption("**Returning students:** Use your Student Code or Email and your password, or log in with Google below.")
         login_code = st.text_input("Student Code or Email", key="login_code")
         login_pw = st.text_input("Password", type="password", key="login_pw")
-
         if st.button("Continue"):
             if login_code == "" or login_pw == "":
                 login_error = "Please fill in both fields."
@@ -356,7 +369,7 @@ def show_login_panel():
                         "name": student_row["Name"]
                     })
                     st.success("Account created! Please log in as a returning student.")
-                    st.experimental_rerun()
+                    st.rerun()
 
         st.markdown("<div style='text-align:center;margin:12px 0;'>or</div>", unsafe_allow_html=True)
         do_google_oauth()
@@ -365,6 +378,7 @@ def show_login_panel():
     if login_error:
         st.error(login_error)
     st.markdown("</div>", unsafe_allow_html=True)
+
 
 # ==== MAIN APP LOGIC ====
 if not st.session_state["logged_in"]:
