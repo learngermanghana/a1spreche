@@ -4261,7 +4261,7 @@ if tab == "Schreiben Trainer":
         if feedback_btn:
             st.session_state[f"{student_code}_awaiting_correction"] = True
             ai_prompt = (
-            f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
+            f"You are Herr Felix, a supportive,innovative but strict German letter writing trainer preparing students for German writing exams. "
             f"The student has submitted a {schreiben_level} German letter or essay. "
             "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
             "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
@@ -4275,7 +4275,8 @@ if tab == "Schreiben Trainer":
             "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
             "6. Also check for AI usage or if the student wrote with their own effort. "
             "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
-            "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
+            "8. For A1 , A2 formal and informal letter should be between 30 to 40 words. Anything less give low marks for that. For B1 to C1, use your intelligence to check if the letter is too short or too long."
+            "9. After your feedback, give a clear breakdown in this format (always use the same order):\n"
             "Grammar: [score/5, one-sentence tip]\n"
             "Vocabulary: [score/5, one-sentence tip]\n"
             "Spelling: [score/5, one-sentence tip]\n"
