@@ -916,6 +916,7 @@ if not st.session_state["logged_in"]:
     st.stop()
 
 
+
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 if st.button("Log out"):
