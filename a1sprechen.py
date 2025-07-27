@@ -1,34 +1,41 @@
 # ==== Standard Library ====
-import os                  # OS file ops
-import random              # Randomization
-import difflib             # Optional: For fuzzy matching
-import sqlite3
-import atexit            # Optional: Exit hooks
-import json                # JSON ops
-import re                  # Regex
+import os                      # OS file ops
+import random                  # Randomization
+import difflib                 # Optional: For fuzzy matching
+import sqlite3                 # Only needed if you use local DB
+import atexit                  # Optional: Exit hooks
+import json                    # JSON ops
+import re                      # Regex
 from datetime import date, datetime, timedelta
-import time                # Timing
-import io                  # IO streams
-import tempfile            # Temp file creation
-import urllib.parse        # URL encoding/decoding
+import time                    # Timing
+import io                      # IO streams
+import tempfile                # Temp file creation
+import urllib.parse            # URL encoding/decoding
 
 # ==== Third-Party Packages ====
-import pandas as pd                        # Data handling
-import streamlit as st                     # App framework
-import matplotlib.pyplot as plt            # Charts/plots
-import requests                            # HTTP requests (Google Sheets, etc.)
-from openai import OpenAI                  # OpenAI API client
+import pandas as pd                            # Data handling
+import streamlit as st                         # App framework
+import matplotlib.pyplot as plt                # Charts/plots
+import requests                                # HTTP requests (Google Sheets, etc.)
+from openai import OpenAI                      # OpenAI API client
 
-import firebase_admin                      # Firebase app (for Firestore)
+import firebase_admin                          # Firebase app (for Firestore)
 from firebase_admin import credentials, firestore    # Firestore DB
-import bcrypt                              # Password hashing (add to requirements.txt)
-from fpdf import FPDF                      # PDF export
+
+import bcrypt                                  # Password hashing (add to requirements.txt)
+from fpdf import FPDF                          # PDF export
 from streamlit_cookies_manager import EncryptedCookieManager   # Cookie/session handling
-# from docx import Document                # Optional: DOCX notes download
-from gtts import gTTS                      # Text-to-speech for vocab audio
+
+# For Google OAuth login
+# pip install streamlit-google-auth
+# from streamlit_google_auth import st_google_auth           # Google Sign-In component
+
+# from docx import Document                  # Optional: DOCX notes download (comment out if not needed)
+from gtts import gTTS                          # Text-to-speech for vocab audio
 
 # If you ever add fuzzy matching, you can use:
-# from thefuzz import fuzz, process        # Uncomment if using fuzzy answer checking
+# from thefuzz import fuzz, process          # Uncomment if using fuzzy answer checking
+
 
 
 
@@ -586,7 +593,9 @@ def highlight_keywords(text, words):
     pattern = r'(' + '|'.join(map(re.escape, words)) + r')'
     return re.sub(pattern, r"<span style='color:#d63384;font-weight:600'>\1</span>", text, flags=re.IGNORECASE)
 
-# === Firestore Email ===
+# === Firestore Email & Password Handling ===
+
+import bcrypt  # Make sure this is in your requirements.txt
 
 def fire_get_user(student_code_or_email):
     """
@@ -605,19 +614,22 @@ def fire_get_user(student_code_or_email):
         return user_doc.to_dict()
     return None
 
-def fire_create_user(student_code, email, password):
+def fire_create_user(student_code, email, password, google_auth=False, **extra_fields):
     """
     Create a new student user in Firestore.
-    Stores password as SHA256 hash.
+    Stores password as bcrypt hash, or skips password for Google-auth users.
     """
-    pw_hash = hashlib.sha256(password.encode()).hexdigest()
     user_data = {
         "student_code": student_code.strip().lower(),
         "email": email.strip().lower(),
-        "pw_hash": pw_hash,
         "created": datetime.utcnow().isoformat(),
-        # Add any other fields you need here (e.g., name, stats)
+        "google_auth": google_auth,
     }
+    if not google_auth and password:
+        pw_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+        user_data["pw_hash"] = pw_hash
+    # Add any extra fields (e.g., name) as needed
+    user_data.update(extra_fields)
     db.collection("students").document(user_data["student_code"]).set(user_data)
     return True
 
@@ -627,14 +639,32 @@ def fire_check_password(student_code_or_email, password):
     Returns user dict if correct, else None.
     """
     user = fire_get_user(student_code_or_email)
-    if not user:
+    if not user or user.get("google_auth"):
+        # Google-auth users do NOT use passwords
         return None
-    pw_hash = hashlib.sha256(password.encode()).hexdigest()
-    if user.get("pw_hash") == pw_hash:
+    pw_hash = user.get("pw_hash", "")
+    if pw_hash and bcrypt.checkpw(password.encode(), pw_hash.encode()):
         return user
     return None
 
-    
+def fire_get_by_email(email):
+    """
+    Fetches Firestore student by email only.
+    """
+    email = email.strip().lower()
+    ref = db.collection("students")
+    q = ref.where("email", "==", email).limit(1).stream()
+    for user_doc in q:
+        return user_doc.to_dict()
+    return None
+
+def fire_update_user(student_code, updates: dict):
+    """
+    Updates fields for a given Firestore student.
+    """
+    db.collection("students").document(student_code.strip().lower()).update(updates)
+    return True
+
 
 # ========== Google Sheet Config =============
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
@@ -697,14 +727,81 @@ code_from_cookie = str(code_from_cookie).strip().lower()
 if not st.session_state["logged_in"]:
     st.title("🔑 Student Login")
 
+    st.markdown("##### Login with your Student Code, Email, or Google")
     login_input = st.text_input("Enter your Student Code or Email:", value=code_from_cookie).strip().lower()
     login_password = st.text_input("Password", type="password") if login_input else ""
 
-    if st.button("Login"):
+    # -- Google Login (Example, needs streamlit_authenticator or other package) --
+    st.markdown("---")
+    st.markdown("Or sign in with Google:")
+    google_auth_clicked = st.button("Login with Google")
+
+    # Actual implementation will depend on which library you use.
+    google_email = None
+    google_name = None
+
+    # Example: Google Auth Placeholder (simulate OAuth, replace with your own logic)
+    if google_auth_clicked:
+        # You would do your Google OAuth flow here
+        # On success, get user's email and name:
+        google_email = st.text_input("For demo: Enter your Google Email (simulate OAuth):", key="google_oauth_email")
+        google_name = st.text_input("For demo: Enter your Name:", key="google_oauth_name")
+        if st.button("Continue as Google User"):
+            login_input = google_email
+            # Continue the process below (Google login: no password check)
+            # Search Google Sheet for this email
+            df_students = load_student_data()
+            df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
+            df_students["Email"] = df_students["Email"].str.lower().str.strip()
+            found = df_students[df_students["Email"] == google_email.strip().lower()]
+            if not found.empty:
+                student_row = found.iloc[0]
+                if is_contract_expired(student_row):
+                    st.error("Your contract has expired. Please contact the office for renewal.")
+                    st.stop()
+                # Check if Firestore user exists
+                user = fire_get_user(google_email)
+                if not user:
+                    # Register as Google auth user
+                    fire_create_user(
+                        student_code=student_row["StudentCode"],
+                        email=student_row["Email"],
+                        password="",       # No password for Google auth
+                        google_auth=True,
+                        name=google_name or student_row.get("Name", "")
+                    )
+                    st.success("Account created with Google! Continue to your dashboard.")
+                    st.session_state.update({
+                        "logged_in": True,
+                        "student_row": student_row.to_dict(),
+                        "student_code": student_row["StudentCode"],
+                        "student_name": google_name or student_row.get("Name", "")
+                    })
+                    cookie_manager["student_code"] = student_row["StudentCode"]
+                    cookie_manager.save()
+                    st.rerun()
+                else:
+                    # Already exists, log in
+                    st.session_state.update({
+                        "logged_in": True,
+                        "student_row": student_row.to_dict(),
+                        "student_code": student_row["StudentCode"],
+                        "student_name": user.get("name", student_row.get("Name", ""))
+                    })
+                    cookie_manager["student_code"] = student_row["StudentCode"]
+                    cookie_manager.save()
+                    st.success(f"Welcome, {student_row['Name']}! 🎉")
+                    st.rerun()
+            else:
+                st.error("Email not found in school records. Please contact the office.")
+
+        st.stop()
+
+    # === Standard Login/Registration ===
+    if st.button("Login") and login_input:
         df_students = load_student_data()
         df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
         df_students["Email"] = df_students["Email"].str.lower().str.strip()
-
         found = df_students[
             (df_students["StudentCode"] == login_input) |
             (df_students["Email"] == login_input)
@@ -714,7 +811,6 @@ if not st.session_state["logged_in"]:
             if is_contract_expired(student_row):
                 st.error("Your contract has expired. Please contact the office for renewal.")
                 st.stop()
-            # Check Firestore password account
             user = fire_get_user(login_input)
             if not user:
                 st.info("First time? Set your password below to register your account.")
@@ -727,7 +823,9 @@ if not st.session_state["logged_in"]:
                         fire_create_user(
                             student_code=student_row["StudentCode"],
                             email=student_row["Email"],
-                            password=new_pw
+                            password=new_pw,
+                            google_auth=False,
+                            name=student_row.get("Name", "")
                         )
                         st.success("Account created! Please log in with your password.")
                         st.rerun()
@@ -737,12 +835,11 @@ if not st.session_state["logged_in"]:
                 if not fire_check_password(login_input, login_password):
                     st.error("Incorrect password.")
                     st.stop()
-                # Success
                 st.session_state.update({
                     "logged_in": True,
                     "student_row": student_row.to_dict(),
                     "student_code": student_row["StudentCode"],
-                    "student_name": student_row["Name"]
+                    "student_name": user.get("name", student_row.get("Name", ""))
                 })
                 cookie_manager["student_code"] = student_row["StudentCode"]
                 cookie_manager.save()
@@ -751,7 +848,7 @@ if not st.session_state["logged_in"]:
         else:
             st.error("Login failed. Please check your Student Code or Email.")
 
-    # Tips and privacy messages as before...
+    # --- iPhone/iPad cookie/autofill tip & privacy ---
     st.markdown("""
     <div style='color:#1976d2;font-size:1rem;margin-top:8px;margin-bottom:4px;'>
         <b>Tip for iPhone/iPad users:</b> To stay logged in, avoid Private mode and do not clear Safari website data.
@@ -774,6 +871,7 @@ if st.button("Log out"):
         st.session_state[k] = False if k == "logged_in" else ""
     st.success("You have been logged out.")
     st.rerun()
+
 
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
