@@ -166,7 +166,6 @@ GOOGLE_CLIENT_ID     = "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googl
 GOOGLE_CLIENT_SECRET = "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"
 REDIRECT_URI         = "https://a1spreche-h5tsdmmedy3uqcm9ahxfud.streamlit.app/"
 
-
 def do_google_oauth():
     params = {
         "client_id": GOOGLE_CLIENT_ID,
@@ -282,7 +281,26 @@ if not st.session_state["logged_in"]:
         if is_contract_expired(student_row):
             st.error("Your contract has expired—contact the office.")
             st.stop()
-        # You can add password check logic here if you want
+        # === FIRESTORE password check / registration ===
+        user_doc = db.collection("students").document(student_row["StudentCode"]).get()
+        if not user_doc.exists:
+            st.info("First time login? Please set your password below and sign in again.")
+            if login_password:
+                pw_hash = bcrypt.hashpw(login_password.encode(), bcrypt.gensalt()).decode()
+                db.collection("students").document(student_row["StudentCode"]).set({
+                    "email": student_row["Email"],
+                    "pw_hash": pw_hash,
+                    "name": student_row["Name"]
+                })
+                st.success("Password set! Please log in again.")
+                st.stop()
+            else:
+                st.stop()
+        else:
+            pw_hash = user_doc.get("pw_hash", "")
+            if not pw_hash or not bcrypt.checkpw(login_password.encode(), pw_hash.encode()):
+                st.error("Incorrect password.")
+                st.stop()
         st.session_state.update({
             "logged_in":    True,
             "student_row":  student_row.to_dict(),
@@ -305,25 +323,7 @@ if st.button("Log out"):
     st.success("Logged out.")
     st.rerun()
 
-# === YouTube Data API Settings ===
-YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
 
-
-YOUTUBE_PLAYLIST_IDS = {
-    "A1": [
-        "PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b",   # Playlist 1 for A1
-    ],
-    "A2": [
-        "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
-        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc&index=5",
-        "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c",
-    ],
-    "B1": [
-        "PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-",
-        "PLB92CD6B288E5DB61",
-    ],
-    # etc.
-}
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 
