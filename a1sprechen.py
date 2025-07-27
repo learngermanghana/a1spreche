@@ -1,417 +1,264 @@
-# ==== Standard Library ====
-import os
-import random
-import difflib
-import sqlite3
-import atexit
-import json
-import re
-from datetime import date, datetime, timedelta
-import time
-import io
-import tempfile
-import urllib.parse
+# ==== Standard Library ====  
+import os, time, io, tempfile, urllib.parse  
+from datetime import date, datetime, timedelta  
+import sqlite3, json, re, random, difflib  
 
-# ==== Third-Party Packages ====
-import pandas as pd
-import streamlit as st
-import matplotlib.pyplot as plt
-import requests
+# ==== Third‑Party Packages ====  
+import pandas as pd  
+import streamlit as st  
+import requests  
+import matplotlib.pyplot as plt  
+import firebase_admin  
+from firebase_admin import credentials, firestore  
+import bcrypt  
+from fpdf import FPDF  
+from streamlit_cookies_manager import EncryptedCookieManager  
+from gtts import gTTS  
+from openai import OpenAI  
 
-import firebase_admin
-from firebase_admin import credentials, firestore
+# ==== HIDE STREAMLIT FOOTER/MENU ====  
+st.markdown(  
+    """  
+      <style>  
+        #MainMenu {visibility: hidden;}  
+        footer    {visibility: hidden;}  
+      </style>  
+    """,  
+    unsafe_allow_html=True  
+)
 
-import bcrypt
-from fpdf import FPDF
-from streamlit_cookies_manager import EncryptedCookieManager
-from gtts import gTTS
-
-# ==== HIDE STREAMLIT FOOTER/MENU ====
-st.markdown("""
-<style>
-  #MainMenu {visibility: hidden;}
-  footer    {visibility: hidden;}
-</style>
-""", unsafe_allow_html=True)
-
-# ==== FIREBASE ADMIN INIT ====
-if not firebase_admin._apps:
-    cred_dict = dict(st.secrets["firebase"])
-    cred = credentials.Certificate(cred_dict)
-    firebase_admin.initialize_app(cred)
+# ==== FIREBASE ADMIN INIT ====  
+if not firebase_admin._apps:  
+    cred_dict = dict(st.secrets["firebase"])  
+    cred = credentials.Certificate(cred_dict)  
+    firebase_admin.initialize_app(cred)  
 db = firestore.client()
 
-# ==== DB SETUP & TABLES ====
-def get_connection():
-    if "conn" not in st.session_state:
-        conn = sqlite3.connect("vocab_progress.db", check_same_thread=False)
-        atexit.register(conn.close)
-        st.session_state["conn"] = conn
-    return st.session_state["conn"]
+# ==== OPENAI CLIENT SETUP ====  
+OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")  
+if not OPENAI_API_KEY:  
+    st.error("Missing OpenAI API key. Add OPENAI_API_KEY to Streamlit secrets.")  
+    st.stop()  
+client = OpenAI(api_key=OPENAI_API_KEY)
 
-def init_db():
-    conn = get_connection()
-    c = conn.cursor()
-    # Vocab
-    c.execute("""
-      CREATE TABLE IF NOT EXISTS vocab_progress (
-        id INTEGER PRIMARY KEY,
-        student_code TEXT, name TEXT, level TEXT,
-        word TEXT, student_answer TEXT,
-        is_correct INTEGER, date TEXT
-      )""")
-    # Schreiben
-    c.execute("""
-      CREATE TABLE IF NOT EXISTS schreiben_progress (
-        id INTEGER PRIMARY KEY,
-        student_code TEXT, name TEXT, level TEXT,
-        essay TEXT, score INTEGER, feedback TEXT, date TEXT
-      )""")
-    # Sprechen
-    c.execute("""
-      CREATE TABLE IF NOT EXISTS sprechen_progress (
-        id INTEGER PRIMARY KEY,
-        student_code TEXT, name TEXT, level TEXT,
-        teil TEXT, message TEXT, score INTEGER,
-        feedback TEXT, date TEXT
-      )""")
-    # Scores
-    c.execute("""
-      CREATE TABLE IF NOT EXISTS scores (
-        id INTEGER PRIMARY KEY,
-        student_code TEXT, name TEXT,
-        assignment TEXT, score REAL,
-        comments TEXT, date TEXT, level TEXT
-      )""")
-    # Exam progress
-    c.execute("""
-      CREATE TABLE IF NOT EXISTS exam_progress (
-        student_code TEXT, level TEXT,
-        teil TEXT, remaining TEXT,
-        used TEXT,
-        PRIMARY KEY (student_code, level, teil)
-      )""")
-    # My vocab
-    c.execute("""
-      CREATE TABLE IF NOT EXISTS my_vocab (
-        id INTEGER PRIMARY KEY,
-        student_code TEXT, level TEXT,
-        word TEXT, translation TEXT,
-        date_added TEXT
-      )""")
-    # Daily usage tables
-    for tbl in ("sprechen_usage", "letter_coach_usage", "schreiben_usage"):
-        c.execute(f"""
-          CREATE TABLE IF NOT EXISTS {tbl} (
-            student_code TEXT, date TEXT, count INTEGER,
-            PRIMARY KEY (student_code, date)
-          )""")
-    conn.commit()
+# ==== DB SINGLETON & TABLE INITIALIZATION ====  
+class DBConnection:  
+    """Singleton wrapper for sqlite3 connection."""  
+    _conn = None  
+
+    @classmethod  
+    def get_conn(cls):  
+        if cls._conn is None:  
+            cls._conn = sqlite3.connect(  
+                "vocab_progress.db",  
+                check_same_thread=False,  
+                detect_types=sqlite3.PARSE_DECLTYPES  
+            )  
+        return cls._conn  
+
+    @classmethod  
+    def cursor(cls):  
+        return cls.get_conn().cursor()
+
+def init_db():  
+    c = DBConnection.cursor()  
+    c.execute("""  
+      CREATE TABLE IF NOT EXISTS vocab_progress (  
+        id INTEGER PRIMARY KEY,  
+        student_code TEXT, name TEXT, level TEXT,  
+        word TEXT, student_answer TEXT,  
+        is_correct INTEGER, date TEXT  
+      )""")  
+    c.execute("""  
+      CREATE TABLE IF NOT EXISTS schreiben_progress (  
+        id INTEGER PRIMARY KEY,  
+        student_code TEXT, name TEXT, level TEXT,  
+        essay TEXT, score INTEGER, feedback TEXT, date TEXT  
+      )""")  
+    c.execute("""  
+      CREATE TABLE IF NOT EXISTS sprechen_progress (  
+        id INTEGER PRIMARY KEY,  
+        student_code TEXT, name TEXT, level TEXT,  
+        teil TEXT, message TEXT, score INTEGER,  
+        feedback TEXT, date TEXT  
+      )""")  
+    c.execute("""  
+      CREATE TABLE IF NOT EXISTS scores (  
+        id INTEGER PRIMARY KEY,  
+        student_code TEXT, name TEXT,  
+        assignment TEXT, score REAL,  
+        comments TEXT, date TEXT, level TEXT  
+      )""")  
+    c.execute("""  
+      CREATE TABLE IF NOT EXISTS exam_progress (  
+        student_code TEXT, level TEXT,  
+        teil TEXT, remaining TEXT,  
+        used TEXT,  
+        PRIMARY KEY (student_code, level, teil)  
+      )""")  
+    c.execute("""  
+      CREATE TABLE IF NOT EXISTS my_vocab (  
+        id INTEGER PRIMARY KEY,  
+        student_code TEXT, level TEXT,  
+        word TEXT, translation TEXT,  
+        date_added TEXT  
+      )""")  
+    for tbl in ("sprechen_usage", "letter_coach_usage", "schreiben_usage"):  
+        c.execute(f"""  
+          CREATE TABLE IF NOT EXISTS {tbl} (  
+            student_code TEXT, date TEXT, count INTEGER,  
+            PRIMARY KEY (student_code, date)  
+          )""")  
+    DBConnection.get_conn().commit()
 init_db()
 
-# ==== GOOGLE SHEET STUDENT DATA ====
-GOOGLE_SHEET_CSV = (
-    "https://docs.google.com/spreadsheets/d/"
-    "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
-    "/gviz/tq?tqx=out:csv"
+# ==== GOOGLE SHEET STUDENT DATA ====  
+GOOGLE_SHEET_CSV = (  
+    "https://docs.google.com/spreadsheets/d/"  
+    "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"  
+    "/gviz/tq?tqx=out:csv"  
 )
-@st.cache_data
-def load_student_data():
-    try:
-        r = requests.get(GOOGLE_SHEET_CSV, timeout=10)
-        r.raise_for_status()
-        df = pd.read_csv(io.StringIO(r.text), dtype=str)
-    except Exception:
-        st.error("❌ Could not load student data.")
-        st.stop()
-    # unify formatting
-    df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]
-    df["StudentCode"] = df["StudentCode"].str.strip().str.lower()
-    df["Email"]       = df["Email"].str.strip().str.lower()
+@st.cache_data(ttl=4*3600)
+def load_student_data():  
+    try:  
+        resp = requests.get(GOOGLE_SHEET_CSV, timeout=10)  
+        resp.raise_for_status()  
+        df = pd.read_csv(io.StringIO(resp.text), dtype=str)  
+    except Exception:  
+        st.error("❌ Could not load student data.")  
+        st.stop()  
+    df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]  
+    df["StudentCode"] = df["StudentCode"].str.strip().str.lower()  
+    df["Email"] = df["Email"].str.strip().str.lower()  
     return df.drop_duplicates("StudentCode", keep="first")
 
-def is_contract_expired(row):
-    expiry_str = row.get("ContractEnd", "").strip()
-    if not expiry_str or expiry_str.lower() == "nan":
-        return True
-    for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
-        try:
-            exp = datetime.strptime(expiry_str, fmt).date()
-            return exp < date.today()
-        except ValueError:
-            continue
-    parsed = pd.to_datetime(expiry_str, errors="coerce")
-    return parsed is pd.NaT or parsed.date() < date.today()
+def is_contract_expired(row):  
+    expiry = row.get("ContractEnd", "").strip()  
+    for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):  
+        try:  
+            return datetime.strptime(expiry, fmt).date() < date.today()  
+        except ValueError:  
+            continue  
+    parsed = pd.to_datetime(expiry, errors="coerce")  
+    return parsed.isna() or parsed.date() < date.today()
 
-# ==== COOKIE / SESSION SETUP ====
-COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
-if not COOKIE_SECRET:
-    raise ValueError("COOKIE_SECRET not set")
-cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
-cookie_manager.ready()
-if not cookie_manager.ready():
-    st.warning("Cookies not ready—please refresh.")
+# ==== COOKIE / SESSION SETUP ====  
+COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")  
+if not COOKIE_SECRET:  
+    raise ValueError("COOKIE_SECRET not set")  
+cm = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)  
+cm.ready()  
+if not cm.ready():  
+    st.warning("Cookies not ready—refresh.")  
+    st.stop()  
+for k in ["logged_in","student_row","student_code","student_name"]:  
+    st.session_state.setdefault(k, False if k=="logged_in" else None)
+
+# ==== Falowen Header Banner ====  
+def show_banner():  
+    st.markdown(  
+        """  
+        <div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;'>  
+            <span style='font-size:2.2rem;'>🇬🇭</span>  
+            <div style='text-align:center;'>  
+                <span style='font-size:2.1rem;font-weight:bold;color:#17617a;'>Falowen App</span><br>  
+                <span style='font-size:1.05rem;color:#268049;'>German Learning Platform</span><br>  
+                <a href='https://www.learngermanghana.com' target='_blank' style='font-size:1rem;color:#1976d2;'>learngermanghana.com</a>  
+            </div>  
+            <span style='font-size:2.2rem;'>🇩🇪</span>  
+        </div>  
+        """, unsafe_allow_html=True)
+
+# ==== YouTube Data API Settings ====  
+YOUTUBE_API_KEY   = st.secrets.get("YOUTUBE_API_KEY") or os.getenv("YOUTUBE_API_KEY")  
+YOUTUBE_PLAYLIST_IDS = {  
+    "A1": ["PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b"],  
+    "A2": [  
+        "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",  
+        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc&index=5",  
+        "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c"  
+    ],  
+    "B1": ["PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-","PLB92CD6B288E5DB61"]
+}
+@st.cache_data(ttl=4*3600)
+def fetch_youtube_playlist_videos(playlist_id, api_key):  
+    videos, next_page = [], None  
+    base_url = "https://www.googleapis.com/youtube/v3/playlistItems"  
+    while True:  
+        params = {  
+            "part": "snippet",  
+            "playlistId": playlist_id,  
+            "maxResults": 50,  
+            "key": api_key  
+        }  
+        if next_page:  
+            params["pageToken"] = next_page  
+        r = requests.get(base_url, params=params)  
+        data = r.json()  
+        for item in data.get("items",[]):  
+            vid = item["snippet"]["resourceId"]["videoId"]  
+            videos.append({  
+                "title": item["snippet"]["title"],  
+                "url": f"https://youtube.com/watch?v={vid}"  
+            })  
+        next_page = data.get("nextPageToken")  
+        if not next_page:  
+            break  
+    return videos
+
+# ==== LOGIN UI ====
+if not st.session_state.logged_in:  
+    st.set_page_config(page_title="Falowen – Login", layout="centered")  
+    show_banner()  
+    mode = st.radio("I'm a", ["Returning Student","New Student"], horizontal=True)  
+    login_val = st.text_input("Student Code or Email", value=cm.get("student_code") or "").strip().lower()  
+    pwd = st.text_input("Password", type="password") if login_val else ""  
+    if st.button("Continue"):  
+        df = load_student_data()  
+        m = df[(df["StudentCode"]==login_val)|(df["Email"]==login_val)]  
+        if m.empty:  
+            st.error("Student not found.")  
+            st.stop()  
+        row = m.iloc[0]  
+        if is_contract_expired(row):  
+            st.error("Contract expired.")  
+            st.stop()  
+        user_doc = db.collection("students").document(row["StudentCode"]).get()  
+        if mode=="New Student" or not user_doc.exists:  
+            if not pwd:  
+                st.error("Set a password to register.")  
+                st.stop()  
+            h = bcrypt.hashpw(pwd.encode(), bcrypt.gensalt()).decode()  
+            db.collection("students").document(row["StudentCode"]).set({"email":row["Email"],"pw_hash":h,"name":row.get("Name","")})  
+            st.success("Registered! Please log in.")  
+            st.stop()  
+        else:  
+            h = user_doc.get("pw_hash","")  
+            if not h or not bcrypt.checkpw(pwd.encode(), h.encode()):  
+                st.error("Incorrect password.")  
+                st.stop()  
+        st.session_state.update({  
+            "logged_in":True,  
+            "student_row":row.to_dict(),  
+            "student_code":row["StudentCode"],  
+            "student_name":row.get("Name","")  
+        })  
+        cm.set("student_code",row["StudentCode"]); cm.save()  
+        st.success(f"Welcome, {row.get('Name')} 🎉")  
+        st.rerun()  
     st.stop()
-for k, default in [
-    ("logged_in",  False),
-    ("student_row", None),
-    ("student_code",""),
-    ("student_name","")
-]:
-    st.session_state.setdefault(k, default)
-code_from_cookie = (cookie_manager.get("student_code") or "").strip().lower()
-
-# ==== GOOGLE OAUTH2 MANUAL LOGIN ====
-GOOGLE_CLIENT_ID     = "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com"
-GOOGLE_CLIENT_SECRET = "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"
-REDIRECT_URI         = "https://a1spreche-h5tsdmmedy3uqcm9ahxfud.streamlit.app/"
-
-def do_google_oauth():
-    params = {
-        "client_id": GOOGLE_CLIENT_ID,
-        "redirect_uri": REDIRECT_URI,
-        "response_type": "code",
-        "scope": "openid email profile",
-        "prompt": "select_account"
-    }
-    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
-    st.markdown(f"""
-        <a href="{auth_url}">
-            <button style="background:#4285f4;color:white;padding:8px 20px;border:none;border-radius:8px;font-size:1.1rem;cursor:pointer;">
-                Sign in with Google
-            </button>
-        </a>
-    """, unsafe_allow_html=True)
-    st.stop()
-
-def handle_google_login():
-    query_params = st.experimental_get_query_params()
-    if "code" not in query_params:
-        return False  # No Google login
-    code = query_params["code"][0]
-    token_url = "https://oauth2.googleapis.com/token"
-    data = {
-        "code": code,
-        "client_id": GOOGLE_CLIENT_ID,
-        "client_secret": GOOGLE_CLIENT_SECRET,
-        "redirect_uri": REDIRECT_URI,
-        "grant_type": "authorization_code"
-    }
-    resp = requests.post(token_url, data=data)
-    token_json = resp.json()
-    access_token = token_json.get("access_token")
-    if not access_token:
-        st.error("Google login failed. Please try again.")
-        st.stop()
-    # Get email
-    userinfo_url = "https://www.googleapis.com/oauth2/v2/userinfo"
-    r = requests.get(userinfo_url, headers={"Authorization": f"Bearer {access_token}"})
-    if not r.ok:
-        st.error("Google login failed (could not fetch email).")
-        st.stop()
-    email = r.json()["email"].strip().lower()
-    # Now, find student by email
-    df = load_student_data()
-    df["Email"] = df["Email"].str.lower().str.strip()
-    matched = df[df["Email"] == email]
-    if matched.empty:
-        st.error("No student account found for this Google email. Use the email you registered with your teacher.")
-        st.stop()
-    student_row = matched.iloc[0]
-    if is_contract_expired(student_row):
-        st.error("Your contract has expired. Please contact the office for renewal.")
-        st.stop()
-    st.session_state.update({
-        "logged_in": True,
-        "student_row": student_row.to_dict(),
-        "student_code": student_row["StudentCode"],
-        "student_name": student_row["Name"]
-    })
-    cookie_manager["student_code"] = student_row["StudentCode"]
-    cookie_manager.save()
-    st.success(f"Welcome, {student_row['Name']}! 🎉")
-    st.rerun()
-    return True
-
-# ==== LOGIN UI: Radio for Returning / New Student ====
-if not st.session_state["logged_in"]:
-    st.set_page_config(page_title="Falowen – Login", layout="centered")
-    st.markdown("""
-      <style>
-      .login-card {
-        background:#fff; border-radius:18px; box-shadow:0 2px 16px #0002;
-        max-width:420px; margin:4rem auto; padding:2.5rem;
-      }
-      </style>
-    """, unsafe_allow_html=True)
-    with st.container():
-        st.markdown('<div class="login-card">', unsafe_allow_html=True)
-        st.image("https://www.learngermanghana.com/favicon.ico", width=56)
-        st.markdown("### 🔑 Student Login – Falowen")
-
-        login_mode = st.radio(
-            "Select your role:",
-            options=["Returning Student", "New Student"],
-            horizontal=True,
-        )
-
-        login_input = st.text_input(
-            "Student Code or Email",
-            placeholder="e.g. portia1 or you@email.com",
-            value=code_from_cookie
-        ).strip().lower()
-
-        # === RETURNING STUDENT ===
-        if login_mode == "Returning Student":
-            login_password = st.text_input("Password", type="password") if login_input else ""
-            st.markdown("---")
-            st.markdown("**Or sign in with Google**")
-            col1, col2 = st.columns(2)
-            google_clicked = col2.button("Sign in with Google")
-            login_clicked = col1.button("🔑 Sign in")
-            if handle_google_login():
-                st.stop()
-            if google_clicked:
-                do_google_oauth()
-            if login_clicked and login_input:
-                df = load_student_data()
-                df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-                df["Email"] = df["Email"].str.lower().str.strip()
-                matched = df[
-                    (df["StudentCode"] == login_input) |
-                    (df["Email"] == login_input)
-                ]
-                if matched.empty:
-                    st.error("Student not found.")
-                    st.stop()
-                student_row = matched.iloc[0]
-                if is_contract_expired(student_row):
-                    st.error("Your contract has expired—contact the office.")
-                    st.stop()
-                # === FIRESTORE password check ===
-                user_doc = db.collection("students").document(student_row["StudentCode"]).get()
-                if not user_doc.exists():
-                    st.error("No password set. Switch to 'New Student' tab to create a password.")
-                    st.stop()
-                pw_hash = user_doc.get("pw_hash", "")
-                if not pw_hash or not bcrypt.checkpw(login_password.encode(), pw_hash.encode()):
-                    st.error("Incorrect password.")
-                    st.stop()
-                st.session_state.update({
-                    "logged_in":    True,
-                    "student_row":  student_row.to_dict(),
-                    "student_code": student_row["StudentCode"],
-                    "student_name": student_row["Name"]
-                })
-                cookie_manager["student_code"] = student_row["StudentCode"]
-                cookie_manager.save()
-                st.success(f"Welcome, {student_row.get('Name','')} 🎉")
-                st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
-            st.stop()
-
-        # === NEW STUDENT ===
-        else:
-            new_pw1 = st.text_input("Create Password", type="password")
-            new_pw2 = st.text_input("Confirm Password", type="password")
-            st.markdown("---")
-            st.markdown("**Or sign up with Google**")
-            col1, col2 = st.columns(2)
-            google_clicked = col2.button("Sign up with Google")
-            register_clicked = col1.button("Register & Sign in")
-            if handle_google_login():
-                st.stop()
-            if google_clicked:
-                do_google_oauth()
-            if register_clicked and login_input:
-                df = load_student_data()
-                df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-                df["Email"] = df["Email"].str.lower().str.strip()
-                matched = df[
-                    (df["StudentCode"] == login_input) |
-                    (df["Email"] == login_input)
-                ]
-                if matched.empty:
-                    st.error("Student not found. Use the code/email given by your teacher.")
-                    st.stop()
-                student_row = matched.iloc[0]
-                if is_contract_expired(student_row):
-                    st.error("Your contract has expired—contact the office.")
-                    st.stop()
-                user_doc = db.collection("students").document(student_row["StudentCode"]).get()
-                if user_doc.exists():
-                    st.error("Account already exists. Please log in as a Returning Student.")
-                    st.stop()
-                if not new_pw1 or len(new_pw1) < 6:
-                    st.error("Password must be at least 6 characters.")
-                    st.stop()
-                if new_pw1 != new_pw2:
-                    st.error("Passwords do not match.")
-                    st.stop()
-                pw_hash = bcrypt.hashpw(new_pw1.encode(), bcrypt.gensalt()).decode()
-                db.collection("students").document(student_row["StudentCode"]).set({
-                    "email": student_row["Email"],
-                    "pw_hash": pw_hash,
-                    "name": student_row["Name"]
-                })
-                st.success("Account created! You are now signed in.")
-                st.session_state.update({
-                    "logged_in":    True,
-                    "student_row":  student_row.to_dict(),
-                    "student_code": student_row["StudentCode"],
-                    "student_name": student_row["Name"]
-                })
-                cookie_manager["student_code"] = student_row["StudentCode"]
-                cookie_manager.save()
-                st.success(f"Welcome, {student_row.get('Name','')} 🎉")
-                st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
-            st.stop()
 
 # ==== LOGGED-IN UI BELOW HERE ====
-st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
+show_banner()
+st.write(f"👋 Welcome, **{st.session_state.student_name}**")
 if st.button("Log out"):
-    cookie_manager["student_code"] = ""
-    cookie_manager.save()
-    for k in ("logged_in","student_row","student_code","student_name"):
-        st.session_state[k] = False if k=="logged_in" else ""
-    st.success("Logged out.")
+    cm.set("student_code",""); cm.save()
+    for k in ["logged_in","student_row","student_code","student_name"]:
+        st.session_state[k] = False if k=="logged_in" else None
     st.rerun()
 
 
 
-# ---- Falowen Header ----
-st.markdown(
-    """
-    <div style='display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; width: 100%;'>
-        <!-- Left Flag -->
-        <span style='font-size:2.2rem; flex: 0 0 auto;'>🇬🇭</span>
-        <!-- Center Block -->
-        <div style='flex: 1; text-align: center;'>
-            <span style='font-size:2.1rem; font-weight:bold; color:#17617a; letter-spacing:2px;'>
-                Falowen App
-            </span>
-            <br>
-            <span style='font-size:1.08rem; color:#ff9900; font-weight:600;'>Learn Language Education Academy</span>
-            <br>
-            <span style='font-size:1.05rem; color:#268049; font-weight:400;'>
-                Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
-            </span>
-            <br>
-            <span style='font-size:1.01rem; color:#1976d2; font-weight:500;'>
-                Website: <a href='https://www.learngermanghana.com' target='_blank' style='color:#1565c0; text-decoration:none;'>www.learngermanghana.com</a>
-            </span>
-            <br>
-            <span style='font-size:0.98rem; color:#666; font-weight:500;'>
-                Competent German Tutors Team
-            </span>
-        </div>
-        <!-- Right Flag -->
-        <span style='font-size:2.2rem; flex: 0 0 auto;'>🇩🇪</span>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 
