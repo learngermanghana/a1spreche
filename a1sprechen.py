@@ -57,16 +57,19 @@ os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
+
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 if not COOKIE_SECRET:
     raise ValueError("COOKIE_SECRET environment variable not set")
 
-cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
+# Always check if already exists!
+if "cookie_manager" not in st.session_state:
+    st.session_state["cookie_manager"] = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
+cookie_manager = st.session_state["cookie_manager"]
 cookie_manager.ready()
 if not cookie_manager.ready():
     st.warning("Cookies are not ready. Please refresh.")
     st.stop()
-
 
 # === YouTube Data API Settings ===
 YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
@@ -641,9 +644,7 @@ def is_contract_expired(row):
     return expiry_date.date() < today
 
 # ---- Cookie & Session Setup ----
-import os
-from streamlit_cookies_manager import EncryptedCookieManager
-import streamlit as st
+
 
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 if not COOKIE_SECRET:
@@ -662,7 +663,16 @@ code_from_cookie = cookie_manager.get("student_code") or ""
 code_from_cookie = str(code_from_cookie).strip().lower()
 
 
+for key, default in [
+    ("logged_in", False), 
+    ("student_row", None), 
+    ("student_code", ""), 
+    ("student_name", "")
+]:
+    st.session_state.setdefault(key, default)
 
+code_from_cookie = cookie_manager.get("student_code") or ""
+code_from_cookie = str(code_from_cookie).strip().lower(
 
 # --- Auto-login via Cookie ---
 if not st.session_state["logged_in"] and code_from_cookie:
