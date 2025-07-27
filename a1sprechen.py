@@ -113,7 +113,6 @@ def fetch_youtube_playlist_videos(playlist_id, api_key):
             break
     return videos
 
-from streamlit_google_oauth import GoogleOAuth2
 
 GOOGLE_CLIENT_ID = st.secrets["GOOGLE_CLIENT_ID"]
 GOOGLE_CLIENT_SECRET = st.secrets["GOOGLE_CLIENT_SECRET"]
