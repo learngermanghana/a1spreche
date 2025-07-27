@@ -598,6 +598,11 @@ def highlight_keywords(text, words):
 
  #Studentloadingdata   
 
+# --- GOOGLE OAUTH2 INFO (replace with your own values) ---
+GOOGLE_CLIENT_ID     = "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET = "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"
+REDIRECT_URI         = "https://a1spreche-h5tsdmmedy3uqcm9ahxfud.streamlit.app/"
+
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
 
 @st.cache_data(ttl=3600)
@@ -609,23 +614,12 @@ def load_student_data():
     except Exception:
         st.error("❌ Could not load student data.")
         st.stop()
-    # Strip whitespace
     for col in df.columns:
         df[col] = df[col].astype(str).str.strip()
-    # Drop missing contracts
     df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]
-    # Parse ContractEnd with both US and European formats
-    df["ContractEnd_dt"] = pd.to_datetime(
-        df["ContractEnd"], format="%m/%d/%Y", errors="coerce", dayfirst=False
-    )
-    mask = df["ContractEnd_dt"].isna()
-    df.loc[mask, "ContractEnd_dt"] = pd.to_datetime(
-        df.loc[mask, "ContractEnd"], format="%d/%m/%Y", errors="coerce", dayfirst=True
-    )
-    # Drop duplicate codes, keep latest
-    df = df.sort_values("ContractEnd_dt", ascending=False)
-    df = df.drop_duplicates(subset=["StudentCode"], keep="first")
-    return df.drop(columns=["ContractEnd_dt"])
+    df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+    df["Email"] = df["Email"].str.lower().str.strip()
+    return df.drop_duplicates("StudentCode", keep="first")
 
 def is_contract_expired(row):
     expiry_str = str(row.get("ContractEnd", "")).strip()
@@ -646,11 +640,49 @@ def is_contract_expired(row):
     today = datetime.now().date()
     return expiry_date.date() < today
 
+# ---- Cookie & Session Setup ----
+import os
+from streamlit_cookies_manager import EncryptedCookieManager
+import streamlit as st
 
-GOOGLE_CLIENT_ID     = "YOUR_CLIENT_ID.apps.googleusercontent.com"
-GOOGLE_CLIENT_SECRET = "YOUR_CLIENT_SECRET"
-REDIRECT_URI         = "YOUR_DEPLOYED_APP_URL"
+COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
+if not COOKIE_SECRET:
+    raise ValueError("COOKIE_SECRET environment variable not set")
 
+cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
+cookie_manager.ready()
+if not cookie_manager.ready():
+    st.warning("Cookies are not ready. Please refresh.")
+    st.stop()
+
+for key, default in [("logged_in", False), ("student_row", None), ("student_code", ""), ("student_name", "")]:
+    st.session_state.setdefault(key, default)
+
+code_from_cookie = cookie_manager.get("student_code") or ""
+code_from_cookie = str(code_from_cookie).strip().lower()
+
+
+
+
+# --- Auto-login via Cookie ---
+if not st.session_state["logged_in"] and code_from_cookie:
+    df_students = load_student_data()
+    df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
+    df_students["Email"] = df_students["Email"].str.lower().str.strip()
+    found = df_students[df_students["StudentCode"] == code_from_cookie]
+    if not found.empty:
+        student_row = found.iloc[0]
+        if is_contract_expired(student_row):
+            st.error("Your contract has expired. Please contact the office for renewal.")
+            cookie_manager["student_code"] = ""
+            cookie_manager.save()
+            st.stop()
+        st.session_state.update({
+            "logged_in": True,
+            "student_row": student_row.to_dict(),
+            "student_code": student_row["StudentCode"],
+            "student_name": student_row["Name"]
+        })
 def get_query_params():
     return st.query_params
 
@@ -731,13 +763,14 @@ def handle_google_login():
     st.rerun()
     return True
 
-# ---- LOGIN PANEL ----
 if not st.session_state["logged_in"]:
+    st.title("🔑 Student Login")
     if handle_google_login():
         st.stop()
-    st.title("🔑 Student Login")
+    code_from_cookie = cookie_manager.get("student_code") or ""
+    code_from_cookie = str(code_from_cookie).strip().lower()
     login_input = st.text_input("Enter your Student Code or Email:", value=code_from_cookie).strip().lower()
-    login_pw = st.text_input("Password (leave empty)", type="password", help="(Leave empty)")
+    login_password = st.text_input("Password", type="password")
     if st.button("Login"):
         df_students = load_student_data()
         df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
@@ -763,32 +796,10 @@ if not st.session_state["logged_in"]:
             st.rerun()
         else:
             st.error("Login failed. Please check your Student Code or Email.")
-
     st.markdown("<div style='text-align:center;margin:12px 0;'>or</div>", unsafe_allow_html=True)
     do_google_oauth()
-    st.markdown(
-        """
-        <div style='color:#1976d2;font-size:1rem;margin-top:8px;margin-bottom:4px;'>
-            <b>Tip for iPhone/iPad/Android:</b> To stay logged in, avoid Private mode and do not clear website data.<br>
-            <b>Remember Me</b> is automatic on this device.
-        </div>
-        """, unsafe_allow_html=True
-    )
-    st.markdown(
-        """
-        <div style='text-align:center; margin-top:20px; margin-bottom:12px;'>
-            <span style='color:#ff9800;font-weight:600;'>
-                🔒 <b>Data Privacy:</b> Your login details and activity are never shared. Only your teacher can see your learning progress.
-            </span>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
     st.stop()
 
-
-
-# --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 if st.button("Log out"):
     cookie_manager["student_code"] = ""
@@ -797,7 +808,7 @@ if st.button("Log out"):
         st.session_state[k] = False if k == "logged_in" else ""
     st.success("You have been logged out.")
     st.rerun()
-    
+
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 
