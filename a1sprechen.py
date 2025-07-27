@@ -770,9 +770,10 @@ if not st.session_state["logged_in"]:
     st.title("🔑 Student Login")
 
     # 1) (Optional) Google OAuth
+    # IMPORTANT: Set this to your actual deployed Streamlit URL!
     GOOGLE_CLIENT_ID     = "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com"
     GOOGLE_CLIENT_SECRET = "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"
-    REDIRECT_URI         = "https://your-app-url.streamlit.app/"
+    REDIRECT_URI         = "https://a1spreche-h5tsdmmedy3uqcm9ahxfud.streamlit.app/"  # <--- PUT YOUR STREAMLIT APP URL HERE EXACTLY AS IN GOOGLE CONSOLE
 
     def get_query_params():
         return st.query_params
