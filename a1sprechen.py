@@ -16,12 +16,16 @@ import urllib.parse
 import pandas as pd
 import streamlit as st
 import requests
-
-import firebase_admin
-from firebase_admin import credentials, firestore
-
 import bcrypt
-from streamlit_cookies_manager import EncryptedCookieManager
+from openai import OpenAI                  # OpenAI API client
+import firebase_admin                      # Firebase app
+from firebase_admin import credentials, firestore    # Firestore DB
+from fpdf import FPDF                      # PDF export
+from streamlit_cookies_manager import EncryptedCookieManager   # Cookie/session handling
+from docx import Document                  # Optional: DOCX notes download
+from gtts import gTTS                      # Text-to-speech for vocab audio
+
+
 
 # ==== Streamlit Settings ====
 st.set_page_config(page_title="Falowen – Login", layout="centered")
