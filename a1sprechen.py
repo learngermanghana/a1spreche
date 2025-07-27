@@ -291,6 +291,12 @@ def inc_letter_coach_usage(student_code):
     )
     conn.commit()
 
+# Bubble CSS styles
+bubble_user = "background:#e3f2fd;padding:12px 20px;border-radius:18px 18px 6px 18px;margin:8px 0;display:inline-block;"
+bubble_assistant = "background:#fff9c4;padding:12px 20px;border-radius:18px 18px 18px 6px;margin:8px 0;display:inline-block;"
+highlight_words = ["correct", "should", "mistake", "improve", "tip"]
+
+
 # ==== YOUTUBE PLAYLIST FETCH ====
 @st.cache_data(ttl=3600*12)  # cache for 12 hours
 def fetch_youtube_playlist_videos(playlist_id, api_key):
