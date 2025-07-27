@@ -622,32 +622,6 @@ def highlight_keywords(text, words):
     pattern = r'(' + '|'.join(map(re.escape, words)) + r')'
     return re.sub(pattern, r"<span style='color:#d63384;font-weight:600'>\1</span>", text, flags=re.IGNORECASE)
 
-def handle_google_login():
-    query_params = get_query_params()
-    if "code" not in query_params:
-        return False
-    code = query_params["code"]
-    if isinstance(code, list): code = code[0]
-    token_url = "https://oauth2.googleapis.com/token"
-    data = {
-        "code": code, "client_id": GOOGLE_CLIENT_ID, "client_secret": GOOGLE_CLIENT_SECRET,
-        "redirect_uri": REDIRECT_URI, "grant_type": "authorization_code"
-    }
-    try:
-        resp = requests.post(token_url, data=data, timeout=10)
-        if not resp.ok:
-            # Only show the error if it's not the common invalid_grant from reload
-            try:
-                err_json = resp.json()
-                if err_json.get("error") == "invalid_grant":
-                    return False
-                st.error(f"Google login failed. Details: {resp.text}")
-            except Exception:
-                st.error(f"Google login failed. Details: {resp.text}")
-            return False
-        # ... rest of your code
-
-
 
     
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
