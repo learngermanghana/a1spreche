@@ -116,7 +116,7 @@ def fetch_youtube_playlist_videos(playlist_id, api_key):
 
 GOOGLE_CLIENT_ID = st.secrets["GOOGLE_CLIENT_ID"]
 GOOGLE_CLIENT_SECRET = st.secrets["GOOGLE_CLIENT_SECRET"]
-REDIRECT_URI = st.secrets["REDIRECT_URI"]
+REDIRECT_URI = "https://falowen.streamlit.app"
 
 authenticator = GoogleOAuth2(
     client_id=GOOGLE_CLIENT_ID,
