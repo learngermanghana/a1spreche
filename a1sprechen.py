@@ -233,85 +233,140 @@ def handle_google_login():
     st.rerun()
     return True
 
-# ==== LOGIN LOGIC ====
+# ==== LOGIN UI: Radio for Returning / New Student ====
 if not st.session_state["logged_in"]:
     st.set_page_config(page_title="Falowen – Login", layout="centered")
     st.markdown("""
       <style>
       .login-card {
         background:#fff; border-radius:18px; box-shadow:0 2px 16px #0002;
-        max-width:360px; margin:4rem auto; padding:2rem;
+        max-width:420px; margin:4rem auto; padding:2.5rem;
       }
       </style>
     """, unsafe_allow_html=True)
     with st.container():
         st.markdown('<div class="login-card">', unsafe_allow_html=True)
         st.image("https://www.learngermanghana.com/favicon.ico", width=56)
-        st.markdown("### 🔑 Student Login")
-        login_input    = st.text_input(
+        st.markdown("### 🔑 Student Login – Falowen")
+
+        login_mode = st.radio(
+            "Select your role:",
+            options=["Returning Student", "New Student"],
+            horizontal=True,
+        )
+
+        login_input = st.text_input(
             "Student Code or Email",
             placeholder="e.g. portia1 or you@email.com",
             value=code_from_cookie
         ).strip().lower()
-        login_password = st.text_input("Password", type="password") if login_input else ""
-        st.markdown("---")
-        st.markdown("**Or sign in with Google**")
-        col1, col2 = st.columns(2)
-        google_clicked = col2.button("Sign in with Google")
-        login_clicked  = col1.button("🔑 Sign in")
-        st.markdown("</div>", unsafe_allow_html=True)
-    # --- Google OAuth ---
-    if handle_google_login():
-        st.stop()
-    if google_clicked:
-        do_google_oauth()
-    # --- Manual password flow ---
-    if login_clicked and login_input:
-        df = load_student_data()
-        df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-        df["Email"] = df["Email"].str.lower().str.strip()
-        matched = df[
-            (df["StudentCode"] == login_input) |
-            (df["Email"] == login_input)
-        ]
-        if matched.empty:
-            st.error("Student not found.")
+
+        # === RETURNING STUDENT ===
+        if login_mode == "Returning Student":
+            login_password = st.text_input("Password", type="password") if login_input else ""
+            st.markdown("---")
+            st.markdown("**Or sign in with Google**")
+            col1, col2 = st.columns(2)
+            google_clicked = col2.button("Sign in with Google")
+            login_clicked = col1.button("🔑 Sign in")
+            if handle_google_login():
+                st.stop()
+            if google_clicked:
+                do_google_oauth()
+            if login_clicked and login_input:
+                df = load_student_data()
+                df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+                df["Email"] = df["Email"].str.lower().str.strip()
+                matched = df[
+                    (df["StudentCode"] == login_input) |
+                    (df["Email"] == login_input)
+                ]
+                if matched.empty:
+                    st.error("Student not found.")
+                    st.stop()
+                student_row = matched.iloc[0]
+                if is_contract_expired(student_row):
+                    st.error("Your contract has expired—contact the office.")
+                    st.stop()
+                # === FIRESTORE password check ===
+                user_doc = db.collection("students").document(student_row["StudentCode"]).get()
+                if not user_doc.exists():
+                    st.error("No password set. Switch to 'New Student' tab to create a password.")
+                    st.stop()
+                pw_hash = user_doc.get("pw_hash", "")
+                if not pw_hash or not bcrypt.checkpw(login_password.encode(), pw_hash.encode()):
+                    st.error("Incorrect password.")
+                    st.stop()
+                st.session_state.update({
+                    "logged_in":    True,
+                    "student_row":  student_row.to_dict(),
+                    "student_code": student_row["StudentCode"],
+                    "student_name": student_row["Name"]
+                })
+                cookie_manager["student_code"] = student_row["StudentCode"]
+                cookie_manager.save()
+                st.success(f"Welcome, {student_row.get('Name','')} 🎉")
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
             st.stop()
-        student_row = matched.iloc[0]
-        if is_contract_expired(student_row):
-            st.error("Your contract has expired—contact the office.")
-            st.stop()
-        # === FIRESTORE password check / registration ===
-        user_doc = db.collection("students").document(student_row["StudentCode"]).get()
-        if not user_doc.exists:
-            st.info("First time login? Please set your password below and sign in again.")
-            if login_password:
-                pw_hash = bcrypt.hashpw(login_password.encode(), bcrypt.gensalt()).decode()
+
+        # === NEW STUDENT ===
+        else:
+            new_pw1 = st.text_input("Create Password", type="password")
+            new_pw2 = st.text_input("Confirm Password", type="password")
+            st.markdown("---")
+            st.markdown("**Or sign up with Google**")
+            col1, col2 = st.columns(2)
+            google_clicked = col2.button("Sign up with Google")
+            register_clicked = col1.button("Register & Sign in")
+            if handle_google_login():
+                st.stop()
+            if google_clicked:
+                do_google_oauth()
+            if register_clicked and login_input:
+                df = load_student_data()
+                df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+                df["Email"] = df["Email"].str.lower().str.strip()
+                matched = df[
+                    (df["StudentCode"] == login_input) |
+                    (df["Email"] == login_input)
+                ]
+                if matched.empty:
+                    st.error("Student not found. Use the code/email given by your teacher.")
+                    st.stop()
+                student_row = matched.iloc[0]
+                if is_contract_expired(student_row):
+                    st.error("Your contract has expired—contact the office.")
+                    st.stop()
+                user_doc = db.collection("students").document(student_row["StudentCode"]).get()
+                if user_doc.exists():
+                    st.error("Account already exists. Please log in as a Returning Student.")
+                    st.stop()
+                if not new_pw1 or len(new_pw1) < 6:
+                    st.error("Password must be at least 6 characters.")
+                    st.stop()
+                if new_pw1 != new_pw2:
+                    st.error("Passwords do not match.")
+                    st.stop()
+                pw_hash = bcrypt.hashpw(new_pw1.encode(), bcrypt.gensalt()).decode()
                 db.collection("students").document(student_row["StudentCode"]).set({
                     "email": student_row["Email"],
                     "pw_hash": pw_hash,
                     "name": student_row["Name"]
                 })
-                st.success("Password set! Please log in again.")
-                st.stop()
-            else:
-                st.stop()
-        else:
-            pw_hash = user_doc.get("pw_hash", "")
-            if not pw_hash or not bcrypt.checkpw(login_password.encode(), pw_hash.encode()):
-                st.error("Incorrect password.")
-                st.stop()
-        st.session_state.update({
-            "logged_in":    True,
-            "student_row":  student_row.to_dict(),
-            "student_code": student_row["StudentCode"],
-            "student_name": student_row["Name"]
-        })
-        cookie_manager["student_code"] = student_row["StudentCode"]
-        cookie_manager.save()
-        st.success(f"Welcome, {student_row.get('Name','')} 🎉")
-        st.rerun()
-    st.stop()
+                st.success("Account created! You are now signed in.")
+                st.session_state.update({
+                    "logged_in":    True,
+                    "student_row":  student_row.to_dict(),
+                    "student_code": student_row["StudentCode"],
+                    "student_name": student_row["Name"]
+                })
+                cookie_manager["student_code"] = student_row["StudentCode"]
+                cookie_manager.save()
+                st.success(f"Welcome, {student_row.get('Name','')} 🎉")
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
+            st.stop()
 
 # ==== LOGGED-IN UI BELOW HERE ====
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
@@ -324,6 +379,39 @@ if st.button("Log out"):
     st.rerun()
 
 
+
+# ---- Falowen Header ----
+st.markdown(
+    """
+    <div style='display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; width: 100%;'>
+        <!-- Left Flag -->
+        <span style='font-size:2.2rem; flex: 0 0 auto;'>🇬🇭</span>
+        <!-- Center Block -->
+        <div style='flex: 1; text-align: center;'>
+            <span style='font-size:2.1rem; font-weight:bold; color:#17617a; letter-spacing:2px;'>
+                Falowen App
+            </span>
+            <br>
+            <span style='font-size:1.08rem; color:#ff9900; font-weight:600;'>Learn Language Education Academy</span>
+            <br>
+            <span style='font-size:1.05rem; color:#268049; font-weight:400;'>
+                Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
+            </span>
+            <br>
+            <span style='font-size:1.01rem; color:#1976d2; font-weight:500;'>
+                Website: <a href='https://www.learngermanghana.com' target='_blank' style='color:#1565c0; text-decoration:none;'>www.learngermanghana.com</a>
+            </span>
+            <br>
+            <span style='font-size:0.98rem; color:#666; font-weight:500;'>
+                Competent German Tutors Team
+            </span>
+        </div>
+        <!-- Right Flag -->
+        <span style='font-size:2.2rem; flex: 0 0 auto;'>🇩🇪</span>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 
