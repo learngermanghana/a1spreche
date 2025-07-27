@@ -235,6 +235,10 @@ def inc_sprechen_usage(student_code):
 def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
     return get_sprechen_usage(student_code) < limit
 
+# --- ALIAS for legacy code ---
+has_falowen_quota = has_sprechen_quota
+
+
 def get_schreiben_usage(student_code):
     today = str(date.today())
     conn = get_connection()
