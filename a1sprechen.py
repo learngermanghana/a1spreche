@@ -199,10 +199,10 @@ SCHREIBEN_DAILY_LIMIT = 5
 
 # (All your usage counter functions and progress helpers...)
 
-# ==== Google OAuth Config ====
-GOOGLE_CLIENT_ID = st.secrets["GOOGLE_CLIENT_ID"]
-GOOGLE_CLIENT_SECRET = st.secrets["GOOGLE_CLIENT_SECRET"]
-REDIRECT_URI = st.secrets["REDIRECT_URI"]
+GOOGLE_CLIENT_ID = "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET = "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"
+REDIRECT_URI = "https://falowen.streamlit.app/"
+
 
 from streamlit_google_oauth import GoogleOAuth2   # Or your import here
 
