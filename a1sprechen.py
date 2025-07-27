@@ -164,6 +164,10 @@ def init_db():
     conn.commit()
 init_db()
 
+FALOWEN_DAILY_LIMIT = 20
+VOCAB_DAILY_LIMIT   = 20
+SCHREIBEN_DAILY_LIMIT = 5
+
 # ==== 2) Helpers to load & save progress ====
 import json
 
