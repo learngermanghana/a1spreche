@@ -212,8 +212,6 @@ GOOGLE_CLIENT_SECRET = "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"
 REDIRECT_URI = "https://falowen.streamlit.app/"
 
 
-from streamlit_oauth import OAuth2Component
-
 oauth2 = OAuth2Component()
 result = oauth2(
     client_id=GOOGLE_CLIENT_ID,
