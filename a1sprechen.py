@@ -56,6 +56,18 @@ if not OPENAI_API_KEY:
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
 
+
+COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
+if not COOKIE_SECRET:
+    raise ValueError("COOKIE_SECRET environment variable not set")
+
+cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
+cookie_manager.ready()
+if not cookie_manager.ready():
+    st.warning("Cookies are not ready. Please refresh.")
+    st.stop()
+
+
 # === YouTube Data API Settings ===
 YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
 
