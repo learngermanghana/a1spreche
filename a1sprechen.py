@@ -732,11 +732,12 @@ if not st.session_state["logged_in"] and code_from_cookie:
             "student_name": student_row["Name"]
         })
 
-# --- Manual Login Form ---
+# --- Manual Login & Account Creation Block ---
+
 if not st.session_state["logged_in"]:
     st.title("🔑 Student Login")
 
-    # -- 1. Google Login First --
+    # 1. Google OAuth option (keep if you still want)
     GOOGLE_CLIENT_ID     = "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com"
     GOOGLE_CLIENT_SECRET = "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"
     REDIRECT_URI         = "https://a1spreche-h5tsdmmedy3uqcm9ahxfud.streamlit.app/"
@@ -799,7 +800,7 @@ if not st.session_state["logged_in"]:
                 return False
             st.session_state.update({
                 "logged_in": True,
-                "student_row": student_row.to_dict(),    # <- always use .to_dict() here!
+                "student_row": student_row.to_dict(),
                 "student_code": student_row["StudentCode"],
                 "student_name": student_row["Name"]
             })
@@ -812,42 +813,49 @@ if not st.session_state["logged_in"]:
             st.error(f"Google login failed. Error: {e}")
             return False
 
-    # --- Try Google OAuth if returning from Google
     if handle_google_login():
         st.stop()
-
-    # --- OR Divider ---
     st.markdown("<div style='text-align:center;margin:12px 0;'>or</div>", unsafe_allow_html=True)
     do_google_oauth()
 
-    # -- 2. Manual Login --
+    # 2. Manual Login
     code_from_cookie = cookie_manager.get("student_code") or ""
     code_from_cookie = str(code_from_cookie).strip().lower()
-    login_input = st.text_input("Enter your Student Code or Email:", value=code_from_cookie).strip().lower()
-
-    # Only show password field if not auto-remembered (cookie is empty or user typed something new)
-    show_pw_field = not code_from_cookie or (login_input != code_from_cookie)
-    if show_pw_field:
-        login_password = st.text_input("Password (leave empty)", type="password", help="(Leave empty)")
-    else:
-        login_password = None  # Or a dummy value
+    login_input = st.text_input("Student Code:", value=code_from_cookie).strip().lower()
+    login_email = st.text_input("Email:").strip().lower()
+    login_password = st.text_input("Password:", type="password")
 
     if st.button("Login"):
         df_students = load_student_data()
         df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
         df_students["Email"] = df_students["Email"].str.lower().str.strip()
         found = df_students[
-            (df_students["StudentCode"] == login_input) |
-            (df_students["Email"] == login_input)
+            (df_students["StudentCode"] == login_input) &
+            (df_students["Email"] == login_email)
         ]
-        if not found.empty:
+        if found.empty:
+            st.error("Login failed. Check your Student Code, Email, or if your contract expired.")
+        else:
             student_row = found.iloc[0]
             if is_contract_expired(student_row):
                 st.error("Your contract has expired. Please contact the office for renewal.")
                 st.stop()
+            # --- Check Firestore password ---
+            student_doc = db.collection("students").document(login_input).get()
+            if not student_doc.exists:
+                st.error("Account not found in system. Please create an account first below.")
+                st.stop()
+            student_data = student_doc.to_dict()
+            if student_data.get("email", "").lower() != login_email:
+                st.error("Email does not match registered student.")
+                st.stop()
+            if student_data.get("password") != login_password:
+                st.error("Incorrect password. Please try again or contact your teacher.")
+                st.stop()
+            # Success!
             st.session_state.update({
                 "logged_in": True,
-                "student_row": student_row.to_dict(),    # <- always use .to_dict() here!
+                "student_row": student_row.to_dict(),
                 "student_code": student_row["StudentCode"],
                 "student_name": student_row["Name"]
             })
@@ -855,31 +863,35 @@ if not st.session_state["logged_in"]:
             cookie_manager.save()
             st.success(f"Welcome, {student_row['Name']}! 🎉")
             st.rerun()
-        else:
-            st.error("Login failed. Please check your Student Code or Email.")
 
-    # -- 3. Create Account Section (Simple Display) --
+    # 3. Create Account Section
     with st.expander("Don't have an account? Create one!"):
         new_name = st.text_input("Full Name", key="newname")
-        new_email = st.text_input("Email (Gmail preferred)", key="newemail")
-        new_code = st.text_input("Student Code (provided by your teacher)", key="newcode")
-        new_password = st.text_input("Password", type="password", key="newpw")
+        new_email = st.text_input("Email (must match what you gave your teacher)", key="newemail").strip().lower()
+        new_code = st.text_input("Student Code (from teacher)", key="newcode").strip().lower()
+        new_password = st.text_input("Password (choose one to secure your account)", key="newpassword", type="password")
         if st.button("Create Account"):
-            # Validate
-            if not new_name or not new_email or not new_code or not new_password:
-                st.error("Please complete all fields to create an account.")
+            if not (new_name and new_email and new_code and new_password):
+                st.error("Please fill in all fields.")
             else:
-                # Save to Firestore
-                doc_ref = db.collection("student").document(new_code)
-                doc_ref.set({
-                    "Name": new_name,
-                    "Email": new_email,
-                    "StudentCode": new_code,
-                    "Password": new_password,  # You may want to hash this in production!
-                    "created_at": firestore.SERVER_TIMESTAMP,
-                    "ContractEnd": "", # blank for now, admin/teacher must fill
-                })
-                st.success("Account created! Please inform your teacher to activate your contract before logging in.")
+                # Check if student code & email are in Google Sheet
+                df_students = load_student_data()
+                df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
+                df_students["Email"] = df_students["Email"].str.lower().str.strip()
+                exists = df_students[
+                    (df_students["StudentCode"] == new_code) &
+                    (df_students["Email"] == new_email)
+                ]
+                if exists.empty:
+                    st.error("Your Student Code and Email are not registered. Ask your teacher to add you first.")
+                else:
+                    # Save to Firestore
+                    db.collection("students").document(new_code).set({
+                        "name": new_name,
+                        "email": new_email,
+                        "password": new_password
+                    })
+                    st.success("Account created successfully! You can now log in above.")
 
     # iPhone/iPad tip and Data privacy
     st.markdown(
