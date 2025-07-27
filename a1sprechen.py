@@ -9,6 +9,7 @@ import re                  # Regex
 from datetime import date, datetime, timedelta
 import time                # Timing
 import io                  # IO streams
+import bcrypt
 import tempfile            # Temp file creation
 import urllib.parse        # URL encoding/decoding
 
@@ -692,83 +693,16 @@ if not st.session_state["logged_in"] and code_from_cookie:
             "student_name": student_row["Name"]
         })
 
-GOOGLE_CLIENT_ID     = "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com"
-GOOGLE_CLIENT_SECRET = "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"
-REDIRECT_URI         = "https://a1spreche-h5tsdmmedy3uqcm9ahxfud.streamlit.app/"
 
-def get_query_params():
-    return st.query_params
 
-def do_google_oauth():
-    params = {
-        "client_id": GOOGLE_CLIENT_ID,
-        "redirect_uri": REDIRECT_URI,
-        "response_type": "code",
-        "scope": "openid email profile",
-        "prompt": "select_account"
-    }
-    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
-    st.markdown(f"""<div style='text-align:center;margin-top:8px;'>
-        <a href="{auth_url}">
-            <button style="background:#4285f4;color:white;padding:10px 34px;border:none;border-radius:8px;font-size:1.1rem;cursor:pointer;">
-                <b>Sign in with Google</b>
-            </button>
-        </a>
-    </div>""", unsafe_allow_html=True)
+def hash_pw(pw):
+    return bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
 
-def handle_google_login():
-    query_params = get_query_params()
-    if "code" not in query_params:
-        return False
-    code = query_params["code"]
-    if isinstance(code, list): code = code[0]
-    token_url = "https://oauth2.googleapis.com/token"
-    data = {
-        "code": code, "client_id": GOOGLE_CLIENT_ID, "client_secret": GOOGLE_CLIENT_SECRET,
-        "redirect_uri": REDIRECT_URI, "grant_type": "authorization_code"
-    }
+def check_pw(pw, hashed):
     try:
-        resp = requests.post(token_url, data=data, timeout=10)
-        if not resp.ok:
-            st.error(f"Google login failed. Details: {resp.text}")
-            return False
-        token_json = resp.json()
-        access_token = token_json.get("access_token")
-        if not access_token:
-            st.error(f"Google login failed. Error: {token_json}")
-            return False
-        r = requests.get("https://www.googleapis.com/oauth2/v2/userinfo", headers={"Authorization": f"Bearer {access_token}"}, timeout=10)
-        if not r.ok:
-            st.error("Google login failed (could not fetch email).")
-            return False
-        email = r.json()["email"].strip().lower()
-        df_students = load_student_data()
-        df_students["Email"] = df_students["Email"].str.lower().str.strip()
-        matched = df_students[df_students["Email"] == email]
-        if matched.empty:
-            st.error("No student account found for this Google email.")
-            return False
-        student_row = matched.iloc[0]
-        if is_contract_expired(student_row):
-            st.error("Your contract has expired. Please contact the office.")
-            return False
-        st.session_state.update({
-            "logged_in": True,
-            "student_row": student_row.to_dict(),
-            "student_code": student_row["StudentCode"],
-            "student_name": student_row["Name"]
-        })
-        cookie_manager["student_code"] = student_row["StudentCode"]
-        cookie_manager.save()
-        st.success(f"Welcome, {student_row['Name']}! 🎉")
-        st.rerun()
-        return True
-    except Exception as e:
-        st.error(f"Google login failed. Error: {e}")
+        return bcrypt.checkpw(pw.encode(), hashed.encode())
+    except Exception:
         return False
-
-
-# --- Manual Login Form ---
 
 if not st.session_state["logged_in"]:
     st.title("🔑 Student Login")
@@ -861,48 +795,83 @@ if not st.session_state["logged_in"]:
     code_from_cookie = cookie_manager.get("student_code") or ""
     code_from_cookie = str(code_from_cookie).strip().lower()
     login_input = st.text_input("Enter your Student Code or Email:", value=code_from_cookie).strip().lower()
-
-    # Only show password field if not auto-remembered (cookie is empty or user typed something new)
-    show_pw_field = not code_from_cookie or (login_input != code_from_cookie)
-    if show_pw_field:
-        login_password = st.text_input("Password (leave empty)", type="password", help="(Leave empty)")
-    else:
-        login_password = None  # Or a dummy value
+    login_pw = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        df_students = load_student_data()
-        df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
-        df_students["Email"] = df_students["Email"].str.lower().str.strip()
-        found = df_students[
-            (df_students["StudentCode"] == login_input) |
-            (df_students["Email"] == login_input)
-        ]
-        if not found.empty:
-            student_row = found.iloc[0]
-            if is_contract_expired(student_row):
-                st.error("Your contract has expired. Please contact the office for renewal.")
-                st.stop()
-            st.session_state.update({
-                "logged_in": True,
-                "student_row": student_row.to_dict(),
-                "student_code": student_row["StudentCode"],
-                "student_name": student_row["Name"]
-            })
-            cookie_manager["student_code"] = student_row["StudentCode"]
-            cookie_manager.save()
-            st.success(f"Welcome, {student_row['Name']}! 🎉")
-            st.rerun()
+        # 1. Try Firestore
+        doc = db.collection("students").document(login_input).get()
+        if doc.exists:
+            info = doc.to_dict()
+            email_or_code = login_input == info.get("email", "").strip().lower() or login_input == doc.id
+            if not email_or_code:
+                st.error("Student code/email does not match our records.")
+            elif not check_pw(login_pw, info.get("pw_hash", "")):
+                st.error("Incorrect password.")
+            else:
+                st.session_state["logged_in"] = True
+                st.session_state["student_code"] = doc.id
+                st.session_state["student_name"] = info.get("name")
+                cookie_manager["student_code"] = doc.id
+                cookie_manager.save()
+                st.success(f"Welcome, {info.get('name','')}! 🎉")
+                st.rerun()
         else:
-            st.error("Login failed. Please check your Student Code or Email.")
+            # 2. Fallback: Try Sheet
+            df_students = load_student_data()
+            df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
+            df_students["Email"] = df_students["Email"].str.lower().str.strip()
+            found = df_students[
+                (df_students["StudentCode"] == login_input) |
+                (df_students["Email"] == login_input)
+            ]
+            if not found.empty:
+                student_row = found.iloc[0]
+                if is_contract_expired(student_row):
+                    st.error("Your contract has expired. Please contact the office for renewal.")
+                    st.stop()
+                st.session_state.update({
+                    "logged_in": True,
+                    "student_row": student_row.to_dict(),
+                    "student_code": student_row["StudentCode"],
+                    "student_name": student_row["Name"]
+                })
+                cookie_manager["student_code"] = student_row["StudentCode"]
+                cookie_manager.save()
+                st.success(f"Welcome, {student_row['Name']}! 🎉")
+                st.rerun()
+            else:
+                st.error("Login failed. Please check your Student Code or Email.")
 
-    # -- 3. Create Account Section (Simple Display) --
+    # -- 3. Create Account Section (FireStore, uses code from you) --
     with st.expander("Don't have an account? Create one!"):
-        new_name = st.text_input("Full Name", key="newname")
-        new_email = st.text_input("Email (Gmail preferred)", key="newemail")
-        new_code = st.text_input("Student Code", key="newcode")
+        signup_code = st.text_input("Student Code (provided by your teacher)", key="signup_code").strip().lower()
+        signup_name = st.text_input("Full Name", key="signup_name")
+        signup_email = st.text_input("Email (Gmail preferred)", key="signup_email").strip().lower()
+        signup_pw1 = st.text_input("Password", type="password", key="signup_pw1")
+        signup_pw2 = st.text_input("Repeat Password", type="password", key="signup_pw2")
         if st.button("Create Account"):
-            st.info("Account creation requests are currently handled by your teacher. Please contact your teacher to be added.")
-            # Optionally: send an email to admin, or automate row append to your Google Sheet
+            if not signup_code or not signup_name or not signup_email or not signup_pw1 or not signup_pw2:
+                st.error("All fields required.")
+            elif signup_pw1 != signup_pw2:
+                st.error("Passwords do not match.")
+            else:
+                # Only allow if the code is on your Sheet!
+                df_students = load_student_data()
+                valid_codes = df_students["StudentCode"].str.lower().str.strip().unique()
+                if signup_code not in valid_codes:
+                    st.error("Invalid student code. Please contact your teacher for the correct code.")
+                else:
+                    doc = db.collection("students").document(signup_code)
+                    if doc.get().exists:
+                        st.error("Account already exists for this student code.")
+                    else:
+                        doc.set({
+                            "name": signup_name,
+                            "email": signup_email,
+                            "pw_hash": hash_pw(signup_pw1),
+                        })
+                        st.success("Account created! You can now log in.")
+                        st.experimental_rerun()
 
     # iPhone/iPad tip and Data privacy
     st.markdown(
@@ -925,6 +894,7 @@ if not st.session_state["logged_in"]:
         unsafe_allow_html=True
     )
     st.stop()
+
 
 
 
