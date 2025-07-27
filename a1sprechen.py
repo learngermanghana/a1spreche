@@ -305,6 +305,25 @@ if st.button("Log out"):
     st.success("Logged out.")
     st.rerun()
 
+# === YouTube Data API Settings ===
+YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
+
+
+YOUTUBE_PLAYLIST_IDS = {
+    "A1": [
+        "PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b",   # Playlist 1 for A1
+    ],
+    "A2": [
+        "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
+        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc&index=5",
+        "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c",
+    ],
+    "B1": [
+        "PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-",
+        "PLB92CD6B288E5DB61",
+    ],
+    # etc.
+}
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 
