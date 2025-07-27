@@ -162,9 +162,10 @@ for k, default in [
 code_from_cookie = (cookie_manager.get("student_code") or "").strip().lower()
 
 # ==== GOOGLE OAUTH2 MANUAL LOGIN ====
-GOOGLE_CLIENT_ID     = "YOUR_CLIENT_ID"
-GOOGLE_CLIENT_SECRET = "YOUR_CLIENT_SECRET"
-REDIRECT_URI         = "YOUR_REDIRECT_URI"  # eg. "https://your-app-url/"
+GOOGLE_CLIENT_ID     = "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET = "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"
+REDIRECT_URI         = "https://a1spreche-h5tsdmmedy3uqcm9ahxfud.streamlit.app/"
+
 
 def do_google_oauth():
     params = {
