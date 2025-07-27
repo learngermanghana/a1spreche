@@ -595,14 +595,14 @@ def fire_get_user(student_code_or_email):
     """
     ref = db.collection("students")
     code = student_code_or_email.strip().lower()
-    # Try by code
+    # Try by code first
     doc = ref.document(code).get()
     if doc.exists:
         return doc.to_dict()
     # Try by email (unique, indexed for search)
     q = ref.where("email", "==", code).limit(1).stream()
-    for user in q:
-        return user.to_dict()
+    for user_doc in q:
+        return user_doc.to_dict()
     return None
 
 def fire_create_user(student_code, email, password):
@@ -616,7 +616,7 @@ def fire_create_user(student_code, email, password):
         "email": email.strip().lower(),
         "pw_hash": pw_hash,
         "created": datetime.utcnow().isoformat(),
-        # You can add more fields here (e.g., stats, name, etc.)
+        # Add any other fields you need here (e.g., name, stats)
     }
     db.collection("students").document(user_data["student_code"]).set(user_data)
     return True
@@ -752,7 +752,17 @@ if not st.session_state["logged_in"]:
             st.error("Login failed. Please check your Student Code or Email.")
 
     # Tips and privacy messages as before...
-    st.markdown(""" ...iphone/ipad and privacy tips here... """)
+    st.markdown("""
+    <div style='color:#1976d2;font-size:1rem;margin-top:8px;margin-bottom:4px;'>
+        <b>Tip for iPhone/iPad users:</b> To stay logged in, avoid Private mode and do not clear Safari website data.
+        <br>To save your code for faster login, tap 'Save Password' or use iCloud Keychain suggestions when prompted.
+    </div>
+    <div style='text-align:center; margin-top:20px; margin-bottom:12px;'>
+        <span style='color:#ff9800;font-weight:600;'>
+            🔒 <b>Data Privacy:</b> Your login details and activity are never shared. Only your teacher can see your learning progress.
+        </span>
+    </div>
+    """, unsafe_allow_html=True)
     st.stop()
 
 # --- LOGGED IN UI ---
