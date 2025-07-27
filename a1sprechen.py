@@ -9,6 +9,7 @@ import re                      # Regex
 from datetime import date, datetime, timedelta
 import time                    # Timing
 import io                      # IO streams
+import webservice_d
 import tempfile                # Temp file creation
 import urllib.parse            # URL encoding/decoding
 
