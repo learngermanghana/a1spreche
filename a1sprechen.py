@@ -1,5 +1,3 @@
-# a1sprechen.py
-
 # ==== Standard Library ====
 import os
 import random
@@ -14,7 +12,7 @@ import io
 import tempfile
 import urllib.parse
 
-# ==== Third‑Party Packages ====
+# ==== Third-Party Packages ====
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
@@ -51,44 +49,6 @@ if not OPENAI_API_KEY:
     st.stop()
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
-
-# ==== YouTube API ====
-YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
-YOUTUBE_PLAYLIST_IDS = {
-    "A1": ["PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b"],
-    "A2": [
-        "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
-        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc&index=5",
-        "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c",
-    ],
-    "B1": ["PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-", "PLB92CD6B288E5DB61"],
-}
-
-@st.cache_data(ttl=3600 * 12)
-def fetch_youtube_playlist_videos(playlist_id, api_key):
-    videos, next_page = [], None
-    base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
-    while True:
-        params = {
-            "part": "snippet",
-            "playlistId": playlist_id,
-            "maxResults": 50,
-            "key": api_key,
-        }
-        if next_page:
-            params["pageToken"] = next_page
-        resp = requests.get(base_url, params=params)
-        data = resp.json()
-        for item in data.get("items", []):
-            vid = item["snippet"]["resourceId"]["videoId"]
-            videos.append({
-                "title": item["snippet"]["title"],
-                "url":   f"https://www.youtube.com/watch?v={vid}"
-            })
-        next_page = data.get("nextPageToken")
-        if not next_page:
-            break
-    return videos
 
 # ==== SQLITE DB SETUP ====
 def get_connection():
@@ -189,7 +149,7 @@ inc_schreiben_usage      = lambda sc: inc_usage("schreiben_usage", sc)
 get_letter_coach_usage   = lambda sc: get_usage("letter_coach_usage", sc)
 inc_letter_coach_usage   = lambda sc: inc_usage("letter_coach_usage", sc)
 
-# ==== GOOGLE SHEET STUDENT DATA & CONTRACT CHECK ====
+# ==== GOOGLE SHEET STUDENT DATA ====
 GOOGLE_SHEET_CSV = (
     "https://docs.google.com/spreadsheets/d/"
     "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
@@ -206,7 +166,6 @@ def load_student_data():
         st.error("❌ Could not load student data.")
         st.stop()
     df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]
-    # unify formatting
     df["StudentCode"] = df["StudentCode"].str.strip().str.lower()
     df["Email"]       = df["Email"].str.strip().str.lower()
     return df.drop_duplicates("StudentCode", keep="first")
@@ -221,7 +180,6 @@ def is_contract_expired(row):
             return exp < date.today()
         except ValueError:
             continue
-    # fallback parse
     parsed = pd.to_datetime(expiry_str, errors="coerce")
     return parsed is pd.NaT or parsed.date() < date.today()
 
@@ -274,8 +232,82 @@ for k, default in [
 ]:
     st.session_state.setdefault(k, default)
 
-# pull code from previous cookie
 code_from_cookie = (cookie_manager.get("student_code") or "").strip().lower()
+
+# ==== GOOGLE OAUTH 2.0 LOGIN HANDLER ====
+GOOGLE_CLIENT_ID = "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET = "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"
+REDIRECT_URI = "https://falowen.streamlit.app/"
+
+def build_auth_url():
+    params = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": REDIRECT_URI,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "access_type": "offline",
+        "prompt": "consent"
+    }
+    return "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
+
+def google_login_flow():
+    query_params = st.experimental_get_query_params()
+    if "code" in query_params:
+        code = query_params["code"][0]
+        token_url = "https://oauth2.googleapis.com/token"
+        data = {
+            "code": code,
+            "client_id": GOOGLE_CLIENT_ID,
+            "client_secret": GOOGLE_CLIENT_SECRET,
+            "redirect_uri": REDIRECT_URI,
+            "grant_type": "authorization_code"
+        }
+        response = requests.post(token_url, data=data)
+        token_json = response.json()
+        access_token = token_json.get("access_token")
+        if access_token:
+            userinfo_url = "https://www.googleapis.com/oauth2/v2/userinfo"
+            headers = {"Authorization": f"Bearer {access_token}"}
+            r = requests.get(userinfo_url, headers=headers)
+            if r.ok:
+                user_info = r.json()
+                df = load_student_data()
+                matched = df[df["Email"] == user_info["email"].lower()]
+                if matched.empty:
+                    st.error("No account found for this Google email. Use your school/registered email.")
+                    st.stop()
+                student_row = matched.iloc[0]
+                if is_contract_expired(student_row):
+                    st.error("Your contract has expired—contact the office.")
+                    st.stop()
+                user = fire_get_user(student_row["StudentCode"])
+                if not user:
+                    fire_create_user(
+                        student_code=student_row["StudentCode"],
+                        email=student_row["Email"],
+                        password=None,
+                        google_auth=True,
+                        name=student_row.get("Name", "")
+                    )
+                st.session_state.update({
+                    "logged_in":    True,
+                    "student_row":  student_row.to_dict(),
+                    "student_code": student_row["StudentCode"],
+                    "student_name": student_row.get("Name", user_info.get("name", "")),
+                })
+                cookie_manager["student_code"] = student_row["StudentCode"]
+                cookie_manager.save()
+                st.success(f"Welcome, {student_row.get('Name', user_info.get('name',''))} 🎉")
+                st.experimental_rerun()
+            else:
+                st.error("Google login failed.")
+                st.stop()
+        else:
+            st.error("Google login failed (no token).")
+            st.stop()
+
+# ==== Handle Google OAuth redirect ====
+google_login_flow()
 
 # ==== LOGIN / REGISTRATION PAGE ====
 if not st.session_state["logged_in"]:
@@ -301,14 +333,13 @@ if not st.session_state["logged_in"]:
         login_password = st.text_input("Password", type="password") if login_input else ""
         st.markdown("---")
         st.markdown("**Or sign in with Google**")
-        google_clicked = st.button("🔵 Google (coming soon)")
+        auth_url = build_auth_url()
+        st.markdown(
+            f'<a href="{auth_url}"><button style="width:100%;background:#4285F4;color:white;font-weight:bold;">Sign in with Google</button></a>',
+            unsafe_allow_html=True
+        )
         login_clicked  = st.button("🔑 Sign in")
         st.markdown("</div>", unsafe_allow_html=True)
-
-    # --- Google (stub) ---
-    if google_clicked:
-        st.info("Google OAuth coming soon! Please use email + password for now.")
-        st.stop()
 
     # --- password flow ---
     if login_clicked and login_input:
@@ -365,16 +396,6 @@ if not st.session_state["logged_in"]:
         st.experimental_rerun()
 
     st.stop()
-
-# ==== POST‑LOGIN UI ====
-st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
-if st.button("Log out"):
-    cookie_manager["student_code"] = ""
-    cookie_manager.save()
-    for k in ("logged_in","student_row","student_code","student_name"):
-        st.session_state[k] = False if k=="logged_in" else ""
-    st.success("Logged out.")
-    st.experimental_rerun()
 
 
 
