@@ -598,6 +598,28 @@ for key, default in [("logged_in", False), ("student_row", None), ("student_code
 code_from_cookie = cookie_manager.get("student_code") or ""
 code_from_cookie = str(code_from_cookie).strip().lower()
 
+# --- Auto-login via Cookie ---
+if not st.session_state["logged_in"] and code_from_cookie:
+    df_students = load_student_data()
+    # Normalize for matching
+    df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
+    df_students["Email"] = df_students["Email"].str.lower().str.strip()
+
+    found = df_students[df_students["StudentCode"] == code_from_cookie]
+    if not found.empty:
+        student_row = found.iloc[0]
+        if is_contract_expired(student_row):
+            st.error("Your contract has expired. Please contact the office for renewal.")
+            cookie_manager["student_code"] = ""
+            cookie_manager.save()
+            st.stop()
+        st.session_state.update({
+            "logged_in": True,
+            "student_row": student_row.to_dict(),
+            "student_code": student_row["StudentCode"],
+            "student_name": student_row["Name"]
+        })
+
 if not st.session_state["logged_in"] and code_from_cookie:
     df_students = load_student_data()
     found = df_students[df_students["StudentCode"] == code_from_cookie]
