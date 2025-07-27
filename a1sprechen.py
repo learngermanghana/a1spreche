@@ -332,148 +332,86 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
     return videos
 
 
-# ==== 8. Cookie Manager Setup ====
+
+# ==== Stage 4: Cookie/Session & Login UI ====
+
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 if not COOKIE_SECRET:
     raise ValueError("COOKIE_SECRET not set")
+
 if "cookie_manager" not in st.session_state:
     st.session_state["cookie_manager"] = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
 cookie_manager = st.session_state["cookie_manager"]
+cookie_manager.ready()
 if not cookie_manager.ready():
-    st.info("🔄 Initializing secure login... Please wait 1–2 seconds and this message will disappear.")
+    st.warning("Cookies are not ready—please refresh.")
     st.stop()
-for key, default in [("logged_in", False), ("student_row", None), ("student_code", ""), ("student_name", "")]:
-    st.session_state.setdefault(key, default)
-code_from_cookie = cookie_manager.get("student_code") or ""
-code_from_cookie = str(code_from_cookie).strip().lower()
 
-# ==== 9. Auto-login via Cookie ====
+for k, d in [("logged_in",False),("student_row",None),("student_code",""),("student_name","")]:
+    st.session_state.setdefault(k, d)
+
+code_from_cookie = (cookie_manager.get("student_code") or "").strip().lower()
+
+# Auto-login
 if not st.session_state["logged_in"] and code_from_cookie:
-    df_students = load_student_data()
-    found = df_students[df_students["StudentCode"] == code_from_cookie]
-    if not found.empty:
-        student_row = found.iloc[0]
-        if is_contract_expired(student_row):
-            st.error("Your contract has expired. Please contact the office.")
+    df = load_student_data()
+    df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+    matched = df[df["StudentCode"] == code_from_cookie]
+    if not matched.empty:
+        student = matched.iloc[0]
+        if is_contract_expired(student):
+            st.error("Your contract expired.")
             cookie_manager["student_code"] = ""
             cookie_manager.save()
             st.stop()
         st.session_state.update({
             "logged_in": True,
-            "student_row": student_row.to_dict(),
-            "student_code": student_row["StudentCode"],
-            "student_name": student_row["Name"]
+            "student_row": student.to_dict(),
+            "student_code": student["StudentCode"],
+            "student_name": student["Name"]
         })
 
-# ==== 10. Google Oauth Functions ====
-def get_query_params(): return st.query_params
-
-def do_google_oauth():
-    params = {
-        "client_id": GOOGLE_CLIENT_ID,
-        "redirect_uri": REDIRECT_URI,
-        "response_type": "code",
-        "scope": "openid email profile",
-        "prompt": "select_account"
-    }
-    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
-    st.markdown(f"""<div style='text-align:center;margin-top:8px;'>
-        <a href="{auth_url}">
-            <button style="background:#4285f4;color:white;padding:10px 34px;border:none;border-radius:8px;font-size:1.1rem;cursor:pointer;">
-                <b>Sign in with Google</b>
-            </button>
-        </a>
-    </div>""", unsafe_allow_html=True)
-
-def handle_google_login():
-    query_params = get_query_params()
-    if "code" not in query_params: return False
-    code = query_params["code"]
-    if isinstance(code, list): code = code[0]
-    token_url = "https://oauth2.googleapis.com/token"
-    data = {
-        "code": code, "client_id": GOOGLE_CLIENT_ID, "client_secret": GOOGLE_CLIENT_SECRET,
-        "redirect_uri": REDIRECT_URI, "grant_type": "authorization_code"
-    }
-    try:
-        resp = requests.post(token_url, data=data, timeout=10)
-    except Exception as e:
-        st.error(f"Google login failed. Network error: {e}"); return False
-    if not resp.ok:
-        st.error(f"Google login failed. Details: {resp.text}"); return False
-    token_json = resp.json()
-    access_token = token_json.get("access_token")
-    if not access_token:
-        st.error(f"Google login failed. Error: {token_json}"); return False
-    try:
-        r = requests.get("https://www.googleapis.com/oauth2/v2/userinfo", headers={"Authorization": f"Bearer {access_token}"}, timeout=10)
-    except Exception as e:
-        st.error(f"Google login failed. Error: {e}"); return False
-    if not r.ok:
-        st.error("Google login failed (could not fetch email)."); return False
-    email = r.json()["email"].strip().lower()
-    df = load_student_data()
-    matched = df[df["Email"] == email]
-    if matched.empty:
-        st.error("No student account found for this Google email."); return False
-    student_row = matched.iloc[0]
-    if is_contract_expired(student_row):
-        st.error("Your contract has expired. Please contact the office."); return False
-    st.session_state.update({
-        "logged_in": True,
-        "student_row": student_row.to_dict(),
-        "student_code": student_row["StudentCode"],
-        "student_name": student_row["Name"]
-    })
-    cookie_manager["student_code"] = student_row["StudentCode"]
-    cookie_manager.save()
-    st.success(f"Welcome, {student_row['Name']}! 🎉")
-    st.rerun()
-    return True
-
-# ==== 11. Login UI ====
+# Login screen
 if not st.session_state["logged_in"]:
     st.title("🔑 Student Login")
-    if handle_google_login(): st.stop()
-    login_input = st.text_input("Enter your Student Code or Email:", value=code_from_cookie).strip().lower()
-    login_password = st.text_input("Password", type="password")
+    if handle_google_login():
+        st.stop()
+    inp = st.text_input("Student Code or Email:", value=code_from_cookie).strip().lower()
+    pwd = st.text_input("Password", type="password")
     if st.button("Login"):
-        df_students = load_student_data()
-        found = df_students[
-            (df_students["StudentCode"] == login_input) |
-            (df_students["Email"] == login_input)
-        ]
+        df = load_student_data()
+        df[["StudentCode","Email"]] = df[["StudentCode","Email"]].apply(lambda s: s.str.lower().str.strip())
+        found = df[(df["StudentCode"]==inp)|(df["Email"]==inp)]
         if not found.empty:
-            student_row = found.iloc[0]
-            if is_contract_expired(student_row):
-                st.error("Your contract has expired. Please contact the office."); st.stop()
+            student = found.iloc[0]
+            if is_contract_expired(student):
+                st.error("Contract expired.")
+                st.stop()
             st.session_state.update({
-                "logged_in": True,
-                "student_row": student_row.to_dict(),
-                "student_code": student_row["StudentCode"],
-                "student_name": student_row["Name"]
+                "logged_in":True,
+                "student_row":student.to_dict(),
+                "student_code":student["StudentCode"],
+                "student_name":student["Name"]
             })
-            cookie_manager["student_code"] = student_row["StudentCode"]
+            cookie_manager["student_code"] = student["StudentCode"]
             cookie_manager.save()
-            st.success(f"Welcome, {student_row['Name']}! 🎉")
+            st.success(f"Welcome, {student['Name']}! 🎉")
             st.rerun()
         else:
-            st.error("Login failed. Please check your Student Code or Email.")
-    st.markdown("<div style='text-align:center;margin:12px 0;'>or</div>", unsafe_allow_html=True)
+            st.error("Login failed.")
+    st.markdown("<div style='text-align:center;margin:12px 0;'>or</div>",unsafe_allow_html=True)
     do_google_oauth()
     st.stop()
 
-# ==== 12. Logged In UI ====
+# Logged-in UI
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 if st.button("Log out"):
     cookie_manager["student_code"] = ""
     cookie_manager.save()
-    for k in ["logged_in", "student_row", "student_code", "student_name"]:
-        st.session_state[k] = False if k == "logged_in" else ""
-    st.success("You have been logged out."); st.rerun()
-
-
-
+    for k in ["logged_in","student_row","student_code","student_name"]:
+        st.session_state[k] = False if k=="logged_in" else ""
+    st.success("Logged out.")
+    st.rerun()
 
     
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
