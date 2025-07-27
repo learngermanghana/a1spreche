@@ -190,10 +190,6 @@ def init_db():
     conn.commit()
 init_db()
 
-# ==== USAGE COUNTERS ====
-FALOWEN_DAILY_LIMIT = 20
-VOCAB_DAILY_LIMIT = 20
-SCHREIBEN_DAILY_LIMIT = 5
 
 # ==== YOUTUBE API INTEGRATION ====
 YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
@@ -441,6 +437,121 @@ def highlight_keywords(text, words):
     import re
     pattern = r'(' + '|'.join(map(re.escape, words)) + r')'
     return re.sub(pattern, r"<span style='color:#d63384;font-weight:600'>\1</span>", text, flags=re.IGNORECASE)
+
+# ==== CONSTANTS ====
+FALOWEN_DAILY_LIMIT = 20
+VOCAB_DAILY_LIMIT = 20
+SCHREIBEN_DAILY_LIMIT = 5
+
+# ==== USAGE COUNTERS ====
+
+def get_sprechen_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT count FROM sprechen_usage WHERE student_code=? AND date=?",
+        (student_code, today)
+    )
+    row = c.fetchone()
+    return row[0] if row else 0
+
+def inc_sprechen_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        """
+        INSERT INTO sprechen_usage (student_code, date, count)
+        VALUES (?, ?, 1)
+        ON CONFLICT(student_code, date)
+        DO UPDATE SET count = count + 1
+        """,
+        (student_code, today)
+    )
+    conn.commit()
+
+def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
+    return get_sprechen_usage(student_code) < limit
+
+def get_schreiben_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT count FROM schreiben_usage WHERE student_code=? AND date=?",
+        (student_code, today)
+    )
+    row = c.fetchone()
+    return row[0] if row else 0
+
+def inc_schreiben_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        """
+        INSERT INTO schreiben_usage (student_code, date, count)
+        VALUES (?, ?, 1)
+        ON CONFLICT(student_code, date)
+        DO UPDATE SET count = count + 1
+        """,
+        (student_code, today)
+    )
+    conn.commit()
+
+def get_writing_stats(student_code):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT COUNT(*), SUM(score>=17) FROM schreiben_progress WHERE student_code=?
+    """, (student_code,))
+    result = c.fetchone()
+    attempted = result[0] or 0
+    passed = result[1] if result[1] is not None else 0
+    accuracy = round(100 * passed / attempted) if attempted > 0 else 0
+    return attempted, passed, accuracy
+
+def get_student_stats(student_code):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT level, SUM(score >= 17), COUNT(*) 
+        FROM schreiben_progress 
+        WHERE student_code=?
+        GROUP BY level
+    """, (student_code,))
+    stats = {}
+    for level, correct, attempted in c.fetchall():
+        stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
+    return stats
+
+def get_letter_coach_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT count FROM letter_coach_usage WHERE student_code=? AND date=?",
+        (student_code, today)
+    )
+    row = c.fetchone()
+    return row[0] if row else 0
+
+def inc_letter_coach_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        """
+        INSERT INTO letter_coach_usage (student_code, date, count)
+        VALUES (?, ?, 1)
+        ON CONFLICT(student_code, date)
+        DO UPDATE SET count = count + 1
+        """,
+        (student_code, today)
+    )
+    conn.commit()
+
     
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 
