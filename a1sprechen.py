@@ -291,6 +291,14 @@ def inc_letter_coach_usage(student_code):
     )
     conn.commit()
 
+
+
+def highlight_keywords(text, words):
+    """Highlight keywords in text using HTML."""
+    pattern = r'(' + '|'.join(map(re.escape, words)) + r')'
+    return re.sub(pattern, r"<span style='color:#d63384;font-weight:600'>\1</span>", text, flags=re.IGNORECASE)
+
+
 # Bubble CSS styles
 bubble_user = "background:#e3f2fd;padding:12px 20px;border-radius:18px 18px 6px 18px;margin:8px 0;display:inline-block;"
 bubble_assistant = "background:#fff9c4;padding:12px 20px;border-radius:18px 18px 18px 6px;margin:8px 0;display:inline-block;"
