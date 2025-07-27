@@ -212,15 +212,21 @@ GOOGLE_CLIENT_SECRET = "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"
 REDIRECT_URI = "https://falowen.streamlit.app/"
 
 
+from streamlit_oauth import OAuth2Component
 
-oauth2 = OAuth2Component(
+oauth2 = OAuth2Component()
+result = oauth2(
     client_id=GOOGLE_CLIENT_ID,
     client_secret=GOOGLE_CLIENT_SECRET,
-    authorize_endpoint="https://accounts.google.com/o/oauth2/v2/auth",
+    authorize_endpoint="https://accounts.google.com/o/oauth2/auth",
     token_endpoint="https://oauth2.googleapis.com/token",
     redirect_uri=REDIRECT_URI,
     scope="openid email profile"
 )
+
+if result:
+    st.write("Google user info:", result)
+
 
 # ==== Google Sheet Config & Helpers ====
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
