@@ -169,12 +169,11 @@ VOCAB_DAILY_LIMIT   = 20
 SCHREIBEN_DAILY_LIMIT = 5
 
 # ==== 2) Helpers to load & save progress ====
-import json
 
 def load_progress(student_code, level, teil):
     """
-    Return (remaining, used) lists for the given student/level/teil,
-    or (None, None) if no record exists.
+    Fetches a user’s remaining & used exam questions from SQLite.
+    Returns (remaining_list, used_list) or (None, None) if none saved.
     """
     conn = get_connection()
     c = conn.cursor()
@@ -189,7 +188,7 @@ def load_progress(student_code, level, teil):
 
 def save_progress(student_code, level, teil, remaining, used):
     """
-    Upsert the exam_progress row for this student/level/teil.
+    Persists a user’s remaining & used exam questions back to SQLite.
     """
     conn = get_connection()
     c = conn.cursor()
@@ -201,7 +200,7 @@ def save_progress(student_code, level, teil, remaining, used):
 
 def save_schreiben_attempt(student_code, name, level, score):
     """
-    Log a writing attempt (Schreiben) into schreiben_progress.
+    Records a Schreiben (writing) attempt with its score in SQLite.
     """
     conn = get_connection()
     c = conn.cursor()
@@ -212,31 +211,32 @@ def save_schreiben_attempt(student_code, name, level, score):
     )
     conn.commit()
 
+# ==== Bubble CSS & Keyword Highlighting ====
 
-# ---- Bubble CSS + keyword highlighting ----
 bubble_user = "background:#e3f2fd;padding:12px 20px;border-radius:18px 18px 6px 18px;margin:8px 0;display:inline-block;"
 bubble_assistant = "background:#fff9c4;padding:12px 20px;border-radius:18px 18px 18px 6px;margin:8px 0;display:inline-block;"
+
 highlight_words = ["correct", "should", "mistake", "improve", "tip"]
 
 def highlight_keywords(text, words=highlight_words):
     """
-    Wrap each occurrence of any word in `words` in a <span> to color/highlight it.
+    Wraps any of the given keywords in the text with a pink <span> for emphasis.
     """
-    import re
     pattern = r'(' + '|'.join(map(re.escape, words)) + r')'
     return re.sub(pattern,
                   r"<span style='color:#d63384;font-weight:600'>\1</span>",
                   text, flags=re.IGNORECASE)
 
-
-# ==== Daily Usage Counters ====
-# (to enforce your per-day quotas on Sprechen/Schreiben)
+# ==== Usage Counters (daily quotas) ====
 
 def get_sprechen_usage(student_code):
     today = str(date.today())
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT count FROM sprechen_usage WHERE student_code=? AND date=?", (student_code, today))
+    c.execute(
+        "SELECT count FROM sprechen_usage WHERE student_code=? AND date=?",
+        (student_code, today)
+    )
     row = c.fetchone()
     return row[0] if row else 0
 
@@ -262,7 +262,10 @@ def get_schreiben_usage(student_code):
     today = str(date.today())
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT count FROM schreiben_usage WHERE student_code=? AND date=?", (student_code, today))
+    c.execute(
+        "SELECT count FROM schreiben_usage WHERE student_code=? AND date=?",
+        (student_code, today)
+    )
     row = c.fetchone()
     return row[0] if row else 0
 
@@ -281,36 +284,32 @@ def inc_schreiben_usage(student_code):
     )
     conn.commit()
 
+# ==== YouTube Playlist Fetcher ====
 
-# ==== 6. Constants ====
-FALOWEN_DAILY_LIMIT = 20
-VOCAB_DAILY_LIMIT = 20
-SCHREIBEN_DAILY_LIMIT = 5
-
-# ==== 7. YouTube API ====
-YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
-YOUTUBE_PLAYLIST_IDS = {
-    "A1": ["PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b"],
-    "A2": ["PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY","PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc&index=5","PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c"],
-    "B1": ["PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-","PLB92CD6B288E5DB61"]
-}
 @st.cache_data(ttl=3600*12)
 def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
+    """
+    Returns a list of {"title":…, "url":…} for all videos in a given YouTube playlist.
+    """
     base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
-    params = {"part": "snippet","playlistId": playlist_id,"maxResults": 50,"key": api_key}
-    videos, next_page = [], ""
+    params = {"part": "snippet", "playlistId": playlist_id, "maxResults": 50, "key": api_key}
+    videos, next_page = [], None
     while True:
-        if next_page: params["pageToken"] = next_page
-        response = requests.get(base_url, params=params)
-        data = response.json()
+        if next_page:
+            params["pageToken"] = next_page
+        resp = requests.get(base_url, params=params)
+        data = resp.json()
         for item in data.get("items", []):
             vid = item["snippet"]["resourceId"]["videoId"]
-            url = f"https://www.youtube.com/watch?v={vid}"
-            title = item["snippet"]["title"]
-            videos.append({"title": title, "url": url})
+            videos.append({
+                "title": item["snippet"]["title"],
+                "url":   f"https://www.youtube.com/watch?v={vid}"
+            })
         next_page = data.get("nextPageToken")
-        if not next_page: break
+        if not next_page:
+            break
     return videos
+
 
 # ==== 8. Cookie Manager Setup ====
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
