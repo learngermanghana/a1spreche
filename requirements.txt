@@ -10,5 +10,5 @@ firebase-admin>=6.0.0
 python-docx
 gtts
 bcrypt>=4.0.1
-streamlit-google-oauth>=0.1.1
+
 
