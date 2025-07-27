@@ -1,9 +1,9 @@
 # ==== Standard Library ====
 import os                      # OS file ops
 import random                  # Randomization
-import difflib                 # Optional: For fuzzy matching
-import sqlite3                 # Only needed if you use local DB
-import atexit                  # Optional: Exit hooks
+import difflib                 # Fuzzy matching (optional)
+import sqlite3                 # Local DB
+import atexit                  # Exit hooks
 import json                    # JSON ops
 import re                      # Regex
 from datetime import date, datetime, timedelta
@@ -22,9 +22,22 @@ from openai import OpenAI                      # OpenAI API client
 import firebase_admin                          # Firebase app (for Firestore)
 from firebase_admin import credentials, firestore    # Firestore DB
 
-import bcrypt                                  # Password hashing (add to requirements.txt)
+import bcrypt                                  # Password hashing
 from fpdf import FPDF                          # PDF export
 from streamlit_cookies_manager import EncryptedCookieManager   # Cookie/session handling
+
+# If you ever add fuzzy matching, you can use:
+# from thefuzz import fuzz, process            # Fuzzy answer checking (optional)
+
+# ==== Local App Modules ====
+import webservice_d                            # Your custom webservice module
+
+# from docx import Document                   # Optional: DOCX notes download
+from gtts import gTTS                          # Text-to-speech for vocab audio
+
+# For Google OAuth login
+# from streamlit_google_auth import st_google_auth   # Google Sign-In component (if using)
+
 
 # For Google OAuth login
 # pip install streamlit-google-auth
@@ -113,6 +126,64 @@ def fetch_youtube_playlist_videos(playlist_id, api_key):
             break
     return videos
 
+from streamlit_google_oauth import GoogleOAuth2
+
+GOOGLE_CLIENT_ID = st.secrets["GOOGLE_CLIENT_ID"]
+GOOGLE_CLIENT_SECRET = st.secrets["GOOGLE_CLIENT_SECRET"]
+REDIRECT_URI = st.secrets["REDIRECT_URI"]
+
+authenticator = GoogleOAuth2(
+    client_id=GOOGLE_CLIENT_ID,
+    client_secret=GOOGLE_CLIENT_SECRET,
+    redirect_uri=REDIRECT_URI,
+    scope="openid email profile"
+)
+
+# --- Google Login Button ---
+if st.button("Sign in with Google"):
+    auth_url = authenticator.get_authorization_url()
+    st.markdown(f"[Click here to sign in with Google]({auth_url})", unsafe_allow_html=True)
+
+token = authenticator.get_access_token_from_url()
+if token:
+    user_info = authenticator.get_user_info(token)
+    google_email = user_info.get("email")
+    google_name = user_info.get("name")
+
+    # Now match the google_email to your student database
+    df_students = load_student_data()
+    df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
+    df_students["Email"] = df_students["Email"].str.lower().str.strip()
+    found = df_students[df_students["Email"] == google_email.strip().lower()]
+    if not found.empty:
+        student_row = found.iloc[0]
+        if is_contract_expired(student_row):
+            st.error("Your contract has expired. Please contact the office for renewal.")
+            st.stop()
+        # Check if Firestore user exists
+        user = fire_get_user(google_email)
+        if not user:
+            # Register as Google auth user
+            fire_create_user(
+                student_code=student_row["StudentCode"],
+                email=student_row["Email"],
+                password="",       # No password for Google auth
+                google_auth=True,
+                name=google_name or student_row.get("Name", "")
+            )
+        st.session_state.update({
+            "logged_in": True,
+            "student_row": student_row.to_dict(),
+            "student_code": student_row["StudentCode"],
+            "student_name": google_name or student_row.get("Name", "")
+        })
+        cookie_manager["student_code"] = student_row["StudentCode"]
+        cookie_manager.save()
+        st.success(f"Welcome, {google_name or student_row['Name']}! 🎉")
+        st.rerun()
+    else:
+        st.error("Your Google email is not found in school records. Please contact the office.")
+        st.stop()
 
 # ==== DB CONNECTION ====
 def get_connection():
@@ -593,6 +664,67 @@ def highlight_keywords(text, words):
     pattern = r'(' + '|'.join(map(re.escape, words)) + r')'
     return re.sub(pattern, r"<span style='color:#d63384;font-weight:600'>\1</span>", text, flags=re.IGNORECASE)
 
+
+from streamlit_google_oauth import GoogleOAuth2
+
+GOOGLE_CLIENT_ID = "849327205750-44mef79csm2jun6oqt4055mig5qvc7oi.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET = "YOUR_GOOGLE_CLIENT_SECRET"
+REDIRECT_URI = "http://localhost:8501"   # or your deployed URL
+
+authenticator = GoogleOAuth2(
+    client_id=GOOGLE_CLIENT_ID,
+    client_secret=GOOGLE_CLIENT_SECRET,
+    redirect_uri=REDIRECT_URI,
+    scope="openid email profile"
+)
+
+# --- Google Login Button ---
+if st.button("Sign in with Google"):
+    auth_url = authenticator.get_authorization_url()
+    st.markdown(f"[Click here to sign in with Google]({auth_url})", unsafe_allow_html=True)
+
+token = authenticator.get_access_token_from_url()
+if token:
+    user_info = authenticator.get_user_info(token)
+    google_email = user_info.get("email")
+    google_name = user_info.get("name")
+
+    # Now match the google_email to your student database
+    df_students = load_student_data()
+    df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
+    df_students["Email"] = df_students["Email"].str.lower().str.strip()
+    found = df_students[df_students["Email"] == google_email.strip().lower()]
+    if not found.empty:
+        student_row = found.iloc[0]
+        if is_contract_expired(student_row):
+            st.error("Your contract has expired. Please contact the office for renewal.")
+            st.stop()
+        # Check if Firestore user exists
+        user = fire_get_user(google_email)
+        if not user:
+            # Register as Google auth user
+            fire_create_user(
+                student_code=student_row["StudentCode"],
+                email=student_row["Email"],
+                password="",       # No password for Google auth
+                google_auth=True,
+                name=google_name or student_row.get("Name", "")
+            )
+        st.session_state.update({
+            "logged_in": True,
+            "student_row": student_row.to_dict(),
+            "student_code": student_row["StudentCode"],
+            "student_name": google_name or student_row.get("Name", "")
+        })
+        cookie_manager["student_code"] = student_row["StudentCode"]
+        cookie_manager.save()
+        st.success(f"Welcome, {google_name or student_row['Name']}! 🎉")
+        st.rerun()
+    else:
+        st.error("Your Google email is not found in school records. Please contact the office.")
+        st.stop()
+
+
 # === Firestore Email & Password Handling ===
 
 import bcrypt  # Make sure this is in your requirements.txt
@@ -665,6 +797,36 @@ def fire_update_user(student_code, updates: dict):
     db.collection("students").document(student_code.strip().lower()).update(updates)
     return True
 
+from streamlit.components.v1 import html
+
+GOOGLE_CLIENT_ID = "849327205750-44mef79csm2jun6oqt4055mig5qvc7oi.apps.googleusercontent.com"
+
+def google_signin_widget():
+    html(f"""
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <div id="g_id_onload"
+        data-client_id="{GOOGLE_CLIENT_ID}"
+        data-context="signin"
+        data-ux_mode="popup"
+        data-callback="onGoogleSignIn"
+        data-auto_prompt="false">
+    </div>
+    <div class="g_id_signin"
+        data-type="standard"
+        data-shape="rectangular"
+        data-theme="filled_blue"
+        data-text="sign_in_with"
+        data-size="large"
+        data-logo_alignment="left">
+    </div>
+    <script>
+      function onGoogleSignIn(response) {{
+        // Pass the credential token to Streamlit using window.parent.postMessage
+        window.parent.postMessage({{ type: "google_login", credential: response.credential }}, "*");
+      }}
+    </script>
+    """, height=100)
+
 
 # ========== Google Sheet Config =============
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
@@ -725,63 +887,81 @@ code_from_cookie = str(code_from_cookie).strip().lower()
 
 # === LOGIN/REGISTRATION LOGIC ===
 if not st.session_state["logged_in"]:
-    st.title("🔑 Student Login")
+    st.set_page_config(page_title="Falowen – Student Login", layout="centered", initial_sidebar_state="collapsed")
 
-    st.markdown("##### Login with your Student Code, Email, or Google")
-    login_input = st.text_input("Enter your Student Code or Email:", value=code_from_cookie).strip().lower()
-    login_password = st.text_input("Password", type="password") if login_input else ""
+    st.markdown("""
+        <style>
+            .falowen-login-card {
+                background: #fff;
+                border-radius: 22px;
+                box-shadow: 0 4px 32px #0002;
+                max-width: 370px;
+                margin: 48px auto 0 auto;
+                padding: 2.3rem 2rem 2rem 2rem;
+            }
+            @media (max-width: 600px) {
+                .falowen-login-card { padding: 1.1rem 0.3rem 1.2rem 0.3rem; }
+            }
+        </style>
+    """, unsafe_allow_html=True)
 
-    # -- Google Login (Example, needs streamlit_authenticator or other package) --
-    st.markdown("---")
-    st.markdown("Or sign in with Google:")
-    google_auth_clicked = st.button("Login with Google")
+    with st.container():
+        st.markdown('<div class="falowen-login-card">', unsafe_allow_html=True)
+        st.image("https://www.learngermanghana.com/favicon.ico", width=56)  # Use your logo or comment out
+        st.markdown("### 🔑 Welcome to Falowen")
+        st.markdown("Enter your **Student Code or Email** and password to continue.")
+        login_input = st.text_input("Student Code or Email", placeholder="e.g. portia1 or you@email.com", value=code_from_cookie).strip().lower()
+        login_password = st.text_input("Password", type="password") if login_input else ""
+        st.markdown('<a href="#" style="font-size:0.95rem;color:#1976d2;">Forgot password?</a>', unsafe_allow_html=True)
+        st.markdown("---")
+        st.markdown('<span style="font-size:1.07rem;color:#1976d2;">or</span>', unsafe_allow_html=True)
+        google_auth_clicked = st.button("Sign in with Google")
+        login_btn = st.button("Sign In")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    # Actual implementation will depend on which library you use.
-    google_email = None
-    google_name = None
-
-    # Example: Google Auth Placeholder (simulate OAuth, replace with your own logic)
+    # --- Google Auth Logic ---
     if google_auth_clicked:
-        # You would do your Google OAuth flow here
-        # On success, get user's email and name:
-        google_email = st.text_input("For demo: Enter your Google Email (simulate OAuth):", key="google_oauth_email")
-        google_name = st.text_input("For demo: Enter your Name:", key="google_oauth_name")
-        if st.button("Continue as Google User"):
-            login_input = google_email
-            # Continue the process below (Google login: no password check)
-            # Search Google Sheet for this email
+        st.info("Google login coming soon! Please use your email/password for now.")
+        # Insert real OAuth code here in future.
+
+    # --- Standard Login/Registration Logic ---
+    if login_btn and login_input:
+        with st.spinner("Signing you in..."):
             df_students = load_student_data()
             df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
             df_students["Email"] = df_students["Email"].str.lower().str.strip()
-            found = df_students[df_students["Email"] == google_email.strip().lower()]
+            found = df_students[
+                (df_students["StudentCode"] == login_input) |
+                (df_students["Email"] == login_input)
+            ]
             if not found.empty:
                 student_row = found.iloc[0]
                 if is_contract_expired(student_row):
                     st.error("Your contract has expired. Please contact the office for renewal.")
                     st.stop()
-                # Check if Firestore user exists
-                user = fire_get_user(google_email)
+                user = fire_get_user(login_input)
                 if not user:
-                    # Register as Google auth user
-                    fire_create_user(
-                        student_code=student_row["StudentCode"],
-                        email=student_row["Email"],
-                        password="",       # No password for Google auth
-                        google_auth=True,
-                        name=google_name or student_row.get("Name", "")
-                    )
-                    st.success("Account created with Google! Continue to your dashboard.")
-                    st.session_state.update({
-                        "logged_in": True,
-                        "student_row": student_row.to_dict(),
-                        "student_code": student_row["StudentCode"],
-                        "student_name": google_name or student_row.get("Name", "")
-                    })
-                    cookie_manager["student_code"] = student_row["StudentCode"]
-                    cookie_manager.save()
-                    st.rerun()
+                    st.info("First time? Set your password below to register your account.")
+                    new_pw = st.text_input("Set a new password", type="password", key="pw_new")
+                    new_pw2 = st.text_input("Confirm password", type="password", key="pw_new2")
+                    if st.button("Register Account"):
+                        if not new_pw or new_pw != new_pw2:
+                            st.error("Passwords do not match or are empty.")
+                        else:
+                            fire_create_user(
+                                student_code=student_row["StudentCode"],
+                                email=student_row["Email"],
+                                password=new_pw,
+                                google_auth=False,
+                                name=student_row.get("Name", "")
+                            )
+                            st.success("Account created! Please log in with your password.")
+                            st.rerun()
+                    st.stop()
                 else:
-                    # Already exists, log in
+                    if not fire_check_password(login_input, login_password):
+                        st.error("Incorrect password.")
+                        st.stop()
                     st.session_state.update({
                         "logged_in": True,
                         "student_row": student_row.to_dict(),
@@ -793,74 +973,22 @@ if not st.session_state["logged_in"]:
                     st.success(f"Welcome, {student_row['Name']}! 🎉")
                     st.rerun()
             else:
-                st.error("Email not found in school records. Please contact the office.")
+                st.error("Login failed. Please check your Student Code or Email.")
 
-        st.stop()
-
-    # === Standard Login/Registration ===
-    if st.button("Login") and login_input:
-        df_students = load_student_data()
-        df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
-        df_students["Email"] = df_students["Email"].str.lower().str.strip()
-        found = df_students[
-            (df_students["StudentCode"] == login_input) |
-            (df_students["Email"] == login_input)
-        ]
-        if not found.empty:
-            student_row = found.iloc[0]
-            if is_contract_expired(student_row):
-                st.error("Your contract has expired. Please contact the office for renewal.")
-                st.stop()
-            user = fire_get_user(login_input)
-            if not user:
-                st.info("First time? Set your password below to register your account.")
-                new_pw = st.text_input("Set a new password", type="password", key="pw_new")
-                new_pw2 = st.text_input("Confirm password", type="password", key="pw_new2")
-                if st.button("Register Account"):
-                    if not new_pw or new_pw != new_pw2:
-                        st.error("Passwords do not match or are empty.")
-                    else:
-                        fire_create_user(
-                            student_code=student_row["StudentCode"],
-                            email=student_row["Email"],
-                            password=new_pw,
-                            google_auth=False,
-                            name=student_row.get("Name", "")
-                        )
-                        st.success("Account created! Please log in with your password.")
-                        st.rerun()
-                st.stop()
-            else:
-                # User exists, check password
-                if not fire_check_password(login_input, login_password):
-                    st.error("Incorrect password.")
-                    st.stop()
-                st.session_state.update({
-                    "logged_in": True,
-                    "student_row": student_row.to_dict(),
-                    "student_code": student_row["StudentCode"],
-                    "student_name": user.get("name", student_row.get("Name", ""))
-                })
-                cookie_manager["student_code"] = student_row["StudentCode"]
-                cookie_manager.save()
-                st.success(f"Welcome, {student_row['Name']}! 🎉")
-                st.rerun()
-        else:
-            st.error("Login failed. Please check your Student Code or Email.")
-
-    # --- iPhone/iPad cookie/autofill tip & privacy ---
+    # --- iPhone/iPad tip & privacy ---
     st.markdown("""
-    <div style='color:#1976d2;font-size:1rem;margin-top:8px;margin-bottom:4px;'>
-        <b>Tip for iPhone/iPad users:</b> To stay logged in, avoid Private mode and do not clear Safari website data.
-        <br>To save your code for faster login, tap 'Save Password' or use iCloud Keychain suggestions when prompted.
-    </div>
-    <div style='text-align:center; margin-top:20px; margin-bottom:12px;'>
-        <span style='color:#ff9800;font-weight:600;'>
-            🔒 <b>Data Privacy:</b> Your login details and activity are never shared. Only your teacher can see your learning progress.
-        </span>
-    </div>
+        <div style='color:#1976d2;font-size:1rem;margin-top:8px;margin-bottom:4px;'>
+            <b>Tip for iPhone/iPad users:</b> To stay logged in, avoid Private mode and do not clear Safari website data.
+            <br>To save your code for faster login, tap 'Save Password' or use iCloud Keychain suggestions when prompted.
+        </div>
+        <div style='text-align:center; margin-top:20px; margin-bottom:12px;'>
+            <span style='color:#ff9800;font-weight:600;'>
+                🔒 <b>Data Privacy:</b> Your login details and activity are never shared. Only your teacher can see your learning progress.
+            </span>
+        </div>
     """, unsafe_allow_html=True)
     st.stop()
+
 
 # --- LOGGED IN UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
