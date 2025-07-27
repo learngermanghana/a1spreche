@@ -737,7 +737,7 @@ if not st.session_state["logged_in"] and code_from_cookie:
 if not st.session_state["logged_in"]:
     st.title("🔑 Student Login")
 
-    # 1. Google OAuth option (keep if you still want)
+    # 1. Google OAuth option (optional; keep/remove as you wish)
     GOOGLE_CLIENT_ID     = "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com"
     GOOGLE_CLIENT_SECRET = "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"
     REDIRECT_URI         = "https://a1spreche-h5tsdmmedy3uqcm9ahxfud.streamlit.app/"
@@ -818,11 +818,8 @@ if not st.session_state["logged_in"]:
     st.markdown("<div style='text-align:center;margin:12px 0;'>or</div>", unsafe_allow_html=True)
     do_google_oauth()
 
-    # 2. Manual Login
-    code_from_cookie = cookie_manager.get("student_code") or ""
-    code_from_cookie = str(code_from_cookie).strip().lower()
-    login_input = st.text_input("Student Code:", value=code_from_cookie).strip().lower()
-    login_email = st.text_input("Email:").strip().lower()
+    # 2. Manual Login (TWO FIELDS ONLY)
+    login_user = st.text_input("Student Code or Email:").strip().lower()
     login_password = st.text_input("Password:", type="password")
 
     if st.button("Login"):
@@ -830,25 +827,23 @@ if not st.session_state["logged_in"]:
         df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
         df_students["Email"] = df_students["Email"].str.lower().str.strip()
         found = df_students[
-            (df_students["StudentCode"] == login_input) &
-            (df_students["Email"] == login_email)
+            (df_students["StudentCode"] == login_user) | (df_students["Email"] == login_user)
         ]
         if found.empty:
-            st.error("Login failed. Check your Student Code, Email, or if your contract expired.")
+            st.error("Login failed. Check your Student Code or Email, or if your contract expired.")
         else:
             student_row = found.iloc[0]
             if is_contract_expired(student_row):
                 st.error("Your contract has expired. Please contact the office for renewal.")
                 st.stop()
-            # --- Check Firestore password ---
-            student_doc = db.collection("students").document(login_input).get()
+            # Determine the student_code to check in Firestore
+            student_code = student_row["StudentCode"]
+            student_doc = db.collection("students").document(student_code).get()
             if not student_doc.exists:
                 st.error("Account not found in system. Please create an account first below.")
                 st.stop()
             student_data = student_doc.to_dict()
-            if student_data.get("email", "").lower() != login_email:
-                st.error("Email does not match registered student.")
-                st.stop()
+            # Check password
             if student_data.get("password") != login_password:
                 st.error("Incorrect password. Please try again or contact your teacher.")
                 st.stop()
@@ -856,15 +851,15 @@ if not st.session_state["logged_in"]:
             st.session_state.update({
                 "logged_in": True,
                 "student_row": student_row.to_dict(),
-                "student_code": student_row["StudentCode"],
+                "student_code": student_code,
                 "student_name": student_row["Name"]
             })
-            cookie_manager["student_code"] = student_row["StudentCode"]
+            cookie_manager["student_code"] = student_code
             cookie_manager.save()
             st.success(f"Welcome, {student_row['Name']}! 🎉")
             st.rerun()
 
-    # 3. Create Account Section
+    # 3. Create Account Section (Student must know their code and email as in Google Sheet)
     with st.expander("Don't have an account? Create one!"):
         new_name = st.text_input("Full Name", key="newname")
         new_email = st.text_input("Email (must match what you gave your teacher)", key="newemail").strip().lower()
@@ -893,7 +888,7 @@ if not st.session_state["logged_in"]:
                     })
                     st.success("Account created successfully! You can now log in above.")
 
-    # iPhone/iPad tip and Data privacy
+    # iPhone/iPad tip and Data privacy (keep or remove as needed)
     st.markdown(
         """
         <div style='color:#1976d2;font-size:1rem;margin-top:8px;margin-bottom:4px;'>
@@ -914,7 +909,6 @@ if not st.session_state["logged_in"]:
         unsafe_allow_html=True
     )
     st.stop()
-
 
 
 # --- Logged In UI ---
