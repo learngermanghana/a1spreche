@@ -25,26 +25,14 @@ from streamlit_cookies_manager import EncryptedCookieManager   # Cookie/session 
 from docx import Document                  # Optional: DOCX notes download
 from gtts import gTTS                      # Text-to-speech for vocab audio
 
-
-
-# ==== Streamlit Settings ====
+# ==== Streamlit Page Setup & Hide Streamlit Footer/Menu ====
 st.set_page_config(page_title="Falowen – Login", layout="centered")
 st.markdown("""
-<style>
-  #MainMenu {visibility: hidden;}
-  footer    {visibility: hidden;}
-</style>
+    <style>
+      #MainMenu {visibility: hidden;}
+      footer    {visibility: hidden;}
+    </style>
 """, unsafe_allow_html=True)
-
-
-# ==== OPENAI CLIENT SETUP ====
-OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
-if not OPENAI_API_KEY:
-    st.error("Missing OpenAI API key. Please add OPENAI_API_KEY in Streamlit secrets.")
-    st.stop()
-os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
-client = OpenAI(api_key=OPENAI_API_KEY)
-
 
 # ==== Banner ====
 def show_banner():
@@ -74,10 +62,17 @@ def show_banner():
 
 show_banner()
 
-# === YouTube Data API Settings ===
+# ==== API Keys & Firebase Initialization ====
+# -- OpenAI Client Setup --
+OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    st.error("Missing OpenAI API key. Please add OPENAI_API_KEY in Streamlit secrets.")
+    st.stop()
+os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+# -- YouTube Data API Settings --
 YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
-
-
 YOUTUBE_PLAYLIST_IDS = {
     "A1": [
         "PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b",   # Playlist 1 for A1
@@ -94,34 +89,54 @@ YOUTUBE_PLAYLIST_IDS = {
     # etc.
 }
 
+# -- Firebase Admin Init --
+if not firebase_admin._apps:
+    cred_dict = dict(st.secrets["firebase"])
+    cred = credentials.Certificate(cred_dict)
+    firebase_admin.initialize_app(cred)
+db = firestore.client()
 
-@st.cache_data(ttl=3600*12)  # cache for 12 hours
-def fetch_youtube_playlist_videos(playlist_id, api_key):
-    base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
-    params = {
-        "part": "snippet",
-        "playlistId": playlist_id,
-        "maxResults": 50,
-        "key": api_key,
-    }
-    videos = []
-    next_page = ""
-    while True:
-        if next_page:
-            params["pageToken"] = next_page
-        response = requests.get(base_url, params=params)
-        data = response.json()
-        for item in data.get("items", []):
-            vid = item["snippet"]["resourceId"]["videoId"]
-            url = f"https://www.youtube.com/watch?v={vid}"
-            title = item["snippet"]["title"]
-            videos.append({"title": title, "url": url})
-        next_page = data.get("nextPageToken")
-        if not next_page:
+# ==== STUDENT DATA & USAGE LIMIT HELPERS ====
+
+# --- Load student data from Google Sheets ---
+GOOGLE_SHEET_CSV = (
+    "https://docs.google.com/spreadsheets/d/"
+    "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
+    "/gviz/tq?tqx=out:csv"
+)
+@st.cache_data(ttl=3600)
+def load_student_data():
+    # Adds retries and ttl cache (1 hour)
+    for attempt in range(3):
+        try:
+            r = requests.get(GOOGLE_SHEET_CSV, timeout=10)
+            r.raise_for_status()
+            df = pd.read_csv(io.StringIO(r.text), dtype=str)
             break
-    return videos
+        except Exception:
+            if attempt == 2:
+                st.error("❌ Could not load student data. Try again later.")
+                return pd.DataFrame()
+            time.sleep(2)
+    df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]
+    df["StudentCode"] = df["StudentCode"].str.strip().str.lower()
+    df["Email"]       = df["Email"].str.strip().str.lower()
+    return df.drop_duplicates("StudentCode", keep="first")
 
-# ==== DB SETUP & TABLES (SQLite) ====
+def is_contract_expired(row):
+    expiry_str = row.get("ContractEnd", "").strip()
+    if not expiry_str or expiry_str.lower() == "nan":
+        return True
+    for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            exp = datetime.strptime(expiry_str, fmt).date()
+            return exp < date.today()
+        except ValueError:
+            continue
+    parsed = pd.to_datetime(expiry_str, errors="coerce")
+    return parsed is pd.NaT or parsed.date() < date.today()
+
+# ==== DATABASE SETUP & TABLES (SQLite) ====
 def get_connection():
     if "conn" not in st.session_state:
         conn = sqlite3.connect("vocab_progress.db", check_same_thread=False)
@@ -186,12 +201,10 @@ def init_db():
     conn.commit()
 init_db()
 
-# ==== CONSTANTS ====
+# ==== USAGE LIMIT HELPERS ====
 FALOWEN_DAILY_LIMIT = 20
 VOCAB_DAILY_LIMIT = 20
 SCHREIBEN_DAILY_LIMIT = 5
-
-# ==== USAGE COUNTERS ====
 
 def get_sprechen_usage(student_code):
     today = str(date.today())
@@ -248,32 +261,6 @@ def inc_schreiben_usage(student_code):
     )
     conn.commit()
 
-def get_writing_stats(student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT COUNT(*), SUM(score>=17) FROM schreiben_progress WHERE student_code=?
-    """, (student_code,))
-    result = c.fetchone()
-    attempted = result[0] or 0
-    passed = result[1] if result[1] is not None else 0
-    accuracy = round(100 * passed / attempted) if attempted > 0 else 0
-    return attempted, passed, accuracy
-
-def get_student_stats(student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT level, SUM(score >= 17), COUNT(*) 
-        FROM schreiben_progress 
-        WHERE student_code=?
-        GROUP BY level
-    """, (student_code,))
-    stats = {}
-    for level, correct, attempted in c.fetchall():
-        stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
-    return stats
-
 def get_letter_coach_usage(student_code):
     today = str(date.today())
     conn = get_connection()
@@ -300,119 +287,38 @@ def inc_letter_coach_usage(student_code):
     )
     conn.commit()
 
-# === Firestore Auto-Save/Restore for Letter Coach ===
-
-def save_letter_coach_progress(student_code, schreiben_level, letter_coach_prompt, chat_history):
-    """
-    Auto-saves the student's Letter Coach (Ideen Generator) progress in Firestore.
-    """
-    doc_ref = db.collection("letter_coach_progress").document(student_code)
-    doc_ref.set({
-        "level": schreiben_level,
-        "prompt": letter_coach_prompt,
-        "chat": chat_history,
-        "last_update": firestore.SERVER_TIMESTAMP
-    })
-
-def load_letter_coach_progress(student_code):
-    """
-    Loads the student's most recent Letter Coach (Ideen Generator) progress from Firestore.
-    Returns (prompt, chat_history), or ("", []) if nothing saved.
-    """
-    doc_ref = db.collection("letter_coach_progress").document(student_code)
-    doc = doc_ref.get()
-    if doc.exists:
-        data = doc.to_dict()
-        return data.get("prompt", ""), data.get("chat", [])
-    return "", []
-
-def get_schreiben_stats(student_code):
-    doc_ref = db.collection("schreiben_stats").document(student_code)
-    doc = doc_ref.get()
-    if doc.exists:
-        return doc.to_dict()
-    else:
-        return {
-            "total": 0, "passed": 0, "average_score": 0, "best_score": 0,
-            "pass_rate": 0, "last_attempt": None, "attempts": [], "last_letter": ""
-        }
-
-# ==== 2) Helpers to load & save progress ====
-def load_progress(student_code, level, teil):
-    c.execute(
-        "SELECT remaining, used FROM exam_progress WHERE student_code=? AND level=? AND teil=?",
-        (student_code, level, teil)
-    )
-    row = c.fetchone()
-    if row:
-        return json.loads(row[0]), json.loads(row[1])
-    return None, None
-
-def save_progress(student_code, level, teil, remaining, used):
-    c.execute(
-        "REPLACE INTO exam_progress (student_code, level, teil, remaining, used) VALUES (?,?,?,?,?)",
-        (student_code, level, teil, json.dumps(remaining), json.dumps(used))
-    )
-    conn.commit()
-
-def save_schreiben_attempt(student_code, name, level, score):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO schreiben_progress (student_code, name, level, essay, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (student_code, name, level, "", score, "", str(date.today()))
-    )
-    conn.commit()
-
-# ==== GOOGLE SHEET STUDENT DATA ====
-GOOGLE_SHEET_CSV = (
-    "https://docs.google.com/spreadsheets/d/"
-    "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
-    "/gviz/tq?tqx=out:csv"
-)
-@st.cache_data(ttl=3600)
-def load_student_data():
-    # Adds retries and ttl cache (1 hour)
-    for attempt in range(3):
-        try:
-            r = requests.get(GOOGLE_SHEET_CSV, timeout=10)
-            r.raise_for_status()
-            df = pd.read_csv(io.StringIO(r.text), dtype=str)
+# ==== YOUTUBE PLAYLIST FETCH ====
+@st.cache_data(ttl=3600*12)  # cache for 12 hours
+def fetch_youtube_playlist_videos(playlist_id, api_key):
+    base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
+    params = {
+        "part": "snippet",
+        "playlistId": playlist_id,
+        "maxResults": 50,
+        "key": api_key,
+    }
+    videos = []
+    next_page = ""
+    while True:
+        if next_page:
+            params["pageToken"] = next_page
+        response = requests.get(base_url, params=params)
+        data = response.json()
+        for item in data.get("items", []):
+            vid = item["snippet"]["resourceId"]["videoId"]
+            url = f"https://www.youtube.com/watch?v={vid}"
+            title = item["snippet"]["title"]
+            videos.append({"title": title, "url": url})
+        next_page = data.get("nextPageToken")
+        if not next_page:
             break
-        except Exception:
-            if attempt == 2:
-                st.error("❌ Could not load student data. Try again later.")
-                return pd.DataFrame()
-            time.sleep(2)
-    df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]
-    df["StudentCode"] = df["StudentCode"].str.strip().str.lower()
-    df["Email"]       = df["Email"].str.strip().str.lower()
-    return df.drop_duplicates("StudentCode", keep="first")
+    return videos
 
-def is_contract_expired(row):
-    expiry_str = row.get("ContractEnd", "").strip()
-    if not expiry_str or expiry_str.lower() == "nan":
-        return True
-    for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
-        try:
-            exp = datetime.strptime(expiry_str, fmt).date()
-            return exp < date.today()
-        except ValueError:
-            continue
-    parsed = pd.to_datetime(expiry_str, errors="coerce")
-    return parsed is pd.NaT or parsed.date() < date.today()
-
-# ==== FIREBASE ADMIN INIT ====
-if not firebase_admin._apps:
-    cred_dict = dict(st.secrets["firebase"])
-    cred = credentials.Certificate(cred_dict)
-    firebase_admin.initialize_app(cred)
-db = firestore.client()
-
-# ==== COOKIE / SESSION SETUP ====
+# ==== COOKIE / SESSION SETUP (Auto-Login) ====
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 if not COOKIE_SECRET:
     raise ValueError("COOKIE_SECRET not set")
+
 cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
 cookie_manager.ready()
 if not cookie_manager.ready():
@@ -427,13 +333,32 @@ for k, default in [
     st.session_state.setdefault(k, default)
 code_from_cookie = (cookie_manager.get("student_code") or "").strip().lower()
 
+# --- Auto-login via Cookie ---
+if not st.session_state["logged_in"] and code_from_cookie:
+    df_students = load_student_data()
+    df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
+    df_students["Email"] = df_students["Email"].str.lower().str.strip()
+    found = df_students[df_students["StudentCode"] == code_from_cookie]
+    if not found.empty:
+        student_row = found.iloc[0]
+        if is_contract_expired(student_row):
+            st.error("Your contract has expired. Please contact the office for renewal.")
+            cookie_manager["student_code"] = ""
+            cookie_manager.save()
+            st.stop()
+        st.session_state.update({
+            "logged_in": True,
+            "student_row": student_row.to_dict(),
+            "student_code": student_row["StudentCode"],
+            "student_name": student_row["Name"]
+        })
+
 # ==== GOOGLE OAUTH2 LOGIN ====
 GOOGLE_CLIENT_ID     = "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com"
 GOOGLE_CLIENT_SECRET = "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"
 REDIRECT_URI         = "https://a1spreche-h5tsdmmedy3uqcm9ahxfud.streamlit.app/"
 
 def get_query_params():
-    # Use new API, not st.experimental_get_query_params
     return st.query_params
 
 def do_google_oauth():
@@ -458,7 +383,7 @@ def do_google_oauth():
 def handle_google_login():
     query_params = get_query_params()
     if "code" not in query_params:
-        return False  # No Google login attempted
+        return False
     code = query_params["code"]
     if isinstance(code, list):
         code = code[0]
@@ -483,7 +408,6 @@ def handle_google_login():
     if not access_token:
         st.error(f"Google login failed. Error: {token_json}")
         return False
-    # Get email from Google API
     try:
         r = requests.get("https://www.googleapis.com/oauth2/v2/userinfo", headers={"Authorization": f"Bearer {access_token}"}, timeout=10)
     except Exception as e:
@@ -555,7 +479,7 @@ def show_login_panel():
                     if is_contract_expired(student_row):
                         login_error = "Your contract has expired. Please contact the office."
                     else:
-                        # Check password in Firestore
+                        # --- Replace with Firestore/Firebase password check if needed
                         user_doc = db.collection("students").document(student_row["StudentCode"]).get()
                         if not user_doc.exists:
                             login_error = "First time login? Try 'New Student' to set your password."
@@ -575,7 +499,6 @@ def show_login_panel():
                                 cookie_manager.save()
                                 st.success(f"Welcome, {student_row.get('Name','')} 🎉")
                                 st.rerun()
- 
 
         st.markdown("<div style='text-align:center;margin:12px 0;'>or</div>", unsafe_allow_html=True)
         do_google_oauth()
@@ -620,7 +543,6 @@ def show_login_panel():
         st.error(login_error)
     st.markdown("</div>", unsafe_allow_html=True)
 
-
 # ==== MAIN APP LOGIC ====
 if not st.session_state["logged_in"]:
     # Handle Google login return (via code param)
@@ -628,17 +550,33 @@ if not st.session_state["logged_in"]:
         show_login_panel()
     st.stop()
 
-# ==== LOGGED-IN UI BELOW ====
-st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
-if st.button("Log out"):
-    cookie_manager["student_code"] = ""
-    cookie_manager.save()
-    for k in ("logged_in","student_row","student_code","student_name"):
-        st.session_state[k] = False if k=="logged_in" else ""
-    st.success("Logged out.")
-    st.rerun()
+# ==== POST-LOGIN UI (LOGGED-IN STUDENT DASHBOARD/LOGOUT) ====
+if st.session_state["logged_in"]:
+    student_name = st.session_state.get("student_name", "")
+    st.write(f"👋 Welcome, **{student_name}**!")
+    st.markdown("""
+        <div style='color:#1976d2; font-size:1.03rem; margin-bottom:8px;'>
+            If this is not you, please log out below.
+        </div>
+    """, unsafe_allow_html=True)
 
-# ==== End ====
+    if st.button("Log out"):
+        cookie_manager["student_code"] = ""
+        cookie_manager.save()
+        for k in ("logged_in","student_row","student_code","student_name"):
+            st.session_state[k] = False if k=="logged_in" else ""
+        st.success("Logged out.")
+        st.rerun()
+
+    # Place your dashboard, tabs, or next app logic here
+    # For example:
+    # show_student_dashboard()  # <-- your actual logic
+    # st.stop()
+
+else:
+    # This shouldn't happen, but as a safety net:
+    show_login_panel()
+    st.stop()
 
 
 
