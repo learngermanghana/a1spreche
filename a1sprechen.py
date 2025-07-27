@@ -333,84 +333,191 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
 
 
 
-# ==== Stage 4: Cookie/Session & Login UI ====
+GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
 
+@st.cache_data
+def load_student_data():
+    # 1) Fetch CSV
+    try:
+        resp = requests.get(GOOGLE_SHEET_CSV, timeout=10)
+        resp.raise_for_status()
+        df = pd.read_csv(io.StringIO(resp.text), dtype=str)
+    except Exception:
+        st.error("❌ Could not load student data.")
+        st.stop()
+
+    # 2) Strip whitespace
+    for col in df.columns:
+        df[col] = df[col].astype(str).str.strip()
+
+    # 3) Drop rows missing a ContractEnd
+    df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]
+
+    # 4) Parse ContractEnd into datetime (two formats)
+    df["ContractEnd_dt"] = pd.to_datetime(
+        df["ContractEnd"], format="%m/%d/%Y", errors="coerce", dayfirst=False
+    )
+    # Fallback European format where needed
+    mask = df["ContractEnd_dt"].isna()
+    df.loc[mask, "ContractEnd_dt"] = pd.to_datetime(
+        df.loc[mask, "ContractEnd"], format="%d/%m/%Y", errors="coerce", dayfirst=True
+    )
+
+    # 5) Sort by latest ContractEnd_dt and drop duplicates
+    df = df.sort_values("ContractEnd_dt", ascending=False)
+    df = df.drop_duplicates(subset=["StudentCode"], keep="first")
+
+    # 6) Clean up helper column
+    df = df.drop(columns=["ContractEnd_dt"])
+
+    return df
+
+def is_contract_expired(row):
+    expiry_str = str(row.get("ContractEnd", "")).strip()
+    # Debug lines removed
+
+    if not expiry_str or expiry_str.lower() == "nan":
+        return True
+
+    # Try known formats
+    expiry_date = None
+    for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            expiry_date = datetime.strptime(expiry_str, fmt)
+            break
+        except ValueError:
+            continue
+
+    # Fallback to pandas auto-parse
+    if expiry_date is None:
+        parsed = pd.to_datetime(expiry_str, errors="coerce")
+        if pd.isnull(parsed):
+            return True
+        expiry_date = parsed.to_pydatetime()
+
+    today = datetime.now().date()
+    # Debug lines removed
+
+    return expiry_date.date() < today
+
+
+# ---- Cookie & Session Setup ----
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 if not COOKIE_SECRET:
-    raise ValueError("COOKIE_SECRET not set")
+    raise ValueError("COOKIE_SECRET environment variable not set")
 
-if "cookie_manager" not in st.session_state:
-    st.session_state["cookie_manager"] = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
-cookie_manager = st.session_state["cookie_manager"]
+cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
 cookie_manager.ready()
 if not cookie_manager.ready():
-    st.warning("Cookies are not ready—please refresh.")
+    st.warning("Cookies are not ready. Please refresh.")
     st.stop()
 
-for k, d in [("logged_in",False),("student_row",None),("student_code",""),("student_name","")]:
-    st.session_state.setdefault(k, d)
+for key, default in [("logged_in", False), ("student_row", None), ("student_code", ""), ("student_name", "")]:
+    st.session_state.setdefault(key, default)
 
-code_from_cookie = (cookie_manager.get("student_code") or "").strip().lower()
+code_from_cookie = cookie_manager.get("student_code") or ""
+code_from_cookie = str(code_from_cookie).strip().lower()
 
-# Auto-login
+# --- Auto-login via Cookie ---
 if not st.session_state["logged_in"] and code_from_cookie:
-    df = load_student_data()
-    df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-    matched = df[df["StudentCode"] == code_from_cookie]
-    if not matched.empty:
-        student = matched.iloc[0]
-        if is_contract_expired(student):
-            st.error("Your contract expired.")
+    df_students = load_student_data()
+    # Normalize for matching
+    df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
+    df_students["Email"] = df_students["Email"].str.lower().str.strip()
+
+    found = df_students[df_students["StudentCode"] == code_from_cookie]
+    if not found.empty:
+        student_row = found.iloc[0]
+        if is_contract_expired(student_row):
+            st.error("Your contract has expired. Please contact the office for renewal.")
             cookie_manager["student_code"] = ""
             cookie_manager.save()
             st.stop()
         st.session_state.update({
             "logged_in": True,
-            "student_row": student.to_dict(),
-            "student_code": student["StudentCode"],
-            "student_name": student["Name"]
+            "student_row": student_row.to_dict(),
+            "student_code": student_row["StudentCode"],
+            "student_name": student_row["Name"]
         })
 
-# Login screen
+# --- Manual Login Form ---
+
 if not st.session_state["logged_in"]:
     st.title("🔑 Student Login")
-    if handle_google_login():
-        st.stop()
-    inp = st.text_input("Student Code or Email:", value=code_from_cookie).strip().lower()
-    pwd = st.text_input("Password", type="password")
+    # See if student code is auto-filled (from cookie)
+    code_from_cookie = cookie_manager.get("student_code") or ""
+    code_from_cookie = str(code_from_cookie).strip().lower()
+    
+    login_input = st.text_input("Enter your Student Code or Email:", value=code_from_cookie).strip().lower()
+
+    # Only show password field if not auto-remembered (cookie is empty or user typed something new)
+    show_pw_field = not code_from_cookie or (login_input != code_from_cookie)
+    if show_pw_field:
+        login_password = st.text_input("Password (leave empty)", type="password", help="(Leave empty)")
+    else:
+        login_password = None  # Or a dummy value
+
     if st.button("Login"):
-        df = load_student_data()
-        df[["StudentCode","Email"]] = df[["StudentCode","Email"]].apply(lambda s: s.str.lower().str.strip())
-        found = df[(df["StudentCode"]==inp)|(df["Email"]==inp)]
+        df_students = load_student_data()
+        df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
+        df_students["Email"] = df_students["Email"].str.lower().str.strip()
+
+        found = df_students[
+            (df_students["StudentCode"] == login_input) |
+            (df_students["Email"] == login_input)
+        ]
         if not found.empty:
-            student = found.iloc[0]
-            if is_contract_expired(student):
-                st.error("Contract expired.")
+            student_row = found.iloc[0]
+            if is_contract_expired(student_row):
+                st.error("Your contract has expired. Please contact the office for renewal.")
                 st.stop()
             st.session_state.update({
-                "logged_in":True,
-                "student_row":student.to_dict(),
-                "student_code":student["StudentCode"],
-                "student_name":student["Name"]
+                "logged_in": True,
+                "student_row": student_row.to_dict(),
+                "student_code": student_row["StudentCode"],
+                "student_name": student_row["Name"]
             })
-            cookie_manager["student_code"] = student["StudentCode"]
+            cookie_manager["student_code"] = student_row["StudentCode"]
             cookie_manager.save()
-            st.success(f"Welcome, {student['Name']}! 🎉")
+            st.success(f"Welcome, {student_row['Name']}! 🎉")
             st.rerun()
         else:
-            st.error("Login failed.")
-    st.markdown("<div style='text-align:center;margin:12px 0;'>or</div>",unsafe_allow_html=True)
-    do_google_oauth()
+            st.error("Login failed. Please check your Student Code or Email.")
+
+    # --- iPhone/iPad cookie/autofill tip ---
+    st.markdown(
+        """
+        <div style='color:#1976d2;font-size:1rem;margin-top:8px;margin-bottom:4px;'>
+            <b>Tip for iPhone/iPad users:</b> To stay logged in, avoid Private mode and do not clear Safari website data. 
+            <br>To save your code for faster login, tap 'Save Password' or use iCloud Keychain suggestions when prompted.
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # --- Data privacy ---
+    st.markdown(
+        """
+        <div style='text-align:center; margin-top:20px; margin-bottom:12px;'>
+            <span style='color:#ff9800;font-weight:600;'>
+                🔒 <b>Data Privacy:</b> Your login details and activity are never shared. Only your teacher can see your learning progress.
+            </span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
     st.stop()
 
-# Logged-in UI
+
+
+# --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 if st.button("Log out"):
     cookie_manager["student_code"] = ""
     cookie_manager.save()
-    for k in ["logged_in","student_row","student_code","student_name"]:
-        st.session_state[k] = False if k=="logged_in" else ""
-    st.success("Logged out.")
+    for k in ["logged_in", "student_row", "student_code", "student_name"]:
+        st.session_state[k] = False if k == "logged_in" else ""
+    st.success("You have been logged out.")
     st.rerun()
 
     
