@@ -293,16 +293,117 @@ def inc_letter_coach_usage(student_code):
 
 
 
+# ==== 2) Helpers to load & save progress ====
+def load_progress(student_code, level, teil):
+    c.execute(
+        "SELECT remaining, used FROM exam_progress WHERE student_code=? AND level=? AND teil=?",
+        (student_code, level, teil)
+    )
+    row = c.fetchone()
+    if row:
+        return json.loads(row[0]), json.loads(row[1])
+    return None, None
+
+def save_progress(student_code, level, teil, remaining, used):
+    c.execute(
+        "REPLACE INTO exam_progress (student_code, level, teil, remaining, used) VALUES (?,?,?,?,?)",
+        (student_code, level, teil, json.dumps(remaining), json.dumps(used))
+    )
+    conn.commit()
+
+def save_schreiben_attempt(student_code, name, level, score):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO schreiben_progress (student_code, name, level, essay, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (student_code, name, level, "", score, "", str(date.today()))
+    )
+    conn.commit()
+
+# Bubble CSS
+bubble_user = "background:#e3f2fd;padding:12px 20px;border-radius:18px 18px 6px 18px;margin:8px 0;display:inline-block;"
+bubble_assistant = "background:#fff9c4;padding:12px 20px;border-radius:18px 18px 18px 6px;margin:8px 0;display:inline-block;"
+
+# Highlight function and words
+highlight_words = ["correct", "should", "mistake", "improve", "tip"]
 def highlight_keywords(text, words):
-    """Highlight keywords in text using HTML."""
+    import re
     pattern = r'(' + '|'.join(map(re.escape, words)) + r')'
     return re.sub(pattern, r"<span style='color:#d63384;font-weight:600'>\1</span>", text, flags=re.IGNORECASE)
 
 
-# Bubble CSS styles
-bubble_user = "background:#e3f2fd;padding:12px 20px;border-radius:18px 18px 6px 18px;margin:8px 0;display:inline-block;"
-bubble_assistant = "background:#fff9c4;padding:12px 20px;border-radius:18px 18px 18px 6px;margin:8px 0;display:inline-block;"
-highlight_words = ["correct", "should", "mistake", "improve", "tip"]
+    
+GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
+
+@st.cache_data
+def load_student_data():
+    # 1) Fetch CSV
+    try:
+        resp = requests.get(GOOGLE_SHEET_CSV, timeout=10)
+        resp.raise_for_status()
+        df = pd.read_csv(io.StringIO(resp.text), dtype=str)
+    except Exception:
+        st.error("❌ Could not load student data.")
+        st.stop()
+
+    # 2) Strip whitespace
+    for col in df.columns:
+        df[col] = df[col].astype(str).str.strip()
+
+    # 3) Drop rows missing a ContractEnd
+    df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]
+
+    # 4) Parse ContractEnd into datetime (two formats)
+    df["ContractEnd_dt"] = pd.to_datetime(
+        df["ContractEnd"], format="%m/%d/%Y", errors="coerce", dayfirst=False
+    )
+    # Fallback European format where needed
+    mask = df["ContractEnd_dt"].isna()
+    df.loc[mask, "ContractEnd_dt"] = pd.to_datetime(
+        df.loc[mask, "ContractEnd"], format="%d/%m/%Y", errors="coerce", dayfirst=True
+    )
+
+    # 5) Sort by latest ContractEnd_dt and drop duplicates
+    df = df.sort_values("ContractEnd_dt", ascending=False)
+    df = df.drop_duplicates(subset=["StudentCode"], keep="first")
+
+    # 6) Clean up helper column
+    df = df.drop(columns=["ContractEnd_dt"])
+
+    return df
+
+def is_contract_expired(row):
+    expiry_str = str(row.get("ContractEnd", "")).strip()
+    # Debug lines removed
+
+    if not expiry_str or expiry_str.lower() == "nan":
+        return True
+
+    # Try known formats
+    expiry_date = None
+    for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            expiry_date = datetime.strptime(expiry_str, fmt)
+            break
+        except ValueError:
+            continue
+
+    # Fallback to pandas auto-parse
+    if expiry_date is None:
+        parsed = pd.to_datetime(expiry_str, errors="coerce")
+        if pd.isnull(parsed):
+            return True
+        expiry_date = parsed.to_pydatetime()
+
+    today = datetime.now().date()
+    # Debug lines removed
+
+    return expiry_date.date() < today
+
+
+
+
+
 
 
 # ==== YOUTUBE PLAYLIST FETCH ====
