@@ -3,7 +3,7 @@ import os                  # OS file ops
 import random              # Randomization
 import difflib             # Optional: For fuzzy matching
 import sqlite3
-# import atexit            # Optional: Exit hooks
+import atexit            # Optional: Exit hooks
 import json                # JSON ops
 import re                  # Regex
 from datetime import date, datetime, timedelta
