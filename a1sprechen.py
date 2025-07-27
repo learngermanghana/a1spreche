@@ -9,7 +9,6 @@ import re                      # Regex
 from datetime import date, datetime, timedelta
 import time                    # Timing
 import io                      # IO streams
-import webservice_d
 import tempfile                # Temp file creation
 import urllib.parse            # URL encoding/decoding
 
@@ -30,25 +29,12 @@ from streamlit_cookies_manager import EncryptedCookieManager   # Cookie/session 
 # If you ever add fuzzy matching, you can use:
 # from thefuzz import fuzz, process            # Fuzzy answer checking (optional)
 
-# ==== Local App Modules ====
-import webservice_d                            # Your custom webservice module
-
 # from docx import Document                   # Optional: DOCX notes download
 from gtts import gTTS                          # Text-to-speech for vocab audio
 
 # For Google OAuth login
 # from streamlit_google_auth import st_google_auth   # Google Sign-In component (if using)
-
-
-# For Google OAuth login
-# pip install streamlit-google-auth
-# from streamlit_google_auth import st_google_auth           # Google Sign-In component
-
-# from docx import Document                  # Optional: DOCX notes download (comment out if not needed)
-from gtts import gTTS                          # Text-to-speech for vocab audio
-
-# If you ever add fuzzy matching, you can use:
-# from thefuzz import fuzz, process          # Uncomment if using fuzzy answer checking
+# or use streamlit-google-oauth as shown before
 
 
 
