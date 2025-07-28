@@ -4209,8 +4209,14 @@ if tab == "Exams Mode & Custom Chat":
             "Please upload up to **60 seconds** of audio."
         )
 
-        # Enforce daily upload limit
-        pron_today = st.session_state.get("pron_today", 0)
+        # Enforce daily upload limit (persistent via Firestore)
+        from datetime import date
+        student_code = st.session_state.get("student_code", "demo")
+        today_str = date.today().isoformat()
+        usage_doc = db.collection("pron_usage").document(f"{student_code}_{today_str}")
+        usage_snap = usage_doc.get()
+        pron_today = usage_snap.to_dict().get("count", 0) if usage_snap.exists else 0
+
         if pron_today >= 3:
             st.warning("⚠️ You’ve reached your 3 uploads for today. Come back tomorrow or practice in Custom Chat!")
             if st.button("⬅️ Back to Main Menu"):
@@ -4220,61 +4226,53 @@ if tab == "Exams Mode & Custom Chat":
         # Audio uploader
         audio_file = st.file_uploader("Upload WAV/MP3 (≤ 60 s)", type=["wav", "mp3"])
         if audio_file:
-            # Check duration (using soundfile)
-            import soundfile as sf
-            from io import BytesIO
-            data, sr = sf.read(BytesIO(audio_file.read()))
-            duration = len(data) / sr
-            if duration > 60:
-                st.error(f"❌ Your clip is {int(duration)} s—please trim it to 60 s or less and try again.")
-            else:
-                # Increment today's count
-                st.session_state["pron_today"] = pron_today + 1
+            # Increment and persist
+            pron_today += 1
+            usage_doc.set({"count": pron_today}, merge=True)
 
-                # Transcribe & score
-                with st.spinner("Analyzing your audio…"):
-                    transcript_resp = openai.Audio.transcriptions.create(
-                        model="whisper-1",
-                        file=audio_file
-                    )
-                    transcript = transcript_resp["text"]
-
-                    # Placeholder scoring functions (replace with your own logic)
-                    def evaluate_pronunciation(text):
-                        return 85
-                    def evaluate_grammar(text):
-                        return 95
-                    def evaluate_fluency(text):
-                        return 90
-
-                    pron_score = evaluate_pronunciation(transcript)
-                    gram_score = evaluate_grammar(transcript)
-                    flu_score  = evaluate_fluency(transcript)
-
-                # Display transcript & feedback
-                st.markdown(f"**▶️ You said:** “{transcript}”")
-                st.markdown("#### Your Evaluation:")
-                st.markdown(f"- 🗣️ **Pronunciation:** {pron_score}/100")
-                st.markdown(f"- 🔤 **Grammar:** {gram_score}/100")
-                st.markdown(f"- 🔄 **Fluency:** {flu_score}/100")
-
-                st.markdown("#### Tips for Improvement:")
-                st.markdown(
-                    "- Listen to native speakers and mimic their pronunciation, focusing on vowel sounds and intonation.  \n"
-                    "- Practice with tongue twisters in German to improve clarity and articulation.  \n"
-                    "- Engage in writing exercises to reinforce your understanding of grammar rules.  \n"
-                    "- Record yourself speaking on different topics to build fluency."
+            with st.spinner("Analyzing your audio…"):
+                transcript_resp = openai.Audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file
                 )
+                transcript = transcript_resp["text"]
 
-                # Save to recent history (cap at 3)
-                history = st.session_state.get("pron_history", [])
-                history.insert(0, {
-                    "transcript": transcript,
-                    "pron": pron_score,
-                    "gram": gram_score,
-                    "flu": flu_score
-                })
-                st.session_state["pron_history"] = history[:3]
+                # Placeholder scoring functions
+                def evaluate_pronunciation(text):
+                    return 85
+                def evaluate_grammar(text):
+                    return 95
+                def evaluate_fluency(text):
+                    return 90
+
+                pron_score = evaluate_pronunciation(transcript)
+                gram_score = evaluate_grammar(transcript)
+                flu_score  = evaluate_fluency(transcript)
+
+            # Display transcript & feedback
+            st.markdown(f"**▶️ You said:** “{transcript}”")
+            st.markdown("#### Your Evaluation:")
+            st.markdown(f"- 🗣️ **Pronunciation:** {pron_score}/100")
+            st.markdown(f"- 🔤 **Grammar:** {gram_score}/100")
+            st.markdown(f"- 🔄 **Fluency:** {flu_score}/100")
+
+            st.markdown("#### Tips for Improvement:")
+            st.markdown(
+                "- Listen to native speakers and mimic their pronunciation, focusing on vowel sounds and intonation.  \n"
+                "- Practice with tongue twisters in German to improve clarity and articulation.  \n"
+                "- Engage in writing exercises to reinforce your understanding of grammar rules.  \n"
+                "- Record yourself speaking on different topics to build fluency."
+            )
+
+            # Save to recent history (cap at 3)
+            history = st.session_state.get("pron_history", [])
+            history.insert(0, {
+                "transcript": transcript,
+                "pron": pron_score,
+                "gram": gram_score,
+                "flu": flu_score
+            })
+            st.session_state["pron_history"] = history[:3]
 
         # Show recent attempts
         if st.session_state.get("pron_history"):
