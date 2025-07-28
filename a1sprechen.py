@@ -3275,6 +3275,7 @@ def load_exam_topics():
 df_exam = load_exam_topics()
 
 if tab == "Exams Mode & Custom Chat":
+
     # ---- SESSION STATE DEFAULTS ----
     default_state = {
         "falowen_stage": 1,
