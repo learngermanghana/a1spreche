@@ -4200,68 +4200,86 @@ if tab == "Exams Mode & Custom Chat":
                 st.session_state["falowen_stage"] = 1
                 st.rerun()
 
+    def get_transcript(audio_file):
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
+            tmp_file.write(audio_file.read())
+            tmp_file.flush()
+            tmp_file.seek(0)
+            try:
+                transcript_resp = openai.audio.transcriptions.create(
+                    file=tmp_file,
+                    model="whisper-1",
+                    language="de"
+                )
+                return transcript_resp.text
+            except Exception as e:
+                return f"__ERROR__: {e}"
+
+    def get_feedback(transcript):
+        prompt = (
+            "You are a supportive but honest German speaking examiner. "
+            "The student just spoke the following in German:\n\n"
+            f"{transcript}\n\n"
+            "First, briefly summarize or paraphrase in English what the student said. "
+            "Be specific, mention names, hobbies, places, or activities the student mentioned. "
+            "Then, give:\n"
+            "- A score out of 100 for pronunciation\n"
+            "- A score out of 100 for grammar\n"
+            "- A score out of 100 for fluency\n"
+            "Then, for each area, provide 2–3 concise improvement tips (in English). "
+            "Finish with an overall encouragement or recommendation."
+        )
+        try:
+            chat_resp = openai.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": "You are a professional German oral examiner and supportive teacher."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.25,
+                max_tokens=350
+            )
+            return chat_resp.choices[0].message.content.strip()
+        except Exception as e:
+            return f"Sorry, could not get feedback: {e}"
+
     # ---- STAGE 99: Pronunciation & Speaking Checker ----
     if st.session_state.get("falowen_stage") == 99:
         st.subheader("🎤 Pronunciation & Speaking Checker")
         st.info(
             """
-            **How to use:**  
-            1. Record a short speaking sample (max 30 seconds) using your phone **or**  
-            2. Visit [vocaroo.com](https://www.vocaroo.com), record, download the file, then upload below.  
-            
-            You'll get instant feedback on **pronunciation, grammar, and fluency**.
+            **Step 1:** Record your voice using your phone, your computer, or visit [www.vocaroo.com](https://www.vocaroo.com) (copy the link and upload below).
+            \n**Step 2:** Upload your audio file (WAV or MP3, max 30 seconds).
+            \nYou’ll get AI feedback on your pronunciation, grammar, and fluency, plus tips and a summary of what you said!
             """
         )
 
-        audio_file = st.file_uploader("Upload a WAV/MP3 file", type=["wav", "mp3"])
+        audio_file = st.file_uploader("Upload a WAV/MP3 file (max 30 seconds)", type=["wav", "mp3"])
+        feedback = None
+        transcript = None
+
         if audio_file:
             st.audio(audio_file)
-            with st.spinner("Analyzing your sample..."):
-                try:
-                    import openai
-                    openai.api_key = st.secrets["OPENAI_API_KEY"]
-
-                    # 1) Transcribe with Whisper
-                    transcript_resp = openai.audio.transcriptions.create(
-                        model="whisper-1",
-                        file=audio_file
-                    )
-                    transcript = transcript_resp.text
-
-                    # 2) Get GPT feedback on that transcript
-                    feedback_prompt = (
-                        f"I just spoke this in German:\n\n"
-                        f"{transcript}\n\n"
-                        "Please give me:\n"
-                        "- A score out of 100 for pronunciation\n"
-                        "- A score out of 100 for grammar\n"
-                        "- A score out of 100 for fluency\n"
-                        "Then provide concise tips (in English) on how to improve each area."
-                    )
-                    chat_resp = openai.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[
-                            {"role": "system", "content": "You are a friendly German examiner."},
-                            {"role": "user",   "content": feedback_prompt}
-                        ],
-                        temperature=0.1
-                    )
-                    ai_feedback = chat_resp.choices[0].message.content
-
-                except Exception as e:
-                    ai_feedback = f"Sorry, could not process audio: {e}"
-
-            st.success(ai_feedback)
+            with st.spinner("Transcribing audio and analyzing..."):
+                transcript = get_transcript(audio_file)
+                if transcript.startswith("__ERROR__"):
+                    st.error(f"Sorry, could not process audio: {transcript[9:]}")
+                elif not transcript.strip():
+                    st.warning("Sorry, your audio was silent or unclear. Please try again.")
+                else:
+                    st.markdown(f"**Transcript (what you said):**\n\n> {transcript}")
+                    feedback = get_feedback(transcript)
+                    st.markdown("---")
+                    st.markdown(feedback)
 
             if st.button("🔄 Try Another"):
                 st.rerun()
         else:
-            st.info("No audio uploaded yet. Please record your sample and upload.")
+            st.info("No audio file uploaded yet. You can record with your phone or use [www.vocaroo.com](https://www.vocaroo.com) and download/upload the file here.")
 
         if st.button("⬅️ Back to Main Menu"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
-#
 
 
 
