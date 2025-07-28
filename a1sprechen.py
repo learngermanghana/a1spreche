@@ -4199,101 +4199,102 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state[k] = None
                 st.session_state["falowen_stage"] = 1
                 st.rerun()
-        # ---- STAGE 99: Pronunciation & Speaking Checker ----
-        if st.session_state.get("falowen_stage") == 99:
-            st.subheader("🎤 Pronunciation & Speaking Checker")
-            st.info("""
-            💡 *Tip:* Warm up in **Custom Chat** first to get ideas, then record your sample.  
-            You can record on your phone or use **www.vocaroo.com** and upload here.  
-            Please upload up to **60 seconds** of audio.
-            """)
 
-            # Enforce daily upload limit
-            pron_today = st.session_state.get("pron_today", 0)
-            if pron_today >= 3:
-                st.warning("⚠️ You’ve reached your 3 uploads for today. Come back tomorrow or practice in Custom Chat!")
-                if st.button("⬅️ Back to Main Menu"):
-                    back_step()
-                st.stop()
+    # ---- STAGE 99: Pronunciation & Speaking Checker ----
+    if st.session_state.get("falowen_stage") == 99:
+        st.subheader("🎤 Pronunciation & Speaking Checker")
+        st.info(
+            "💡 *Tip:* Warm up in **Custom Chat** first to get ideas, then record your sample.  \n"
+            "You can record on your phone or use **www.vocaroo.com** and upload here.  \n"
+            "Please upload up to **60 seconds** of audio."
+        )
 
-            # Audio uploader
-            audio_file = st.file_uploader("Upload WAV/MP3 (≤ 60 s)", type=["wav", "mp3"])
-            if audio_file:
-                # Check duration (using soundfile)
-                import soundfile as sf
-                from io import BytesIO
-                data, sr = sf.read(BytesIO(audio_file.read()))
-                duration = len(data) / sr
-                if duration > 60:
-                    st.error(f"❌ Your clip is {int(duration)} s—please trim it to 60 s or less and try again.")
-                else:
-                    # Increment today's count
-                    st.session_state["pron_today"] = pron_today + 1
+        # Enforce daily upload limit
+        pron_today = st.session_state.get("pron_today", 0)
+        if pron_today >= 3:
+            st.warning("⚠️ You’ve reached your 3 uploads for today. Come back tomorrow or practice in Custom Chat!")
+            if st.button("⬅️ Back to Main Menu"):
+                back_step()
+            st.stop()
 
-                    # Transcribe & score
-                    with st.spinner("Analyzing your audio…"):
-                        transcript_resp = openai.Audio.transcriptions.create(
-                            model="whisper-1",
-                            file=audio_file
-                        )
-                        transcript = transcript_resp["text"]
+        # Audio uploader
+        audio_file = st.file_uploader("Upload WAV/MP3 (≤ 60 s)", type=["wav", "mp3"])
+        if audio_file:
+            # Check duration (using soundfile)
+            import soundfile as sf
+            from io import BytesIO
+            data, sr = sf.read(BytesIO(audio_file.read()))
+            duration = len(data) / sr
+            if duration > 60:
+                st.error(f"❌ Your clip is {int(duration)} s—please trim it to 60 s or less and try again.")
+            else:
+                # Increment today's count
+                st.session_state["pron_today"] = pron_today + 1
 
-                        # Placeholder scoring functions (replace with your own logic)
-                        def evaluate_pronunciation(text):
-                            return 85
-                        def evaluate_grammar(text):
-                            return 95
-                        def evaluate_fluency(text):
-                            return 90
+                # Transcribe & score
+                with st.spinner("Analyzing your audio…"):
+                    transcript_resp = openai.Audio.transcriptions.create(
+                        model="whisper-1",
+                        file=audio_file
+                    )
+                    transcript = transcript_resp["text"]
 
-                        pron_score = evaluate_pronunciation(transcript)
-                        gram_score = evaluate_grammar(transcript)
-                        flu_score  = evaluate_fluency(transcript)
+                    # Placeholder scoring functions (replace with your own logic)
+                    def evaluate_pronunciation(text):
+                        return 85
+                    def evaluate_grammar(text):
+                        return 95
+                    def evaluate_fluency(text):
+                        return 90
 
-                    # Display transcript & feedback
-                    st.markdown(f"**▶️ You said:** “{transcript}”")
-                    st.markdown("#### Your Evaluation:")
-                    st.markdown(f"- 🗣️ **Pronunciation:** {pron_score}/100")
-                    st.markdown(f"- 🔤 **Grammar:**      {gram_score}/100")
-                    st.markdown(f"- 🔄 **Fluency:**      {flu_score}/100")
+                    pron_score = evaluate_pronunciation(transcript)
+                    gram_score = evaluate_grammar(transcript)
+                    flu_score  = evaluate_fluency(transcript)
 
-                    st.markdown("#### Tips for Improvement:")
-                    st.markdown("""
-                    - Listen to native speakers and mimic their pronunciation, focusing on vowel sounds and intonation.  
-                    - Practice with tongue twisters in German to improve clarity and articulation.  
-                    - Engage in writing exercises to reinforce your understanding of grammar rules.  
-                    - Record yourself speaking on different topics to build fluency.
-                    """)
+                # Display transcript & feedback
+                st.markdown(f"**▶️ You said:** “{transcript}”")
+                st.markdown("#### Your Evaluation:")
+                st.markdown(f"- 🗣️ **Pronunciation:** {pron_score}/100")
+                st.markdown(f"- 🔤 **Grammar:** {gram_score}/100")
+                st.markdown(f"- 🔄 **Fluency:** {flu_score}/100")
 
-                    # Save to recent history (cap at 3)
-                    history = st.session_state.get("pron_history", [])
-                    history.insert(0, {
-                        "transcript": transcript,
-                        "pron": pron_score,
-                        "gram": gram_score,
-                        "flu": flu_score
-                    })
-                    st.session_state["pron_history"] = history[:3]
+                st.markdown("#### Tips for Improvement:")
+                st.markdown(
+                    "- Listen to native speakers and mimic their pronunciation, focusing on vowel sounds and intonation.  \n"
+                    "- Practice with tongue twisters in German to improve clarity and articulation.  \n"
+                    "- Engage in writing exercises to reinforce your understanding of grammar rules.  \n"
+                    "- Record yourself speaking on different topics to build fluency."
+                )
 
-            # Show recent attempts
-            if st.session_state.get("pron_history"):
-                with st.expander("Recent Attempts"):
-                    for idx, item in enumerate(st.session_state["pron_history"], start=1):
-                        st.markdown(f"**Attempt {idx}:**")
-                        st.markdown(f"> {item['transcript']}")
-                        st.markdown(f"- 🗣️ Pronunciation: {item['pron']}/100")
-                        st.markdown(f"- 🔤 Grammar:      {item['gram']}/100")
-                        st.markdown(f"- 🔄 Fluency:      {item['flu']}/100")
-                        st.divider()
+                # Save to recent history (cap at 3)
+                history = st.session_state.get("pron_history", [])
+                history.insert(0, {
+                    "transcript": transcript,
+                    "pron": pron_score,
+                    "gram": gram_score,
+                    "flu": flu_score
+                })
+                st.session_state["pron_history"] = history[:3]
 
-            # Bottom buttons
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("🔄 Try Another"):
-                    st.experimental_rerun()
-            with col2:
-                if st.button("⬅️ Back to Main Menu"):
-                    back_step()
+        # Show recent attempts
+        if st.session_state.get("pron_history"):
+            with st.expander("Recent Attempts"):
+                for idx, item in enumerate(st.session_state["pron_history"], start=1):
+                    st.markdown(f"**Attempt {idx}:**")
+                    st.markdown(f"> {item['transcript']}")
+                    st.markdown(f"- 🗣️ Pronunciation: {item['pron']}/100")
+                    st.markdown(f"- 🔤 Grammar:      {item['gram']}/100")
+                    st.markdown(f"- 🔄 Fluency:      {item['flu']}/100")
+                    st.divider()
+
+        # Bottom buttons
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔄 Try Another"):
+                st.experimental_rerun()
+        with col2:
+            if st.button("⬅️ Back to Main Menu"):
+                back_step()
 
 
 # =========================================
