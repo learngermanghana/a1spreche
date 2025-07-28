@@ -4199,7 +4199,6 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state[k] = None
                 st.session_state["falowen_stage"] = 1
                 st.rerun()
-
     # ---- STAGE 99: Pronunciation & Speaking Checker ----
     if st.session_state.get("falowen_stage") == 99:
         st.subheader("🎤 Pronunciation & Speaking Checker")
@@ -4220,18 +4219,20 @@ if tab == "Exams Mode & Custom Chat":
             st.audio(audio_file)
             with st.spinner("Analyzing your speaking..."):
                 try:
-                    # Example: Use OpenAI Whisper via the OpenAI API (pseudo-code, adapt as needed)
                     import openai
+                    import os
+
+                    # Set OpenAI API key (from Streamlit secrets or your preferred method)
+                    openai.api_key = st.secrets["OPENAI_API_KEY"]  # or os.environ["OPENAI_API_KEY"]
 
                     # Transcribe using Whisper
                     transcript_response = openai.audio.transcriptions.create(
-                        api_key=OPENAI_API_KEY,      # Your API key variable
-                        file=audio_file,             # Streamlit file uploader object
+                        file=audio_file,
                         model="whisper-1"
                     )
                     transcript = transcript_response['text']
 
-                    # Analyze with ChatGPT: ask for feedback and scoring
+                    # Ask GPT for pronunciation, grammar, fluency feedback
                     feedback_prompt = (
                         f"You are a German language examiner. Here is a student's speaking sample: \n\n"
                         f"{transcript}\n\n"
@@ -4241,7 +4242,6 @@ if tab == "Exams Mode & Custom Chat":
                     )
                     chat_resp = openai.chat.completions.create(
                         model="gpt-4o",
-                        api_key=OPENAI_API_KEY,
                         messages=[
                             {"role": "system", "content": "You are a friendly, supportive German A1/A2/B1 examiner."},
                             {"role": "user", "content": feedback_prompt}
@@ -4250,16 +4250,15 @@ if tab == "Exams Mode & Custom Chat":
                     )
                     ai_feedback = chat_resp.choices[0].message.content
 
-                    # Extract scores for a progress bar
+                    # Optional: Extract pronunciation score for progress bar
                     import re
                     pron_score = re.search(r"Pronunciation:\s*(\d+)/100", ai_feedback)
-                    pron_score = int(pron_score.group(1)) if pron_score else 0
+                    pron_score = int(pron_score.group(1)) if pron_score else None
                     ai_score = pron_score
 
                 except Exception as e:
                     ai_feedback = f"Sorry, could not process audio: {e}"
 
-            # Show AI scoring with progress bar and tips
             if ai_score is not None:
                 st.progress(ai_score / 100, text=f"Pronunciation Score: {ai_score}/100")
 
@@ -4275,7 +4274,7 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("⬅️ Back to Main Menu"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
-
+#
 
 
 # =========================================
