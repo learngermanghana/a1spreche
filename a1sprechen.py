@@ -4129,63 +4129,77 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_stage"] = 5
             st.rerun()
 
-    # ---- STAGE 99: Pronunciation & Speaking & Grammar Checker ----
+    # ---- STAGE 99: Pronunciation & Speaking Checker ----
     if st.session_state.get("falowen_stage") == 99:
-        import datetime
-        import openai
-
-        st.subheader("🎤 Pronunciation & Speaking & Grammar Checker")
+        st.subheader("🎤 Pronunciation & Speaking Checker")
         st.info(
-            "Record or upload your speaking sample (max 60 seconds) below using your phone or www.vocaroo.com.\n"
-            "Get AI feedback on what you said, plus pronunciation, grammar & fluency scores."
+            """
+            Record or upload your speaking sample below (max 60 seconds).  
+            You’ll see what I understood, plus feedback on pronunciation, grammar, and fluency.
+            """
         )
-        st.info("Tip: For topic ideas and practice before recording, use Custom Chat mode first.")
 
-        # Enforce daily upload limit: 3 per student/day
-        user = st.session_state.get("student_code", "demo")
-        uploads_ref = db.collection("speaking_uploads").document(user)
-        uploads_data = uploads_ref.get().to_dict() or {}
-        today = datetime.date.today().isoformat()
-        used = uploads_data.get(today, 0)
-        if used >= 3:
-            st.warning("You have reached today's limit of 3 uploads. Please come back tomorrow.")
-            if st.button("⬅️ Back to Main Menu"):
-                st.session_state["falowen_stage"] = 1
-                st.rerun()
-            st.stop()
-
-        audio_file = st.file_uploader("Upload a WAV/MP3 file (max 60 seconds)", type=["wav", "mp3"])
+        # Upload (or record via phone/Vocaroo and upload) with 60 s limit
+        audio_file = st.file_uploader("Upload a WAV/MP3 file (≤ 60 sec)", type=["wav", "mp3"])
         if audio_file:
-            uploads_ref.set({today: used + 1}, merge=True)
+            st.audio(audio_file)
 
-            # Transcribe audio using Whisper
-            transcript_resp = openai.Audio.transcribe("whisper-1", audio_file)
-            transcript = transcript_resp.get("text", transcript_resp) if isinstance(transcript_resp, dict) else str(transcript_resp)
-            st.markdown("**You said:**")
-            st.write(transcript)
+            # Transcribe with Whisper
+            try:
+                transcript_resp = client.audio.transcriptions.create(
+                    file=audio_file,
+                    model="whisper-1"
+                )
+                transcript_text = transcript_resp.text
+            except Exception as e:
+                st.error(f"Sorry, could not process audio: {e}")
+                st.stop()
 
-            # AI evaluation prompt
+            # Show what the AI heard
+            st.markdown(f"**I heard you say:**  \n> {transcript_text}")
+
+            # Now run a chat-completion to evaluate
             eval_prompt = (
-                f"You are a supportive German tutor. The student said:\n\"\"\"\n{transcript}\n\"\"\"\n"
-                "Evaluate their pronunciation out of 100, grammar out of 100, and fluency out of 100. "
-                "Provide brief tips for improvement and overall encouragement."
+                "You are a German tutor. The student said:\n"
+                f"\"{transcript_text}\"\n\n"
+                "Please score their Pronunciation, Grammar, and Fluency each out of 100, "
+                "and then give three concise tips per category. "
+                "Format as:\n"
+                "Pronunciation: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
+                "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
+                "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
             )
-            eval_resp = openai.ChatCompletion.create(
-                model="gpt-4o",
-                messages=[{"role": "user", "content": eval_prompt}],
-                temperature=0.2
-            )
-            feedback = eval_resp.choices[0].message.content.strip()
-            st.markdown("**AI Evaluation:**")
-            st.write(feedback)
 
+            with st.spinner("Evaluating your sample..."):
+                eval_resp = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {"role": "system", "content": "You are a helpful German tutor."},
+                        {"role": "user", "content": eval_prompt}
+                    ],
+                    temperature=0.2
+                )
+            st.markdown(eval_resp.choices[0].message.content)
+
+            # Reminder & daily limit (3 uploads)
+            uploads = db.collection("pron_uses").document(st.session_state["student_code"])
+            doc = uploads.get().to_dict() or {"count": 0}
+            if doc["count"] >= 3:
+                st.warning("You’ve hit your daily upload limit (3). Try again tomorrow.")
+            else:
+                uploads.set({"count": doc["count"] + 1})
+
+            st.info("💡 Tip: To get ideas and practice your topic before recording, use Custom Chat first.")
             if st.button("🔄 Try Another"):
                 st.rerun()
+
         else:
-            if st.button("⬅️ Back to Main Menu"):
-                st.session_state["falowen_stage"] = 1
-                st.rerun()
-#
+            st.info("No audio uploaded yet. You can record on your phone or at www.vocaroo.com and then upload.")
+
+        if st.button("⬅️ Back to Main Menu"):
+            st.session_state["falowen_stage"] = 1
+            st.rerun()
+
 
 
 
