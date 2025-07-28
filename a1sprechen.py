@@ -767,8 +767,7 @@ if not st.session_state["logged_in"] and code_from_cookie:
         
 # --- Manual Login & Account Creation Block ---
 if not st.session_state["logged_in"]:
-    # ... login and create account code above ...
-    
+    # === WELCOME / HELP / INSTRUCTIONS (always at top, always visible) ===
     st.markdown(
         """
         <div style='border-left:4px solid #1976d2; padding:14px 9px 14px 14px; border-radius:7px; margin-bottom:20px; font-size:1.13rem; line-height:1.6; color:#232323; background:rgba(255,255,255,0.96);'>
@@ -784,14 +783,12 @@ if not st.session_state["logged_in"]:
         """,
         unsafe_allow_html=True
     )
-    
-    st.stop()
 
-    # 1) (Optional) Google OAuth
-    # IMPORTANT: Set this to your actual deployed Streamlit URL!
+    # --- 1) (Optional) Google OAuth ---
+    # (You can move/remove if you want only password login!)
     GOOGLE_CLIENT_ID     = "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com"
     GOOGLE_CLIENT_SECRET = "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"
-    REDIRECT_URI         = "https://a1spreche-h5tsdmmedy3uqcm9ahxfud.streamlit.app/"  # <--- PUT YOUR STREAMLIT APP URL HERE EXACTLY AS IN GOOGLE CONSOLE
+    REDIRECT_URI         = "https://a1spreche-h5tsdmmedy3uqcm9ahxfud.streamlit.app/"  # Your deployed Streamlit URL
 
     def get_query_params():
         return st.query_params
@@ -873,7 +870,7 @@ if not st.session_state["logged_in"]:
     st.markdown("<div style='text-align:center;margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
     do_google_oauth()
 
-    # 2) Manual Login
+    # --- 2) Manual Login (Student Code/Email & Password) ---
     login_id       = st.text_input("Student Code or Email")
     login_password = st.text_input("Password", type="password")
     if st.button("Login"):
@@ -909,7 +906,7 @@ if not st.session_state["logged_in"]:
                         st.success(f"Welcome, {student_row['Name']}!")
                         st.rerun()
 
-    # 3) Create Account (always visible)
+    # --- 3) Create Account (always visible, always left) ---
     st.markdown("### Create an Account")
     new_name     = st.text_input("Full Name", key="ca_name")
     new_email    = st.text_input("Email (must match teacher’s record)", key="ca_email").strip().lower()
@@ -937,8 +934,6 @@ if not st.session_state["logged_in"]:
                 st.success("Account created! Please log in above.")
 
     st.stop()
-
-
 
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
