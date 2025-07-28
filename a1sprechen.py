@@ -4129,107 +4129,68 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_stage"] = 5
             st.rerun()
 
-    # ---- STAGE 99: Pronunciation & Speaking Checker ----
+    # ---- STAGE 99: Pronunciation & Speaking & Grammar Checker ----
     if st.session_state.get("falowen_stage") == 99:
-        from datetime import datetime
+        import datetime
         import openai
-        from firebase_admin import firestore as fa_firestore
+        from google.cloud import firestore
 
-        # --- Config ---
-        MAX_SECONDS = 60
-        DAILY_LIMIT = 3
-
-        # --- Use your already-initialized Firebase Admin client ---
-        db = fa_firestore.client()
-        student_code = st.session_state["student_code"]
-
-        # --- Helpers for daily upload count (Firestore) ---
-        def get_pronunciation_uploads_today(code):
-            doc = db.collection("pronunciation_uploads").document(code).get()
-            today = datetime.utcnow().strftime("%Y-%m-%d")
-            uploads = doc.to_dict().get("uploads", {}) if doc.exists else {}
-            return uploads.get(today, 0)
-
-        def increment_pronunciation_uploads(code):
-            doc_ref = db.collection("pronunciation_uploads").document(code)
-            doc = doc_ref.get()
-            today = datetime.utcnow().strftime("%Y-%m-%d")
-            uploads = doc.to_dict().get("uploads", {}) if doc.exists else {}
-            uploads[today] = uploads.get(today, 0) + 1
-            doc_ref.set({"uploads": uploads}, merge=True)
-
-        # ---- Info & Instructions ----
-        st.subheader("🎤 Pronunciation & Speaking Checker")
+        st.subheader("🎤 Pronunciation & Speaking & Grammar Checker")
         st.info(
-            """
-            **How to use:**
-            1. Record using your phone or visit [vocaroo.com](https://www.vocaroo.com), then download & upload.
-            2. **Max 60 sec, up to 3 uploads per day.**
-            3. AI will show you **what it understood** (the transcription) and give feedback on pronunciation, grammar, fluency.
-            4. **Tip:** Practice your topic in Custom Chat before recording for best results!
-            """
+            "Record or upload your speaking sample (max 60 seconds) below using your phone or www.vocaroo.com.\n"
+            "Get AI feedback on what you said, plus pronunciation, grammar & fluency scores."
         )
+        st.info("Tip: For topic ideas and practice before recording, use Custom Chat mode first.")
 
-        # ---- Enforce daily limit ----
-        used = get_pronunciation_uploads_today(student_code)
-        st.info(f"Uploads today: {used}/{DAILY_LIMIT}")
-        if used >= DAILY_LIMIT:
-            st.warning("You've reached your 3‑upload daily limit. Come back tomorrow!")
+        # Enforce daily upload limit: 3 per student/day
+        user = st.session_state.get("student_code", "demo")
+        db = firestore.client()
+        uploads_ref = db.collection("speaking_uploads").document(user)
+        uploads_data = uploads_ref.get().to_dict() or {}
+        today = datetime.date.today().isoformat()
+        used = uploads_data.get(today, 0)
+        if used >= 3:
+            st.warning("You have reached today's limit of 3 uploads. Please come back tomorrow.")
+            if st.button("⬅️ Back to Main Menu"):
+                st.session_state["falowen_stage"] = 1
+                st.rerun()
             st.stop()
 
-        # ---- File uploader ----
-        audio_file = st.file_uploader(
-            "Upload a WAV/MP3 (≤ 60 sec, ≤ 2 MB)", type=["wav", "mp3"]
-        )
-
+        audio_file = st.file_uploader("Upload a WAV/MP3 file", type=["wav", "mp3"])
         if audio_file:
-            try:
-                # Transcribe with Whisper
-                audio_file.seek(0)
-                transcript = openai.audio.transcriptions.create(
-                    model="whisper-1",
-                    file=audio_file,
-                    language="de",
-                    response_format="text",
-                    api_key=openai_api_key
-                ).strip()
+            # Record usage
+            uploads_ref.set({today: used + 1}, merge=True)
 
-                # Count upload
-                increment_pronunciation_uploads(student_code)
+            # Transcribe audio
+            transcript = openai.Audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file,
+                response_format="text"
+            )
+            st.markdown("**You said:**")
+            st.write(transcript)
 
-                # Show transcription
-                st.success("**AI Transcript:**")
-                st.markdown(f"> {transcript}")
+            # AI evaluation prompt
+            eval_prompt = (
+                f"You are a supportive German tutor. The student said:\n\"\"\"\n{transcript}\n\"\"\"\n"
+                "Evaluate their pronunciation out of 100, grammar out of 100, and fluency out of 100. "
+                "Provide brief tips for improvement and overall encouragement."
+            )
+            eval_resp = openai.ChatCompletion.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": eval_prompt}],
+                temperature=0.2
+            )
+            feedback = eval_resp.choices[0].message.content.strip()
+            st.markdown("**AI Evaluation:**")
+            st.write(feedback)
 
-                # Get AI feedback via GPT
-                feedback_prompt = f"""
-                The student said (in German): \"{transcript}\"
-                Please evaluate and score out of 100 each:
-                - Pronunciation
-                - Grammar
-                - Fluency
-                Then give clear improvement tips in English.
-                """
-                ai_feedback = openai.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[{"role":"system","content":feedback_prompt}],
-                    temperature=0.3,
-                    max_tokens=300,
-                    api_key=openai_api_key
-                ).choices[0].message.content.strip()
-
-                st.markdown("### AI Feedback & Scores")
-                st.info(ai_feedback)
-
-            except Exception as e:
-                st.error(f"Sorry, could not process audio: {e}")
-
-        st.divider()
-        if st.button("🔄 Try Another"):
-            st.rerun()
-        if st.button("⬅️ Back to Main Menu"):
-            st.session_state["falowen_stage"] = 1
-            st.rerun()
+            if st.button("🔄 Try Another"):
+                st.rerun()
+        else:
+            if st.button("⬅️ Back to Main Menu"):
+                st.session_state["falowen_stage"] = 1
+                st.rerun()
 #
 
 
