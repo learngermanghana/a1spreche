@@ -4199,6 +4199,7 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state[k] = None
                 st.session_state["falowen_stage"] = 1
                 st.rerun()
+
     # ---- STAGE 99: Pronunciation & Speaking Checker ----
     if st.session_state.get("falowen_stage") == 99:
         st.subheader("🎤 Pronunciation & Speaking Checker")
@@ -4206,75 +4207,62 @@ if tab == "Exams Mode & Custom Chat":
             """
             **How to use:**  
             1. Record a short speaking sample (max 30 seconds) using your phone **or**  
-            2. Visit [vocaroo.com](https://www.vocaroo.com), record, and download the audio  
-            3. Upload the file below to get instant feedback on **pronunciation, grammar, and fluency**.
+            2. Visit [vocaroo.com](https://www.vocaroo.com), record, download the file, then upload below.  
+            
+            You'll get instant feedback on **pronunciation, grammar, and fluency**.
             """
         )
 
-        audio_file = st.file_uploader("Upload a WAV/MP3 file (max 30 seconds)", type=["wav", "mp3"])
-        ai_feedback = None
-        ai_score = None
-
+        audio_file = st.file_uploader("Upload a WAV/MP3 file", type=["wav", "mp3"])
         if audio_file:
             st.audio(audio_file)
-            with st.spinner("Analyzing your speaking..."):
+            with st.spinner("Analyzing your sample..."):
                 try:
                     import openai
-                    import os
+                    openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-                    # Set OpenAI API key (from Streamlit secrets or your preferred method)
-                    openai.api_key = st.secrets["OPENAI_API_KEY"]  # or os.environ["OPENAI_API_KEY"]
-
-                    # Transcribe using Whisper
-                    transcript_response = openai.audio.transcriptions.create(
-                        file=audio_file,
-                        model="whisper-1"
+                    # 1) Transcribe with Whisper
+                    transcript_resp = openai.audio.transcriptions.create(
+                        model="whisper-1",
+                        file=audio_file
                     )
                     transcript = transcript_resp.text
 
-                    # Ask GPT for pronunciation, grammar, fluency feedback
+                    # 2) Get GPT feedback on that transcript
                     feedback_prompt = (
-                        f"You are a German language examiner. Here is a student's speaking sample: \n\n"
+                        f"I just spoke this in German:\n\n"
                         f"{transcript}\n\n"
-                        "Please give a score out of 100 for pronunciation, grammar, and fluency, and then provide tips for improvement in English. "
-                        "Format your answer as:\n"
-                        "Pronunciation: X/100\nGrammar: X/100\nFluency: X/100\nTips: ...\n"
+                        "Please give me:\n"
+                        "- A score out of 100 for pronunciation\n"
+                        "- A score out of 100 for grammar\n"
+                        "- A score out of 100 for fluency\n"
+                        "Then provide concise tips (in English) on how to improve each area."
                     )
                     chat_resp = openai.chat.completions.create(
                         model="gpt-4o",
                         messages=[
-                            {"role": "system", "content": "You are a friendly, supportive German A1/A2/B1 examiner."},
-                            {"role": "user", "content": feedback_prompt}
+                            {"role": "system", "content": "You are a friendly German examiner."},
+                            {"role": "user",   "content": feedback_prompt}
                         ],
                         temperature=0.1
                     )
                     ai_feedback = chat_resp.choices[0].message.content
 
-                    # Optional: Extract pronunciation score for progress bar
-                    import re
-                    pron_score = re.search(r"Pronunciation:\s*(\d+)/100", ai_feedback)
-                    pron_score = int(pron_score.group(1)) if pron_score else None
-                    ai_score = pron_score
-
                 except Exception as e:
                     ai_feedback = f"Sorry, could not process audio: {e}"
 
-            if ai_score is not None:
-                st.progress(ai_score / 100, text=f"Pronunciation Score: {ai_score}/100")
+            st.success(ai_feedback)
 
-            if ai_feedback:
-                st.success(ai_feedback)
-
-            # Retry option
             if st.button("🔄 Try Another"):
                 st.rerun()
         else:
-            st.info("No audio file uploaded yet. Please record and upload a short sample.")
+            st.info("No audio uploaded yet. Please record your sample and upload.")
 
         if st.button("⬅️ Back to Main Menu"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
 #
+
 
 
 # =========================================
