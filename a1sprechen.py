@@ -4230,7 +4230,7 @@ if tab == "Exams Mode & Custom Chat":
                         file=audio_file,
                         model="whisper-1"
                     )
-                    transcript = transcript_response["text"]
+                    transcript = transcript_resp.text
 
                     # Ask GPT for pronunciation, grammar, fluency feedback
                     feedback_prompt = (
