@@ -4143,7 +4143,6 @@ if tab == "Exams Mode & Custom Chat":
 
         # Enforce daily upload limit: 3 per student/day
         user = st.session_state.get("student_code", "demo")
-        # use existing Firebase Admin client `db`, do not reinitialize
         uploads_ref = db.collection("speaking_uploads").document(user)
         uploads_data = uploads_ref.get().to_dict() or {}
         today = datetime.date.today().isoformat()
@@ -4155,17 +4154,13 @@ if tab == "Exams Mode & Custom Chat":
                 st.rerun()
             st.stop()
 
-        audio_file = st.file_uploader("Upload a WAV/MP3 file", type=["wav", "mp3"])
+        audio_file = st.file_uploader("Upload a WAV/MP3 file (max 60 seconds)", type=["wav", "mp3"])
         if audio_file:
-            # Record usage
             uploads_ref.set({today: used + 1}, merge=True)
 
             # Transcribe audio using Whisper
-            transcript = openai.Audio.transcriptions.create(
-                model="whisper-1",
-                file=audio_file,
-                response_format="text"
-            )
+            transcript_resp = openai.Audio.transcribe("whisper-1", audio_file)
+            transcript = transcript_resp.get("text", transcript_resp) if isinstance(transcript_resp, dict) else str(transcript_resp)
             st.markdown("**You said:**")
             st.write(transcript)
 
