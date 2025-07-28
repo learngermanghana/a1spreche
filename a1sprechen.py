@@ -931,6 +931,23 @@ if st.button("Log out"):
         st.session_state[k] = False if k == "logged_in" else ""
     st.success("You have been logged out.")
     st.rerun()
+
+st.markdown(
+    """
+    <div style='background:#f3fbff; border-left:6px solid #1976d2; padding:18px 14px; border-radius:10px; margin-bottom:22px; font-size:1.07rem;'>
+        <b>Welcome to Falowen! 👋</b><br>
+        <ul style="margin-top:7px;">
+            <li><b>Returning Students:</b> Log in with your <span style="color:#1976d2;"><b>Student Code or Email</b></span> and your password. If you forget your password, ask your teacher for help.</li>
+            <li><b>New Students:</b> Click "Create Account" below <b>after</b> your teacher gives you your Student Code and adds you to the system.</li>
+            <li><b>iPhone/iPad Users:</b> Tap “Save Password” when prompted to stay logged in automatically.</li>
+            <li>If you see a message about contract expiry, please contact the school office for renewal.</li>
+            <li>Your data is secure. Only you and your teacher can see your progress.</li>
+        </ul>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
     
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 
