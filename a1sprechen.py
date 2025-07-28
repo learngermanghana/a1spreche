@@ -3258,6 +3258,34 @@ def save_exam_progress(student_code, progress_items):
             })
     doc_ref.set({"completed": all_progress}, merge=True)
 
+def back_step(to_stage=1):
+    # Clear relevant session state values depending on the step
+    if to_stage == 1:
+        keys_to_clear = [
+            "falowen_mode", "falowen_level", "falowen_teil", "falowen_messages",
+            "custom_topic_intro_done", "falowen_exam_topic", "falowen_exam_keyword",
+            "remaining_topics", "used_topics", "_falowen_loaded"
+        ]
+    elif to_stage == 2:
+        keys_to_clear = [
+            "falowen_level", "falowen_teil", "falowen_messages",
+            "custom_topic_intro_done", "falowen_exam_topic", "falowen_exam_keyword",
+            "remaining_topics", "used_topics", "_falowen_loaded"
+        ]
+    elif to_stage == 3:
+        keys_to_clear = [
+            "falowen_teil", "falowen_messages",
+            "custom_topic_intro_done", "falowen_exam_topic", "falowen_exam_keyword",
+            "remaining_topics", "used_topics", "_falowen_loaded"
+        ]
+    else:
+        keys_to_clear = []
+    for k in keys_to_clear:
+        st.session_state[k] = None
+    st.session_state["falowen_stage"] = to_stage
+    st.rerun()
+
+
 # --- CONFIG ---
 exam_sheet_id = "1zaAT5NjRGKiITV7EpuSHvYMBHHENMs9Piw3pNcyQtho"
 exam_sheet_name = "exam_topics"   # <-- update if your tab is named differently
@@ -3705,8 +3733,7 @@ if tab == "Exams Mode & Custom Chat":
             key="falowen_level_center"
         )
         if st.button("⬅️ Back", key="falowen_back1"):
-            st.session_state["falowen_stage"] = 1
-            st.rerun()
+            back_step(1)
         if st.button("Next ➡️", key="falowen_next_level"):
             st.session_state["falowen_level"] = level
             if st.session_state["falowen_mode"] == "Geführte Prüfungssimulation (Exam Mode)":
@@ -3820,8 +3847,7 @@ if tab == "Exams Mode & Custom Chat":
                     st.warning("No listening links available for this level yet.")
                 st.markdown("</div>", unsafe_allow_html=True)
             if st.button("⬅️ Back", key="lesen_hoeren_back"):
-                st.session_state["falowen_stage"] = 2
-                st.rerun()
+                back_step(2)                
             st.stop()
 
         teil_number = teil.split()[1] if teil else ""
@@ -3896,8 +3922,7 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_exam_keyword"] = None
 
         if st.button("⬅️ Back", key="falowen_back2"):
-            st.session_state["falowen_stage"] = 2
-            st.rerun()
+            back_step(2)
 
         if st.session_state.get("falowen_messages"):
             col1, col2 = st.columns(2)
@@ -4237,8 +4262,7 @@ if tab == "Exams Mode & Custom Chat":
             st.info("No audio file uploaded yet.")
 
         if st.button("⬅️ Back to Main Menu"):
-            st.session_state["falowen_stage"] = 1
-            st.rerun()
+            back_step(1)
 #
 
 
