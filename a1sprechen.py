@@ -764,26 +764,28 @@ if not st.session_state["logged_in"] and code_from_cookie:
             "student_code": student_row["StudentCode"],
             "student_name": student_row["Name"]
         })
+        
 # --- Manual Login & Account Creation Block ---
 if not st.session_state["logged_in"]:
-    st.title("🔑 Student Login")
-
-    # ---- WELCOME/HELP BLOCK (SHOW ONLY HERE) ----
+    # ... login and create account code above ...
+    
     st.markdown(
         """
-        <div style='background:#f3fbff; border-left:6px solid #1976d2; padding:18px 14px; border-radius:10px; margin-bottom:22px; font-size:1.07rem;'>
-            <b>Welcome to Falowen! 👋</b><br>
-            <ul style="margin-top:7px;">
-                <li><b>Returning Students:</b> Log in with your <span style="color:#1976d2;"><b>Student Code or Email</b></span> and your password. If you forget your password, ask your teacher for help.</li>
-                <li><b>New Students:</b> Click "Create Account" below <b>after</b> your teacher gives you your Student Code and adds you to the system.</li>
-                <li><b>iPhone/iPad Users:</b> Tap “Save Password” when prompted to stay logged in automatically.</li>
-                <li>If you see a message about contract expiry, please contact the school office for renewal.</li>
-                <li>Your data is secure. Only you and your teacher can see your progress.</li>
+        <div style='border-left:4px solid #1976d2; padding:14px 9px 14px 14px; border-radius:7px; margin-bottom:20px; font-size:1.13rem; line-height:1.6; color:#232323; background:rgba(255,255,255,0.96);'>
+            <b>👋 Welcome to Falowen!</b><br>
+            <ul style="margin:10px 0 0 0; padding-left:22px;">
+                <li style="margin-bottom:7px;"><span style="font-size:1.1em;">🔑</span> <b>Returning?</b> Log in with your <b style="color:#17617a;">Student Code or Email</b> and password.</li>
+                <li style="margin-bottom:7px;"><span style="font-size:1.1em;">🆕</span> <b>New?</b> Click <b>Create Account</b> below <b>after</b> your teacher gives you a code.</li>
+                <li style="margin-bottom:7px;"><span style="font-size:1.1em;">📱</span> <b>iPhone/iPad:</b> Tap “Save Password” if asked.</li>
+                <li style="margin-bottom:7px;"><span style="font-size:1.1em;">⌛</span> <b>Expired?</b> If you see a contract expiry message, contact the school office.</li>
+                <li style="margin-bottom:7px;"><span style="font-size:1.1em;">🔒</span> <b>Privacy:</b> Only you &amp; your teacher see your progress.</li>
             </ul>
         </div>
         """,
         unsafe_allow_html=True
     )
+    
+    st.stop()
 
     # 1) (Optional) Google OAuth
     # IMPORTANT: Set this to your actual deployed Streamlit URL!
