@@ -3275,7 +3275,24 @@ def load_exam_topics():
 df_exam = load_exam_topics()
 
 if tab == "Exams Mode & Custom Chat":
-    # --- UNIQUE LOGIN & SESSION ISOLATION BLOCK (inserted at the top) ---
+    # ---- SESSION STATE DEFAULTS ----
+    default_state = {
+        "falowen_stage": 1,
+        "falowen_mode": None,
+        "falowen_level": None,
+        "falowen_teil": None,
+        "falowen_messages": [],
+        "falowen_turn_count": 0,
+        "custom_topic_intro_done": False,
+        "custom_chat_level": None,
+        "falowen_exam_topic": None,
+        "falowen_exam_keyword": None,
+    }
+    for key, val in default_state.items():
+        if key not in st.session_state:
+            st.session_state[key] = val
+
+    # --- UNIQUE LOGIN & SESSION ISOLATION BLOCK ---
     if "student_code" not in st.session_state or not st.session_state["student_code"]:
         code = st.text_input("Enter your Student Code to continue:", key="login_code")
         if st.button("Login"):
@@ -3297,6 +3314,8 @@ if tab == "Exams Mode & Custom Chat":
                 if k in st.session_state: del st.session_state[k]
             st.session_state["last_logged_code"] = code
             st.rerun()
+    if "falowen_practiced_topics" not in st.session_state:
+        st.session_state["falowen_practiced_topics"] = []
 
     # --- PROGRESS TRACKING: PRACTICED TOPICS (unique per login) ---
     if "falowen_practiced_topics" not in st.session_state:
