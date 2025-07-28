@@ -4129,7 +4129,6 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_stage"] = 5
             st.rerun()
 
-
     # ---- STAGE 99: Pronunciation & Speaking Checker ----
     if st.session_state.get("falowen_stage") == 99:
         from datetime import datetime
@@ -4204,7 +4203,7 @@ if tab == "Exams Mode & Custom Chat":
 
                 # Get AI feedback via GPT
                 feedback_prompt = f"""
-                The student said (in German): "{transcript}"
+                The student said (in German): \"{transcript}\"
                 Please evaluate and score out of 100 each:
                 - Pronunciation
                 - Grammar
