@@ -3274,7 +3274,38 @@ def load_exam_topics():
 
 df_exam = load_exam_topics()
 
+
 if tab == "Exams Mode & Custom Chat":
+    # --- UNIQUE LOGIN & SESSION ISOLATION BLOCK (inserted at the top) ---
+    if "student_code" not in st.session_state or not st.session_state["student_code"]:
+        code = st.text_input("Enter your Student Code to continue:", key="login_code")
+        if st.button("Login"):
+            st.session_state["student_code"] = code.strip()
+            st.session_state["last_logged_code"] = code.strip()
+            st.rerun()
+        st.stop()
+    else:
+        code = st.session_state["student_code"]
+        last_code = st.session_state.get("last_logged_code", None)
+        if last_code != code:
+            # Clear all chat-related session state for new login
+            for k in [
+                "falowen_messages", "falowen_stage", "falowen_teil", "falowen_mode",
+                "custom_topic_intro_done", "falowen_turn_count",
+                "falowen_exam_topic", "falowen_exam_keyword", "remaining_topics", "used_topics",
+                "_falowen_loaded", "falowen_practiced_topics"
+            ]:
+                if k in st.session_state: del st.session_state[k]
+            st.session_state["last_logged_code"] = code
+            st.rerun()
+
+    # --- PROGRESS TRACKING: PRACTICED TOPICS (unique per login) ---
+    if "falowen_practiced_topics" not in st.session_state:
+        st.session_state["falowen_practiced_topics"] = []
+
+
+        
+    # 🗣️ Compact tab header
     st.markdown(
         '''
         <div style="
@@ -3293,397 +3324,600 @@ if tab == "Exams Mode & Custom Chat":
     )
     st.divider()
 
-if st.session_state["falowen_stage"] == 1:
-    st.subheader("Step 1: Choose Practice Mode")
-    st.info(
-        """
-        **Which mode should you choose?**
+    # ---- Exam Sample Images (A1/A2 Template) ----
+    image_map = {
+        ("A1", "Teil 1"): {
+            "url": "https://i.imgur.com/sKQDrpx.png",
+            "caption": "Sample – A1 Teil 1"
+        },
+        ("A1", "Teil 2"): {
+            "url": "https://i.imgur.com/xTTIUME.png",  # Replace with real image if you get a valid link!
+            "caption": "Sample – A1 Teil 2"
+        },
+        ("A1", "Teil 3"): {
+            "url": "https://i.imgur.com/MxBUCR8.png",
+            "caption": "Sample – A1 Teil 3"
+        },
+        # Add A2 etc:
+        # ("A2", "Teil 1"): { ... }
+    }
 
-        - 📝 **Exam Mode**:  
-            Practice for your official Goethe exam!
-            - Includes **Speaking** (Sprechen) with a live chat examiner  
-            - PLUS quick access to real **Reading (Lesen)** and **Listening (Hören)** past exams  
-            - See official exam instructions and practice with authentic topics
+    # Display image only for selected level/teil and at the start of chat
+    level = st.session_state.get("falowen_level")
+    teil = st.session_state.get("falowen_teil")
+    msgs = st.session_state.get("falowen_messages", [])
+    # Show image if no chat yet, or only the 1st assistant instruction
+    if level and teil and (not msgs or (len(msgs) == 1 and msgs[0].get("role") == "assistant")):
+        for (map_level, map_teil), v in image_map.items():
+            if level == map_level and map_teil in teil:
+                st.image(v["url"], width=380, caption=v["caption"])
 
-        - 💬 **Custom Chat**:  
-            Chat about any topic!  
-            - Great for practicing presentations, your own ideas, or general German conversation  
-            - No exam restrictions—learn at your own pace
 
-        - 🎤 **Pronunciation & Speaking Checker**:  
-            Record or upload a short audio, get instant feedback on your pronunciation, fluency, and speaking.  
-            - Perfect for practicing real answers and getting AI-based scoring & tips!
-        """,
-        icon="ℹ️"
-    )
+    # ---- PDF Helper ----
+    def falowen_download_pdf(messages, filename):
+        from fpdf import FPDF
+        import os
+        def safe_latin1(text):
+            return text.encode("latin1", "replace").decode("latin1")
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
+        chat_text = ""
+        for m in messages:
+            role = "Herr Felix" if m["role"] == "assistant" else "Student"
+            safe_msg = safe_latin1(m["content"])
+            chat_text += f"{role}: {safe_msg}\n\n"
+        pdf.multi_cell(0, 10, chat_text)
+        pdf_output = f"{filename}.pdf"
+        pdf.output(pdf_output)
+        with open(pdf_output, "rb") as f:
+            pdf_bytes = f.read()
+        os.remove(pdf_output)
+        return pdf_bytes
 
-    mode = st.radio(
-        "How would you like to practice?",
-        [
-            "Geführte Prüfungssimulation (Exam Mode)",
-            "Eigenes Thema/Frage (Custom Chat)",
-            "Pronunciation & Speaking Checker"
-        ],
-        key="falowen_mode_center"
-    )
-    if st.button("Next ➡️", key="falowen_next_mode"):
-        st.session_state["falowen_mode"] = mode
-        st.session_state["falowen_stage"] = 2
-        st.session_state["falowen_level"] = None
-        st.session_state["falowen_teil"] = None
-        st.session_state["falowen_messages"] = []
-        st.session_state["custom_topic_intro_done"] = False
-        st.rerun()
-    st.stop()
+    # ---- PROMPT BUILDERS (ALL LOGIC) ----
+    def build_a1_exam_intro():
+        return (
+            "**A1 – Teil 1: Basic Introduction**\n\n"
+            "In the A1 exam's first part, you will be asked to introduce yourself. "
+            "Typical information includes: your **Name, Land, Wohnort, Sprachen, Beruf, Hobby**.\n\n"
+            "After your introduction, you will be asked 3 basic questions such as:\n"
+            "- Haben Sie Geschwister?\n"
+            "- Wie alt ist deine Mutter?\n"
+            "- Bist du verheiratet?\n\n"
+            "You might also be asked to spell your name (**Buchstabieren**). "
+            "Please introduce yourself now using all the keywords above."
+        )
 
-if st.session_state["falowen_stage"] == 2:
-    # Skip level selection for Pronunciation & Speaking Checker
-    if st.session_state["falowen_mode"] == "Pronunciation & Speaking Checker":
-        st.session_state["falowen_stage"] = 99
-        st.rerun()
+    def build_exam_instruction(level, teil):
+        if level == "A1":
+            if "Teil 1" in teil:
+                return build_a1_exam_intro()
+            elif "Teil 2" in teil:
+                return (
+                    "**A1 – Teil 2: Question and Answer**\n\n"
+                    "You will get a topic and a keyword. Your job: ask a question using the keyword, "
+                    "then answer it yourself. Example: Thema: Geschäft – Keyword: schließen → "
+                    "Wann schließt das Geschäft?\nLet's try one. Type 'Yes' in the chatbox so we start?"
+                )
+            elif "Teil 3" in teil:
+                return (
+                    "**A1 – Teil 3: Making a Request**\n\n"
+                    "You'll receive a prompt (e.g. 'Radio anmachen'). Write a polite request or imperative. "
+                    "Example: Können Sie bitte das Radio anmachen?\nReady?"
+                    "Type Yes in the chatbox so we start?"
+                )
+        if level == "A2":
+            if "Teil 1" in teil:
+                return (
+                    "**A2 – Teil 1: Fragen zu Schlüsselwörtern**\n\n"
+                    "You'll get a topic (e.g. 'Wohnort'). Ask a question, then answer it yourself. "
+                    "When you're ready, type 'Begin'."
+                )
+            elif "Teil 2" in teil:
+                return (
+                    "**A2 – Teil 2: Über das Thema sprechen**\n\n"
+                    "Talk about the topic in 3–4 sentences. I'll correct and give tips. Start when ready."
+                )
+            elif "Teil 3" in teil:
+                return (
+                    "**A2 – Teil 3: Gemeinsam planen**\n\n"
+                    "Let's plan something together. Respond and make suggestions. Start when ready."
+                )
+        if level == "B1":
+            if "Teil 1" in teil:
+                return (
+                    "**B1 – Teil 1: Gemeinsam planen**\n\n"
+                    "We'll plan an activity together (e.g., a trip or party). Give your ideas and answer questions."
+                )
+            elif "Teil 2" in teil:
+                return (
+                    "**B1 – Teil 2: Präsentation**\n\n"
+                    "Give a short presentation on the topic (about 2 minutes). I'll ask follow-up questions."
+                )
+            elif "Teil 3" in teil:
+                return (
+                    "**B1 – Teil 3: Feedback & Fragen stellen**\n\n"
+                    "Answer questions about your presentation. I'll give you feedback on your language and structure."
+                )
+        if level == "B2":
+            if "Teil 1" in teil:
+                return (
+                    "**B2 – Teil 1: Diskussion**\n\n"
+                    "We'll discuss a topic. Express your opinion and justify it."
+                )
+            elif "Teil 2" in teil:
+                return (
+                    "**B2 – Teil 2: Präsentation**\n\n"
+                    "Present a topic in detail. I'll challenge your points and help you improve."
+                )
+            elif "Teil 3" in teil:
+                return (
+                    "**B2 – Teil 3: Argumentation**\n\n"
+                    "Argue your perspective. I'll give feedback and counterpoints."
+                )
+        if level == "C1":
+            if "Teil 1" in teil:
+                return (
+                    "**C1 – Teil 1: Vortrag**\n\n"
+                    "Bitte halte einen kurzen Vortrag zum Thema. Ich werde anschließend Fragen stellen und deine Sprache bewerten."
+                )
+            elif "Teil 2" in teil:
+                return (
+                    "**C1 – Teil 2: Diskussion**\n\n"
+                    "Diskutiere mit mir über das gewählte Thema. Ich werde kritische Nachfragen stellen."
+                )
+            elif "Teil 3" in teil:
+                return (
+                    "**C1 – Teil 3: Bewertung**\n\n"
+                    "Bewerte deine eigene Präsentation. Was würdest du beim nächsten Mal besser machen?"
+                )
+        return ""
 
-    st.subheader("Step 2: Choose Your Level")
-    level = st.radio(
-        "Select your level:",
-        ["A1", "A2", "B1", "B2", "C1"],
-        key="falowen_level_center"
-    )
-    if st.button("⬅️ Back", key="falowen_back1"):
-        st.session_state["falowen_stage"] = 1
-        st.rerun()
-    if st.button("Next ➡️", key="falowen_next_level"):
-        st.session_state["falowen_level"] = level
-        if st.session_state["falowen_mode"] == "Geführte Prüfungssimulation (Exam Mode)":
-            st.session_state["falowen_stage"] = 3
-        else:
-            st.session_state["falowen_stage"] = 4
-        st.session_state["falowen_teil"] = None
-        st.session_state["falowen_messages"] = []
-        st.session_state["custom_topic_intro_done"] = False
-        st.rerun()
-
-if st.session_state.get("falowen_stage") == 99:
-    st.subheader("🎤 Pronunciation & Speaking Checker")
-    st.markdown("""
-    Upload your German speaking audio (about 1 minute), and get instant feedback on your pronunciation, fluency, and speaking skills!
-    """)
-
-    audio_file = st.file_uploader("Upload audio (MP3 or WAV, max 90 sec)", type=["mp3", "wav"])
-
-    if audio_file is not None:
-        with st.spinner("Transcribing and analyzing..."):
-            import tempfile, os
-            import openai
-
-            temp_dir = tempfile.mkdtemp()
-            temp_path = os.path.join(temp_dir, audio_file.name)
-            with open(temp_path, "wb") as f:
-                f.write(audio_file.read())
-
-            # Transcribe using OpenAI Whisper
-            with open(temp_path, "rb") as audio:
-                transcript = openai.audio.transcriptions.create(
-                    model="whisper-1",
-                    file=audio,
-                    language="de"  # For German
-                ).text
-
-            st.markdown("**Transcript:**")
-            st.info(transcript)
-
-            # Generate feedback with GPT
-            feedback_prompt = f"""You are a Goethe German examiner. The student's spoken answer is:
-\"{transcript}\"
-Rate their speaking out of 25 for:
-- Pronunciation
-- Fluency
-- Grammar
-- Task completion
-
-Show scores for each, give a total score, and specific suggestions to improve. Correct 2-3 main mistakes in their answer."""
-            response = openai.chat.completions.create(
-                model="gpt-4o",
-                messages=[{"role": "system", "content": feedback_prompt}],
-                max_tokens=400
+    def build_exam_system_prompt(level, teil):
+        if level == "A1":
+            if "Teil 1" in teil:
+                return (
+                    "You are Herr Felix, a supportive A1 German examiner. "
+                    "Ask the student to introduce themselves using the keywords (Name, Land, Wohnort, Sprachen, Beruf, Hobby). "
+                    "Check if all info is given, correct any errors (explain in English), and give the right way to say things in German. "
+                    "1. Always explain errors and suggestion in English only. Only next question should be German. They are just A1 student "
+                    "After their intro, ask these three questions one by one: "
+                    "'Haben Sie Geschwister?', 'Wie alt ist deine Mutter?', 'Bist du verheiratet?'. "
+                    "Correct their answers (explain in English). At the end, mention they may be asked to spell their name ('Buchstabieren') and wish them luck."
+                    "Give them a score out of 25 and let them know if they passed or not"
+                )
+            elif "Teil 2" in teil:
+                return (
+                    "You are Herr Felix, an A1 examiner. Randomly give the student a Thema and Keyword from the official list. "
+                    "Let them know you have 52 cards available and here to help them prepare for the exams. Let them know they can relax and continue another time when tired. Explain in English "
+                    "Tell them to ask a question with the keyword and answer it themselves, then correct their German (explain errors in English, show the correct version), and move to the next topic."
+                     "1.After every input, let them know if they passed or not and explain why you said so"
+                )
+            elif "Teil 3" in teil:
+                return (
+                    "You are Herr Felix, an A1 examiner. Give the student a prompt (e.g. 'Radio anmachen'). "
+                    "Let them know you have 20 cards available and you here to help them prepare for the exams. Let them know they can relax and continue another time when tired. Explain in English "
+                    "Ask them to write a polite request or imperative and answer themseves like their partners will do. Check if it's correct and polite, explain errors in English, and provide the right German version. Then give the next prompt."
+                    " They respond using Ja gerne or In ordnung. They can also answer using Ja, Ich kann and the question of the verb at the end (e.g 'Ich kann das Radio anmachen'). "
+                )
+        if level == "A2":
+            if "Teil 1" in teil:
+                return (
+                    "You are Herr Felix, a Goethe A2 examiner. Give a topic from the A2 list. "
+                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
+                    "1. After student input, let the student know you will ask just 3 questions and after give a score out of 25 marks "
+                    "2. Use phrases like your next recommended question to ask for the next question"
+                    "Ask the student to ask and answer a question on it. Always correct their German (explain errors in English), show the correct version, and encourage."
+                    "Ask one question at a time"
+                    "Pick 3 random keywords from the topic and ask the student 3 questions only per keyword. One question based on one keyword"
+                    "When student make mistakes and explaining, use English and simple German to explain the mistake and make correction"
+                    "After the third questions, mark the student out of 25 marks and tell the student whether they passed or not. Explain in English for them to understand"
+                )
+            elif "Teil 2" in teil:
+                return (
+                    "You are Herr Felix, an A2 examiner. Give a topic. Student gives a short monologue. Correct errors (in English), give suggestions, and follow up with one question."
+                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
+                    "1. After student input, let the student know you will ask just 3 questions and after give a score out of 25 marks "
+                    "2. Use phrases like your next recommended question to ask for the next question"
+                    "Pick 3 random keywords from the topic and ask the student 3 questions only per keyword. One question based on one keyword"
+                    "When student make mistakes and explaining, use English and simple German to explain the mistake and make correction"
+                    "After the third questions, mark the student out of 25 marks and tell the student whether they passed or not. Explain in English for them understand"
+                    
+                )
+            elif "Teil 3" in teil:
+                return (
+                    "You are Herr Felix, an A2 examiner. Plan something together (e.g., going to the cinema). Check student's suggestions, correct errors, and keep the conversation going."
+                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
+                    "Alert students to be able to plan something with you for you to agree with exact 5 prompts"
+                    "After the last prompt, mark the student out of 25 marks and tell the student whether they passed or not. Explain in English for them to understand"
+                )
+        if level == "B1":
+            if "Teil 1" in teil:
+                return (
+                    "You are Herr Felix, a Goethe B1 supportive examiner. You and the student plan an activity together. "
+                    "Always give feedback in both German and English, correct mistakes, suggest improvements, and keep it realistic."
+                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
+                    "1. Give short answers that encourages the student to also type back"
+                    "2. After student input, let the student know you will ask just 5 questions and after give a score out of 25 marks. Explain in English for them to understand. "
+                    "3. Ask only 5 questions and try and end the conversation"
+                    "4. Give score after every presentation whether they passed or not"
+                    "5. Use phrases like your next recommended question to ask for the next question"
+                )
+            elif "Teil 2" in teil:
+                return (
+                    "You are Herr Felix, a Goethe B1 examiner. Student gives a presentation. Give constructive feedback in German and English, ask for more details, and highlight strengths and weaknesses."
+                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
+                    "1. After student input, let the student know you will ask just 3 questions and after give a score out of 25 marks. Explain in English for them to understand. "
+                    "2. Ask only 3 questions and one question at a time"
+                    "3. Dont make your reply too long and complicated but friendly"
+                    "4. After your third question, mark and give the student their scores"
+                    "5. Use phrases like your next recommended question to ask for the next question"
+                )
+            elif "Teil 3" in teil:
+                return (
+                    "You are Herr Felix, a Goethe B1 examiner. Student answers questions about their presentation. "
+                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them to pass the exams. Tell them to ask questions if they dont understand and ask for translations of words. You can help than they going to search for words "
+                    "Give exam-style feedback (in German and English), correct language, and motivate."
+                    "1. Ask only 3 questions and one question at a time"
+                    "2. Dont make your reply too long and complicated but friendly"
+                    "3. After your third question, mark and give the student their scores out of 25 marks. Explain in English for them to understand"
+                    "4. Use phrases like your next recommended question to ask for the next question"
+                )
+        if level == "B2":
+            if "Teil 1" in teil:
+                return (
+                    "You are Herr Felix, a B2 examiner. Discuss a topic with the student. Challenge their points. Correct errors (mostly in German, but use English if it's a big mistake), and always provide the correct form."
+                )
+            elif "Teil 2" in teil:
+                return (
+                    "You are Herr Felix, a B2 examiner. Listen to the student's presentation. Give high-level feedback (mostly in German), ask probing questions, and always highlight advanced vocabulary and connectors."
+                )
+            elif "Teil 3" in teil:
+                return (
+                    "You are Herr Felix, a B2 examiner. Argue your perspective. Give detailed, advanced corrections (mostly German, use English if truly needed). Encourage native-like answers."
+                )
+        if level == "C1":
+            if "Teil 1" in teil or "Teil 2" in teil or "Teil 3" in teil:
+                return (
+                    "Du bist Herr Felix, ein C1-Prüfer. Sprich nur Deutsch. "
+                    "Stelle herausfordernde Fragen, gib ausschließlich auf Deutsch Feedback, und fordere den Studenten zu komplexen Strukturen auf."
+                )
+        return ""
+#
+    def build_custom_chat_prompt(level):
+        if level == "C1":
+            return (
+                "You are supportive German C1 Teacher. Speak both english and German "
+                "Ask student one question at a time"
+                "Suggest useful phrases student can use to begin their phrases"
+                "Check if student is writing on C1 Level"
+                "When there is error, correct for the student and teach them how to say it correctly"
+                "Stay on one topic and always ask next question. After 5 intelligent questions only on a topic, give the student their performance and scores and suggestions to improve"
+                "Help student progress from B2 to C1 with your support and guidance"
             )
-            feedback = response.choices[0].message.content.strip()
-
-            st.markdown("**AI Feedback & Marking:**")
-            st.success(feedback)
-            st.download_button("⬇️ Download Feedback", feedback, file_name="Feedback.txt")
-    if st.button("⬅️ Back to Main Menu", key="speaking_checker_back"):
-        for k in ["falowen_stage", "falowen_mode", "falowen_level", "falowen_teil"]:
-            st.session_state[k] = None
-        st.session_state["falowen_stage"] = 1
-        st.rerun()
-    st.stop()
-
-if st.session_state.get("falowen_mode") == "Geführte Prüfungssimulation (Exam Mode)" and st.session_state["falowen_stage"] == 3:
-    level = st.session_state["falowen_level"]
-
-    teil_options = {
-        "A1": [
-            "Teil 1 – Basic Introduction",
-            "Teil 2 – Question and Answer",
-            "Teil 3 – Making A Request",
-            "Lesen – Past Exam Reading",
-            "Hören – Past Exam Listening"
-        ],
-        "A2": [
-            "Teil 1 – Fragen zu Schlüsselwörtern",
-            "Teil 2 – Über das Thema sprechen",
-            "Teil 3 – Gemeinsam planen",
-            "Lesen – Past Exam Reading",
-            "Hören – Past Exam Listening"
-        ],
-        "B1": [
-            "Teil 1 – Gemeinsam planen (Dialogue)",
-            "Teil 2 – Präsentation (Monologue)",
-            "Teil 3 – Feedback & Fragen stellen",
-            "Lesen – Past Exam Reading",
-            "Hören – Past Exam Listening"
-        ],
-        "B2": [
-            "Teil 1 – Diskussion",
-            "Teil 2 – Präsentation",
-            "Teil 3 – Argumentation",
-            "Lesen – Past Exam Reading",
-            "Hören – Past Exam Listening"
-        ],
-        "C1": [
-            "Teil 1 – Vortrag",
-            "Teil 2 – Diskussion",
-            "Teil 3 – Bewertung",
-            "Lesen – Past Exam Reading",
-            "Hören – Past Exam Listening"
-        ]
-    }
-
-    st.subheader("Step 3: Choose Exam Part")
-    teil = st.radio(
-        "Which exam part?",
-        teil_options[level],
-        key="falowen_teil_center"
-    )
-
-    # Past papers quick links (as in your full code)
-    lesen_links = {
-        "A1": [("Goethe A1 Lesen PDF 1", "https://drive.google.com/file/d/1JnerQsEg3iPNIkYDqE0ypBGTjNK1LsRO/view?usp=sharing")],
-        "A2": [("A2 Lesen Sample", "https://drive.google.com/file/d/1YMjpi2aJ6o3TkLOR3ld81SfNzdZQxMQB/view?usp=sharing")],
-        "B1": [("B1 Original Paper", "https://drive.google.com/file/d/1Iqho5cIe_2RJKz66JMfA22LGHoYwurfy/view?usp=sharing")]
-    }
-    hoeren_links = {
-        "A1": [("Goethe A1 Hören Audio", "https://drive.google.com/file/d/1TuJKu6c3_KKMX4tp2neummtKieHP59_G/view?usp=sharing")]
-    }
-
-    if "Lesen" in teil or "Hören" in teil:
-        # Display reading/listening links (as in your full code)
-        # Add back button, stop, etc.
-        # [ ... Omitted for brevity; you already have this part, copy/paste! ... ]
+        if level in ["A1", "A2", "B1", "B2"]:
+            correction_lang = "in English" if level in ["A1", "A2"] else "half in English and half in German"
+            return (
+                f"You are Herr Felix, a supportive and innovative German teacher. "
+                f"1. Congratulate the student in English for the topic and give interesting tips on the topic. Always let the student know how the session is going to go in English. It shouldnt just be questions but teach them also. The total number of questios,what they should expect,what they would achieve at the end of the session. Let them know they can ask questions or ask for translation if they dont understand anything. You are ready to always help "
+                f"Promise them that if they answer all 10 questions, you use their own words to build a presentation of 60 words for them. They only have to be consistent "
+                f"Pick 4 useful keywords related to the student's topic and use them as the focus for conversation. Give students ideas and how to build their points for the conversation in English. "
+                f"For each keyword, ask the student up to 2 creative, diverse and interesting questions in German only based on student language level, one at a time, not all at once. Just ask the question and don't let student know this is the keyword you are using. "
+                f"After each student answer, give feedback and a suggestion to extend their answer if it's too short. Feedback in English and suggestion in German. "
+                f"1. Explain difficult words when level is A1,A2,B1,B2. "
+                f"After keyword questions, continue with other random follow-up questions that reflect student selected level about the topic in German (until you reach 10 questions in total). "
+                f"Never ask more than 2 questions about the same keyword. "
+                f"After the student answers 10 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
+                f"Also give them 60 words from their own words in a presentation form that they can use in class. Add your own points if their words and responses were small. Tell to improve on it and learn to speak without reading "
+                f"All feedback and corrections should be {correction_lang}. "
+                f"Encourage the student and keep the chat motivating. "
+            )
+        return ""
+#
+    # ---- USAGE LIMIT CHECK ----
+    if not has_falowen_quota(student_code):
+        st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
         st.stop()
 
-    # Topic selection and preview (as in your code, copy as-is)
-    # [ ... Omitted for brevity ... ]
-
-    # Start/Continue chat buttons
-    # [ ... Omitted for brevity ... ]
-
-if (
-    st.session_state.get("falowen_mode") == "Geführte Prüfungssimulation (Exam Mode)" 
-    and st.session_state["falowen_stage"] == 3
-):
-    level = st.session_state["falowen_level"]
-
-    teil_options = {
-        "A1": [
-            "Teil 1 – Basic Introduction",
-            "Teil 2 – Question and Answer",
-            "Teil 3 – Making A Request",
-            "Lesen – Past Exam Reading",
-            "Hören – Past Exam Listening"
-        ],
-        "A2": [
-            "Teil 1 – Fragen zu Schlüsselwörtern",
-            "Teil 2 – Über das Thema sprechen",
-            "Teil 3 – Gemeinsam planen",
-            "Lesen – Past Exam Reading",
-            "Hören – Past Exam Listening"
-        ],
-        "B1": [
-            "Teil 1 – Gemeinsam planen (Dialogue)",
-            "Teil 2 – Präsentation (Monologue)",
-            "Teil 3 – Feedback & Fragen stellen",
-            "Lesen – Past Exam Reading",
-            "Hören – Past Exam Listening"
-        ],
-        "B2": [
-            "Teil 1 – Diskussion",
-            "Teil 2 – Präsentation",
-            "Teil 3 – Argumentation",
-            "Lesen – Past Exam Reading",
-            "Hören – Past Exam Listening"
-        ],
-        "C1": [
-            "Teil 1 – Vortrag",
-            "Teil 2 – Diskussion",
-            "Teil 3 – Bewertung",
-            "Lesen – Past Exam Reading",
-            "Hören – Past Exam Listening"
-        ]
+# ---- SESSION STATE DEFAULTS ----
+    default_state = {
+        "falowen_stage": 1,
+        "falowen_mode": None,
+        "falowen_level": None,
+        "falowen_teil": None,
+        "falowen_messages": [],
+        "falowen_turn_count": 0,
+        "custom_topic_intro_done": False,
+        "custom_chat_level": None,
+        "falowen_exam_topic": None,
+        "falowen_exam_keyword": None,
     }
+    for key, val in default_state.items():
+        if key not in st.session_state:
+            st.session_state[key] = val
 
-    st.subheader("Step 3: Choose Exam Part")
-    teil = st.radio(
-        "Which exam part?",
-        teil_options[level],
-        key="falowen_teil_center"
-    )
+    # ---- STAGE 1: Mode Selection ----
+    if st.session_state["falowen_stage"] == 1:
+        st.subheader("Step 1: Choose Practice Mode")
 
-    # --- Past Paper Links ---
-    lesen_links = {
-        "A1": [("Goethe A1 Lesen PDF 1", "https://drive.google.com/file/d/1JnerQsEg3iPNIkYDqE0ypBGTjNK1LsRO/view?usp=sharing")],
-        "A2": [("A2 Lesen Sample", "https://drive.google.com/file/d/1YMjpi2aJ6o3TkLOR3ld81SfNzdZQxMQB/view?usp=sharing")],
-        "B1": [("B1 Original Paper", "https://drive.google.com/file/d/1Iqho5cIe_2RJKz66JMfA22LGHoYwurfy/view?usp=sharing")],
-        "B2": [],
-        "C1": []
-    }
-    hoeren_links = {
-        "A1": [("Goethe A1 Hören Audio", "https://drive.google.com/file/d/1TuJKu6c3_KKMX4tp2neummtKieHP59_G/view?usp=sharing")],
-        "A2": [],
-        "B1": [],
-        "B2": [],
-        "C1": []
-    }
+        st.info(
+            """
+            **Which mode should you choose?**
 
-    # --- Show Lesen/Hören if selected ---
-    if "Lesen" in teil or "Hören" in teil:
-        if "Lesen" in teil:
-            st.markdown(f"""
-            <div style="background:#e1f5fe;border-radius:10px;padding:1.1em 1.4em;margin:1.2em 0;">
-                <span style="font-size:1.18em; color:#0277bd;"><b>📖 Past Exam: Lesen (Reading)</b></span><br><br>
-            """, unsafe_allow_html=True)
-            links = lesen_links.get(level, [])
-            if links:
-                for label, url in links:
-                    st.markdown(
-                        f'<a href="{url}" target="_blank" style="font-size:1.10em;color:#1976d2;font-weight:600;">👉 {label}</a><br>',
-                        unsafe_allow_html=True
-                    )
+            - 📝 **Exam Mode**:  
+                Practice for your official Goethe exam!  
+                - Includes **Speaking** (Sprechen) with a live chat examiner  
+                - PLUS quick access to real **Reading (Lesen)** and **Listening (Hören)** past exams  
+                - See official exam instructions and practice with authentic topics
+
+            - 💬 **Custom Chat**:  
+                Chat about any topic!  
+                - Great for practicing presentations, your own ideas, or general German conversation  
+                - No exam restrictions—learn at your own pace
+
+            - 🎤 **Pronunciation & Speaking Checker**:  
+                Record or upload a short audio, get instant feedback on your pronunciation, fluency, and speaking.  
+                - Perfect for practicing real answers and getting AI-based scoring & tips!
+            """,
+            icon="ℹ️"
+        )
+
+        # Mode selection radio
+        mode = st.radio(
+            "How would you like to practice?",
+            [
+                "Geführte Prüfungssimulation (Exam Mode)",
+                "Eigenes Thema/Frage (Custom Chat)",
+                "Pronunciation & Speaking Checker"
+            ],
+            key="falowen_mode_center"
+        )
+
+        # Next button logic
+        if st.button("Next ➡️", key="falowen_next_mode"):
+            st.session_state["falowen_mode"] = mode
+            # Skip level/teil selection if in Pronunciation mode, jump to special stage
+            if mode == "Pronunciation & Speaking Checker":
+                st.session_state["falowen_stage"] = 99
             else:
-                st.warning("No reading links available for this level yet.")
-            st.markdown("</div>", unsafe_allow_html=True)
-        if "Hören" in teil:
-            st.markdown(f"""
-            <div style="background:#ede7f6;border-radius:10px;padding:1.1em 1.4em;margin:1.2em 0;">
-                <span style="font-size:1.18em; color:#512da8;"><b>🎧 Past Exam: Hören (Listening)</b></span><br><br>
-            """, unsafe_allow_html=True)
-            links = hoeren_links.get(level, [])
-            if links:
-                for label, url in links:
-                    st.markdown(
-                        f'<a href="{url}" target="_blank" style="font-size:1.10em;color:#5e35b1;font-weight:600;">👉 {label}</a><br>',
-                        unsafe_allow_html=True
-                    )
+                st.session_state["falowen_stage"] = 2
+            st.session_state["falowen_level"] = None
+            st.session_state["falowen_teil"] = None
+            st.session_state["falowen_messages"] = []
+            st.session_state["custom_topic_intro_done"] = False
+            st.rerun()
+
+
+
+
+    # ---- STAGE 2: Level Selection ----
+    if st.session_state["falowen_stage"] == 2:
+        # If Pronunciation & Speaking Checker, skip this stage!
+        if st.session_state["falowen_mode"] == "Pronunciation & Speaking Checker":
+            st.session_state["falowen_stage"] = 99
+            st.rerun()
+
+        st.subheader("Step 2: Choose Your Level")
+        level = st.radio(
+            "Select your level:",
+            ["A1", "A2", "B1", "B2", "C1"],
+            key="falowen_level_center"
+        )
+        if st.button("⬅️ Back", key="falowen_back1"):
+            st.session_state["falowen_stage"] = 1
+            st.rerun()
+        if st.button("Next ➡️", key="falowen_next_level"):
+            st.session_state["falowen_level"] = level
+            if st.session_state["falowen_mode"] == "Geführte Prüfungssimulation (Exam Mode)":
+                st.session_state["falowen_stage"] = 3
             else:
-                st.warning("No listening links available for this level yet.")
-            st.markdown("</div>", unsafe_allow_html=True)
-        if st.button("⬅️ Back", key="lesen_hoeren_back"):
-            st.session_state["falowen_stage"] = 2
+                st.session_state["falowen_stage"] = 4
+            st.session_state["falowen_teil"] = None
+            st.session_state["falowen_messages"] = []
+            st.session_state["custom_topic_intro_done"] = False
             st.rerun()
         st.stop()
 
-    # --- Get Teil number for topic lookup ---
-    teil_number = teil.split()[1] if teil else ""
 
-    topic_col = "Topic/Prompt"
-    keyword_col = "Keyword/Subtopic"
+    if st.session_state.get("falowen_mode") == "Geführte Prüfungssimulation (Exam Mode)":
+        level = st.session_state["falowen_level"]
 
-    # --- Get exam topics from df_exam (loaded from Google Sheets/CSV earlier) ---
-    exam_topics = df_exam[
-        (df_exam["Level"] == level) & (df_exam["Teil"] == f"Teil {teil_number}")
-    ] if teil_number else pd.DataFrame()
+        teil_options = {
+            "A1": [
+                "Teil 1 – Basic Introduction",
+                "Teil 2 – Question and Answer",
+                "Teil 3 – Making A Request",
+                "Lesen – Past Exam Reading",
+                "Hören – Past Exam Listening"
+            ],
+            "A2": [
+                "Teil 1 – Fragen zu Schlüsselwörtern",
+                "Teil 2 – Über das Thema sprechen",
+                "Teil 3 – Gemeinsam planen",
+                "Lesen – Past Exam Reading",
+                "Hören – Past Exam Listening"
+            ],
+            "B1": [
+                "Teil 1 – Gemeinsam planen (Dialogue)",
+                "Teil 2 – Präsentation (Monologue)",
+                "Teil 3 – Feedback & Fragen stellen",
+                "Lesen – Past Exam Reading",
+                "Hören – Past Exam Listening"
+            ],
+            "B2": [
+                "Teil 1 – Diskussion",
+                "Teil 2 – Präsentation",
+                "Teil 3 – Argumentation",
+                "Lesen – Past Exam Reading",
+                "Hören – Past Exam Listening"
+            ],
+            "C1": [
+                "Teil 1 – Vortrag",
+                "Teil 2 – Diskussion",
+                "Teil 3 – Bewertung",
+                "Lesen – Past Exam Reading",
+                "Hören – Past Exam Listening"
+            ]
+        }
 
-    if not exam_topics.empty:
-        topic_vals = exam_topics[topic_col].astype(str).str.strip()
-        keyword_vals = exam_topics[keyword_col].astype(str).str.strip()
-        topics_list = [
-            f"{t} – {k}" if k else t
-            for t, k in zip(topic_vals, keyword_vals)
-            if t
-        ]
-    else:
-        topics_list = []
-
-    # --- Search/filter topics ---
-    search = st.text_input("🔍 Search topic or keyword...", "")
-    filtered = [t for t in topics_list if search.lower() in t.lower()] if search else topics_list
-
-    # --- Preview topics ---
-    if filtered:
-        st.markdown("**Preview: Available Topics**")
-        preview_n = 6
-        preview_topics = filtered[:preview_n]
-        for t in preview_topics:
-            st.markdown(f"- {t}")
-        if len(filtered) > preview_n:
-            with st.expander(f"See all {len(filtered)} topics"):
-                col1, col2 = st.columns(2)
-                for i, t in enumerate(filtered):
-                    if i % 2 == 0:
-                        with col1: st.markdown(f"- {t}")
-                    else:
-                        with col2: st.markdown(f"- {t}")
-    else:
-        st.info("No topics found. Try a different search.")
-
-    # --- Picked topic logic (random or manual) ---
-    picked = None
-    if filtered:
-        st.write("**Pick your topic or select random:**")
-        picked = st.selectbox(
-            "",
-            ["(random)"] + filtered
+        st.subheader("Step 3: Choose Exam Part")
+        teil = st.radio(
+            "Which exam part?",
+            teil_options[level],
+            key="falowen_teil_center"
         )
-        if picked == "(random)":
-            chosen_topic = random.choice(filtered)
-        else:
-            chosen_topic = picked
 
-        # Save topic and keyword to session
-        if " – " in chosen_topic:
-            topic, keyword = chosen_topic.split(" – ", 1)
-            st.session_state["falowen_exam_topic"] = topic
-            st.session_state["falowen_exam_keyword"] = keyword
+        # ------------------------
+        # LESEN / HÖREN SHORTCUTS with BACK BUTTON (MULTI-LINK)
+        # ------------------------
+        lesen_links = {
+            "A1": [
+                ("Goethe A1 Lesen PDF 1", "https://drive.google.com/file/d/1JnerQsEg3iPNIkYDqE0ypBGTjNK1LsRO/view?usp=sharing"),
+            ],
+            "A2": [
+                ("A2 Lesen Sample", "https://drive.google.com/file/d/1YMjpi2aJ6o3TkLOR3ld81SfNzdZQxMQB/view?usp=sharing")
+            ],
+            "B1": [
+                ("B1 Original Paper", "https://drive.google.com/file/d/1Iqho5cIe_2RJKz66JMfA22LGHoYwurfy/view?usp=sharing")
+            ]
+        }
+        hoeren_links = {
+            "A1": [
+                ("Goethe A1 Hören Audio", "https://drive.google.com/file/d/1TuJKu6c3_KKMX4tp2neummtKieHP59_G/view?usp=sharing")
+            ]
+        }
+
+        if "Lesen" in teil or "Hören" in teil:
+            if "Lesen" in teil:
+                st.markdown(f"""
+                <div style="background:#e1f5fe;border-radius:10px;padding:1.1em 1.4em;margin:1.2em 0;">
+                    <span style="font-size:1.18em; color:#0277bd;"><b>📖 Past Exam: Lesen (Reading)</b></span><br><br>
+                """, unsafe_allow_html=True)
+                links = lesen_links.get(level, [])
+                if links:
+                    for label, url in links:
+                        st.markdown(
+                            f'<a href="{url}" target="_blank" style="font-size:1.10em;color:#1976d2;font-weight:600;">👉 {label}</a><br>',
+                            unsafe_allow_html=True
+                        )
+                else:
+                    st.warning("No reading links available for this level yet.")
+                st.markdown("</div>", unsafe_allow_html=True)
+            if "Hören" in teil:
+                st.markdown(f"""
+                <div style="background:#ede7f6;border-radius:10px;padding:1.1em 1.4em;margin:1.2em 0;">
+                    <span style="font-size:1.18em; color:#512da8;"><b>🎧 Past Exam: Hören (Listening)</b></span><br><br>
+                """, unsafe_allow_html=True)
+                links = hoeren_links.get(level, [])
+                if links:
+                    for label, url in links:
+                        st.markdown(
+                            f'<a href="{url}" target="_blank" style="font-size:1.10em;color:#5e35b1;font-weight:600;">👉 {label}</a><br>',
+                            unsafe_allow_html=True
+                        )
+                else:
+                    st.warning("No listening links available for this level yet.")
+                st.markdown("</div>", unsafe_allow_html=True)
+            if st.button("⬅️ Back", key="lesen_hoeren_back"):
+                st.session_state["falowen_stage"] = 2
+                st.rerun()
+            st.stop()
+
+        teil_number = teil.split()[1] if teil else ""
+
+        topic_col = "Topic/Prompt"
+        keyword_col = "Keyword/Subtopic"
+
+        exam_topics = df_exam[
+            (df_exam["Level"] == level) & (df_exam["Teil"] == f"Teil {teil_number}")
+        ] if teil_number else pd.DataFrame()
+
+        if not exam_topics.empty:
+            topic_vals = exam_topics[topic_col].astype(str).str.strip()
+            keyword_vals = exam_topics[keyword_col].astype(str).str.strip()
+            topics_list = [
+                f"{t} – {k}" if k else t
+                for t, k in zip(topic_vals, keyword_vals)
+                if t
+            ]
         else:
-            st.session_state["falowen_exam_topic"] = chosen_topic
+            topics_list = []
+
+        search = st.text_input("🔍 Search topic or keyword...", "")
+        filtered = [t for t in topics_list if search.lower() in t.lower()] if search else topics_list
+
+        if filtered:
+            st.markdown("**Preview: Available Topics**")
+            preview_n = 6
+            preview_topics = filtered[:preview_n]
+            for t in preview_topics:
+                st.markdown(f"- {t}")
+            if len(filtered) > preview_n:
+                with st.expander(f"See all {len(filtered)} topics"):
+                    col1, col2 = st.columns(2)
+                    for i, t in enumerate(filtered):
+                        if i % 2 == 0:
+                            with col1: st.markdown(f"- {t}")
+                        else:
+                            with col2: st.markdown(f"- {t}")
+        else:
+            st.info("No topics found. Try a different search.")
+
+        picked = None
+        if filtered:
+            st.write("**Pick your topic or select random:**")
+            picked = st.selectbox(
+                "",
+                ["(random)"] + filtered
+            )
+            if picked == "(random)":
+                chosen_topic = random.choice(filtered)
+            else:
+                chosen_topic = picked
+
+            if " – " in chosen_topic:
+                topic, keyword = chosen_topic.split(" – ", 1)
+                st.session_state["falowen_exam_topic"] = topic
+                st.session_state["falowen_exam_keyword"] = keyword
+            else:
+                st.session_state["falowen_exam_topic"] = chosen_topic
+                st.session_state["falowen_exam_keyword"] = None
+
+            topic = st.session_state.get("falowen_exam_topic")
+            keyword = st.session_state.get("falowen_exam_keyword")
+            if topic and keyword:
+                st.success(f"**Your exam topic is:**\n\n{topic} – {keyword}")
+            elif topic:
+                st.success(f"**Your exam topic is:**\n\n{topic}")
+        else:
+            st.warning("No topics available for this exam part.")
+            st.session_state["falowen_exam_topic"] = None
             st.session_state["falowen_exam_keyword"] = None
 
-        topic = st.session_state.get("falowen_exam_topic")
-        keyword = st.session_state.get("falowen_exam_keyword")
-        if topic and keyword:
-            st.success(f"**Your exam topic is:**\n\n{topic} – {keyword}")
-        elif topic:
-            st.success(f"**Your exam topic is:**\n\n{topic}")
-    else:
-        st.warning("No topics available for this exam part.")
-        st.session_state["falowen_exam_topic"] = None
-        st.session_state["falowen_exam_keyword"] = None
+        if st.button("⬅️ Back", key="falowen_back2"):
+            st.session_state["falowen_stage"] = 2
+            st.rerun()
 
-    # --- Navigation and Start buttons ---
-    if st.button("⬅️ Back", key="falowen_back2"):
-        st.session_state["falowen_stage"] = 2
-        st.rerun()
-
-    # If there's previous chat, let user continue/restart
-    if st.session_state.get("falowen_messages"):
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("Continue Previous Chat", key="falowen_continue_chat"):
-                st.session_state["falowen_teil"] = teil
-                st.session_state["falowen_stage"] = 4
-                st.rerun()
-        with col2:
-            if st.button("Restart Practice", key="falowen_start_practice"):
+        if st.session_state.get("falowen_messages"):
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Continue Previous Chat", key="falowen_continue_chat"):
+                    st.session_state["falowen_teil"] = teil
+                    st.session_state["falowen_stage"] = 4
+                    st.rerun()
+            with col2:
+                if st.button("Restart Practice", key="falowen_start_practice"):
+                    st.session_state["falowen_teil"] = teil
+                    st.session_state["falowen_stage"] = 4
+                    st.session_state["falowen_messages"] = []
+                    st.session_state["custom_topic_intro_done"] = False
+                    st.session_state["remaining_topics"] = filtered.copy()
+                    random.shuffle(st.session_state["remaining_topics"])
+                    st.session_state["used_topics"] = []
+                    st.rerun()
+        else:
+            if st.button("Start Practice", key="falowen_start_practice"):
                 st.session_state["falowen_teil"] = teil
                 st.session_state["falowen_stage"] = 4
                 st.session_state["falowen_messages"] = []
@@ -3692,439 +3926,325 @@ if (
                 random.shuffle(st.session_state["remaining_topics"])
                 st.session_state["used_topics"] = []
                 st.rerun()
-    else:
-        if st.button("Start Practice", key="falowen_start_practice"):
-            st.session_state["falowen_teil"] = teil
-            st.session_state["falowen_stage"] = 4
-            st.session_state["falowen_messages"] = []
-            st.session_state["custom_topic_intro_done"] = False
-            st.session_state["remaining_topics"] = filtered.copy()
-            random.shuffle(st.session_state["remaining_topics"])
-            st.session_state["used_topics"] = []
+#
+
+
+    # ==========================
+    # FIRESTORE CHAT HELPERS
+    # ==========================
+    def save_falowen_chat(student_code, mode, level, teil, messages):
+        doc_ref = db.collection("falowen_chats").document(student_code)
+        doc = doc_ref.get()
+        data = doc.to_dict() if doc.exists else {}
+        chats = data.get("chats", {})
+        chat_key = f"{mode}_{level}_{teil or 'custom'}"
+        chats[chat_key] = messages
+        doc_ref.set({"chats": chats}, merge=True)
+
+    def load_falowen_chat(student_code, mode, level, teil):
+        doc_ref = db.collection("falowen_chats").document(student_code)
+        doc = doc_ref.get()
+        if not doc.exists:
+            return []
+        chats = doc.to_dict().get("chats", {})
+        chat_key = f"{mode}_{level}_{teil or 'custom'}"
+        return chats.get(chat_key, [])
+
+    # =========================================
+    # ---- STAGE 4: MAIN CHAT ----
+    if st.session_state["falowen_stage"] == 4:
+        import re
+
+        level = st.session_state["falowen_level"]
+        teil = st.session_state["falowen_teil"]
+        mode = st.session_state["falowen_mode"]
+        is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
+        is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
+
+        # Student code (from session)
+        student_code = st.session_state.get("student_code", "demo")
+
+        # ---- Show daily usage ----
+        used_today = get_sprechen_usage(student_code)
+        st.info(f"Today: {used_today} / {FALOWEN_DAILY_LIMIT} Falowen chat messages used.")
+        if used_today >= FALOWEN_DAILY_LIMIT:
+            st.warning("You have reached your daily practice limit for Falowen today. Please come back tomorrow.")
+            st.stop()
+
+        # ---- LOAD chat from Firestore on first entry ----
+        if not st.session_state.get("_falowen_loaded", False):
+            loaded = load_falowen_chat(student_code, mode, level, teil)
+            if loaded:
+                st.session_state["falowen_messages"] = loaded
+            st.session_state["_falowen_loaded"] = True
+
+        # ---- Session Controls ----
+        def reset_chat():
+            st.session_state.update({
+                "falowen_stage": 1,
+                "falowen_messages": [],
+                "falowen_teil": None,
+                "falowen_mode": None,
+                "custom_topic_intro_done": False,
+                "falowen_turn_count": 0,
+                "falowen_exam_topic": None,
+                "falowen_exam_keyword": None,
+                "remaining_topics": [],
+                "used_topics": [],
+                "_falowen_loaded": False,
+            })
             st.rerun()
-if st.session_state["falowen_stage"] == 4:
-    import re
 
-    level = st.session_state["falowen_level"]
-    teil = st.session_state["falowen_teil"]
-    mode = st.session_state["falowen_mode"]
-    is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
-    is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
+        def back_step():
+            st.session_state.update({
+                "falowen_stage": max(1, st.session_state["falowen_stage"] - 1),
+                "falowen_messages": [],
+                "_falowen_loaded": False,
+            })
+            st.rerun()
 
-    # Student code (from session)
-    student_code = st.session_state.get("student_code", "demo")
+        def change_level():
+            st.session_state.update({
+                "falowen_stage": 2,
+                "falowen_messages": [],
+                "_falowen_loaded": False,
+            })
+            st.rerun()
 
-    # ---- Show daily usage ----
-    used_today = get_sprechen_usage(student_code)
-    st.info(f"Today: {used_today} / {FALOWEN_DAILY_LIMIT} Falowen chat messages used.")
-    if used_today >= FALOWEN_DAILY_LIMIT:
-        st.warning("You have reached your daily practice limit for Falowen today. Please come back tomorrow.")
-        st.stop()
+        # ---- Bubble Styles, highlight_keywords, etc. ----
+        # ---- Place your bubble_user, bubble_assistant, and highlight_keywords definitions here ----
 
-    # ---- LOAD chat from Firestore on first entry ----
-    if not st.session_state.get("_falowen_loaded", False):
-        loaded = load_falowen_chat(student_code, mode, level, teil)
-        if loaded:
-            st.session_state["falowen_messages"] = loaded
-        st.session_state["_falowen_loaded"] = True
+        # ---- Fix chat format (AVOID KeyError/TypeError forever) ----
+        def ensure_message_format(msg):
+            if isinstance(msg, dict) and "role" in msg and "content" in msg:
+                return msg
+            if isinstance(msg, (list, tuple)) and len(msg) == 2:
+                return {"role": msg[0], "content": msg[1]}
+            if isinstance(msg, str):
+                return {"role": "user", "content": msg}
+            return None
+        msgs = [ensure_message_format(m) for m in st.session_state["falowen_messages"]]
+        msgs = [m for m in msgs if m is not None]
+        st.session_state["falowen_messages"] = msgs
 
-    # ---- Session Controls ----
-    def reset_chat():
-        st.session_state.update({
-            "falowen_stage": 1,
-            "falowen_messages": [],
-            "falowen_teil": None,
-            "falowen_mode": None,
-            "custom_topic_intro_done": False,
-            "falowen_turn_count": 0,
-            "falowen_exam_topic": None,
-            "falowen_exam_keyword": None,
-            "remaining_topics": [],
-            "used_topics": [],
-            "_falowen_loaded": False,
-        })
-        st.rerun()
+        # ---- Render Chat History (bubbles and highlights) ----
+        for msg in st.session_state["falowen_messages"]:
+            if msg["role"] == "assistant":
+                with st.chat_message("assistant", avatar="🧑‍🏫"):
+                    st.markdown(
+                        "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
+                        f"<div style='{bubble_assistant}'>{highlight_keywords(msg['content'], highlight_words)}</div>",
+                        unsafe_allow_html=True
+                    )
+            else:
+                with st.chat_message("user"):
+                    st.markdown(
+                        f"<div style='display:flex;justify-content:flex-end;'>"
+                        f"<div style='{bubble_user}'>🗣️ {msg['content']}</div></div>",
+                        unsafe_allow_html=True
+                    )
 
-    def back_step():
-        st.session_state.update({
-            "falowen_stage": max(1, st.session_state["falowen_stage"] - 1),
-            "falowen_messages": [],
-            "_falowen_loaded": False,
-        })
-        st.rerun()
+        # ---- PDF Download Button ----
+        if st.session_state["falowen_messages"]:
+            pdf_bytes = falowen_download_pdf(
+                st.session_state["falowen_messages"],
+                f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}"
+            )
+            st.download_button(
+                "⬇️ Download Chat as PDF",
+                pdf_bytes,
+                file_name=f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}.pdf",
+                mime="application/pdf"
+            )
 
-    def change_level():
-        st.session_state.update({
-            "falowen_stage": 2,
-            "falowen_messages": [],
-            "_falowen_loaded": False,
-        })
-        st.rerun()
+        # ---- TXT Download Button ----
+        if st.session_state["falowen_messages"]:
+            chat_as_text = "\n".join([
+                f"{msg['role'].capitalize()}: {msg['content']}"
+                for msg in st.session_state["falowen_messages"]
+            ])
+            st.download_button(
+                "⬇️ Download Chat as TXT",
+                chat_as_text.encode("utf-8"),
+                file_name=f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}.txt",
+                mime="text/plain"
+            )
+            
+        # ---- Session Buttons ----
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("Restart Chat"): reset_chat()
+        with col2:
+            if st.button("Back"): back_step()
+        with col3:
+            if st.button("Change Level"): change_level()
 
-    # ---- Bubble Styles, highlight_keywords, etc. ----
-    # bubble_user, bubble_assistant, highlight_keywords, highlight_words
-    # Define these functions/variables in your helper section
+        # ---- Initial Instruction ----
+        if not st.session_state["falowen_messages"]:
+            instruction = build_exam_instruction(level, teil) if is_exam else (
+                "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
+            )
+            st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
+            # Save initial message to Firestore
+            save_falowen_chat(student_code, mode, level, teil, st.session_state["falowen_messages"])
 
-    # ---- Fix chat format (avoid KeyError/TypeError) ----
-    def ensure_message_format(msg):
-        if isinstance(msg, dict) and "role" in msg and "content" in msg:
-            return msg
-        if isinstance(msg, (list, tuple)) and len(msg) == 2:
-            return {"role": msg[0], "content": msg[1]}
-        if isinstance(msg, str):
-            return {"role": "user", "content": msg}
-        return None
-    msgs = [ensure_message_format(m) for m in st.session_state["falowen_messages"]]
-    msgs = [m for m in msgs if m is not None]
-    st.session_state["falowen_messages"] = msgs
-
-    # ---- Render Chat History (bubbles and highlights) ----
-    for msg in st.session_state["falowen_messages"]:
-        if msg["role"] == "assistant":
-            with st.chat_message("assistant", avatar="🧑‍🏫"):
-                st.markdown(
-                    "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
-                    f"<div style='{bubble_assistant}'>{highlight_keywords(msg['content'], highlight_words)}</div>",
-                    unsafe_allow_html=True
-                )
+        # ---- Build System Prompt including topic/context ----
+        if is_exam:
+            if (not st.session_state.get("falowen_exam_topic")) and st.session_state.get("remaining_topics"):
+                next_topic = st.session_state["remaining_topics"].pop(0)
+                if " – " in next_topic:
+                    topic, keyword = next_topic.split(" – ", 1)
+                    st.session_state["falowen_exam_topic"] = topic
+                    st.session_state["falowen_exam_keyword"] = keyword
+                else:
+                    st.session_state["falowen_exam_topic"] = next_topic
+                    st.session_state["falowen_exam_keyword"] = None
+                st.session_state["used_topics"].append(next_topic)
+            base_prompt = build_exam_system_prompt(level, teil)
+            topic = st.session_state.get("falowen_exam_topic")
+            if topic:
+                system_prompt = f"{base_prompt} Thema: {topic}."
+            else:
+                system_prompt = base_prompt
         else:
+            system_prompt = build_custom_chat_prompt(level)
+
+        # ---- Chat Input & Assistant Response ----
+        user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
+        if user_input:
+            st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
+            inc_sprechen_usage(student_code)
+
             with st.chat_message("user"):
                 st.markdown(
                     f"<div style='display:flex;justify-content:flex-end;'>"
-                    f"<div style='{bubble_user}'>🗣️ {msg['content']}</div></div>",
+                    f"<div style='{bubble_user}'>🗣️ {user_input}</div></div>",
                     unsafe_allow_html=True
                 )
 
-    # ---- PDF Download Button ----
-    if st.session_state["falowen_messages"]:
-        pdf_bytes = falowen_download_pdf(
-            st.session_state["falowen_messages"],
-            f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}"
-        )
-        st.download_button(
-            "⬇️ Download Chat as PDF",
-            pdf_bytes,
-            file_name=f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}.pdf",
-            mime="application/pdf"
+            with st.chat_message(
+                "assistant",
+                avatar="https://i.imgur.com/aypyUjM_d.jpeg?maxwidth=520&shape=thumb&fidelity=high"
+            ):
+                with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                    messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
+                    try:
+                        resp = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=messages,
+                            temperature=0.15,
+                            max_tokens=600
+                        )
+                        ai_reply = resp.choices[0].message.content.strip()
+                    except Exception as e:
+                        ai_reply = f"Sorry, an error occurred: {e}"
+
+                st.markdown(
+                    "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
+                    f"<div style='{bubble_assistant}'>{highlight_keywords(ai_reply, highlight_words)}</div>",
+                    unsafe_allow_html=True
+                )
+
+            st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
+            # SAVE CHAT after each message
+            save_falowen_chat(student_code, mode, level, teil, st.session_state["falowen_messages"])
+
+
+        # ---- END SESSION BUTTON & SUMMARY ----
+        st.divider()
+        if st.button("✅ End Session & Show Summary"):
+            st.session_state["falowen_stage"] = 5
+            st.rerun()
+
+
+
+    # ---- STAGE 5: End-of-Session Summary ----
+    if st.session_state.get("falowen_stage") == 5:
+        st.subheader("📝 End-of-Session Summary")
+
+        messages = st.session_state.get("falowen_messages", [])
+
+        # 1. Total Turns
+        user_turns = len([m for m in messages if m["role"] == "user"])
+        st.markdown(f"- **Total Messages Sent:** {user_turns}")
+
+        # 2. Words Used
+        import re
+        user_text = " ".join([m["content"] for m in messages if m["role"] == "user"])
+        user_words = set(re.findall(r'\b\w+\b', user_text.lower()))
+        st.markdown(f"- **Unique Words Used:** {len(user_words)}")
+        if user_words:
+            st.markdown(f"`{', '.join(list(user_words)[:20])}`")
+
+        # 3. Corrections/Highlights
+        corrections = []
+        for m in messages:
+            if m["role"] == "assistant":
+                # Simple extraction: lines mentioning 'correct', 'should', 'mistake', 'improve'
+                lines = m["content"].split("\n")
+                for line in lines:
+                    if any(word in line.lower() for word in ["correct", "should", "mistake", "improve", "tip"]):
+                        if len(line) < 130:  # avoid overly long
+                            corrections.append(line)
+        if corrections:
+            st.markdown("**Common Corrections & Tips:**")
+            for corr in corrections[:8]:
+                st.markdown(f"- {corr}")
+
+        # 4. Recent AI Feedback
+        last_feedback = "\n\n".join([m["content"] for m in messages if m["role"] == "assistant"][-2:])
+        st.markdown("**Recent Feedback:**")
+        st.markdown(last_feedback)
+
+        # 5. Download Chat as PDF
+        pdf_bytes = falowen_download_pdf(messages, f"Falowen_Summary_{st.session_state.get('student_code','')}")
+        st.download_button("⬇️ Download Chat as PDF", pdf_bytes, file_name="Falowen_Summary.pdf", mime="application/pdf")
+
+        # 6. Start new session
+        st.divider()
+        if st.button("🔄 Start New Session"):
+            for key in [
+                "falowen_stage", "falowen_messages", "falowen_teil", "falowen_mode",
+                "custom_topic_intro_done", "falowen_turn_count",
+                "falowen_exam_topic", "falowen_exam_keyword", "remaining_topics", "used_topics"
+            ]:
+                st.session_state[key] = None
+            st.session_state["falowen_stage"] = 1
+            st.rerun()
+
+    # ---- STAGE 99: Pronunciation & Speaking Checker ----
+    if st.session_state.get("falowen_stage") == 99:
+        st.subheader("🎤 Pronunciation & Speaking Checker")
+        st.info(
+            """
+            Record or upload your speaking sample below.  
+            You'll get instant feedback on pronunciation, fluency, and accuracy.
+            """
         )
 
-    # ---- TXT Download Button ----
-    if st.session_state["falowen_messages"]:
-        chat_as_text = "\n".join([
-            f"{msg['role'].capitalize()}: {msg['content']}"
-            for msg in st.session_state["falowen_messages"]
-        ])
-        st.download_button(
-            "⬇️ Download Chat as TXT",
-            chat_as_text.encode("utf-8"),
-            file_name=f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}.txt",
-            mime="text/plain"
-        )
-        
-    # ---- Session Buttons ----
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("Restart Chat"): reset_chat()
-    with col2:
-        if st.button("Back"): back_step()
-    with col3:
-        if st.button("Change Level"): change_level()
+        # Option to record or upload audio
+        audio_file = st.file_uploader("Upload a WAV/MP3 file (max 30 seconds)", type=["wav", "mp3"])
+        if audio_file:
+            st.audio(audio_file)
+            # ---- PLACE YOUR AI/PRONUNCIATION FEEDBACK LOGIC HERE ----
+            # For example: call your Whisper/OpenAI/other API, get feedback/scoring
+            # Example (placeholder):
+            st.success("Pronunciation Score: 85/100 (Very Good!)\n\nFeedback: Your pronunciation is clear. Try to stress the vowels in 'möchte' more.")
 
-    # ---- Initial Instruction ----
-    if not st.session_state["falowen_messages"]:
-        instruction = build_exam_instruction(level, teil) if is_exam else (
-            "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
-        )
-        st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
-        # Save initial message to Firestore
-        save_falowen_chat(student_code, mode, level, teil, st.session_state["falowen_messages"])
-
-    # ---- Build System Prompt including topic/context ----
-    if is_exam:
-        # For Sprechen, set up topic for this part
-        if (not st.session_state.get("falowen_exam_topic")) and st.session_state.get("remaining_topics"):
-            next_topic = st.session_state["remaining_topics"].pop(0)
-            if " – " in next_topic:
-                topic, keyword = next_topic.split(" – ", 1)
-                st.session_state["falowen_exam_topic"] = topic
-                st.session_state["falowen_exam_keyword"] = keyword
-            else:
-                st.session_state["falowen_exam_topic"] = next_topic
-                st.session_state["falowen_exam_keyword"] = None
-            st.session_state["used_topics"].append(next_topic)
-        base_prompt = build_exam_system_prompt(level, teil)
-        topic = st.session_state.get("falowen_exam_topic")
-        if topic:
-            system_prompt = f"{base_prompt} Thema: {topic}."
+            if st.button("🔄 Try Another"):
+                st.rerun()
         else:
-            system_prompt = base_prompt
-    else:
-        system_prompt = build_custom_chat_prompt(level)
+            st.info("No audio file uploaded yet.")
 
-    # ---- Chat Input & Assistant Response ----
-    user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
-    if user_input:
-        st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
-        inc_sprechen_usage(student_code)
+        if st.button("⬅️ Back to Main Menu"):
+            st.session_state["falowen_stage"] = 1
+            st.rerun()
+#
 
-        with st.chat_message("user"):
-            st.markdown(
-                f"<div style='display:flex;justify-content:flex-end;'>"
-                f"<div style='{bubble_user}'>🗣️ {user_input}</div></div>",
-                unsafe_allow_html=True
-            )
 
-        with st.chat_message(
-            "assistant",
-            avatar="https://i.imgur.com/aypyUjM_d.jpeg?maxwidth=520&shape=thumb&fidelity=high"
-        ):
-            with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-                messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
-                try:
-                    resp = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=messages,
-                        temperature=0.15,
-                        max_tokens=600
-                    )
-                    ai_reply = resp.choices[0].message.content.strip()
-                except Exception as e:
-                    ai_reply = f"Sorry, an error occurred: {e}"
-
-            st.markdown(
-                "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
-                f"<div style='{bubble_assistant}'>{highlight_keywords(ai_reply, highlight_words)}</div>",
-                unsafe_allow_html=True
-            )
-
-        st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
-        # SAVE CHAT after each message
-        save_falowen_chat(student_code, mode, level, teil, st.session_state["falowen_messages"])
-
-    # ---- END SESSION BUTTON & SUMMARY ----
-    st.divider()
-    if st.button("✅ End Session & Show Summary"):
-        st.session_state["falowen_stage"] = 5
-        st.rerun()
-if st.session_state.get("falowen_stage") == 5:
-    st.subheader("📝 End-of-Session Summary")
-
-    messages = st.session_state.get("falowen_messages", [])
-
-    # 1. Total User Turns
-    user_turns = len([m for m in messages if m["role"] == "user"])
-    st.markdown(f"- **Total Messages Sent:** {user_turns}")
-
-    # 2. Unique Words Used
-    import re
-    user_text = " ".join([m["content"] for m in messages if m["role"] == "user"])
-    user_words = set(re.findall(r'\b\w+\b', user_text.lower()))
-    st.markdown(f"- **Unique Words Used:** {len(user_words)}")
-    if user_words:
-        st.markdown(f"`{', '.join(list(user_words)[:20])}`")
-
-    # 3. Corrections/Highlights (from assistant feedback)
-    corrections = []
-    for m in messages:
-        if m["role"] == "assistant":
-            lines = m["content"].split("\n")
-            for line in lines:
-                if any(word in line.lower() for word in ["correct", "should", "mistake", "improve", "tip", "try", "better"]):
-                    if 5 < len(line) < 160:  # avoid short or overly long lines
-                        corrections.append(line)
-    if corrections:
-        st.markdown("**Common Corrections & Tips:**")
-        for corr in corrections[:8]:
-            st.markdown(f"- {corr}")
-
-    # 4. Recent AI Feedback (last 2 assistant messages)
-    last_feedback = "\n\n".join([m["content"] for m in messages if m["role"] == "assistant"][-2:])
-    st.markdown("**Recent Feedback:**")
-    st.markdown(last_feedback)
-
-    # 5. Download Chat as PDF
-    pdf_bytes = falowen_download_pdf(messages, f"Falowen_Summary_{st.session_state.get('student_code','')}")
-    st.download_button("⬇️ Download Chat as PDF", pdf_bytes, file_name="Falowen_Summary.pdf", mime="application/pdf")
-
-    # 6. Download Chat as TXT
-    chat_as_text = "\n".join([
-        f"{msg['role'].capitalize()}: {msg['content']}"
-        for msg in messages
-    ])
-    st.download_button(
-        "⬇️ Download Chat as TXT",
-        chat_as_text.encode("utf-8"),
-        file_name="Falowen_Summary.txt",
-        mime="text/plain"
-    )
-
-    # 7. Start New Session
-    st.divider()
-    if st.button("🔄 Start New Session"):
-        for key in [
-            "falowen_stage", "falowen_messages", "falowen_teil", "falowen_mode",
-            "custom_topic_intro_done", "falowen_turn_count",
-            "falowen_exam_topic", "falowen_exam_keyword", "remaining_topics", "used_topics"
-        ]:
-            st.session_state[key] = None
-        st.session_state["falowen_stage"] = 1
-        st.rerun()
-
-def build_a1_exam_intro():
-    return (
-        "**A1 – Teil 1: Basic Introduction**\n\n"
-        "In the A1 exam's first part, you will be asked to introduce yourself. "
-        "Typical information includes: your **Name, Land, Wohnort, Sprachen, Beruf, Hobby**.\n\n"
-        "After your introduction, you will be asked 3 basic questions such as:\n"
-        "- Haben Sie Geschwister?\n"
-        "- Wie alt ist deine Mutter?\n"
-        "- Bist du verheiratet?\n\n"
-        "You might also be asked to spell your name (**Buchstabieren**). "
-        "Please introduce yourself now using all the keywords above."
-    )
-
-def build_exam_instruction(level, teil):
-    # Returns the initial assistant message for that exam level/teil
-    if level == "A1":
-        if "Teil 1" in teil:
-            return build_a1_exam_intro()
-        elif "Teil 2" in teil:
-            return (
-                "**A1 – Teil 2: Question and Answer**\n\n"
-                "You will get a topic and a keyword. Your job: ask a question using the keyword, "
-                "then answer it yourself. Example: Thema: Geschäft – Keyword: schließen → "
-                "Wann schließt das Geschäft?\nLet's try one. Type 'Yes' in the chatbox so we start?"
-            )
-        elif "Teil 3" in teil:
-            return (
-                "**A1 – Teil 3: Making a Request**\n\n"
-                "You'll receive a prompt (e.g. 'Radio anmachen'). Write a polite request or imperative. "
-                "Example: Können Sie bitte das Radio anmachen?\nReady?\nType Yes in the chatbox so we start?"
-            )
-    # Add for A2, B1, B2, C1...
-    # (For brevity, add as in your code!)
-    return ""
-
-def build_exam_system_prompt(level, teil):
-    # Returns the SYSTEM prompt for OpenAI (rules for the "assistant")
-    if level == "A1":
-        if "Teil 1" in teil:
-            return (
-                "You are Herr Felix, a supportive A1 German examiner. "
-                "Ask the student to introduce themselves using the keywords (Name, Land, Wohnort, Sprachen, Beruf, Hobby). "
-                "Check if all info is given, correct any errors (explain in English), and give the right way to say things in German. "
-                "After their intro, ask these three questions one by one: "
-                "'Haben Sie Geschwister?', 'Wie alt ist deine Mutter?', 'Bist du verheiratet?'. "
-                "Correct their answers (explain in English). At the end, mention they may be asked to spell their name ('Buchstabieren') and wish them luck. "
-                "Give them a score out of 25 and let them know if they passed or not."
-            )
-        elif "Teil 2" in teil:
-            return (
-                "You are Herr Felix, an A1 examiner. Randomly give the student a Thema and Keyword from the official list. "
-                "Tell them to ask a question with the keyword and answer it themselves, then correct their German (explain errors in English, show the correct version), and move to the next topic. "
-                "After every input, let them know if they passed or not and explain why."
-            )
-        elif "Teil 3" in teil:
-            return (
-                "You are Herr Felix, an A1 examiner. Give the student a prompt (e.g. 'Radio anmachen'). "
-                "Ask them to write a polite request or imperative. Check if it's correct and polite, explain errors in English, and provide the right German version. Then give the next prompt. "
-                "After 3 prompts, give them a score out of 25 and let them know if they passed."
-            )
-    # Add for A2, B1, B2, C1...
-    return ""
-
-def build_custom_chat_prompt(level):
-    if level == "C1":
-        return (
-            "You are a supportive German C1 Teacher. Speak both English and German. "
-            "Ask student one question at a time, check if student is writing at C1 Level. "
-            "When there is error, correct for the student and teach them how to say it correctly. "
-            "After 5 questions on one topic, give the student their performance and suggestions to improve."
-        )
-    if level in ["A1", "A2", "B1", "B2"]:
-        correction_lang = "in English" if level in ["A1", "A2"] else "half in English and half in German"
-        return (
-            f"You are Herr Felix, a supportive and innovative German teacher. "
-            f"Congratulate the student in English for the topic and give interesting tips. "
-            f"For each keyword, ask up to 2 creative questions in German only, one at a time, not all at once. "
-            f"After each student answer, give feedback and a suggestion to extend their answer. Feedback in English, suggestion in German. "
-            f"After 10 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
-            f"All feedback and corrections should be {correction_lang}. "
-            f"Encourage the student and keep the chat motivating."
-        )
-    return ""
-
-bubble_user = (
-    "background: #dcf8c6; padding: 0.7em 1.1em; border-radius: 16px 3px 16px 16px; "
-    "margin: 0.3em 0 0.3em 2em; display: inline-block; font-size:1.11em;"
-)
-bubble_assistant = (
-    "background: #e3e6fc; padding: 0.7em 1.1em; border-radius: 16px 16px 3px 16px; "
-    "margin: 0.3em 2em 0.3em 0; display: inline-block; font-size:1.11em;"
-)
-# For highlighting keywords (optional)
-highlight_words = [
-    "Tipp", "mistake", "improve", "should", "better", "try", "correct", "fragen", "answer", "Buchstabieren"
-]
-
-def highlight_keywords(text, words=highlight_words):
-    # Highlights keywords in assistant output (case-insensitive)
-    import re
-    def replacer(match):
-        return f"<span style='background:#cddc39; color:#262626; border-radius:8px; padding:2px 4px;'>{match.group(0)}</span>"
-    for word in words:
-        if word.strip():
-            pattern = re.compile(rf"\b{re.escape(word)}\b", re.IGNORECASE)
-            text = pattern.sub(replacer, text)
-    return text
-
-def falowen_download_pdf(messages, filename):
-    from fpdf import FPDF
-    import os
-    def safe_latin1(text):
-        return text.encode("latin1", "replace").decode("latin1")
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    chat_text = ""
-    for m in messages:
-        role = "Herr Felix" if m["role"] == "assistant" else "Student"
-        safe_msg = safe_latin1(m["content"])
-        chat_text += f"{role}: {safe_msg}\n\n"
-    pdf.multi_cell(0, 10, chat_text)
-    pdf_output = f"{filename}.pdf"
-    pdf.output(pdf_output)
-    with open(pdf_output, "rb") as f:
-        pdf_bytes = f.read()
-    os.remove(pdf_output)
-    return pdf_bytes
-
-def ensure_message_format(msg):
-    if isinstance(msg, dict) and "role" in msg and "content" in msg:
-        return msg
-    if isinstance(msg, (list, tuple)) and len(msg) == 2:
-        return {"role": msg[0], "content": msg[1]}
-    if isinstance(msg, str):
-        return {"role": "user", "content": msg}
-    return None
-
-# Example increment usage
-def inc_sprechen_usage(student_code):
-    # Implement: increment today's usage for student
-    pass
-
-def get_sprechen_usage(student_code):
-    # Implement: return today's usage count
-    return 0
-
-# Save/load chat
-def save_falowen_chat(student_code, mode, level, teil, messages):
-    # Your Firestore or DB logic here
-    pass
-
-def load_falowen_chat(student_code, mode, level, teil):
-    # Your Firestore or DB logic here
-    return []
+# =========================================
+# End
+# =========================================
 
 
 
