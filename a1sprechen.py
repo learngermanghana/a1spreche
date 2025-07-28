@@ -4130,193 +4130,109 @@ if tab == "Exams Mode & Custom Chat":
             st.rerun()
 
 
-
-
-     # ---- STAGE 5: End-of-Session Summary ----
-    if st.session_state.get("falowen_stage") == 5:
-        st.subheader("📝 End-of-Session Summary")
-
-        messages = st.session_state.get("falowen_messages", [])
-
-        # 1. Total Turns
-        user_turns = len([m for m in messages if m["role"] == "user"])
-        st.markdown(f"- **Total Messages Sent:** {user_turns}")
-
-        # 2. Words Used
-        import re
-        user_text = " ".join(m["content"] for m in messages if m["role"] == "user")
-        user_words = set(re.findall(r'\b\w+\b', user_text.lower()))
-        st.markdown(f"- **Unique Words Used:** {len(user_words)}")
-        if user_words:
-            st.markdown(f"`{', '.join(list(user_words)[:20])}`")
-
-        # 3. Corrections/Highlights
-        corrections = []
-        for m in messages:
-            if m["role"] == "assistant":
-                for line in m["content"].split("\n"):
-                    if any(w in line.lower() for w in ["correct", "should", "mistake", "improve", "tip"]) \
-                       and len(line) < 130:
-                        corrections.append(line)
-        if corrections:
-            st.markdown("**Common Corrections & Tips:**")
-            for corr in corrections[:8]:
-                st.markdown(f"- {corr}")
-
-        # 4. Recent AI Feedback
-        last_feedback = "\n\n".join(
-            m["content"] for m in messages if m["role"] == "assistant"
-        )[-2:]
-        st.markdown("**Recent Feedback:**")
-        st.markdown(last_feedback)
-
-        # 5. Download Chat as PDF
-        pdf_bytes = falowen_download_pdf(messages,
-                                         f"Falowen_Summary_{st.session_state.get('student_code','')}")
-        st.download_button("⬇️ Download Chat as PDF",
-                           pdf_bytes,
-                           file_name="Falowen_Summary.pdf",
-                           mime="application/pdf")
-
-        # 6. Session Buttons
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("⬅️ Back to Chat"):
-                # return to Stage 4
-                st.session_state["falowen_stage"] = 4
-                st.session_state["_falowen_loaded"] = False
-                st.session_state["falowen_messages"] = []
-                st.rerun()
-        with col2:
-            if st.button("🔄 Start New Session"):
-                # reset everything
-                for k in [
-                    "falowen_stage", "falowen_messages", "falowen_teil", "falowen_mode",
-                    "custom_topic_intro_done", "falowen_turn_count",
-                    "falowen_exam_topic", "falowen_exam_keyword", "remaining_topics", "used_topics",
-                    "_falowen_loaded"
-                ]:
-                    st.session_state[k] = None
-                st.session_state["falowen_stage"] = 1
-                st.rerun()
-
     # ---- STAGE 99: Pronunciation & Speaking Checker ----
     if st.session_state.get("falowen_stage") == 99:
         from datetime import datetime
-        import io
         import openai
-        from google.cloud import firestore
+        from firebase_admin import firestore as fa_firestore
 
         # --- Config ---
         MAX_SECONDS = 60
         DAILY_LIMIT = 3
 
-        # --- Firestore Setup ---
-        db = firestore.Client()
-        student_code = get_student_code()  # Replace with your own session/user code logic
+        # --- Use your already-initialized Firebase Admin client ---
+        db = fa_firestore.client()
+        student_code = st.session_state["student_code"]
 
-        # --- Helper: Get/Set daily upload count (persistent Firestore) ---
-        def get_pronunciation_uploads_today(student_code):
-            doc_ref = db.collection("pronunciation_uploads").document(student_code)
-            doc = doc_ref.get()
+        # --- Helpers for daily upload count (Firestore) ---
+        def get_pronunciation_uploads_today(code):
+            doc = db.collection("pronunciation_uploads").document(code).get()
             today = datetime.utcnow().strftime("%Y-%m-%d")
             uploads = doc.to_dict().get("uploads", {}) if doc.exists else {}
             return uploads.get(today, 0)
 
-        def increment_pronunciation_uploads(student_code):
-            doc_ref = db.collection("pronunciation_uploads").document(student_code)
-            today = datetime.utcnow().strftime("%Y-%m-%d")
+        def increment_pronunciation_uploads(code):
+            doc_ref = db.collection("pronunciation_uploads").document(code)
             doc = doc_ref.get()
+            today = datetime.utcnow().strftime("%Y-%m-%d")
             uploads = doc.to_dict().get("uploads", {}) if doc.exists else {}
             uploads[today] = uploads.get(today, 0) + 1
             doc_ref.set({"uploads": uploads}, merge=True)
 
-        # ---- Show Info/Instructions ----
+        # ---- Info & Instructions ----
         st.subheader("🎤 Pronunciation & Speaking Checker")
         st.info(
             """
             **How to use:**
-            1. Record your answer using your phone or visit [vocaroo.com](https://www.vocaroo.com), download the audio, and upload below.
-            2. You may upload up to **60 seconds**. Only 3 uploads allowed per day.
-            3. The AI will transcribe what you said and give feedback **on your pronunciation, grammar, and fluency**.
-            4. For best results: Before you record, practice your topic in Custom Chat first!
+            1. Record using your phone or visit [vocaroo.com](https://www.vocaroo.com), then download & upload.
+            2. **Max 60 sec, up to 3 uploads per day.**
+            3. AI will show you **what it understood** (the transcription) and give feedback on pronunciation, grammar, fluency.
+            4. **Tip:** Practice your topic in Custom Chat before recording for best results!
             """
         )
 
-        # --- Enforce daily upload limit ---
-        uploads_today = get_pronunciation_uploads_today(student_code)
-        st.info(f"Daily upload limit: {uploads_today}/{DAILY_LIMIT}")
-        if uploads_today >= DAILY_LIMIT:
-            st.warning("You have reached your daily upload limit for today. Please come back tomorrow!")
+        # ---- Enforce daily limit ----
+        used = get_pronunciation_uploads_today(student_code)
+        st.info(f"Uploads today: {used}/{DAILY_LIMIT}")
+        if used >= DAILY_LIMIT:
+            st.warning("You've reached your 3‑upload daily limit. Come back tomorrow!")
             st.stop()
 
-        # --- Audio File Upload ---
+        # ---- File uploader ----
         audio_file = st.file_uploader(
-            "Upload a WAV or MP3 file (max 60 seconds, 2 MB)", type=["wav", "mp3"]
+            "Upload a WAV/MP3 (≤ 60 sec, ≤ 2 MB)", type=["wav", "mp3"]
         )
 
-        if audio_file is not None:
-            # --- Try to process audio with OpenAI Whisper API ---
+        if audio_file:
             try:
-                # Reset pointer and call OpenAI Whisper
+                # Transcribe with Whisper
                 audio_file.seek(0)
-                transcript_resp = openai.audio.transcriptions.create(
+                transcript = openai.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file,
                     language="de",
                     response_format="text",
-                    api_key=openai_api_key  # Use your secure key variable!
-                )
-                transcript = transcript_resp.strip()
+                    api_key=openai_api_key
+                ).strip()
 
-                # Save/upload counter
+                # Count upload
                 increment_pronunciation_uploads(student_code)
 
-                # --- Show what the AI understood ---
-                st.success("**Here is what the AI understood from your recording:**")
+                # Show transcription
+                st.success("**AI Transcript:**")
                 st.markdown(f"> {transcript}")
 
-                # --- AI Feedback (simulated below, replace with OpenAI or your feedback model) ---
-                # Call ChatGPT to analyze
+                # Get AI feedback via GPT
                 feedback_prompt = f"""
-                The following is a German student's speaking test response.
-                1. Transcription: {transcript}
-                Please give feedback in these areas (use a score out of 100 for each):
-                - Pronunciation (comment and score)
-                - Grammar (comment and score)
-                - Fluency (comment and score)
-                End with friendly encouragement and concrete improvement tips in English.
+                The student said (in German): "{transcript}"
+                Please evaluate and score out of 100 each:
+                - Pronunciation
+                - Grammar
+                - Fluency
+                Then give clear improvement tips in English.
                 """
-                chat_feedback = openai.chat.completions.create(
+                ai_feedback = openai.chat.completions.create(
                     model="gpt-4o",
-                    messages=[{"role": "system", "content": feedback_prompt}],
-                    temperature=0.25,
+                    messages=[{"role":"system","content":feedback_prompt}],
+                    temperature=0.3,
                     max_tokens=300,
-                    api_key=openai_api_key  # Use your key variable
-                )
-                ai_feedback = chat_feedback.choices[0].message.content.strip()
+                    api_key=openai_api_key
+                ).choices[0].message.content.strip()
 
-                # Show AI Feedback
-                st.markdown("### AI Evaluation and Feedback")
+                st.markdown("### AI Feedback & Scores")
                 st.info(ai_feedback)
 
             except Exception as e:
                 st.error(f"Sorry, could not process audio: {e}")
 
         st.divider()
-        st.markdown(
-            "If you want to try again, click below. Remember: **Practice in 'Custom Chat' before you record for better results!**"
-        )
         if st.button("🔄 Try Another"):
             st.rerun()
         if st.button("⬅️ Back to Main Menu"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
+#
 
-
-# =========================================
-# End
-# =========================================
 
 
 
