@@ -3708,7 +3708,7 @@ if st.session_state["falowen_stage"] == 1:
             st.session_state["falowen_messages"] = []
             st.session_state["custom_topic_intro_done"] = False
             st.rerun()
-        st.stop()
+    
 
     # ---- PRONUNCIATION & SPEAKING CHECKER TAB (audio upload UI) ----
     if st.session_state.get("falowen_stage") == 99:
