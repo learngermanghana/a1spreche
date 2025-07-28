@@ -4128,9 +4128,24 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("✅ End Session & Show Summary"):
             st.session_state["falowen_stage"] = 5
             st.rerun()
-
     # ---- STAGE 99: Pronunciation & Speaking Checker ----
     if st.session_state.get("falowen_stage") == 99:
+        import datetime
+
+        # ====== DAILY LIMIT ENFORCEMENT BLOCK (AT THE TOP) ======
+        today_str = datetime.date.today().isoformat()
+        uploads_ref = db.collection("pron_uses").document(st.session_state["student_code"])
+        doc = uploads_ref.get()
+        data = doc.to_dict() if doc.exists else {}
+        last_date = data.get("date")
+        count = data.get("count", 0)
+        if last_date != today_str:
+            count = 0
+        if count >= 3:
+            st.warning("You’ve hit your daily upload limit (3). Try again tomorrow.")
+            st.stop()
+        # =======================================================
+
         st.subheader("🎤 Pronunciation & Speaking Checker")
         st.info(
             """
@@ -4181,13 +4196,8 @@ if tab == "Exams Mode & Custom Chat":
                 )
             st.markdown(eval_resp.choices[0].message.content)
 
-            # Reminder & daily limit (3 uploads)
-            uploads = db.collection("pron_uses").document(st.session_state["student_code"])
-            doc = uploads.get().to_dict() or {"count": 0}
-            if doc["count"] >= 3:
-                st.warning("You’ve hit your daily upload limit (3). Try again tomorrow.")
-            else:
-                uploads.set({"count": doc["count"] + 1})
+            # After successful upload/evaluation, increment usage count
+            uploads_ref.set({"count": count + 1, "date": today_str})
 
             st.info("💡 Tip: To get ideas and practice your topic before recording, use Custom Chat first.")
             if st.button("🔄 Try Another"):
@@ -4199,6 +4209,7 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("⬅️ Back to Main Menu"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
+#Theend
 
 
 
