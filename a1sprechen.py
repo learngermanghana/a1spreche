@@ -788,7 +788,7 @@ if not st.session_state["logged_in"]:
     # (You can move/remove if you want only password login!)
     GOOGLE_CLIENT_ID     = "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com"
     GOOGLE_CLIENT_SECRET = "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"
-    REDIRECT_URI         = "https://a1spreche-h5tsdmmedy3uqcm9ahxfud.streamlit.app/"  # Your deployed Streamlit URL
+    REDIRECT_URI         = "https://falowen.streamlit.app/"  # Your deployed Streamlit URL
 
     def get_query_params():
         return st.query_params
@@ -1053,6 +1053,7 @@ if st.session_state.get("logged_in"):
 
     st.divider()
 
+
     # ---------- Tab Tips Section (only on Dashboard) ----------
     DASHBOARD_REMINDERS = [
         "🤔 **Have you tried the Course Book?** Explore every lesson, see your learning progress, and never miss a topic.",
@@ -1081,99 +1082,253 @@ if st.session_state.get("logged_in"):
         key="main_tab_select"
     )
 
-    # ==== SHOW THE BELOW ONLY ON "Dashboard" TAB ====
-    if tab == "Dashboard":
-        # --- Student Information & Balance ---
-        st.markdown(f"### 👤 {student_row.get('Name','')}")
-        st.markdown(
-            f"- **Level:** {student_row.get('Level','')}\n"
-            f"- **Code:** `{student_row.get('StudentCode','')}`\n"
-            f"- **Email:** {student_row.get('Email','')}\n"
-            f"- **Phone:** {student_row.get('Phone','')}\n"
-            f"- **Location:** {student_row.get('Location','')}\n"
-            f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}\n"
-            f"- **Enroll Date:** {student_row.get('EnrollDate','')}\n"
-            f"- **Status:** {student_row.get('Status','')}"
-        )
+if tab == "Dashboard":
+    # --- Helper to avoid AttributeError on any row type ---
+    def safe_get(row, key, default=""):
+        # mapping-style
         try:
-            bal = float(student_row.get("Balance", 0))
-            if bal > 0:
-                st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
-        except:
+            return row.get(key, default)
+        except Exception:
             pass
+        # attribute-style
+        try:
+            return getattr(row, key, default)
+        except Exception:
+            pass
+        # index/key access
+        try:
+            return row[key]
+        except Exception:
+            return default
 
-        # --- Goethe Exam Countdown & Video of the Day (per level) ---
-        GOETHE_EXAM_DATES = {
-            "A1": (date(2025, 10, 13), 2850, None),
-            "A2": (date(2025, 10, 14), 2400, None),
-            "B1": (date(2025, 10, 15), 2750, 880),
-            "B2": (date(2025, 10, 16), 2500, 840),
-            "C1": (date(2025, 10, 17), 2450, 700),
-        }
-        level = (student_row.get("Level", "") or "").upper().replace(" ", "")
-        exam_info = GOETHE_EXAM_DATES.get(level)
+    # --- Ensure student_row is something we can call safe_get() on ---
+    if not student_row:
+        st.info("🚩 No student selected.")
+        st.stop()
+    # (no need to convert to dict—safe_get covers all cases)
 
-        st.subheader("⏳ Goethe Exam Countdown & Video of the Day")
-        if exam_info:
-            exam_date, fee, module_fee = exam_info
-            days_to_exam = (exam_date - date.today()).days
-            fee_text = f"**Fee:** ₵{fee:,}"
-            if module_fee:
-                fee_text += f" &nbsp; | &nbsp; **Per Module:** ₵{module_fee:,}"
-            if days_to_exam > 0:
-                st.info(
-                    f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).  \n"
-                    f"{fee_text}  \n"
-                    "[Register online here](https://www.goethe.de/ins/gh/en/spr/prf.html)"
-                )
-            elif days_to_exam == 0:
-                st.success("🚀 Exam is today! Good luck!")
-            else:
-                st.error(
-                    f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.  \n"
-                    f"{fee_text}"
-                )
+    # --- Student Info & Balance ---
+    name = safe_get(student_row, "Name")
+    st.markdown(f"### 👤 {name}")
+    st.markdown(
+        f"- **Level:** {safe_get(student_row, 'Level')}\n"
+        f"- **Code:** `{safe_get(student_row, 'StudentCode')}`\n"
+        f"- **Email:** {safe_get(student_row, 'Email')}\n"
+        f"- **Phone:** {safe_get(student_row, 'Phone')}\n"
+        f"- **Location:** {safe_get(student_row, 'Location')}\n"
+        f"- **Contract:** {safe_get(student_row, 'ContractStart')} ➔ {safe_get(student_row, 'ContractEnd')}\n"
+        f"- **Enroll Date:** {safe_get(student_row, 'EnrollDate')}\n"
+        f"- **Status:** {safe_get(student_row, 'Status')}"
+    )
+    try:
+        bal = float(safe_get(student_row, "Balance", 0))
+        if bal > 0:
+            st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
+    except Exception:
+        pass
 
-            # ---- Per-level YouTube Playlist ----
-            playlist_id = YOUTUBE_PLAYLIST_IDS.get(level)
-            if playlist_id:
-                video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
-                if video_list:
-                    today_idx = date.today().toordinal()
-                    pick = today_idx % len(video_list)
-                    video = video_list[pick]
-                    st.markdown(f"**🎬 Video of the Day for {level}: {video['title']}**")
-                    st.video(video['url'])
-                else:
-                    st.info("No videos found for your level’s playlist. Check back soon!")
-            else:
-                st.info("No playlist found for your level yet. Stay tuned!")
+    # ==== CLASS SCHEDULES DICTIONARY ====
+    GROUP_SCHEDULES = {
+        "A1 Munich Klasse": {
+            "days": ["Monday", "Tuesday", "Wednesday"],
+            "time": "6:00pm–7:00pm",
+            "start_date": "2025-07-08",
+            "end_date": "2025-09-02",
+            "doc_url": "https://drive.google.com/file/d/1en_YG8up4C4r36v4r7E714ARcZyvNFD6/view?usp=sharing"
+        },
+        "A1 Berlin Klasse": {
+            "days": ["Thursday", "Friday", "Saturday"],
+            "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 9:00am–10:00am",
+            "start_date": "2025-06-14",
+            "end_date": "2025-08-09",
+            "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
+        },
+        "A1 Koln Klasse": {
+            "days": ["Monday", "Tuesday", "Wednesday"],
+            "time": "6:00pm–7:00pm",
+            "start_date": "",
+            "end_date": "",
+            "doc_url": ""
+        },
+        "A2 Munich Klasse": {
+            "days": ["Monday", "Tuesday", "Wednesday"],
+            "time": "7:30pm–9:00pm",
+            "start_date": "2025-06-24",
+            "end_date": "2025-08-26",
+            "doc_url": "https://drive.google.com/file/d/1Zr3iN6hkAnuoEBvRELuSDlT7kHY8s2LP/view?usp=sharing"
+        },
+        "A2 Berlin Klasse": {
+            "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+            "time": "Mon–Wed: 11:00am–12:00pm, Thu/Fri: 11:00am–12:00pm, Wed: 2:00pm–3:00pm",
+            "start_date": "",
+            "end_date": "",
+            "doc_url": ""
+        },
+        "A2 Koln Klasse": {
+            "days": ["Wednesday", "Thursday", "Friday"],
+            "time": "Wed: 2:00pm–3:00pm, Thu/Fri: 11:00am–12:00pm",
+            "start_date": "2025-08-06",
+            "end_date": "2025-10-08",
+            "doc_url": ""
+        },
+        "B1 Munich Klasse": {
+            "days": ["Thursday", "Friday"],
+            "time": "7:30pm–9:00pm",
+            "start_date": "2025-07-31",
+            "end_date": "2025-10-31",
+            "doc_url": "https://drive.google.com/file/d/1ZRWUKfW3j_fEs24X1gSBtfdXsDMurT9n/view?usp=sharing"
+        },
+    }
+
+    # ==== SHOW UPCOMING CLASSES CARD ====
+    from datetime import datetime, timedelta, date
+
+    # use safe_get instead of direct .get()
+    class_name = str(safe_get(student_row, "ClassName", "")).strip()
+    class_schedule = GROUP_SCHEDULES.get(class_name)
+    week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+    if not class_name or not class_schedule:
+        st.info("🚩 Your class is not set yet. Please contact your teacher or the office.")
+    else:
+        days      = class_schedule.get("days", [])
+        time_str  = class_schedule.get("time", "")
+        start_dt  = class_schedule.get("start_date", "")
+        end_dt    = class_schedule.get("end_date", "")
+        doc_url   = class_schedule.get("doc_url", "")
+
+        # map day names → indices
+        day_indices = [week_days.index(d) for d in days if d in week_days] if isinstance(days, list) else []
+
+        # check if class ended
+        class_over = False
+        end_date_obj = None
+        if end_dt:
+            try:
+                end_date_obj = datetime.strptime(end_dt, "%Y-%m-%d").date()
+                class_over = datetime.today().date() > end_date_obj
+            except Exception:
+                pass
+
+        if class_over:
+            st.error(
+                f"❌ Your class ({class_name}) ended on "
+                f"{end_date_obj.strftime('%d %b %Y') if end_date_obj else end_dt}. "
+                "Please contact the office for next steps."
+            )
         else:
-            st.warning("No exam date configured for your level.")
+            # build next up to 3 sessions
+            next_classes = []
+            if day_indices:
+                today_idx = datetime.today().weekday()
+                for offset in range(7):
+                    idx = (today_idx + offset) % 7
+                    if idx in day_indices:
+                        next_classes.append((
+                            week_days[idx],
+                            (datetime.today() + timedelta(days=offset)).strftime("%d %b")
+                        ))
+                        if len(next_classes) == 3:
+                            break
 
-        # --- Reviews Section ---
-        st.markdown("### 🗣️ What Our Students Say")
-        reviews = load_reviews()
-        if reviews.empty:
-            st.info("No reviews yet. Be the first to share your experience!")
-        else:
-            rev_list = reviews.to_dict("records")
-            if "rev_idx" not in st.session_state:
-                st.session_state["rev_idx"] = 0
-                st.session_state["rev_last_time"] = time.time()
-            if time.time() - st.session_state["rev_last_time"] > 8:
-                st.session_state["rev_idx"] = (st.session_state["rev_idx"] + 1) % len(rev_list)
-                st.session_state["rev_last_time"] = time.time()
-                st.rerun()
-            r = rev_list[st.session_state["rev_idx"]]
-            stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
             st.markdown(
-                f"> {r.get('review_text','')}\n"
-                f"> — **{r.get('student_name','')}**  \n"
-                f"> {stars}"
+                f"""
+                <div style='border:2px solid #17617a; border-radius:14px;
+                            padding:13px 11px; margin-bottom:13px;
+                            background:#eaf6fb; font-size:1.15em;
+                            line-height:1.65; color:#232323;'>
+                    <b style="font-size:1.09em;">🗓️ Your Next Classes ({class_name}):</b><br>
+                    {'<ul style="padding-left:16px; margin:9px 0 0 0;">' + ''.join([
+                        f"<li style='margin-bottom:6px;'><b>{d}</b> "
+                        f"<span style='color:#1976d2;'>{dt}</span> "
+                        f"<span style='color:#333;'>{time_str}</span></li>"
+                        for d, dt in next_classes
+                    ]) + '</ul>' if next_classes else
+                      '<span style="color:#c62828;">Schedule not set yet.</span>'}
+                    <div style="font-size:0.98em; margin-top:6px;">
+                        <b>Course period:</b> {start_dt or '[not set]'} to {end_dt or '[not set]'}
+                    </div>
+                    {f'<a href="{doc_url}" target="_blank" '
+                      f'style="font-size:1em;color:#17617a;'
+                      f'text-decoration:underline;margin-top:6px;'
+                      f'display:inline-block;">📄 View/download full class schedule</a>'
+                      if doc_url else ''}
+                </div>
+                """,
+                unsafe_allow_html=True
             )
 
 
+    # --- Goethe Exam Countdown & Video of the Day (per level) ---
+    GOETHE_EXAM_DATES = {
+        "A1": (date(2025, 10, 13), 2850, None),
+        "A2": (date(2025, 10, 14), 2400, None),
+        "B1": (date(2025, 10, 15), 2750, 880),
+        "B2": (date(2025, 10, 16), 2500, 840),
+        "C1": (date(2025, 10, 17), 2450, 700),
+    }
+    level = (student_row.get("Level", "") or "").upper().replace(" ", "")
+    exam_info = GOETHE_EXAM_DATES.get(level)
+
+    st.subheader("⏳ Goethe Exam Countdown & Video of the Day")
+    if exam_info:
+        exam_date, fee, module_fee = exam_info
+        days_to_exam = (exam_date - date.today()).days
+        fee_text = f"**Fee:** ₵{fee:,}"
+        if module_fee:
+            fee_text += f" &nbsp; | &nbsp; **Per Module:** ₵{module_fee:,}"
+        if days_to_exam > 0:
+            st.info(
+                f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).  \n"
+                f"{fee_text}  \n"
+                "[Register online here](https://www.goethe.de/ins/gh/en/spr/prf.html)"
+            )
+        elif days_to_exam == 0:
+            st.success("🚀 Exam is today! Good luck!")
+        else:
+            st.error(
+                f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.  \n"
+                f"{fee_text}"
+            )
+
+        # ---- Per-level YouTube Playlist ----
+        playlist_id = YOUTUBE_PLAYLIST_IDS.get(level)
+        if playlist_id:
+            video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
+            if video_list:
+                today_idx = date.today().toordinal()
+                pick = today_idx % len(video_list)
+                video = video_list[pick]
+                st.markdown(f"**🎬 Video of the Day for {level}: {video['title']}**")
+                st.video(video['url'])
+            else:
+                st.info("No videos found for your level’s playlist. Check back soon!")
+        else:
+            st.info("No playlist found for your level yet. Stay tuned!")
+    else:
+        st.warning("No exam date configured for your level.")
+
+    # --- Reviews Section ---
+    st.markdown("### 🗣️ What Our Students Say")
+    reviews = load_reviews()
+    if reviews.empty:
+        st.info("No reviews yet. Be the first to share your experience!")
+    else:
+        rev_list = reviews.to_dict("records")
+        if "rev_idx" not in st.session_state:
+            st.session_state["rev_idx"] = 0
+            st.session_state["rev_last_time"] = time.time()
+        if time.time() - st.session_state["rev_last_time"] > 8:
+            st.session_state["rev_idx"] = (st.session_state["rev_idx"] + 1) % len(rev_list)
+            st.session_state["rev_last_time"] = time.time()
+            st.rerun()
+        r = rev_list[st.session_state["rev_idx"]]
+        stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
+        st.markdown(
+            f"> {r.get('review_text','')}\n"
+            f"> — **{r.get('student_name','')}**  \n"
+            f"> {stars}"
+        )
 
 
 
@@ -1964,345 +2119,346 @@ def get_a2_schedule():
 
 def get_b1_schedule():
     return [
-        # DAY 1
+        # TAG 1
         {
             "day": 1,
             "topic": "Traumwelten (Übung) 1.1",
             "chapter": "1.1",
-            "goal": "Sprich über Traumwelten und Vorstellungskraft.",
+            "goal": "Über Traumwelten und Fantasie sprechen.",
             "assignment": True,
-            "instruction": "Sieh dir das Video an, wiederhole die Grammatik und bearbeite dein Arbeitsheft.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "grammar_topic": "Präsens & Perfekt",
             "video": "https://youtu.be/wMrdW2DhD5o",
             "grammarbook_link": "https://drive.google.com/file/d/17dO2pWXKQ3V3kWZIgLHXpLJ-ozKHKxu5/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1gTcOHHGW2bXKkhxAC38jdl6OikgHCT9g/view?usp=sharing"
         },
-        # DAY 2
+        # TAG 2
         {
             "day": 2,
             "topic": "Freunde fürs Leben (Übung) 1.2",
             "chapter": "1.2",
-            "goal": "Sprich über Freundschaften und wichtige Eigenschaften.",
+            "goal": "Freundschaften und wichtige Eigenschaften beschreiben.",
             "assignment": True,
-            "instruction": "Sieh dir das Video an, wiederhole die Grammatik und bearbeite dein Arbeitsheft.",
-            "grammar_topic": "Präteritum (Simple Past) – Erzählen von vergangenen Erlebnissen",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
+            "grammar_topic": "Präteritum – Vergangene Erlebnisse erzählen",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1St8MpH616FiJmJjTYI9b6hEpNCQd5V0T/view?usp=sharing",
             "workbook_link": ""
         },
-        # DAY 3
+        # TAG 3
         {
             "day": 3,
-            "topic": "Vergangenheit erzählen 1.3",
+            "topic": "Erfolgsgeschichten (Übung) 1.3",
             "chapter": "1.3",
-            "goal": "Tell stories about the past.",
+            "goal": "Über Erfolge und persönliche Erlebnisse berichten.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 4
+        # TAG 4
         {
             "day": 4,
-            "topic": "Wohnen und Zusammenleben 2.4",
+            "topic": "Wohnung suchen (Übung) 2.4",
             "chapter": "2.4",
-            "goal": "Discuss housing and living together.",
+            "goal": "Über Wohnungssuche und Wohnformen sprechen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 5
+        # TAG 5
         {
             "day": 5,
-            "topic": "Feste feiern 2.5",
+            "topic": "Der Besichtigungstermin (Übung) 2.5",
             "chapter": "2.5",
-            "goal": "Talk about festivals and celebrations.",
+            "goal": "Einen Besichtigungstermin beschreiben.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 6
+        # TAG 6
         {
             "day": 6,
-            "topic": "Mein Traumjob 2.6",
+            "topic": "Leben in der Stadt oder auf dem Land? 2.6",
             "chapter": "2.6",
-            "goal": "Describe your dream job.",
+            "goal": "Stadtleben und Landleben vergleichen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 7
+        # TAG 7
         {
             "day": 7,
-            "topic": "Gesund bleiben 3.7",
+            "topic": "Fast Food vs. Hausmannskost 3.7",
             "chapter": "3.7",
-            "goal": "Learn how to talk about health and fitness.",
+            "goal": "Fast Food und Hausmannskost vergleichen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 8
+        # TAG 8
         {
             "day": 8,
-            "topic": "Arztbesuch und Gesundheitstipps 3.8",
+            "topic": "Alles für die Gesundheit 3.8",
             "chapter": "3.8",
-            "goal": "Communicate with a doctor and give health tips.",
+            "goal": "Tipps für Gesundheit geben und Arztbesuche besprechen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 9
+        # TAG 9
         {
             "day": 9,
-            "topic": "Erinnerungen und Kindheit 3.9",
+            "topic": "Work-Life-Balance im modernen Arbeitsumfeld 3.9",
             "chapter": "3.9",
-            "goal": "Talk about childhood memories.",
+            "goal": "Über Work-Life-Balance und Stress sprechen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 10
+        # TAG 10
         {
             "day": 10,
-            "topic": "Typisch deutsch? Kultur und Alltag 4.10",
+            "topic": "Digitale Auszeit und Selbstfürsorge 4.10",
             "chapter": "4.10",
-            "goal": "Discuss cultural habits and everyday life.",
+            "goal": "Über digitale Auszeiten und Selbstfürsorge sprechen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 11
+        # TAG 11
         {
             "day": 11,
-            "topic": "Wünsche und Träume 4.11",
+            "topic": "Teamspiele und Kooperative Aktivitäten 4.11",
             "chapter": "4.11",
-            "goal": "Express wishes and dreams.",
+            "goal": "Über Teamarbeit und kooperative Aktivitäten sprechen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 12
+        # TAG 12
         {
             "day": 12,
-            "topic": "Medien und Kommunikation 4.12",
+            "topic": "Abenteuer in der Natur 4.12",
             "chapter": "4.12",
-            "goal": "Talk about media and communication.",
+            "goal": "Abenteuer und Erlebnisse in der Natur beschreiben.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 13
+        # TAG 13
         {
             "day": 13,
-            "topic": "Reisen und Verkehr 5.13",
+            "topic": "Eigene Filmkritik schreiben 4.13",
             "chapter": "4.13",
-            "goal": "Discuss travel and transportation.",
+            "goal": "Eine Filmkritik schreiben und Filme bewerten.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 14
+        # TAG 14
         {
             "day": 14,
-            "topic": "Stadt oder Land 5.14",
+            "topic": "Traditionelles vs. digitales Lernen 5.14",
             "chapter": "5.14",
-            "goal": "Compare life in the city and the countryside.",
+            "goal": "Traditionelles und digitales Lernen vergleichen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 15
+        # TAG 15
         {
             "day": 15,
-            "topic": "Wohnungssuche und Umzug 5.15",
+            "topic": "Medien und Arbeiten im Homeoffice 5.15",
             "chapter": "5.15",
-            "goal": "Talk about searching for an apartment and moving.",
+            "goal": "Über Mediennutzung und Homeoffice sprechen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 16
+        # TAG 16
         {
             "day": 16,
-            "topic": "Natur und Umwelt 5.16",
+            "topic": "Prüfungsangst und Stressbewältigung 5.16",
             "chapter": "5.16",
-            "goal": "Learn to discuss nature and the environment.",
+            "goal": "Prüfungsangst und Strategien zur Stressbewältigung besprechen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 17
+        # TAG 17
         {
             "day": 17,
-            "topic": "Probleme und Lösungen 5.17",
+            "topic": "Wie lernt man am besten? 5.17",
             "chapter": "5.17",
-            "goal": "Describe problems and find solutions.",
+            "goal": "Lerntipps geben und Lernstrategien vorstellen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 18
+        # TAG 18
         {
             "day": 18,
-            "topic": "Arbeit und Finanzen 6.18",
+            "topic": "Wege zum Wunschberuf 6.18",
             "chapter": "6.18",
-            "goal": "Talk about work and finances.",
+            "goal": "Über Wege zum Wunschberuf sprechen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 19
+        # TAG 19
         {
             "day": 19,
-            "topic": "Berufliche Zukunft 6.19",
+            "topic": "Das Vorstellungsgespräch 6.19",
             "chapter": "6.19",
-            "goal": "Discuss future career plans.",
+            "goal": "Über Vorstellungsgespräche berichten und Tipps geben.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 20
+        # TAG 20
         {
             "day": 20,
-            "topic": "Bildung und Weiterbildung 6.20",
+            "topic": "Wie wird man …? (Ausbildung und Qu) 6.20",
             "chapter": "6.20",
-            "goal": "Talk about education and further studies.",
+            "goal": "Über Ausbildung und Qualifikationen sprechen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 21
+        # TAG 21
         {
             "day": 21,
-            "topic": "Familie und Gesellschaft 7.21",
+            "topic": "Lebensformen heute – Familie, Wohnge 7.21",
             "chapter": "7.21",
-            "goal": "Discuss family and society.",
+            "goal": "Lebensformen, Familie und Wohngemeinschaften beschreiben.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 22
+        # TAG 22
         {
             "day": 22,
-            "topic": "Konsum und Werbung 7.22",
+            "topic": "Was ist dir in einer Beziehung wichtig? 7.22",
             "chapter": "7.22",
-            "goal": "Talk about consumption and advertising.",
+            "goal": "Über Werte in Beziehungen sprechen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 23
+        # TAG 23
         {
             "day": 23,
-            "topic": "Globalisierung 7.23",
+            "topic": "Erstes Date – Typische Situationen 7.23",
             "chapter": "7.23",
-            "goal": "Discuss globalization and its effects.",
+            "goal": "Typische Situationen beim ersten Date beschreiben.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 24
+        # TAG 24
         {
             "day": 24,
-            "topic": "Kulturelle Unterschiede 8.24",
+            "topic": "Konsum und Nachhaltigkeit 8.24",
             "chapter": "8.24",
-            "goal": "Talk about cultural differences.",
+            "goal": "Nachhaltigen Konsum und Umweltschutz diskutieren.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/1x8IM6xcjR2hv3jbnnNudjyxLWPiT0-VL/view?usp=sharing"
         },
-        # DAY 25
+        # TAG 25
         {
             "day": 25,
-            "topic": "Lebenslauf schreiben 8.25",
+            "topic": "Online einkaufen – Rechte und Risiken 8.25",
             "chapter": "8.25",
-            "goal": "Write a CV and cover letter.",
+            "goal": "Rechte und Risiken beim Online-Shopping besprechen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/1If0R3cIT8KwjeXjouWlQ-VT03QGYOSZz/view?usp=sharing"
         },
-        # DAY 26
+        # TAG 26
         {
             "day": 26,
-            "topic": "Präsentationen halten 9.26",
+            "topic": "Reiseprobleme und Lösungen 9.26",
             "chapter": "9.26",
-            "goal": "Learn to give presentations.",
+            "goal": "Reiseprobleme und Lösungen beschreiben.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/1BMwDDkfPJVEhL3wHNYqGMAvjOts9tv24/view?usp=sharing"
         },
-        # DAY 27
+        # TAG 27
         {
             "day": 27,
-            "topic": "Zusammenfassen und Berichten 9.27",
+            "topic": "Umweltfreundlich im Alltag 10.27",
             "chapter": "10.27",
-            "goal": "Practice summarizing and reporting.",
+            "goal": "Umweltfreundliches Verhalten im Alltag beschreiben.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/15fjOKp_u75GfcbvRJVbR8UbHg-cgrgWL/view?usp=sharing"
         },
-        # DAY 28
+        # TAG 28
         {
             "day": 28,
-            "topic": "Abschlussprüfungsvorbereitung 10.28",
+            "topic": "Klimafreundlich leben 10.28",
             "chapter": "10.28",
-            "goal": "Prepare for the final exam.",
+            "goal": "Klimafreundliche Lebensweisen vorstellen.",
             "assignment": True,
-            "instruction": "Review all topics, watch the revision video, and complete your mock exam.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/1iBeZHMDq_FnusY4kkRwRQvyOfm51-COU/view?usp=sharing"
         },
     ]
+
 
 # === B2 Schedule Template ===
 def get_b2_schedule():
@@ -3075,8 +3231,6 @@ How to prepare for your B1 oral exam.
         """
     )
 
-
-
 # ================================
 # 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
 # ================================
@@ -3326,19 +3480,23 @@ if tab == "Exams Mode & Custom Chat":
                     "You are Herr Felix, a supportive A1 German examiner. "
                     "Ask the student to introduce themselves using the keywords (Name, Land, Wohnort, Sprachen, Beruf, Hobby). "
                     "Check if all info is given, correct any errors (explain in English), and give the right way to say things in German. "
-                    "1. Always explain errors and suggestion in english. Only next question should be German. They are just A1 student "
+                    "1. Always explain errors and suggestion in English only. Only next question should be German. They are just A1 student "
                     "After their intro, ask these three questions one by one: "
                     "'Haben Sie Geschwister?', 'Wie alt ist deine Mutter?', 'Bist du verheiratet?'. "
                     "Correct their answers (explain in English). At the end, mention they may be asked to spell their name ('Buchstabieren') and wish them luck."
+                    "Give them a score out of 25 and let them know if they passed or not"
                 )
             elif "Teil 2" in teil:
                 return (
                     "You are Herr Felix, an A1 examiner. Randomly give the student a Thema and Keyword from the official list. "
+                    "Let them know you have 52 cards available and here to help them prepare for the exams. Let them know they can relax and continue another time when tired. Explain in English "
                     "Tell them to ask a question with the keyword and answer it themselves, then correct their German (explain errors in English, show the correct version), and move to the next topic."
+                     "1.After every input, let them know if they passed or not and explain why you said so"
                 )
             elif "Teil 3" in teil:
                 return (
                     "You are Herr Felix, an A1 examiner. Give the student a prompt (e.g. 'Radio anmachen'). "
+                    "Let them know you have 20 cards available and you here to help them prepare for the exams. Let them know they can relax and continue another time when tired. Explain in English "
                     "Ask them to write a polite request or imperative and answer themseves like their partners will do. Check if it's correct and polite, explain errors in English, and provide the right German version. Then give the next prompt."
                     " They respond using Ja gerne or In ordnung. They can also answer using Ja, Ich kann and the question of the verb at the end (e.g 'Ich kann das Radio anmachen'). "
                 )
@@ -3346,39 +3504,64 @@ if tab == "Exams Mode & Custom Chat":
             if "Teil 1" in teil:
                 return (
                     "You are Herr Felix, a Goethe A2 examiner. Give a topic from the A2 list. "
+                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
+                    "1. After student input, let the student know you will ask just 3 questions and after give a score out of 25 marks "
+                    "2. Use phrases like your next recommended question to ask for the next question"
                     "Ask the student to ask and answer a question on it. Always correct their German (explain errors in English), show the correct version, and encourage."
+                    "Ask one question at a time"
+                    "Pick 3 random keywords from the topic and ask the student 3 questions only per keyword. One question based on one keyword"
+                    "When student make mistakes and explaining, use English and simple German to explain the mistake and make correction"
+                    "After the third questions, mark the student out of 25 marks and tell the student whether they passed or not. Explain in English for them to understand"
                 )
             elif "Teil 2" in teil:
                 return (
                     "You are Herr Felix, an A2 examiner. Give a topic. Student gives a short monologue. Correct errors (in English), give suggestions, and follow up with one question."
+                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
+                    "1. After student input, let the student know you will ask just 3 questions and after give a score out of 25 marks "
+                    "2. Use phrases like your next recommended question to ask for the next question"
+                    "Pick 3 random keywords from the topic and ask the student 3 questions only per keyword. One question based on one keyword"
+                    "When student make mistakes and explaining, use English and simple German to explain the mistake and make correction"
+                    "After the third questions, mark the student out of 25 marks and tell the student whether they passed or not. Explain in English for them understand"
+                    
                 )
             elif "Teil 3" in teil:
                 return (
                     "You are Herr Felix, an A2 examiner. Plan something together (e.g., going to the cinema). Check student's suggestions, correct errors, and keep the conversation going."
+                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
+                    "Alert students to be able to plan something with you for you to agree with exact 5 prompts"
+                    "After the last prompt, mark the student out of 25 marks and tell the student whether they passed or not. Explain in English for them to understand"
                 )
         if level == "B1":
             if "Teil 1" in teil:
                 return (
                     "You are Herr Felix, a Goethe B1 supportive examiner. You and the student plan an activity together. "
                     "Always give feedback in both German and English, correct mistakes, suggest improvements, and keep it realistic."
+                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
                     "1. Give short answers that encourages the student to also type back"
-                    "2. Ask only 5 questions and try and end the conversation"
-                    "3. Give score after every presentation whether the reply was okay or not"
+                    "2. After student input, let the student know you will ask just 5 questions and after give a score out of 25 marks. Explain in English for them to understand. "
+                    "3. Ask only 5 questions and try and end the conversation"
+                    "4. Give score after every presentation whether they passed or not"
+                    "5. Use phrases like your next recommended question to ask for the next question"
                 )
             elif "Teil 2" in teil:
                 return (
                     "You are Herr Felix, a Goethe B1 examiner. Student gives a presentation. Give constructive feedback in German and English, ask for more details, and highlight strengths and weaknesses."
-                    "2. Ask only 3 questions one at a time"
+                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
+                    "1. After student input, let the student know you will ask just 3 questions and after give a score out of 25 marks. Explain in English for them to understand. "
+                    "2. Ask only 3 questions and one question at a time"
                     "3. Dont make your reply too long and complicated but friendly"
                     "4. After your third question, mark and give the student their scores"
+                    "5. Use phrases like your next recommended question to ask for the next question"
                 )
             elif "Teil 3" in teil:
                 return (
                     "You are Herr Felix, a Goethe B1 examiner. Student answers questions about their presentation. "
+                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them to pass the exams. Tell them to ask questions if they dont understand and ask for translations of words. You can help than they going to search for words "
                     "Give exam-style feedback (in German and English), correct language, and motivate."
-                    "1. Ask only 3 questions one at a time"
+                    "1. Ask only 3 questions and one question at a time"
                     "2. Dont make your reply too long and complicated but friendly"
-                    "3. After your third question, mark and give the student their scores"
+                    "3. After your third question, mark and give the student their scores out of 25 marks. Explain in English for them to understand"
+                    "4. Use phrases like your next recommended question to ask for the next question"
                 )
         if level == "B2":
             if "Teil 1" in teil:
@@ -3400,7 +3583,7 @@ if tab == "Exams Mode & Custom Chat":
                     "Stelle herausfordernde Fragen, gib ausschließlich auf Deutsch Feedback, und fordere den Studenten zu komplexen Strukturen auf."
                 )
         return ""
-
+#
     def build_custom_chat_prompt(level):
         if level == "C1":
             return (
@@ -3416,85 +3599,77 @@ if tab == "Exams Mode & Custom Chat":
             correction_lang = "in English" if level in ["A1", "A2"] else "half in English and half in German"
             return (
                 f"You are Herr Felix, a supportive and innovative German teacher. "
-                f"The student's first input is their chosen topic. Only give suggestions, phrases, tips and ideas at first in English, no corrections. "
+                f"1. Congratulate the student in English for the topic and give interesting tips on the topic. Always let the student know how the session is going to go in English. It shouldnt just be questions but teach them also. The total number of questios,what they should expect,what they would achieve at the end of the session. Let them know they can ask questions or ask for translation if they dont understand anything. You are ready to always help "
+                f"Promise them that if they answer all 10 questions, you use their own words to build a presentation of 60 words for them. They only have to be consistent "
                 f"Pick 4 useful keywords related to the student's topic and use them as the focus for conversation. Give students ideas and how to build their points for the conversation in English. "
-                f"For each keyword, ask the student up to 3 creative, diverse and interesting questions in German only based on student language level, one at a time, not all at once. Just ask the question and don't let student know this is the keyword you are using. "
+                f"For each keyword, ask the student up to 2 creative, diverse and interesting questions in German only based on student language level, one at a time, not all at once. Just ask the question and don't let student know this is the keyword you are using. "
                 f"After each student answer, give feedback and a suggestion to extend their answer if it's too short. Feedback in English and suggestion in German. "
                 f"1. Explain difficult words when level is A1,A2,B1,B2. "
-                f"After keyword questions, continue with other random follow-up questions that reflect student selected level about the topic in German (until you reach 20 questions in total). "
-                f"Never ask more than 3 questions about the same keyword. "
-                f"After the student answers 18 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
+                f"After keyword questions, continue with other random follow-up questions that reflect student selected level about the topic in German (until you reach 10 questions in total). "
+                f"Never ask more than 2 questions about the same keyword. "
+                f"After the student answers 10 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
+                f"Also give them 60 words from their own words in a presentation form that they can use in class. Add your own points if their words and responses were small. Tell to improve on it and learn to speak without reading "
                 f"All feedback and corrections should be {correction_lang}. "
                 f"Encourage the student and keep the chat motivating. "
             )
         return ""
-
+#
     # ---- USAGE LIMIT CHECK ----
     if not has_falowen_quota(student_code):
         st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
         st.stop()
 
-# ---- SESSION STATE DEFAULTS ----
-    default_state = {
-        "falowen_stage": 1,
-        "falowen_mode": None,
-        "falowen_level": None,
-        "falowen_teil": None,
-        "falowen_messages": [],
-        "falowen_turn_count": 0,
-        "custom_topic_intro_done": False,
-        "custom_chat_level": None,
-        "falowen_exam_topic": None,
-        "falowen_exam_keyword": None,
-    }
-    for key, val in default_state.items():
-        if key not in st.session_state:
-            st.session_state[key] = val
+if st.session_state["falowen_stage"] == 1:
+    st.subheader("Step 1: Choose Practice Mode")
 
-    # ---- STAGE 1: Mode Selection ----
-    if st.session_state["falowen_stage"] == 1:
-        st.subheader("Step 1: Choose Practice Mode")
+    st.info(
+        """
+        **Which mode should you choose?**
 
-        st.info(
-            """
-            **Which mode should you choose?**
+        - 📝 **Exam Mode**:  
+            Practice for your official Goethe exam!  
+            - Includes **Speaking** (Sprechen) with a live chat examiner  
+            - PLUS quick access to real **Reading (Lesen)** and **Listening (Hören)** past exams  
+            - See official exam instructions and practice with authentic topics
 
-            - 📝 **Exam Mode**:  
-                Practice for your official Goethe exam!  
-                - Includes **Speaking** (Sprechen) with a live chat examiner  
-                - PLUS quick access to real **Reading (Lesen)** and **Listening (Hören)** past exams  
-                - See official exam instructions and practice with authentic topics
+        - 💬 **Custom Chat**:  
+            Chat about any topic!  
+            - Great for practicing presentations, your own ideas, or general German conversation  
+            - No exam restrictions—learn at your own pace
 
-            - 💬 **Custom Chat**:  
-                Chat about any topic!  
-                - Great for practicing presentations, your own ideas, or general German conversation  
-                - No exam restrictions—learn at your own pace
-            """,
-            icon="ℹ️"
-        )
+        - 🎤 **Pronunciation & Speaking Checker**:  
+            Record or upload a short audio, get instant feedback on your pronunciation, fluency, and speaking.  
+            - Perfect for practicing real answers and getting AI-based scoring & tips!
+        """,
+        icon="ℹ️"
+    )
 
-
-        mode = st.radio(
-            "How would you like to practice?",
-            [
-                "Geführte Prüfungssimulation (Exam Mode)",
-                "Eigenes Thema/Frage (Custom Chat)"
-            ],
-            key="falowen_mode_center"
-        )
-        if st.button("Next ➡️", key="falowen_next_mode"):
-            st.session_state["falowen_mode"] = mode
-            st.session_state["falowen_stage"] = 2
-            st.session_state["falowen_level"] = None
-            st.session_state["falowen_teil"] = None
-            st.session_state["falowen_messages"] = []
-            st.session_state["custom_topic_intro_done"] = False
-            st.rerun()
-        st.stop()
-
+    mode = st.radio(
+        "How would you like to practice?",
+        [
+            "Geführte Prüfungssimulation (Exam Mode)",
+            "Eigenes Thema/Frage (Custom Chat)",
+            "Pronunciation & Speaking Checker"
+        ],
+        key="falowen_mode_center"
+    )
+    if st.button("Next ➡️", key="falowen_next_mode"):
+        st.session_state["falowen_mode"] = mode
+        st.session_state["falowen_stage"] = 2
+        st.session_state["falowen_level"] = None
+        st.session_state["falowen_teil"] = None
+        st.session_state["falowen_messages"] = []
+        st.session_state["custom_topic_intro_done"] = False
+        st.rerun()
+    st.stop()
 
     # ---- STAGE 2: Level Selection ----
     if st.session_state["falowen_stage"] == 2:
+        # If Pronunciation & Speaking Checker, skip level and teil selection, go to upload UI
+        if st.session_state["falowen_mode"] == "Pronunciation & Speaking Checker":
+            st.session_state["falowen_stage"] = 99
+            st.rerun()
+
         st.subheader("Step 2: Choose Your Level")
         level = st.radio(
             "Select your level:",
@@ -3516,6 +3691,64 @@ if tab == "Exams Mode & Custom Chat":
             st.rerun()
         st.stop()
 
+    # ---- PRONUNCIATION & SPEAKING CHECKER TAB (audio upload UI) ----
+    if st.session_state.get("falowen_stage") == 99:
+        st.subheader("🎤 Pronunciation & Speaking Checker")
+        st.markdown("""
+        Upload your German speaking audio (about 1 minute), and get instant feedback on your pronunciation, fluency, and speaking skills!
+        """)
+        audio_file = st.file_uploader("Upload audio (MP3 or WAV, max 90 sec)", type=["mp3", "wav"])
+
+        if audio_file is not None:
+            with st.spinner("Transcribing and analyzing..."):
+                import tempfile, os
+                import openai
+
+                temp_dir = tempfile.mkdtemp()
+                temp_path = os.path.join(temp_dir, audio_file.name)
+                with open(temp_path, "wb") as f:
+                    f.write(audio_file.read())
+
+                # Transcribe using OpenAI Whisper
+                with open(temp_path, "rb") as audio:
+                    transcript = openai.audio.transcriptions.create(
+                        model="whisper-1",
+                        file=audio,
+                        language="de"  # Change if you want another language
+                    ).text
+
+                st.markdown("**Transcript:**")
+                st.info(transcript)
+
+                # Generate feedback with GPT
+                feedback_prompt = f"""You are a Goethe German examiner. The student's spoken answer is:
+\"{transcript}\"
+Rate their speaking out of 25 for:
+- Pronunciation
+- Fluency
+- Grammar
+- Task completion
+
+Show scores for each, give a total score, and specific suggestions to improve. Correct 2-3 main mistakes in their answer."""
+                response = openai.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[{"role": "system", "content": feedback_prompt}],
+                    max_tokens=400
+                )
+                feedback = response.choices[0].message.content.strip()
+
+                st.markdown("**AI Feedback & Marking:**")
+                st.success(feedback)
+                st.download_button("⬇️ Download Feedback", feedback, file_name="Feedback.txt")
+        if st.button("⬅️ Back to Main Menu", key="speaking_checker_back"):
+            # Clear state as needed and return to main menu
+            for k in ["falowen_stage", "falowen_mode", "falowen_level", "falowen_teil"]:
+                st.session_state[k] = None
+            st.session_state["falowen_stage"] = 1
+            st.rerun()
+        st.stop()
+
+    # ---- CONTINUE WITH EXAM MODE (Teil options, topic picking, etc) ----
     if st.session_state.get("falowen_mode") == "Geführte Prüfungssimulation (Exam Mode)":
         level = st.session_state["falowen_level"]
 
@@ -3722,7 +3955,6 @@ if tab == "Exams Mode & Custom Chat":
                 random.shuffle(st.session_state["remaining_topics"])
                 st.session_state["used_topics"] = []
                 st.rerun()
-#
 
 
     # ==========================
@@ -4011,6 +4243,7 @@ if tab == "Exams Mode & Custom Chat":
 # =========================================
 # End
 # =========================================
+
 
 
 def play_word_audio(word, lang='de'):
@@ -4535,10 +4768,45 @@ if tab == "Schreiben Trainer":
             data["last_letter"] = user_letter
             doc_ref.set(data, merge=True)
 
+        # --- Word count and Goethe exam rules ---
+        import re
+        def get_level_requirements(level):
+            reqs = {
+                "A1": {"min": 20, "max": 40, "desc": "A1 formal/informal letters should be 20–40 words. Cover all bullet points."},
+                "A2": {"min": 20, "max": 40, "desc": "A2 formal/informal letters should be 20–40 words. Cover all bullet points."},
+                "B1": {"min": 80, "max": 150, "desc": "B1 letters/essays should be about 80–150 words, with all points covered and clear structure."},
+                "B2": {"min": 150, "max": 250, "desc": "B2 essays are 180–220 words, opinion essays or reports, with good structure and connectors."},
+                "C1": {"min": 250, "max": 350, "desc": "C1 essays are 250–350+ words. Use advanced structures and express opinions clearly."}
+            }
+            return reqs.get(level.upper(), reqs["A1"])
+
+        def count_words(text):
+            return len(re.findall(r'\b\w+\b', text))
+
         if user_letter.strip():
             words = re.findall(r'\b\w+\b', user_letter)
             chars = len(user_letter)
             st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
+
+            # -- Apply Goethe writing rules here --
+            requirements = get_level_requirements(schreiben_level)
+            word_count = count_words(user_letter)
+            min_wc = requirements["min"]
+            max_wc = requirements["max"]
+
+            # --- Block too-short answers for A1/A2, warn for B1–C1
+            if schreiben_level in ("A1", "A2"):
+                if word_count < min_wc:
+                    st.error(f"⚠️ Your letter is too short for {schreiben_level} ({word_count} words). {requirements['desc']}")
+                    st.stop()
+                elif word_count > max_wc:
+                    st.warning(f"ℹ️ Your letter is a bit long for {schreiben_level} ({word_count} words). The exam expects 20–40 words.")
+            else:
+                if word_count < min_wc:
+                    st.error(f"⚠️ Your essay is too short for {schreiben_level} ({word_count} words). {requirements['desc']}")
+                    st.stop()
+                elif word_count > max_wc + 40 and schreiben_level in ("B1", "B2"):
+                    st.warning(f"ℹ️ Your essay is longer than the usual limit for {schreiben_level} ({word_count} words). Try to stay within the guidelines.")
 
         # Namespaced correction state per student
         for k, v in [
@@ -4565,37 +4833,36 @@ if tab == "Schreiben Trainer":
         if feedback_btn:
             st.session_state[f"{student_code}_awaiting_correction"] = True
             ai_prompt = (
-            f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
-            f"The student has submitted a {schreiben_level} German letter or essay. "
-            "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
-            "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
-            "Don't just say errors—show exactly where the mistakes are. "
-            "Mark any mistake phrase or example in [wrong]...[/wrong]. "
-            "If something is especially good, you can also use [correct]...[/correct] and say why. "
-            "1. Give a score out of 25 marks and always display the score clearly as: Score: X / 25. "
-            "2. If the score is 17 or more, write: '**Passed: You may submit to your tutor!**'. "
-            "3. If the score is 16 or less, write: '**Keep improving before you submit.**'. "
-            "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
-            "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
-            "6. Also check for AI usage or if the student wrote with their own effort. "
-            "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
-            "8. For A1 , A2 formal and informal letter should be between 30 to 40 words. Anything less give low marks for that. For B1 to C1, use your intelligence to check if the letter is too short or too long."
-            "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
-            "Grammar: [score/5, one-sentence tip]\n"
-            "Vocabulary: [score/5, one-sentence tip]\n"
-            "Spelling: [score/5, one-sentence tip]\n"
-            "Structure: [score/5, one-sentence tip]\n"
-            "For each area, rate out of 5 and give a specific, actionable tip in English. "
-            "IMPORTANT: For A1 and A2 ONLY, follow these extra rules: "
-            "- If the topic is about cancelling appointments, show students how to use simple reasons connected to health or weather, like 'Ich habe Bauchschmerzen' or 'Es regnet stark.' Avoid complex reasons. Teach them to use 'absagen' in their letter, for example, 'Ich schreibe Ihnen, weil ich den Termin absagen möchte.' "
-            "- For registration or enquiries, remind students to ask for price using phrases like 'Wie viel kostet...?' and to use 'Anfrage stellen' in the phrase, e.g., 'Ich schreibe Ihnen, weil ich eine Anfrage stellen möchte.' "
-            "- For setting a new appointment, use 'vereinbaren,' e.g., 'Ich möchte einen neuen Termin vereinbaren.' "
-            "- Teach students to say sorry simply: 'Es tut mir leid.' "
-            "- Remind students to start their reason with 'Ich schreibe Ihnen/dir, weil ich...' and usually end with 'möchte' to keep it simple and safe for A1/A2. "
-            "Whenever you see these themes, always encourage the simplest phrasing and provide clear examples for the student to copy. Do NOT encourage complex sentence structures at A1/A2 level."
-        )
+                f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
+                f"The student has submitted a {schreiben_level} German letter or essay. "
+                "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
+                "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
+                "Don't just say errors—show exactly where the mistakes are. "
+                "Mark any mistake phrase or example in [wrong]...[/wrong]. "
+                "If something is especially good, you can also use [correct]...[/correct] and say why. "
+                "1. Give a score out of 25 marks and always display the score clearly as: Score: X / 25. "
+                "2. If the score is 17 or more, write: '**Passed: You may submit to your tutor!**'. "
+                "3. If the score is 16 or less, write: '**Keep improving before you submit.**'. "
+                "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
+                "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
+                "6. Also check for AI usage or if the student wrote with their own effort. "
+                "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
+                "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
+                "Grammar: [score/5, one-sentence tip]\n"
+                "Vocabulary: [score/5, one-sentence tip]\n"
+                "Spelling: [score/5, one-sentence tip]\n"
+                "Structure: [score/5, one-sentence tip]\n"
+                "For each area, rate out of 5 and give a specific, actionable tip in English. "
+                "IMPORTANT: For A1 and A2 ONLY, follow these extra rules: "
+                "- If the topic is about cancelling appointments, show students how to use simple reasons connected to health or weather, like 'Ich habe Bauchschmerzen' or 'Es regnet stark.' Avoid complex reasons. Teach them to use 'absagen' in their letter, for example, 'Ich schreibe Ihnen, weil ich den Termin absagen möchte.' "
+                "- For registration or enquiries, remind students to ask for price using phrases like 'Wie viel kostet...?' and to use 'Anfrage stellen' in the phrase, e.g., 'Ich schreibe Ihnen, weil ich eine Anfrage stellen möchte.' "
+                "- For setting a new appointment, use 'vereinbaren,' e.g., 'Ich möchte einen neuen Termin vereinbaren.' "
+                "- Teach students to say sorry simply: 'Es tut mir leid.' "
+                "- Remind students to start their reason with 'Ich schreibe Ihnen/dir, weil ich...' and usually end with 'möchte' to keep it simple and safe for A1/A2. "
+                "Whenever you see these themes, always encourage the simplest phrasing and provide clear examples for the student to copy. Do NOT encourage complex sentence structures at A1/A2 level."
+            )
 
-
+# 
             with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                 try:
                     completion = client.chat.completions.create(
