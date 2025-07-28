@@ -4205,30 +4205,76 @@ if tab == "Exams Mode & Custom Chat":
         st.subheader("🎤 Pronunciation & Speaking Checker")
         st.info(
             """
-            Record or upload your speaking sample below.  
-            You'll get instant feedback on pronunciation, fluency, and accuracy.
+            **How to use:**  
+            1. Record a short speaking sample (max 30 seconds) using your phone **or**  
+            2. Visit [vocaroo.com](https://www.vocaroo.com), record, and download the audio  
+            3. Upload the file below to get instant feedback on **pronunciation, grammar, and fluency**.
             """
         )
 
-        # Audio upload
         audio_file = st.file_uploader("Upload a WAV/MP3 file (max 30 seconds)", type=["wav", "mp3"])
+        ai_feedback = None
+        ai_score = None
+
         if audio_file:
             st.audio(audio_file)
-            # placeholder feedback
-            st.success(
-                "Pronunciation Score: 85/100 (Very Good!)\n\n"
-                "Feedback: Your pronunciation is clear. Try to stress the vowels in 'möchte' more."
-            )
+            with st.spinner("Analyzing your speaking..."):
+                try:
+                    # Example: Use OpenAI Whisper via the OpenAI API (pseudo-code, adapt as needed)
+                    import openai
+
+                    # Transcribe using Whisper
+                    transcript_response = openai.audio.transcriptions.create(
+                        api_key=OPENAI_API_KEY,      # Your API key variable
+                        file=audio_file,             # Streamlit file uploader object
+                        model="whisper-1"
+                    )
+                    transcript = transcript_response['text']
+
+                    # Analyze with ChatGPT: ask for feedback and scoring
+                    feedback_prompt = (
+                        f"You are a German language examiner. Here is a student's speaking sample: \n\n"
+                        f"{transcript}\n\n"
+                        "Please give a score out of 100 for pronunciation, grammar, and fluency, and then provide tips for improvement in English. "
+                        "Format your answer as:\n"
+                        "Pronunciation: X/100\nGrammar: X/100\nFluency: X/100\nTips: ...\n"
+                    )
+                    chat_resp = openai.chat.completions.create(
+                        model="gpt-4o",
+                        api_key=OPENAI_API_KEY,
+                        messages=[
+                            {"role": "system", "content": "You are a friendly, supportive German A1/A2/B1 examiner."},
+                            {"role": "user", "content": feedback_prompt}
+                        ],
+                        temperature=0.1
+                    )
+                    ai_feedback = chat_resp.choices[0].message.content
+
+                    # Extract scores for a progress bar
+                    import re
+                    pron_score = re.search(r"Pronunciation:\s*(\d+)/100", ai_feedback)
+                    pron_score = int(pron_score.group(1)) if pron_score else 0
+                    ai_score = pron_score
+
+                except Exception as e:
+                    ai_feedback = f"Sorry, could not process audio: {e}"
+
+            # Show AI scoring with progress bar and tips
+            if ai_score is not None:
+                st.progress(ai_score / 100, text=f"Pronunciation Score: {ai_score}/100")
+
+            if ai_feedback:
+                st.success(ai_feedback)
+
+            # Retry option
             if st.button("🔄 Try Another"):
                 st.rerun()
         else:
-            st.info("No audio file uploaded yet.")
+            st.info("No audio file uploaded yet. Please record and upload a short sample.")
 
         if st.button("⬅️ Back to Main Menu"):
-            # go back to Stage 1
             st.session_state["falowen_stage"] = 1
             st.rerun()
-
 
 
 
