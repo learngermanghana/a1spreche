@@ -4133,7 +4133,6 @@ if tab == "Exams Mode & Custom Chat":
     if st.session_state.get("falowen_stage") == 99:
         import datetime
         import openai
-        from google.cloud import firestore
 
         st.subheader("🎤 Pronunciation & Speaking & Grammar Checker")
         st.info(
@@ -4144,7 +4143,7 @@ if tab == "Exams Mode & Custom Chat":
 
         # Enforce daily upload limit: 3 per student/day
         user = st.session_state.get("student_code", "demo")
-        db = firestore.client()
+        # use existing Firebase Admin client `db`, do not reinitialize
         uploads_ref = db.collection("speaking_uploads").document(user)
         uploads_data = uploads_ref.get().to_dict() or {}
         today = datetime.date.today().isoformat()
@@ -4161,7 +4160,7 @@ if tab == "Exams Mode & Custom Chat":
             # Record usage
             uploads_ref.set({today: used + 1}, merge=True)
 
-            # Transcribe audio
+            # Transcribe audio using Whisper
             transcript = openai.Audio.transcriptions.create(
                 model="whisper-1",
                 file=audio_file,
