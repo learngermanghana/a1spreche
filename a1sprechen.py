@@ -2906,34 +2906,6 @@ if tab == "Course Book":
         render_section(info, 'lesen_hören', 'Lesen & Hören', '📚')
         render_section(info, 'schreiben_sprechen', 'Schreiben & Sprechen', '📝')
 
-                # === PDF VIEWER AND TRANSLATION OPTIONS ===
-        st.markdown("---")
-        st.subheader("📑 Course Book PDF Options")
-
-        # 1. PDF Viewer inside the app
-        uploaded_file = st.file_uploader("Upload or view the Course Book PDF", type=["pdf"])
-        if uploaded_file:
-            import base64
-            base64_pdf = base64.b64encode(uploaded_file.read()).decode('utf-8')
-            pdf_viewer = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="900" type="application/pdf"></iframe>'
-            st.markdown(pdf_viewer, unsafe_allow_html=True)
-            st.info("You are viewing the PDF inside the app.")
-
-        # 2. External PDF link (Google Drive or other)
-        st.markdown("**Or open externally:**")
-        google_drive_url = st.text_input(
-            "Paste Google Drive/external PDF link here:",
-            "https://drive.google.com/"
-        )
-        if google_drive_url and google_drive_url != "https://drive.google.com/":
-            st.markdown(f'[🌐 Open Course Book in new tab]({google_drive_url})', unsafe_allow_html=True)
-
-        # 3. DeepL translation link
-        st.markdown("---")
-        st.markdown("**Need translation?** [🌐 Open DeepL Translator](https://www.deepl.com/translator)")
-        st.caption("Copy and paste any text you need translated.")
-
-
         if student_level in ['A2', 'B1', 'B2', 'C1']:
             for res, label in RESOURCE_LABELS.items():
                 val = info.get(res)
@@ -2946,6 +2918,34 @@ if tab == "Course Book":
                 '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
                 unsafe_allow_html=True
             )
+
+                # === PDF VIEWER AND TRANSLATION OPTIONS ===
+        st.markdown("---")
+        st.subheader("📑 View the Course Book")
+
+        # Preset PDF link from your schedule/info
+        pdf_url = info.get('pdf_link')  # Or replace with your actual variable
+
+        # Option 1: Show PDF in app
+        if pdf_url:
+            st.markdown("**A. View directly in this page:**")
+            st.markdown(
+                f'<iframe src="{pdf_url}" width="700" height="900" type="application/pdf"></iframe>',
+                unsafe_allow_html=True
+            )
+        else:
+            st.info("No PDF link attached for this lesson. Please contact your teacher.")
+
+        # Option 2: Open PDF externally
+        if pdf_url:
+            st.markdown("**B. Open the Course Book in a new tab:**")
+            st.markdown(f'[🌐 Open Course Book PDF in new tab]({pdf_url})', unsafe_allow_html=True)
+
+        # Always show DeepL translation link
+        st.markdown("---")
+        st.markdown("**Need translation?** [🌐 Open DeepL Translator](https://www.deepl.com/translator)")
+        st.caption("Copy and paste any text from the PDF or lesson to translate it.")
+
 
         # --- Quick Add Note Button ---
         if st.button("📝 Add a Note for this Lesson"):
