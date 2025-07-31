@@ -25,6 +25,8 @@ from fpdf import FPDF                      # PDF export
 from streamlit_cookies_manager import EncryptedCookieManager   # Cookie/session handling
 from docx import Document                  # Optional: DOCX notes download
 from gtts import gTTS                      # Text-to-speech for vocab audio
+from streamlit_quill import st_quill            # WYSIWYG note editor
+from bs4 import BeautifulSoup                   # HTML parsing/clean export for TXT/PDF/DOCX
 
 # If you ever add fuzzy matching, you can use:
 # from thefuzz import fuzz, process      # Uncomment if using fuzzy answer checking
@@ -153,19 +155,7 @@ def init_db():
             date TEXT
         )
     """)
-    # Scores Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS scores (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            assignment TEXT,
-            score REAL,
-            comments TEXT,
-            date TEXT,
-            level TEXT
-        )
-    """)
+
     # Exam Progress Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS exam_progress (
@@ -191,24 +181,6 @@ def init_db():
     # Sprechen Daily Usage Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS sprechen_usage (
-            student_code TEXT,
-            date TEXT,
-            count INTEGER,
-            PRIMARY KEY (student_code, date)
-        )
-    """)
-    # Letter Coach Daily Usage Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS letter_coach_usage (
-            student_code TEXT,
-            date TEXT,
-            count INTEGER,
-            PRIMARY KEY (student_code, date)
-        )
-    """)
-    # Schreiben Daily Usage Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS schreiben_usage (
             student_code TEXT,
             date TEXT,
             count INTEGER,
@@ -270,19 +242,6 @@ def init_db():
             score INTEGER,
             feedback TEXT,
             date TEXT
-        )
-    """)
-    # Scores Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS scores (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            assignment TEXT,
-            score REAL,
-            comments TEXT,
-            date TEXT,
-            level TEXT
         )
     """)
     # Exam Progress Table
@@ -355,115 +314,7 @@ def inc_sprechen_usage(student_code):
 
 def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
     return get_sprechen_usage(student_code) < limit
-
-def get_schreiben_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "SELECT count FROM schreiben_usage WHERE student_code=? AND date=?",
-        (student_code, today)
-    )
-    row = c.fetchone()
-    return row[0] if row else 0
-
-def inc_schreiben_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        """
-        INSERT INTO schreiben_usage (student_code, date, count)
-        VALUES (?, ?, 1)
-        ON CONFLICT(student_code, date)
-        DO UPDATE SET count = count + 1
-        """,
-        (student_code, today)
-    )
-    conn.commit()
-
-def get_letter_coach_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "SELECT count FROM letter_coach_usage WHERE student_code=? AND date=?",
-        (student_code, today)
-    )
-    row = c.fetchone()
-    return row[0] if row else 0
-
-def inc_letter_coach_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        """
-        INSERT INTO letter_coach_usage (student_code, date, count)
-        VALUES (?, ?, 1)
-        ON CONFLICT(student_code, date)
-        DO UPDATE SET count = count + 1
-        """,
-        (student_code, today)
-    )
-    conn.commit()
-
-def get_writing_stats(student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT COUNT(*), SUM(score>=17) FROM schreiben_progress WHERE student_code=?
-    """, (student_code,))
-    result = c.fetchone()
-    attempted = result[0] or 0
-    passed = result[1] if result[1] is not None else 0
-    accuracy = round(100 * passed / attempted) if attempted > 0 else 0
-    return attempted, passed, accuracy
-
-def get_student_stats(student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT level, SUM(score >= 17), COUNT(*) 
-        FROM schreiben_progress 
-        WHERE student_code=?
-        GROUP BY level
-    """, (student_code,))
-    stats = {}
-    for level, correct, attempted in c.fetchall():
-        stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
-    return stats
-
-# --- ALIAS for legacy code (use this so your old code works without errors!) ---
-has_falowen_quota = has_sprechen_quota
-
-
-def get_letter_coach_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "SELECT count FROM letter_coach_usage WHERE student_code=? AND date=?",
-        (student_code, today)
-    )
-    row = c.fetchone()
-    return row[0] if row else 0
-
-def inc_letter_coach_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        """
-        INSERT INTO letter_coach_usage (student_code, date, count)
-        VALUES (?, ?, 1)
-        ON CONFLICT(student_code, date)
-        DO UPDATE SET count = count + 1
-        """,
-        (student_code, today)
-    )
-    conn.commit()
-
+    
 
 # ==== YOUTUBE PLAYLIST HELPERS ====
 
@@ -475,14 +326,20 @@ YOUTUBE_PLAYLIST_IDS = {
     ],
     "A2": [
         "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
-        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc&index=5",
+        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc",   # removed &index=5
         "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c",
     ],
     "B1": [
         "PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-",
         "PLB92CD6B288E5DB61",
     ],
+    "B2": [
+        "PLs7zUO7VPyJ5XMfT7pLvweRx6kHVgP_9C",       # Deutsch B2 Grammatik | Learn German B2
+        "PLs7zUO7VPyJ6jZP-s6dlkINuEjFPvKMG0",     # Deutsch B2 | Easy German
+        "PLs7zUO7VPyJ4SMosRdB-35Q07brhnVToY",     # B2 Prüfungsvorbereitung
+    ],
 }
+
 
 @st.cache_data(ttl=43200)  # cache for 12 hours
 def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
@@ -510,37 +367,8 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
             break
     return videos
 
-# ==== FIRESTORE HELPERS (LETTER COACH, SCHREIBEN STATS) ====
 
-def save_letter_coach_progress(student_code, schreiben_level, letter_coach_prompt, chat_history):
-    """Auto-saves the student's Letter Coach progress in Firestore."""
-    doc_ref = db.collection("letter_coach_progress").document(student_code)
-    doc_ref.set({
-        "level": schreiben_level,
-        "prompt": letter_coach_prompt,
-        "chat": chat_history,
-        "last_update": firestore.SERVER_TIMESTAMP
-    })
 
-def load_letter_coach_progress(student_code):
-    """Loads most recent Letter Coach progress from Firestore."""
-    doc_ref = db.collection("letter_coach_progress").document(student_code)
-    doc = doc_ref.get()
-    if doc.exists:
-        data = doc.to_dict()
-        return data.get("prompt", ""), data.get("chat", [])
-    return "", []
-
-def get_schreiben_stats(student_code):
-    doc_ref = db.collection("schreiben_stats").document(student_code)
-    doc = doc_ref.get()
-    if doc.exists:
-        return doc.to_dict()
-    else:
-        return {
-            "total": 0, "passed": 0, "average_score": 0, "best_score": 0,
-            "pass_rate": 0, "last_attempt": None, "attempts": [], "last_letter": ""
-        }
 
 
 
@@ -1058,7 +886,7 @@ if st.session_state.get("logged_in"):
     DASHBOARD_REMINDERS = [
         "🤔 **Have you tried the Course Book?** Explore every lesson, see your learning progress, and never miss a topic.",
         "📊 **Have you checked My Results and Resources?** View your quiz results, download your work, and see where you shine.",
-        "📝 **Have you used Exams Mode & Custom Chat?** Practice real exam questions or ask your own. Get instant writing feedback and AI help!",
+        "📝 **Have you used Exams Mode & Custom Chat?** Practice your speaking and real exam questions or ask your own. Get instant writing feedback and AI help!",
         "🗣️ **Have you done some Vocab Trainer this week?** Practicing new words daily is proven to boost your fluency.",
         "✍️ **Have you used the Schreiben Trainer?** Try building your letters with the Ideas Generator—then self-check before your tutor does!",
         "📒 **Have you added notes in My Learning Notes?** Organize, pin, and download your best ideas and study tips.",
@@ -1505,7 +1333,7 @@ def get_a1_schedule():
                 "workbook_link": "https://drive.google.com/file/d/1Da1iw54oAqoaY-UIw6oyIn8tsDmIi1YR/view?usp=sharing"
             },
             "schreiben_sprechen": {
-                "video": "https://youtu.be/5qnB2Gocp8s",
+                "video": "https://youtu.be/lw9SsojpKf8",
                 "workbook_link": "https://drive.google.com/file/d/1GbIc44ToWh2upnHv6eX3ZjFrvnf4fcEM/view?usp=sharing",
                 "assignment": False,
             }
@@ -1711,7 +1539,7 @@ def get_a1_schedule():
         # DAY 23
         {
             "day": 23,
-            "topic": "Lesen & Hören 14.2 and Schreiben and Sprechen",
+            "topic": "Lesen & Hören 14.2",
             "chapter": "14.2",
             "goal": "Understand adjective declension and dative verbs",
             "instruction": " This chapter has no assignment. Only grammar",
@@ -1726,15 +1554,15 @@ def get_a1_schedule():
         # DAY 24
         {
             "day": 24,
-            "topic": "Schreiben & Sprechen 8.13",
-            "chapter": "8.13",
+            "topic": "Schreiben & Sprechen 5.10",
+            "chapter": "5.10",
             "goal": "Learn about conjunctions and how to apply them in your exams",
             "instruction": "This chapter has no assignments. It gives you ideas to progress for A2 and how to use conjunctions",
             "grammar_topic": "German Conjunctions",
             "assignment": False,
             "schreiben_sprechen": {
-                "video": "",
-                "workbook_link": "https://drive.google.com/file/d/1smb4IuRqSKndoGf_ujEi5IiaYyXOTj4t/view?usp=sharing"
+                "video": "https://youtu.be/WVq9x69dCeE",
+                "workbook_link": "https://drive.google.com/file/d/1LE1b9ilkLLobE5Uw0TVLG0RIVpLK5k1t/view?usp=sharing"
             }
         },
         # DAY 25
@@ -1957,7 +1785,7 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Verbs and Adjectives with Prepositions",
-            "video": "",
+            "video": "https://youtu.be/r4se8KuS8cA",
             "grammarbook_link": "https://drive.google.com/file/d/1BiAyDazBR3lTplP7D2yjaYmEm2btUT1D/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1G_sRFKG9Qt5nc0Zyfnax-0WXSMmbWB70/view?usp=sharing"
         },
@@ -1970,7 +1798,7 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Notes on German Indefinite Pronouns",
-            "video": "",
+            "video": "https://youtu.be/Xjp2A1hU1ag",
             "grammarbook_link": "https://drive.google.com/file/d/1O040UoSuBdy4llTK7MbGIsib63uNNcrV/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1vsdVR_ubbu5gbXnm70vZS5xGFivjBYoA/view?usp=sharing"
         },
@@ -1983,7 +1811,7 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Notes on Opening a Bank Account in Germany",
-            "video": "",
+            "video": "https://youtu.be/ahIUVAbsuxU",
             "grammarbook_link": "https://drive.google.com/file/d/1qNHtY8MYOXjtBxf6wHi6T_P_X1DGFtPm/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1GD7cCPU8ZFykcwsFQZuQMi2fiNrvrCPg/view?usp=sharing"
         },
@@ -2143,7 +1971,7 @@ def get_b1_schedule():
             "grammar_topic": "Präteritum – Vergangene Erlebnisse erzählen",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1St8MpH616FiJmJjTYI9b6hEpNCQd5V0T/view?usp=sharing",
-            "workbook_link": ""
+            "workbook_link": "https://drive.google.com/file/d/1AgjhFYw07JYvsgVP1MBKYEMFBjeAwQ1e/view?usp=sharing"
         },
         # TAG 3
         {
@@ -2460,31 +2288,318 @@ def get_b1_schedule():
     ]
 
 
-# === B2 Schedule Template ===
 def get_b2_schedule():
     return [
         {
             "day": 1,
-            "topic": "B2 Welcome & Orientation",
-            "chapter": "0.0",
-            "goal": "Get familiar with the B2 curriculum and course expectations.",
-            "instruction": "Read the course orientation material and introduce yourself in the chat.",
+            "topic": "Persönliche Identität und Selbstverständnis",
+            "chapter": "1.1",
+            "goal": "Express your personal identity and values.",
+            "instruction": "Write a self-description and discuss your core values.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/17pVc0VfLm32z4zmkaaa_cdshKJEQQxYa/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1D1eb-iwfl_WA2sXPOSPD_66NCiTB4o2w/view?usp=sharing",
+            "grammar_topic": "Adjektivdeklination (adjective endings after definite/indefinite articles)"
         },
         {
             "day": 2,
-            "topic": "B2 Diagnostic Test (Optional)",
-            "chapter": "0.1",
-            "goal": "Assess your current level before starting.",
-            "instruction": "Take the B2 diagnostic or placement test if available.",
+            "topic": "Beziehungen und Kommunikation",
+            "chapter": "1.2",
+            "goal": "Discuss types of relationships and communication strategies.",
+            "instruction": "Roleplay a conversation about resolving a conflict.",
+            "video": "",
+            "grammarbook_link": "https://drive.google.com/file/d/1Mlt-cK6YqPuJe9iCWfqT9DOG9oKhJBdK/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1XCLW0y-MMyIu_bNO3EkKIgp-8QLKgEek/view?usp=sharing",
+            "grammar_topic": "Konjunktiv II (polite requests & hypothetical situations)"
+        },
+        {
+            "day": 3,
+            "topic": "Öffentliches vs. Privates Leben",
+            "chapter": "1.3",
+            "goal": "Compare public and private life in Germany and your country.",
+            "instruction": "Debate privacy issues and share experiences.",
             "video": "",
             "grammarbook_link": "",
-            "workbook_link": ""
+            "workbook_link": "",
+            "grammar_topic": "Passiv (Präsens und Vergangenheit)"
+        },
+        {
+            "day": 4,
+            "topic": "Beruf und Karriere",
+            "chapter": "1.4",
+            "goal": "Talk about professions, CVs, and interviews.",
+            "instruction": "Prepare a CV and practice interview questions.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Partizip I & II as adjectives"
+        },
+        {
+            "day": 5,
+            "topic": "Bildung und Lernen",
+            "chapter": "1.5",
+            "goal": "Discuss the education system and lifelong learning.",
+            "instruction": "Compare schools and share learning tips.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Nominalisierung von Verben (turning verbs into nouns)"
+        },
+        {
+            "day": 6,
+            "topic": "Migration und Integration",
+            "chapter": "2.1",
+            "goal": "Explore migration, integration, and cultural identity.",
+            "instruction": "Share or research a migration story and discuss challenges.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Temporale Nebensätze (als, wenn, nachdem, während, bevor)"
+        },
+        {
+            "day": 7,
+            "topic": "Gesellschaftliche Vielfalt",
+            "chapter": "2.2",
+            "goal": "Examine diversity and inclusion in modern societies.",
+            "instruction": "Discuss experiences with cultural diversity.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Relativsätze mit Präpositionen (relative clauses with prepositions)"
+        },
+        {
+            "day": 8,
+            "topic": "Politik und Engagement",
+            "chapter": "2.3",
+            "goal": "Learn about political systems and civic participation.",
+            "instruction": "Debate the importance of voting and activism.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Finale und kausale Nebensätze (damit, um...zu, weil, da)"
+        },
+        {
+            "day": 9,
+            "topic": "Technologie und Digitalisierung",
+            "chapter": "2.4",
+            "goal": "Discuss digital transformation and its impact.",
+            "instruction": "Present pros and cons of new technologies.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Infinitivkonstruktionen mit zu (ohne zu, anstatt zu, um zu, etc.)"
+        },
+        {
+            "day": 10,
+            "topic": "Umwelt und Nachhaltigkeit",
+            "chapter": "2.5",
+            "goal": "Talk about environmental protection and sustainability.",
+            "instruction": "Suggest ways to live more sustainably.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Konjunktiv II Vergangenheit (hypothetical past)"
+        },
+        {
+            "day": 11,
+            "topic": "Gesundheit und Wohlbefinden",
+            "chapter": "3.1",
+            "goal": "Describe health, wellness, and lifestyle choices.",
+            "instruction": "Discuss health tips and roleplay a doctor's visit.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Reflexive Verben und Pronomen"
+        },
+        {
+            "day": 12,
+            "topic": "Konsum und Medien",
+            "chapter": "3.2",
+            "goal": "Analyze media influence and consumption habits.",
+            "instruction": "Talk about advertising and social media.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Modalverben im Passiv"
+        },
+        {
+            "day": 13,
+            "topic": "Reisen und Mobilität",
+            "chapter": "3.3",
+            "goal": "Plan trips and discuss transportation.",
+            "instruction": "Create a travel itinerary.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Präpositionen mit Genitiv"
+        },
+        {
+            "day": 14,
+            "topic": "Wohnen und Zusammenleben",
+            "chapter": "3.4",
+            "goal": "Compare different living situations and communities.",
+            "instruction": "Debate renting vs. buying and describe your dream home.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Steigerung der Adjektive (comparative & superlative)"
+        },
+        {
+            "day": 15,
+            "topic": "Kunst und Kultur",
+            "chapter": "3.5",
+            "goal": "Explore art, literature, and cultural events.",
+            "instruction": "Present on a favorite artist or book.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Satzbau und Satzstellung (word order in main/subordinate clauses)"
+        },
+        {
+            "day": 16,
+            "topic": "Wissenschaft und Forschung",
+            "chapter": "4.1",
+            "goal": "Discuss scientific discoveries and research.",
+            "instruction": "Summarize a science article.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Partizipialkonstruktionen (participial constructions)"
+        },
+        {
+            "day": 17,
+            "topic": "Feste und Traditionen",
+            "chapter": "4.2",
+            "goal": "Describe traditional festivals and customs.",
+            "instruction": "Share a festival from your culture.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": ""
+        },
+        {
+            "day": 18,
+            "topic": "Freizeit und Hobbys",
+            "chapter": "4.3",
+            "goal": "Talk about leisure time and hobbies.",
+            "instruction": "Interview a partner about their hobbies.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Pronominaladverbien (darauf, worüber, etc.)"
+        },
+        {
+            "day": 19,
+            "topic": "Ernährung und Esskultur",
+            "chapter": "4.4",
+            "goal": "Discuss food, diet, and eating habits.",
+            "instruction": "Describe a traditional meal.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Indirekte Rede (reported speech)"
+        },
+        {
+            "day": 20,
+            "topic": "Mode und Lebensstil",
+            "chapter": "4.5",
+            "goal": "Examine fashion and lifestyle trends.",
+            "instruction": "Discuss style and its role in society.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": ""
+        },
+        {
+            "day": 21,
+            "topic": "Werte und Normen",
+            "chapter": "5.1",
+            "goal": "Analyze values, norms, and their impact.",
+            "instruction": "Debate ethical questions.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Negation: kein-, nicht, ohne, weder...noch"
+        },
+        {
+            "day": 22,
+            "topic": "Sprache und Kommunikation",
+            "chapter": "5.2",
+            "goal": "Discuss language learning and communication strategies.",
+            "instruction": "Share your experiences learning languages.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Nominalstil vs. Verbalstil (nominal vs. verbal style)"
+        },
+        {
+            "day": 23,
+            "topic": "Innovation und Zukunft",
+            "chapter": "5.3",
+            "goal": "Speculate about the future and innovation.",
+            "instruction": "Predict changes in technology and society.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Futur I und II"
+        },
+        {
+            "day": 24,
+            "topic": "Gesellschaftliche Herausforderungen",
+            "chapter": "5.4",
+            "goal": "Discuss social challenges and possible solutions.",
+            "instruction": "Brainstorm how to address a major problem.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Subjekt- und Objektive Sätze"
+        },
+        {
+            "day": 25,
+            "topic": "Globalisierung und internationale Beziehungen",
+            "chapter": "5.5",
+            "goal": "Explore globalization and its effects.",
+            "instruction": "Debate pros and cons of globalization.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Partizipialattribute (participle attributes)"
+        },
+        {
+            "day": 26,
+            "topic": "Kreatives Schreiben & Projekte",
+            "chapter": "6.1",
+            "goal": "Develop creative writing skills.",
+            "instruction": "Write a short story or blog post.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": ""
+        },
+        {
+            "day": 27,
+            "topic": "Prüfungstraining & Wiederholung",
+            "chapter": "6.2",
+            "goal": "Review B2 topics and practice exam formats.",
+            "instruction": "Take a mock exam and review your answers.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": ""
+        },
+        {
+            "day": 28,
+            "topic": "Abschlusspräsentation & Feedback",
+            "chapter": "6.3",
+            "goal": "Summarize course topics and reflect on progress.",
+            "instruction": "Give a final presentation and provide feedback.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": ""
         }
-        # You can add more B2 lessons here in the future
     ]
+
 
 # === C1 Schedule Template ===
 def get_c1_schedule():
@@ -2521,8 +2636,6 @@ if "student_row" not in st.session_state:
         "StudentCode": "demo001"
     }
 
-
-
 student_row = st.session_state.get("student_row", {})
 student_level = student_row.get("Level", "A1").upper()
 
@@ -2538,7 +2651,6 @@ def load_level_schedules():
     }
 
 # --- Helpers ---
-
 def render_assignment_reminder():
     """
     Render a responsive, mobile-friendly assignment reminder box with clear contrast.
@@ -2584,7 +2696,6 @@ def build_wa_message(name, code, level, day, chapter, answer):
         f"Date: {timestamp}\n"
         f"Answer: {answer if answer.strip() else '[See attached file/photo]'}"
     )
-
 
 def highlight_terms(text, terms):
     """Wrap each term in <span> for highlight in markdown/html."""
@@ -2640,6 +2751,19 @@ RESOURCE_LABELS = {
     'extra_resources': '🔗 Extra'
 }
 
+# ---- Firestore Helpers ----
+def load_notes_from_db(student_code):
+    ref = db.collection("learning_notes").document(student_code)
+    doc = ref.get()
+    return doc.to_dict().get("notes", []) if doc.exists else []
+
+def save_notes_to_db(student_code, notes):
+    ref = db.collection("learning_notes").document(student_code)
+    ref.set({"notes": notes}, merge=True)
+
+
+
+# --------------- COURSE BOOK MAIN TAB WITH SUBTABS ---------------
 if tab == "Course Book":
     st.markdown(
         '''
@@ -2658,158 +2782,319 @@ if tab == "Course Book":
     )
     st.divider()
 
-    schedules = load_level_schedules()
-    schedule = schedules.get(student_level, schedules.get('A1', []))
-
-    query = st.text_input("🔍 Search for topic, chapter, grammar, day, or anything…")
-    search_terms = [q for q in query.strip().lower().split() if q] if query else []
-
-    if search_terms:
-        matches = [(i, d) for i, d in enumerate(schedule) if filter_matches(d, search_terms)]
-        if not matches:
-            st.warning("No matching lessons. Try simpler terms or check spelling.")
-            st.stop()
-        labels = []
-        for _, d in matches:
-            title = highlight_terms(f"Day {d['day']}: {d['topic']}", search_terms)
-            grammar = highlight_terms(d.get('grammar_topic', ''), search_terms)
-            labels.append(f"{title}  {'<span style=\"color:#007bff\">['+grammar+']</span>' if grammar else ''}")
-        sel = st.selectbox("Lessons:", list(range(len(matches))), format_func=lambda i: labels[i], key="course_search_sel")
-        idx = matches[sel][0]
-    else:
-        idx = st.selectbox(
-            "Choose your lesson/day:",
-            range(len(schedule)),
-            format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
-        )
-
-    # ===== Progress Bar (just for scrolling/selection) =====
-    total_assignments = len(schedule)
-    assignments_done = idx + 1
-    percent = int((assignments_done / total_assignments) * 100) if total_assignments else 0
-    st.progress(percent)
-    st.markdown(f"**You’ve loaded {assignments_done} / {total_assignments} lessons ({percent}%)**")
-
-    # ===== Estimated time for just this lesson =====
-    LEVEL_TIME = {
-        "A1": 15,
-        "A2": 25,
-        "B1": 30,
-        "B2": 40,
-        "C1": 45
-    }
-    current_time = LEVEL_TIME.get(student_level, 20)
-    st.info(f"⏱️ **Recommended:** Invest about {current_time} minutes to complete this lesson fully.")
-
-    # ====== SUGGESTED END DATE CALCULATION (THREE PACES) ======
-    contract_start_str = student_row.get('ContractStart', '')
-    contract_start_date = None
-    for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d/%m/%Y"):
-        try:
-            contract_start_date = datetime.strptime(contract_start_str, fmt).date()
-            break
-        except Exception:
-            continue
-
-    if contract_start_date:
-        # 3 per week
-        weeks_3 = (total_assignments + 2) // 3
-        end_3 = contract_start_date + timedelta(weeks=weeks_3)
-        # 2 per week
-        weeks_2 = (total_assignments + 1) // 2
-        end_2 = contract_start_date + timedelta(weeks=weeks_2)
-        # 1 per week
-        weeks_1 = total_assignments
-        end_1 = contract_start_date + timedelta(weeks=weeks_1)
-
-        st.success(f"🎯 **At 3 lessons/week, you can finish by:** {end_3.strftime('%A, %d %b %Y')}")
-        st.info(f"🟢 **At 2 lessons/week, you can finish by:** {end_2.strftime('%A, %d %b %Y')}")
-        st.warning(f"🟡 **At 1 lesson/week, you can finish by:** {end_1.strftime('%A, %d %b %Y')}")
-        st.caption("Stay consistent – choose your pace and finish on time.")
-    else:
-        st.warning("❓ Start date missing or wrong format. Please contact admin to update your contract start date for end date suggestion.")
-
-
-    info = schedule[idx]
-    st.markdown(
-        f"### {highlight_terms('Day ' + str(info['day']) + ': ' + info['topic'], search_terms)} (Chapter {info['chapter']})",
-        unsafe_allow_html=True
+    cb_subtab = st.radio(
+        "Select section:",
+        ["📘 Course Book", "📒 Learning Notes"],
+        horizontal=True,
+        key="coursebook_subtab"
     )
-    if info.get('grammar_topic'):
-        st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
-    if info.get('goal'):
-        st.markdown(f"**🎯 Goal:**  {info['goal']}")
-    if info.get('instruction'):
-        st.markdown(f"**📝 Instruction:**  {info['instruction']}")
 
-    render_section(info, 'lesen_hören', 'Lesen & Hören', '📚')
-    render_section(info, 'schreiben_sprechen', 'Schreiben & Sprechen', '📝')
+    # === COURSE BOOK SUBTAB ===
+    if cb_subtab == "📘 Course Book":
+        # ----- Insert your full Course Book logic here -----
+        schedules = load_level_schedules()
+        schedule = schedules.get(student_level, schedules.get('A1', []))
 
-    if student_level in ['A2', 'B1', 'B2', 'C1']:
-        for res, label in RESOURCE_LABELS.items():
-            val = info.get(res)
-            if val:
-                if res == 'video':
-                    st.video(val)
-                else:
-                    st.markdown(f"- [{label}]({val})", unsafe_allow_html=True)
+        query = st.text_input("🔍 Search for topic, chapter, grammar, day, or anything…")
+        search_terms = [q for q in query.strip().lower().split() if q] if query else []
+
+        if search_terms:
+            matches = [(i, d) for i, d in enumerate(schedule) if filter_matches(d, search_terms)]
+            if not matches:
+                st.warning("No matching lessons. Try simpler terms or check spelling.")
+                st.stop()
+            labels = []
+            for _, d in matches:
+                title = highlight_terms(f"Day {d['day']}: {d['topic']}", search_terms)
+                grammar = highlight_terms(d.get('grammar_topic', ''), search_terms)
+                labels.append(f"{title}  {'<span style=\"color:#007bff\">['+grammar+']</span>' if grammar else ''}")
+            sel = st.selectbox("Lessons:", list(range(len(matches))), format_func=lambda i: labels[i], key="course_search_sel")
+            idx = matches[sel][0]
+        else:
+            idx = st.selectbox(
+                "Choose your lesson/day:",
+                range(len(schedule)),
+                format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
+            )
+
+        # Example Progress Bar (just for scrolling/selection)
+        total_assignments = len(schedule)
+        assignments_done = idx + 1
+        percent = int((assignments_done / total_assignments) * 100) if total_assignments else 0
+        st.progress(percent)
+        st.markdown(f"**You’ve loaded {assignments_done} / {total_assignments} lessons ({percent}%)**")
+
+        LEVEL_TIME = {
+            "A1": 15, "A2": 25, "B1": 30, "B2": 40, "C1": 45
+        }
+        current_time = LEVEL_TIME.get(student_level, 20)
+        st.info(f"⏱️ **Recommended:** Invest about {current_time} minutes to complete this lesson fully.")
+
+        # ------- Show current lesson info ---------
+        info = schedule[idx]
         st.markdown(
-            '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
+            f"### {highlight_terms('Day ' + str(info['day']) + ': ' + info['topic'], search_terms)} (Chapter {info['chapter']})",
             unsafe_allow_html=True
         )
+        if info.get('grammar_topic'):
+            st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
+        if info.get('goal'):
+            st.markdown(f"**🎯 Goal:**  {info['goal']}")
+        if info.get('instruction'):
+            st.markdown(f"**📝 Instruction:**  {info['instruction']}")
 
-    st.divider()
+        st.info("Before you submit your assignment, do you mind watching the Video of the Day? (feature placeholder)")
 
-    st.info("Before you submit your assignment, do you mind watching the Video of the Day? Click below to open it.")
+        # --- WhatsApp submission (feature placeholder) ---
+        st.header("📲 Submit Assignment (WhatsApp)")
+        st.write("Your WhatsApp submission logic goes here.")
 
-    with st.expander("🎬 Video of the Day for Your Level"):
-        playlist_id = YOUTUBE_PLAYLIST_IDS.get(student_level)
-        if playlist_id:
-            video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
-            if video_list:
-                today_idx = date.today().toordinal()
-                pick = today_idx % len(video_list)
-                video = video_list[pick]
-                st.markdown(f"**{video['title']}**")
-                st.video(video['url'])
+    # === LEARNING NOTES SUBTAB ===
+    elif cb_subtab == "📒 Learning Notes":
+        st.markdown("""
+            <div style="padding: 14px; background: #8d4de8; color: #fff; border-radius: 8px; 
+            text-align:center; font-size:1.5rem; font-weight:700; margin-bottom:16px; letter-spacing:.5px;">
+            📒 My Learning Notes
+            </div>
+        """, unsafe_allow_html=True)
+
+        student_code = st.session_state.get("student_code", "demo001")
+        key_notes = f"notes_{student_code}"
+
+        if key_notes not in st.session_state:
+            st.session_state[key_notes] = load_notes_from_db(student_code)
+        notes = st.session_state[key_notes]
+
+        if st.session_state.get("switch_to_edit_note"):
+            st.session_state["course_notes_radio"] = "➕ Add/Edit Note"
+            del st.session_state["switch_to_edit_note"]
+        elif st.session_state.get("switch_to_library"):
+            st.session_state["course_notes_radio"] = "📚 My Notes Library"
+            del st.session_state["switch_to_library"]
+
+        notes_subtab = st.radio(
+            "Notebook",
+            ["➕ Add/Edit Note", "📚 My Notes Library"],
+            horizontal=True,
+            key="course_notes_radio"
+        )
+
+        if notes_subtab == "➕ Add/Edit Note":
+            st.markdown("#### ✍️ Create a new note or update an old one")
+            editing = st.session_state.get("edit_note_idx", None) is not None
+            if editing:
+                idx = st.session_state["edit_note_idx"]
+                title = st.session_state.get("edit_note_title", "")
+                tag = st.session_state.get("edit_note_tag", "")
+                text = st.session_state.get("edit_note_text", "")
             else:
-                st.info("No videos found for your level’s playlist. Check back soon!")
-        else:
-            st.info("No playlist found for your level yet. Stay tuned!")
+                title, tag, text = "", "", ""
 
-    st.header("📲 Submit Assignment (WhatsApp)")
+            with st.form("note_form", clear_on_submit=not editing):
+                new_title = st.text_input("Note Title", value=title, max_chars=50)
+                new_tag = st.text_input("Category/Tag (optional)", value=tag, max_chars=20)
+                new_text = st.text_area("Your Note", value=text, height=200, max_chars=3000)
+                save_btn = st.form_submit_button("💾 Save Note")
+                cancel_btn = editing and st.form_submit_button("❌ Cancel Edit")
 
-    def render_whatsapp():
-        st.subheader("👤 Your Name & Code")
-        name = st.text_input("Name", value=student_row.get('Name',''))
-        code = st.text_input("Code", value=student_row.get('StudentCode',''))
-        st.subheader("✍️ Your Answer")
-        ans = st.text_area("Answer (or attach on WhatsApp)", height=500)
-        msg = build_wa_message(name, code, student_level, info['day'], info['chapter'], ans)
-        url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(msg)
-        if st.button("📤 Send via WhatsApp"):
-            st.success("Click link below to open WhatsApp.")
-            st.markdown(f"[📨 Open WhatsApp]({url})")
-        st.text_area("📋 Copy message:", msg, height=500)
+            if save_btn:
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+                if not new_title.strip():
+                    st.warning("Please enter a title.")
+                    st.stop()
+                note = {
+                    "title": new_title.strip().title(),
+                    "tag": new_tag.strip().title(),
+                    "text": new_text.strip(),
+                    "pinned": False,
+                    "created": timestamp,
+                    "updated": timestamp
+                }
+                if editing:
+                    notes[idx] = note
+                    for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
+                        if k in st.session_state: del st.session_state[k]
+                    st.success("Note updated!")
+                else:
+                    notes.insert(0, note)
+                    st.success("Note added!")
+                st.session_state[key_notes] = notes
+                save_notes_to_db(student_code, notes)
+                st.session_state["switch_to_library"] = True
+                st.rerun()
 
-    render_whatsapp()
+            if cancel_btn:
+                for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
+                    if k in st.session_state: del st.session_state[k]
+                st.session_state["switch_to_library"] = True
+                st.experimental_rerun()
 
-    st.info(
-        """
-    - Tap the links above to open resources in a new tab.
-    - Mention which task you're submitting.
-    - Use your correct name and code.
-        """
-    )
+        elif notes_subtab == "📚 My Notes Library":
+            st.markdown("#### 📚 All My Notes")
+
+            if not notes:
+                st.info("No notes yet. Add your first note in the ➕ tab!")
+            else:
+                search_term = st.text_input("🔎 Search your notes…", "")
+                if search_term.strip():
+                    filtered = []
+                    st.markdown('<div style="height:10px"></div>', unsafe_allow_html=True)
+                    for n in notes:
+                        if (search_term.lower() in n.get("title","").lower() or 
+                            search_term.lower() in n.get("tag","").lower() or 
+                            search_term.lower() in n.get("text","").lower()):
+                            filtered.append(n)
+                    notes_to_show = filtered
+                    if not filtered:
+                        st.warning("No matching notes found!")
+                else:
+                    notes_to_show = notes
+
+                # --- Download Buttons (TXT, PDF, DOCX) FOR ALL NOTES ---
+                all_notes = []
+                for n in notes_to_show:
+                    note_text = f"Title: {n.get('title','')}\n"
+                    if n.get('tag'):
+                        note_text += f"Tag: {n['tag']}\n"
+                    note_text += n.get('text','') + "\n"
+                    note_text += f"Date: {n.get('updated', n.get('created',''))}\n"
+                    note_text += "-"*32 + "\n"
+                    all_notes.append(note_text)
+                txt_data = "\n".join(all_notes)
+
+                st.download_button(
+                    label="⬇️ Download All Notes (TXT)",
+                    data=txt_data.encode("utf-8"),
+                    file_name=f"{student_code}_notes.txt",
+                    mime="text/plain"
+                )
+
+                # --- PDF Download (all notes) ---
+                class PDF(FPDF):
+                    def header(self):
+                        self.set_font('Arial', 'B', 16)
+                        self.cell(0, 12, "My Learning Notes", align="C", ln=1)
+                        self.ln(5)
+                def safe_latin1(text):
+                    return text.encode("latin1", "replace").decode("latin1")
+                pdf = PDF()
+                pdf.add_page()
+                pdf.set_auto_page_break(auto=True, margin=15)
+                pdf.set_font("Arial", size=12)
+                pdf.set_font("Arial", "B", 13)
+                pdf.cell(0, 10, "Table of Contents", ln=1)
+                pdf.set_font("Arial", "", 11)
+                for idx, note in enumerate(notes_to_show):
+                    pdf.cell(0, 8, f"{idx+1}. {safe_latin1(note.get('title',''))} - {note.get('created', note.get('updated',''))}", ln=1)
+                pdf.ln(5)
+                for n in notes_to_show:
+                    pdf.set_font("Arial", "B", 13)
+                    pdf.cell(0, 10, safe_latin1(f"Title: {n.get('title','')}"), ln=1)
+                    pdf.set_font("Arial", "I", 11)
+                    if n.get("tag"):
+                        pdf.cell(0, 8, safe_latin1(f"Tag: {n['tag']}"), ln=1)
+                    pdf.set_font("Arial", "", 12)
+                    for line in n.get('text','').split("\n"):
+                        pdf.multi_cell(0, 7, safe_latin1(line))
+                    pdf.ln(1)
+                    pdf.set_font("Arial", "I", 11)
+                    pdf.cell(0, 8, safe_latin1(f"Date: {n.get('updated', n.get('created',''))}"), ln=1)
+                    pdf.ln(5)
+                    pdf.set_font("Arial", "", 10)
+                    pdf.cell(0, 4, '-' * 55, ln=1)
+                    pdf.ln(8)
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
+                    pdf.output(tmp_pdf.name)
+                    tmp_pdf.seek(0)
+                    pdf_bytes = tmp_pdf.read()
+                os.remove(tmp_pdf.name)
+                st.download_button(
+                    label="⬇️ Download All Notes (PDF)",
+                    data=pdf_bytes,
+                    file_name=f"{student_code}_notes.pdf",
+                    mime="application/pdf"
+                )
+
+                # --- DOCX Download (all notes) ---
+                def export_notes_to_docx(notes, student_code="student"):
+                    doc = Document()
+                    doc.add_heading("My Learning Notes", 0)
+                    doc.add_heading("Table of Contents", level=1)
+                    for idx, note in enumerate(notes):
+                        doc.add_paragraph(f"{idx+1}. {note.get('title', '(No Title)')} - {note.get('created', note.get('updated',''))}")
+                    doc.add_page_break()
+                    for note in notes:
+                        doc.add_heading(note.get('title','(No Title)'), level=1)
+                        if note.get("tag"):
+                            doc.add_paragraph(f"Tag: {note.get('tag','')}")
+                        doc.add_paragraph(note.get('text', ''))
+                        doc.add_paragraph(f"Date: {note.get('created', note.get('updated',''))}")
+                        doc.add_paragraph('-' * 40)
+                        doc.add_paragraph("")
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as f:
+                        doc.save(f.name)
+                        return f.name
+                docx_path = export_notes_to_docx(notes_to_show, student_code)
+                with open(docx_path, "rb") as f:
+                    st.download_button(
+                        label="⬇️ Download All Notes (DOCX)",
+                        data=f.read(),
+                        file_name=f"{student_code}_notes.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    )
+                os.remove(docx_path)
+
+                st.markdown("---")
+                pinned_notes = [n for n in notes_to_show if n.get("pinned")]
+                other_notes = [n for n in notes_to_show if not n.get("pinned")]
+                show_list = pinned_notes + other_notes
+                for i, note in enumerate(show_list):
+                    st.markdown(
+                        f"<div style='padding:12px 0 6px 0; font-weight:600; color:#7c3aed; font-size:1.18rem;'>"
+                        f"{'📌 ' if note.get('pinned') else ''}{note.get('title','(No Title)')}"
+                        f"</div>", unsafe_allow_html=True)
+                    if note.get("tag"):
+                        st.caption(f"🏷️ Tag: {note['tag']}")
+                    st.markdown(
+                        f"<div style='margin-top:-5px; margin-bottom:6px; font-size:1.08rem; line-height:1.7;'>{note['text']}</div>",
+                        unsafe_allow_html=True)
+                    st.caption(f"🕒 {note.get('updated',note.get('created',''))}")
+
+                    cols = st.columns([1,1,1,1])
+                    with cols[0]:
+                        if st.button("✏️ Edit", key=f"edit_{i}"):
+                            st.session_state["edit_note_idx"] = i
+                            st.session_state["edit_note_title"] = note["title"]
+                            st.session_state["edit_note_text"] = note["text"]
+                            st.session_state["edit_note_tag"] = note.get("tag", "")
+                            st.session_state["switch_to_edit_note"] = True
+                            st.rerun()
+                    with cols[1]:
+                        if st.button("🗑️ Delete", key=f"del_{i}"):
+                            notes.remove(note)
+                            st.session_state[key_notes] = notes
+                            save_notes_to_db(student_code, notes)
+                            st.success("Note deleted.")
+                            st.rerun()
+                    with cols[2]:
+                        if note.get("pinned"):
+                            if st.button("📌 Unpin", key=f"unpin_{i}"):
+                                note["pinned"] = False
+                                st.session_state[key_notes] = notes
+                                save_notes_to_db(student_code, notes)
+                                st.rerun()
+                        else:
+                            if st.button("📍 Pin", key=f"pin_{i}"):
+                                note["pinned"] = True
+                                st.session_state[key_notes] = notes
+                                save_notes_to_db(student_code, notes)
+                                st.rerun()
+                    with cols[3]:
+                        st.caption("")
+
+# ---------------------- END TAB -------------------------
 
 
-    st.info(
-        """
-- Tap the links above to open resources in a new tab.
-- Mention which task you're submitting.
-- Use your correct name and code.
-        """
-    )
 
 
 
@@ -3231,6 +3516,8 @@ How to prepare for your B1 oral exam.
         """
     )
 
+
+
 # ================================
 # 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
 # ================================
@@ -3647,7 +3934,8 @@ if tab == "Exams Mode & Custom Chat":
             return (
                 f"You are Herr Felix, a supportive and innovative German teacher. "
                 f"1. Congratulate the student in English for the topic and give interesting tips on the topic. Always let the student know how the session is going to go in English. It shouldnt just be questions but teach them also. The total number of questios,what they should expect,what they would achieve at the end of the session. Let them know they can ask questions or ask for translation if they dont understand anything. You are ready to always help "
-                f"Promise them that if they answer all 10 questions, you use their own words to build a presentation of 60 words for them. They only have to be consistent "
+                f"2. If student input looks like a letter question instead of a topic for discussion, then prompt them that you are trained to only help them with their speaking so they should rather paste their letter question in the ideas generator in the schreiben tab. "
+                f"Promise them that if they answer all 10 questions, you use their own words to build a presentation of 60 words for them. They record it as mp3 or wav on their phones and upload at the Pronunciation & Speaking Checker tab under the Exams Mode & Custom Chat. They only have to be consistent "
                 f"Pick 4 useful keywords related to the student's topic and use them as the focus for conversation. Give students ideas and how to build their points for the conversation in English. "
                 f"For each keyword, ask the student up to 2 creative, diverse and interesting questions in German only based on student language level, one at a time, not all at once. Just ask the question and don't let student know this is the keyword you are using. "
                 f"After each student answer, give feedback and a suggestion to extend their answer if it's too short. Feedback in English and suggestion in German. "
@@ -3655,16 +3943,12 @@ if tab == "Exams Mode & Custom Chat":
                 f"After keyword questions, continue with other random follow-up questions that reflect student selected level about the topic in German (until you reach 10 questions in total). "
                 f"Never ask more than 2 questions about the same keyword. "
                 f"After the student answers 10 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
-                f"Also give them 60 words from their own words in a presentation form that they can use in class. Add your own points if their words and responses were small. Tell to improve on it and learn to speak without reading "
+                f"Also give them 60 words from their own words in a presentation form that they can use in class. Add your own points if their words and responses were small. Tell them to improve on it, record with phones as wav or mp3 and upload at Pronunciation & Speaking Checker for further assessment and learn to speak without reading "
                 f"All feedback and corrections should be {correction_lang}. "
                 f"Encourage the student and keep the chat motivating. "
             )
         return ""
-#
-    # ---- USAGE LIMIT CHECK ----
-    if not has_falowen_quota(student_code):
-        st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
-        st.stop()
+
 
 # ---- SESSION STATE DEFAULTS ----
     default_state = {
@@ -4250,78 +4534,17 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("⬅️ Back to Main Menu"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
-#Theend
-
-
-
-
-
-
-def play_word_audio(word, lang='de'):
-    tts = gTTS(text=word, lang=lang)
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
-        tts.save(fp.name)
-        st.audio(fp.name, format='audio/mp3')
-
 
 # =========================================
-# VOCAB TRAINER TAB (A1–C1) — MOBILE OPTIMIZED
+# End
 # =========================================
 
-# ---- Your Google Sheets Link ----
-sheet_id = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
-sheet_name = "Sheet1"
-csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={sheet_name}"
-
-# ---- Mobile-friendly message bubble ----
-def render_message(role, msg):
-    align = "left" if role == "assistant" else "right"
-    bgcolor = "#FAFAFA" if role == "assistant" else "#D2F8D2"
-    textcolor = "#222"
-    bordcol = "#cccccc"
-    label = "Herr Felix" if role == "assistant" else "You"
-    style = (
-        f"padding:14px 14px 12px 14px; border-radius:12px; max-width:96vw; "
-        f"margin:7px 0 7px 0; text-align:{align}; background:{bgcolor}; "
-        f"border:1px solid {bordcol}; color:{textcolor}; font-size:1.12em;"
-        "box-shadow: 0 2px 8px rgba(40,40,40,0.06);"
-        "word-break:break-word;"
-    )
-    st.markdown(
-        f"<div style='{style}'><b>{label}:</b> {msg}</div>",
-        unsafe_allow_html=True
-    )
-
-# ---- Helper functions ----
-def clean_text(text):
-    return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
-
-def is_correct_answer(user_input, answer):
-    # Accept any valid answer separated by ',', '/', or ';'
-    possible = [a.strip().lower() for a in re.split(r'[,/;]', answer)]
-    given = clean_text(user_input)
-    if given in possible:
-        return True
-    # Optional: fuzzy matching for typo tolerance
-    # return any(fuzz.ratio(given, a) > 85 for a in possible)
-    return False
-
-@st.cache_data
-def load_vocab_lists():
-    df = pd.read_csv(csv_url)
-    lists = {}
-    for lvl in df['Level'].unique():
-        sub = df[df['Level'] == lvl]
-        lists[lvl] = list(zip(sub['German'], sub['English']))
-    return lists
-
-VOCAB_LISTS = load_vocab_lists()
-
-# ==========================
+# =========================================
 # FIRESTORE STATS HELPERS
-# ==========================
+# =========================================
 
 def save_vocab_attempt(student_code, level, total, correct, practiced_words):
+    """Save one vocab practice attempt to Firestore."""
     doc_ref = db.collection("vocab_stats").document(student_code)
     doc = doc_ref.get()
     data = doc.to_dict() if doc.exists else {}
@@ -4335,295 +4558,198 @@ def save_vocab_attempt(student_code, level, total, correct, practiced_words):
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
     }
     history.append(attempt)
-    best = max([a["correct"] for a in history] or [0])
-    last_practiced = attempt["timestamp"]
-    completed_words = set(sum([a["practiced_words"] for a in history], []))
+    best = max((a["correct"] for a in history), default=0)
+    completed = set(sum((a["practiced_words"] for a in history), []))
 
     doc_ref.set({
-        "history": history,
-        "best": best,
-        "last_practiced": last_practiced,
-        "completed_words": list(completed_words),
-        "total_sessions": len(history),
+        "history":           history,
+        "best":              best,
+        "last_practiced":    attempt["timestamp"],
+        "completed_words":   list(completed),
+        "total_sessions":    len(history),
     })
 
 def get_vocab_stats(student_code):
+    """Load vocab practice stats from Firestore (or defaults)."""
     doc_ref = db.collection("vocab_stats").document(student_code)
     doc = doc_ref.get()
     if doc.exists:
         return doc.to_dict()
-    else:
-        return {
-            "history": [],
-            "best": 0,
-            "last_practiced": None,
-            "completed_words": [],
-            "total_sessions": 0,
-        }
+    return {
+        "history":           [],
+        "best":              0,
+        "last_practiced":    None,
+        "completed_words":   [],
+        "total_sessions":    0,
+    }
 
 # =========================================
 # VOCAB TRAINER TAB (A1–C1)
 # =========================================
 
+# Your Google Sheet → CSV
+sheet_id = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
+csv_url  = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=0"
+
+# Play German audio
+def play_word_audio(word, lang="de"):
+    from gtts import gTTS
+    import tempfile
+    tts = gTTS(text=word, lang=lang)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
+        tts.save(fp.name)
+        st.audio(fp.name, format="audio/mp3")
+
+# Chat bubble renderer
+def render_message(role, msg):
+    align   = "left"   if role=="assistant" else "right"
+    bgcolor = "#FAFAFA" if role=="assistant" else "#D2F8D2"
+    bordcol = "#CCCCCC"
+    label   = "Herr Felix 👨‍🏫" if role=="assistant" else "You"
+    style = (
+        f"padding:14px; border-radius:12px; max-width:96vw; "
+        f"margin:7px 0; text-align:{align}; background:{bgcolor}; "
+        f"border:1px solid {bordcol}; font-size:1.12em; word-break:break-word;"
+    )
+    st.markdown(f"<div style='{style}'><b>{label}:</b> {msg}</div>", unsafe_allow_html=True)
+
+# Answer checking
+def clean_text(text):
+    return text.replace("the ", "").replace(",", "").replace(".", "").strip().lower()
+
+def is_correct_answer(user_input, answer):
+    import re
+    possible = [a.strip().lower() for a in re.split(r"[,/;]", answer)]
+    return clean_text(user_input) in possible
+
+# Robust CSV loader
+@st.cache_data
+def load_vocab_lists():
+    import pandas as pd
+    try:
+        df = pd.read_csv(csv_url)
+    except Exception as e:
+        st.error(f"Could not fetch vocab CSV: {e}")
+        return {}
+    df.columns = df.columns.str.strip()
+    missing = [c for c in ("Level","German","English") if c not in df.columns]
+    if missing:
+        st.error(f"Missing column(s) in your sheet: {missing}")
+        return {}
+    df = df[["Level","German","English"]].dropna()
+    lists = {}
+    for lvl, grp in df.groupby("Level"):
+        lists[lvl] = list(zip(grp["German"], grp["English"]))
+    return lists
+
+VOCAB_LISTS = load_vocab_lists()
+
+# Tab logic
 if tab == "Vocab Trainer":
     st.markdown(
-        '''
+        """
         <div style="
-            padding: 8px 12px;
-            background: #6f42c1;
-            color: #fff;
-            border-radius: 6px;
-            text-align: center;
-            margin-bottom: 8px;
-            font-size: 1.3rem;
-        ">
-            📚 Vocab Trainer
-        </div>
-        ''',
+            padding:8px 12px; background:#6f42c1; color:#fff;
+            border-radius:6px; text-align:center; margin-bottom:8px;
+            font-size:1.3rem;
+        ">📚 Vocab Trainer</div>
+        """,
         unsafe_allow_html=True
     )
     st.divider()
 
-    HERR_FELIX = "Herr Felix 👨‍🏫"
-    defaults = {
-        "vt_history": [],
-        "vt_list": [],
-        "vt_index": 0,
-        "vt_score": 0,
-        "vt_total": None,
-    }
-    for key, val in defaults.items():
-        st.session_state.setdefault(key, val)
+    # initialize
+    defaults = {"vt_history":[], "vt_list":[], "vt_index":0, "vt_score":0, "vt_total":None}
+    for k,v in defaults.items(): st.session_state.setdefault(k,v)
+    student_code = st.session_state.get("student_code","demo")
 
-    # Student code (from session)
-    student_code = st.session_state.get("student_code", "demo")
-
-    # ===== Show Vocab Stats =====
-    vocab_stats = get_vocab_stats(student_code)
-    st.markdown("### 📝 **Your Vocab Practice Stats**")
-    st.markdown(f"- **Sessions:** {vocab_stats['total_sessions']}")
-    st.markdown(f"- **Best Score:** {vocab_stats['best']}")
-    st.markdown(f"- **Last Practiced:** {vocab_stats['last_practiced']}")
-    st.markdown(f"- **Total Unique Words Completed:** {len(vocab_stats['completed_words'])}")
-
-    if st.toggle("Show Last 5 Sessions"):
-        for attempt in vocab_stats["history"][-5:][::-1]:
+    # show stats
+    stats = get_vocab_stats(student_code)
+    st.markdown("### 📝 Your Vocab Stats")
+    st.markdown(f"- **Sessions:** {stats['total_sessions']}")
+    st.markdown(f"- **Best:** {stats['best']}")
+    st.markdown(f"- **Last Practiced:** {stats['last_practiced']}")
+    st.markdown(f"- **Unique Words:** {len(stats['completed_words'])}")
+    if st.checkbox("Show Last 5 Sessions"):
+        for a in stats["history"][-5:][::-1]:
             st.markdown(
-                f"- **Date:** {attempt['timestamp']} | **Score:** {attempt['correct']}/{attempt['total']} | **Level:** {attempt['level']}<br>"
-                f"<span style='font-size:0.97em;'>Words: {', '.join(attempt['practiced_words'])}</span>",
+                f"- {a['timestamp']} | {a['correct']}/{a['total']} | {a['level']}<br>"
+                f"<span style='font-size:0.9em;'>Words: {', '.join(a['practiced_words'])}</span>",
                 unsafe_allow_html=True
             )
 
-    # ---- Load vocab lists ----
-    level = st.selectbox("Choose level", list(VOCAB_LISTS.keys()), key="vt_level")
-    vocab_items = VOCAB_LISTS.get(level, [])
-    max_words = len(vocab_items)
-    completed_set = set(vocab_stats["completed_words"])
+    # pick level & words
+    level       = st.selectbox("Level", list(VOCAB_LISTS.keys()), key="vt_level")
+    items       = VOCAB_LISTS.get(level, [])
+    completed   = set(stats["completed_words"])
+    not_done    = [p for p in items if p[0] not in completed]
+    st.info(f"{len(not_done)} words NOT yet done at {level}.")
 
-    if max_words == 0:
-        st.warning(f"No vocabulary available for level {level}. Please add entries in your sheet.")
-        st.stop()
-
-    # Show how many you haven't done yet
-    not_done = [pair for pair in vocab_items if pair[0] not in completed_set]
-    st.info(f"You have {len(not_done)} words NOT yet practiced at {level}.")
-
-    # Start new practice resets
+    # reset
     if st.button("🔁 Start New Practice", key="vt_reset"):
-        for k in defaults:
-            st.session_state[k] = defaults[k]
+        for k in defaults: st.session_state[k]=defaults[k]
 
-    # Option to practice only new or all words
-    practice_mode = st.radio("Choose word selection:", ["Only new words", "All words"], horizontal=True, key="vt_mode")
-    if practice_mode == "Only new words":
-        session_vocab = not_done.copy()
-    else:
-        session_vocab = vocab_items.copy()
+    mode = st.radio("Select words:", ["Only new words","All words"], horizontal=True, key="vt_mode")
+    session_vocab = (not_done if mode=="Only new words" else items).copy()
 
-    # Step 1: ask how many words to practice
+    # how many?
     if st.session_state.vt_total is None:
-        max_count = len(session_vocab)
-        if max_count == 0:
-            st.warning("🎉 You've completed all words at this level! Switch to 'All words' if you want to practice again.")
+        maxc = len(session_vocab)
+        if maxc==0:
+            st.success("🎉 All done! Switch to 'All words' to repeat.")
             st.stop()
-        count = st.number_input(
-            "How many words can you practice today? (Type a number)",
-            min_value=1,
-            max_value=max_count,
-            value=min(7, max_count),
-            key="vt_count"
-        )
-        if st.button("Start Practice", key="vt_start"):
-            shuffled = session_vocab.copy()
-            random.shuffle(shuffled)
-            st.session_state.vt_list = shuffled[:int(count)]
-            st.session_state.vt_total = int(count)
-            st.session_state.vt_index = 0
-            st.session_state.vt_score = 0
-            st.session_state.vt_history = [
-                ("assistant", f"Hallo! Ich bin {HERR_FELIX}. Let's start with {count} words!")
-            ]
+        count = st.number_input("How many today?", 1, maxc, min(7,maxc), key="vt_count")
+        if st.button("Start", key="vt_start"):
+            random.shuffle(session_vocab)
+            st.session_state.vt_list    = session_vocab[:count]
+            st.session_state.vt_total   = count
+            st.session_state.vt_index   = 0
+            st.session_state.vt_score   = 0
+            st.session_state.vt_history = [("assistant",f"Hallo! Ich bin Herr Felix. Let's do {count} words!")]
 
-    # Display chat history
+    # show chat
     if st.session_state.vt_history:
         st.markdown("### 🗨️ Practice Chat")
-        for who, message in st.session_state.vt_history:
-            render_message(who, message)
+        for who,msg in st.session_state.vt_history:
+            render_message(who,msg)
 
-    # Practice loop
-    total = st.session_state.vt_total
+    # practice loop
+    tot = st.session_state.vt_total
     idx = st.session_state.vt_index
-    if isinstance(total, int) and idx < total:
-        word, answer = st.session_state.vt_list[idx]
+    if isinstance(tot,int) and idx<tot:
+        word,answer = st.session_state.vt_list[idx]
 
-        from gtts import gTTS
-        import tempfile
-
-        # ---- AUDIO BUTTON + DOWNLOAD ----
-        if st.button("🔊 Play & Download Pronunciation", key=f"tts_{idx}"):
-            tts = gTTS(word, lang='de')
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as fp:
-                tts.save(fp.name)
-                st.audio(fp.name, format='audio/mp3')
-                # Move file pointer to beginning to read bytes for download
+        # play/download
+        if st.button("🔊 Play & Download", key=f"tts_{idx}"):
+            from gtts import gTTS
+            import tempfile
+            t = gTTS(text=word, lang="de")
+            with tempfile.NamedTemporaryFile(delete=False,suffix=".mp3") as fp:
+                t.save(fp.name)
+                st.audio(fp.name,format="audio/mp3")
                 fp.seek(0)
-                audio_bytes = fp.read()
-            st.download_button(
-                label=f"⬇️ Download '{word}' Pronunciation (MP3)",
-                data=audio_bytes,
-                file_name=f"{word}.mp3",
-                mime="audio/mp3",
-                key=f"tts_dl_{idx}"
-            )
+                blob = fp.read()
+            st.download_button(f"⬇️ {word}.mp3", data=blob, file_name=f"{word}.mp3", mime="audio/mp3", key=f"tts_dl_{idx}")
 
-        # Your regular question UI
-        user_input = st.text_input(f"{word} = ?", key=f"vt_input_{idx}")
-        if user_input and st.button("Check", key=f"vt_check_{idx}"):
-            st.session_state.vt_history.append(("user", user_input))
-            if is_correct_answer(user_input, answer):
+        usr = st.text_input(f"{word} = ?", key=f"vt_input_{idx}")
+        if usr and st.button("Check", key=f"vt_check_{idx}"):
+            st.session_state.vt_history.append(("user",usr))
+            if is_correct_answer(usr,answer):
                 st.session_state.vt_score += 1
                 fb = f"✅ Correct! '{word}' = '{answer}'"
             else:
-                fb = f"❌ Not quite. '{word}' = '{answer}'"
-            st.session_state.vt_history.append(("assistant", fb))
+                fb = f"❌ Nope. '{word}' = '{answer}'"
+            st.session_state.vt_history.append(("assistant",fb))
             st.session_state.vt_index += 1
 
-    # Show results when done
-    if isinstance(total, int) and idx >= total:
+    # done
+    if isinstance(tot,int) and idx>=tot:
         score = st.session_state.vt_score
-        practiced_words = [pair[0] for pair in st.session_state.vt_list]
-        st.markdown(f"### 🏁 Finished! You got {score}/{total} correct.")
-
-        # Save to Firestore!
-        save_vocab_attempt(student_code, level, total, score, practiced_words)
-
+        words = [w for w,_ in st.session_state.vt_list]
+        st.markdown(f"### 🏁 Done! You scored {score}/{tot}.")
+        save_vocab_attempt(student_code, level, tot, score, words)
         if st.button("Practice Again", key="vt_again"):
-            for k in defaults:
-                st.session_state[k] = defaults[k]
-
-
-
-#Schreiben
-def init_student_session():
-    """
-    Reset and load per-student state when the logged-in student_code changes.
-    """
-    code = st.session_state.get("student_code", "demo")
-    prev = st.session_state.get("prev_student_code")
-    if code != prev:
-        stats = get_schreiben_stats(code)
-        # Load last saved draft
-        st.session_state["schreiben_input"] = stats.get("last_letter", "")
-        # Reset NAMESPACED letter coach sub-state
-        st.session_state[f"{code}_letter_coach_prompt"] = ""
-        st.session_state[f"{code}_letter_coach_chat"] = []
-        st.session_state[f"{code}_letter_coach_stage"] = 0
-        # Update tracker
-        st.session_state["prev_student_code"] = code
-
-
-import re
-
-def highlight_feedback(text):
-    """
-    Converts [wrong]...[/wrong] and [correct]...[/correct] to colored, emoji-annotated HTML.
-    """
-    # Error: red X, yellow/orange background
-    text = re.sub(
-        r'\[wrong\](.*?)\[/wrong\]',
-        r'<span style="background:#fff59d; color:#bf360c; font-weight:bold; border-radius:4px; padding:2px 4px;">❌ \1</span>',
-        text,
-        flags=re.DOTALL
-    )
-    # Correct: green check, light green background
-    text = re.sub(
-        r'\[correct\](.*?)\[/correct\]',
-        r'<span style="background:#d0f0c0; color:#006400; font-weight:bold; border-radius:4px; padding:2px 4px;">✔️ \1</span>',
-        text,
-        flags=re.DOTALL
-    )
-    # Also support old [highlight] for backward compatibility (mark as error)
-    text = re.sub(
-        r'\[highlight\](.*?)\[/highlight\]',
-        r'<span style="background:#fff59d; color:#bf360c; font-weight:bold; border-radius:4px; padding:2px 4px;">❌ \1</span>',
-        text,
-        flags=re.DOTALL
-    )
-    # Optional: bullet formatting for clarity
-    text = re.sub(r'^\s*-\s*', '• ', text, flags=re.MULTILINE)
-
-    # (Optionally keep your other code for "It should be..." as green ticks)
-    text = re.sub(
-        r'It should be\s*["“”]?(.*?)["“”]?(?=[\.\n])',
-        r'<span style="color:#006400; font-weight:bold;">✔️ \1</span>',
-        text
-    )
-    text = re.sub(
-        r'Correction:\s*["“”]?(.*?)["“”]?(?=[\.\n])',
-        r'<span style="color:#006400; font-weight:bold;">✔️ \1</span>',
-        text
-    )
-    return text
-
-
-def save_submission(student_code, score, passed, date):
-    """
-    Save a letter submission for this student.
-    """
-    doc_ref = db.collection("schreiben_submissions").document(student_code)
-    doc = doc_ref.get()
-    data = doc.to_dict() if doc.exists else {}
-    submissions = data.get("submissions", [])
-    submissions.append({
-        "score": score,
-        "passed": passed,
-        "date": date.strftime("%Y-%m-%d")
-    })
-    doc_ref.set({"submissions": submissions}, merge=True)
-
-def update_schreiben_stats(student_code):
-    """
-    After each submission, update the summary stats for the student.
-    """
-    # Get all submissions
-    doc_ref = db.collection("schreiben_submissions").document(student_code)
-    doc = doc_ref.get()
-    data = doc.to_dict() if doc.exists else {}
-    submissions = data.get("submissions", [])
-    total = len(submissions)
-    passed = sum(1 for x in submissions if x.get("passed"))
-    pass_rate = (passed / total * 100) if total else 0.0
-
-    # Save the summary in schreiben_stats
-    stats_ref = db.collection("schreiben_stats").document(student_code)
-    stats_data = stats_ref.get().to_dict() if stats_ref.get().exists else {}
-    stats_data.update({
-        "total": total,
-        "passed": passed,
-        "pass_rate": pass_rate
-    })
-    stats_ref.set(stats_data, merge=True)
-
+            for k in defaults: st.session_state[k]=defaults[k]
 
 
 
@@ -4638,6 +4764,189 @@ def bubble(role, text):
             <b>{name}:</b><br>{text}
         </div>
     """
+
+
+# ===== Schreiben =====
+
+db = firestore.client()
+
+# -- Feedback HTML Highlight Helper --
+highlight_words = ["correct", "should", "mistake", "improve", "tip"]
+
+def highlight_feedback(text: str) -> str:
+    # 1) Highlight “[correct]…[/correct]” spans in green
+    text = re.sub(
+        r"\[correct\](.+?)\[/correct\]",
+        r"<span style="
+        r"'background-color:#d4edda;"
+        r"color:#155724;"
+        r"border-radius:4px;"
+        r"padding:2px 6px;"
+        r"margin:0 2px;"
+        r"font-weight:600;'"
+        r">\1</span>",
+        text,
+        flags=re.DOTALL
+    )
+
+    # 2) Highlight “[wrong]…[/wrong]” spans in red with strikethrough
+    text = re.sub(
+        r"\[wrong\](.+?)\[/wrong\]",
+        r"<span style="
+        r"'background-color:#f8d7da;"
+        r"color:#721c24;"
+        r"border-radius:4px;"
+        r"padding:2px 6px;"
+        r"margin:0 2px;"
+        r"text-decoration:line-through;"
+        r"font-weight:600;'"
+        r">\1</span>",
+        text,
+        flags=re.DOTALL
+    )
+
+    # 3) Bold keywords
+    def repl_kw(m):
+        return f"<strong style='color:#d63384'>{m.group(1)}</strong>"
+    pattern = r"\b(" + "|".join(map(re.escape, highlight_words)) + r")\b"
+    text = re.sub(pattern, repl_kw, text, flags=re.IGNORECASE)
+
+    # 4) Restyle the final breakdown block as a simple, transparent list
+    def _format_breakdown(m):
+        lines = [line.strip() for line in m.group(0).splitlines() if line.strip()]
+        items = "".join(f"<li style='margin-bottom:4px'>{line}</li>" for line in lines)
+        return (
+            "<ul style='margin:8px 0 12px 1em;"
+            "padding:0;"
+            "list-style:disc inside;"
+            "font-size:0.95em;'>"
+            f"{items}"
+            "</ul>"
+        )
+
+    text = re.sub(
+        r"(Grammar:.*?\nVocabulary:.*?\nSpelling:.*?\nStructure:.*)",
+        _format_breakdown,
+        text,
+        flags=re.DOTALL
+    )
+
+    return text
+
+# -- Firestore-only: Usage Limit (Daily Mark My Letter) --
+def get_schreiben_usage(student_code):
+    today = str(date.today())
+    doc = db.collection("schreiben_usage").document(f"{student_code}_{today}").get()
+    return doc.to_dict().get("count", 0) if doc.exists else 0
+
+def inc_schreiben_usage(student_code):
+    today = str(date.today())
+    doc_ref = db.collection("schreiben_usage").document(f"{student_code}_{today}")
+    doc = doc_ref.get()
+    if doc.exists:
+        doc_ref.update({"count": firestore.Increment(1)})
+    else:
+        doc_ref.set({"student_code": student_code, "date": today, "count": 1})
+
+# -- Firestore-only: Submission + Full letter (Saves for feedback & stats) --
+def save_submission(student_code: str, score: int, passed: bool, timestamp, level: str, letter: str):
+    payload = {
+        "student_code": student_code,
+        "score": score,
+        "passed": passed,
+        "date": firestore.SERVER_TIMESTAMP,  # Always use server time
+        "level": level,
+        "assignment": "Schreiben Trainer",
+        "letter": letter,
+    }
+    db.collection("schreiben_submissions").add(payload)
+
+# -- Firestore-only: Recalculate All Schreiben Stats (called after every submission) --
+def update_schreiben_stats(student_code: str):
+    """
+    Recalculates stats for a student after every submission.
+    """
+    submissions = db.collection("schreiben_submissions").where(
+        "student_code", "==", student_code
+    ).stream()
+
+    total = 0
+    passed = 0
+    scores = []
+    last_letter = ""
+    last_attempt = None
+
+    for doc in submissions:
+        data = doc.to_dict()
+        total += 1
+        score = data.get("score", 0)
+        scores.append(score)
+        if data.get("passed"):
+            passed += 1
+        last_letter = data.get("letter", "") or last_letter
+        last_attempt = data.get("date", last_attempt)
+
+    pass_rate = (passed / total * 100) if total > 0 else 0
+    best_score = max(scores) if scores else 0
+    average_score = sum(scores) / total if scores else 0
+
+    stats_ref = db.collection("schreiben_stats").document(student_code)
+    stats_ref.set({
+        "total": total,
+        "passed": passed,
+        "pass_rate": pass_rate,
+        "best_score": best_score,
+        "average_score": average_score,
+        "last_attempt": last_attempt,
+        "last_letter": last_letter,
+        "attempts": scores
+    }, merge=True)
+
+# -- Firestore-only: Fetch stats for display (for status panel etc) --
+def get_schreiben_stats(student_code: str):
+    stats_ref = db.collection("schreiben_stats").document(student_code)
+    doc = stats_ref.get()
+    if doc.exists:
+        return doc.to_dict()
+    else:
+        return {
+            "total": 0, "passed": 0, "average_score": 0, "best_score": 0,
+            "pass_rate": 0, "last_attempt": None, "attempts": [], "last_letter": ""
+        }
+
+# -- Firestore-only: Usage Limit (Daily Letter Coach) --
+def get_letter_coach_usage(student_code):
+    today = str(date.today())
+    doc = db.collection("letter_coach_usage").document(f"{student_code}_{today}").get()
+    return doc.to_dict().get("count", 0) if doc.exists else 0
+
+def inc_letter_coach_usage(student_code):
+    today = str(date.today())
+    doc_ref = db.collection("letter_coach_usage").document(f"{student_code}_{today}")
+    doc = doc_ref.get()
+    if doc.exists:
+        doc_ref.update({"count": firestore.Increment(1)})
+    else:
+        doc_ref.set({"student_code": student_code, "date": today, "count": 1})
+
+# -- Firestore: Save/load Letter Coach progress --
+def save_letter_coach_progress(student_code, level, prompt, chat):
+    doc_ref = db.collection("letter_coach_progress").document(student_code)
+    doc_ref.set({
+        "student_code": student_code,
+        "level": level,
+        "prompt": prompt,
+        "chat": chat,
+        "date": firestore.SERVER_TIMESTAMP
+    })
+
+def load_letter_coach_progress(student_code):
+    doc = db.collection("letter_coach_progress").document(student_code).get()
+    if doc.exists:
+        data = doc.to_dict()
+        return data.get("prompt", ""), data.get("chat", [])
+    else:
+        return "", []
 
 if tab == "Schreiben Trainer":
     st.markdown(
@@ -4669,7 +4978,7 @@ if tab == "Schreiben Trainer":
 
     st.divider()
 
-    # --- Writing stats summary with titles and milestone ---
+    # --- Writing stats summary with Firestore ---
     student_code = st.session_state.get("student_code", "demo")
     stats = get_schreiben_stats(student_code)
     if stats:
@@ -4699,13 +5008,14 @@ if tab == "Schreiben Trainer":
 
         st.markdown(
             f"""
-            <div style="background:#f6f8fb;padding:16px;border-radius:10px;margin-bottom:8px;">
-                <span style="font-weight:bold;font-size:1.25rem;">{writer_title}</span><br>
-                <span style="font-weight:bold;font-size:1.09rem;">📊 Your Writing Stats</span><br>
-                <span style="color:#2e7d32;"><b>Total Attempts:</b> {total}</span><br>
-                <span style="color:#1976d2;"><b>Passed:</b> {passed}</span><br>
-                <span style="color:#6d4c41;"><b>Pass Rate:</b> {pass_rate:.1f}%</span><br>
-                <span style="color:#d63384;font-weight:bold;">{milestone}</span>
+            <div style="background:#fff8e1;padding:18px 12px 14px 12px;border-radius:12px;margin-bottom:12px;
+                        box-shadow:0 1px 6px #00000010;">
+                <span style="font-weight:bold;font-size:1.25rem;color:#d63384;">{writer_title}</span><br>
+                <span style="font-weight:bold;font-size:1.09rem;color:#444;">📊 Your Writing Stats</span><br>
+                <span style="color:#202020;font-size:1.05rem;"><b>Total Attempts:</b> {total}</span><br>
+                <span style="color:#202020;font-size:1.05rem;"><b>Passed:</b> {passed}</span><br>
+                <span style="color:#202020;font-size:1.05rem;"><b>Pass Rate:</b> {pass_rate:.1f}%</span><br>
+                <span style="color:#e65100;font-weight:bold;font-size:1.03rem;">{milestone}</span>
             </div>
             """,
             unsafe_allow_html=True
@@ -4713,16 +5023,11 @@ if tab == "Schreiben Trainer":
     else:
         st.info("No writing stats found yet. Write your first letter to see progress!")
 
-
-
-    student_code = st.session_state.get("student_code", "demo")
+    # --- Update session states for new student (preserves drafts, etc) ---
     prev_student_code = st.session_state.get("prev_student_code", None)
-
-    # On student change, load last letter/draft and update session state keys
     if student_code != prev_student_code:
         stats = get_schreiben_stats(student_code)
         st.session_state[f"{student_code}_schreiben_input"] = stats.get("last_letter", "")
-        # Reset or initialize other student-specific states as needed
         st.session_state[f"{student_code}_last_feedback"] = None
         st.session_state[f"{student_code}_last_user_letter"] = None
         st.session_state[f"{student_code}_delta_compare_feedback"] = None
@@ -4731,7 +5036,7 @@ if tab == "Schreiben Trainer":
         st.session_state[f"{student_code}_improved_letter"] = ""
         st.session_state["prev_student_code"] = student_code
 
-    # Sub-tabs
+    # --- Sub-tabs for the Trainer ---
     sub_tab = st.radio(
         "Choose Mode",
         ["Mark My Letter", "Ideas Generator (Letter Coach)"],
@@ -4739,7 +5044,7 @@ if tab == "Schreiben Trainer":
         key="schreiben_sub_tab"
     )
 
-    # Level picker
+    # --- Level picker ---
     schreiben_levels = ["A1", "A2", "B1", "B2", "C1"]
     prev_level = st.session_state.get("schreiben_level", "A1")
     schreiben_level = st.selectbox(
@@ -4752,13 +5057,12 @@ if tab == "Schreiben Trainer":
 
     st.divider()
 
-    # ----------- 1. MARK MY LETTER (NAMESPACED) -----------
+    # ----------- 1. MARK MY LETTER -----------
     if sub_tab == "Mark My Letter":
         MARK_LIMIT = 3
         daily_so_far = get_schreiben_usage(student_code)
         st.markdown(f"**Daily usage:** {daily_so_far} / {MARK_LIMIT}")
 
-        # Namespaced key for student input
         user_letter = st.text_area(
             "Paste or type your German letter/essay here.",
             key=f"{student_code}_schreiben_input",
@@ -4768,7 +5072,7 @@ if tab == "Schreiben Trainer":
             placeholder="Write your German letter here..."
         )
 
-        # AUTOSAVE LOGIC
+        # AUTOSAVE LOGIC (save every edit that's different from last_letter)
         if (
             user_letter.strip() and
             user_letter != get_schreiben_stats(student_code).get("last_letter", "")
@@ -4783,8 +5087,8 @@ if tab == "Schreiben Trainer":
         import re
         def get_level_requirements(level):
             reqs = {
-                "A1": {"min": 20, "max": 40, "desc": "A1 formal/informal letters should be 20–40 words. Cover all bullet points."},
-                "A2": {"min": 20, "max": 40, "desc": "A2 formal/informal letters should be 20–40 words. Cover all bullet points."},
+                "A1": {"min": 20, "max": 40, "desc": "A1 formal/informal letters should be 25–35 words. Cover all bullet points."},
+                "A2": {"min": 20, "max": 40, "desc": "A2 formal/informal letters should be 30–40 words. Cover all bullet points."},
                 "B1": {"min": 80, "max": 150, "desc": "B1 letters/essays should be about 80–150 words, with all points covered and clear structure."},
                 "B2": {"min": 150, "max": 250, "desc": "B2 essays are 180–220 words, opinion essays or reports, with good structure and connectors."},
                 "C1": {"min": 250, "max": 350, "desc": "C1 essays are 250–350+ words. Use advanced structures and express opinions clearly."}
@@ -4819,7 +5123,7 @@ if tab == "Schreiben Trainer":
                 elif word_count > max_wc + 40 and schreiben_level in ("B1", "B2"):
                     st.warning(f"ℹ️ Your essay is longer than the usual limit for {schreiben_level} ({word_count} words). Try to stay within the guidelines.")
 
-        # Namespaced correction state per student
+        # Namespaced correction state per student (reset on session)
         for k, v in [
             ("last_feedback", None),
             ("last_user_letter", None),
@@ -4840,40 +5144,27 @@ if tab == "Schreiben Trainer":
             key=f"feedback_btn_{student_code}"
         )
 
-        # Initial feedback logic
         if feedback_btn:
             st.session_state[f"{student_code}_awaiting_correction"] = True
             ai_prompt = (
-                f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
-                f"The student has submitted a {schreiben_level} German letter or essay. "
-                "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
-                "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
-                "Don't just say errors—show exactly where the mistakes are. "
-                "Mark any mistake phrase or example in [wrong]...[/wrong]. "
-                "If something is especially good, you can also use [correct]...[/correct] and say why. "
-                "1. Give a score out of 25 marks and always display the score clearly as: Score: X / 25. "
-                "2. If the score is 17 or more, write: '**Passed: You may submit to your tutor!**'. "
-                "3. If the score is 16 or less, write: '**Keep improving before you submit.**'. "
-                "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
-                "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
-                "6. Also check for AI usage or if the student wrote with their own effort. "
-                "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
-                "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
-                "Grammar: [score/5, one-sentence tip]\n"
-                "Vocabulary: [score/5, one-sentence tip]\n"
-                "Spelling: [score/5, one-sentence tip]\n"
-                "Structure: [score/5, one-sentence tip]\n"
-                "For each area, rate out of 5 and give a specific, actionable tip in English. "
-                "IMPORTANT: For A1 and A2 ONLY, follow these extra rules: "
-                "- If the topic is about cancelling appointments, show students how to use simple reasons connected to health or weather, like 'Ich habe Bauchschmerzen' or 'Es regnet stark.' Avoid complex reasons. Teach them to use 'absagen' in their letter, for example, 'Ich schreibe Ihnen, weil ich den Termin absagen möchte.' "
-                "- For registration or enquiries, remind students to ask for price using phrases like 'Wie viel kostet...?' and to use 'Anfrage stellen' in the phrase, e.g., 'Ich schreibe Ihnen, weil ich eine Anfrage stellen möchte.' "
-                "- For setting a new appointment, use 'vereinbaren,' e.g., 'Ich möchte einen neuen Termin vereinbaren.' "
-                "- Teach students to say sorry simply: 'Es tut mir leid.' "
-                "- Remind students to start their reason with 'Ich schreibe Ihnen/dir, weil ich...' and usually end with 'möchte' to keep it simple and safe for A1/A2. "
-                "Whenever you see these themes, always encourage the simplest phrasing and provide clear examples for the student to copy. Do NOT encourage complex sentence structures at A1/A2 level."
+                f"You are Herr Felix, a supportive and innovative German letter writing trainer.\n"
+                f"You help students prepare for A1, A2, B1, B2, and C1 German exam letters or essays.\n"
+                f"The student has submitted a {schreiben_level} German letter or essay.\n"
+                f"Your job is to mark, score, and explain feedback in a kind, step-by-step way.\n"
+                f"Always answer in English.\n"
+                f"1. Give a quick summary (one line) of how well the student did overall.\n"
+                f"2. Then show a detailed breakdown of strengths and weaknesses in 4 areas:\n"
+                f"   Grammar, Vocabulary, Spelling, Structure.\n"
+                f"3. For each area, say what was good and what should improve.\n"
+                f"4. Highlight every mistake with [wrong]...[/wrong] and every good example with [correct]...[/correct].\n"
+                f"5. Give 2-3 improvement tips in bullet points.\n"
+                f"6. At the end, give a realistic score out of 25 in the format: Score: X/25.\n"
+                f"7. For A1 and A2, be strict about connectors, basic word order, modal verbs, and correct formal/informal greeting.\n"
+                f"8. For B1+, mention exam criteria and what examiner wants.\n"
+                f"9. Never write a new letter for the student, only mark what they submit.\n"
+                f"10. When possible, point out specific lines or examples from their letter in your feedback.\n"
             )
 
-# 
             with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                 try:
                     completion = client.chat.completions.create(
@@ -4887,7 +5178,7 @@ if tab == "Schreiben Trainer":
                     feedback = completion.choices[0].message.content
                     st.session_state[f"{student_code}_last_feedback"] = feedback
                     st.session_state[f"{student_code}_last_user_letter"] = user_letter
-                    st.session_state[f"{student_code}_delta_compare_feedback"] = None  # Reset
+                    st.session_state[f"{student_code}_delta_compare_feedback"] = None
                 except Exception as e:
                     st.error("AI feedback failed. Please check your OpenAI setup.")
                     feedback = None
@@ -4899,15 +5190,23 @@ if tab == "Schreiben Trainer":
                 st.markdown(highlight_feedback(feedback), unsafe_allow_html=True)
                 st.session_state[f"{student_code}_awaiting_correction"] = True
 
-                # Save stats
-                import datetime, re
+                # --- Save to Firestore ---
                 score_match = re.search(r"Score[: ]+(\d+)", feedback)
                 score = int(score_match.group(1)) if score_match else 0
                 passed = score >= 17
-                save_submission(student_code, score, passed, datetime.datetime.now())
+                save_submission(
+                    student_code=student_code,
+                    score=score,
+                    passed=passed,
+                    timestamp=None,  # Not needed
+                    level=schreiben_level,
+                    letter=user_letter
+                )
                 update_schreiben_stats(student_code)
 
-        # DELTA IMPROVEMENT LOGIC + PDF/WHATSAPP, per student
+
+
+        # --- Improvement section: Compare, download, WhatsApp ---
         if st.session_state.get(f"{student_code}_last_feedback") and st.session_state.get(f"{student_code}_last_user_letter"):
             st.markdown("---")
             st.markdown("#### 📝 Feedback from Herr Felix (Reference)")
@@ -4947,6 +5246,7 @@ if tab == "Schreiben Trainer":
                     "- Point out if there are still errors left, with new tips for further improvement.\n"
                     "- Encourage the student. If the improvement is significant, say so.\n"
                     "1. If student dont improve after the third try, end the chat politely and tell the student to try again tomorrow. Dont continue to give the feedback after third try.\n"
+                    "2. Always explain your feeback in English for them to understand. You can still highlight their german phrases. But your correction should be english\n"
                     "- Give a revised score out of 25 (Score: X/25)."
                 )
                 with st.spinner("👨‍🏫 Herr Felix is comparing your improvement..."):
@@ -4970,14 +5270,14 @@ if tab == "Schreiben Trainer":
                 st.markdown("### 📝 Improvement Feedback from Herr Felix")
                 st.markdown(highlight_feedback(st.session_state[f"{student_code}_delta_compare_feedback"]), unsafe_allow_html=True)
 
-                # PDF & WhatsApp buttons only appear after successful improvement compare
+                # PDF & WhatsApp buttons
                 from fpdf import FPDF
                 import urllib.parse, os
 
                 def sanitize_text(text):
                     return text.encode('latin-1', errors='replace').decode('latin-1')
 
-                # Generate the PDF with the improved letter and improvement feedback
+                # PDF
                 pdf = FPDF()
                 pdf.add_page()
                 pdf.set_font("Arial", size=12)
@@ -5011,7 +5311,6 @@ if tab == "Schreiben Trainer":
                     f"[📲 Send Improved Letter & Feedback to Tutor on WhatsApp]({wa_url})",
                     unsafe_allow_html=True
                 )
-#
 
 
     if sub_tab == "Ideas Generator (Letter Coach)":
@@ -5052,7 +5351,7 @@ if tab == "Schreiben Trainer":
                 "    5. Always check that the student statement is not too long or complicated. For example, if they use two conjunctions, warn them and break it down for them. "
                 "    6. Warn students if their statement per input is too long or complicated. When student statement has more than 7 or 8 words, break it down for them with full stops and simple conjunctions. "
                 "    7. Always add your ideas after student submits their sentence if necessary. "
-                "    8. Make sure the complete letter is between 30 and 40 words. "
+                "    8. Make sure the complete letter is between 25 and 35 words. "
                 "    9. When the letter is about cancelling appointments, teach students how they can use reasons connected to weather and health to cancel appointments. Teach them how to use 'absagen' to cancel appointments. "
                 "    10. For enquiries or registrations, teach students how to use 'Anfrage stellen' for the Ich schreibe. "
                 "    11. When the letter is about registrations like a course, teach students how they can use 'anfangen', 'beginnen'. "
@@ -5076,18 +5375,18 @@ if tab == "Schreiben Trainer":
                 "Always reply in English, never in German. "
                 "Congratulate the student on their first submission with ideas about how to go about the letter. Analyze whether it is a prompt, a continuation, or a question. "
                 "    1. Always give students short ideas, structure and tips and phrases on how to build their points for the conversation in English and simple German. Don't overfeed students; help them but let them think by themselves also. "
-                "    2. For structure, require their letter to have clear sequencing with 'Zuerst' (for the first paragraph), 'Dann' or 'Außerdem' (for the body/second idea), and 'Zum Schluss' (for closing/last idea). "
+                "    2. For structure, require their letter to use clear sequencing with 'Zuerst' (for the first paragraph), 'Dann' or 'Außerdem' (for the body/second idea), and 'Zum Schluss' (for closing/last idea). "
                 "       - Always recommend 'Zuerst' instead of 'Erstens' for A2 letters, as it is simpler and more natural for personal or exam letters. "
-                "    3. For connectors, use 'und', 'aber', 'weil', 'denn', 'deshalb', and encourage linking words for clarity. "
+                "    3. For connectors, use 'und', 'aber', 'weil', 'denn', 'deshalb', 'ich mochte wissen, ob', 'ich mochte wissen, wann', 'ich mochte wissen, wo', and encourage linking words for clarity. Recommend one at a time in a statement to prevent mistakes. When a student use two or more conjucntion in one statement less than 7 words, simplify for them to use just once to prevent errors"
                 "    4. After every reply, give a tip or phrase, but never write the full letter for them. "
                 "    5. Remind them not to write sentences longer than 7–8 words; break long sentences into short, clear ideas. "
-                "    6. Letter should be between 40 and 50 words. "
+                "    6. Letter should be between 30 and 40 words. "
                 "    7. For cancellations, suggest health/weather reasons ('Ich bin krank.', 'Es regnet stark.') and use 'absagen' (e.g., 'Ich schreibe Ihnen, weil ich absagen möchte.'). "
                 "    8. For enquiries/registrations, show 'Anfrage stellen' (e.g., 'Ich schreibe Ihnen, weil ich eine Anfrage stellen möchte.') and include asking for price: 'Wie viel kostet...?'. "
                 "    9. For appointments, recommend 'vereinbaren' ('Ich möchte einen neuen Termin vereinbaren.'). "
                 "    10. To say sorry, use: 'Es tut mir leid.' "
                 "    11. Always correct grammar and suggest improved phrases when needed. "
-                "    12. At each step, say 'Your next recommended step:' and ask for only the next section (first greeting, then introduction, then body using 'Zuerst', 'Außerdem', then closing 'Zum Schluss'). "
+                "    12. At each step, say 'Your next recommended step:' and ask for only the next section (first greeting, then introduction, then body using 'Zuerst', 'Außerdem', then final point 'Zum Schluss', then polite closing phrase 'Ich freue mich'). "
                 "    13. The session should be complete in about 10 student replies; if not, remind them to finish soon. After 14, end and tell the student to copy their letter into 'Mark My Letter' for feedback. "
                 "    14. Throughout, do not write the whole letter—guide only one part at a time."
             ),
@@ -5191,7 +5490,6 @@ if tab == "Schreiben Trainer":
             unsafe_allow_html=True
         )
 
- 
         IDEAS_LIMIT = 14
         ideas_so_far = get_letter_coach_usage(student_code)
         st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
@@ -5488,7 +5786,6 @@ if tab == "My Learning Notes":
     notes = st.session_state[key_notes]
 
     # ----- PROGRAMMATIC TAB SWITCH HANDLING -----
-    # If flags are set, switch tab before rendering radio
     if st.session_state.get("switch_to_edit_note"):
         st.session_state["notebook_radio"] = "➕ Add/Edit Note"
         del st.session_state["switch_to_edit_note"]
@@ -5546,7 +5843,7 @@ if tab == "My Learning Notes":
             st.session_state[key_notes] = notes
             save_notes_to_db(student_code, notes)
             st.session_state["switch_to_library"] = True
-            st.experimental_rerun()
+            st.rerun()
 
         if cancel_btn:
             for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
@@ -5576,7 +5873,7 @@ if tab == "My Learning Notes":
             else:
                 notes_to_show = notes
 
-            # --- Download Buttons (TXT, PDF, DOCX) ---
+            # --- Download Buttons (TXT, PDF, DOCX) FOR ALL NOTES ---
             all_notes = []
             for n in notes_to_show:
                 note_text = f"Title: {n.get('title','')}\n"
@@ -5595,9 +5892,7 @@ if tab == "My Learning Notes":
                 mime="text/plain"
             )
 
-            # --- PDF Download ---
-            import tempfile
-            from fpdf import FPDF
+            # --- PDF Download (all notes) ---
             class PDF(FPDF):
                 def header(self):
                     self.set_font('Arial', 'B', 16)
@@ -5643,8 +5938,7 @@ if tab == "My Learning Notes":
                 mime="application/pdf"
             )
 
-            # --- DOCX Download ---
-            from docx import Document
+            # --- DOCX Download (all notes) ---
             def export_notes_to_docx(notes, student_code="student"):
                 doc = Document()
                 doc.add_heading("My Learning Notes", 0)
@@ -5688,6 +5982,66 @@ if tab == "My Learning Notes":
                     f"<div style='margin-top:-5px; margin-bottom:6px; font-size:1.08rem; line-height:1.7;'>{note['text']}</div>",
                     unsafe_allow_html=True)
                 st.caption(f"🕒 {note.get('updated',note.get('created',''))}")
+
+                # --- Per-Note Download Buttons (TXT, PDF, DOCX) ---
+                download_cols = st.columns([1,1,1])
+                with download_cols[0]:
+                    # TXT per note
+                    txt_note = f"Title: {note.get('title','')}\n"
+                    if note.get('tag'):
+                        txt_note += f"Tag: {note['tag']}\n"
+                    txt_note += note.get('text', '') + "\n"
+                    txt_note += f"Date: {note.get('updated', note.get('created',''))}\n"
+                    st.download_button(
+                        label="⬇️ TXT",
+                        data=txt_note.encode("utf-8"),
+                        file_name=f"{student_code}_{note.get('title','note').replace(' ','_')}.txt",
+                        mime="text/plain",
+                        key=f"download_txt_{i}"
+                    )
+                with download_cols[1]:
+                    # PDF per note
+                    class SingleNotePDF(FPDF):
+                        def header(self):
+                            self.set_font('Arial', 'B', 13)
+                            self.cell(0, 10, note.get('title','Note'), ln=True, align='C')
+                            self.ln(2)
+                    pdf_note = SingleNotePDF()
+                    pdf_note.add_page()
+                    pdf_note.set_font("Arial", size=12)
+                    if note.get("tag"):
+                        pdf_note.cell(0, 8, f"Tag: {note.get('tag','')}", ln=1)
+                    for line in note.get('text','').split("\n"):
+                        pdf_note.multi_cell(0, 7, line)
+                    pdf_note.ln(1)
+                    pdf_note.set_font("Arial", "I", 11)
+                    pdf_note.cell(0, 8, f"Date: {note.get('updated', note.get('created',''))}", ln=1)
+                    pdf_bytes_single = pdf_note.output(dest="S").encode("latin1", "replace")
+                    st.download_button(
+                        label="⬇️ PDF",
+                        data=pdf_bytes_single,
+                        file_name=f"{student_code}_{note.get('title','note').replace(' ','_')}.pdf",
+                        mime="application/pdf",
+                        key=f"download_pdf_{i}"
+                    )
+                with download_cols[2]:
+                    # DOCX per note
+                    doc_single = Document()
+                    doc_single.add_heading(note.get('title','(No Title)'), level=1)
+                    if note.get("tag"):
+                        doc_single.add_paragraph(f"Tag: {note.get('tag','')}")
+                    doc_single.add_paragraph(note.get('text', ''))
+                    doc_single.add_paragraph(f"Date: {note.get('updated', note.get('created',''))}")
+                    single_docx_io = io.BytesIO()
+                    doc_single.save(single_docx_io)
+                    st.download_button(
+                        label="⬇️ DOCX",
+                        data=single_docx_io.getvalue(),
+                        file_name=f"{student_code}_{note.get('title','note').replace(' ','_')}.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        key=f"download_docx_{i}"
+                    )
+
                 cols = st.columns([1,1,1,1])
                 with cols[0]:
                     if st.button("✏️ Edit", key=f"edit_{i}"):
@@ -5703,7 +6057,7 @@ if tab == "My Learning Notes":
                         st.session_state[key_notes] = notes
                         save_notes_to_db(student_code, notes)
                         st.success("Note deleted.")
-                        st.experimental_rerun()
+                        st.rerun()
                 with cols[2]:
                     if note.get("pinned"):
                         if st.button("📌 Unpin", key=f"unpin_{i}"):
@@ -5720,6 +6074,9 @@ if tab == "My Learning Notes":
                 with cols[3]:
                     st.caption("")
 # ---------------------- END TAB -------------------------
+
+
+
 
 
 
