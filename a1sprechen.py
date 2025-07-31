@@ -3003,7 +3003,7 @@ if tab == "Course Book":
         )
 
         if notes_subtab == "➕ Add/Edit Note":
-            st.markdown("#### ✍️ Create a new note or update an old one")
+            # >>>> New helper message for pre-filled note context <<<<
             editing = st.session_state.get("edit_note_idx", None) is not None
             if editing:
                 idx = st.session_state["edit_note_idx"]
@@ -3012,6 +3012,11 @@ if tab == "Course Book":
                 text = st.session_state.get("edit_note_text", "")
             else:
                 title, tag, text = "", "", ""
+
+            if title and tag:
+                st.info(f"You're adding a note for **{title}** ({tag}).")
+
+            st.markdown("#### ✍️ Create a new note or update an old one")
 
             with st.form("note_form", clear_on_submit=not editing):
                 new_title = st.text_input("Note Title", value=title, max_chars=50)
@@ -3051,6 +3056,7 @@ if tab == "Course Book":
                     if k in st.session_state: del st.session_state[k]
                 st.session_state["switch_to_library"] = True
                 st.rerun()
+
 
         elif notes_subtab == "📚 My Notes Library":
             st.markdown("#### 📚 All My Notes")
