@@ -2974,60 +2974,61 @@ if tab == "Course Book":
             else:
                 st.info("No playlist found for your level yet. Stay tuned!")
 
-        import streamlit as st
 
         # --- Firebase Save Draft ---
         def save_draft_to_db(code, lesson_key, text):
-            # Replace with your actual Firestore save logic
-            import firebase_admin
-            from firebase_admin import credentials, firestore
+                # Replace with your actual Firestore save logic
+                import firebase_admin
+                from firebase_admin import credentials, firestore
 
-            db = firestore.client()
-            doc_ref = db.collection('draft_answers').document(code)
-            doc_ref.set({lesson_key: text}, merge=True)
+                db = firestore.client()
+                doc_ref = db.collection('draft_answers').document(code)
+                doc_ref.set({lesson_key: text}, merge=True)
 
         code = student_row.get('StudentCode', 'demo001')
         lesson_key = f"draft_{info['chapter']}"
 
         def autosave_draft():
-            text = st.session_state.get(lesson_key, "")
-            save_draft_to_db(code, lesson_key, text)
-            st.session_state[f"{lesson_key}_saved"] = True
+                text = st.session_state.get(lesson_key, "")
+                save_draft_to_db(code, lesson_key, text)
+                st.session_state[f"{lesson_key}_saved"] = True
 
         st.subheader("✍️ Your Answer (Autosaves)")
         st.text_area(
-            "Answer (or attach on WhatsApp)",
-            value=st.session_state.get(lesson_key, ""),
-            height=500,
-            key=lesson_key,
-            on_change=autosave_draft,
+                "Answer (or attach on WhatsApp)",
+                value=st.session_state.get(lesson_key, ""),
+                height=500,
+                key=lesson_key,
+                on_change=autosave_draft,
         )
         if st.session_state.get(f"{lesson_key}_saved", False):
-            st.success("Draft autosaved!")
+                st.success("Draft autosaved!")
 
         # --- WhatsApp Submission ---
         chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
         name = st.text_input("Name", value=student_row.get('Name', ''))
         msg = build_wa_message(
-            name, code, student_level, info['day'], chapter_name, st.session_state.get(lesson_key, "")
+                name, code, student_level, info['day'], chapter_name, st.session_state.get(lesson_key, "")
         )
         url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(msg)
 
         if st.button("📤 Send via WhatsApp"):
-            st.success("Click link below to open WhatsApp.")
-            st.markdown(f"[📨 Open WhatsApp]({url})")
-            # --- Add to Notes Button appears immediately after WhatsApp send
-            if st.button("📝 Add to Notes"):
-                notes = load_notes_from_db(code)
-                notes.append({
-                    "title": f"Day {info['day']}: {info['topic']}",
-                    "tag": f"Chapter {info['chapter']}",
-                    "text": st.session_state.get(lesson_key, "")
-                })
-                save_notes_to_db(code, notes)
-                st.success("Added to your learning notes!")
+                st.success("Click link below to open WhatsApp.")
+                st.markdown(f"[📨 Open WhatsApp]({url})")
+                # --- Add to Notes Button appears immediately after WhatsApp send
+                if st.button("📝 Add to Notes"):
+                        notes = load_notes_from_db(code)
+                        notes.append({
+                                "title": f"Day {info['day']}: {info['topic']}",
+                                "tag": f"Chapter {info['chapter']}",
+                                "text": st.session_state.get(lesson_key, "")
+                        })
+                        save_notes_to_db(code, notes)
+                        st.success("Added to your learning notes!")
 
         st.text_area("📋 Copy message:", msg, height=500)
+#
+
 
 
         st.info(
