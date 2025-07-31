@@ -2912,6 +2912,19 @@ if tab == "Course Book":
                 unsafe_allow_html=True
             )
 
+            # --- Quick Add Note Button ---
+    if st.button("📝 Add a Note for this Lesson"):
+        # Prefill note fields with current lesson details
+        st.session_state["edit_note_title"] = f"Day {info['day']}: {info['topic']}"
+        st.session_state["edit_note_tag"] = f"Chapter {info['chapter']}"
+        st.session_state["edit_note_text"] = ""
+        st.session_state["edit_note_idx"] = None  # Signal: this is a new note
+        st.session_state["switch_to_library"] = False
+        st.session_state["switch_to_edit_note"] = True
+        # Switch to Learning Notes subtab
+        st.session_state["coursebook_subtab"] = "📒 Learning Notes"
+        st.rerun()
+
         st.divider()
 
         st.info("Before you submit your assignment, do you mind watching the Video of the Day? Click below to open it.")
