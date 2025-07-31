@@ -2919,12 +2919,20 @@ if tab == "Course Book":
                 unsafe_allow_html=True
             )
 
-                # === PDF VIEWER AND TRANSLATION OPTIONS ===
+        # === PDF VIEWER AND TRANSLATION OPTIONS ===
         st.markdown("---")
-        st.subheader("📑 View the Course Book")
+        st.subheader("📑 View the Course Book PDF")
 
-        # Preset PDF link from your schedule/info
-        pdf_url = info.get('pdf_link')  # Or replace with your actual variable
+        # Try to fetch a PDF from the lesson info dictionary
+        pdf_url = (
+            info.get("grammarbook_link") or 
+            info.get("workbook_link") or 
+            info.get("pdf_link")
+        )
+        # If the above returns a dict (in case of multiple chapters), pick the first found
+        if isinstance(pdf_url, dict):
+            # For lists, you can do: pdf_url = pdf_url[0].get("grammarbook_link", "") or ...
+            pdf_url = next(iter(pdf_url.values()), "")
 
         # Option 1: Show PDF in app
         if pdf_url:
@@ -2945,7 +2953,6 @@ if tab == "Course Book":
         st.markdown("---")
         st.markdown("**Need translation?** [🌐 Open DeepL Translator](https://www.deepl.com/translator)")
         st.caption("Copy and paste any text from the PDF or lesson to translate it.")
-
 
         # --- Quick Add Note Button ---
         if st.button("📝 Add a Note for this Lesson"):
