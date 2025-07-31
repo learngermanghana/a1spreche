@@ -2919,7 +2919,7 @@ if tab == "Course Book":
                 unsafe_allow_html=True
             )
 
-        # --- PDF Quick Preview & Mini Translation ---
+        # --- PDF Quick Preview ---
         st.markdown("---")
         st.markdown("**Quick PDF Preview:**")
         st.markdown(
@@ -2931,20 +2931,28 @@ if tab == "Course Book":
         if uploaded_file is not None:
             import base64
             base64_pdf = base64.b64encode(uploaded_file.read()).decode('utf-8')
-            pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="1000" height="800" type="application/pdf"></iframe>'
+            # Responsive iframe for PDF (adapts on mobile & desktop)
+            pdf_display = f'''
+                <div style="width:100%; max-width:900px; margin:auto;">
+                    <iframe src="data:application/pdf;base64,{base64_pdf}"
+                        width="100%" height="650"
+                        style="border:none; min-height:400px; max-height:85vh; border-radius:8px;"
+                        allowfullscreen
+                    ></iframe>
+                </div>
+            '''
             st.markdown(pdf_display, unsafe_allow_html=True)
             st.caption("Preview only. Scroll through your uploaded PDF.")
 
-        # --- Mini Translation Widget ---
+        # --- Translation Links Only ---
         st.markdown("---")
-        st.markdown("#### 🌍 Mini-Translation")
-        st.caption("Paste text here, then copy it to DeepL or Google Translate below.")
-        txt = st.text_area("Type or paste text for translation:", height=80)
         st.markdown(
-            "[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; [🌐 Google Translate](https://translate.google.com)",
+            '**Need translation?** '
+            '[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; '
+            '[🌐 Google Translate](https://translate.google.com)',
             unsafe_allow_html=True
         )
-
+        st.caption("Copy any text from the course book and paste it into your preferred translator.")
 
 
         st.divider()
