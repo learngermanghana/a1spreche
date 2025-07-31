@@ -2984,35 +2984,55 @@ if tab == "Course Book":
             st.session_state["switch_to_notes"] = True
             st.rerun()
 
+    # --- Firebase Save Draft ---
+    def save_draft_to_db(code, lesson_key, text):
+        # Replace with your actual Firestore save logic
+        import firebase_admin
+        from firebase_admin import credentials, firestore
 
-        st.header("📲 Submit Assignment (WhatsApp)")
+        db = firestore.client()
+        doc_ref = db.collection('draft_answers').document(code)
+        doc_ref.set({lesson_key: text}, merge=True)
 
-        def render_whatsapp():
-            st.subheader("👤 Your Name & Code")
-            name = st.text_input("Name", value=student_row.get('Name',''))
-            code = st.text_input("Code", value=student_row.get('StudentCode',''))
-            st.subheader("✍️ Your Answer")
-            ans = st.text_area("Answer (or attach on WhatsApp)", height=500)
-            chapter_name = f"{info['chapter']} – {info.get('topic','')}"   # show full chapter name and topic
-            msg = build_wa_message(name, code, student_level, info['day'], chapter_name, ans)
-            url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(msg)
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("📤 Send via WhatsApp"):
-                    st.success("Click link below to open WhatsApp.")
-                    st.markdown(f"[📨 Open WhatsApp]({url})")
-            with col2:
-                if st.button("📝 Add Answer to Notes"):
-                    st.session_state["edit_note_title"] = f"Day {info['day']}: {info['topic']}"
-                    st.session_state["edit_note_tag"] = f"Chapter {info['chapter']}"
-                    st.session_state["edit_note_text"] = ans
-                    st.session_state["edit_note_idx"] = None  # Signal: this is a new note
-                    st.session_state["switch_to_notes"] = True
-                    st.rerun()
-            st.text_area("📋 Copy message:", msg, height=500)
+    code = student_row.get('StudentCode', 'demo001')
+    lesson_key = f"draft_{info['chapter']}"
 
-        render_whatsapp()
+    def autosave_draft():
+        text = st.session_state.get(lesson_key, "")
+        save_draft_to_db(code, lesson_key, text)
+        st.session_state[f"{lesson_key}_saved"] = True
 
+    st.subheader("✍️ Your Answer (Autosaves)")
+    st.text_area(
+        "Answer (or attach on WhatsApp)",
+        value=st.session_state.get(lesson_key, ""),
+        height=500,
+        key=lesson_key,
+        on_change=autosave_draft,
+    )
+    if st.session_state.get(f"{lesson_key}_saved", False):
+        st.success("Draft autosaved!")
+
+    # --- WhatsApp Submission ---
+    chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
+    name = st.text_input("Name", value=student_row.get('Name', ''))
+    msg = build_wa_message(name, code, student_level, info['day'], chapter_name, st.session_state.get(lesson_key, ""))
+    url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(msg)
+    if st.button("📤 Send via WhatsApp"):
+        st.success("Click link below to open WhatsApp.")
+        st.markdown(f"[📨 Open WhatsApp]({url})")
+    st.text_area("📋 Copy message:", msg, height=500)
+
+    # --- Add to Notes Button ---
+    if st.button("📝 Add to Notes"):
+        notes = load_notes_from_db(code)
+        notes.append({
+            "title": f"Day {info['day']}: {info['topic']}",
+            "tag": f"Chapter {info['chapter']}",
+            "text": st.session_state.get(lesson_key, "")
+        })
+        save_notes_to_db(code, notes)
+        st.success("Added to your learning notes!")
 
 
         st.info(
