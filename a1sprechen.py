@@ -2919,31 +2919,6 @@ if tab == "Course Book":
                 unsafe_allow_html=True
             )
 
-        # --- PDF Quick Preview ---
-        st.markdown("---")
-        st.markdown("**Quick PDF Preview:**")
-        st.markdown(
-            "- Download the course book from the link above and upload below to preview inside the app."
-        )
-        uploaded_file = st.file_uploader(
-            "Upload PDF to preview here (optional):", type="pdf", key="pdf_upload"
-        )
-        if uploaded_file is not None:
-            import base64
-            base64_pdf = base64.b64encode(uploaded_file.read()).decode('utf-8')
-            # Responsive iframe for PDF (adapts on mobile & desktop)
-            pdf_display = f'''
-                <div style="width:100%; max-width:900px; margin:auto;">
-                    <iframe src="data:application/pdf;base64,{base64_pdf}"
-                        width="100%" height="650"
-                        style="border:none; min-height:400px; max-height:85vh; border-radius:8px;"
-                        allowfullscreen
-                    ></iframe>
-                </div>
-            '''
-            st.markdown(pdf_display, unsafe_allow_html=True)
-            st.caption("Preview only. Scroll through your uploaded PDF.")
-
         # --- Translation Links Only ---
         st.markdown("---")
         st.markdown(
@@ -2974,8 +2949,6 @@ if tab == "Course Book":
             else:
                 st.info("No playlist found for your level yet. Stay tuned!")
 
-        import streamlit as st
-        import urllib.parse
 
         # --- Save Draft to Firestore (using global db instance) ---
         def save_draft_to_db(code, lesson_key, text):
