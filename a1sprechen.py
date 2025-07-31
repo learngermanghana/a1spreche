@@ -2921,38 +2921,38 @@ if tab == "Course Book":
 
         # === PDF VIEWER AND TRANSLATION OPTIONS ===
         st.markdown("---")
-        st.subheader("📑 View the Course Book PDF")
+        st.subheader("📑 Course Book Resources")
 
-        # Try to fetch a PDF from the lesson info dictionary
-        pdf_url = (
-            info.get("grammarbook_link") or 
-            info.get("workbook_link") or 
-            info.get("pdf_link")
-        )
-        # If the above returns a dict (in case of multiple chapters), pick the first found
-        if isinstance(pdf_url, dict):
-            # For lists, you can do: pdf_url = pdf_url[0].get("grammarbook_link", "") or ...
-            pdf_url = next(iter(pdf_url.values()), "")
+        # Fetch all possible PDFs from the lesson info
+        pdf_links = []
+        if info.get("grammarbook_link"):
+            pdf_links.append(("📘 Grammar Book (Notes)", info["grammarbook_link"]))
+        if info.get("workbook_link"):
+            pdf_links.append(("📒 Workbook (Assignment)", info["workbook_link"]))
 
-        # Option 1: Show PDF in app
-        if pdf_url:
-            st.markdown("**A. View directly in this page:**")
-            st.markdown(
-                f'<iframe src="{pdf_url}" width="700" height="900" type="application/pdf"></iframe>',
-                unsafe_allow_html=True
-            )
+        # Handle multiple chapters (list of dicts)
+        for key in ["lesen_hören", "schreiben_sprechen"]:
+            section = info.get(key)
+            if isinstance(section, list):
+                for idx, part in enumerate(section):
+                    if part.get("grammarbook_link"):
+                        pdf_links.append((f"📘 Grammar Book (Notes) – Part {idx+1}", part["grammarbook_link"]))
+                    if part.get("workbook_link"):
+                        pdf_links.append((f"📒 Workbook (Assignment) – Part {idx+1}", part["workbook_link"]))
+
+        if pdf_links:
+            st.markdown("**Open course materials:**")
+            for label, link in pdf_links:
+                st.markdown(f"- [{label}]({link})", unsafe_allow_html=True)
+            st.info("Choose a PDF link above to view or download in a new tab.")
         else:
-            st.info("No PDF link attached for this lesson. Please contact your teacher.")
+            st.warning("No PDF resources found for this lesson.")
 
-        # Option 2: Open PDF externally
-        if pdf_url:
-            st.markdown("**B. Open the Course Book in a new tab:**")
-            st.markdown(f'[🌐 Open Course Book PDF in new tab]({pdf_url})', unsafe_allow_html=True)
-
-        # Always show DeepL translation link
+        # Translation support
         st.markdown("---")
         st.markdown("**Need translation?** [🌐 Open DeepL Translator](https://www.deepl.com/translator)")
         st.caption("Copy and paste any text from the PDF or lesson to translate it.")
+
 
         # --- Quick Add Note Button ---
         if st.button("📝 Add a Note for this Lesson"):
