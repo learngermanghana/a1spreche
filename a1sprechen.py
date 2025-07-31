@@ -2975,14 +2975,7 @@ if tab == "Course Book":
                 st.info("No playlist found for your level yet. Stay tuned!")
 
         
-        # --- Quick Add Note Button ---
-        if st.button("📝 Add a Note for this Lesson"):
-            st.session_state["edit_note_title"] = f"Day {info['day']}: {info['topic']}"
-            st.session_state["edit_note_tag"] = f"Chapter {info['chapter']}"
-            st.session_state["edit_note_text"] = ""
-            st.session_state["edit_note_idx"] = None  # Signal: this is a new note
-            st.session_state["switch_to_notes"] = True
-            st.rerun()
+    import streamlit as st
 
     # --- Firebase Save Draft ---
     def save_draft_to_db(code, lesson_key, text):
@@ -3021,18 +3014,17 @@ if tab == "Course Book":
     if st.button("📤 Send via WhatsApp"):
         st.success("Click link below to open WhatsApp.")
         st.markdown(f"[📨 Open WhatsApp]({url})")
+        # --- Add to Notes Button appears immediately after WhatsApp send
+        if st.button("📝 Add to Notes"):
+            notes = load_notes_from_db(code)
+            notes.append({
+                "title": f"Day {info['day']}: {info['topic']}",
+                "tag": f"Chapter {info['chapter']}",
+                "text": st.session_state.get(lesson_key, "")
+            })
+            save_notes_to_db(code, notes)
+            st.success("Added to your learning notes!")
     st.text_area("📋 Copy message:", msg, height=500)
-
-    # --- Add to Notes Button ---
-    if st.button("📝 Add to Notes"):
-        notes = load_notes_from_db(code)
-        notes.append({
-            "title": f"Day {info['day']}: {info['topic']}",
-            "tag": f"Chapter {info['chapter']}",
-            "text": st.session_state.get(lesson_key, "")
-        })
-        save_notes_to_db(code, notes)
-        st.success("Added to your learning notes!")
 
 
         st.info(
