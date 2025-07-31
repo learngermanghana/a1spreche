@@ -2782,6 +2782,12 @@ if tab == "Course Book":
     )
     st.divider()
 
+    # ----- SAFELY SWITCH TAB if coming from 'Add Note' button -----
+    if st.session_state.get("switch_to_notes"):
+        st.session_state["coursebook_subtab"] = "📒 Learning Notes"
+        del st.session_state["switch_to_notes"]
+        st.experimental_rerun()
+
     cb_subtab = st.radio(
         "Select section:",
         ["📘 Course Book", "📒 Learning Notes"],
@@ -2923,7 +2929,7 @@ if tab == "Course Book":
             st.session_state["switch_to_library"] = False
             st.session_state["switch_to_edit_note"] = True
             st.session_state["coursebook_subtab"] = "📒 Learning Notes"
-            st.experimental_rerun()
+            st.rerun()
 
 
         st.divider()
