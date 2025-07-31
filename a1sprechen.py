@@ -3897,9 +3897,20 @@ if tab == "Exams Mode & Custom Chat":
             "url": "https://i.imgur.com/MxBUCR8.png",
             "caption": "Sample – A1 Teil 3"
         },
-        # Add A2 etc:
-        # ("A2", "Teil 1"): { ... }
+        ("A2", "Teil 1"): {
+            "url": "https://i.imgur.com/gmmu7Sn.png",
+            "caption": "Sample – A2 Teil 1"
+        },
+        ("A2", "Teil 2"): {
+            "url": "https://i.imgur.com/m6eBJu7.png",
+            "caption": "Sample – A2 Teil 2"
+        },
+        ("A2", "Teil 3"): {
+            "url": "https://i.imgur.com/1uDLrCY.png",
+            "caption": "Sample – A2 Teil 3"
+        },
     }
+
 
     # Display image only for selected level/teil and at the start of chat
     level = st.session_state.get("falowen_level")
