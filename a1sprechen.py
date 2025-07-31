@@ -2974,70 +2974,69 @@ if tab == "Course Book":
             else:
                 st.info("No playlist found for your level yet. Stay tuned!")
 
+        import streamlit as st
+        import urllib.parse
 
-        # --- Firebase Save Draft ---
+        # --- Save Draft to Firestore (using global db instance) ---
         def save_draft_to_db(code, lesson_key, text):
-                # Replace with your actual Firestore save logic
-                import firebase_admin
-                from firebase_admin import credentials, firestore
-
-                db = firestore.client()
-                doc_ref = db.collection('draft_answers').document(code)
-                doc_ref.set({lesson_key: text}, merge=True)
+            doc_ref = db.collection('draft_answers').document(code)
+            doc_ref.set({lesson_key: text}, merge=True)
 
         code = student_row.get('StudentCode', 'demo001')
         lesson_key = f"draft_{info['chapter']}"
 
         def autosave_draft():
-                text = st.session_state.get(lesson_key, "")
-                save_draft_to_db(code, lesson_key, text)
-                st.session_state[f"{lesson_key}_saved"] = True
+            text = st.session_state.get(lesson_key, "")
+            save_draft_to_db(code, lesson_key, text)
+            st.session_state[f"{lesson_key}_saved"] = True
 
         st.subheader("✍️ Your Answer (Autosaves)")
         st.text_area(
-                "Answer (or attach on WhatsApp)",
-                value=st.session_state.get(lesson_key, ""),
-                height=500,
-                key=lesson_key,
-                on_change=autosave_draft,
+            "Answer (or attach on WhatsApp)",
+            value=st.session_state.get(lesson_key, ""),
+            height=500,
+            key=lesson_key,
+            on_change=autosave_draft,
         )
         if st.session_state.get(f"{lesson_key}_saved", False):
-                st.success("Draft autosaved!")
+            st.success("Draft autosaved!")
 
-        # --- WhatsApp Submission ---
+        # --- WhatsApp Submission + Add to Notes ---
         chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
         name = st.text_input("Name", value=student_row.get('Name', ''))
         msg = build_wa_message(
-                name, code, student_level, info['day'], chapter_name, st.session_state.get(lesson_key, "")
+            name, code, student_level, info['day'], chapter_name, st.session_state.get(lesson_key, "")
         )
         url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(msg)
 
-        if st.button("📤 Send via WhatsApp"):
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("📤 Send via WhatsApp"):
                 st.success("Click link below to open WhatsApp.")
                 st.markdown(f"[📨 Open WhatsApp]({url})")
-                # --- Add to Notes Button appears immediately after WhatsApp send
-                if st.button("📝 Add to Notes"):
-                        notes = load_notes_from_db(code)
-                        notes.append({
-                                "title": f"Day {info['day']}: {info['topic']}",
-                                "tag": f"Chapter {info['chapter']}",
-                                "text": st.session_state.get(lesson_key, "")
-                        })
-                        save_notes_to_db(code, notes)
-                        st.success("Added to your learning notes!")
+                st.caption("You can also save your answer as a note for future reference.")
+
+        with col2:
+            if st.button("📝 Add Answer to Notes"):
+                st.session_state["edit_note_title"] = f"Day {info['day']}: {info['topic']}"
+                st.session_state["edit_note_tag"] = f"Chapter {info['chapter']}"
+                st.session_state["edit_note_text"] = st.session_state.get(lesson_key, "")
+                st.session_state["edit_note_idx"] = None  # Signal: this is a new note
+                st.session_state["switch_to_notes"] = True
+                st.rerun()
 
         st.text_area("📋 Copy message:", msg, height=500)
-#
-
 
 
         st.info(
             """
-        - Tap the links above to open resources in a new tab.
-        - Mention which task you're submitting.
-        - Use your correct name and code.
+            - Use the links above to access your lesson resources in a new tab.
+            - Make sure to say which day or task you are submitting in your answer.
+            - Enter your correct name and code before sending.
+            - After submitting via WhatsApp, you can also save your answer as a note for future use.
             """
         )
+
 
 
     # === LEARNING NOTES SUBTAB ===
