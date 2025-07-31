@@ -2923,7 +2923,7 @@ if tab == "Course Book":
             st.session_state["switch_to_library"] = False
             st.session_state["switch_to_edit_note"] = True
             st.session_state["coursebook_subtab"] = "📒 Learning Notes"
-            st.rerun()
+            st.experimental_rerun()
 
 
         st.divider()
@@ -3050,7 +3050,7 @@ if tab == "Course Book":
                 for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
                     if k in st.session_state: del st.session_state[k]
                 st.session_state["switch_to_library"] = True
-                st.experimental_rerun()
+                st.rerun()
 
         elif notes_subtab == "📚 My Notes Library":
             st.markdown("#### 📚 All My Notes")
