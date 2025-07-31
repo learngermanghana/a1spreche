@@ -2932,14 +2932,15 @@ if tab == "Course Book":
                 st.info("No playlist found for your level yet. Stay tuned!")
 
         st.header("📲 Submit Assignment (WhatsApp)")
-
+        
         def render_whatsapp():
             st.subheader("👤 Your Name & Code")
             name = st.text_input("Name", value=student_row.get('Name',''))
             code = st.text_input("Code", value=student_row.get('StudentCode',''))
             st.subheader("✍️ Your Answer")
             ans = st.text_area("Answer (or attach on WhatsApp)", height=500)
-            msg = build_wa_message(name, code, student_level, info['day'], info['chapter'], ans)
+            chapter_name = f"{info['chapter']} – {info.get('topic','')}"   # show full chapter name and topic
+            msg = build_wa_message(name, code, student_level, info['day'], chapter_name, ans)
             url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(msg)
             if st.button("📤 Send via WhatsApp"):
                 st.success("Click link below to open WhatsApp.")
@@ -2955,6 +2956,7 @@ if tab == "Course Book":
         - Use your correct name and code.
             """
         )
+
 
 
     # === LEARNING NOTES SUBTAB ===
