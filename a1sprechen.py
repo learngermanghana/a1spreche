@@ -2762,9 +2762,12 @@ def save_notes_to_db(student_code, notes):
     ref.set({"notes": notes}, merge=True)
 
 
-
 # --------------- COURSE BOOK MAIN TAB WITH SUBTABS ---------------
 if tab == "Course Book":
+    # SAFELY INITIALIZE SUBTAB STATE
+    if "coursebook_subtab" not in st.session_state:
+        st.session_state["coursebook_subtab"] = "📒 Learning Notes"
+
     st.markdown(
         '''
         <div style="
@@ -2843,6 +2846,7 @@ if tab == "Course Book":
                 range(len(schedule)),
                 format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
             )
+
 
         # ===== Progress Bar (just for scrolling/selection) =====
         total_assignments = len(schedule)
