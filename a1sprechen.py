@@ -2919,29 +2919,60 @@ if tab == "Course Book":
                 unsafe_allow_html=True
             )
 
-        # === PDF VIEWER AND TRANSLATION OPTIONS ===
+        # --- PDF Quick Preview & Mini Translation ---
         st.markdown("---")
-        st.subheader("📑 Course Book PDF")
-
-        pdf_url = info.get('pdf_link')
-        if pdf_url:
-            st.markdown(f"[🌐 Open Course Book PDF in new tab]({pdf_url})", unsafe_allow_html=True)
-        else:
-            st.info("No PDF link attached for this lesson.")
-
+        st.markdown("**Quick PDF Preview:**")
         st.markdown(
-            "<small>Download the PDF above and upload here to preview inside this app.</small>", unsafe_allow_html=True
+            "- Download the course book from the link above and upload below to preview inside the app."
         )
-        uploaded_file = st.file_uploader("Upload PDF to preview:", type="pdf", key="pdf_upload")
+        uploaded_file = st.file_uploader(
+            "Upload PDF to preview here (optional):", type="pdf", key="pdf_upload"
+        )
         if uploaded_file is not None:
             import base64
             base64_pdf = base64.b64encode(uploaded_file.read()).decode('utf-8')
-            pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="430" type="application/pdf"></iframe>'
+            pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="500" type="application/pdf"></iframe>'
             st.markdown(pdf_display, unsafe_allow_html=True)
+            st.caption("Preview only. Scroll through your uploaded PDF.")
 
+        # --- MINI TRANSLATION WIDGET (Google Translate) ---
         st.markdown("---")
-        st.markdown("[🌐 DeepL Translator](https://www.deepl.com/translator)")
-        st.caption("Copy and paste text to translate.")
+        st.markdown("#### 🌍 Mini-Translation")
+        st.caption("Paste text to translate. Powered by Google Translate.")
+
+        from googletrans import Translator, LANGUAGES
+
+        translator = Translator()
+        col1, col2 = st.columns(2)
+        with col1:
+            src = st.selectbox(
+                "From", ["auto"] + list(LANGUAGES.keys()),
+                format_func=lambda x: "Auto-detect" if x == "auto" else LANGUAGES.get(x, x),
+                key="src_lang"
+            )
+        with col2:
+            dest = st.selectbox(
+                "To", ["en", "de"],  # Limit to English and German, or use list(LANGUAGES.keys()) for all
+                format_func=lambda x: LANGUAGES.get(x, x),
+                key="dest_lang"
+            )
+
+        text = st.text_area("Text to translate", height=80, key="mini_translator_text")
+
+        if st.button("Translate", key="translate_btn"):
+            if text.strip():
+                with st.spinner("Translating..."):
+                    try:
+                        result = translator.translate(
+                            text, src=src if src != "auto" else None, dest=dest
+                        )
+                        st.success(result.text)
+                    except Exception as e:
+                        st.error(f"Translation failed: {e}")
+            else:
+                st.warning("Enter text to translate.")
+
+        st.caption("For bigger files, use [DeepL](https://www.deepl.com/translator) or [Google Translate](https://translate.google.com).")
 
 
         st.divider()
