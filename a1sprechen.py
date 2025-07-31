@@ -2791,7 +2791,23 @@ if tab == "Course Book":
 
     # === COURSE BOOK SUBTAB ===
     if cb_subtab == "📘 Course Book":
-        # ----- Insert your full Course Book logic here -----
+        st.markdown(
+            '''
+            <div style="
+                padding: 16px;
+                background: #007bff;
+                color: #ffffff;
+                border-radius: 8px;
+                text-align: center;
+                margin-bottom: 16px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            ">
+                <span style="font-size:1.8rem; font-weight:600;">📈 Course Book</span>
+            </div>
+            ''', unsafe_allow_html=True
+        )
+        st.divider()
+
         schedules = load_level_schedules()
         schedule = schedules.get(student_level, schedules.get('A1', []))
 
@@ -2808,7 +2824,12 @@ if tab == "Course Book":
                 title = highlight_terms(f"Day {d['day']}: {d['topic']}", search_terms)
                 grammar = highlight_terms(d.get('grammar_topic', ''), search_terms)
                 labels.append(f"{title}  {'<span style=\"color:#007bff\">['+grammar+']</span>' if grammar else ''}")
-            sel = st.selectbox("Lessons:", list(range(len(matches))), format_func=lambda i: labels[i], key="course_search_sel")
+            sel = st.selectbox(
+                "Lessons:",
+                list(range(len(matches))),
+                format_func=lambda i: labels[i],
+                key="course_search_sel"
+            )
             idx = matches[sel][0]
         else:
             idx = st.selectbox(
@@ -2817,20 +2838,52 @@ if tab == "Course Book":
                 format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
             )
 
-        # Example Progress Bar (just for scrolling/selection)
+        # ===== Progress Bar (just for scrolling/selection) =====
         total_assignments = len(schedule)
         assignments_done = idx + 1
         percent = int((assignments_done / total_assignments) * 100) if total_assignments else 0
         st.progress(percent)
         st.markdown(f"**You’ve loaded {assignments_done} / {total_assignments} lessons ({percent}%)**")
 
+        # ===== Estimated time for just this lesson =====
         LEVEL_TIME = {
-            "A1": 15, "A2": 25, "B1": 30, "B2": 40, "C1": 45
+            "A1": 15,
+            "A2": 25,
+            "B1": 30,
+            "B2": 40,
+            "C1": 45
         }
         current_time = LEVEL_TIME.get(student_level, 20)
         st.info(f"⏱️ **Recommended:** Invest about {current_time} minutes to complete this lesson fully.")
 
-        # ------- Show current lesson info ---------
+        # ====== SUGGESTED END DATE CALCULATION (THREE PACES) ======
+        contract_start_str = student_row.get('ContractStart', '')
+        contract_start_date = None
+        for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d/%m/%Y"):
+            try:
+                contract_start_date = datetime.strptime(contract_start_str, fmt).date()
+                break
+            except Exception:
+                continue
+
+        if contract_start_date:
+            # 3 per week
+            weeks_3 = (total_assignments + 2) // 3
+            end_3 = contract_start_date + timedelta(weeks=weeks_3)
+            # 2 per week
+            weeks_2 = (total_assignments + 1) // 2
+            end_2 = contract_start_date + timedelta(weeks=weeks_2)
+            # 1 per week
+            weeks_1 = total_assignments
+            end_1 = contract_start_date + timedelta(weeks=weeks_1)
+
+            st.success(f"🎯 **At 3 lessons/week, you can finish by:** {end_3.strftime('%A, %d %b %Y')}")
+            st.info(f"🟢 **At 2 lessons/week, you can finish by:** {end_2.strftime('%A, %d %b %Y')}")
+            st.warning(f"🟡 **At 1 lesson/week, you can finish by:** {end_1.strftime('%A, %d %b %Y')}")
+            st.caption("Stay consistent – choose your pace and finish on time.")
+        else:
+            st.warning("❓ Start date missing or wrong format. Please contact admin to update your contract start date for end date suggestion.")
+
         info = schedule[idx]
         st.markdown(
             f"### {highlight_terms('Day ' + str(info['day']) + ': ' + info['topic'], search_terms)} (Chapter {info['chapter']})",
@@ -2843,11 +2896,66 @@ if tab == "Course Book":
         if info.get('instruction'):
             st.markdown(f"**📝 Instruction:**  {info['instruction']}")
 
-        st.info("Before you submit your assignment, do you mind watching the Video of the Day? (feature placeholder)")
+        render_section(info, 'lesen_hören', 'Lesen & Hören', '📚')
+        render_section(info, 'schreiben_sprechen', 'Schreiben & Sprechen', '📝')
 
-        # --- WhatsApp submission (feature placeholder) ---
+        if student_level in ['A2', 'B1', 'B2', 'C1']:
+            for res, label in RESOURCE_LABELS.items():
+                val = info.get(res)
+                if val:
+                    if res == 'video':
+                        st.video(val)
+                    else:
+                        st.markdown(f"- [{label}]({val})", unsafe_allow_html=True)
+            st.markdown(
+                '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
+                unsafe_allow_html=True
+            )
+
+        st.divider()
+
+        st.info("Before you submit your assignment, do you mind watching the Video of the Day? Click below to open it.")
+
+        with st.expander("🎬 Video of the Day for Your Level"):
+            playlist_id = YOUTUBE_PLAYLIST_IDS.get(student_level)
+            if playlist_id:
+                video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
+                if video_list:
+                    today_idx = date.today().toordinal()
+                    pick = today_idx % len(video_list)
+                    video = video_list[pick]
+                    st.markdown(f"**{video['title']}**")
+                    st.video(video['url'])
+                else:
+                    st.info("No videos found for your level’s playlist. Check back soon!")
+            else:
+                st.info("No playlist found for your level yet. Stay tuned!")
+
         st.header("📲 Submit Assignment (WhatsApp)")
-        st.write("Your WhatsApp submission logic goes here.")
+
+        def render_whatsapp():
+            st.subheader("👤 Your Name & Code")
+            name = st.text_input("Name", value=student_row.get('Name',''))
+            code = st.text_input("Code", value=student_row.get('StudentCode',''))
+            st.subheader("✍️ Your Answer")
+            ans = st.text_area("Answer (or attach on WhatsApp)", height=500)
+            msg = build_wa_message(name, code, student_level, info['day'], info['chapter'], ans)
+            url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(msg)
+            if st.button("📤 Send via WhatsApp"):
+                st.success("Click link below to open WhatsApp.")
+                st.markdown(f"[📨 Open WhatsApp]({url})")
+            st.text_area("📋 Copy message:", msg, height=500)
+
+        render_whatsapp()
+
+        st.info(
+            """
+        - Tap the links above to open resources in a new tab.
+        - Mention which task you're submitting.
+        - Use your correct name and code.
+            """
+        )
+
 
     # === LEARNING NOTES SUBTAB ===
     elif cb_subtab == "📒 Learning Notes":
