@@ -2761,10 +2761,14 @@ def save_notes_to_db(student_code, notes):
     ref = db.collection("learning_notes").document(student_code)
     ref.set({"notes": notes}, merge=True)
 
-
 # --------------- COURSE BOOK MAIN TAB WITH SUBTABS ---------------
 if tab == "Course Book":
-    # SAFELY INITIALIZE SUBTAB STATE
+    # === HANDLE ALL SWITCHING *BEFORE* ANY WIDGET ===
+    # (If flagged to switch, set subtab and rerun BEFORE widgets)
+    if st.session_state.get("switch_to_notes"):
+        st.session_state["coursebook_subtab"] = "📒 Learning Notes"
+        del st.session_state["switch_to_notes"]
+        st.rerun()
     if "coursebook_subtab" not in st.session_state:
         st.session_state["coursebook_subtab"] = "📒 Learning Notes"
 
@@ -2784,12 +2788,6 @@ if tab == "Course Book":
         ''', unsafe_allow_html=True
     )
     st.divider()
-
-    # ----- SAFELY SWITCH TAB if coming from 'Add Note' button -----
-    if st.session_state.get("switch_to_notes"):
-        st.session_state["coursebook_subtab"] = "📒 Learning Notes"
-        del st.session_state["switch_to_notes"]
-        st.experimental_rerun()
 
     cb_subtab = st.radio(
         "Select section:",
@@ -2846,7 +2844,6 @@ if tab == "Course Book":
                 range(len(schedule)),
                 format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
             )
-
 
         # ===== Progress Bar (just for scrolling/selection) =====
         total_assignments = len(schedule)
@@ -2924,15 +2921,11 @@ if tab == "Course Book":
 
         # --- Quick Add Note Button ---
         if st.button("📝 Add a Note for this Lesson"):
-            if "coursebook_subtab" not in st.session_state:
-                st.session_state["coursebook_subtab"] = "📘 Course Book"
             st.session_state["edit_note_title"] = f"Day {info['day']}: {info['topic']}"
             st.session_state["edit_note_tag"] = f"Chapter {info['chapter']}"
             st.session_state["edit_note_text"] = ""
             st.session_state["edit_note_idx"] = None  # Signal: this is a new note
-            st.session_state["switch_to_library"] = False
-            st.session_state["switch_to_edit_note"] = True
-            st.session_state["coursebook_subtab"] = "📒 Learning Notes"
+            st.session_state["switch_to_notes"] = True
             st.rerun()
 
 
