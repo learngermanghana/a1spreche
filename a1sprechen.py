@@ -2931,7 +2931,7 @@ if tab == "Course Book":
         if uploaded_file is not None:
             import base64
             base64_pdf = base64.b64encode(uploaded_file.read()).decode('utf-8')
-            pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="1000" height="500" type="application/pdf"></iframe>'
+            pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="1000" height="800" type="application/pdf"></iframe>'
             st.markdown(pdf_display, unsafe_allow_html=True)
             st.caption("Preview only. Scroll through your uploaded PDF.")
 
@@ -2944,6 +2944,7 @@ if tab == "Course Book":
             "[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; [🌐 Google Translate](https://translate.google.com)",
             unsafe_allow_html=True
         )
+
 
 
         st.divider()
