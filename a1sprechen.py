@@ -2921,47 +2921,27 @@ if tab == "Course Book":
 
         # === PDF VIEWER AND TRANSLATION OPTIONS ===
         st.markdown("---")
-        st.subheader("📑 Course Book Resources")
+        st.subheader("📑 Course Book PDF")
 
-        # Fetch all possible PDFs from the lesson info
-        pdf_links = []
-        if info.get("grammarbook_link"):
-            pdf_links.append(("📘 Grammar Book (Notes)", info["grammarbook_link"]))
-        if info.get("workbook_link"):
-            pdf_links.append(("📒 Workbook (Assignment)", info["workbook_link"]))
-
-        # Handle multiple chapters (list of dicts)
-        for key in ["lesen_hören", "schreiben_sprechen"]:
-            section = info.get(key)
-            if isinstance(section, list):
-                for idx, part in enumerate(section):
-                    if part.get("grammarbook_link"):
-                        pdf_links.append((f"📘 Grammar Book (Notes) – Part {idx+1}", part["grammarbook_link"]))
-                    if part.get("workbook_link"):
-                        pdf_links.append((f"📒 Workbook (Assignment) – Part {idx+1}", part["workbook_link"]))
-
-        if pdf_links:
-            st.markdown("**Open course materials:**")
-            for label, link in pdf_links:
-                st.markdown(f"- [{label}]({link})", unsafe_allow_html=True)
-            st.info("Choose a PDF link above to view or download in a new tab.")
+        pdf_url = info.get('pdf_link')
+        if pdf_url:
+            st.markdown(f"[🌐 Open Course Book PDF in new tab]({pdf_url})", unsafe_allow_html=True)
         else:
-            st.warning("No PDF resources found for this lesson.")
+            st.info("No PDF link attached for this lesson.")
 
-        # Translation support
+        st.markdown(
+            "<small>Download the PDF above and upload here to preview inside this app.</small>", unsafe_allow_html=True
+        )
+        uploaded_file = st.file_uploader("Upload PDF to preview:", type="pdf", key="pdf_upload")
+        if uploaded_file is not None:
+            import base64
+            base64_pdf = base64.b64encode(uploaded_file.read()).decode('utf-8')
+            pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="430" type="application/pdf"></iframe>'
+            st.markdown(pdf_display, unsafe_allow_html=True)
+
         st.markdown("---")
-        st.markdown("**Need translation?** [🌐 Open DeepL Translator](https://www.deepl.com/translator)")
-        st.caption("Copy and paste any text from the PDF or lesson to translate it.")
-
-
-        # --- Quick Add Note Button ---
-        if st.button("📝 Add a Note for this Lesson"):
-            st.session_state["edit_note_title"] = f"Day {info['day']}: {info['topic']}"
-            st.session_state["edit_note_tag"] = f"Chapter {info['chapter']}"
-            st.session_state["edit_note_text"] = ""
-            st.session_state["edit_note_idx"] = None  # Signal: this is a new note
-            st.session_state["switch_to_notes"] = True
-            st.rerun()
+        st.markdown("[🌐 DeepL Translator](https://www.deepl.com/translator)")
+        st.caption("Copy and paste text to translate.")
 
 
         st.divider()
@@ -2982,6 +2962,17 @@ if tab == "Course Book":
                     st.info("No videos found for your level’s playlist. Check back soon!")
             else:
                 st.info("No playlist found for your level yet. Stay tuned!")
+
+        
+        # --- Quick Add Note Button ---
+        if st.button("📝 Add a Note for this Lesson"):
+            st.session_state["edit_note_title"] = f"Day {info['day']}: {info['topic']}"
+            st.session_state["edit_note_tag"] = f"Chapter {info['chapter']}"
+            st.session_state["edit_note_text"] = ""
+            st.session_state["edit_note_idx"] = None  # Signal: this is a new note
+            st.session_state["switch_to_notes"] = True
+            st.rerun()
+
 
         st.header("📲 Submit Assignment (WhatsApp)")
         
