@@ -2986,7 +2986,7 @@ if tab == "Course Book":
 
 
         st.header("📲 Submit Assignment (WhatsApp)")
-        
+
         def render_whatsapp():
             st.subheader("👤 Your Name & Code")
             name = st.text_input("Name", value=student_row.get('Name',''))
@@ -2996,12 +2996,24 @@ if tab == "Course Book":
             chapter_name = f"{info['chapter']} – {info.get('topic','')}"   # show full chapter name and topic
             msg = build_wa_message(name, code, student_level, info['day'], chapter_name, ans)
             url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(msg)
-            if st.button("📤 Send via WhatsApp"):
-                st.success("Click link below to open WhatsApp.")
-                st.markdown(f"[📨 Open WhatsApp]({url})")
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("📤 Send via WhatsApp"):
+                    st.success("Click link below to open WhatsApp.")
+                    st.markdown(f"[📨 Open WhatsApp]({url})")
+            with col2:
+                if st.button("📝 Add Answer to Notes"):
+                    st.session_state["edit_note_title"] = f"Day {info['day']}: {info['topic']}"
+                    st.session_state["edit_note_tag"] = f"Chapter {info['chapter']}"
+                    st.session_state["edit_note_text"] = ans
+                    st.session_state["edit_note_idx"] = None  # Signal: this is a new note
+                    st.session_state["switch_to_notes"] = True
+                    st.rerun()
             st.text_area("📋 Copy message:", msg, height=500)
 
         render_whatsapp()
+
+
 
         st.info(
             """
