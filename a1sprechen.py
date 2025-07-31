@@ -2931,48 +2931,19 @@ if tab == "Course Book":
         if uploaded_file is not None:
             import base64
             base64_pdf = base64.b64encode(uploaded_file.read()).decode('utf-8')
-            pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="500" type="application/pdf"></iframe>'
+            pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="1000" height="500" type="application/pdf"></iframe>'
             st.markdown(pdf_display, unsafe_allow_html=True)
             st.caption("Preview only. Scroll through your uploaded PDF.")
 
-        # --- MINI TRANSLATION WIDGET (Google Translate) ---
+        # --- Mini Translation Widget ---
         st.markdown("---")
         st.markdown("#### 🌍 Mini-Translation")
-        st.caption("Paste text to translate. Powered by Google Translate.")
-
-        from googletrans import Translator, LANGUAGES
-
-        translator = Translator()
-        col1, col2 = st.columns(2)
-        with col1:
-            src = st.selectbox(
-                "From", ["auto"] + list(LANGUAGES.keys()),
-                format_func=lambda x: "Auto-detect" if x == "auto" else LANGUAGES.get(x, x),
-                key="src_lang"
-            )
-        with col2:
-            dest = st.selectbox(
-                "To", ["en", "de"],  # Limit to English and German, or use list(LANGUAGES.keys()) for all
-                format_func=lambda x: LANGUAGES.get(x, x),
-                key="dest_lang"
-            )
-
-        text = st.text_area("Text to translate", height=80, key="mini_translator_text")
-
-        if st.button("Translate", key="translate_btn"):
-            if text.strip():
-                with st.spinner("Translating..."):
-                    try:
-                        result = translator.translate(
-                            text, src=src if src != "auto" else None, dest=dest
-                        )
-                        st.success(result.text)
-                    except Exception as e:
-                        st.error(f"Translation failed: {e}")
-            else:
-                st.warning("Enter text to translate.")
-
-        st.caption("For bigger files, use [DeepL](https://www.deepl.com/translator) or [Google Translate](https://translate.google.com).")
+        st.caption("Paste text here, then copy it to DeepL or Google Translate below.")
+        txt = st.text_area("Type or paste text for translation:", height=80)
+        st.markdown(
+            "[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; [🌐 Google Translate](https://translate.google.com)",
+            unsafe_allow_html=True
+        )
 
 
         st.divider()
