@@ -5188,17 +5188,19 @@ def load_letter_coach_progress(student_code):
         return "", []
 
 
-# --- Connect to Google Sheets (adjust path as needed) ---
-gc = gspread.service_account(filename='your_service_account.json')
-sh = gc.open_by_url("https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/edit#gid=104087906")
-ws = sh.get_worksheet(0)
-
+# --- Helper: Get level from Google Sheet (public CSV) ---
 def get_level_from_code(student_code):
-    records = ws.get_all_records()
-    for row in records:
-        if row.get('student_code', '').strip().lower() == student_code.strip().lower():
-            return row.get('level', 'A1')
+    url = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/export?format=csv&gid=104087906"
+    try:
+        df = pd.read_csv(url)
+        # Make sure column names are correct and lowercase!
+        row = df.loc[df['student_code'].astype(str).str.strip().str.lower() == str(student_code).strip().lower()]
+        if not row.empty:
+            return row['level'].iloc[0]
+    except Exception as e:
+        st.warning(f"Could not read Google Sheet for level detection: {e}")
     return 'A1'
+
 
 #Maincode for me
 
