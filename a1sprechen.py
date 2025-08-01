@@ -5469,7 +5469,7 @@ if tab == "Schreiben Trainer":
         import re
         def get_level_requirements(level):
             reqs = {
-                "A1": {"min": 25, "max": 40, "desc": "A1 formal/informal letters should be 25–35 words. Cover all bullet points."},
+                "A1": {"min": 25, "max": 40, "desc": "A1 formal/informal letters should be 25–40 words. Cover all bullet points."},
                 "A2": {"min": 30, "max": 40, "desc": "A2 formal/informal letters should be 30–40 words. Cover all bullet points."},
                 "B1": {"min": 80, "max": 150, "desc": "B1 letters/essays should be about 80–150 words, with all points covered and clear structure."},
                 "B2": {"min": 150, "max": 250, "desc": "B2 essays are 180–220 words, opinion essays or reports, with good structure and connectors."},
@@ -5486,25 +5486,25 @@ if tab == "Schreiben Trainer":
             st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
 
             # -- Apply Goethe writing rules here --
-            requirements = get_level_requirements(schreiben_level)
+            requirements = get_level_requirements(detected_level)  # << USE AUTO-DETECTED LEVEL
             word_count = count_words(user_letter)
             min_wc = requirements["min"]
             max_wc = requirements["max"]
 
-            if schreiben_level in ("A1", "A2"):
+            if detected_level in ("A1", "A2"):
                 if word_count < min_wc:
-                    st.error(f"⚠️ Your letter is too short for {schreiben_level} ({word_count} words). {requirements['desc']}")
+                    st.error(f"⚠️ Your letter is too short for {detected_level} ({word_count} words). {requirements['desc']}")
                     st.stop()
                 elif word_count > max_wc:
-                    st.warning(f"ℹ️ Your letter is a bit long for {schreiben_level} ({word_count} words). The exam expects {min_wc}-{max_wc} words.")
+                    st.warning(f"ℹ️ Your letter is a bit long for {detected_level} ({word_count} words). The exam expects {min_wc}-{max_wc} words.")
             else:
                 if word_count < min_wc:
-                    st.error(f"⚠️ Your essay is too short for {schreiben_level} ({word_count} words). {requirements['desc']}")
+                    st.error(f"⚠️ Your essay is too short for {detected_level} ({word_count} words). {requirements['desc']}")
                     st.stop()
-                elif word_count > max_wc + 40 and schreiben_level in ("B1", "B2"):
-                    st.warning(f"ℹ️ Your essay is longer than the usual limit for {schreiben_level} ({word_count} words). Try to stay within the guidelines.")
+                elif word_count > max_wc + 40 and detected_level in ("B1", "B2"):
+                    st.warning(f"ℹ️ Your essay is longer than the usual limit for {detected_level} ({word_count} words). Try to stay within the guidelines.")
 
-        # --------- This is where the reset block goes, outside the word count checks ---------
+        # --------- Reset correction states (do not indent inside above ifs)
         for k, v in [
             ("last_feedback", None),
             ("last_user_letter", None),
@@ -5516,7 +5516,6 @@ if tab == "Schreiben Trainer":
             session_key = f"{student_code}_{k}"
             if session_key not in st.session_state:
                 st.session_state[session_key] = v
-
 
         # Namespaced correction state per student (reset on session)
         for k, v in [
