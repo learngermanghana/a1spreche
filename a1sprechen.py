@@ -12,6 +12,8 @@ import io                  # IO streams
 import bcrypt
 import tempfile            # Temp file creation
 import urllib.parse        # URL encoding/decoding
+import gspread
+
 
 # ==== Third-Party Packages ====
 import pandas as pd                        # Data handling
