@@ -5308,7 +5308,7 @@ if tab == "Schreiben Trainer":
         "Choose Mode",
         ["Mark My Letter", "Ideas Generator (Letter Coach)"],
         horizontal=True,
-        key="schreiben_sub_tab"
+        key=f"schreiben_sub_tab_{student_code}"
     )
 
 if tab == "Schreiben Trainer":
