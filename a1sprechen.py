@@ -5311,12 +5311,10 @@ if tab == "Schreiben Trainer":
         key="schreiben_sub_tab"
     )
 
-    # --- Level picker: Auto-detect from student code, but let student override ---
-    student_code = st.session_state.get("student_code", "demo")  # or get it from your login logic
-
+      # --- Level picker: Auto-detect from student code, but let student override ---
+    student_code = st.session_state.get("student_code", "demo")
     if student_code:
         detected_level = get_level_from_code(student_code)
-        # Only set if first time or code changed
         if (
             "schreiben_level" not in st.session_state or
             st.session_state.get("prev_student_code_for_level", None) != student_code
@@ -5331,22 +5329,21 @@ if tab == "Schreiben Trainer":
     prev_level = st.session_state.get("schreiben_level", "A1")
     idx = schreiben_levels.index(prev_level) if prev_level in schreiben_levels else 0
 
-    schreiben_level = st.selectbox(
+    st.selectbox(
         "Choose your writing level (auto-detected from your student code, but you can change):",
         schreiben_levels,
         index=idx,
         key="schreiben_level_selector"
     )
-    st.session_state["schreiben_level"] = schreiben_level
+    # Always use the latest level selected by the user:
+    current_level = st.session_state.get("schreiben_level_selector", st.session_state.get("schreiben_level", "A1"))
+    st.session_state["schreiben_level"] = current_level
 
     st.markdown(
         f"<span style='color:gray;font-size:0.97em;'>Auto-detected from your code: <b>{detected_level}</b></span>",
         unsafe_allow_html=True
     )
-
     st.divider()
-#
-
 
     # ----------- 1. MARK MY LETTER -----------
     if sub_tab == "Mark My Letter":
@@ -5374,7 +5371,6 @@ if tab == "Schreiben Trainer":
             data["last_letter"] = user_letter
             doc_ref.set(data, merge=True)
 
-        # --- Word count and Goethe exam rules ---
         import re
         def get_level_requirements(level):
             reqs = {
@@ -5389,30 +5385,30 @@ if tab == "Schreiben Trainer":
         def count_words(text):
             return len(re.findall(r'\b\w+\b', text))
 
+        # ----- ALWAYS use the current_level from session state -----
         if user_letter.strip():
             words = re.findall(r'\b\w+\b', user_letter)
             chars = len(user_letter)
             st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
 
-            # -- Apply Goethe writing rules here --
-            requirements = get_level_requirements(schreiben_level)
+            requirements = get_level_requirements(current_level)
             word_count = count_words(user_letter)
             min_wc = requirements["min"]
             max_wc = requirements["max"]
 
             # --- Block too-short answers for A1/A2, warn for B1–C1
-            if schreiben_level in ("A1", "A2"):
+            if current_level in ("A1", "A2"):
                 if word_count < min_wc:
-                    st.error(f"⚠️ Your letter is too short for {schreiben_level} ({word_count} words). {requirements['desc']}")
+                    st.error(f"⚠️ Your letter is too short for {current_level} ({word_count} words). {requirements['desc']}")
                     st.stop()
                 elif word_count > max_wc:
-                    st.warning(f"ℹ️ Your letter is a bit long for {schreiben_level} ({word_count} words). The exam expects 20–40 words.")
+                    st.warning(f"ℹ️ Your letter is a bit long for {current_level} ({word_count} words). The exam expects 20–40 words.")
             else:
                 if word_count < min_wc:
-                    st.error(f"⚠️ Your essay is too short for {schreiben_level} ({word_count} words). {requirements['desc']}")
+                    st.error(f"⚠️ Your essay is too short for {current_level} ({word_count} words). {requirements['desc']}")
                     st.stop()
-                elif word_count > max_wc + 40 and schreiben_level in ("B1", "B2"):
-                    st.warning(f"ℹ️ Your essay is longer than the usual limit for {schreiben_level} ({word_count} words). Try to stay within the guidelines.")
+                elif word_count > max_wc + 40 and current_level in ("B1", "B2"):
+   #                 st.warning(f"ℹ️ Your essay is longer than the usual limit for {current_level} ({word_count} words). Try to stay within the guidelines.")
 
         # Namespaced correction state per student (reset on session)
         for k, v in [
