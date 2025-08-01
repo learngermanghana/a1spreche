@@ -5185,6 +5185,21 @@ def load_letter_coach_progress(student_code):
     else:
         return "", []
 
+
+# --- Connect to Google Sheets (adjust path as needed) ---
+gc = gspread.service_account(filename='your_service_account.json')
+sh = gc.open_by_url("https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/edit#gid=104087906")
+ws = sh.get_worksheet(0)
+
+def get_level_from_code(student_code):
+    records = ws.get_all_records()
+    for row in records:
+        if row.get('student_code', '').strip().lower() == student_code.strip().lower():
+            return row.get('level', 'A1')
+    return 'A1'
+
+#Maincode for me
+
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
@@ -5281,18 +5296,42 @@ if tab == "Schreiben Trainer":
         key="schreiben_sub_tab"
     )
 
-    # --- Level picker ---
+    # --- Level picker: Auto-detect from student code, but let student override ---
+    student_code = st.session_state.get("student_code", "demo")  # or get it from your login logic
+
+    if student_code:
+        detected_level = get_level_from_code(student_code)
+        # Only set if first time or code changed
+        if (
+            "schreiben_level" not in st.session_state or
+            st.session_state.get("prev_student_code_for_level", None) != student_code
+        ):
+            st.session_state["schreiben_level"] = detected_level
+            st.session_state["prev_student_code_for_level"] = student_code
+    else:
+        detected_level = "A1"
+        st.session_state["schreiben_level"] = detected_level
+
     schreiben_levels = ["A1", "A2", "B1", "B2", "C1"]
     prev_level = st.session_state.get("schreiben_level", "A1")
+    idx = schreiben_levels.index(prev_level) if prev_level in schreiben_levels else 0
+
     schreiben_level = st.selectbox(
-        "Choose your writing level:",
+        "Choose your writing level (auto-detected from your student code, but you can change):",
         schreiben_levels,
-        index=schreiben_levels.index(prev_level) if prev_level in schreiben_levels else 0,
+        index=idx,
         key="schreiben_level_selector"
     )
     st.session_state["schreiben_level"] = schreiben_level
 
+    st.markdown(
+        f"<span style='color:gray;font-size:0.97em;'>Auto-detected from your code: <b>{detected_level}</b></span>",
+        unsafe_allow_html=True
+    )
+
     st.divider()
+#
+
 
     # ----------- 1. MARK MY LETTER -----------
     if sub_tab == "Mark My Letter":
@@ -5324,11 +5363,11 @@ if tab == "Schreiben Trainer":
         import re
         def get_level_requirements(level):
             reqs = {
-                "A1": {"min": 20, "max": 40, "desc": "A1 formal/informal letters should be 25–35 words. Cover all bullet points."},
-                "A2": {"min": 20, "max": 40, "desc": "A2 formal/informal letters should be 30–40 words. Cover all bullet points."},
+                "A1": {"min": 25, "max": 40, "desc": "A1 formal/informal letters should be 25–35 words. Cover all bullet points."},
+                "A2": {"min": 30, "max": 40, "desc": "A2 formal/informal letters should be 30–40 words. Cover all bullet points."},
                 "B1": {"min": 80, "max": 150, "desc": "B1 letters/essays should be about 80–150 words, with all points covered and clear structure."},
                 "B2": {"min": 150, "max": 250, "desc": "B2 essays are 180–220 words, opinion essays or reports, with good structure and connectors."},
-                "C1": {"min": 250, "max": 350, "desc": "C1 essays are 250–350+ words. Use advanced structures and express opinions clearly."}
+                "C1": {"min": 230, "max": 350, "desc": "C1 essays are 230–250+ words. Use advanced structures and express opinions clearly."}
             }
             return reqs.get(level.upper(), reqs["A1"])
 
