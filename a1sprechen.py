@@ -5311,8 +5311,103 @@ if tab == "Schreiben Trainer":
         key="schreiben_sub_tab"
     )
 
-      # --- Level picker: Auto-detect from student code, but let student override ---
+if tab == "Schreiben Trainer":
+    st.markdown(
+        '''
+        <div style="
+            padding: 8px 12px;
+            background: #d63384;
+            color: #fff;
+            border-radius: 6px;
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 1.3rem;">
+            ✍️ Schreiben Trainer (Writing Practice)
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
+
+    st.info(
+        """
+        ✍️ **This section is for Writing (Schreiben) only.**
+        - Practice your German letters, emails, and essays for A1–C1 exams.
+        - **Want to prepare for class presentations, topic expansion, or practice Speaking, Reading (Lesen), or Listening (Hören)?**  
+          👉 Go to **Exam Mode & Custom Chat** (tab above)!
+        - **Tip:** Choose your exam level on the right before submitting your letter. Your writing will be checked and scored out of 25 marks, just like in the real exam.
+        """,
+        icon="✉️"
+    )
+
+    st.divider()
+
+    # --- Writing stats summary with Firestore ---
     student_code = st.session_state.get("student_code", "demo")
+    stats = get_schreiben_stats(student_code)
+    if stats:
+        total = stats.get("total", 0)
+        passed = stats.get("passed", 0)
+        pass_rate = stats.get("pass_rate", 0)
+
+        # Milestone and title logic
+        if total <= 2:
+            writer_title = "🟡 Beginner Writer"
+            milestone = "Write 3 letters to become a Rising Writer!"
+        elif total <= 5 or pass_rate < 60:
+            writer_title = "🟡 Rising Writer"
+            milestone = "Achieve 60% pass rate and 6 letters to become a Confident Writer!"
+        elif total <= 7 or (60 <= pass_rate < 80):
+            writer_title = "🔵 Confident Writer"
+            milestone = "Reach 8 attempts and 80% pass rate to become an Advanced Writer!"
+        elif total >= 8 and pass_rate >= 80 and not (total >= 10 and pass_rate >= 95):
+            writer_title = "🟢 Advanced Writer"
+            milestone = "Reach 10 attempts and 95% pass rate to become a Master Writer!"
+        elif total >= 10 and pass_rate >= 95:
+            writer_title = "🏅 Master Writer!"
+            milestone = "You've reached the highest milestone! Keep maintaining your skills 🎉"
+        else:
+            writer_title = "✏️ Active Writer"
+            milestone = "Keep going to unlock your next milestone!"
+
+        st.markdown(
+            f"""
+            <div style="background:#fff8e1;padding:18px 12px 14px 12px;border-radius:12px;margin-bottom:12px;
+                        box-shadow:0 1px 6px #00000010;">
+                <span style="font-weight:bold;font-size:1.25rem;color:#d63384;">{writer_title}</span><br>
+                <span style="font-weight:bold;font-size:1.09rem;color:#444;">📊 Your Writing Stats</span><br>
+                <span style="color:#202020;font-size:1.05rem;"><b>Total Attempts:</b> {total}</span><br>
+                <span style="color:#202020;font-size:1.05rem;"><b>Passed:</b> {passed}</span><br>
+                <span style="color:#202020;font-size:1.05rem;"><b>Pass Rate:</b> {pass_rate:.1f}%</span><br>
+                <span style="color:#e65100;font-weight:bold;font-size:1.03rem;">{milestone}</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    else:
+        st.info("No writing stats found yet. Write your first letter to see progress!")
+
+    # --- Update session states for new student (preserves drafts, etc) ---
+    prev_student_code = st.session_state.get("prev_student_code", None)
+    if student_code != prev_student_code:
+        stats = get_schreiben_stats(student_code)
+        st.session_state[f"{student_code}_schreiben_input"] = stats.get("last_letter", "")
+        st.session_state[f"{student_code}_last_feedback"] = None
+        st.session_state[f"{student_code}_last_user_letter"] = None
+        st.session_state[f"{student_code}_delta_compare_feedback"] = None
+        st.session_state[f"{student_code}_final_improved_letter"] = ""
+        st.session_state[f"{student_code}_awaiting_correction"] = False
+        st.session_state[f"{student_code}_improved_letter"] = ""
+        st.session_state["prev_student_code"] = student_code
+
+    # --- Sub-tabs for the Trainer ---
+    sub_tab = st.radio(
+        "Choose Mode",
+        ["Mark My Letter", "Ideas Generator (Letter Coach)"],
+        horizontal=True,
+        key="schreiben_sub_tab"
+    )
+
+    # --- Level picker: Auto-detect from student code, but let student override ---
     if student_code:
         detected_level = get_level_from_code(student_code)
         if (
@@ -5329,20 +5424,19 @@ if tab == "Schreiben Trainer":
     prev_level = st.session_state.get("schreiben_level", "A1")
     idx = schreiben_levels.index(prev_level) if prev_level in schreiben_levels else 0
 
-    st.selectbox(
+    schreiben_level = st.selectbox(
         "Choose your writing level (auto-detected from your student code, but you can change):",
         schreiben_levels,
         index=idx,
         key="schreiben_level_selector"
     )
-    # Always use the latest level selected by the user:
-    current_level = st.session_state.get("schreiben_level_selector", st.session_state.get("schreiben_level", "A1"))
-    st.session_state["schreiben_level"] = current_level
+    st.session_state["schreiben_level"] = schreiben_level
 
     st.markdown(
         f"<span style='color:gray;font-size:0.97em;'>Auto-detected from your code: <b>{detected_level}</b></span>",
         unsafe_allow_html=True
     )
+
     st.divider()
 
     # ----------- 1. MARK MY LETTER -----------
@@ -5371,6 +5465,7 @@ if tab == "Schreiben Trainer":
             data["last_letter"] = user_letter
             doc_ref.set(data, merge=True)
 
+        # --- Word count and Goethe exam rules ---
         import re
         def get_level_requirements(level):
             reqs = {
@@ -5385,30 +5480,43 @@ if tab == "Schreiben Trainer":
         def count_words(text):
             return len(re.findall(r'\b\w+\b', text))
 
-        # ----- ALWAYS use the current_level from session state -----
         if user_letter.strip():
             words = re.findall(r'\b\w+\b', user_letter)
             chars = len(user_letter)
             st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
 
-            requirements = get_level_requirements(current_level)
+            # -- Apply Goethe writing rules here --
+            requirements = get_level_requirements(schreiben_level)
             word_count = count_words(user_letter)
             min_wc = requirements["min"]
             max_wc = requirements["max"]
 
-            # --- Block too-short answers for A1/A2, warn for B1–C1
-            if current_level in ("A1", "A2"):
+            if schreiben_level in ("A1", "A2"):
                 if word_count < min_wc:
-                    st.error(f"⚠️ Your letter is too short for {current_level} ({word_count} words). {requirements['desc']}")
+                    st.error(f"⚠️ Your letter is too short for {schreiben_level} ({word_count} words). {requirements['desc']}")
                     st.stop()
                 elif word_count > max_wc:
-                    st.warning(f"ℹ️ Your letter is a bit long for {current_level} ({word_count} words). The exam expects 20–40 words.")
+                    st.warning(f"ℹ️ Your letter is a bit long for {schreiben_level} ({word_count} words). The exam expects {min_wc}-{max_wc} words.")
             else:
                 if word_count < min_wc:
-                    st.error(f"⚠️ Your essay is too short for {current_level} ({word_count} words). {requirements['desc']}")
+                    st.error(f"⚠️ Your essay is too short for {schreiben_level} ({word_count} words). {requirements['desc']}")
                     st.stop()
-                elif word_count > max_wc + 40 and current_level in ("B1", "B2"):
-   #                 st.warning(f"ℹ️ Your essay is longer than the usual limit for {current_level} ({word_count} words). Try to stay within the guidelines.")
+                elif word_count > max_wc + 40 and schreiben_level in ("B1", "B2"):
+                    st.warning(f"ℹ️ Your essay is longer than the usual limit for {schreiben_level} ({word_count} words). Try to stay within the guidelines.")
+
+        # --------- This is where the reset block goes, outside the word count checks ---------
+        for k, v in [
+            ("last_feedback", None),
+            ("last_user_letter", None),
+            ("delta_compare_feedback", None),
+            ("improved_letter", ""),
+            ("awaiting_correction", False),
+            ("final_improved_letter", "")
+        ]:
+            session_key = f"{student_code}_{k}"
+            if session_key not in st.session_state:
+                st.session_state[session_key] = v
+
 
         # Namespaced correction state per student (reset on session)
         for k, v in [
