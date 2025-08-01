@@ -5407,7 +5407,7 @@ if tab == "Schreiben Trainer":
         key="schreiben_sub_tab"
     )
 
-    # --- Level picker: Auto-detect from student code, but let student override ---
+        # --- Level picker: Auto-detect from student code (manual override removed) ---
     if student_code:
         detected_level = get_level_from_code(student_code)
         # Only apply detected level when first seeing this student code
@@ -5419,24 +5419,13 @@ if tab == "Schreiben Trainer":
         if "schreiben_level" not in st.session_state:
             st.session_state["schreiben_level"] = detected_level
 
-    schreiben_levels = ["A1", "A2", "B1", "B2", "C1"]
-
-    # Selectbox uses current session state as default; user override persists
-    schreiben_level = st.selectbox(
-        "Choose your writing level (auto-detected from your student code, but you can change):",
-        schreiben_levels,
-        index=schreiben_levels.index(st.session_state.get("schreiben_level", "A1")),
-        key="schreiben_level_selector"
-    )
-
-    # Sync session state if user changed it
-    st.session_state["schreiben_level"] = schreiben_level
+    # Ensure current writing level variable reflects auto-detected one
+    schreiben_level = st.session_state.get("schreiben_level", "A1")
 
     st.markdown(
-        f"<span style='color:gray;font-size:0.97em;'>Auto-detected from your code: <b>{detected_level}</b></span>",
+        f"<span style='color:gray;font-size:0.97em;'>Auto-detected level from your code: <b>{detected_level}</b></span>",
         unsafe_allow_html=True
     )
-#
 
 
     st.divider()
