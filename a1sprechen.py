@@ -5189,13 +5189,27 @@ def load_letter_coach_progress(student_code):
 
 
 # --- Helper: Get level from Google Sheet (public CSV) ---
+
+SHEET_URL = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/export?format=csv"
+
+@st.cache_data(ttl=300)
+def load_sheet():
+    return pd.read_csv(SHEET_URL)
+
 def get_level_from_code(student_code):
-    records = ws.get_all_records()
-    for row in records:
-        # Use 'StudentCode' and 'Level' (case sensitive!)
-        if str(row.get('StudentCode', '')).strip().lower() == student_code.strip().lower():
-            return row.get('Level', 'A1')
-    return 'A1'
+    df = load_sheet()
+    student_code = str(student_code).strip().lower()
+    # Make sure 'StudentCode' column exists and is lowercase
+    if "StudentCode" not in df.columns:
+        df.columns = [c.strip() for c in df.columns]
+    if "StudentCode" in df.columns:
+        matches = df[df["StudentCode"].astype(str).str.strip().str.lower() == student_code]
+        if not matches.empty:
+            # Handles NaN, empty cells
+            level = matches.iloc[0]["Level"]
+            return str(level).strip().upper() if pd.notna(level) else "A1"
+    return "A1"
+
 
 
 
