@@ -12,8 +12,6 @@ import io                  # IO streams
 import bcrypt
 import tempfile            # Temp file creation
 import urllib.parse        # URL encoding/decoding
-import gspread
-
 
 # ==== Third-Party Packages ====
 import pandas as pd                        # Data handling
@@ -995,10 +993,10 @@ if tab == "Dashboard":
         },
         "A2 Koln Klasse": {
             "days": ["Wednesday", "Thursday", "Friday"],
-            "time": "Wed: 2:00pm–3:00pm, Thu/Fri: 11:00am–12:00pm",
+            "time": "11:00am–12:00pm",
             "start_date": "2025-08-06",
             "end_date": "2025-10-08",
-            "doc_url": ""
+            "doc_url": "https://drive.google.com/file/d/19cptfdlmBDYe9o84b8ZCwujmxuMCKXAD/view?usp=sharing"
         },
         "B1 Munich Klasse": {
             "days": ["Thursday", "Friday"],
@@ -1982,9 +1980,10 @@ def get_b1_schedule():
             "goal": "Über Erfolge und persönliche Erlebnisse berichten.",
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
+            "grammar_topic": "Adjektivdeklination mit unbestimmten Artikeln",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1kUtriLOZfJXUxj2IVU2VHZZkghIWDWKv/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1qVANqTLg4FOU40_WfLZyVTu5KBluzYrh/view?usp=sharing"
         },
         # TAG 4
         {
@@ -1994,9 +1993,10 @@ def get_b1_schedule():
             "goal": "Über Wohnungssuche und Wohnformen sprechen.",
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
+            "grammar_topic": "Wechselpräpositionen – In der Stadt, auf dem Land",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/12r_HE51QtpknXSSU0R75ur-EDFpTjzXU/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/12r_HE51QtpknXSSU0R75ur-EDFpTjzXU/view?usp=sharing"
         },
         # TAG 5
         {
@@ -2297,7 +2297,7 @@ def get_b2_schedule():
             "chapter": "1.1",
             "goal": "Express your personal identity and values.",
             "instruction": "Write a self-description and discuss your core values.",
-            "video": "",
+            "video": "https://youtu.be/a9LxkxNdnEg",
             "grammarbook_link": "https://drive.google.com/file/d/17pVc0VfLm32z4zmkaaa_cdshKJEQQxYa/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1D1eb-iwfl_WA2sXPOSPD_66NCiTB4o2w/view?usp=sharing",
             "grammar_topic": "Adjektivdeklination (adjective endings after definite/indefinite articles)"
@@ -3098,7 +3098,6 @@ if tab == "Course Book":
                 st.session_state["switch_to_library"] = True
                 st.rerun()
 
-
         elif notes_subtab == "📚 My Notes Library":
             st.markdown("#### 📚 All My Notes")
 
@@ -3139,38 +3138,36 @@ if tab == "Course Book":
                     mime="text/plain"
                 )
 
-                # --- PDF Download (all notes) ---
+                # --- PDF Download (all notes, Unicode/emoji ready!) ---
                 class PDF(FPDF):
                     def header(self):
-                        self.set_font('Arial', 'B', 16)
+                        self.set_font('DejaVu', '', 16)
                         self.cell(0, 12, "My Learning Notes", align="C", ln=1)
                         self.ln(5)
-                def safe_latin1(text):
-                    return text.encode("latin1", "replace").decode("latin1")
                 pdf = PDF()
+                pdf.add_font('DejaVu', '', './font/DejaVuSans.ttf', uni=True)
                 pdf.add_page()
                 pdf.set_auto_page_break(auto=True, margin=15)
-                pdf.set_font("Arial", size=12)
-                pdf.set_font("Arial", "B", 13)
+                pdf.set_font("DejaVu", '', 13)
                 pdf.cell(0, 10, "Table of Contents", ln=1)
-                pdf.set_font("Arial", "", 11)
+                pdf.set_font("DejaVu", '', 11)
                 for idx, note in enumerate(notes_to_show):
-                    pdf.cell(0, 8, f"{idx+1}. {safe_latin1(note.get('title',''))} - {note.get('created', note.get('updated',''))}", ln=1)
+                    pdf.cell(0, 8, f"{idx+1}. {note.get('title','')} - {note.get('created', note.get('updated',''))}", ln=1)
                 pdf.ln(5)
                 for n in notes_to_show:
-                    pdf.set_font("Arial", "B", 13)
-                    pdf.cell(0, 10, safe_latin1(f"Title: {n.get('title','')}"), ln=1)
-                    pdf.set_font("Arial", "I", 11)
+                    pdf.set_font("DejaVu", '', 13)
+                    pdf.cell(0, 10, f"Title: {n.get('title','')}", ln=1)
+                    pdf.set_font("DejaVu", '', 11)
                     if n.get("tag"):
-                        pdf.cell(0, 8, safe_latin1(f"Tag: {n['tag']}"), ln=1)
-                    pdf.set_font("Arial", "", 12)
+                        pdf.cell(0, 8, f"Tag: {n['tag']}", ln=1)
+                    pdf.set_font("DejaVu", '', 12)
                     for line in n.get('text','').split("\n"):
-                        pdf.multi_cell(0, 7, safe_latin1(line))
+                        pdf.multi_cell(0, 7, line)
                     pdf.ln(1)
-                    pdf.set_font("Arial", "I", 11)
-                    pdf.cell(0, 8, safe_latin1(f"Date: {n.get('updated', n.get('created',''))}"), ln=1)
+                    pdf.set_font("DejaVu", '', 11)
+                    pdf.cell(0, 8, f"Date: {n.get('updated', n.get('created',''))}", ln=1)
                     pdf.ln(5)
-                    pdf.set_font("Arial", "", 10)
+                    pdf.set_font("DejaVu", '', 10)
                     pdf.cell(0, 4, '-' * 55, ln=1)
                     pdf.ln(8)
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
@@ -3247,21 +3244,22 @@ if tab == "Course Book":
                             key=f"download_txt_{i}"
                         )
                     with download_cols[1]:
-                        # PDF per note
+                        # PDF per note (Unicode/emoji ready!)
                         class SingleNotePDF(FPDF):
                             def header(self):
-                                self.set_font('Arial', 'B', 13)
+                                self.set_font('DejaVu', '', 13)
                                 self.cell(0, 10, note.get('title','Note'), ln=True, align='C')
                                 self.ln(2)
                         pdf_note = SingleNotePDF()
+                        pdf_note.add_font('DejaVu', '', './font/DejaVuSans.ttf', uni=True)
                         pdf_note.add_page()
-                        pdf_note.set_font("Arial", size=12)
+                        pdf_note.set_font("DejaVu", '', 12)
                         if note.get("tag"):
                             pdf_note.cell(0, 8, f"Tag: {note.get('tag','')}", ln=1)
                         for line in note.get('text','').split("\n"):
                             pdf_note.multi_cell(0, 7, line)
                         pdf_note.ln(1)
-                        pdf_note.set_font("Arial", "I", 11)
+                        pdf_note.set_font("DejaVu", '', 11)
                         pdf_note.cell(0, 8, f"Date: {note.get('updated', note.get('created',''))}", ln=1)
                         pdf_bytes_single = pdf_note.output(dest="S").encode("latin1", "replace")
                         st.download_button(
@@ -3320,7 +3318,6 @@ if tab == "Course Book":
                                 st.rerun()
                     with cols[3]:
                         st.caption("")
-#
 
 
 
@@ -3346,10 +3343,6 @@ if tab == "My Results and Resources":
     )
     st.divider()
     
-    import requests, io, pandas as pd, re, base64
-    from fpdf import FPDF
-    from collections import Counter
-
     # ============ LEVEL SCHEDULES (assume these functions are defined above) ============
     LEVEL_SCHEDULES = {
         "A1": get_a1_schedule(),
@@ -3744,8 +3737,6 @@ How to prepare for your B1 oral exam.
         """
     )
 
-
-
 # ================================
 # 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
 # ================================
@@ -3755,7 +3746,7 @@ def save_exam_progress(student_code, progress_items):
     doc = doc_ref.get()
     data = doc.to_dict() if doc.exists else {}
     all_progress = data.get("completed", [])
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
     for item in progress_items:
         # Only add if not already present (avoid duplicates)
         already = any(
@@ -3795,8 +3786,11 @@ def back_step(to_stage=1):
         ]
     else:
         keys_to_clear = []
+
     for k in keys_to_clear:
-        st.session_state[k] = None
+        st.session_state.pop(k, None)
+    # Ensure no stray None keys remain
+    st.session_state.pop(None, None)
     st.session_state["falowen_stage"] = to_stage
     st.rerun()
 
@@ -3831,10 +3825,26 @@ highlight_words = [
     "Fehler", "Tipp", "Achtung", "gut", "korrekt", "super", "nochmals", "Bitte", "Vergessen Sie nicht"
 ]
 
-def highlight_keywords(text, words):
+import re
+
+def highlight_keywords(text, words, ignore_case=True):
+    """
+    Highlights each keyword in the input text with a styled span.
+    - Uses word boundaries to match whole words only.
+    - Escapes each keyword for regex safety.
+    - Allows case-insensitive matching if ignore_case=True.
+    """
+    flags = re.IGNORECASE if ignore_case else 0
     for w in words:
-        text = text.replace(w, f"<span style='background:#ffe082; color:#d84315; font-weight:bold;'>{w}</span>")
+        pattern = r'\b' + re.escape(w) + r'\b'
+        text = re.sub(
+            pattern,
+            lambda m: f"<span style='background:#ffe082; color:#d84315; font-weight:bold;'>{m.group(0)}</span>",
+            text,
+            flags=flags,
+        )
     return text
+
 
 if tab == "Exams Mode & Custom Chat":
     # --- UNIQUE LOGIN & SESSION ISOLATION BLOCK (inserted at the top) ---
@@ -4488,71 +4498,44 @@ if tab == "Exams Mode & Custom Chat":
         chat_key = f"{mode}_{level}_{teil or 'custom'}"
         return chats.get(chat_key, [])
 
-     # =========================================
     # ---- STAGE 4: MAIN CHAT ----
-    if st.session_state["falowen_stage"] == 4:
+    if st.session_state.get("falowen_stage") == 4:
         import re
 
-        level = st.session_state["falowen_level"]
-        teil = st.session_state["falowen_teil"]
-        mode = st.session_state["falowen_mode"]
+        level = st.session_state.get("falowen_level")
+        teil = st.session_state.get("falowen_teil")
+        mode = st.session_state.get("falowen_mode")
         is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
         is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
-
-        # Student code
         student_code = st.session_state.get("student_code", "demo")
 
-        # ---- Usage check ----
-        used_today = get_sprechen_usage(student_code)
-        st.info(f"Today: {used_today} / {FALOWEN_DAILY_LIMIT} Falowen chat messages used.")
-        if used_today >= FALOWEN_DAILY_LIMIT:
-            st.warning("You have reached your daily practice limit for Falowen today. Please come back tomorrow.")
-            st.stop()
+        # Show sample image before chat starts
+        if (
+            is_exam
+            and level
+            and teil
+            and not st.session_state.get("falowen_messages")
+        ):
+            teil_short = ""
+            if "Teil 1" in teil:
+                teil_short = "Teil 1"
+            elif "Teil 2" in teil:
+                teil_short = "Teil 2"
+            elif "Teil 3" in teil:
+                teil_short = "Teil 3"
+            img_key = (level, teil_short)
+            if img_key in image_map:
+                img = image_map[img_key]
+                st.image(img["url"], width=380, caption=img["caption"])
 
-        # ---- Load existing chat once ----
-        if not st.session_state.get("_falowen_loaded", False):
+        # Load chat from db once
+        if not st.session_state.get("_falowen_loaded"):
             loaded = load_falowen_chat(student_code, mode, level, teil)
             if loaded:
                 st.session_state["falowen_messages"] = loaded
             st.session_state["_falowen_loaded"] = True
 
-        # ---- Session controls ----
-        def reset_chat():
-            st.session_state.update({
-                "falowen_stage": 1,
-                "falowen_messages": [],
-                "falowen_teil": None,
-                "falowen_mode": None,
-                "custom_topic_intro_done": False,
-                "falowen_turn_count": 0,
-                "falowen_exam_topic": None,
-                "falowen_exam_keyword": None,
-                "remaining_topics": [],
-                "used_topics": [],
-                "_falowen_loaded": False,
-            })
-            st.rerun()
-
-        def back_step():
-            # Decide which previous stage to go to based on mode
-            if is_exam:
-                st.session_state["falowen_stage"] = 3
-            elif is_custom_chat:
-                st.session_state["falowen_stage"] = 2
-            else:
-                st.session_state["falowen_stage"] = 1
-            # Clear only the chat history (we want them to re-enter step)
-            st.session_state["falowen_messages"] = []
-            st.session_state["_falowen_loaded"] = False
-            st.rerun()
-
-        def change_level():
-            st.session_state["falowen_stage"] = 2
-            st.session_state["falowen_messages"] = []
-            st.session_state["_falowen_loaded"] = False
-            st.rerun()
-
-        # ---- Normalize previous messages ----
+        # Helper for safe message format
         def ensure_message_format(msg):
             if isinstance(msg, dict) and "role" in msg and "content" in msg:
                 return msg
@@ -4562,10 +4545,10 @@ if tab == "Exams Mode & Custom Chat":
                 return {"role": "user", "content": msg}
             return None
 
+        # Render chat
         msgs = [ensure_message_format(m) for m in st.session_state["falowen_messages"]]
         st.session_state["falowen_messages"] = [m for m in msgs if m]
 
-        # ---- Render chat bubbles ----
         for msg in st.session_state["falowen_messages"]:
             if msg["role"] == "assistant":
                 with st.chat_message("assistant", avatar="🧑‍🏫"):
@@ -4582,21 +4565,19 @@ if tab == "Exams Mode & Custom Chat":
                         unsafe_allow_html=True
                     )
 
-        # ---- PDF Download Button ----
+        # PDF + TXT download
         if st.session_state["falowen_messages"]:
+            teil_str = str(teil) if teil else "chat"
             pdf_bytes = falowen_download_pdf(
                 st.session_state["falowen_messages"],
-                f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}"
+                f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}"
             )
             st.download_button(
                 "⬇️ Download Chat as PDF",
                 pdf_bytes,
-                file_name=f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}.pdf",
+                file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.pdf",
                 mime="application/pdf"
             )
-
-        # ---- TXT Download Button ----
-        if st.session_state["falowen_messages"]:
             chat_as_text = "\n".join([
                 f"{msg['role'].capitalize()}: {msg['content']}"
                 for msg in st.session_state["falowen_messages"]
@@ -4604,20 +4585,23 @@ if tab == "Exams Mode & Custom Chat":
             st.download_button(
                 "⬇️ Download Chat as TXT",
                 chat_as_text.encode("utf-8"),
-                file_name=f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}.txt",
+                file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.txt",
                 mime="text/plain"
             )
 
-        # ---- Session Buttons ----
+        # Session buttons
         col1, col2, col3 = st.columns(3)
         with col1:
-            if st.button("Restart Chat"): reset_chat()
+            if st.button("Restart Chat"):
+                reset_chat()
         with col2:
-            if st.button("Back"): back_step()
+            if st.button("Back"):
+                back_step()
         with col3:
-            if st.button("Change Level"): change_level()
+            if st.button("Change Level"):
+                change_level()
 
-        # ---- Initial Instruction ----
+        # Initial instruction
         if not st.session_state["falowen_messages"]:
             instruction = build_exam_instruction(level, teil) if is_exam else (
                 "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
@@ -4625,7 +4609,7 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
             save_falowen_chat(student_code, mode, level, teil, st.session_state["falowen_messages"])
 
-        # ---- Build system prompt including topic/context ----
+        # Build system prompt including topic/context
         if is_exam:
             if (not st.session_state.get("falowen_exam_topic")) and st.session_state.get("remaining_topics"):
                 next_topic = st.session_state["remaining_topics"].pop(0)
@@ -4646,7 +4630,7 @@ if tab == "Exams Mode & Custom Chat":
         else:
             system_prompt = build_custom_chat_prompt(level)
 
-        # ---- Chat input & assistant response ----
+        # Chat input & assistant response
         user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
         if user_input:
             st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
@@ -4685,13 +4669,66 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
             save_falowen_chat(student_code, mode, level, teil, st.session_state["falowen_messages"])
 
-        # ---- End session button & summary ----
+        # End session button & summary
         st.divider()
         if st.button("✅ End Session & Show Summary"):
             st.session_state["falowen_stage"] = 5
             st.rerun()
 
-            
+    # ---- STAGE 5: SHOW SUMMARY ----
+    if st.session_state.get("falowen_stage") == 5:
+        st.success("🎉 Practice Session Complete!")
+        st.markdown("#### Your Exam Summary")
+        # Example: Show all chat (or generate summary, scores, etc.)
+        if st.session_state.get("falowen_messages"):
+            for msg in st.session_state["falowen_messages"]:
+                who = "👨‍🎓 You" if msg["role"] == "user" else "🧑‍🏫 Herr Felix"
+                st.markdown(f"**{who}:** {msg['content']}")
+
+        # Download options (PDF/TXT)
+        if st.session_state.get("falowen_messages"):
+            teil_str = str(st.session_state.get('falowen_teil', '')) if st.session_state.get('falowen_teil', '') else "chat"
+            pdf_bytes = falowen_download_pdf(
+                st.session_state["falowen_messages"],
+                f"Falowen_Chat_{st.session_state.get('falowen_level','')}_{teil_str.replace(' ','_')}"
+            )
+            st.download_button(
+                "⬇️ Download Chat as PDF",
+                pdf_bytes,
+                file_name=f"Falowen_Chat_{st.session_state.get('falowen_level','')}_{teil_str.replace(' ','_')}.pdf",
+                mime="application/pdf"
+            )
+            chat_as_text = "\n".join([
+                f"{msg['role'].capitalize()}: {msg['content']}"
+                for msg in st.session_state["falowen_messages"]
+            ])
+            st.download_button(
+                "⬇️ Download Chat as TXT",
+                chat_as_text.encode("utf-8"),
+                file_name=f"Falowen_Chat_{st.session_state.get('falowen_level','')}_{teil_str.replace(' ','_')}.txt",
+                mime="text/plain"
+            )
+
+        # --- Navigation buttons ---
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔄 Restart Practice"):
+                # Reset everything
+                for key in ["falowen_stage", "falowen_mode", "falowen_level", "falowen_teil", "falowen_messages",
+                            "custom_topic_intro_done", "falowen_exam_topic", "falowen_exam_keyword",
+                            "remaining_topics", "used_topics", "_falowen_loaded"]:
+                    if key in st.session_state:
+                        del st.session_state[key]
+                st.session_state["falowen_stage"] = 1
+                st.rerun()
+        with col2:
+            if st.button("⬅️ Back to Exam Menu"):
+                st.session_state["falowen_stage"] = 2  # or 3, depending on your flow
+                st.rerun()
+
+#
+
+
     # ---- STAGE 99: Pronunciation & Speaking Checker ----
     if st.session_state.get("falowen_stage") == 99:
         import datetime
@@ -4713,66 +4750,97 @@ if tab == "Exams Mode & Custom Chat":
         st.subheader("🎤 Pronunciation & Speaking Checker")
         st.info(
             """
-            Record or upload your speaking sample below (max 60 seconds).  
-            You’ll see what I understood, plus feedback on pronunciation, grammar, and fluency.
+            Record or upload your speaking sample below (max 60 seconds).  
+            • Use your phone's voice recorder **or** visit [vocaroo.com](https://vocaroo.com) and download the recording file to your phone.  
+            • Then tap **Browse** and open your phone's file manager to select the saved WAV/MP3/M4A audio file.  
+            (Vocaroo sharing links are **not** supported. If you can't see your file, use your phone's Files app or change browsers.)
             """
         )
 
-        # Upload (or record via phone/Vocaroo and upload) with 60 s limit
-        audio_file = st.file_uploader("Upload a WAV/MP3 file (≤ 60 sec)", type=["wav", "mp3"])
+        # --- General file uploader: allow all files for easier selection on mobile ---
+        audio_file = st.file_uploader(
+            "Upload your audio file (≤ 60 seconds, WAV/MP3/M4A preferred). Tap 'Browse' to use your phone's file manager.",
+            type=None,  # Allow ALL file types so phone users see all files
+            accept_multiple_files=False,
+            key="pron_audio_uploader"
+        )
+
         if audio_file:
-            st.audio(audio_file)
+            # Accept only wav, mp3, or m4a (extra check)
+            allowed_types = [
+                "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
+                "audio/x-m4a", "audio/m4a", "audio/mp4"
+            ]
+            allowed_exts = (".mp3", ".wav", ".m4a")
+            # Sometimes the MIME type can be non-standard, so check both
+            if not (
+                audio_file.type in allowed_types
+                or audio_file.name.lower().endswith(allowed_exts)
+            ):
+                st.error("Please upload a .mp3, .wav, or .m4a audio file. If you can't see your file, use your phone's Files app or change browsers.")
+            else:
+                st.audio(audio_file)
+                # Transcribe with Whisper
+                try:
+                    transcript_resp = client.audio.transcriptions.create(
+                        file=audio_file,
+                        model="whisper-1"
+                    )
+                    transcript_text = transcript_resp.text
+                except Exception as e:
+                    st.error(f"Sorry, could not process audio: {e}")
+                    st.stop()
 
-            # Transcribe with Whisper
-            try:
-                transcript_resp = client.audio.transcriptions.create(
-                    file=audio_file,
-                    model="whisper-1"
+                # Show what the AI heard
+                st.markdown(f"**I heard you say:**  \n> {transcript_text}")
+
+                # Build evaluation prompt
+                eval_prompt = (
+                    "You are a German tutor. The student said:\n"
+                    f'"{transcript_text}"\n\n'
+                    "Please score their Pronunciation, Grammar, and Fluency each out of 100, "
+                    "and then give three concise tips per category. "
+                    "Format as:\n"
+                    "Pronunciation: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
+                    "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
+                    "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
                 )
-                transcript_text = transcript_resp.text
-            except Exception as e:
-                st.error(f"Sorry, could not process audio: {e}")
-                st.stop()
 
-            # Show what the AI heard
-            st.markdown(f"**I heard you say:**  \n> {transcript_text}")
+                with st.spinner("Evaluating your sample..."):
+                    try:
+                        eval_resp = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[
+                                {"role": "system", "content": "You are a helpful German tutor."},
+                                {"role": "user", "content": eval_prompt}
+                            ],
+                            temperature=0.2
+                        )
+                        result_text = eval_resp.choices[0].message.content
+                    except Exception as e:
+                        st.error(f"Evaluation error: {e}")
+                        result_text = None
 
-            # Now run a chat-completion to evaluate
-            eval_prompt = (
-                "You are a German tutor. The student said:\n"
-                f"\"{transcript_text}\"\n\n"
-                "Please score their Pronunciation, Grammar, and Fluency each out of 100, "
-                "and then give three concise tips per category. "
-                "Format as:\n"
-                "Pronunciation: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
-                "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
-                "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
-            )
-
-            with st.spinner("Evaluating your sample..."):
-                eval_resp = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {"role": "system", "content": "You are a helpful German tutor."},
-                        {"role": "user", "content": eval_prompt}
-                    ],
-                    temperature=0.2
-                )
-            st.markdown(eval_resp.choices[0].message.content)
-
-            # After successful upload/evaluation, increment usage count
-            uploads_ref.set({"count": count + 1, "date": today_str})
-
-            st.info("💡 Tip: To get ideas and practice your topic before recording, use Custom Chat first.")
-            if st.button("🔄 Try Another"):
-                st.rerun()
+                if result_text:
+                    st.markdown(result_text)
+                    # After successful upload/evaluation, increment usage count
+                    uploads_ref.set({"count": count + 1, "date": today_str})
+                    st.info("💡 Tip: To get ideas and practice your topic before recording, use Custom Chat first.")
+                    if st.button("🔄 Try Another"):
+                        st.rerun()
+                else:
+                    st.error("Could not get feedback. Please try again later.")
 
         else:
-            st.info("No audio uploaded yet. You can record on your phone or at www.vocaroo.com and then upload.")
+            st.info(
+                "No audio uploaded yet. You can use your phone's recorder app or vocaroo.com, then download and upload the WAV/MP3/M4A file here."
+            )
 
         if st.button("⬅️ Back to Main Menu"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
+#
+
 
 # =========================================
 # End
@@ -5003,6 +5071,7 @@ def bubble(role, text):
             <b>{name}:</b><br>{text}
         </div>
     """
+
 
 
 # ===== Schreiben =====
@@ -6139,6 +6208,23 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
