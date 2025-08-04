@@ -1788,7 +1788,7 @@ def get_a2_schedule():
             "goal": "Shop and ask about locations.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
-            "video": "",
+            "video": "https://youtu.be/ximpvA-djrY",
             "grammarbook_link": "https://drive.google.com/file/d/1Qt9oxn-74t8dFdsk-NjSc0G5OT7MQ-qq/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1CEFn14eYeomtf6CpZJhyW00CA2f_6VRc/view?usp=sharing"
         },
