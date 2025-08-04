@@ -1,36 +1,32 @@
 # ==== Standard Library ====
-import os                  # OS file ops
-import random              # Randomization
-import difflib             # Optional: For fuzzy matching
-import sqlite3             # Optional: Local DB (not needed if using Firestore only)
-import atexit              # Optional: Exit hooks
-import json                # JSON ops
-import re                  # Regex
+import os
+import random
+import difflib
+import sqlite3
+import atexit
+import json
+import re
 from datetime import date, datetime, timedelta
-import time                # Timing
-import io                  # IO streams
+import time
+import io
 import bcrypt
-import tempfile            # Temp file creation
-import urllib.parse        # URL encoding/decoding
+import tempfile
+import urllib.parse
 
 # ==== Third-Party Packages ====
-import pandas as pd                        # Data handling
-import streamlit as st                     # App framework
-import matplotlib.pyplot as plt            # Charts/plots
-import requests                            # HTTP requests (for Google Sheets, etc)
-from openai import OpenAI                  # OpenAI API client
-import firebase_admin                      # Firebase app
-from firebase_admin import credentials, firestore    # Firestore DB
-from fpdf import FPDF                      # PDF export
-from streamlit_cookies_manager import EncryptedCookieManager   # Cookie/session handling
-from docx import Document                  # Optional: DOCX notes download
-from gtts import gTTS                      # Text-to-speech for vocab audio
-from streamlit_quill import st_quill            # WYSIWYG note editor
-from bs4 import BeautifulSoup                   # HTML parsing/clean export for TXT/PDF/DOCX
-
-# If you ever add fuzzy matching, you can use:
-# from thefuzz import fuzz, process      # Uncomment if using fuzzy answer checking
-
+import pandas as pd
+import streamlit as st
+import matplotlib.pyplot as plt
+import requests
+from openai import OpenAI
+import firebase_admin
+from firebase_admin import credentials, firestore
+from fpdf import FPDF
+from streamlit_cookies_manager import EncryptedCookieManager
+from docx import Document
+from gtts import gTTS
+from streamlit_quill import st_quill
+from bs4 import BeautifulSoup
 
 # ==== HIDE STREAMLIT FOOTER/MENU ====
 st.markdown(
@@ -45,7 +41,6 @@ st.markdown(
 
 # ==== FIREBASE ADMIN INIT ====
 if not firebase_admin._apps:
-    # Convert SecretDict to plain dict for Certificate()
     cred_dict = dict(st.secrets["firebase"])
     cred = credentials.Certificate(cred_dict)
     firebase_admin.initialize_app(cred)
@@ -59,139 +54,7 @@ if not OPENAI_API_KEY:
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-
-YOUTUBE_PLAYLIST_IDS = {
-    "A1": [
-        "PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b",   # Playlist 1 for A1
-    ],
-    "A2": [
-        "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
-        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc&index=5",
-        "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c",
-    ],
-    "B1": [
-        "PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-",
-        "PLB92CD6B288E5DB61",
-    ],
-    # etc.
-}
-
-
-@st.cache_data(ttl=3600*12)  # cache for 12 hours
-def fetch_youtube_playlist_videos(playlist_id, api_key):
-    base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
-    params = {
-        "part": "snippet",
-        "playlistId": playlist_id,
-        "maxResults": 50,
-        "key": api_key,
-    }
-    videos = []
-    next_page = ""
-    while True:
-        if next_page:
-            params["pageToken"] = next_page
-        response = requests.get(base_url, params=params)
-        data = response.json()
-        for item in data.get("items", []):
-            vid = item["snippet"]["resourceId"]["videoId"]
-            url = f"https://www.youtube.com/watch?v={vid}"
-            title = item["snippet"]["title"]
-            videos.append({"title": title, "url": url})
-        next_page = data.get("nextPageToken")
-        if not next_page:
-            break
-    return videos
-
-
-# ==== DB CONNECTION ====
-def get_connection():
-    if "conn" not in st.session_state:
-        st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
-        atexit.register(st.session_state["conn"].close)
-    return st.session_state["conn"]
-
-# ==== INITIALIZE DB TABLES ====
-def init_db():
-    conn = get_connection()
-    c = conn.cursor()
-    # Vocab Progress Table (NO daily limit)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS vocab_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            word TEXT,
-            student_answer TEXT,
-            is_correct INTEGER,
-            date TEXT
-        )
-    """)
-    # Schreiben Progress Table (DAILY LIMIT)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS schreiben_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            essay TEXT,
-            score INTEGER,
-            feedback TEXT,
-            date TEXT
-        )
-    """)
-    # Sprechen Progress Table (DAILY LIMIT)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS sprechen_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            teil TEXT,
-            message TEXT,
-            score INTEGER,
-            feedback TEXT,
-            date TEXT
-        )
-    """)
-
-    # Exam Progress Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS exam_progress (
-            student_code TEXT,
-            level        TEXT,
-            teil         TEXT,
-            remaining    TEXT,
-            used         TEXT,
-            PRIMARY KEY (student_code, level, teil)
-        )
-    """)
-    # My Vocab Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS my_vocab (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            level TEXT,
-            word TEXT,
-            translation TEXT,
-            date_added TEXT
-        )
-    """)
-    # Sprechen Daily Usage Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS sprechen_usage (
-            student_code TEXT,
-            date TEXT,
-            count INTEGER,
-            PRIMARY KEY (student_code, date)
-        )
-    """)
-    conn.commit()
-
-init_db()  # <<-- Make sure this is before any other DB calls!
-
-# ==== DB CONNECTION ====
+# ==== DB CONNECTION & INITIALIZATION ====
 def get_connection():
     if "conn" not in st.session_state:
         st.session_state["conn"] = sqlite3.connect(
@@ -200,11 +63,9 @@ def get_connection():
         atexit.register(st.session_state["conn"].close)
     return st.session_state["conn"]
 
-# ==== INITIALIZE DB TABLES ====
 def init_db():
     conn = get_connection()
     c = conn.cursor()
-    # Vocab Progress Table (NO daily limit)
     c.execute("""
         CREATE TABLE IF NOT EXISTS vocab_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -217,7 +78,6 @@ def init_db():
             date TEXT
         )
     """)
-    # Schreiben Progress Table (DAILY LIMIT)
     c.execute("""
         CREATE TABLE IF NOT EXISTS schreiben_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -230,7 +90,6 @@ def init_db():
             date TEXT
         )
     """)
-    # Sprechen Progress Table (DAILY LIMIT)
     c.execute("""
         CREATE TABLE IF NOT EXISTS sprechen_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -244,18 +103,16 @@ def init_db():
             date TEXT
         )
     """)
-    # Exam Progress Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS exam_progress (
             student_code TEXT,
-            level        TEXT,
-            teil         TEXT,
-            remaining    TEXT,
-            used         TEXT,
+            level TEXT,
+            teil TEXT,
+            remaining TEXT,
+            used TEXT,
             PRIMARY KEY (student_code, level, teil)
         )
     """)
-    # My Vocab Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS my_vocab (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -266,7 +123,6 @@ def init_db():
             date_added TEXT
         )
     """)
-    # Daily Usage Tables
     for tbl in ["sprechen_usage", "letter_coach_usage", "schreiben_usage"]:
         c.execute(f"""
             CREATE TABLE IF NOT EXISTS {tbl} (
@@ -277,14 +133,12 @@ def init_db():
             )
         """)
     conn.commit()
-
+init_db()
 
 # ==== CONSTANTS ====
 FALOWEN_DAILY_LIMIT = 20
 VOCAB_DAILY_LIMIT = 20
 SCHREIBEN_DAILY_LIMIT = 5
-
-# ==== USAGE COUNTERS ====
 
 def get_sprechen_usage(student_code):
     today = str(date.today())
@@ -314,7 +168,6 @@ def inc_sprechen_usage(student_code):
 
 def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
     return get_sprechen_usage(student_code) < limit
-    
 
 # ==== YOUTUBE PLAYLIST HELPERS ====
 
@@ -370,8 +223,6 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
 
 
 
-
-
 # --- Streamlit page config ---
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
@@ -383,9 +234,7 @@ st.set_page_config(
 st.markdown(
     """
     <div style='display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; width: 100%;'>
-        <!-- Left Flag -->
         <span style='font-size:2.2rem; flex: 0 0 auto;'>🇬🇭</span>
-        <!-- Center Block -->
         <div style='flex: 1; text-align: center;'>
             <span style='font-size:2.1rem; font-weight:bold; color:#17617a; letter-spacing:2px;'>
                 Falowen App
@@ -405,91 +254,18 @@ st.markdown(
                 Competent German Tutors Team
             </span>
         </div>
-        <!-- Right Flag -->
         <span style='font-size:2.2rem; flex: 0 0 auto;'>🇩🇪</span>
     </div>
     """,
     unsafe_allow_html=True
 )
 
-# ==== 2) Helpers to load & save progress ====
-def load_progress(student_code, level, teil):
-    c.execute(
-        "SELECT remaining, used FROM exam_progress WHERE student_code=? AND level=? AND teil=?",
-        (student_code, level, teil)
-    )
-    row = c.fetchone()
-    if row:
-        return json.loads(row[0]), json.loads(row[1])
-    return None, None
 
-def save_progress(student_code, level, teil, remaining, used):
-    c.execute(
-        "REPLACE INTO exam_progress (student_code, level, teil, remaining, used) VALUES (?,?,?,?,?)",
-        (student_code, level, teil, json.dumps(remaining), json.dumps(used))
-    )
-    conn.commit()
-
-def save_schreiben_attempt(student_code, name, level, score):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO schreiben_progress (student_code, name, level, essay, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (student_code, name, level, "", score, "", str(date.today()))
-    )
-    conn.commit()
-
-def handle_google_login():
-    query_params = get_query_params()
-    if "code" not in query_params:
-        return False
-    code = query_params["code"]
-    if isinstance(code, list):
-        code = code[0]
-    token_url = "https://oauth2.googleapis.com/token"
-    data = {
-        "code": code,
-        "client_id": GOOGLE_CLIENT_ID,
-        "client_secret": GOOGLE_CLIENT_SECRET,
-        "redirect_uri": REDIRECT_URI,
-        "grant_type": "authorization_code"
-    }
-    try:
-        resp = requests.post(token_url, data=data, timeout=10)
-        if not resp.ok:
-            # Only show the error if it's not the common invalid_grant from reload
-            try:
-                err_json = resp.json()
-                if err_json.get("error") == "invalid_grant":
-                    return False
-                st.error(f"Google login failed. Details: {resp.text}")
-            except Exception:
-                st.error(f"Google login failed. Details: {resp.text}")
-            return False
-        # ... rest of your code goes here ...
-    except Exception as e:
-        st.error(f"Google login failed. Error: {e}")
-        return False
-
-
-# Bubble CSS
-bubble_user = "background:#e3f2fd;padding:12px 20px;border-radius:18px 18px 6px 18px;margin:8px 0;display:inline-block;"
-bubble_assistant = "background:#fff9c4;padding:12px 20px;border-radius:18px 18px 18px 6px;margin:8px 0;display:inline-block;"
-
-# Highlight function and words
-highlight_words = ["correct", "should", "mistake", "improve", "tip"]
-def highlight_keywords(text, words):
-    import re
-    pattern = r'(' + '|'.join(map(re.escape, words)) + r')'
-    return re.sub(pattern, r"<span style='color:#d63384;font-weight:600'>\1</span>", text, flags=re.IGNORECASE)
-
-
-    
-GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
+# ==== STUDENT SHEET LOADING & SESSION SETUP ====
+GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
 
 @st.cache_data
 def load_student_data():
-    # 1) Fetch CSV
     try:
         resp = requests.get(GOOGLE_SHEET_CSV, timeout=10)
         resp.raise_for_status()
@@ -497,41 +273,26 @@ def load_student_data():
     except Exception:
         st.error("❌ Could not load student data.")
         st.stop()
-
-    # 2) Strip whitespace
+    df.columns = df.columns.str.strip().str.replace(" ", "")
     for col in df.columns:
         df[col] = df[col].astype(str).str.strip()
-
-    # 3) Drop rows missing a ContractEnd
     df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]
-
-    # 4) Parse ContractEnd into datetime (two formats)
     df["ContractEnd_dt"] = pd.to_datetime(
         df["ContractEnd"], format="%m/%d/%Y", errors="coerce", dayfirst=False
     )
-    # Fallback European format where needed
     mask = df["ContractEnd_dt"].isna()
     df.loc[mask, "ContractEnd_dt"] = pd.to_datetime(
         df.loc[mask, "ContractEnd"], format="%d/%m/%Y", errors="coerce", dayfirst=True
     )
-
-    # 5) Sort by latest ContractEnd_dt and drop duplicates
     df = df.sort_values("ContractEnd_dt", ascending=False)
     df = df.drop_duplicates(subset=["StudentCode"], keep="first")
-
-    # 6) Clean up helper column
     df = df.drop(columns=["ContractEnd_dt"])
-
     return df
 
 def is_contract_expired(row):
     expiry_str = str(row.get("ContractEnd", "")).strip()
-    # Debug lines removed
-
     if not expiry_str or expiry_str.lower() == "nan":
         return True
-
-    # Try known formats
     expiry_date = None
     for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
         try:
@@ -539,19 +300,12 @@ def is_contract_expired(row):
             break
         except ValueError:
             continue
-
-    # Fallback to pandas auto-parse
     if expiry_date is None:
         parsed = pd.to_datetime(expiry_str, errors="coerce")
-        if pd.isnull(parsed):
-            return True
+        if pd.isnull(parsed): return True
         expiry_date = parsed.to_pydatetime()
-
     today = datetime.now().date()
-    # Debug lines removed
-
     return expiry_date.date() < today
-
 
 # ---- Cookie & Session Setup ----
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
@@ -595,22 +349,15 @@ if not st.session_state["logged_in"] and code_from_cookie:
         
 # --- Manual Login & Account Creation Block ---
 if not st.session_state["logged_in"]:
-    # === WELCOME / HELP / INSTRUCTIONS (always at top, always visible) ===
-    st.markdown(
-        """
-        <div style='border-left:4px solid #1976d2; padding:14px 9px 14px 14px; border-radius:7px; margin-bottom:20px; font-size:1.13rem; line-height:1.6; color:#232323; background:rgba(255,255,255,0.96);'>
-            <b>👋 Welcome to Falowen!</b><br>
-            <ul style="margin:10px 0 0 0; padding-left:22px;">
-                <li style="margin-bottom:7px;"><span style="font-size:1.1em;">🔑</span> <b>Returning?</b> Log in with your <b style="color:#17617a;">Student Code or Email</b> and password.</li>
-                <li style="margin-bottom:7px;"><span style="font-size:1.1em;">🆕</span> <b>New?</b> Click <b>Create Account</b> below <b>after</b> your teacher gives you a code.</li>
-                <li style="margin-bottom:7px;"><span style="font-size:1.1em;">📱</span> <b>iPhone/iPad:</b> Tap “Save Password” if asked.</li>
-                <li style="margin-bottom:7px;"><span style="font-size:1.1em;">⌛</span> <b>Expired?</b> If you see a contract expiry message, contact the school office.</li>
-                <li style="margin-bottom:7px;"><span style="font-size:1.1em;">🔒</span> <b>Privacy:</b> Only you &amp; your teacher see your progress.</li>
-            </ul>
-        </div>
-        """,
-        unsafe_allow_html=True
+    st.info(
+        "👋 **Welcome to Falowen!**\n\n"
+        "- 🔑 **Returning?** Log in with your Student Code or Email.\n"
+        "- 🆕 **New?** Click **Create Account** after your teacher gives you a code.\n"
+        "- 📱 **iPhone/iPad:** Tap “Save Password” if asked.\n"
+        "- ⌛ **Expired?** Contact the school office.\n"
+        "- 🔒 **Privacy:** Only you & your teacher see your progress.\n"
     )
+
 
     # --- 1) (Optional) Google OAuth ---
     # (You can move/remove if you want only password login!)
@@ -698,6 +445,11 @@ if not st.session_state["logged_in"]:
     st.markdown("<div style='text-align:center;margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
     do_google_oauth()
 
+    st.divider()
+
+    st.subheader("👋 Returning Student? Please Log In Below")
+
+
     # --- 2) Manual Login (Student Code/Email & Password) ---
     login_id       = st.text_input("Student Code or Email")
     login_password = st.text_input("Password", type="password")
@@ -733,9 +485,10 @@ if not st.session_state["logged_in"]:
                         cookie_manager.save()
                         st.success(f"Welcome, {student_row['Name']}!")
                         st.rerun()
+    st.divider()
 
     # --- 3) Create Account (always visible, always left) ---
-    st.markdown("### Create an Account")
+    st.subheader("🆕 New Student? Sign Up Below")
     new_name     = st.text_input("Full Name", key="ca_name")
     new_email    = st.text_input("Email (must match teacher’s record)", key="ca_email").strip().lower()
     new_code     = st.text_input("Student Code (from teacher)", key="ca_code").strip().lower()
@@ -762,7 +515,7 @@ if not st.session_state["logged_in"]:
                 st.success("Account created! Please log in above.")
 
     st.stop()
-
+#
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 if st.button("Log out"):
@@ -772,26 +525,58 @@ if st.button("Log out"):
         st.session_state[k] = False if k == "logged_in" else ""
     st.success("You have been logged out.")
     st.rerun()
-
-
     
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
-
-@st.cache_data
-def load_student_data():
-    SHEET_ID = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
-    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
-    df = pd.read_csv(csv_url)
-    df.columns = df.columns.str.strip().str.replace(" ", "")
-    return df
-
 @st.cache_data
 def load_assignment_scores():
     SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
-    df = pd.read_csv(url)
+    df = pd.read_csv(url, dtype=str)
     df.columns = df.columns.str.strip().str.lower()
+    for col in df.columns:
+        df[col] = df[col].astype(str).str.strip()
     return df
+
+@st.cache_data
+def load_full_vocab_sheet():
+    SHEET_ID = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
+    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
+    try:
+        df = pd.read_csv(csv_url, dtype=str)
+    except Exception:
+        st.error("Could not load vocab sheet.")
+        return pd.DataFrame()
+    df.columns = df.columns.str.strip()
+    if "Level" not in df.columns:
+        return pd.DataFrame()
+    df = df[df["Level"].notna()]
+    df["Level"] = df["Level"].str.upper().str.strip()
+    return df
+
+def get_vocab_of_the_day(df, level):
+    level = level.upper().strip()
+    subset = df[df["Level"] == level]
+    if subset.empty:
+        return None
+    from datetime import date as _date
+    today_ordinal = _date.today().toordinal()
+    idx = today_ordinal % len(subset)
+    row = subset.reset_index(drop=True).iloc[idx]
+    return {
+        "german": row.get("German", ""),
+        "english": row.get("English", ""),
+        "example": row.get("Example", "") if "Example" in row else ""
+    }
+
+def parse_contract_end(date_str):
+    if not date_str or str(date_str).lower() in ("nan", "none", ""):
+        return None
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(date_str, fmt)
+        except ValueError:
+            continue
+    return None
 
 @st.cache_data
 def load_reviews():
@@ -800,17 +585,6 @@ def load_reviews():
     df = pd.read_csv(url)
     df.columns = df.columns.str.strip().str.lower()
     return df
-
-# ==== PARSE CONTRACT END ====
-def parse_contract_end(date_str):
-    if not date_str or str(date_str).lower() in ("nan", "none", ""):
-        return None
-    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):  
-        try:
-            return datetime.strptime(date_str, fmt)
-        except ValueError:
-            continue
-    return None
 
 if st.session_state.get("logged_in"):
     student_code = st.session_state["student_code"].strip().lower()
@@ -850,23 +624,25 @@ if st.session_state.get("logged_in"):
 
     # --- Assignment Streak + Weekly Goal (ALWAYS VISIBLE, BEFORE TAB SELECTION) ---
     df_assign = load_assignment_scores()
-    df_assign['date'] = pd.to_datetime(
-        df_assign['date'], format="%Y-%m-%d", errors="coerce"
+    df_assign["date"] = pd.to_datetime(
+        df_assign["date"], format="%Y-%m-%d", errors="coerce"
     ).dt.date
-    mask_student = df_assign['studentcode'].str.lower().str.strip() == student_code
+    mask_student = df_assign["studentcode"].str.lower().str.strip() == student_code
 
     from datetime import timedelta, date
-    dates = sorted(df_assign[mask_student]['date'].dropna().unique(), reverse=True)
+    dates = sorted(df_assign[mask_student]["date"].dropna().unique(), reverse=True)
     streak = 1 if dates else 0
     for i in range(1, len(dates)):
-        if (dates[i-1] - dates[i]).days == 1:
+        if (dates[i - 1] - dates[i]).days == 1:
             streak += 1
         else:
             break
 
     today = date.today()
     monday = today - timedelta(days=today.weekday())
-    assignment_count = df_assign[mask_student & (df_assign['date'] >= monday)].shape[0]
+    assignment_count = df_assign[
+        mask_student & (df_assign["date"] >= monday)
+    ].shape[0]
     WEEKLY_GOAL = 3
 
     st.markdown("### 🏅 Assignment Streak & Weekly Goal")
@@ -877,9 +653,124 @@ if st.session_state.get("logged_in"):
         st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
     else:
         rem = WEEKLY_GOAL - assignment_count
-        st.info(f"Submit {rem} more assignment{'s' if rem>1 else ''} by Sunday to hit your goal.")
+        st.info(f"Submit {rem} more assignment{'s' if rem > 1 else ''} by Sunday to hit your goal.")
+
+        # ==== VOCAB OF THE DAY (level-specific, NO INPUT) ====
+    student_level = (student_row.get("Level") or "A1").upper().strip()
+    vocab_df = load_full_vocab_sheet()
+    vocab_item = get_vocab_of_the_day(vocab_df, student_level)
+
+    if vocab_item:
+        st.markdown(f"### 🗣️ Vocab of the Day <span style='font-size:1rem;color:#999;'>({student_level})</span>", unsafe_allow_html=True)
+        st.markdown(f"""
+        <ul style='list-style:none;margin:0;padding:0;'>
+            <li><b>German:</b> <span style="background:#e6ffed;color:#0a7f33;padding:3px 9px;border-radius:8px;font-size:1.12em;font-family:monospace;">{vocab_item['german']}</span></li>
+            <li><b>English:</b> {vocab_item['english']}</li>
+            {"<li><b>Example:</b> " + vocab_item['example'] + "</li>" if vocab_item.get("example") else ""}
+        </ul>
+        """, unsafe_allow_html=True)
+    else:
+        st.info(f"No vocab found for level {student_level}.")
 
     st.divider()
+
+
+    # --- Rotating Motivation/Encouragement Lists ---
+    import random
+    STUDY_TIPS = [
+        "Study a little every day. Small steps lead to big progress!",
+        "Teach someone else what you learned to remember it better.",
+        "If you make a mistake, that’s good! Mistakes are proof you are learning.",
+        "Don’t just read—write or say your answers aloud for better memory.",
+        "Review your old assignments to see how far you’ve come!"
+    ]
+
+    INSPIRATIONAL_QUOTES = [
+        "“The secret of getting ahead is getting started.” – Mark Twain",
+        "“Success is the sum of small efforts repeated day in and day out.” – Robert Collier",
+        "“It always seems impossible until it’s done.” – Nelson Mandela",
+        "“The expert in anything was once a beginner.” – Helen Hayes",
+        "“Learning never exhausts the mind.” – Leonardo da Vinci"
+    ]
+
+    # --- Personalized Leaderboard Position on Main Dashboard ---
+    MIN_ASSIGNMENTS = 3
+
+    user_level = student_row.get('Level', '').upper() if 'student_row' in locals() or 'student_row' in globals() else ''
+    df_assign['level'] = df_assign['level'].astype(str).str.upper().str.strip()
+    df_assign['score'] = pd.to_numeric(df_assign['score'], errors='coerce')
+
+    # Calculate leaderboard by total score and number of assignments
+    df_level = (
+        df_assign[df_assign['level'] == user_level]
+        .groupby(['studentcode', 'name'], as_index=False)
+        .agg(
+            total_score=('score', 'sum'),
+            completed=('assignment', 'nunique')
+        )
+    )
+    df_level = df_level[df_level['completed'] >= MIN_ASSIGNMENTS]
+
+    # Sort: most total points, then most completed
+    df_level = df_level.sort_values(
+        ['total_score', 'completed'],
+        ascending=[False, False]
+    ).reset_index(drop=True)
+    df_level['Rank'] = df_level.index + 1
+
+    your_row = df_level[df_level['studentcode'].str.lower() == student_code.lower()]
+    if not your_row.empty:
+        row = your_row.iloc[0]
+        rank = int(row['Rank'])
+        total_students = len(df_level)
+        percent = (rank / total_students) * 100
+
+        # --- Rotating motivation style ---
+        rotate = random.randint(0, 3)  # 0 = rank message, 1 = tip, 2 = quote, 3 = tip
+
+        if rotate == 0:
+            if rank == 1:
+                message = "🏆 You are the leader! Outstanding work—keep inspiring others!"
+            elif rank <= 3:
+                message = "🌟 You’re in the top 3! Excellent consistency and effort."
+            elif percent <= 10:
+                message = "💪 You’re in the top 10%. Great progress—keep pushing for the top!"
+            elif percent <= 50:
+                message = "👏 You’re above average! Stay consistent to reach the next level."
+            elif rank == total_students:
+                message = "🔄 Don’t give up! Every assignment you finish brings you closer to the next rank."
+            else:
+                message = "🚀 Every journey starts somewhere—keep completing assignments and watch yourself climb!"
+        elif rotate == 1 or rotate == 3:
+            message = "📝 Study Tip: " + random.choice(STUDY_TIPS)
+        else:
+            message = "💬 Motivation: " + random.choice(INSPIRATIONAL_QUOTES)
+
+        st.markdown(
+            f"""
+            <div style="
+                background:#b388ff;
+                border-left: 7px solid #8d4de8;
+                color:#181135;
+                padding:18px 20px;
+                border-radius:14px;
+                margin:10px 0 18px 0;
+                box-shadow: 0 3px 12px rgba(0,0,0,0.13);
+                font-weight: 500;
+                ">
+                <b>🏅 Your Leaderboard Position (Level {user_level}):</b><br>
+                <span style="font-size:1.21em;">
+                <b>Your current rank:</b> #{rank}
+                </span><br>
+                <div style="margin-top:10px;font-size:1.09em;">{message}</div>
+            </div>
+            """, unsafe_allow_html=True
+        )
+    else:
+        st.info(f"Complete at least {MIN_ASSIGNMENTS} assignments to appear on the leaderboard for your level.")
+
+    st.divider()
+#
 
 
     # ---------- Tab Tips Section (only on Dashboard) ----------
@@ -965,17 +856,17 @@ if tab == "Dashboard":
         },
         "A1 Berlin Klasse": {
             "days": ["Thursday", "Friday", "Saturday"],
-            "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 9:00am–10:00am",
+            "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
             "start_date": "2025-06-14",
             "end_date": "2025-08-09",
             "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
         },
         "A1 Koln Klasse": {
-            "days": ["Monday", "Tuesday", "Wednesday"],
-            "time": "6:00pm–7:00pm",
-            "start_date": "",
-            "end_date": "",
-            "doc_url": ""
+            "days": ["Thursday", "Friday", "Saturday"],
+            "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
+            "start_date": "2025-08-15",
+            "end_date": "2025-10-10",
+            "doc_url": "https://drive.google.com/file/d/1V4TmrxEA6gwQNSCLtC8Kw0_WUoXB6gR9/view?usp=sharing"
         },
         "A2 Munich Klasse": {
             "days": ["Monday", "Tuesday", "Wednesday"],
@@ -1008,7 +899,7 @@ if tab == "Dashboard":
     }
 
     # ==== SHOW UPCOMING CLASSES CARD ====
-    from datetime import datetime, timedelta, date
+    from datetime import datetime, timedelta
 
     # use safe_get instead of direct .get()
     class_name = str(safe_get(student_row, "ClassName", "")).strip()
@@ -1018,72 +909,142 @@ if tab == "Dashboard":
     if not class_name or not class_schedule:
         st.info("🚩 Your class is not set yet. Please contact your teacher or the office.")
     else:
-        days      = class_schedule.get("days", [])
-        time_str  = class_schedule.get("time", "")
-        start_dt  = class_schedule.get("start_date", "")
-        end_dt    = class_schedule.get("end_date", "")
-        doc_url   = class_schedule.get("doc_url", "")
+        days = class_schedule.get("days", [])
+        time_str = class_schedule.get("time", "")
+        start_dt = class_schedule.get("start_date", "")
+        end_dt = class_schedule.get("end_date", "")
+        doc_url = class_schedule.get("doc_url", "")
+
+        # parse dates safely
+        today = datetime.today().date()
+        start_date_obj = None
+        end_date_obj = None
+        try:
+            if start_dt:
+                start_date_obj = datetime.strptime(start_dt, "%Y-%m-%d").date()
+        except Exception:
+            start_date_obj = None
+        try:
+            if end_dt:
+                end_date_obj = datetime.strptime(end_dt, "%Y-%m-%d").date()
+        except Exception:
+            end_date_obj = None
+
+        before_start = bool(start_date_obj and today < start_date_obj)
+        after_end = bool(end_date_obj and today > end_date_obj)
 
         # map day names → indices
         day_indices = [week_days.index(d) for d in days if d in week_days] if isinstance(days, list) else []
 
-        # check if class ended
-        class_over = False
-        end_date_obj = None
-        if end_dt:
-            try:
-                end_date_obj = datetime.strptime(end_dt, "%Y-%m-%d").date()
-                class_over = datetime.today().date() > end_date_obj
-            except Exception:
-                pass
+        # helper to get upcoming sessions from a reference date (inclusive)
+        def get_next_sessions(from_date, weekday_indices, limit=3, end_date=None):
+            results = []
+            if not weekday_indices:
+                return results
+            check_date = from_date
+            while len(results) < limit:
+                if end_date and check_date > end_date:
+                    break
+                if check_date.weekday() in weekday_indices:
+                    results.append(check_date)
+                check_date += timedelta(days=1)
+            return results
 
-        if class_over:
+        # determine upcoming sessions depending on stage
+        if before_start and start_date_obj:
+            upcoming_sessions = get_next_sessions(start_date_obj, day_indices, limit=3, end_date=end_date_obj)
+        elif after_end:
+            upcoming_sessions = []
+        else:
+            # course in progress (include today if it matches)
+            upcoming_sessions = get_next_sessions(today, day_indices, limit=3, end_date=end_date_obj)
+
+        # render based on status
+        if after_end:
+            end_str = end_date_obj.strftime('%d %b %Y') if end_date_obj else end_dt
             st.error(
-                f"❌ Your class ({class_name}) ended on "
-                f"{end_date_obj.strftime('%d %b %Y') if end_date_obj else end_dt}. "
+                f"❌ Your class ({class_name}) ended on {end_str}. "
                 "Please contact the office for next steps."
             )
         else:
-            # build next up to 3 sessions
-            next_classes = []
-            if day_indices:
-                today_idx = datetime.today().weekday()
-                for offset in range(7):
-                    idx = (today_idx + offset) % 7
-                    if idx in day_indices:
-                        next_classes.append((
-                            week_days[idx],
-                            (datetime.today() + timedelta(days=offset)).strftime("%d %b")
-                        ))
-                        if len(next_classes) == 3:
-                            break
+            # build status / countdown bar
+            bar_html = ""
+            if before_start and start_date_obj:
+                days_until = (start_date_obj - today).days
+                label = f"Starts in {days_until} day{'s' if days_until != 1 else ''} (on {start_date_obj.strftime('%d %b %Y')})"
+                bar_html = f"""
+    <div style="margin-top:8px; font-size:0.85em;">
+      <div style="margin-bottom:4px;">{label}</div>
+      <div style="background:#ddd; border-radius:6px; overflow:hidden; height:12px; width:100%;">
+        <div style="width:3%; background:#1976d2; height:100%;"></div>
+      </div>
+    </div>
+    """
+            elif start_date_obj and end_date_obj:
+                total_days = (end_date_obj - start_date_obj).days + 1
+                elapsed = max(0, (today - start_date_obj).days + 1) if today >= start_date_obj else 0
+                remaining = max(0, (end_date_obj - today).days)
+                percent = int((elapsed / total_days) * 100) if total_days > 0 else 100
+                percent = min(100, max(0, percent))
+                label = f"{remaining} day{'s' if remaining != 1 else ''} remaining in course"
+                bar_html = f"""
+    <div style="margin-top:8px; font-size:0.85em;">
+      <div style="margin-bottom:4px;">{label}</div>
+      <div style="background:#ddd; border-radius:6px; overflow:hidden; height:12px; width:100%;">
+        <div style="width:{percent}%; background: linear-gradient(90deg,#1976d2,#4da6ff); height:100%;"></div>
+      </div>
+      <div style="margin-top:2px; font-size:0.75em;">
+        Progress: {percent}% (started {elapsed} of {total_days} days)
+      </div>
+    </div>
+    """
+            else:
+                bar_html = f"""
+    <div style="margin-top:8px; font-size:0.85em;">
+      <b>Course period:</b> {start_dt or '[not set]'} to {end_dt or '[not set]'}
+    </div>
+    """
+
+            # upcoming session list
+            if upcoming_sessions:
+                list_items = []
+                for session_date in upcoming_sessions:
+                    weekday_name = week_days[session_date.weekday()]
+                    display_date = session_date.strftime("%d %b")
+                    list_items.append(
+                        f"<li style='margin-bottom:6px;'><b>{weekday_name}</b> "
+                        f"<span style='color:#1976d2;'>{display_date}</span> "
+                        f"<span style='color:#333;'>{time_str}</span></li>"
+                    )
+                session_items_html = "<ul style=\"padding-left:16px; margin:9px 0 0 0;\">" + "".join(list_items) + "</ul>"
+            else:
+                session_items_html = '<span style="color:#c62828;">No upcoming sessions in the visible window.</span>'
+
+            period_str = f"{start_dt or '[not set]'} to {end_dt or '[not set]'}"
 
             st.markdown(
                 f"""
-                <div style='border:2px solid #17617a; border-radius:14px;
-                            padding:13px 11px; margin-bottom:13px;
-                            background:#eaf6fb; font-size:1.15em;
-                            line-height:1.65; color:#232323;'>
-                    <b style="font-size:1.09em;">🗓️ Your Next Classes ({class_name}):</b><br>
-                    {'<ul style="padding-left:16px; margin:9px 0 0 0;">' + ''.join([
-                        f"<li style='margin-bottom:6px;'><b>{d}</b> "
-                        f"<span style='color:#1976d2;'>{dt}</span> "
-                        f"<span style='color:#333;'>{time_str}</span></li>"
-                        for d, dt in next_classes
-                    ]) + '</ul>' if next_classes else
-                      '<span style="color:#c62828;">Schedule not set yet.</span>'}
-                    <div style="font-size:0.98em; margin-top:6px;">
-                        <b>Course period:</b> {start_dt or '[not set]'} to {end_dt or '[not set]'}
-                    </div>
-                    {f'<a href="{doc_url}" target="_blank" '
-                      f'style="font-size:1em;color:#17617a;'
-                      f'text-decoration:underline;margin-top:6px;'
-                      f'display:inline-block;">📄 View/download full class schedule</a>'
-                      if doc_url else ''}
-                </div>
-                """,
-                unsafe_allow_html=True
+    <div style='border:2px solid #17617a; border-radius:14px;
+                padding:13px 11px; margin-bottom:13px;
+                background:#eaf6fb; font-size:1.15em;
+                line-height:1.65; color:#232323;'>
+      <b style="font-size:1.09em;">🗓️ Your Next Classes ({class_name}):</b><br>
+      {session_items_html}
+      {bar_html}
+      <div style="font-size:0.98em; margin-top:6px;">
+        <b>Course period:</b> {period_str}
+      </div>
+      {f'<a href="{doc_url}" target="_blank" '
+        f'style="font-size:1em;color:#17617a;'
+        f'text-decoration:underline;margin-top:6px;'
+        f'display:inline-block;">📄 View/download full class schedule</a>'
+        if doc_url else ''}
+    </div>
+    """,
+                unsafe_allow_html=True,
             )
+#
+
 
 
     # --- Goethe Exam Countdown & Video of the Day (per level) ---
@@ -2295,63 +2256,63 @@ def get_b2_schedule():
             "day": 1,
             "topic": "Persönliche Identität und Selbstverständnis",
             "chapter": "1.1",
-            "goal": "Express your personal identity and values.",
-            "instruction": "Write a self-description and discuss your core values.",
+            "goal": "Drücken Sie Ihre persönliche Identität und Ihre Werte aus.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "https://youtu.be/a9LxkxNdnEg",
             "grammarbook_link": "https://drive.google.com/file/d/17pVc0VfLm32z4zmkaaa_cdshKJEQQxYa/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1D1eb-iwfl_WA2sXPOSPD_66NCiTB4o2w/view?usp=sharing",
-            "grammar_topic": "Adjektivdeklination (adjective endings after definite/indefinite articles)"
+            "grammar_topic": "Adjektivdeklination (Adjektivendungen nach bestimmten/unbestimmten Artikeln)"
         },
         {
             "day": 2,
             "topic": "Beziehungen und Kommunikation",
             "chapter": "1.2",
-            "goal": "Discuss types of relationships and communication strategies.",
-            "instruction": "Roleplay a conversation about resolving a conflict.",
+            "goal": "Diskutieren Sie über Beziehungstypen und Kommunikationsstrategien.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1Mlt-cK6YqPuJe9iCWfqT9DOG9oKhJBdK/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1XCLW0y-MMyIu_bNO3EkKIgp-8QLKgEek/view?usp=sharing",
-            "grammar_topic": "Konjunktiv II (polite requests & hypothetical situations)"
+            "grammar_topic": "Konjunktiv II (höfliche Bitten & hypothetische Situationen)"
         },
         {
             "day": 3,
             "topic": "Öffentliches vs. Privates Leben",
             "chapter": "1.3",
-            "goal": "Compare public and private life in Germany and your country.",
-            "instruction": "Debate privacy issues and share experiences.",
+            "goal": "Vergleichen Sie das öffentliche und private Leben in Deutschland und Ihrem Land.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": "",
+            "grammarbook_link": "https://drive.google.com/file/d/1R0sQc4uSWQNUxPa0_Gdz7PiQaiCyQrrL/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1VteR5sVx_uiKdhSVMBosMxiXe1lfnQnW/view?usp=sharing",
             "grammar_topic": "Passiv (Präsens und Vergangenheit)"
         },
         {
             "day": 4,
             "topic": "Beruf und Karriere",
             "chapter": "1.4",
-            "goal": "Talk about professions, CVs, and interviews.",
-            "instruction": "Prepare a CV and practice interview questions.",
+            "goal": "Sprechen Sie über Berufe, Lebensläufe und Vorstellungsgespräche.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
-            "grammar_topic": "Partizip I & II as adjectives"
+            "grammar_topic": "Partizip I & II als Adjektive"
         },
         {
             "day": 5,
             "topic": "Bildung und Lernen",
             "chapter": "1.5",
-            "goal": "Discuss the education system and lifelong learning.",
-            "instruction": "Compare schools and share learning tips.",
+            "goal": "Diskutieren Sie das Bildungssystem und lebenslanges Lernen.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
-            "grammar_topic": "Nominalisierung von Verben (turning verbs into nouns)"
+            "grammar_topic": "Nominalisierung von Verben"
         },
         {
             "day": 6,
             "topic": "Migration und Integration",
             "chapter": "2.1",
-            "goal": "Explore migration, integration, and cultural identity.",
-            "instruction": "Share or research a migration story and discuss challenges.",
+            "goal": "Erforschen Sie Migration, Integration und kulturelle Identität.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
@@ -2361,19 +2322,19 @@ def get_b2_schedule():
             "day": 7,
             "topic": "Gesellschaftliche Vielfalt",
             "chapter": "2.2",
-            "goal": "Examine diversity and inclusion in modern societies.",
-            "instruction": "Discuss experiences with cultural diversity.",
+            "goal": "Untersuchen Sie Vielfalt und Inklusion in modernen Gesellschaften.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
-            "grammar_topic": "Relativsätze mit Präpositionen (relative clauses with prepositions)"
+            "grammar_topic": "Relativsätze mit Präpositionen"
         },
         {
             "day": 8,
             "topic": "Politik und Engagement",
             "chapter": "2.3",
-            "goal": "Learn about political systems and civic participation.",
-            "instruction": "Debate the importance of voting and activism.",
+            "goal": "Lernen Sie politische Systeme und bürgerschaftliches Engagement kennen.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
@@ -2383,8 +2344,8 @@ def get_b2_schedule():
             "day": 9,
             "topic": "Technologie und Digitalisierung",
             "chapter": "2.4",
-            "goal": "Discuss digital transformation and its impact.",
-            "instruction": "Present pros and cons of new technologies.",
+            "goal": "Diskutieren Sie die digitale Transformation und deren Auswirkungen.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
@@ -2394,19 +2355,19 @@ def get_b2_schedule():
             "day": 10,
             "topic": "Umwelt und Nachhaltigkeit",
             "chapter": "2.5",
-            "goal": "Talk about environmental protection and sustainability.",
-            "instruction": "Suggest ways to live more sustainably.",
+            "goal": "Sprechen Sie über Umweltschutz und Nachhaltigkeit.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
-            "grammar_topic": "Konjunktiv II Vergangenheit (hypothetical past)"
+            "grammar_topic": "Konjunktiv II Vergangenheit (hypothetische Vergangenheit)"
         },
         {
             "day": 11,
             "topic": "Gesundheit und Wohlbefinden",
             "chapter": "3.1",
-            "goal": "Describe health, wellness, and lifestyle choices.",
-            "instruction": "Discuss health tips and roleplay a doctor's visit.",
+            "goal": "Beschreiben Sie Gesundheit, Wohlbefinden und Lebensstil.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
@@ -2416,8 +2377,8 @@ def get_b2_schedule():
             "day": 12,
             "topic": "Konsum und Medien",
             "chapter": "3.2",
-            "goal": "Analyze media influence and consumption habits.",
-            "instruction": "Talk about advertising and social media.",
+            "goal": "Analysieren Sie Medieneinfluss und Konsumgewohnheiten.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
@@ -2427,8 +2388,8 @@ def get_b2_schedule():
             "day": 13,
             "topic": "Reisen und Mobilität",
             "chapter": "3.3",
-            "goal": "Plan trips and discuss transportation.",
-            "instruction": "Create a travel itinerary.",
+            "goal": "Planen Sie Reisen und diskutieren Sie Transportmöglichkeiten.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
@@ -2438,41 +2399,41 @@ def get_b2_schedule():
             "day": 14,
             "topic": "Wohnen und Zusammenleben",
             "chapter": "3.4",
-            "goal": "Compare different living situations and communities.",
-            "instruction": "Debate renting vs. buying and describe your dream home.",
+            "goal": "Vergleichen Sie verschiedene Wohnformen und Gemeinschaften.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
-            "grammar_topic": "Steigerung der Adjektive (comparative & superlative)"
+            "grammar_topic": "Steigerung der Adjektive (Komparativ & Superlativ)"
         },
         {
             "day": 15,
             "topic": "Kunst und Kultur",
             "chapter": "3.5",
-            "goal": "Explore art, literature, and cultural events.",
-            "instruction": "Present on a favorite artist or book.",
+            "goal": "Entdecken Sie Kunst, Literatur und kulturelle Veranstaltungen.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
-            "grammar_topic": "Satzbau und Satzstellung (word order in main/subordinate clauses)"
+            "grammar_topic": "Satzbau und Satzstellung"
         },
         {
             "day": 16,
             "topic": "Wissenschaft und Forschung",
             "chapter": "4.1",
-            "goal": "Discuss scientific discoveries and research.",
-            "instruction": "Summarize a science article.",
+            "goal": "Diskutieren Sie wissenschaftliche Entdeckungen und Forschung.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
-            "grammar_topic": "Partizipialkonstruktionen (participial constructions)"
+            "grammar_topic": "Partizipialkonstruktionen"
         },
         {
             "day": 17,
             "topic": "Feste und Traditionen",
             "chapter": "4.2",
-            "goal": "Describe traditional festivals and customs.",
-            "instruction": "Share a festival from your culture.",
+            "goal": "Beschreiben Sie traditionelle Feste und Bräuche.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
@@ -2482,8 +2443,8 @@ def get_b2_schedule():
             "day": 18,
             "topic": "Freizeit und Hobbys",
             "chapter": "4.3",
-            "goal": "Talk about leisure time and hobbies.",
-            "instruction": "Interview a partner about their hobbies.",
+            "goal": "Sprechen Sie über Freizeit und Hobbys.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
@@ -2493,19 +2454,19 @@ def get_b2_schedule():
             "day": 19,
             "topic": "Ernährung und Esskultur",
             "chapter": "4.4",
-            "goal": "Discuss food, diet, and eating habits.",
-            "instruction": "Describe a traditional meal.",
+            "goal": "Diskutieren Sie über Essen, Ernährung und Essgewohnheiten.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
-            "grammar_topic": "Indirekte Rede (reported speech)"
+            "grammar_topic": "Indirekte Rede"
         },
         {
             "day": 20,
             "topic": "Mode und Lebensstil",
             "chapter": "4.5",
-            "goal": "Examine fashion and lifestyle trends.",
-            "instruction": "Discuss style and its role in society.",
+            "goal": "Untersuchen Sie Mode- und Lebensstiltrends.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
@@ -2515,8 +2476,8 @@ def get_b2_schedule():
             "day": 21,
             "topic": "Werte und Normen",
             "chapter": "5.1",
-            "goal": "Analyze values, norms, and their impact.",
-            "instruction": "Debate ethical questions.",
+            "goal": "Analysieren Sie Werte, Normen und deren Auswirkungen.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
@@ -2526,19 +2487,19 @@ def get_b2_schedule():
             "day": 22,
             "topic": "Sprache und Kommunikation",
             "chapter": "5.2",
-            "goal": "Discuss language learning and communication strategies.",
-            "instruction": "Share your experiences learning languages.",
+            "goal": "Diskutieren Sie Sprachenlernen und Kommunikationsstrategien.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
-            "grammar_topic": "Nominalstil vs. Verbalstil (nominal vs. verbal style)"
+            "grammar_topic": "Nominalstil vs. Verbalstil"
         },
         {
             "day": 23,
             "topic": "Innovation und Zukunft",
             "chapter": "5.3",
-            "goal": "Speculate about the future and innovation.",
-            "instruction": "Predict changes in technology and society.",
+            "goal": "Spekulieren Sie über die Zukunft und Innovationen.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
@@ -2548,8 +2509,8 @@ def get_b2_schedule():
             "day": 24,
             "topic": "Gesellschaftliche Herausforderungen",
             "chapter": "5.4",
-            "goal": "Discuss social challenges and possible solutions.",
-            "instruction": "Brainstorm how to address a major problem.",
+            "goal": "Diskutieren Sie gesellschaftliche Herausforderungen und mögliche Lösungen.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
@@ -2559,19 +2520,19 @@ def get_b2_schedule():
             "day": 25,
             "topic": "Globalisierung und internationale Beziehungen",
             "chapter": "5.5",
-            "goal": "Explore globalization and its effects.",
-            "instruction": "Debate pros and cons of globalization.",
+            "goal": "Erforschen Sie Globalisierung und deren Auswirkungen.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
-            "grammar_topic": "Partizipialattribute (participle attributes)"
+            "grammar_topic": "Partizipialattribute"
         },
         {
             "day": 26,
             "topic": "Kreatives Schreiben & Projekte",
             "chapter": "6.1",
-            "goal": "Develop creative writing skills.",
-            "instruction": "Write a short story or blog post.",
+            "goal": "Entwickeln Sie kreative Schreibfähigkeiten.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
@@ -2581,8 +2542,8 @@ def get_b2_schedule():
             "day": 27,
             "topic": "Prüfungstraining & Wiederholung",
             "chapter": "6.2",
-            "goal": "Review B2 topics and practice exam formats.",
-            "instruction": "Take a mock exam and review your answers.",
+            "goal": "Wiederholen Sie B2-Themen und üben Sie Prüfungsformate.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
@@ -2592,14 +2553,15 @@ def get_b2_schedule():
             "day": 28,
             "topic": "Abschlusspräsentation & Feedback",
             "chapter": "6.3",
-            "goal": "Summarize course topics and reflect on progress.",
-            "instruction": "Give a final presentation and provide feedback.",
+            "goal": "Fassen Sie die Kursthemen zusammen und reflektieren Sie Ihren Fortschritt.",
+            "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "",
             "grammar_topic": ""
         }
     ]
+
 
 
 # === C1 Schedule Template ===
@@ -2745,6 +2707,16 @@ def render_section(day_info, key, title, icon):
             for ex in (extras if isinstance(extras, list) else [extras]):
                 render_link("🔗 Extra", ex)
 
+def post_message(level, code, name, text, reply_to=None):
+    posts_ref = db.collection("class_board").document(level).collection("posts")
+    posts_ref.add({
+        "student_code": code,
+        "student_name": name,
+        "text": text.strip(),
+        "timestamp": datetime.utcnow(),
+        "reply_to": reply_to,
+    })
+
 RESOURCE_LABELS = {
     'video': '🎥 Video',
     'grammarbook_link': '📘 Grammar',
@@ -2792,11 +2764,11 @@ if tab == "Course Book":
 
     cb_subtab = st.radio(
         "Select section:",
-        ["📘 Course Book", "📒 Learning Notes"],
+        ["📘 Course Book", "📒 Learning Notes", "🗣️ Community"],
         horizontal=True,
         key="coursebook_subtab"
     )
-
+#
     # === COURSE BOOK SUBTAB ===
     if cb_subtab == "📘 Course Book":
         st.markdown(
@@ -2845,13 +2817,17 @@ if tab == "Course Book":
                 range(len(schedule)),
                 format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
             )
-
+            
+        st.divider()
+        
         # ===== Progress Bar (just for scrolling/selection) =====
         total_assignments = len(schedule)
         assignments_done = idx + 1
         percent = int((assignments_done / total_assignments) * 100) if total_assignments else 0
         st.progress(percent)
         st.markdown(f"**You’ve loaded {assignments_done} / {total_assignments} lessons ({percent}%)**")
+
+        st.divider()
 
         # ===== Estimated time for just this lesson =====
         LEVEL_TIME = {
@@ -2897,6 +2873,8 @@ if tab == "Course Book":
             f"### {highlight_terms('Day ' + str(info['day']) + ': ' + info['topic'], search_terms)} (Chapter {info['chapter']})",
             unsafe_allow_html=True
         )
+        st.divider()
+        
         if info.get('grammar_topic'):
             st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
         if info.get('goal'):
@@ -2919,7 +2897,9 @@ if tab == "Course Book":
                 '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
                 unsafe_allow_html=True
             )
-
+            
+        st.divider()
+        
         # --- Translation Links Only ---
         st.markdown("---")
         st.markdown(
@@ -2950,7 +2930,8 @@ if tab == "Course Book":
             else:
                 st.info("No playlist found for your level yet. Stay tuned!")
 
-
+        st.divider()
+        
         # --- Save Draft to Firestore (using global db instance) ---
         def save_draft_to_db(code, lesson_key, text):
             doc_ref = db.collection('draft_answers').document(code)
@@ -2975,6 +2956,23 @@ if tab == "Course Book":
         if st.session_state.get(f"{lesson_key}_saved", False):
             st.success("Draft autosaved!")
 
+        
+        # === INSTRUCTIONS: Place below columns and above copy box ===
+        st.info(
+            """
+            **How to submit your assignment:**
+
+            1. Write your complete answers in the box above.
+            2. Click **Send via WhatsApp** when done.
+            3. After clicking, you will see an **Open WhatsApp** button.
+            4. Your assignment message is organized below for you to review.
+            5. Confirm your assignment number and student code are correct.
+            6. Click **Open WhatsApp** or copy the message below to directly send it to your tutor.
+
+            _(Tip: Double-check your name and code before sending to ensure your work is properly recorded!)_
+            """
+        )
+
         # --- WhatsApp Submission + Add to Notes ---
         chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
         name = st.text_input("Name", value=student_row.get('Name', ''))
@@ -2983,11 +2981,12 @@ if tab == "Course Book":
         )
         url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(msg)
 
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
+
         with col1:
             if st.button("📤 Send via WhatsApp"):
-                st.success("Click link below to open WhatsApp.")
-                st.markdown(f"[📨 Open WhatsApp]({url})")
+                st.success("Click link below to submit through WhatsApp.")
+                st.markdown(f"[📨 Send Assignment]({url})")
                 st.caption("You can also save your answer as a note for future reference.")
 
         with col2:
@@ -2999,19 +2998,25 @@ if tab == "Course Book":
                 st.session_state["switch_to_notes"] = True
                 st.rerun()
 
+        with col3:
+            q_for_teacher = st.text_area(
+                "Question for teacher?", 
+                key=f"ask_teacher_{lesson_key}", 
+                height=100,
+                placeholder="Ask the teacher anything about this lesson. Everyone will see it!"
+            )
+            if st.button("❓ Post Question", key=f"post_teacherq_{lesson_key}") and q_for_teacher.strip():
+                post_message(
+                    student_level,
+                    code,
+                    name,
+                    f"[QUESTION FOR TEACHER about Chapter {info['chapter']} – {info.get('topic', '')}]\n{q_for_teacher.strip()}"
+                )
+                st.success("Your question was posted to the community board!")              
+
         st.text_area("📋 Copy message:", msg, height=500)
 
-
-        st.info(
-            """
-            - Use the links above to access your lesson resources in a new tab.
-            - Make sure to say which day or task you are submitting in your answer.
-            - Enter your correct name and code before sending.
-            - After submitting via WhatsApp, you can also save your answer as a note for future use.
-            """
-        )
-
-
+#
 
     # === LEARNING NOTES SUBTAB ===
     elif cb_subtab == "📒 Learning Notes":
@@ -3320,6 +3325,73 @@ if tab == "Course Book":
                         st.caption("")
 
 
+    # === COMMUNITY SUBTAB ===
+    elif cb_subtab == "🗣️ Community":
+        st.markdown("""
+            <div style="padding: 16px; background: #3b82f6; color: #fff; border-radius: 8px;
+            text-align: center; margin-bottom: 16px; font-size: 1.5rem; font-weight: 700;">
+            🗣️ Class Discussion Board
+            </div>
+        """, unsafe_allow_html=True)
+
+        student_row = st.session_state.get("student_row", {})
+        student_level = student_row.get("Level", "A1").upper()
+        student_code = student_row.get("StudentCode", "demo001")
+        student_name = student_row.get("Name", "Student")
+
+        def post_message(level, code, name, text, reply_to=None):
+            posts_ref = db.collection("class_board").document(level).collection("posts")
+            posts_ref.add({
+                "student_code": code,
+                "student_name": name,
+                "text": text.strip(),
+                "timestamp": datetime.utcnow(),
+                "reply_to": reply_to,
+            })
+
+        def get_all_posts(level):
+            posts_ref = db.collection("class_board").document(level).collection("posts")
+            posts = posts_ref.order_by("timestamp", direction=firestore.Query.DESCENDING).stream()
+            return [dict(post.to_dict(), id=post.id) for post in posts]
+
+        # --- New post form
+        with st.form("post_form"):
+            new_msg = st.text_area("💬 Post a question, tip, or message to your classmates:", max_chars=400)
+            if st.form_submit_button("Post") and new_msg.strip():
+                post_message(student_level, student_code, student_name, new_msg)
+                st.success("Your message was posted!")
+                st.rerun()
+
+        st.divider()
+
+        all_posts = get_all_posts(student_level)
+
+        # Show posts and replies, newest first
+        for post in [p for p in all_posts if not p.get("reply_to")]:
+            st.markdown(
+                f"**{post['student_name']}** <span style='color:#888;'>{post['timestamp'].strftime('%d %b %H:%M')}</span>",
+                unsafe_allow_html=True
+            )
+            st.write(post["text"])
+            with st.expander("Reply"):
+                reply = st.text_input(f"Reply to {post['id']}", key=f"reply_{post['id']}")
+                if st.button("Send Reply", key=f"reply_btn_{post['id']}") and reply.strip():
+                    post_message(student_level, student_code, student_name, reply.strip(), reply_to=post["id"])
+                    st.success("Reply sent!")
+                    st.rerun()
+            # Show replies for this post
+            for reply_post in [r for r in all_posts if r.get("reply_to") == post["id"]]:
+                st.markdown(
+                    f"<div style='margin-left:30px; color:#444;'>↳ <b>{reply_post['student_name']}</b> "
+                    f"<span style='color:#bbb;'>{reply_post['timestamp'].strftime('%d %b %H:%M')}</span><br>"
+                    f"{reply_post['text']}</div>",
+                    unsafe_allow_html=True
+                )
+            st.markdown("---")
+#
+
+
+
 
 
 
@@ -3401,6 +3473,7 @@ if tab == "My Results and Resources":
     level = st.selectbox("Select level:", levels)
     df_lvl = df_user[df_user.level == level]
 
+
     # ========== METRICS ==========
     totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
     total = totals.get(level, 0)
@@ -3415,7 +3488,7 @@ if tab == "My Results and Resources":
     col2.metric("Completed", completed)
     col3.metric("Average Score", f"{avg_score:.1f}")
     col4.metric("Best Score", best_score)
-
+#
     # ========== DETAILED RESULTS ==========
     st.markdown("---")
     st.info("🔎 **Scroll down and expand the box below to see your full assignment history and feedback!**")
@@ -4174,6 +4247,7 @@ if tab == "Exams Mode & Custom Chat":
                 "Ask student one question at a time"
                 "Suggest useful phrases student can use to begin their phrases"
                 "Check if student is writing on C1 Level"
+                "After correction, proceed to the next question using the phrase your next recommended question"
                 "When there is error, correct for the student and teach them how to say it correctly"
                 "Stay on one topic and always ask next question. After 5 intelligent questions only on a topic, give the student their performance and scores and suggestions to improve"
                 "Help student progress from B2 to C1 with your support and guidance"
@@ -4184,21 +4258,22 @@ if tab == "Exams Mode & Custom Chat":
                 f"You are Herr Felix, a supportive and innovative German teacher. "
                 f"1. Congratulate the student in English for the topic and give interesting tips on the topic. Always let the student know how the session is going to go in English. It shouldnt just be questions but teach them also. The total number of questios,what they should expect,what they would achieve at the end of the session. Let them know they can ask questions or ask for translation if they dont understand anything. You are ready to always help "
                 f"2. If student input looks like a letter question instead of a topic for discussion, then prompt them that you are trained to only help them with their speaking so they should rather paste their letter question in the ideas generator in the schreiben tab. "
-                f"Promise them that if they answer all 10 questions, you use their own words to build a presentation of 60 words for them. They record it as mp3 or wav on their phones and upload at the Pronunciation & Speaking Checker tab under the Exams Mode & Custom Chat. They only have to be consistent "
+                f"Promise them that if they answer all 8 questions, you use their own words to build a presentation of 60 words for them. They record it as mp3 or wav on their phones and upload at the Pronunciation & Speaking Checker tab under the Exams Mode & Custom Chat. They only have to be consistent "
                 f"Pick 4 useful keywords related to the student's topic and use them as the focus for conversation. Give students ideas and how to build their points for the conversation in English. "
                 f"For each keyword, ask the student up to 2 creative, diverse and interesting questions in German only based on student language level, one at a time, not all at once. Just ask the question and don't let student know this is the keyword you are using. "
                 f"After each student answer, give feedback and a suggestion to extend their answer if it's too short. Feedback in English and suggestion in German. "
-                f"1. Explain difficult words when level is A1,A2,B1,B2. "
-                f"After keyword questions, continue with other random follow-up questions that reflect student selected level about the topic in German (until you reach 10 questions in total). "
+                f" Explain difficult words when level is A1,A2,B1,B2. "
+                f"IMPORTANT: If a student asks 3 grammar questions in a row without trying to answer your conversation questions, respond warmly but firmly: remind them to check their course book using the search button for grammar explanations. Explain that reading their book will help them become more independent and confident as a learner. Kindly pause grammar explanations until they have checked the book and tried the conversation questions. Stay positive, but firm about using the resources. If they still have a specific question after reading, gladly help. "
+                f"After keyword questions, continue with other random follow-up questions that reflect student selected level about the topic in German (until you reach 8 questions in total). "
                 f"Never ask more than 2 questions about the same keyword. "
-                f"After the student answers 10 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
+                f"After the student answers 8 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
                 f"Also give them 60 words from their own words in a presentation form that they can use in class. Add your own points if their words and responses were small. Tell them to improve on it, record with phones as wav or mp3 and upload at Pronunciation & Speaking Checker for further assessment and learn to speak without reading "
                 f"All feedback and corrections should be {correction_lang}. "
                 f"Encourage the student and keep the chat motivating. "
             )
         return ""
 
-
+#
 # ---- SESSION STATE DEFAULTS ----
     default_state = {
         "falowen_stage": 1,
@@ -4890,15 +4965,60 @@ def get_vocab_stats(student_code):
         "total_sessions":    0,
     }
 
+def save_writing_attempt(student_code, level, topic_name, user_input, correct, solution):
+    """Save a writing practice attempt to Firebase."""
+    doc_ref = db.collection("writing_stats").document(student_code)
+    doc = doc_ref.get()
+    data = doc.to_dict() if doc.exists else {}
+
+    history = data.get("history", [])
+    attempt = {
+        "level": level,
+        "topic_name": topic_name,
+        "user_input": user_input,
+        "correct": correct,
+        "solution": solution,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+    }
+    history.append(attempt)
+
+    # Streak logic (increments if correct, else resets)
+    streak = data.get("streak", 0) + 1 if correct else 0
+
+    doc_ref.set({
+        "history": history,
+        "streak": streak,
+        "last_practiced": attempt["timestamp"],
+        "total_sessions": len(history),
+    })
+
+@st.cache_data
+def load_student_levels():
+    import pandas as pd
+    sheet_id = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
+    csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+    df = pd.read_csv(csv_url)
+    df.columns = [c.strip().lower() for c in df.columns]
+    return df  # DataFrame with 'student_code', 'level', etc.
+
+def get_student_level(student_code):
+    df = load_student_levels()
+    row = df[df['student_code'] == student_code]
+    if not row.empty:
+        # Handles both 'A1'/'a1', etc.
+        return str(row.iloc[0]['level']).upper()
+    return "A1"
+
+
+
 # =========================================
 # VOCAB TRAINER TAB (A1–C1)
 # =========================================
 
-# Your Google Sheet → CSV
+# -- Sheet & audio helpers --
 sheet_id = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
 csv_url  = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=0"
 
-# Play German audio
 def play_word_audio(word, lang="de"):
     from gtts import gTTS
     import tempfile
@@ -4907,7 +5027,6 @@ def play_word_audio(word, lang="de"):
         tts.save(fp.name)
         st.audio(fp.name, format="audio/mp3")
 
-# Chat bubble renderer
 def render_message(role, msg):
     align   = "left"   if role=="assistant" else "right"
     bgcolor = "#FAFAFA" if role=="assistant" else "#D2F8D2"
@@ -4920,7 +5039,6 @@ def render_message(role, msg):
     )
     st.markdown(f"<div style='{style}'><b>{label}:</b> {msg}</div>", unsafe_allow_html=True)
 
-# Answer checking
 def clean_text(text):
     return text.replace("the ", "").replace(",", "").replace(".", "").strip().lower()
 
@@ -4929,7 +5047,6 @@ def is_correct_answer(user_input, answer):
     possible = [a.strip().lower() for a in re.split(r"[,/;]", answer)]
     return clean_text(user_input) in possible
 
-# Robust CSV loader
 @st.cache_data
 def load_vocab_lists():
     import pandas as pd
@@ -4951,7 +5068,10 @@ def load_vocab_lists():
 
 VOCAB_LISTS = load_vocab_lists()
 
-# Tab logic
+# =========================================
+# SUBTABS: VOCAB PRACTICE & WRITING PRACTICE
+# =========================================
+
 if tab == "Vocab Trainer":
     st.markdown(
         """
@@ -4965,100 +5085,480 @@ if tab == "Vocab Trainer":
     )
     st.divider()
 
-    # initialize
-    defaults = {"vt_history":[], "vt_list":[], "vt_index":0, "vt_score":0, "vt_total":None}
-    for k,v in defaults.items(): st.session_state.setdefault(k,v)
-    student_code = st.session_state.get("student_code","demo")
+    subtab = st.radio(
+        "Choose practice:",
+        ["Vocab Practice", "Writing Practice"],
+        horizontal=True,
+        key="vocab_practice_subtab"
+    )
 
-    # show stats
-    stats = get_vocab_stats(student_code)
-    st.markdown("### 📝 Your Vocab Stats")
-    st.markdown(f"- **Sessions:** {stats['total_sessions']}")
-    st.markdown(f"- **Best:** {stats['best']}")
-    st.markdown(f"- **Last Practiced:** {stats['last_practiced']}")
-    st.markdown(f"- **Unique Words:** {len(stats['completed_words'])}")
-    if st.checkbox("Show Last 5 Sessions"):
-        for a in stats["history"][-5:][::-1]:
-            st.markdown(
-                f"- {a['timestamp']} | {a['correct']}/{a['total']} | {a['level']}<br>"
-                f"<span style='font-size:0.9em;'>Words: {', '.join(a['practiced_words'])}</span>",
-                unsafe_allow_html=True
-            )
+    if subtab == "Vocab Practice":
+        # ------- VOCAB PRACTICE LOGIC -------
+        # initialize
+        defaults = {"vt_history":[], "vt_list":[], "vt_index":0, "vt_score":0, "vt_total":None}
+        for k,v in defaults.items(): st.session_state.setdefault(k,v)
+        student_code = st.session_state.get("student_code","demo")
 
-    # pick level & words
-    level       = st.selectbox("Level", list(VOCAB_LISTS.keys()), key="vt_level")
-    items       = VOCAB_LISTS.get(level, [])
-    completed   = set(stats["completed_words"])
-    not_done    = [p for p in items if p[0] not in completed]
-    st.info(f"{len(not_done)} words NOT yet done at {level}.")
+        # show stats
+        stats = get_vocab_stats(student_code)
+        st.markdown("### 📝 Your Vocab Stats")
+        st.markdown(f"- **Sessions:** {stats['total_sessions']}")
+        st.markdown(f"- **Best:** {stats['best']}")
+        st.markdown(f"- **Last Practiced:** {stats['last_practiced']}")
+        st.markdown(f"- **Unique Words:** {len(stats['completed_words'])}")
+        if st.checkbox("Show Last 5 Sessions"):
+            for a in stats["history"][-5:][::-1]:
+                st.markdown(
+                    f"- {a['timestamp']} | {a['correct']}/{a['total']} | {a['level']}<br>"
+                    f"<span style='font-size:0.9em;'>Words: {', '.join(a['practiced_words'])}</span>",
+                    unsafe_allow_html=True
+                )
 
-    # reset
-    if st.button("🔁 Start New Practice", key="vt_reset"):
-        for k in defaults: st.session_state[k]=defaults[k]
+        # pick level & words
+        level       = st.selectbox("Level", list(VOCAB_LISTS.keys()), key="vt_level")
+        items       = VOCAB_LISTS.get(level, [])
+        completed   = set(stats["completed_words"])
+        not_done    = [p for p in items if p[0] not in completed]
+        st.info(f"{len(not_done)} words NOT yet done at {level}.")
 
-    mode = st.radio("Select words:", ["Only new words","All words"], horizontal=True, key="vt_mode")
-    session_vocab = (not_done if mode=="Only new words" else items).copy()
-
-    # how many?
-    if st.session_state.vt_total is None:
-        maxc = len(session_vocab)
-        if maxc==0:
-            st.success("🎉 All done! Switch to 'All words' to repeat.")
-            st.stop()
-        count = st.number_input("How many today?", 1, maxc, min(7,maxc), key="vt_count")
-        if st.button("Start", key="vt_start"):
-            random.shuffle(session_vocab)
-            st.session_state.vt_list    = session_vocab[:count]
-            st.session_state.vt_total   = count
-            st.session_state.vt_index   = 0
-            st.session_state.vt_score   = 0
-            st.session_state.vt_history = [("assistant",f"Hallo! Ich bin Herr Felix. Let's do {count} words!")]
-
-    # show chat
-    if st.session_state.vt_history:
-        st.markdown("### 🗨️ Practice Chat")
-        for who,msg in st.session_state.vt_history:
-            render_message(who,msg)
-
-    # practice loop
-    tot = st.session_state.vt_total
-    idx = st.session_state.vt_index
-    if isinstance(tot,int) and idx<tot:
-        word,answer = st.session_state.vt_list[idx]
-
-        # play/download
-        if st.button("🔊 Play & Download", key=f"tts_{idx}"):
-            from gtts import gTTS
-            import tempfile
-            t = gTTS(text=word, lang="de")
-            with tempfile.NamedTemporaryFile(delete=False,suffix=".mp3") as fp:
-                t.save(fp.name)
-                st.audio(fp.name,format="audio/mp3")
-                fp.seek(0)
-                blob = fp.read()
-            st.download_button(f"⬇️ {word}.mp3", data=blob, file_name=f"{word}.mp3", mime="audio/mp3", key=f"tts_dl_{idx}")
-
-        usr = st.text_input(f"{word} = ?", key=f"vt_input_{idx}")
-        if usr and st.button("Check", key=f"vt_check_{idx}"):
-            st.session_state.vt_history.append(("user",usr))
-            if is_correct_answer(usr,answer):
-                st.session_state.vt_score += 1
-                fb = f"✅ Correct! '{word}' = '{answer}'"
-            else:
-                fb = f"❌ Nope. '{word}' = '{answer}'"
-            st.session_state.vt_history.append(("assistant",fb))
-            st.session_state.vt_index += 1
-
-    # done
-    if isinstance(tot,int) and idx>=tot:
-        score = st.session_state.vt_score
-        words = [w for w,_ in st.session_state.vt_list]
-        st.markdown(f"### 🏁 Done! You scored {score}/{tot}.")
-        save_vocab_attempt(student_code, level, tot, score, words)
-        if st.button("Practice Again", key="vt_again"):
+        # reset
+        if st.button("🔁 Start New Practice", key="vt_reset"):
             for k in defaults: st.session_state[k]=defaults[k]
 
+        mode = st.radio("Select words:", ["Only new words","All words"], horizontal=True, key="vt_mode")
+        session_vocab = (not_done if mode=="Only new words" else items).copy()
 
+        # how many?
+        if st.session_state.vt_total is None:
+            maxc = len(session_vocab)
+            if maxc==0:
+                st.success("🎉 All done! Switch to 'All words' to repeat.")
+                st.stop()
+            count = st.number_input("How many today?", 1, maxc, min(7,maxc), key="vt_count")
+            if st.button("Start", key="vt_start"):
+                import random
+                random.shuffle(session_vocab)
+                st.session_state.vt_list    = session_vocab[:count]
+                st.session_state.vt_total   = count
+                st.session_state.vt_index   = 0
+                st.session_state.vt_score   = 0
+                st.session_state.vt_history = [("assistant",f"Hallo! Ich bin Herr Felix. Let's do {count} words!")]
+
+        # show chat
+        if st.session_state.vt_history:
+            st.markdown("### 🗨️ Practice Chat")
+            for who,msg in st.session_state.vt_history:
+                render_message(who,msg)
+
+        # practice loop
+        tot = st.session_state.vt_total
+        idx = st.session_state.vt_index
+        if isinstance(tot,int) and idx<tot:
+            word,answer = st.session_state.vt_list[idx]
+
+            # play/download
+            if st.button("🔊 Play & Download", key=f"tts_{idx}"):
+                from gtts import gTTS
+                import tempfile
+                t = gTTS(text=word, lang="de")
+                with tempfile.NamedTemporaryFile(delete=False,suffix=".mp3") as fp:
+                    t.save(fp.name)
+                    st.audio(fp.name,format="audio/mp3")
+                    fp.seek(0)
+                    blob = fp.read()
+                st.download_button(f"⬇️ {word}.mp3", data=blob, file_name=f"{word}.mp3", mime="audio/mp3", key=f"tts_dl_{idx}")
+
+            usr = st.text_input(f"{word} = ?", key=f"vt_input_{idx}")
+            if usr and st.button("Check", key=f"vt_check_{idx}"):
+                st.session_state.vt_history.append(("user",usr))
+                if is_correct_answer(usr,answer):
+                    st.session_state.vt_score += 1
+                    fb = f"✅ Correct! '{word}' = '{answer}'"
+                else:
+                    fb = f"❌ Nope. '{word}' = '{answer}'"
+                st.session_state.vt_history.append(("assistant",fb))
+                st.session_state.vt_index += 1
+
+        # done
+        if isinstance(tot,int) and idx>=tot:
+            score = st.session_state.vt_score
+            words = [w for w,_ in st.session_state.vt_list]
+            st.markdown(f"### 🏁 Done! You scored {score}/{tot}.")
+            save_vocab_attempt(student_code, level, tot, score, words)
+            if st.button("Practice Again", key="vt_again"):
+                for k in defaults: st.session_state[k]=defaults[k]
+    
+    elif subtab == "Writing Practice":
+        st.header("✍️ Writing Practice (A1–C1)")
+        st.markdown(
+            "Practice German writing for your level. Choose a grammar topic below, read the rule and example, then try to answer. "
+            "Get instant A.I. feedback and your results are saved!"
+        )
+
+        # --- All level topics and rules ---
+        GRAMMAR_TOPICS = {
+            "A1": [
+                {
+                    "title": "Statement Formulation",
+                    "rules": [
+                        "Begin with the subject (Ich, Du, Er...).",
+                        "Verb goes in the second position.",
+                        "Add extra information (time, place, object).",
+                        "End with a full stop."
+                    ],
+                    "practice_instruction": "Write the German sentence for: I go jogging every morning.",
+                    "example_wrong": "Gehe ich jeden Morgen joggen.",
+                    "solution": "Ich gehe jeden Morgen joggen."
+                },
+                {
+                    "title": "Modal Verb Statements",
+                    "rules": [
+                        "Start with the subject.",
+                        "Modal verb (können, müssen, etc.) is in second position.",
+                        "Main verb goes to the end (infinitive)."
+                    ],
+                    "practice_instruction": "Write the German for: I can speak German.",
+                    "example_wrong": "Kann ich Deutsch sprechen.",
+                    "solution": "Ich kann Deutsch sprechen."
+                },
+                {
+                    "title": "Separable Verbs (Statement)",
+                    "rules": [
+                        "Begin with the subject.",
+                        "Main part of verb in second position.",
+                        "Other info before prefix.",
+                        "Separable prefix at the end."
+                    ],
+                    "practice_instruction": "Write the German for: I get up at 6 a.m. every morning.",
+                    "example_wrong": "Stehe ich auf jeden Morgen um 6 Uhr.",
+                    "solution": "Ich stehe jeden Morgen um 6 Uhr auf."
+                },
+                {
+                    "title": "Yes/No Questions",
+                    "rules": [
+                        "Start with the verb.",
+                        "Follow with the subject.",
+                        "Add info.",
+                        "End with a question mark."
+                    ],
+                    "practice_instruction": "Write the German question for: Do you have siblings?",
+                    "example_wrong": "Du hast Geschwister?",
+                    "solution": "Hast du Geschwister?"
+                },
+                {
+                    "title": "W-Questions",
+                    "rules": [
+                        "Start with W-word (Wo, Wie, etc.).",
+                        "Verb is second.",
+                        "Subject follows verb.",
+                        "End with ?"
+                    ],
+                    "practice_instruction": "Write the German question for: Where do you live?",
+                    "example_wrong": "Du wohnst wo?",
+                    "solution": "Wo wohnst du?"
+                },
+            ],
+        "A2": [
+            {
+                "title": "Extended Statements (TMP & Adjectives)",
+                "rules": [
+                    "Use the time-manner-place (TMP) word order.",
+                    "Add adjectives to describe nouns.",
+                    "Connect simple ideas with 'und', 'aber', 'oder'.",
+                ],
+                "practice_instruction": "Write the German for: On weekends, I often go with my best friends to the big cinema.",
+                "example_wrong": "Ich gehe ins Kino am Wochenende.",
+                "solution": "Am Wochenende gehe ich oft mit meinen besten Freunden ins große Kino.",
+            },
+            {
+                "title": "Subordinate Clauses with 'weil'",
+                "rules": [
+                    "Start with a main clause.",
+                    "Use 'weil' for the reason.",
+                    "Verb goes to the end in the weil-clause.",
+                ],
+                "practice_instruction": "Write the German for: I am staying at home because I am sick.",
+                "example_wrong": "Ich bleibe zu Hause, weil ich bin krank.",
+                "solution": "Ich bleibe heute zu Hause, weil ich krank bin.",
+            },
+            {
+                "title": "Using 'obwohl' for Contrasts",
+                "rules": [
+                    "Connect two sentences with 'obwohl'.",
+                    "Verb goes to the end in the 'obwohl'-clause.",
+                ],
+                "practice_instruction": "Write the German for: I go for a walk although it is raining.",
+                "example_wrong": "Ich gehe obwohl es regnet spazieren.",
+                "solution": "Ich gehe spazieren, obwohl es regnet.",
+            },
+            {
+                "title": "Future Tense with 'werden'",
+                "rules": [
+                    "Use a form of 'werden' in second position.",
+                    "Main verb at the end (infinitive).",
+                ],
+                "practice_instruction": "Write the German for: Next year, I will travel to Germany.",
+                "example_wrong": "Ich werde reisen nach Deutschland nächstes Jahr.",
+                "solution": "Nächstes Jahr werde ich nach Deutschland reisen.",
+            },
+            {
+                "title": "Purpose Clauses with 'damit'",
+                "rules": [
+                    "Use 'damit' to express purpose/goal.",
+                    "Verb at the end in the 'damit'-clause.",
+                ],
+                "practice_instruction": "Write the German for: I study a lot so that I pass the exam.",
+                "example_wrong": "Ich lerne viel, damit ich bestehe die Prüfung.",
+                "solution": "Ich lerne viel, damit ich die Prüfung bestehe.",
+            },
+            {
+                "title": "Connector Practice",
+                "rules": [
+                    "Link sentences using connectors such as: weil, und, oder, denn, deshalb.",
+                    "Use 'ich möchte wissen, ob...' for indirect questions.",
+                    "Verb goes to the end in subordinate clauses.",
+                ],
+                "practice_instruction": (
+                    "Combine two ideas using one of these connectors (e.g., weil, oder, deshalb, ich möchte wissen, ob). "
+                    "Example: I am tired, so I am staying at home."
+                ),
+                "example_wrong": "Ich bin müde, ich bleibe zu Hause deshalb.",
+                "solution": "Ich bin müde, deshalb bleibe ich zu Hause.",
+            },
+        ],
+        "B1": [
+            {
+                "title": "Complex Sentences with Subordinate Clauses",
+                "rules": [
+                    "Combine sentences using subordinate conjunctions (e.g., dass, wenn, weil, obwohl).",
+                    "Move the conjugated verb to the end of the subordinate clause.",
+                ],
+                "practice_instruction": "Combine these using 'dass': I know. You are coming tomorrow.",
+                "example_wrong": "Ich weiß, du kommst morgen.",
+                "solution": "Ich weiß, dass du morgen kommst.",
+            },
+            {
+                "title": "Indirect Speech (Konjunktiv I)",
+                "rules": [
+                    "Use 'dass' or introductory phrase for reported speech.",
+                    "Apply the correct Konjunktiv I ending to the verb.",
+                ],
+                "practice_instruction": "Write the German: She says that she is tired. (Konjunktiv I: sie sei müde)",
+                "example_wrong": "Sie sagt, dass sie ist müde.",
+                "solution": "Sie sagt, dass sie müde sei.",
+            },
+            {
+                "title": "Conditional Sentences with 'wenn'",
+                "rules": [
+                    "Use 'wenn' to express a condition (if/when).",
+                    "Verb at the end in the 'wenn'-clause.",
+                ],
+                "practice_instruction": "Write the German: If I have time, I will visit you.",
+                "example_wrong": "Ich besuche dich, wenn ich habe Zeit.",
+                "solution": "Wenn ich Zeit habe, besuche ich dich.",
+            },
+            {
+                "title": "Passive Voice (Präsens)",
+                "rules": [
+                    "Use a form of 'werden' and the past participle.",
+                    "Subject receives the action.",
+                ],
+                "practice_instruction": "Write the German: The letter is written by the teacher.",
+                "example_wrong": "Der Brief ist geschrieben von der Lehrerin.",
+                "solution": "Der Brief wird von der Lehrerin geschrieben.",
+            },
+            {
+                "title": "Contrast with 'obwohl' and Concession with 'trotzdem'",
+                "rules": [
+                    "Use 'obwohl' to begin a subordinate clause expressing contrast.",
+                    "Use 'trotzdem' in the main clause to express concession.",
+                    "Verb at the end of 'obwohl'-clause; main clause word order stays normal.",
+                ],
+                "practice_instruction": "Write the German: Although it is raining, I am still going for a walk.",
+                "example_wrong": "Obwohl es regnet, ich gehe trotzdem spazieren.",
+                "solution": "Obwohl es regnet, gehe ich trotzdem spazieren.",
+            },
+        ],
+        "B2": [
+            {
+                "title": "Relative Clauses",
+                "rules": [
+                    "Use relative pronouns (der, die, das, deren, dessen, etc.).",
+                    "Verb is at the end of the relative clause.",
+                    "Add descriptive information about a noun.",
+                ],
+                "practice_instruction": "Write the German: The car that I bought is red.",
+                "example_wrong": "Das Auto, ich gekauft habe, ist rot.",
+                "solution": "Das Auto, das ich gekauft habe, ist rot.",
+            },
+            {
+                "title": "Causal Clauses with 'da' and 'weil'",
+                "rules": [
+                    "Start with 'da' or 'weil' to introduce a reason.",
+                    "Verb is at the end of the subordinate clause.",
+                ],
+                "practice_instruction": "Write the German: Because I was ill, I couldn't come.",
+                "example_wrong": "Ich konnte nicht kommen, weil ich war krank.",
+                "solution": "Da ich krank war, konnte ich nicht kommen.",
+            },
+            {
+                "title": "Infinitive Clauses with 'um ... zu'",
+                "rules": [
+                    "Use 'um ... zu' to express purpose.",
+                    "The infinitive verb goes to the end.",
+                ],
+                "practice_instruction": "Write the German: I am learning German to study in Germany.",
+                "example_wrong": "Ich lerne Deutsch, um studieren in Deutschland.",
+                "solution": "Ich lerne Deutsch, um in Deutschland zu studieren.",
+            },
+            {
+                "title": "Comparative and Superlative Structures",
+                "rules": [
+                    "Use 'als' for comparative sentences.",
+                    "Use 'am + -sten' or 'der/die/das + -ste' for superlatives.",
+                ],
+                "practice_instruction": "Write the German: My brother is taller than me.",
+                "example_wrong": "Mein Bruder ist mehr groß als ich.",
+                "solution": "Mein Bruder ist größer als ich.",
+            },
+            {
+                "title": "Double Connectors: sowohl ... als auch, weder ... noch",
+                "rules": [
+                    "Use double connectors to link two equal elements.",
+                    "Both parts must be present in the sentence.",
+                ],
+                "practice_instruction": "Write the German: Both my mother and my father work.",
+                "example_wrong": "Meine Mutter und mein Vater arbeiten sowohl als auch.",
+                "solution": "Sowohl meine Mutter als auch mein Vater arbeiten.",
+            },
+        ],
+        "C1": [
+            {
+                "title": "Nominalization and Advanced Structures",
+                "rules": [
+                    "Transform verbs/adjectives into nouns for academic variety.",
+                    "Use complex sentence starters and advanced connectors.",
+                ],
+                "practice_instruction": "Nominalize: It is important to improve language skills.",
+                "example_wrong": "Es ist wichtig zu verbessern Sprachkenntnisse.",
+                "solution": "Die Verbesserung der Sprachkenntnisse ist wichtig.",
+            },
+            {
+                "title": "Participial Constructions",
+                "rules": [
+                    "Use present or past participles to shorten clauses.",
+                    "Attach participles to nouns or as an adverbial phrase.",
+                ],
+                "practice_instruction": "Write the German: Living in Germany, he found many friends.",
+                "example_wrong": "Er hat viele Freunde gefunden, lebend in Deutschland.",
+                "solution": "In Deutschland lebend, hat er viele Freunde gefunden.",
+            },
+            {
+                "title": "Indirect Questions",
+                "rules": [
+                    "Introduce the question with 'Ich frage mich, ...' or similar.",
+                    "Verb moves to the end of the clause.",
+                ],
+                "practice_instruction": "Write the German: I wonder why he did not come.",
+                "example_wrong": "Ich frage mich, warum er ist nicht gekommen.",
+                "solution": "Ich frage mich, warum er nicht gekommen ist.",
+            },
+            {
+                "title": "Impersonal Passive Constructions",
+                "rules": [
+                    "Use 'es wird' + past participle for statements without a subject.",
+                    "Often used in formal/academic writing.",
+                ],
+                "practice_instruction": "Write the German: It is assumed that the results are correct.",
+                "example_wrong": "Es ist angenommen, dass die Ergebnisse sind korrekt.",
+                "solution": "Es wird angenommen, dass die Ergebnisse korrekt sind.",
+            },
+            {
+                "title": "Advanced Connectors in Argumentation",
+                "rules": [
+                    "Use connectors such as 'obwohl', 'wenngleich', 'obschon', 'insoweit' for nuanced arguments.",
+                    "Combine connectors for complex academic sentences.",
+                ],
+                "practice_instruction": "Write the German: Although the weather was bad, the event took place.",
+                "example_wrong": "Das Wetter war schlecht, trotzdem fand die Veranstaltung statt.",
+                "solution": "Obgleich das Wetter schlecht war, fand die Veranstaltung statt.",
+            },
+        ],
+    }
+
+        # ------ Student info -----
+        # derive level from the loaded student row (fallback to A1)
+        raw_level = (student_row.get("Level") or "A1")
+        student_level = raw_level.upper().strip()
+        # keep in session so other parts can reuse if needed
+        st.session_state["student_level"] = student_level
+
+        code = st.session_state.get("student_code", "demo")
+        # pick topics based on normalized level
+        topic_list = GRAMMAR_TOPICS.get(student_level, GRAMMAR_TOPICS["A1"])
+
+        topic_titles = [f"{i+1}. {topic['title']}" for i, topic in enumerate(topic_list)]
+        topic_idx = st.selectbox(
+            "Select a practice topic:",
+            options=list(range(len(topic_list))),
+            format_func=lambda i: topic_titles[i],
+            key="writing_topic_idx"
+        )
+        topic = topic_list[topic_idx]
+
+        st.subheader(f"{topic['title']}")
+        st.markdown("**Rules for this topic:**")
+        for r in topic["rules"]:
+            st.markdown(f"- {r}")
+        st.markdown(f"**What to do:** {topic['practice_instruction']}")
+        st.markdown(f"*Example of a common mistake (not correct!):* `{topic['example_wrong']}`")
+
+        st.markdown("---")
+        user_ans = st.text_area("Type your German answer here:", key="writing_input", value="", height=70)
+
+        ai_feedback = ""
+        if st.button("Check with A.I.", key="writing_ai_btn"):
+            if not user_ans.strip():
+                st.warning("Please enter your answer to check!")
+            else:
+                with st.spinner("Checking with A.I..."):
+                    import openai
+                    prompt = (
+                        f"You are a German teacher. Please check if this student answer fits the following {student_level} rule:\n"
+                        f"Rule: {', '.join(topic['rules'])}\n"
+                        f"Task: {topic['practice_instruction']}\n"
+                        f"Student answer: '{user_ans}'\n"
+                        "1. State if the sentence is correct or not (Correct/Incorrect).\n"
+                        "2. If incorrect, provide a corrected version.\n"
+                        "3. Explain the correction simply, in English (max 2 sentences).\n"
+                        "Use simple words for learners."
+                    )
+                    try:
+                        client = openai.OpenAI()
+                        response = client.chat.completions.create(
+                            model="gpt-3.5-turbo",
+                            messages=[{"role": "user", "content": prompt}],
+                            max_tokens=160,
+                            temperature=0.2,
+                        )
+                        ai_feedback = response.choices[0].message.content
+                        st.markdown("**A.I. Feedback:**")
+                        st.info(ai_feedback)
+                        # Save attempt to Firebase
+                        save_writing_attempt(
+                            student_code=code,
+                            level=student_level,
+                            topic_name=topic['title'],
+                            user_input=user_ans,
+                            correct="Correct" in ai_feedback,
+                            solution=topic['solution'],
+                        )
+                        st.success("Result saved! Click below to start again.")
+                        if st.button("Start Again", key="next_topic"):
+                            st.session_state.pop("writing_input", None)
+                            st.rerun()
+                    except Exception as e:
+                        st.error(f"Error from OpenAI: {e}")
 
 # ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
 def bubble(role, text):
@@ -5378,102 +5878,6 @@ if tab == "Schreiben Trainer":
         ["Mark My Letter", "Ideas Generator (Letter Coach)"],
         horizontal=True,
         key=f"schreiben_sub_tab_{student_code}"
-    )
-
-if tab == "Schreiben Trainer":
-    st.markdown(
-        '''
-        <div style="
-            padding: 8px 12px;
-            background: #d63384;
-            color: #fff;
-            border-radius: 6px;
-            text-align: center;
-            margin-bottom: 8px;
-            font-size: 1.3rem;">
-            ✍️ Schreiben Trainer (Writing Practice)
-        </div>
-        ''',
-        unsafe_allow_html=True
-    )
-
-    st.info(
-        """
-        ✍️ **This section is for Writing (Schreiben) only.**
-        - Practice your German letters, emails, and essays for A1–C1 exams.
-        - **Want to prepare for class presentations, topic expansion, or practice Speaking, Reading (Lesen), or Listening (Hören)?**  
-          👉 Go to **Exam Mode & Custom Chat** (tab above)!
-        - **Tip:** Choose your exam level on the right before submitting your letter. Your writing will be checked and scored out of 25 marks, just like in the real exam.
-        """,
-        icon="✉️"
-    )
-
-    st.divider()
-
-    # --- Writing stats summary with Firestore ---
-    student_code = st.session_state.get("student_code", "demo")
-    stats = get_schreiben_stats(student_code)
-    if stats:
-        total = stats.get("total", 0)
-        passed = stats.get("passed", 0)
-        pass_rate = stats.get("pass_rate", 0)
-
-        # Milestone and title logic
-        if total <= 2:
-            writer_title = "🟡 Beginner Writer"
-            milestone = "Write 3 letters to become a Rising Writer!"
-        elif total <= 5 or pass_rate < 60:
-            writer_title = "🟡 Rising Writer"
-            milestone = "Achieve 60% pass rate and 6 letters to become a Confident Writer!"
-        elif total <= 7 or (60 <= pass_rate < 80):
-            writer_title = "🔵 Confident Writer"
-            milestone = "Reach 8 attempts and 80% pass rate to become an Advanced Writer!"
-        elif total >= 8 and pass_rate >= 80 and not (total >= 10 and pass_rate >= 95):
-            writer_title = "🟢 Advanced Writer"
-            milestone = "Reach 10 attempts and 95% pass rate to become a Master Writer!"
-        elif total >= 10 and pass_rate >= 95:
-            writer_title = "🏅 Master Writer!"
-            milestone = "You've reached the highest milestone! Keep maintaining your skills 🎉"
-        else:
-            writer_title = "✏️ Active Writer"
-            milestone = "Keep going to unlock your next milestone!"
-
-        st.markdown(
-            f"""
-            <div style="background:#fff8e1;padding:18px 12px 14px 12px;border-radius:12px;margin-bottom:12px;
-                        box-shadow:0 1px 6px #00000010;">
-                <span style="font-weight:bold;font-size:1.25rem;color:#d63384;">{writer_title}</span><br>
-                <span style="font-weight:bold;font-size:1.09rem;color:#444;">📊 Your Writing Stats</span><br>
-                <span style="color:#202020;font-size:1.05rem;"><b>Total Attempts:</b> {total}</span><br>
-                <span style="color:#202020;font-size:1.05rem;"><b>Passed:</b> {passed}</span><br>
-                <span style="color:#202020;font-size:1.05rem;"><b>Pass Rate:</b> {pass_rate:.1f}%</span><br>
-                <span style="color:#e65100;font-weight:bold;font-size:1.03rem;">{milestone}</span>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-    else:
-        st.info("No writing stats found yet. Write your first letter to see progress!")
-
-    # --- Update session states for new student (preserves drafts, etc) ---
-    prev_student_code = st.session_state.get("prev_student_code", None)
-    if student_code != prev_student_code:
-        stats = get_schreiben_stats(student_code)
-        st.session_state[f"{student_code}_schreiben_input"] = stats.get("last_letter", "")
-        st.session_state[f"{student_code}_last_feedback"] = None
-        st.session_state[f"{student_code}_last_user_letter"] = None
-        st.session_state[f"{student_code}_delta_compare_feedback"] = None
-        st.session_state[f"{student_code}_final_improved_letter"] = ""
-        st.session_state[f"{student_code}_awaiting_correction"] = False
-        st.session_state[f"{student_code}_improved_letter"] = ""
-        st.session_state["prev_student_code"] = student_code
-
-    # --- Sub-tabs for the Trainer ---
-    sub_tab = st.radio(
-        "Choose Mode",
-        ["Mark My Letter", "Ideas Generator (Letter Coach)"],
-        horizontal=True,
-        key="schreiben_sub_tab"
     )
 
         # --- Level picker: Auto-detect from student code (manual override removed) ---
@@ -6208,6 +6612,79 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
