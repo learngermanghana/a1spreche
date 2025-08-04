@@ -578,11 +578,16 @@ def parse_contract_end(date_str):
             continue
     return None
 
-@st.cache_data
+@st.cache_data(ttl=1800)  # Cache for 30 minutes (adjust as you want)
 def load_reviews():
+    import pandas as pd
     SHEET_ID = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
-    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
-    df = pd.read_csv(url)
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
+    try:
+        df = pd.read_csv(url, dtype=str)
+    except Exception as e:
+        st.error(f"Could not load reviews: {e}")
+        return pd.DataFrame()  # Return empty DataFrame if failed
     df.columns = df.columns.str.strip().str.lower()
     return df
 
