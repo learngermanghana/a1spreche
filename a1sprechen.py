@@ -230,6 +230,18 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+st.markdown(
+    """
+    <meta property="og:title" content="Falowen – Your German Conversation Partner" />
+    <meta property="og:description" content="Practice speaking, writing, exams & vocabulary with Falowen – your all-in-one German learning platform." />
+    <meta property="og:url" content="https://www.falowen.app/" />
+    <meta property="og:image" content="https://www.falowen.app/your-logo.png" />
+    <meta name="twitter:card" content="summary_large_image">
+    """,
+    unsafe_allow_html=True
+)
+
+
 # ---- Falowen Header ----
 st.markdown(
     """
