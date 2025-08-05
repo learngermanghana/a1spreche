@@ -829,25 +829,48 @@ if tab == "Dashboard":
         st.stop()
     # (no need to convert to dict—safe_get covers all cases)
 
-    # --- Student Info & Balance ---
+    # --- Student Info & Balance | Compact Card, Info-Bar Style ---
     name = safe_get(student_row, "Name")
-    st.markdown(f"### 👤 {name}")
-    st.markdown(
-        f"- **Level:** {safe_get(student_row, 'Level')}\n"
-        f"- **Code:** `{safe_get(student_row, 'StudentCode')}`\n"
-        f"- **Email:** {safe_get(student_row, 'Email')}\n"
-        f"- **Phone:** {safe_get(student_row, 'Phone')}\n"
-        f"- **Location:** {safe_get(student_row, 'Location')}\n"
-        f"- **Contract:** {safe_get(student_row, 'ContractStart')} ➔ {safe_get(student_row, 'ContractEnd')}\n"
-        f"- **Enroll Date:** {safe_get(student_row, 'EnrollDate')}\n"
-        f"- **Status:** {safe_get(student_row, 'Status')}"
-    )
+    info_html = f"""
+    <div style='
+        background:#f0f4ff;
+        border:1.6px solid #1976d2;
+        border-radius:12px;
+        padding:11px 13px 8px 13px;
+        margin-bottom:13px;
+        box-shadow:0 2px 8px rgba(44,106,221,0.07);
+        font-size:1.09em;
+        color:#17325e;
+        font-family: "Segoe UI", "Arial", sans-serif;
+        letter-spacing:0.01em;
+    '>
+        <div style="font-weight:700;font-size:1.18em;margin-bottom:2px;">
+            👤 {name}
+        </div>
+        <div style="font-size:1em;">
+            <b>Level:</b> {safe_get(student_row, 'Level', '')} &nbsp;|&nbsp; 
+            <b>Code:</b> <code>{safe_get(student_row, 'StudentCode', '')}</code> &nbsp;|&nbsp;
+            <b>Status:</b> {safe_get(student_row, 'Status', '')}
+        </div>
+        <div style="font-size:1em;">
+            <b>Email:</b> {safe_get(student_row, 'Email', '')} &nbsp;|&nbsp;
+            <b>Phone:</b> {safe_get(student_row, 'Phone', '')} &nbsp;|&nbsp;
+            <b>Location:</b> {safe_get(student_row, 'Location', '')}
+        </div>
+        <div style="font-size:1em;">
+            <b>Contract:</b> {safe_get(student_row, 'ContractStart', '')} ➔ {safe_get(student_row, 'ContractEnd', '')} &nbsp;|&nbsp;
+            <b>Enroll Date:</b> {safe_get(student_row, 'EnrollDate', '')}
+        </div>
+    </div>
+    """
+    st.markdown(info_html, unsafe_allow_html=True)
     try:
         bal = float(safe_get(student_row, "Balance", 0))
         if bal > 0:
-            st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
+            st.warning(f"💸 <b>Balance to pay:</b> ₵{bal:.2f}", unsafe_allow_html=True)
     except Exception:
         pass
+
 
     # ==== CLASS SCHEDULES DICTIONARY ====
     GROUP_SCHEDULES = {
@@ -1338,7 +1361,7 @@ def get_a1_schedule():
             "goal": "Recap from the lesen and horen. Understand numbers, time, asking of price and how to formulate statements in German",
             "instruction": "Use the statement rule to talk about your weekly routine using the activities listed. Share with your tutor when done",
             "schreiben_sprechen": {
-                "video": "https://youtu.be/PwDLGmfBUDw",
+                "video": "https://youtu.be/KghL38t-wVo",
                 "assignment": False,
                 "workbook_link": "https://drive.google.com/file/d/12oFKrKrHBwSpSnzxLX_e-cjPSiYtCFVs/view?usp=sharing"
             }
