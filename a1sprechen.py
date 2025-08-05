@@ -28,6 +28,29 @@ from gtts import gTTS
 from streamlit_quill import st_quill
 from bs4 import BeautifulSoup
 
+
+# Serve manifest.json
+from pathlib import Path
+from streamlit.runtime.scriptrunner import get_script_run_ctx
+from streamlit.web.server.websocket_headers import _get_websocket_headers
+
+def serve_manifest():
+    from fastapi.responses import FileResponse
+    from fastapi import FastAPI
+    from streamlit.web.server import Server
+
+    manifest_path = Path(__file__).parent / "manifest.json"
+    if manifest_path.exists():
+        app = Server.get_current()._app
+        @app.get("/manifest.json")
+        async def manifest():
+            return FileResponse(str(manifest_path))
+
+try:
+    serve_manifest()
+except Exception as e:
+    pass
+
 # ==== HIDE STREAMLIT FOOTER/MENU ====
 st.markdown(
     """
