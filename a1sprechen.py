@@ -28,37 +28,6 @@ from gtts import gTTS
 from streamlit_quill import st_quill
 from bs4 import BeautifulSoup
 
-
-# ==== Serve manifest.json (if running on Render) ====
-if "RENDER" in os.environ or "RENDER_EXTERNAL_HOSTNAME" in os.environ:
-    try:
-        from streamlit.web.server import Server
-        from fastapi.responses import FileResponse
-        app = Server.get_current()._app
-
-        @app.get("/manifest.json")
-        async def serve_manifest():
-            return FileResponse("manifest.json")
-    except Exception:
-        pass
-
-def serve_manifest():
-    from fastapi.responses import FileResponse
-    from fastapi import FastAPI
-    from streamlit.web.server import Server
-
-    manifest_path = Path(__file__).parent / "manifest.json"
-    if manifest_path.exists():
-        app = Server.get_current()._app
-        @app.get("/manifest.json")
-        async def manifest():
-            return FileResponse(str(manifest_path))
-
-try:
-    serve_manifest()
-except Exception as e:
-    pass
-
 # ==== HIDE STREAMLIT FOOTER/MENU ====
 st.markdown(
     """
@@ -261,18 +230,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown(
-    """
-    <meta property="og:title" content="Falowen – Your German Conversation Partner" />
-    <meta property="og:description" content="Practice speaking, writing, exams & vocabulary with Falowen – your all-in-one German learning platform." />
-    <meta property="og:url" content="https://www.falowen.app/" />
-    <meta property="og:image" content="https://www.falowen.app/your-logo.png" />
-    <meta name="twitter:card" content="summary_large_image">
-    """,
-    unsafe_allow_html=True
-)
-
-
 # ---- Falowen Header ----
 st.markdown(
     """
@@ -355,12 +312,11 @@ COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 if not COOKIE_SECRET:
     raise ValueError("COOKIE_SECRET environment variable not set")
 
-cookie_manager = CookieManager(prefix="falowen_")
+cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
 cookie_manager.ready()
 if not cookie_manager.ready():
     st.warning("Cookies are not ready. Please refresh.")
     st.stop()
-
 
 for key, default in [("logged_in", False), ("student_row", None), ("student_code", ""), ("student_name", "")]:
     st.session_state.setdefault(key, default)
@@ -622,16 +578,11 @@ def parse_contract_end(date_str):
             continue
     return None
 
-@st.cache_data(ttl=1800)  # Cache for 30 minutes (adjust as you want)
+@st.cache_data
 def load_reviews():
-    import pandas as pd
     SHEET_ID = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
-    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
-    try:
-        df = pd.read_csv(url, dtype=str)
-    except Exception as e:
-        st.error(f"Could not load reviews: {e}")
-        return pd.DataFrame()  # Return empty DataFrame if failed
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
+    df = pd.read_csv(url)
     df.columns = df.columns.str.strip().str.lower()
     return df
 
@@ -1832,7 +1783,7 @@ def get_a2_schedule():
             "goal": "Shop and ask about locations.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
-            "video": "https://youtu.be/ximpvA-djrY",
+            "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1Qt9oxn-74t8dFdsk-NjSc0G5OT7MQ-qq/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1CEFn14eYeomtf6CpZJhyW00CA2f_6VRc/view?usp=sharing"
         },
