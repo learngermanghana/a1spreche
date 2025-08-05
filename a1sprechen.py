@@ -22,17 +22,24 @@ from openai import OpenAI
 import firebase_admin
 from firebase_admin import credentials, firestore
 from fpdf import FPDF
-from streamlit_cookies_manager import EncryptedCookieManager
+# from streamlit_cookies_manager import CookieManager   # Uncomment if you use CookieManager
 from docx import Document
 from gtts import gTTS
 from streamlit_quill import st_quill
 from bs4 import BeautifulSoup
 
+# ==== Serve manifest.json (if running on Render) ====
+if "RENDER" in os.environ or "RENDER_EXTERNAL_HOSTNAME" in os.environ:
+    try:
+        from streamlit.web.server import Server
+        from fastapi.responses import FileResponse
+        app = Server.get_current()._app
 
-# Serve manifest.json
-from pathlib import Path
-from streamlit.runtime.scriptrunner import get_script_run_ctx
-from streamlit.web.server.websocket_headers import _get_websocket_headers
+        @app.get("/manifest.json")
+        async def serve_manifest():
+            return FileResponse("manifest.json")
+    except Exception:
+        pass
 
 def serve_manifest():
     from fastapi.responses import FileResponse
