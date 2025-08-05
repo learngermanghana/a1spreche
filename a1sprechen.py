@@ -22,11 +22,12 @@ from openai import OpenAI
 import firebase_admin
 from firebase_admin import credentials, firestore
 from fpdf import FPDF
-# from streamlit_cookies_manager import CookieManager   # Uncomment if you use CookieManager
+from streamlit_cookies_manager import CookieManager  # <-- Correct import for cookies
 from docx import Document
 from gtts import gTTS
 from streamlit_quill import st_quill
 from bs4 import BeautifulSoup
+
 
 # ==== Serve manifest.json (if running on Render) ====
 if "RENDER" in os.environ or "RENDER_EXTERNAL_HOSTNAME" in os.environ:
