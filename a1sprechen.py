@@ -22,7 +22,7 @@ from openai import OpenAI
 import firebase_admin
 from firebase_admin import credentials, firestore
 from fpdf import FPDF
-from streamlit_cookies_manager import CookieManager  # <-- Correct import for cookies
+from streamlit_cookies_manager import EncryptedCookieManager
 from docx import Document
 from gtts import gTTS
 from streamlit_quill import st_quill
