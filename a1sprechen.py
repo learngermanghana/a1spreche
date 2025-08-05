@@ -12,6 +12,8 @@ import io
 import bcrypt
 import tempfile
 import urllib.parse
+import base64
+
 
 # ==== Third-Party Packages ====
 import pandas as pd
