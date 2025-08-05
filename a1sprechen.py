@@ -48,6 +48,10 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 db = firestore.client()
 
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID") or st.secrets.get("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET") or st.secrets.get("GOOGLE_CLIENT_SECRET")
+REDIRECT_URI = os.getenv("REDIRECT_URI") or st.secrets.get("REDIRECT_URI")
+
 # ==== OPENAI CLIENT SETUP ====
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
@@ -369,12 +373,6 @@ if not st.session_state["logged_in"]:
         unsafe_allow_html=True
     )
 
-
-    # --- 1) (Optional) Google OAuth ---
-    # (You can move/remove if you want only password login!)
-    GOOGLE_CLIENT_ID     = "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com"
-    GOOGLE_CLIENT_SECRET = "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"
-    REDIRECT_URI         = "https://falowen.streamlit.app/"  # Your deployed Streamlit URL
 
     def get_query_params():
         return st.query_params
