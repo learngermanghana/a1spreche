@@ -723,15 +723,15 @@ if st.session_state.get("logged_in"):
     df_level['Rank'] = df_level.index + 1
 
     your_row = df_level[df_level['studentcode'].str.lower() == student_code.lower()]
+    total_students = len(df_level)
+
     if not your_row.empty:
         row = your_row.iloc[0]
         rank = int(row['Rank'])
-        total_students = len(df_level)
-        percent = (rank / total_students) * 100
+        percent = (rank / total_students) * 100 if total_students else 0
 
         # --- Rotating motivation style ---
-        rotate = random.randint(0, 3)  # 0 = rank message, 1 = tip, 2 = quote, 3 = tip
-
+        rotate = random.randint(0, 3)
         if rotate == 0:
             if rank == 1:
                 message = "🏆 You are the leader! Outstanding work—keep inspiring others!"
@@ -764,8 +764,10 @@ if st.session_state.get("logged_in"):
                 ">
                 <b>🏅 Your Leaderboard Position (Level {user_level}):</b><br>
                 <span style="font-size:1.21em;">
-                <b>Your current rank:</b> #{rank}
-                </span><br>
+                    <b>Rank:</b> #{rank} <b>out of</b> {total_students} students
+                </span>
+                <br>
+                <span style="font-size:0.98em; color:#444;">(Your Level: <b>{user_level}</b>)</span>
                 <div style="margin-top:10px;font-size:1.09em;">{message}</div>
             </div>
             """, unsafe_allow_html=True
@@ -775,6 +777,7 @@ if st.session_state.get("logged_in"):
 
     st.divider()
 #
+
 
 
     # ---------- Tab Tips Section (only on Dashboard) ----------
