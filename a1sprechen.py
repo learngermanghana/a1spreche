@@ -30,6 +30,9 @@ from gtts import gTTS
 from streamlit_quill import st_quill
 from bs4 import BeautifulSoup
 
+import streamlit as st
+
+
 # ==== HIDE STREAMLIT FOOTER/MENU ====
 st.markdown(
     """
@@ -59,6 +62,9 @@ if not OPENAI_API_KEY:
     st.stop()
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
+
+
+
 
 # ==== DB CONNECTION & INITIALIZATION ====
 def get_connection():
@@ -226,41 +232,6 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
             break
     return videos
 
-st.set_page_config(
-    page_title="Falowen – Your German Conversation Partner",
-    layout="centered",
-    initial_sidebar_state="expanded"
-)
-
-if not st.session_state.get("logged_in", False):
-    st.markdown(
-        """ 
-        <div style='display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; width: 100%;'>
-            <span style='font-size:2.2rem; flex: 0 0 auto;'>🇬🇭</span>
-            <div style='flex: 1; text-align: center;'>
-                <span style='font-size:2.1rem; font-weight:bold; color:#17617a; letter-spacing:2px;'>
-                    Falowen App
-                </span>
-                <br>
-                <span style='font-size:1.08rem; color:#ff9900; font-weight:600;'>Learn Language Education Academy</span>
-                <br>
-                <span style='font-size:1.05rem; color:#268049; font-weight:400;'>
-                    Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
-                </span>
-                <br>
-                <span style='font-size:1.01rem; color:#1976d2; font-weight:500;'>
-                    Website: <a href='https://www.learngermanghana.com' target='_blank' style='color:#1565c0; text-decoration:none;'>www.learngermanghana.com</a>
-                </span>
-                <br>
-                <span style='font-size:0.98rem; color:#666; font-weight:500;'>
-                    Competent German Tutors Team
-                </span>
-            </div>
-            <span style='font-size:2.2rem; flex: 0 0 auto;'>🇩🇪</span>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
 
 # ==== STUDENT SHEET LOADING & SESSION SETUP ====
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
@@ -347,179 +318,192 @@ if not st.session_state["logged_in"] and code_from_cookie:
             "student_code": student_row["StudentCode"],
             "student_name": student_row["Name"]
         })
-        
-# --- Manual Login & Account Creation Block ---
-if not st.session_state["logged_in"]:
-    st.info(
-        "👋 **Welcome to Falowen!**\n\n"
-        "- 🔑 **Returning?** Log in with your Student Code or Email.\n"
-        "- 🆕 **New?** Click **Create Account** after your teacher gives you a code.\n"
-        "- 📱 **iPhone/iPad:** Tap “Save Password” if asked.\n"
-        "- ⌛ **Expired?** Contact the school office.\n"
-        "- 🔒 **Privacy:** Only you & your teacher see your progress.\n"
-    )
-
-    # --- Add Privacy Policy link here ---
-    st.markdown(
-        '<div style="text-align:center; margin-bottom:10px;">'
-        '<a href="https://www.learngermanghana.com/privacy-policy" target="_blank" '
-        'style="color:#1565c0; font-weight:bold;">Privacy Policy</a>'
-        '</div>',
-        unsafe_allow_html=True
-    )
 
 
-    def get_query_params():
-        return st.query_params
+import streamlit as st
 
-    def do_google_oauth():
-        params = {
-            "client_id": GOOGLE_CLIENT_ID,
-            "redirect_uri": REDIRECT_URI,
-            "response_type": "code",
-            "scope": "openid email profile",
-            "prompt": "select_account"
-        }
-        auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
-        st.markdown(
-            f"""<div style='text-align:center;margin:12px 0;'>
-                <a href="{auth_url}">
-                    <button style="background:#4285f4;color:white;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;">
-                        Sign in with Google
-                    </button>
-                </a>
-            </div>""",
-            unsafe_allow_html=True
-        )
+# --- 1) Page config & session init ---------------------------------------------
+st.set_page_config(
+    page_title="Falowen – Your German Conversation Partner",
+    page_icon="👋",
+    layout="centered",
+    initial_sidebar_state="expanded"
+)
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
 
-    def handle_google_login():
-        qp = get_query_params()
-        if "code" not in qp:
-            return False
-        code = qp["code"][0] if isinstance(qp["code"], list) else qp["code"]
-        token_url = "https://oauth2.googleapis.com/token"
-        data = {
-            "code": code,
-            "client_id": GOOGLE_CLIENT_ID,
-            "client_secret": GOOGLE_CLIENT_SECRET,
-            "redirect_uri": REDIRECT_URI,
-            "grant_type": "authorization_code"
-        }
-        try:
-            resp = requests.post(token_url, data=data, timeout=10)
-            if not resp.ok:
-                err = resp.json().get("error")
-                if err != "invalid_grant":
-                    st.error(f"Google login failed: {resp.text}")
-                return False
-            access_token = resp.json().get("access_token")
-            if not access_token:
-                return False
-            userinfo = requests.get(
-                "https://www.googleapis.com/oauth2/v2/userinfo",
-                headers={"Authorization": f"Bearer {access_token}"}
-            ).json()
-            email = userinfo.get("email", "").lower()
-            df = load_student_data()
-            df["Email"] = df["Email"].str.lower().str.strip()
-            match = df[df["Email"] == email]
-            if match.empty:
-                st.error("No student account found for that Google email.")
-                return False
-            student_row = match.iloc[0]
-            if is_contract_expired(student_row):
-                st.error("Your contract has expired. Contact the office.")
-                return False
-            st.session_state.update({
-                "logged_in": True,
-                "student_row": student_row.to_dict(),
-                "student_code": student_row["StudentCode"],
-                "student_name": student_row["Name"]
-            })
-            cookie_manager["student_code"] = student_row["StudentCode"]
-            cookie_manager.save()
-            st.success(f"Welcome, {student_row['Name']}!")
-            st.rerun()
-        except Exception as e:
-            st.error(f"Google OAuth error: {e}")
-        return False
+# --- 2) Global CSS -------------------------------------------------------------
+st.markdown("""
+<style>
+  .hero {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    margin: 24px auto;
+    max-width: 800px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+  }
+  .help-contact-box {
+    background: #fff;
+    border-radius: 14px;
+    padding: 20px;
+    margin: 16px auto;
+    max-width: 500px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+    border:1px solid #ebebf2; text-align:center;
+  }
+  .quick-links { display: flex; flex-wrap: wrap; gap:12px; justify-content:center; }
+  .quick-links a {
+    background: #eef3fc;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight:600;
+    text-decoration:none;
+    color:#25317e;
+  }
+  @media (max-width:600px){
+    .hero, .help-contact-box { padding:16px 4vw; }
+  }
+</style>
+""", unsafe_allow_html=True)
 
-    if handle_google_login():
-        st.stop()
-    st.markdown("<div style='text-align:center;margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
-    do_google_oauth()
-
-    st.divider()
-
-    st.subheader("👋 Returning Student? Please Log In Below")
+# --- 3) Public Homepage --------------------------------------------------------
+if not st.session_state.logged_in:
+    st.markdown("""
+    <div class="hero">
+      <h1 style="text-align:center; color:#25317e;">👋 Welcome to <strong>Falowen</strong></h1>
+      <p style="text-align:center; font-size:1.1em; color:#555;">
+        Falowen is your all-in-one German learning platform, powered by <b>Learn Language Education Academy</b>, with courses and vocabulary from <b>A1 to C1</b> levels and live tutor support.
+      </p>
+      <ul style="max-width:700px; margin:16px auto; color:#444; font-size:1em; line-height:1.5;">
+        <li>📊 <b>Dashboard</b>: Track your learning streaks, assignment progress, active contracts, and more.</li>
+        <li>📚 <b>Course Book</b>: Access lecture videos, grammar modules, and submit assignments for levels A1–C1 in one place.</li>
+        <li>📝 <b>Exams & Quizzes</b>: Take practice tests and official exam prep right in the app.</li>
+        <li>💬 <b>Custom Chat</b>: Sprechen & expression trainer for live feedback on your speaking.</li>
+        <li>🏆 <b>Results Tab</b>: View your grades, feedback, and historical performance at a glance.</li>
+        <li>🔤 <b>Vocab Trainer</b>: Practice and master A1–C1 vocabulary with spaced-repetition quizzes.</li>
+        <li>✍️ <b>Schreiben Trainer</b>: Improve your writing with guided exercises and instant corrections.</li>
+      </ul>
+    </div>
+    """, unsafe_allow_html=True)
 
 
-    # --- 2) Manual Login (Student Code/Email & Password) ---
-    login_id       = st.text_input("Student Code or Email")
-    login_password = st.text_input("Password", type="password")
-    if st.button("Login"):
-        df = load_student_data()
-        df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-        df["Email"]       = df["Email"].str.lower().str.strip()
-        lookup = df[
-            ((df["StudentCode"] == login_id.lower()) | (df["Email"] == login_id.lower()))
-        ]
-        if lookup.empty:
-            st.error("No matching student code or email found.")
-        else:
-            student_row = lookup.iloc[0]
-            if is_contract_expired(student_row):
-                st.error("Your contract has expired. Contact the office.")
-            else:
-                doc = db.collection("students").document(student_row["StudentCode"]).get()
-                if not doc.exists:
-                    st.error("Account not found. Please create one below.")
-                else:
-                    data = doc.to_dict()
-                    if data.get("password") != login_password:
-                        st.error("Incorrect password.")
-                    else:
-                        st.session_state.update({
-                            "logged_in": True,
-                            "student_row": student_row.to_dict(),
-                            "student_code": student_row["StudentCode"],
-                            "student_name": student_row["Name"]
-                        })
-                        cookie_manager["student_code"] = student_row["StudentCode"]
-                        cookie_manager.save()
-                        st.success(f"Welcome, {student_row['Name']}!")
-                        st.rerun()
-    st.divider()
+if not st.session_state.logged_in:
+    # Support / Help section
+    st.markdown("""
+    <div class="help-contact-box">
+      <b>❓ Need help or access?</b><br>
+      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank">📱 WhatsApp us</a>
+      &nbsp;|&nbsp;
+      <a href="mailto:learngermanghana@gmail.com" target="_blank">✉️ Email</a>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # --- 3) Create Account (always visible, always left) ---
-    st.subheader("🆕 New Student? Sign Up Below")
-    new_name     = st.text_input("Full Name", key="ca_name")
-    new_email    = st.text_input("Email (must match teacher’s record)", key="ca_email").strip().lower()
-    new_code     = st.text_input("Student Code (from teacher)", key="ca_code").strip().lower()
-    new_password = st.text_input("Choose a Password", type="password", key="ca_pass")
-    if st.button("Create Account"):
-        if not (new_name and new_email and new_code and new_password):
-            st.error("Please fill in all fields.")
-        else:
+    # --- 4) Two Tab Login/Signup System ---
+    tab1, tab2 = st.tabs(["👋 Returning", "🆕 Sign Up"])
+
+    # --- Returning Student Tab (manual login) ---
+    with tab1:
+        with st.form("login_form", clear_on_submit=False):
+            login_id   = st.text_input("Student Code or Email")
+            login_pass = st.text_input("Password", type="password")
+            login_btn  = st.form_submit_button("Log In")
+        if login_btn:
             df = load_student_data()
             df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
             df["Email"]       = df["Email"].str.lower().str.strip()
-            valid = df[
-                (df["StudentCode"] == new_code) &
-                (df["Email"] == new_email)
+            lookup = df[
+                (df["StudentCode"] == login_id.lower()) |
+                (df["Email"] == login_id.lower())
             ]
-            if valid.empty:
-                st.error("Your code/email aren’t registered. Ask your teacher to add you first.")
+            if lookup.empty:
+                st.error("No matching student code or email found.")
             else:
-                db.collection("students").document(new_code).set({
-                    "name":     new_name,
-                    "email":    new_email,
-                    "password": new_password
-                })
-                st.success("Account created! Please log in above.")
+                student_row = lookup.iloc[0]
+                if is_contract_expired(student_row):
+                    st.error("Your contract has expired. Contact the office.")
+                else:
+                    doc = db.collection("students").document(student_row["StudentCode"]).get()
+                    if not doc.exists:
+                        st.error("Account not found. Please create one below.")
+                    else:
+                        data = doc.to_dict()
+                        if data.get("password") != login_pass:
+                            st.error("Incorrect password.")
+                        else:
+                            st.session_state.update({
+                                "logged_in": True,
+                                "student_row": student_row.to_dict(),
+                                "student_code": student_row["StudentCode"],
+                                "student_name": student_row["Name"]
+                            })
+                            cookie_manager["student_code"] = student_row["StudentCode"]
+                            cookie_manager.save()
+                            st.success(f"Welcome, {student_row['Name']}!")
+                            st.rerun()
 
+    # --- New Student Tab (signup) ---
+    with tab2:
+        with st.form("signup_form", clear_on_submit=False):
+            new_name     = st.text_input("Full Name", key="ca_name")
+            new_email    = st.text_input("Email (must match teacher’s record)", key="ca_email").strip().lower()
+            new_code     = st.text_input("Student Code (from teacher)", key="ca_code").strip().lower()
+            new_password = st.text_input("Choose a Password", type="password", key="ca_pass")
+            signup_btn   = st.form_submit_button("Create Account")
+        if signup_btn:
+            if not (new_name and new_email and new_code and new_password):
+                st.error("Please fill in all fields.")
+            else:
+                df = load_student_data()
+                df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+                df["Email"]       = df["Email"].str.lower().str.strip()
+                valid = df[
+                    (df["StudentCode"] == new_code) &
+                    (df["Email"] == new_email)
+                ]
+                if valid.empty:
+                    st.error("Your code/email aren’t registered. Ask your teacher to add you first.")
+                else:
+                    db.collection("students").document(new_code).set({
+                        "name":     new_name,
+                        "email":    new_email,
+                        "password": new_password
+                    })
+                    st.success("Account created! Please log in above.")
+
+    # --- Autoplay Video Demo (insert before Quick Links/footer) ---
+    st.markdown("""
+    <div style="display:flex; justify-content:center; margin: 24px 0;">
+      <video width="350" autoplay muted loop controls style="border-radius: 12px; box-shadow: 0 4px 12px #0002;">
+        <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/20250806_1558_Virtueller%20Unterricht_simple_compose_01k201pkv5fnps0ybrgjctyr01.mp4" type="video/mp4">
+        Sorry, your browser doesn't support embedded videos.
+      </video>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Quick Links and Footer
+    st.markdown("""
+    <div class="quick-links">
+      <a href="https://www.learngermanghana.com/tutors"           target="_blank">👩‍🏫 Tutors</a>
+      <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank">🗓️ Upcoming Classes</a>
+      <a href="https://www.learngermanghana.com/accreditation"    target="_blank">✅ Accreditation</a>
+      <a href="https://www.learngermanghana.com/privacy-policy"  target="_blank">🔒 Privacy</a>
+      <a href="https://www.learngermanghana.com/terms-of-service" target="_blank">📜 Terms</a>
+      <a href="https://www.learngermanghana.com/contact-us"      target="_blank">✉️ Contact</a>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div style="text-align:center; margin:24px 0;">
+      <a href="https://www.youtube.com/YourChannel" target="_blank">📺 YouTube</a>
+      &nbsp;|&nbsp;
+      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank">📱 WhatsApp</a>
+    </div>
+    """, unsafe_allow_html=True)
     st.stop()
 #
+
+
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 if st.button("Log out"):
@@ -529,7 +513,7 @@ if st.button("Log out"):
         st.session_state[k] = False if k == "logged_in" else ""
     st.success("You have been logged out.")
     st.rerun()
-    
+
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 @st.cache_data
 def load_assignment_scores():
@@ -679,8 +663,9 @@ if st.session_state.get("logged_in"):
     st.divider()
 
 
-    # --- Rotating Motivation/Encouragement Lists ---
     import random
+
+    # --- Rotating Motivation/Encouragement Lists ---
     STUDY_TIPS = [
         "Study a little every day. Small steps lead to big progress!",
         "Teach someone else what you learned to remember it better.",
@@ -696,6 +681,7 @@ if st.session_state.get("logged_in"):
         "“The expert in anything was once a beginner.” – Helen Hayes",
         "“Learning never exhausts the mind.” – Leonardo da Vinci"
     ]
+
 
     # --- Personalized Leaderboard Position on Main Dashboard ---
     MIN_ASSIGNMENTS = 3
@@ -725,10 +711,16 @@ if st.session_state.get("logged_in"):
     your_row = df_level[df_level['studentcode'].str.lower() == student_code.lower()]
     total_students = len(df_level)
 
+    totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
+    total_possible = totals.get(user_level, 0)
+
     if not your_row.empty:
         row = your_row.iloc[0]
         rank = int(row['Rank'])
         percent = (rank / total_students) * 100 if total_students else 0
+        completed = int(row['completed'])
+
+        progress_pct = (completed / total_possible) * 100 if total_possible else 0
 
         # --- Rotating motivation style ---
         rotate = random.randint(0, 3)
@@ -772,11 +764,49 @@ if st.session_state.get("logged_in"):
             </div>
             """, unsafe_allow_html=True
         )
+
+        # Progress Bar or Progress Text
+        st.markdown(
+            f"""
+            <div style='margin-top:8px;'>
+                <b>Your Progress:</b> {completed} out of {total_possible} assignments completed
+                <div style="background:#f1f0fa;width:100%;height:16px;border-radius:8px;overflow:hidden;">
+                    <div style="background:#7e57c2;height:16px;width:{progress_pct:.2f}%;border-radius:8px;"></div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True
+        )
     else:
         st.info(f"Complete at least {MIN_ASSIGNMENTS} assignments to appear on the leaderboard for your level.")
 
+        # Even if not on leaderboard, show student's assignment count
+        completed = df_assign[
+            (df_assign['studentcode'].str.lower() == student_code.lower()) &
+            (df_assign['level'] == user_level)
+        ]['assignment'].nunique()
+
+        # Always use your hardcoded total for max
+        total_possible = totals.get(user_level, 0)
+        progress_pct = (completed / total_possible) * 100 if total_possible else 0
+
+        if completed > 0:
+            st.markdown(
+                f"""
+                <div style='margin-top:8px;'>
+                    <b>Your Progress:</b> {completed} out of {total_possible} assignments completed
+                    <div style="background:#f1f0fa;width:100%;height:16px;border-radius:8px;overflow:hidden;">
+                        <div style="background:#7e57c2;height:16px;width:{progress_pct:.2f}%;border-radius:8px;"></div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True
+            )
+        else:
+            st.info("Start submitting assignments to see your progress bar here!")
+
     st.divider()
+
 #
+
 
 
 
@@ -1073,9 +1103,6 @@ if tab == "Dashboard":
     """,
                 unsafe_allow_html=True,
             )
-#
-
-
 
     # --- Goethe Exam Countdown & Video of the Day (per level) ---
     GOETHE_EXAM_DATES = {
@@ -1149,8 +1176,6 @@ if tab == "Dashboard":
         )
 
 
-
-            
 def get_a1_schedule():
     return [
         # DAY 1
@@ -1164,6 +1189,7 @@ def get_a1_schedule():
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/7QZhrb-gvxY",
+                "youtube_link": "https://youtu.be/7QZhrb-gvxY",
                 "grammarbook_link": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/view?usp=sharing"
             }
@@ -1180,6 +1206,7 @@ def get_a1_schedule():
                 {
                     "chapter": "0.2",
                     "video": "https://youtu.be/S7n6TlAQRLQ",
+                    "youtube_link": "https://youtu.be/S7n6TlAQRLQ",
                     "grammarbook_link": "https://drive.google.com/file/d/1KtJCF15Ng4cLU88wdUCX5iumOLY7ZA0a/view?usp=sharing",
                     "assignment": True,
                     "workbook_link": "https://drive.google.com/file/d/1R6PqzgsPm9f5iVn7JZXSNVa_NttoPU9Q/view?usp=sharing",
@@ -1187,6 +1214,7 @@ def get_a1_schedule():
                 {
                     "chapter": "1.1",
                     "video": "https://youtu.be/AjsnO1hxDs4",
+                    "youtube_link": "https://youtu.be/AjsnO1hxDs4",
                     "grammarbook_link": "https://drive.google.com/file/d/1DKhyi-43HX1TNs8fxA9bgRvhylubilBf/view?usp=sharing",
                     "assignment": True,
                     "workbook_link": "https://drive.google.com/file/d/1A1D1pAssnoncF1JY0v54XT2npPb6mQZv/view?usp=sharing",
@@ -1209,6 +1237,7 @@ def get_a1_schedule():
             "grammar_topic": "German Pronouns",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/hEe6rs0lkRg",
+                "youtube_link": "https://youtu.be/hEe6rs0lkRg",
                 "workbook_link": "https://drive.google.com/file/d/1GXWzy3cvbl_goP4-ymFuYDtX4X23D70j/view?usp=sharing",
                 "assignment": False,
             },
@@ -1216,6 +1245,7 @@ def get_a1_schedule():
                 {
                     "chapter": "1.2",
                     "video": "https://youtu.be/NVCN4fZXEk0",
+                    "youtube_link": "https://youtu.be/NVCN4fZXEk0",
                     "grammarbook_link": "https://drive.google.com/file/d/1OUJT9aSU1XABi3cdZlstUvfBIndyEOwb/view?usp=sharing",
                     "workbook_link": "https://drive.google.com/file/d/1Lubevhd7zMlbvPcvHHC1D0GzW7xqa4Mp/view?usp=sharing",
                     "assignment": True
@@ -1233,6 +1263,7 @@ def get_a1_schedule():
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/BzI2n4A8Oak",
+                "youtube_link": "https://youtu.be/BzI2n4A8Oak",
                 "grammarbook_link": "https://drive.google.com/file/d/1f2CJ492liO8ccudCadxHIISwGJkHP6st/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1C4VZDUj7VT27Qrn9vS5MNc3QfRqpmDGE/view?usp=sharing",
                 "assignment": True
@@ -1248,6 +1279,7 @@ def get_a1_schedule():
             "assignment": False,
             "schreiben_sprechen": {
                 "video": "",
+                "youtube_link": "",
                 "workbook_link": "https://drive.google.com/file/d/1ojXvizvJz_qGes7I39pjdhnmlul7xhxB/view?usp=sharing"
             }
         },
@@ -1261,6 +1293,7 @@ def get_a1_schedule():
             "instruction": "Use self-practice workbook and review answers for self-check.",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/JrYSpnZN6P0",
+                "youtube_link": "https://youtu.be/JrYSpnZN6P0",
                 "workbook_link": "https://drive.google.com/file/d/1xellIzaxzoBTFOUdaCEHu_OiiuEnFeWT/view?usp=sharing"
             }
         },
@@ -1275,6 +1308,7 @@ def get_a1_schedule():
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/dGIj1GbK4sI",
+                "youtube_link": "https://youtu.be/dGIj1GbK4sI",
                 "grammarbook_link": "https://drive.google.com/file/d/1sCE5y8FVctySejSVNm9lrTG3slIucxqY/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1lL4yrZLMtKLnNuVTC2Sg_ayfkUZfIuak/view?usp=sharing"
             }
@@ -1290,6 +1324,7 @@ def get_a1_schedule():
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/JfTc1G9mubs",
+                "youtube_link": "https://youtu.be/JfTc1G9mubs",
                 "grammarbook_link": "https://drive.google.com/file/d/1obsYT3dP3qT-i06SjXmqRzCT2pNoJJZp/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1woXksV9sTZ_8huXa8yf6QUQ8aUXPxVug/view?usp=sharing"
             }
@@ -1305,6 +1340,7 @@ def get_a1_schedule():
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/Yi5ZA-XD-GY?si=nCX_pceEYgAL-FU0",
+                "youtube_link": "https://youtu.be/Yi5ZA-XD-GY?si=nCX_pceEYgAL-FU0",
                 "grammarbook_link": "https://drive.google.com/file/d/17y5fGW8nAbfeVgolV7tEW4BLiLXZDoO6/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1zjAqvQqNb7iKknuhJ79bUclimEaTg-mt/view?usp=sharing"
             }
@@ -1318,12 +1354,14 @@ def get_a1_schedule():
             "instruction": "The assignment is the lesen and horen chapter 6 but you must also go through schreiben and sprechnen 2.4 for full understanding",         
             "lesen_hören": {
                 "video": "https://youtu.be/SXwDqcwrR3k",
+                "youtube_link": "https://youtu.be/SXwDqcwrR3k",
                 "grammarbook_link": "https://drive.google.com/file/d/1Fy4bKhaHHb4ahS2xIumrLtuqdQ0YAFB4/view?usp=sharing",
                 "assignment": True,
                 "workbook_link": "https://drive.google.com/file/d/1Da1iw54oAqoaY-UIw6oyIn8tsDmIi1YR/view?usp=sharing"
             },
             "schreiben_sprechen": {
                 "video": "https://youtu.be/lw9SsojpKf8",
+                "youtube_link": "https://youtu.be/lw9SsojpKf8",
                 "workbook_link": "https://drive.google.com/file/d/1GbIc44ToWh2upnHv6eX3ZjFrvnf4fcEM/view?usp=sharing",
                 "assignment": False,
             }
@@ -1338,6 +1376,7 @@ def get_a1_schedule():
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/uyvXoCoqjiE",
+                "youtube_link": "https://youtu.be/uyvXoCoqjiE",
                 "grammarbook_link": "https://drive.google.com/file/d/1pSaloRhfh8eTKK_r9mzwp6xkbfdkCVox/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1QyDdRae_1qv_umRb15dCJZTPdXi7zPWd/view?usp=sharing"
             }
@@ -1352,6 +1391,7 @@ def get_a1_schedule():
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/hLpPFOthVkU",
+                "youtube_link": "https://youtu.be/hLpPFOthVkU",
                 "grammarbook_link": "https://drive.google.com/file/d/1fW2ChjnDKW_5SEr65ZgE1ylJy1To46_p/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1onzokN8kQualNO6MSsPndFXiRwsnsVM9/view?usp=sharing"
             }
@@ -1364,7 +1404,8 @@ def get_a1_schedule():
             "goal": "Recap from the lesen and horen. Understand numbers, time, asking of price and how to formulate statements in German",
             "instruction": "Use the statement rule to talk about your weekly routine using the activities listed. Share with your tutor when done",
             "schreiben_sprechen": {
-                "video": "https://youtu.be/KghL38t-wVo",
+                "video": "https://youtu.be/PwDLGmfBUDw",
+                "youtube_link": "https://youtu.be/PwDLGmfBUDw",
                 "assignment": False,
                 "workbook_link": "https://drive.google.com/file/d/12oFKrKrHBwSpSnzxLX_e-cjPSiYtCFVs/view?usp=sharing"
             }
@@ -1380,6 +1421,7 @@ def get_a1_schedule():
             "grammar_topic": "Modal Verbs",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/XwFPjLjvDog",
+                "youtube_link": "https://youtu.be/XwFPjLjvDog",
                 "workbook_link": "https://drive.google.com/file/d/1wnZehLNfkjgKMFw1V3BX8V399rZg6XLv/view?usp=sharing"
             }
         },
@@ -1394,6 +1436,7 @@ def get_a1_schedule():
             "grammar_topic": "Imperative",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/IVtUc9T3o0Y",
+                "youtube_link": "https://youtu.be/IVtUc9T3o0Y",
                 "workbook_link": "https://drive.google.com/file/d/1953B01hB9Ex7LXXU0qIaGU8xgCDjpSm4/view?usp=sharing"
             }
         },
@@ -1409,6 +1452,7 @@ def get_a1_schedule():
                 {
                     "chapter": "9",
                     "video": "https://youtu.be/MrB3BPtQN6A",
+                    "youtube_link": "https://youtu.be/MrB3BPtQN6A",
                     "assignment": True,
                     "grammarbook_link": "https://drive.google.com/file/d/1g-qLEH1ZDnFZCT83TW-MPLxNt2nO7UAv/view?usp=sharing",
                     "workbook_link": "https://drive.google.com/file/d/1hKtQdXg5y3yJyFBQsCMr7fZ11cYbuG7D/view?usp=sharing"
@@ -1416,6 +1460,7 @@ def get_a1_schedule():
                 {
                     "chapter": "10",
                     "video": "",
+                    "youtube_link": "",
                     "grammarbook_link": "",
                     "assignment": True,
                     "workbook_link": "https://drive.google.com/file/d/1rJXshXQSS5Or4ipv1VmUMsoB0V1Vx4VK/view?usp=sharing"
@@ -1432,6 +1477,7 @@ def get_a1_schedule():
             "instruction": "",
             "lesen_hören": {
                 "video": "https://youtu.be/k2ZC3rXPe1k",
+                "youtube_link": "https://youtu.be/k2ZC3rXPe1k",
                 "assignment": True,
                 "grammarbook_link": "https://drive.google.com/file/d/1lMzZrM4aAItO8bBmehODvT6gG7dz8I9s/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/17FNSfHBxyga9sKxzicT_qkP7PA4vB5-A/view?usp=sharing"
@@ -1449,6 +1495,7 @@ def get_a1_schedule():
                 {
                     "chapter": "12.1",
                     "video": "https://youtu.be/-vTEvx9a8Ts",
+                    "youtube_link": "https://youtu.be/-vTEvx9a8Ts",
                     "assignment": True,
                     "grammarbook_link": "https://drive.google.com/file/d/1wdWYVxBhu4QtRoETDpDww-LjjzsGDYva/view?usp=sharing",
                     "workbook_link": "https://drive.google.com/file/d/1A0NkFl1AG68jHeqSytI3ygJ0k7H74AEX/view?usp=sharing"
@@ -1456,6 +1503,7 @@ def get_a1_schedule():
                 {
                     "chapter": "12.2",
                     "video": "",
+                    "youtube_link": "",
                     "assignment": True,
                     "grammarbook_link": "",
                     "workbook_link": "https://drive.google.com/file/d/1xojH7Tgb5LeJj3nzNSATUVppWnJgJLEF/view?usp=sharing"
@@ -1463,6 +1511,7 @@ def get_a1_schedule():
             ],
             "schreiben_sprechen": {
                 "video": "https://youtu.be/xVyYo7upDGo",
+                "youtube_link": "https://youtu.be/xVyYo7upDGo",
                 "assignment": False,
                 "workbook_link": "https://drive.google.com/file/d/1iyYBuxu3bBEovxz0j9QeSu_1URX92fvN/view?usp=sharing"
             }
@@ -1477,6 +1526,7 @@ def get_a1_schedule():
             "grammar_topic": "Erlaubt and Verboten",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/MqAp84GthAo",
+                "youtube_link": "https://youtu.be/MqAp84GthAo",
                 "assignment": False,
                 "workbook_link": "https://drive.google.com/file/d/1CkoYa_qeqsGju0kTS6ElurCAlEW6pVFL/view?usp=sharing"
             }
@@ -1492,6 +1542,7 @@ def get_a1_schedule():
             "grammar_topic": "Formal and Informal Letter",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/sHRHE1soH6I",
+                "youtube_link": "https://youtu.be/sHRHE1soH6I",
                 "workbook_link": "https://drive.google.com/file/d/1SjaDH1bYR7O-BnIbM2N82XOEjeLCfPFb/view?usp=sharing"
             }
         },
@@ -1506,6 +1557,7 @@ def get_a1_schedule():
             "grammar_topic": "Weather and Past Tense. How to form Perfekt statement in German",
             "lesen_hören": {
                 "video": "https://youtu.be/6cBs3Qfvdk4",
+                "youtube_link": "https://youtu.be/6cBs3Qfvdk4",
                 "assignment": True,
                 "grammarbook_link": "https://drive.google.com/file/d/1PCXsTIg9iNlaAUkwH8BYekw_3v1HJjGq/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1GZeUi5p6ayDGnPcebFVFfaNavmoWyoVM/view?usp=sharing"
@@ -1521,6 +1573,7 @@ def get_a1_schedule():
             "grammar_topic": "Health and Body Parts",
             "lesen_hören": {
                 "video": "https://youtu.be/Zx_TFF9FNGo",
+                "youtube_link": "https://youtu.be/Zx_TFF9FNGo",
                 "assignment": True,
                 "grammarbook_link": "https://drive.google.com/file/d/1QoG4mNxA1w8AeTMPfLtMQ_rAHrmC1DdO/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1LkDUU7r78E_pzeFnHKw9vfD9QgUAAacu/view?usp=sharing"
@@ -1536,6 +1589,7 @@ def get_a1_schedule():
             "grammar_topic": "Adjective Declension and Dative Verbs",
             "lesen_hören": {
                 "video": "",
+                "youtube_link": "",
                 "assignment": False,
                 "grammarbook_link": "https://drive.google.com/file/d/16h-yS0gkB2_FL1zxCC4MaqRBbKne7GI1/view?usp=sharing",
                 "workbook_link": ""
@@ -1552,6 +1606,7 @@ def get_a1_schedule():
             "assignment": False,
             "schreiben_sprechen": {
                 "video": "https://youtu.be/WVq9x69dCeE",
+                "youtube_link": "https://youtu.be/WVq9x69dCeE",
                 "workbook_link": "https://drive.google.com/file/d/1LE1b9ilkLLobE5Uw0TVLG0RIVpLK5k1t/view?usp=sharing"
             }
         },
@@ -1565,10 +1620,12 @@ def get_a1_schedule():
             "instruction": "Open the link and answer the questions using the link. After submit and alert your tutor.",
             "schreiben_sprechen": {
                 "video": "",
+                "youtube_link": "",
                 "workbook_link": "https://forms.gle/FP8ZPNhwxcAZsTfY6"
             }
         }
     ]
+
 
 def get_a2_schedule():
     return [
@@ -1581,6 +1638,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "assignment": True,
             "video": "https://youtu.be/siF0jWZdIwk",
+            "youtube_link": "https://youtu.be/siF0jWZdIwk",
             "grammarbook_link": "https://drive.google.com/file/d/1NsCKO4K7MWI-queLWCeBuclmaqPN04YQ/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1LXDI1yyJ4aT4LhX5eGDbKnkCkJZ2EE2T/view?usp=sharing"
         },
@@ -1594,6 +1652,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Subordinate Clauses (Nebensätze) with dass and weil",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1xMpEAPD8C0HtIFsmgqYO-wZaKDrQtiYp/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/128lWaKgCZ2V-3tActM-dwNy6igLLlzH3/view?usp=sharing"
         },
@@ -1607,6 +1666,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Positive, Comparative, and Superlative in German",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1Z3sSDCxPQz27TDSpN9r8lQUpHhBVfhYZ/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/18YXe9mxyyKTars1gL5cgFsXrbM25kiN8/view?usp=sharing"
         },
@@ -1620,6 +1680,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Nominalization of Verbs",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/14qE_XJr3mTNr6PF5aa0aCqauh9ngYTJ8/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1RaXTZQ9jHaJYwKrP728zevDSQHFKeR0E/view?usp=sharing"
         },
@@ -1633,6 +1694,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Dative Preposition",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/11yEcMioSB9x1ZD-x5_67ApFzP53iau-N/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1dIsFg7wNaqyyOHm95h7xv4Ssll5Fm0V1/view?usp=sharing"
         },
@@ -1646,6 +1708,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Two Case Preposition",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1MSahBEyElIiLnitWoJb5xkvRlB21yo0y/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/16UfBIrL0jxCqWtqqZaLhKWflosNQkwF4/view?usp=sharing"
         },
@@ -1659,6 +1722,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Identifying German Nouns and their Gender",
             "video": "https://youtu.be/ScU6w8VQgNg", 
+            "youtube_link": "https://youtu.be/ScU6w8VQgNg",
             "grammarbook_link": "https://drive.google.com/file/d/1clWbDAvLlXpgWx7pKc71Oq3H2p0_GZnV/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1EF87TdHa6Y-qgLFUx8S6GAom9g5EBQNP/view?usp=sharing"
         },
@@ -1672,6 +1736,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Zuerst, Nachdem, and Talking About Sequence in German",
             "video": "https://youtu.be/_xQMNp3qcDQ",
+            "youtube_link": "https://youtu.be/_xQMNp3qcDQ",
             "grammarbook_link": "https://drive.google.com/file/d/16lh8sPl_IDZ3dLwYNvL73PqOFCixidrI/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1c8JJyVlKYI2mz6xLZZ6RkRHLnH3Dtv0c/view?usp=sharing"
         },
@@ -1685,6 +1750,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Understanding Präteritum and Perfekt",
             "video": "https://youtu.be/NxoQH-BY9Js",
+            "youtube_link": "https://youtu.be/NxoQH-BY9Js",
             "grammarbook_link": "https://drive.google.com/file/d/1kOb7c08Pkxf21OQE_xIGEaif7Xq7k-ty/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1NzRxbGUe306Vq0mq9kKsc3y3HYqkMhuA/view?usp=sharing"
         },
@@ -1698,6 +1764,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Präteritum",
             "video": "https://youtu.be/XFxV3GSSm8E",
+            "youtube_link": "https://youtu.be/XFxV3GSSm8E",
             "grammarbook_link": "https://drive.google.com/file/d/1snFsDYBK8RrPRq2n3PtWvcIctSph-zvN/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1vijZn-ryhT46cTzGmetuF0c4zys0yGlB/view?usp=sharing"
         },
@@ -1711,6 +1778,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Prepositions in and naxh",
             "video": "https://youtu.be/RkvfRiPCZI4",
+            "youtube_link": "https://youtu.be/RkvfRiPCZI4",
             "grammarbook_link": "https://drive.google.com/file/d/19I7oOHX8r4daxXmx38mNMaZO10AXHEFu/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1c7ITea0iVbCaPO0piark9RnqJgZS-DOi/view?usp=sharing"
         },
@@ -1724,6 +1792,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Konjunktiv II",
             "video": "https://youtu.be/w81bsmssGXQ",
+            "youtube_link": "https://youtu.be/w81bsmssGXQ",
             "grammarbook_link": "https://drive.google.com/file/d/1dyGB5q92EePy8q60eWWYA91LXnsWQFb1/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/18u6FnHpd2nAh1Ev_2mVk5aV3GdVC6Add/view?usp=sharing"
         },
@@ -1737,6 +1806,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Konjunktive II with modal verbs",
             "video": "https://youtu.be/urKBrX5VAYU",
+            "youtube_link": "https://youtu.be/urKBrX5VAYU",
             "grammarbook_link": "https://drive.google.com/file/d/1tv2tYzn9mIG57hwWr_ilxV1My7kt-RKQ/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1sW2yKZptnYWPhS7ciYdi0hN5HV-ycsF0/view?usp=sharing"
         },
@@ -1750,6 +1820,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Modal Verbs",
             "video": "https://youtu.be/IyBvx-yVT-0",
+            "youtube_link": "https://youtu.be/IyBvx-yVT-0",
             "grammarbook_link": "https://drive.google.com/file/d/13mVpVGfhY1NQn-BEb7xYUivnaZbhXJsK/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1rlZoo49bYBRjt7mu3Ydktzgfdq4IyK2q/view?usp=sharing"
         },
@@ -1763,6 +1834,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Reflexive Pronouns",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1dGZjcHhdN1xAdK2APL54RykGH7_msUyr/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1iiExhUj66r5p0SJZfV7PsmCWOyaF360s/view?usp=sharing"
         },
@@ -1776,6 +1848,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Verbs and Adjectives with Prepositions",
             "video": "https://youtu.be/r4se8KuS8cA",
+            "youtube_link": "https://youtu.be/r4se8KuS8cA",
             "grammarbook_link": "https://drive.google.com/file/d/1BiAyDazBR3lTplP7D2yjaYmEm2btUT1D/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1G_sRFKG9Qt5nc0Zyfnax-0WXSMmbWB70/view?usp=sharing"
         },
@@ -1789,6 +1862,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Notes on German Indefinite Pronouns",
             "video": "https://youtu.be/Xjp2A1hU1ag",
+            "youtube_link": "https://youtu.be/Xjp2A1hU1ag",
             "grammarbook_link": "https://drive.google.com/file/d/1O040UoSuBdy4llTK7MbGIsib63uNNcrV/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1vsdVR_ubbu5gbXnm70vZS5xGFivjBYoA/view?usp=sharing"
         },
@@ -1802,6 +1876,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Notes on Opening a Bank Account in Germany",
             "video": "https://youtu.be/ahIUVAbsuxU",
+            "youtube_link": "https://youtu.be/ahIUVAbsuxU",
             "grammarbook_link": "https://drive.google.com/file/d/1qNHtY8MYOXjtBxf6wHi6T_P_X1DGFtPm/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1GD7cCPU8ZFykcwsFQZuQMi2fiNrvrCPg/view?usp=sharing"
         },
@@ -1813,7 +1888,8 @@ def get_a2_schedule():
             "goal": "Shop and ask about locations.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
-            "video": "https://youtu.be/ximpvA-djrY",
+            "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1Qt9oxn-74t8dFdsk-NjSc0G5OT7MQ-qq/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1CEFn14eYeomtf6CpZJhyW00CA2f_6VRc/view?usp=sharing"
         },
@@ -1825,7 +1901,8 @@ def get_a2_schedule():
             "goal": "Handle typical complaints.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
-            "video": "https://youtu.be/TOTK1yohCTg",
+            "video": "https://youtu.be/utAO9hvGF18",
+            "youtube_link": "https://youtu.be/utAO9hvGF18",
             "grammarbook_link": "https://drive.google.com/file/d/1-72wZuNJE4Y92Luy0h5ygWooDnBd9PQW/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1_GTumT1II0E1PRoh6hMDwWsTPEInGeed/view?usp=sharing"
         },
@@ -1838,6 +1915,7 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1FcCg7orEizna4rAkX3_FCyd3lh_Bb3IT/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1mMtZza34QoJO_lfUiEX3kwTa-vsTN_RK/view?usp=sharing"
         },
@@ -1850,6 +1928,7 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1dWr4QHw8zT1RPbuIEr_X13cPLYpH-mms/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1mg_2ytNAYF00_j-TFQelajAxgQpmgrhW/view?usp=sharing"
         },
@@ -1862,6 +1941,7 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1XbWKmc5P7ZAR-OqFce744xqCe7PQguXo/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1Ialg19GIE_KKHiLBDMm1aHbrzfNdb7L_/view?usp=sharing"
         },
@@ -1874,6 +1954,7 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1tFXs-DNKvt97Q4dsyXsYvKVQvT5Qqt0y/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1t3xqddDJp3-1XeJ6SesnsYsTO5xSm9vG/view?usp=sharing"
         },
@@ -1886,6 +1967,7 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
+            "youtube_link": "",
             "workbook_link": "https://drive.google.com/file/d/1jfWDzGfXrzhfGZ1bQe1u5MXVQkR5Et43/view?usp=sharing"
         },
         # DAY 26
@@ -1897,6 +1979,7 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
+            "youtube_link": "",
             "workbook_link": "https://drive.google.com/file/d/126MQiti-lpcovP1TdyUKQAK6KjqBaoTx/view?usp=sharing"
         },
         # DAY 27
@@ -1908,6 +1991,7 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
+            "youtube_link": "",
             "workbook_link": "https://drive.google.com/file/d/1UdBu6O2AMQ2g6Ot_abTsFwLvT87LHHwY/view?usp=sharing"
         },
         # DAY 28
@@ -1919,9 +2003,9 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
+            "youtube_link": "",
             "workbook_link": "https://drive.google.com/file/d/1164aJFtkZM1AMb87s1-K59wuobD7q34U/view?usp=sharing"
         },
-#
         # DAY 29
         {
             "day": 29,
@@ -1931,10 +2015,11 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Answer everything on the phone and dont write in your book. The answers will be sent to your email",
             "video": "",
+            "youtube_link": "",
             "workbook_link": "https://forms.gle/YqCEMXTF5d3N9Q7C7"
         },
     ]
-
+#
 def get_b1_schedule():
     return [
         # TAG 1
@@ -1947,6 +2032,7 @@ def get_b1_schedule():
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "grammar_topic": "Präsens & Perfekt",
             "video": "https://youtu.be/wMrdW2DhD5o",
+            "youtube_link": "https://youtu.be/wMrdW2DhD5o",
             "grammarbook_link": "https://drive.google.com/file/d/17dO2pWXKQ3V3kWZIgLHXpLJ-ozKHKxu5/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1gTcOHHGW2bXKkhxAC38jdl6OikgHCT9g/view?usp=sharing"
         },
@@ -1960,6 +2046,7 @@ def get_b1_schedule():
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "grammar_topic": "Präteritum – Vergangene Erlebnisse erzählen",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1St8MpH616FiJmJjTYI9b6hEpNCQd5V0T/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1AgjhFYw07JYvsgVP1MBKYEMFBjeAwQ1e/view?usp=sharing"
         },
@@ -1973,6 +2060,7 @@ def get_b1_schedule():
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "grammar_topic": "Adjektivdeklination mit unbestimmten Artikeln",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1kUtriLOZfJXUxj2IVU2VHZZkghIWDWKv/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1qVANqTLg4FOU40_WfLZyVTu5KBluzYrh/view?usp=sharing"
         },
@@ -1986,6 +2074,7 @@ def get_b1_schedule():
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "grammar_topic": "Wechselpräpositionen – In der Stadt, auf dem Land",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/12r_HE51QtpknXSSU0R75ur-EDFpTjzXU/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/12r_HE51QtpknXSSU0R75ur-EDFpTjzXU/view?usp=sharing"
         },
@@ -1998,6 +2087,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2010,6 +2100,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2022,6 +2113,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2034,6 +2126,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2046,6 +2139,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2058,6 +2152,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2070,6 +2165,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2082,6 +2178,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2094,6 +2191,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2106,6 +2204,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2118,6 +2217,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2130,6 +2230,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2142,6 +2243,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2154,6 +2256,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2166,6 +2269,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2178,6 +2282,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2190,6 +2295,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2202,6 +2308,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2214,6 +2321,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2226,6 +2334,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/1x8IM6xcjR2hv3jbnnNudjyxLWPiT0-VL/view?usp=sharing"
         },
@@ -2238,6 +2347,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/1If0R3cIT8KwjeXjouWlQ-VT03QGYOSZz/view?usp=sharing"
         },
@@ -2250,6 +2360,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/1BMwDDkfPJVEhL3wHNYqGMAvjOts9tv24/view?usp=sharing"
         },
@@ -2262,6 +2373,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/15fjOKp_u75GfcbvRJVbR8UbHg-cgrgWL/view?usp=sharing"
         },
@@ -2274,10 +2386,12 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/1iBeZHMDq_FnusY4kkRwRQvyOfm51-COU/view?usp=sharing"
         },
     ]
+
 
 
 def get_b2_schedule():
@@ -2645,9 +2759,6 @@ def load_level_schedules():
 
 # --- Helpers ---
 def render_assignment_reminder():
-    """
-    Render a responsive, mobile-friendly assignment reminder box with clear contrast.
-    """
     st.markdown(
         '''
         <div style="
@@ -2691,7 +2802,6 @@ def build_wa_message(name, code, level, day, chapter, answer):
     )
 
 def highlight_terms(text, terms):
-    """Wrap each term in <span> for highlight in markdown/html."""
     if not text: return ""
     for term in terms:
         if not term.strip():
@@ -2701,7 +2811,6 @@ def highlight_terms(text, terms):
     return text
 
 def filter_matches(lesson, terms):
-    """Check if ANY term appears in ANY searchable field."""
     searchable = (
         str(lesson.get('topic', '')).lower() +
         str(lesson.get('chapter', '')).lower() +
@@ -2737,6 +2846,7 @@ def render_section(day_info, key, title, icon):
             for ex in (extras if isinstance(extras, list) else [extras]):
                 render_link("🔗 Extra", ex)
 
+
 def post_message(level, code, name, text, reply_to=None):
     posts_ref = db.collection("class_board").document(level).collection("posts")
     posts_ref.add({
@@ -2764,10 +2874,8 @@ def save_notes_to_db(student_code, notes):
     ref = db.collection("learning_notes").document(student_code)
     ref.set({"notes": notes}, merge=True)
 
-# --------------- COURSE BOOK MAIN TAB WITH SUBTABS ---------------
 if tab == "Course Book":
     # === HANDLE ALL SWITCHING *BEFORE* ANY WIDGET ===
-    # (If flagged to switch, set subtab and rerun BEFORE widgets)
     if st.session_state.get("switch_to_notes"):
         st.session_state["coursebook_subtab"] = "📒 Learning Notes"
         del st.session_state["switch_to_notes"]
@@ -2788,7 +2896,8 @@ if tab == "Course Book":
         ">
             <span style="font-size:1.8rem; font-weight:600;">📈 Course Book</span>
         </div>
-        ''', unsafe_allow_html=True
+        ''',
+        unsafe_allow_html=True
     )
     st.divider()
 
@@ -2798,7 +2907,7 @@ if tab == "Course Book":
         horizontal=True,
         key="coursebook_subtab"
     )
-#
+
     # === COURSE BOOK SUBTAB ===
     if cb_subtab == "📘 Course Book":
         st.markdown(
@@ -2814,12 +2923,13 @@ if tab == "Course Book":
             ">
                 <span style="font-size:1.8rem; font-weight:600;">📈 Course Book</span>
             </div>
-            ''', unsafe_allow_html=True
+            ''',
+            unsafe_allow_html=True
         )
         st.divider()
 
         schedules = load_level_schedules()
-        schedule = schedules.get(student_level, schedules.get('A1', []))
+        schedule = schedules.get(student_level, schedules.get("A1", []))
 
         query = st.text_input("🔍 Search for topic, chapter, grammar, day, or anything…")
         search_terms = [q for q in query.strip().lower().split() if q] if query else []
@@ -2829,106 +2939,171 @@ if tab == "Course Book":
             if not matches:
                 st.warning("No matching lessons. Try simpler terms or check spelling.")
                 st.stop()
+
             labels = []
             for _, d in matches:
                 title = highlight_terms(f"Day {d['day']}: {d['topic']}", search_terms)
-                grammar = highlight_terms(d.get('grammar_topic', ''), search_terms)
-                labels.append(f"{title}  {'<span style=\"color:#007bff\">['+grammar+']</span>' if grammar else ''}")
+                grammar = highlight_terms(d.get("grammar_topic", ""), search_terms)
+                labels.append(
+                    f"{title}  {'<span style=\"color:#007bff\">['+grammar+']</span>' if grammar else ''}"
+                )
+
+            # Bold header for lessons dropdown
+            st.markdown(
+                "<span style='font-weight:700; font-size:1rem;'>Lessons:</span>",
+                unsafe_allow_html=True
+            )
             sel = st.selectbox(
-                "Lessons:",
+                "",  # label hidden
                 list(range(len(matches))),
                 format_func=lambda i: labels[i],
                 key="course_search_sel"
             )
             idx = matches[sel][0]
         else:
+            # Bold header for lesson/day dropdown
+            st.markdown(
+                "<span style='font-weight:700; font-size:1rem;'>Choose your lesson/day:</span>",
+                unsafe_allow_html=True
+            )
             idx = st.selectbox(
-                "Choose your lesson/day:",
+                "",  # label hidden
                 range(len(schedule)),
                 format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
             )
-            
+
         st.divider()
+
+        # Progress Bar
+        total = len(schedule)
+        done = idx + 1
+        pct = int(done / total * 100) if total else 0
+        st.progress(pct)
+        st.markdown(f"**You’ve loaded {done} / {total} lessons ({pct}%)**")
+        st.divider()
+
+        # Recommended time
+        LEVEL_TIME = {"A1": 15, "A2": 25, "B1": 30, "B2": 40, "C1": 45}
+        rec_time = LEVEL_TIME.get(student_level, 20)
+        st.info(f"⏱️ **Recommended:** Invest about {rec_time} minutes to complete this lesson fully.")
         
-        # ===== Progress Bar (just for scrolling/selection) =====
-        total_assignments = len(schedule)
-        assignments_done = idx + 1
-        percent = int((assignments_done / total_assignments) * 100) if total_assignments else 0
-        st.progress(percent)
-        st.markdown(f"**You’ve loaded {assignments_done} / {total_assignments} lessons ({percent}%)**")
-
-        st.divider()
-
-        # ===== Estimated time for just this lesson =====
-        LEVEL_TIME = {
-            "A1": 15,
-            "A2": 25,
-            "B1": 30,
-            "B2": 40,
-            "C1": 45
-        }
-        current_time = LEVEL_TIME.get(student_level, 20)
-        st.info(f"⏱️ **Recommended:** Invest about {current_time} minutes to complete this lesson fully.")
-
-        # ====== SUGGESTED END DATE CALCULATION (THREE PACES) ======
-        contract_start_str = student_row.get('ContractStart', '')
-        contract_start_date = None
+        # Suggested end dates
+        start_str = student_row.get("ContractStart", "")
+        start_date = None
         for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d/%m/%Y"):
             try:
-                contract_start_date = datetime.strptime(contract_start_str, fmt).date()
+                start_date = datetime.strptime(start_str, fmt).date()
                 break
-            except Exception:
+            except:
                 continue
 
-        if contract_start_date:
-            # 3 per week
-            weeks_3 = (total_assignments + 2) // 3
-            end_3 = contract_start_date + timedelta(weeks=weeks_3)
-            # 2 per week
-            weeks_2 = (total_assignments + 1) // 2
-            end_2 = contract_start_date + timedelta(weeks=weeks_2)
-            # 1 per week
-            weeks_1 = total_assignments
-            end_1 = contract_start_date + timedelta(weeks=weeks_1)
+        if start_date:
+            # calculate how many weeks for each pace
+            weeks_three = (total + 2) // 3
+            weeks_two   = (total + 1) // 2
+            weeks_one   = total
 
-            st.success(f"🎯 **At 3 lessons/week, you can finish by:** {end_3.strftime('%A, %d %b %Y')}")
-            st.info(f"🟢 **At 2 lessons/week, you can finish by:** {end_2.strftime('%A, %d %b %Y')}")
-            st.warning(f"🟡 **At 1 lesson/week, you can finish by:** {end_1.strftime('%A, %d %b %Y')}")
-            st.caption("Stay consistent – choose your pace and finish on time.")
+            end_three = start_date + timedelta(weeks=weeks_three)
+            end_two   = start_date + timedelta(weeks=weeks_two)
+            end_one   = start_date + timedelta(weeks=weeks_one)
+
+            # indent right with a spacer column
+            spacer, content = st.columns([3, 7])
+            with content:
+                st.success(
+                    f"If you complete **three sessions per week**, you will finish by **{end_three.strftime('%A, %d %B %Y')}**."
+                )
+                st.info(
+                    f"If you complete **two sessions per week**, you will finish by **{end_two.strftime('%A, %d %B %Y')}**."
+                )
+                st.warning(
+                    f"If you complete **one session per week**, you will finish by **{end_one.strftime('%A, %d %B %Y')}**."
+                )
         else:
-            st.warning("❓ Start date missing or wrong format. Please contact admin to update your contract start date for end date suggestion.")
+            spacer, content = st.columns([3, 7])
+            with content:
+                st.warning(
+                    "❓ Start date missing or invalid. Please update your contract start date."
+                )
+#
 
         info = schedule[idx]
+        # ---- Fix for highlight and header ----
+        lesson_title = f"Day {info['day']}: {info['topic']}"
+        highlighted_title = highlight_terms(lesson_title, search_terms)
         st.markdown(
-            f"### {highlight_terms('Day ' + str(info['day']) + ': ' + info['topic'], search_terms)} (Chapter {info['chapter']})",
+            f"### {highlighted_title} (Chapter {info['chapter']})",
             unsafe_allow_html=True
         )
         st.divider()
-        
-        if info.get('grammar_topic'):
-            st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
-        if info.get('goal'):
+
+        if info.get("grammar_topic"):
+            st.markdown(
+                f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}",
+                unsafe_allow_html=True
+            )
+        if info.get("goal"):
             st.markdown(f"**🎯 Goal:**  {info['goal']}")
-        if info.get('instruction'):
+        if info.get("instruction"):
             st.markdown(f"**📝 Instruction:**  {info['instruction']}")
 
-        render_section(info, 'lesen_hören', 'Lesen & Hören', '📚')
-        render_section(info, 'schreiben_sprechen', 'Schreiben & Sprechen', '📝')
+        # --- YouTube main link (clickable) ---
+        if info.get("youtube_link"):
+            st.markdown(f"[▶️ YouTube Link]({info['youtube_link']})")
 
-        if student_level in ['A2', 'B1', 'B2', 'C1']:
+        # ---- RENDER SECTION: lesen_hören, schreiben_sprechen, each with fallback YouTube link ----
+        def render_section(day_info, key, title, icon):
+            content = day_info.get(key)
+            if not content:
+                return
+            items = content if isinstance(content, list) else [content]
+            st.markdown(f"#### {icon} {title}")
+            for idx, part in enumerate(items):
+                if len(items) > 1:
+                    st.markdown(
+                        f"###### {icon} Part {idx+1} of {len(items)}: Chapter {part.get('chapter','')}"
+                    )
+                # --- Embed video and show link if available ---
+                if part.get('video'):
+                    st.video(part['video'])
+                    st.markdown(f"[▶️ Watch on YouTube]({part['video']})")
+                # --- Also support explicit youtube_link (if different from 'video') ---
+                elif part.get('youtube_link'):
+                    st.markdown(f"[▶️ Watch on YouTube]({part['youtube_link']})")
+                if part.get('grammarbook_link'):
+                    st.markdown(f"- [📘 Grammar Book (Notes)]({part['grammarbook_link']})")
+                    st.markdown(
+                        '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
+                        unsafe_allow_html=True
+                    )
+                if part.get('workbook_link'):
+                    st.markdown(f"- [📒 Workbook (Assignment)]({part['workbook_link']})")
+                    render_assignment_reminder()
+                extras = part.get('extra_resources')
+                if extras:
+                    for ex in (extras if isinstance(extras, list) else [extras]):
+                        st.markdown(f"- [🔗 Extra]({ex})")
+
+        render_section(info, "lesen_hören", "Lesen & Hören", "📚")
+        render_section(info, "schreiben_sprechen", "Schreiben & Sprechen", "📝")
+
+        # ---- Show resource links for upper levels if needed ----
+        if student_level in ["A2", "B1", "B2", "C1"]:
             for res, label in RESOURCE_LABELS.items():
                 val = info.get(res)
                 if val:
-                    if res == 'video':
+                    if res == "video":
                         st.video(val)
+                        st.markdown(f"[▶️ Watch on YouTube]({val})")
                     else:
                         st.markdown(f"- [{label}]({val})", unsafe_allow_html=True)
             st.markdown(
                 '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
                 unsafe_allow_html=True
             )
-            
+
         st.divider()
+
         
         # --- Translation Links Only ---
         st.markdown("---")
@@ -6642,6 +6817,69 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
