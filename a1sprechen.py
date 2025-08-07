@@ -234,57 +234,11 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
     return videos
 
 
-# ==== STUDENT SHEET LOADING & SESSION SETUP ====
-GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
-
-@st.cache_data
-def load_student_data():
-    try:
-        resp = requests.get(GOOGLE_SHEET_CSV, timeout=10)
-        resp.raise_for_status()
-        df = pd.read_csv(io.StringIO(resp.text), dtype=str)
-    except Exception:
-        st.error("❌ Could not load student data.")
-        st.stop()
-    df.columns = df.columns.str.strip().str.replace(" ", "")
-    for col in df.columns:
-        df[col] = df[col].astype(str).str.strip()
-    df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]
-    df["ContractEnd_dt"] = pd.to_datetime(
-        df["ContractEnd"], format="%m/%d/%Y", errors="coerce", dayfirst=False
-    )
-    mask = df["ContractEnd_dt"].isna()
-    df.loc[mask, "ContractEnd_dt"] = pd.to_datetime(
-        df.loc[mask, "ContractEnd"], format="%d/%m/%Y", errors="coerce", dayfirst=True
-    )
-    df = df.sort_values("ContractEnd_dt", ascending=False)
-    df = df.drop_duplicates(subset=["StudentCode"], keep="first")
-    df = df.drop(columns=["ContractEnd_dt"])
-    return df
-
-def is_contract_expired(row):
-    expiry_str = str(row.get("ContractEnd", "")).strip()
-    if not expiry_str or expiry_str.lower() == "nan":
-        return True
-    expiry_date = None
-    for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
-        try:
-            expiry_date = datetime.strptime(expiry_str, fmt)
-            break
-        except ValueError:
-            continue
-    if expiry_date is None:
-        parsed = pd.to_datetime(expiry_str, errors="coerce")
-        if pd.isnull(parsed): return True
-        expiry_date = parsed.to_pydatetime()
-    today = datetime.now().date()
-    return expiry_date.date() < today
 
 # ————————————————————————————————————————————————————————
 # 0) Cookie + localStorage “SSO” Setup (Works on iPhone/Safari/Chrome/Android)
 # ————————————————————————————————————————————————————————
-import urllib.parse
-from datetime import datetime, timedelta
+
 
 def _expire_str(dt: datetime) -> str:
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
@@ -351,6 +305,7 @@ components.html("""
 params = st.query_params
 if "student_code" in params and params["student_code"]:
     sc = params["student_code"][0].strip().lower() if isinstance(params["student_code"], list) else params["student_code"].strip().lower()
+
     COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
     if not COOKIE_SECRET:
         st.stop()
@@ -359,11 +314,17 @@ if "student_code" in params and params["student_code"]:
     if not cookies_ready:
         st.warning("Cookies not ready; please refresh.")
         st.stop()
-    # ✅ Use helper instead of raw .set()
-    set_student_code_cookie(cookie_manager, sc, expires=datetime.utcnow() + timedelta(days=180))
-    # Clear student_code param from URL and re-run just ONCE
-    st.query_params.clear()
-    st.rerun()
+
+    # Only do the cookie write + rerun ONCE per session
+    if not st.session_state.get("cookie_synced", False):
+        set_student_code_cookie(cookie_manager, sc, expires=datetime.utcnow() + timedelta(days=180))
+        st.query_params.clear()
+        st.session_state["cookie_synced"] = True   # mark handshake done
+        st.rerun()
+    else:
+        # Already synced this session: just remove the param and keep going
+        st.query_params.clear()
+
 
 # 3) Normal cookie manager init (for all further cookie reads/writes)
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
@@ -376,6 +337,7 @@ if not cookies_ready:
     st.warning("Cookies not ready; please refresh.")
     st.stop()
 
+
 # 4) Ensure all needed session_state keys exist
 for key, default in [
     ("logged_in", False),
@@ -385,28 +347,31 @@ for key, default in [
 ]:
     st.session_state.setdefault(key, default)
 
-# 5) Try auto-login from cookie
-code_from_cookie = (cookie_manager.get("student_code") or "").strip().lower()
-if not st.session_state["logged_in"] and code_from_cookie:
-    df_students = load_student_data()
-    df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
-    found = df_students[df_students["StudentCode"] == code_from_cookie]
-    if not found.empty:
-        student_row = found.iloc[0]
-        if not is_contract_expired(student_row):
-            st.session_state.update({
-                "logged_in": True,
-                "student_row": student_row.to_dict(),
-                "student_code": student_row["StudentCode"],
-                "student_name": student_row["Name"]
-            })
-        else:
-            # Expired contract: clear cookie AND localStorage
-            set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
-            components.html("<script>localStorage.removeItem('student_code');</script>", height=0)
-            st.error("Your contract has expired. Please contact the office.")
-            st.stop()
+# 4.5) Restore login from cookie BEFORE showing any public page
+if not st.session_state.get("logged_in", False):
+    code = (cookie_manager.get("student_code") or "").strip().lower()
+    if code:
+        try:
+            df_students = load_student_data()
+            df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
+            found = df_students[df_students["StudentCode"] == code]
+        except Exception:
+            found = pd.DataFrame()
 
+        if not found.empty:
+            student_row = found.iloc[0]
+            if not is_contract_expired(student_row):
+                st.session_state.update({
+                    "logged_in": True,
+                    "student_row": student_row.to_dict(),
+                    "student_code": student_row["StudentCode"],
+                    "student_name": student_row["Name"]
+                })
+            else:
+                # Expired contract: clear cookie AND localStorage early to avoid loops
+                set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
+                components.html("<script>localStorage.removeItem('student_code');</script>", height=0)
+                # (Do not stop here; let the public page render)
 
 
 # --- 1) Page config & session init ---------------------------------------------
@@ -706,6 +671,13 @@ if st.button("Log out"):
         expires=datetime.utcnow() - timedelta(seconds=1),
     )
 
+    # Also delete directly from cookie_manager if supported
+    try:
+        cookie_manager.delete("student_code")
+        cookie_manager.save()
+    except Exception:
+        pass
+
     # Determine the actual cookie name used by your manager (prefix + key)
     _prefix = getattr(cookie_manager, "prefix", "") or ""
     _cookie_name = f"{_prefix}student_code"
@@ -744,10 +716,10 @@ if st.button("Log out"):
     """, height=0)
 
     # 3) Clear Streamlit session state immediately
-    for k in ["logged_in", "student_row", "student_code", "student_name"]:
+    for k in ["logged_in", "student_row", "student_code", "student_name", "cookie_synced"]:
         st.session_state[k] = False if k == "logged_in" else ""
 
-    # Optional: server-side mirror of query param removal (belt & suspenders)
+    # Optional: server-side mirror of query param removal
     try:
         st.query_params.clear()
     except Exception:
