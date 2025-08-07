@@ -280,10 +280,47 @@ def is_contract_expired(row):
     today = datetime.now().date()
     return expiry_date.date() < today
 
-
 # ————————————————————————————————————————————————————————
 # 0) Cookie + localStorage “SSO” Setup (Works on iPhone/Safari/Chrome/Android)
 # ————————————————————————————————————————————————————————
+import urllib.parse
+from datetime import datetime, timedelta
+
+def _expire_str(dt: datetime) -> str:
+    return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
+    """
+    Set 'student_code' cookie with Secure + SameSite=None when possible.
+    Falls back to dict assignment + JS set-cookie if .set() is unavailable.
+    """
+    key = "student_code"
+    if hasattr(cookie_manager, "set"):
+        try:
+            cookie_manager.set(
+                key,
+                (value or "").strip().lower(),
+                expires=expires,
+                secure=True,
+                samesite="None",
+            )
+            cookie_manager.save()
+            return
+        except Exception:
+            pass
+    cookie_manager[key] = (value or "").strip().lower()
+    cookie_manager.save()
+    try:
+        prefix = getattr(cookie_manager, "prefix", "") or ""
+    except Exception:
+        prefix = ""
+    full_name = f"{prefix}student_code"
+    encoded_val = urllib.parse.quote((value or "").strip().lower())
+    exp_str = _expire_str(expires)
+    components.html(
+        f"<script>document.cookie = \"{full_name}={encoded_val}; Expires={exp_str}; Path=/; SameSite=None; Secure\";</script>",
+        height=0
+    )
 
 # 1) Push localStorage.student_code → URL query param via JS
 components.html("""
@@ -301,19 +338,20 @@ components.html("""
 </script>
 """, height=0)
 
-# 2) Read student_code from URL, save to cookie, then rerun ONCE to clear the param
+# 2) Read student_code from URL, save to cookie (secure), then rerun ONCE to clear the param
 params = st.query_params
 if "student_code" in params and params["student_code"]:
-    # st.query_params always returns a list for each key
     sc = params["student_code"][0].strip().lower() if isinstance(params["student_code"], list) else params["student_code"].strip().lower()
     COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
     if not COOKIE_SECRET:
         st.stop()
     cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
-    cookie_manager.ready()
-    # Persist cookie for max (180 days)
-    cookie_manager["student_code"] = sc
-    cookie_manager.save()
+    cookies_ready = cookie_manager.ready()  # Only call once!
+    if not cookies_ready:
+        st.warning("Cookies not ready; please refresh.")
+        st.stop()
+    # ✅ Use helper instead of raw .set()
+    set_student_code_cookie(cookie_manager, sc, expires=datetime.utcnow() + timedelta(days=180))
     # Clear student_code param from URL and re-run just ONCE
     st.query_params.clear()
     st.rerun()
@@ -324,8 +362,8 @@ if not COOKIE_SECRET:
     st.error("Cookie secret missing.")
     st.stop()
 cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
-cookie_manager.ready()
-if not cookie_manager.ready():
+cookies_ready = cookie_manager.ready()  # Only call once per session!
+if not cookies_ready:
     st.warning("Cookies not ready; please refresh.")
     st.stop()
 
@@ -338,7 +376,7 @@ for key, default in [
 ]:
     st.session_state.setdefault(key, default)
 
-# 5) Try auto-login from cookie (no repeated save needed here!)
+# 5) Try auto-login from cookie
 code_from_cookie = (cookie_manager.get("student_code") or "").strip().lower()
 if not st.session_state["logged_in"] and code_from_cookie:
     df_students = load_student_data()
@@ -354,12 +392,12 @@ if not st.session_state["logged_in"] and code_from_cookie:
                 "student_name": student_row["Name"]
             })
         else:
-            # Expired contract: clear cookie AND localStorage, then stop
-            cookie_manager["student_code"] = ""
-            cookie_manager.save()
+            # Expired contract: clear cookie AND localStorage
+            set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
             components.html("<script>localStorage.removeItem('student_code');</script>", height=0)
             st.error("Your contract has expired. Please contact the office.")
             st.stop()
+
 
 
 # --- 1) Page config & session init ---------------------------------------------
@@ -428,19 +466,30 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
+
 # --- Save student code to cookie AND localStorage after login ---
 def save_cookie_after_login(student_code):
-    # 1) Persistent cookie
-    cookie_manager["student_code"] = student_code
-    cookie_manager.save()
-    # 2) Mirror into localStorage (for iOS/Safari/tab switch reliability)
+    # Normalize once
+    value = str(student_code).strip().lower()
+
+    # 1) Persistent cookie (Safari/Chrome iOS require Secure + SameSite=None)
+    # Uses helper that falls back if cookie_manager.set(...) isn't available
+    set_student_code_cookie(
+        cookie_manager,
+        value,
+        expires=datetime.utcnow() + timedelta(days=180),
+    )
+
+    # 2) Mirror into localStorage (fallback/resilience on iOS/Safari)
+    # Use JSON encoding to avoid any quoting/XSS issues.
+    safe_code = json.dumps(value)
     components.html(
-        f"<script>localStorage.setItem('student_code','{student_code}');</script>",
+        f"<script>localStorage.setItem('student_code', {safe_code});</script>",
         height=0
     )
 
 if not st.session_state.get("logged_in", False):
-    # Support / Help section
+    # Support / Help section (unchanged)
     st.markdown("""
     <div class="help-contact-box">
       <b>❓ Need help or access?</b><br>
@@ -495,24 +544,26 @@ if not st.session_state.get("logged_in", False):
         </div>
         """, unsafe_allow_html=True)
 
-   
-
-        # --- Returning Student Tab (Google + manual login) ---
+    # --- Returning Student Tab (Google + manual login) ---
     with tab1:
         do_google_oauth()
         st.markdown("<div style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
         with st.form("login_form", clear_on_submit=False):
-            login_id   = st.text_input("Student Code or Email")
-            login_pass = st.text_input("Password", type="password")
-            login_btn  = st.form_submit_button("Log In")
+            login_id_input   = st.text_input("Student Code or Email")
+            login_pass_input = st.text_input("Password", type="password")
+            login_btn        = st.form_submit_button("Log In")
 
         if login_btn:
+            # Normalize AFTER submit
+            login_id   = (login_id_input or "").strip().lower()
+            login_pass = (login_pass_input or "")
+
             df = load_student_data()
             df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
             df["Email"]       = df["Email"].str.lower().str.strip()
             lookup = df[
-                (df["StudentCode"] == login_id.lower()) |
-                (df["Email"]       == login_id.lower())
+                (df["StudentCode"] == login_id) |
+                (df["Email"]       == login_id)
             ]
 
             if lookup.empty:
@@ -522,22 +573,40 @@ if not st.session_state.get("logged_in", False):
                 if is_contract_expired(student_row):
                     st.error("Your contract has expired. Contact the office.")
                 else:
-                    doc = db.collection("students").document(student_row["StudentCode"]).get()
+                    doc_ref = db.collection("students").document(student_row["StudentCode"])
+                    doc     = doc_ref.get()
                     if not doc.exists:
                         st.error("Account not found. Please create one below.")
                     else:
-                        data = doc.to_dict()
-                        if data.get("password") != login_pass:
+                        data       = doc.to_dict() or {}
+                        stored_pw  = data.get("password", "")
+
+                        import bcrypt
+                        def _is_bcrypt_hash(s: str) -> bool:
+                            return isinstance(s, str) and s.startswith(("$2a$", "$2b$", "$2y$")) and len(s) >= 60
+
+                        ok = False
+                        try:
+                            if _is_bcrypt_hash(stored_pw):
+                                ok = bcrypt.checkpw(login_pass.encode("utf-8"), stored_pw.encode("utf-8"))
+                            else:
+                                # Legacy plaintext support + one-time migration to bcrypt
+                                ok = (stored_pw == login_pass)
+                                if ok:
+                                    new_hash = bcrypt.hashpw(login_pass.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+                                    doc_ref.update({"password": new_hash})
+                        except Exception:
+                            ok = False
+
+                        if not ok:
                             st.error("Incorrect password.")
                         else:
-                            # Convert Series → dict for session
                             st.session_state.update({
                                 "logged_in":   True,
                                 "student_row": dict(student_row),
                                 "student_code": student_row["StudentCode"],
                                 "student_name": student_row["Name"]
                             })
-                            # Persist login in cookie + localStorage
                             save_cookie_after_login(student_row["StudentCode"])
                             st.success(f"Welcome, {student_row['Name']}!")
                             st.rerun()
@@ -545,15 +614,22 @@ if not st.session_state.get("logged_in", False):
     # --- New Student Tab (signup) ---
     with tab2:
         with st.form("signup_form", clear_on_submit=False):
-            new_name     = st.text_input("Full Name", key="ca_name")
-            new_email    = st.text_input("Email (must match teacher’s record)", key="ca_email").strip().lower()
-            new_code     = st.text_input("Student Code (from teacher)", key="ca_code").strip().lower()
-            new_password = st.text_input("Choose a Password", type="password", key="ca_pass")
-            signup_btn   = st.form_submit_button("Create Account")
+            new_name_input     = st.text_input("Full Name", key="ca_name")
+            new_email_input    = st.text_input("Email (must match teacher’s record)", key="ca_email")
+            new_code_input     = st.text_input("Student Code (from teacher)", key="ca_code")
+            new_password_input = st.text_input("Choose a Password", type="password", key="ca_pass")
+            signup_btn         = st.form_submit_button("Create Account")
 
         if signup_btn:
+            new_name     = (new_name_input or "").strip()
+            new_email    = (new_email_input or "").strip().lower()
+            new_code     = (new_code_input or "").strip().lower()
+            new_password = (new_password_input or "")
+
             if not (new_name and new_email and new_code and new_password):
                 st.error("Please fill in all fields.")
+            elif len(new_password) < 8:
+                st.error("Password must be at least 8 characters.")
             else:
                 df = load_student_data()
                 df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
@@ -565,12 +641,19 @@ if not st.session_state.get("logged_in", False):
                 if valid.empty:
                     st.error("Your code/email aren’t registered. Ask your teacher to add you first.")
                 else:
-                    db.collection("students").document(new_code).set({
-                        "name":     new_name,
-                        "email":    new_email,
-                        "password": new_password
-                    })
-                    st.success("Account created! Please log in above.")
+                    doc_ref = db.collection("students").document(new_code)
+                    if doc_ref.get().exists:
+                        st.error("An account with this student code already exists. Please log in instead.")
+                    else:
+                        import bcrypt
+                        hashed_pw = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+                        doc_ref.set({
+                            "name":     new_name,
+                            "email":    new_email,
+                            "password": hashed_pw
+                        })
+                        st.success("Account created! Please log in above.")
+# 
 
 
 
@@ -607,10 +690,14 @@ if not st.session_state.get("logged_in", False):
 
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
+
 if st.button("Log out"):
-    # 1) Clear persistent cookie
-    cookie_manager["student_code"] = ""
-    cookie_manager.save()
+    # 1) Clear persistent cookie (expire immediately; Safari-safe)
+    set_student_code_cookie(
+        cookie_manager,
+        "",
+        expires=datetime.utcnow() - timedelta(seconds=1),
+    )
 
     # 2) Clear localStorage for cross-tab/iOS persistence
     components.html(
@@ -624,7 +711,6 @@ if st.button("Log out"):
 
     st.success("You have been logged out.")
     st.rerun()
-
 
 
 
@@ -4885,23 +4971,46 @@ if tab == "Exams Mode & Custom Chat":
     # ==========================
     # FIRESTORE CHAT HELPERS
     # ==========================
+    def _chat_key(mode: str, level: str, teil: str | None) -> str:
+        return f"{mode}_{level}_{(teil or 'custom')}"
+
     def save_falowen_chat(student_code, mode, level, teil, messages):
         doc_ref = db.collection("falowen_chats").document(student_code)
-        doc = doc_ref.get()
-        data = doc.to_dict() if doc.exists else {}
-        chats = data.get("chats", {})
-        chat_key = f"{mode}_{level}_{teil or 'custom'}"
-        chats[chat_key] = messages
+        snap = doc_ref.get()
+        chats = snap.to_dict().get("chats", {}) if snap.exists else {}
+        chats[_chat_key(mode, level, teil)] = messages
         doc_ref.set({"chats": chats}, merge=True)
 
     def load_falowen_chat(student_code, mode, level, teil):
         doc_ref = db.collection("falowen_chats").document(student_code)
-        doc = doc_ref.get()
-        if not doc.exists:
+        snap = doc_ref.get()
+        if not snap.exists:
             return []
-        chats = doc.to_dict().get("chats", {})
-        chat_key = f"{mode}_{level}_{teil or 'custom'}"
-        return chats.get(chat_key, [])
+        chats = (snap.to_dict() or {}).get("chats", {})
+        return chats.get(_chat_key(mode, level, teil), [])
+
+    def clear_falowen_chat(student_code, mode, level, teil):
+        """Delete ONLY the current chat thread (mode/level/teil). If it's the last one, remove the doc."""
+        doc_ref = db.collection("falowen_chats").document(student_code)
+        snap = doc_ref.get()
+        if not snap.exists:
+            return
+        data = snap.to_dict() or {}
+        chats = data.get("chats", {})
+        key = _chat_key(mode, level, teil)
+        if key in chats:
+            del chats[key]
+            if chats:
+                doc_ref.set({"chats": chats}, merge=False)
+            else:
+                doc_ref.delete()
+
+    def back_step():
+        """Go one step back in your wizard flow."""
+        st.session_state["falowen_stage"] = 3
+        st.session_state["falowen_messages"] = []
+        st.session_state["_falowen_loaded"] = False
+        st.rerun()
 
     # ---- STAGE 4: MAIN CHAT ----
     if st.session_state.get("falowen_stage") == 4:
@@ -4951,7 +5060,7 @@ if tab == "Exams Mode & Custom Chat":
             return None
 
         # Render chat
-        msgs = [ensure_message_format(m) for m in st.session_state["falowen_messages"]]
+        msgs = [ensure_message_format(m) for m in st.session_state.get("falowen_messages", [])]
         st.session_state["falowen_messages"] = [m for m in msgs if m]
 
         for msg in st.session_state["falowen_messages"]:
@@ -4995,18 +5104,20 @@ if tab == "Exams Mode & Custom Chat":
                 mime="text/plain"
             )
 
-            # Session buttons (with backup clear on restart)
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                if st.button("Restart Chat"):
-                    # Clear the backed up chat for this mode/level/teil in Firestore
-                    clear_falowen_chat(
-                        st.session_state.get("student_code", "demo"),
-                        st.session_state.get("falowen_mode"),
-                        st.session_state.get("falowen_level"),
-                        st.session_state.get("falowen_teil")
-                    )
-                    # Clear all relevant Streamlit session_state keys for a full reset
+        # Action buttons (Delete + Back)
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("🗑️ Delete All Chat History"):
+                try:
+                    # Prefer per-thread clear if you want only the current thread gone:
+                    # clear_falowen_chat(student_code, mode, level, teil)
+                    # If you truly want EVERYTHING for this student removed:
+                    db.collection("falowen_chats").document(student_code).delete()
+                except Exception as e:
+                    st.error(f"Could not delete chat history: {e}")
+                else:
+                    # Clear local session state so UI resets
                     for key in [
                         "falowen_stage", "falowen_mode", "falowen_level", "falowen_teil",
                         "falowen_messages", "custom_topic_intro_done", "falowen_exam_topic",
@@ -5014,19 +5125,13 @@ if tab == "Exams Mode & Custom Chat":
                     ]:
                         if key in st.session_state:
                             del st.session_state[key]
-                    # Also reset local chat history immediately
-                    st.session_state["falowen_messages"] = []
-                    # Set the stage back to initial
                     st.session_state["falowen_stage"] = 1
+                    st.success("All chat history deleted.")
                     st.rerun()
-            with col2:
-                if st.button("Back"):
-                    back_step()
-            with col3:
-                if st.button("Change Level"):
-                    change_level()
-#
 
+        with col2:
+            if st.button("⬅️ Back"):
+                back_step()
 
         # Initial instruction if chat is empty
         if not st.session_state["falowen_messages"]:
@@ -5056,8 +5161,6 @@ if tab == "Exams Mode & Custom Chat":
                 system_prompt = base_prompt
         else:
             system_prompt = build_custom_chat_prompt(level)
-#
-
 
         # Chat input & assistant response
         user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
@@ -5108,7 +5211,8 @@ if tab == "Exams Mode & Custom Chat":
     if st.session_state.get("falowen_stage") == 5:
         st.success("🎉 Practice Session Complete!")
         st.markdown("#### Your Exam Summary")
-        # Example: Show all chat (or generate summary, scores, etc.)
+
+        # Show transcript
         if st.session_state.get("falowen_messages"):
             for msg in st.session_state["falowen_messages"]:
                 who = "👨‍🎓 You" if msg["role"] == "user" else "🧑‍🏫 Herr Felix"
@@ -5116,17 +5220,21 @@ if tab == "Exams Mode & Custom Chat":
 
         # Download options (PDF/TXT)
         if st.session_state.get("falowen_messages"):
-            teil_str = str(st.session_state.get('falowen_teil', '')) if st.session_state.get('falowen_teil', '') else "chat"
+            teil_str = str(st.session_state.get("falowen_teil") or "chat")
+            level_str = str(st.session_state.get("falowen_level") or "")
+            filename_base = f"Falowen_Chat_{level_str}_{teil_str.replace(' ', '_')}"
+
             pdf_bytes = falowen_download_pdf(
                 st.session_state["falowen_messages"],
-                f"Falowen_Chat_{st.session_state.get('falowen_level','')}_{teil_str.replace(' ','_')}"
+                filename_base
             )
             st.download_button(
                 "⬇️ Download Chat as PDF",
                 pdf_bytes,
-                file_name=f"Falowen_Chat_{st.session_state.get('falowen_level','')}_{teil_str.replace(' ','_')}.pdf",
+                file_name=f"{filename_base}.pdf",
                 mime="application/pdf"
             )
+
             chat_as_text = "\n".join([
                 f"{msg['role'].capitalize()}: {msg['content']}"
                 for msg in st.session_state["falowen_messages"]
@@ -5134,28 +5242,14 @@ if tab == "Exams Mode & Custom Chat":
             st.download_button(
                 "⬇️ Download Chat as TXT",
                 chat_as_text.encode("utf-8"),
-                file_name=f"Falowen_Chat_{st.session_state.get('falowen_level','')}_{teil_str.replace(' ','_')}.txt",
+                file_name=f"{filename_base}.txt",
                 mime="text/plain"
             )
 
-        # --- Navigation buttons ---
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🔄 Restart Practice"):
-                # Reset everything
-                for key in ["falowen_stage", "falowen_mode", "falowen_level", "falowen_teil", "falowen_messages",
-                            "custom_topic_intro_done", "falowen_exam_topic", "falowen_exam_keyword",
-                            "remaining_topics", "used_topics", "_falowen_loaded"]:
-                    if key in st.session_state:
-                        del st.session_state[key]
-                st.session_state["falowen_stage"] = 1
-                st.rerun()
-        with col2:
-            if st.button("⬅️ Back to Exam Menu"):
-                st.session_state["falowen_stage"] = 2  # or 3, depending on your flow
-                st.rerun()
+        # Back only (no restart here, per your spec)
+        if st.button("⬅️ Back"):
+            back_step()
 
-#
 
 
     # ---- STAGE 99: Pronunciation & Speaking Checker ----
@@ -5268,12 +5362,12 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("⬅️ Back to Main Menu"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
-#
 
 
 # =========================================
 # End
 # =========================================
+
 
 # =========================================
 # FIRESTORE STATS HELPERS
