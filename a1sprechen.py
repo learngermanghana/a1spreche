@@ -6,6 +6,7 @@ import sqlite3
 import atexit
 import json
 import re
+import streamlit.components.v1 as components
 from datetime import date, datetime, timedelta
 import time
 import io
@@ -4234,6 +4235,18 @@ def highlight_keywords(text, words, ignore_case=True):
         )
     return text
 
+def clear_falowen_chat(student_code, mode, level, teil):
+    """Deletes the saved chat for a particular student/mode/level/teil from Firestore."""
+    chat_key = f"{mode}_{level}_{teil or 'custom'}"
+    doc_ref = db.collection("falowen_chats").document(student_code)
+    doc = doc_ref.get()
+    if doc.exists:
+        data = doc.to_dict()
+        chats = data.get("chats", {})
+        if chat_key in chats:
+            del chats[chat_key]
+            doc_ref.set({"chats": chats}, merge=True)
+
 
 if tab == "Exams Mode & Custom Chat":
     # --- UNIQUE LOGIN & SESSION ISOLATION BLOCK (inserted at the top) ---
@@ -4345,6 +4358,7 @@ if tab == "Exams Mode & Custom Chat":
             pdf_bytes = f.read()
         os.remove(pdf_output)
         return pdf_bytes
+
 
     # ---- PROMPT BUILDERS (ALL LOGIC) ----
     def build_a1_exam_intro():
@@ -4969,30 +4983,52 @@ if tab == "Exams Mode & Custom Chat":
                 file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.pdf",
                 mime="application/pdf"
             )
+
             chat_as_text = "\n".join([
                 f"{msg['role'].capitalize()}: {msg['content']}"
                 for msg in st.session_state["falowen_messages"]
             ])
             st.download_button(
                 "⬇️ Download Chat as TXT",
-                chat_as_text.encode("utf-8"),
+                chat_as_text.encode("utf-8"),  # Unicode-safe
                 file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.txt",
                 mime="text/plain"
             )
 
-        # Session buttons
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            if st.button("Restart Chat"):
-                reset_chat()
-        with col2:
-            if st.button("Back"):
-                back_step()
-        with col3:
-            if st.button("Change Level"):
-                change_level()
+            # Session buttons (with backup clear on restart)
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                if st.button("Restart Chat"):
+                    # Clear the backed up chat for this mode/level/teil in Firestore
+                    clear_falowen_chat(
+                        st.session_state.get("student_code", "demo"),
+                        st.session_state.get("falowen_mode"),
+                        st.session_state.get("falowen_level"),
+                        st.session_state.get("falowen_teil")
+                    )
+                    # Clear all relevant Streamlit session_state keys for a full reset
+                    for key in [
+                        "falowen_stage", "falowen_mode", "falowen_level", "falowen_teil",
+                        "falowen_messages", "custom_topic_intro_done", "falowen_exam_topic",
+                        "falowen_exam_keyword", "remaining_topics", "used_topics", "_falowen_loaded"
+                    ]:
+                        if key in st.session_state:
+                            del st.session_state[key]
+                    # Also reset local chat history immediately
+                    st.session_state["falowen_messages"] = []
+                    # Set the stage back to initial
+                    st.session_state["falowen_stage"] = 1
+                    st.rerun()
+            with col2:
+                if st.button("Back"):
+                    back_step()
+            with col3:
+                if st.button("Change Level"):
+                    change_level()
+#
 
-        # Initial instruction
+
+        # Initial instruction if chat is empty
         if not st.session_state["falowen_messages"]:
             instruction = build_exam_instruction(level, teil) if is_exam else (
                 "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
@@ -5020,6 +5056,8 @@ if tab == "Exams Mode & Custom Chat":
                 system_prompt = base_prompt
         else:
             system_prompt = build_custom_chat_prompt(level)
+#
+
 
         # Chat input & assistant response
         user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
