@@ -290,37 +290,46 @@ def _expire_str(dt: datetime) -> str:
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
 def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
-    """
-    Set 'student_code' cookie with Secure + SameSite=None when possible.
-    Falls back to dict assignment + JS set-cookie if .set() is unavailable.
-    """
     key = "student_code"
+    norm = (value or "").strip().lower()
+
+    # Try library .set() if available (no domain control here)
     if hasattr(cookie_manager, "set"):
         try:
             cookie_manager.set(
-                key,
-                (value or "").strip().lower(),
+                key, norm,
                 expires=expires,
                 secure=True,
                 samesite="None",
             )
             cookie_manager.save()
-            return
         except Exception:
+            # fall through to JS
             pass
-    cookie_manager[key] = (value or "").strip().lower()
-    cookie_manager.save()
-    try:
-        prefix = getattr(cookie_manager, "prefix", "") or ""
-    except Exception:
-        prefix = ""
-    full_name = f"{prefix}student_code"
-    encoded_val = urllib.parse.quote((value or "").strip().lower())
-    exp_str = _expire_str(expires)
-    components.html(
-        f"<script>document.cookie = \"{full_name}={encoded_val}; Expires={exp_str}; Path=/; SameSite=None; Secure\";</script>",
-        height=0
-    )
+    else:
+        cookie_manager[key] = norm
+        cookie_manager.save()
+
+    # Always reinforce with JS so we control Domain
+    import urllib.parse
+    encoded_val = urllib.parse.quote(norm)
+    exp_str = expires.strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+    components.html(f"""
+    <script>
+      (function() {{
+        try {{
+          const host = window.location.hostname;         // e.g. "www.falowen.app" or "falowen.app"
+          const parts = host.split('.');
+          const base = parts.length >= 2 ? parts.slice(-2).join('.') : host;  // "falowen.app"
+          // Write both host-only and base-domain cookies
+          document.cookie = "{getattr(cookie_manager,'prefix','') or ''}student_code={encoded_val}; Expires={exp_str}; Path=/; SameSite=None; Secure";
+          document.cookie = "{getattr(cookie_manager,'prefix','') or ''}student_code={encoded_val}; Expires={exp_str}; Path=/; Domain=."+base+"; SameSite=None; Secure";
+        }} catch(e) {{}}
+      }})();
+    </script>
+    """, height=0)
+
 
 # 1) Push localStorage.student_code → URL query param via JS
 components.html("""
@@ -653,8 +662,6 @@ if not st.session_state.get("logged_in", False):
                             "password": hashed_pw
                         })
                         st.success("Account created! Please log in above.")
-# 
-
 
 
     # --- Autoplay Video Demo (insert before Quick Links/footer) ---
@@ -692,26 +699,62 @@ if not st.session_state.get("logged_in", False):
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 
 if st.button("Log out"):
-    # 1) Clear persistent cookie (expire immediately; Safari-safe)
+    # 1) Kill the cookie immediately (server side; keeps flags consistent)
     set_student_code_cookie(
         cookie_manager,
         "",
         expires=datetime.utcnow() - timedelta(seconds=1),
     )
 
-    # 2) Clear localStorage for cross-tab/iOS persistence
-    components.html(
-        "<script>localStorage.removeItem('student_code');</script>",
-        height=0
-    )
+    # Determine the actual cookie name used by your manager (prefix + key)
+    _prefix = getattr(cookie_manager, "prefix", "") or ""
+    _cookie_name = f"{_prefix}student_code"
 
-    # 3) Clear Streamlit session state
+    # 2) Clear localStorage + URL param + BOTH cookie scopes, then reload page
+    components.html(f"""
+    <script>
+      (function() {{
+        try {{
+          // Remove local fallback
+          localStorage.removeItem('student_code');
+
+          // Remove ?student_code=... from URL without adding to history
+          const url = new URL(window.location);
+          if (url.searchParams.has('student_code')) {{
+            url.searchParams.delete('student_code');
+            window.history.replaceState({{}}, '', url);
+          }}
+
+          // Compute base domain (e.g., "falowen.app") from current host
+          const host = window.location.hostname;                  // "www.falowen.app" or "falowen.app"
+          const parts = host.split('.');
+          const base = parts.length >= 2 ? parts.slice(-2).join('.') : host;
+
+          // Delete host-only cookie
+          document.cookie = "{_cookie_name}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; SameSite=None; Secure";
+
+          // Delete base-domain cookie (covers www/apex)
+          document.cookie = "{_cookie_name}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=."+base+"; SameSite=None; Secure";
+
+          // Reload so the public (logged-out) view renders immediately
+          window.location.replace(url.pathname + url.search);
+        }} catch (e) {{}}
+      }})();
+    </script>
+    """, height=0)
+
+    # 3) Clear Streamlit session state immediately
     for k in ["logged_in", "student_row", "student_code", "student_name"]:
         st.session_state[k] = False if k == "logged_in" else ""
 
-    st.success("You have been logged out.")
-    st.rerun()
+    # Optional: server-side mirror of query param removal (belt & suspenders)
+    try:
+        st.query_params.clear()
+    except Exception:
+        pass
 
+    # Stop execution; the client-side reload will show the logged-out UI
+    st.stop()
 
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
@@ -5006,11 +5049,21 @@ if tab == "Exams Mode & Custom Chat":
                 doc_ref.delete()
 
     def back_step():
-        """Go one step back in your wizard flow."""
-        st.session_state["falowen_stage"] = 3
-        st.session_state["falowen_messages"] = []
+        """Always return to the main tab selection (Stage 1), regardless of current mode."""
+        # Clear per-run choices so the student can decide again cleanly
+        for key in [
+            "falowen_mode", "falowen_level", "falowen_teil",
+            "falowen_exam_topic", "falowen_exam_keyword",
+            "remaining_topics", "used_topics", "falowen_messages"
+        ]:
+            st.session_state.pop(key, None)
+
+        # Reset flags and go to the home stage
         st.session_state["_falowen_loaded"] = False
+        st.session_state["falowen_stage"] = 1
         st.rerun()
+
+
 
     # ---- STAGE 4: MAIN CHAT ----
     if st.session_state.get("falowen_stage") == 4:
