@@ -279,48 +279,87 @@ def is_contract_expired(row):
     today = datetime.now().date()
     return expiry_date.date() < today
 
-# ---- Cookie & Session Setup ----
+
+# ————————————————————————————————————————————————————————
+# 0) Cookie + localStorage “SSO” Setup (Works on iPhone/Safari/Chrome/Android)
+# ————————————————————————————————————————————————————————
+
+# 1) Push localStorage.student_code → URL query param via JS
+components.html("""
+<script>
+  (function(){
+    const code = localStorage.getItem('student_code');
+    if (code) {
+      const url = new URL(window.location);
+      if (!url.searchParams.get('student_code')) {
+        url.searchParams.set('student_code', code);
+        window.history.replaceState({}, '', url);
+      }
+    }
+  })();
+</script>
+""", height=0)
+
+# 2) Read student_code from URL, save to cookie, then rerun ONCE to clear the param
+params = st.query_params
+if "student_code" in params and params["student_code"]:
+    # st.query_params always returns a list for each key
+    sc = params["student_code"][0].strip().lower() if isinstance(params["student_code"], list) else params["student_code"].strip().lower()
+    COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
+    if not COOKIE_SECRET:
+        st.stop()
+    cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
+    cookie_manager.ready()
+    # Persist cookie for max (180 days)
+    cookie_manager["student_code"] = sc
+    cookie_manager.save()
+    # Clear student_code param from URL and re-run just ONCE
+    st.query_params.clear()
+    st.rerun()
+
+# 3) Normal cookie manager init (for all further cookie reads/writes)
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 if not COOKIE_SECRET:
-    raise ValueError("COOKIE_SECRET environment variable not set")
-
+    st.error("Cookie secret missing.")
+    st.stop()
 cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
 cookie_manager.ready()
 if not cookie_manager.ready():
-    st.warning("Cookies are not ready. Please refresh.")
+    st.warning("Cookies not ready; please refresh.")
     st.stop()
 
-for key, default in [("logged_in", False), ("student_row", None), ("student_code", ""), ("student_name", "")]:
+# 4) Ensure all needed session_state keys exist
+for key, default in [
+    ("logged_in", False),
+    ("student_row", None),
+    ("student_code", ""),
+    ("student_name", "")
+]:
     st.session_state.setdefault(key, default)
 
-code_from_cookie = cookie_manager.get("student_code") or ""
-code_from_cookie = str(code_from_cookie).strip().lower()
-
-# --- Auto-login via Cookie ---
+# 5) Try auto-login from cookie (no repeated save needed here!)
+code_from_cookie = (cookie_manager.get("student_code") or "").strip().lower()
 if not st.session_state["logged_in"] and code_from_cookie:
     df_students = load_student_data()
-    # Normalize for matching
     df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
-    df_students["Email"] = df_students["Email"].str.lower().str.strip()
-
     found = df_students[df_students["StudentCode"] == code_from_cookie]
     if not found.empty:
         student_row = found.iloc[0]
-        if is_contract_expired(student_row):
-            st.error("Your contract has expired. Please contact the office for renewal.")
+        if not is_contract_expired(student_row):
+            st.session_state.update({
+                "logged_in": True,
+                "student_row": student_row.to_dict(),
+                "student_code": student_row["StudentCode"],
+                "student_name": student_row["Name"]
+            })
+        else:
+            # Expired contract: clear cookie AND localStorage, then stop
             cookie_manager["student_code"] = ""
             cookie_manager.save()
+            components.html("<script>localStorage.removeItem('student_code');</script>", height=0)
+            st.error("Your contract has expired. Please contact the office.")
             st.stop()
-        st.session_state.update({
-            "logged_in": True,
-            "student_row": student_row.to_dict(),
-            "student_row": student_row.to_dict(),  
-            "student_code": student_row["StudentCode"],
-            "student_name": student_row["Name"]
-        })
 
-
-import streamlit as st
 
 # --- 1) Page config & session init ---------------------------------------------
 st.set_page_config(
@@ -368,12 +407,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 3) Public Homepage --------------------------------------------------------
-if not st.session_state.logged_in:
+if not st.session_state.get("logged_in", False):
     st.markdown("""
     <div class="hero">
       <h1 style="text-align:center; color:#25317e;">👋 Welcome to <strong>Falowen</strong></h1>
       <p style="text-align:center; font-size:1.1em; color:#555;">
-        Falowen is your all-in-one German learning platform, powered by <b>Learn Language Education Academy</b>, with courses and vocabulary from <b>A1 to C1</b> levels and live tutor support.
+        Falowen is your all-in-one German learning platform, powered by <b>Learn Language Education Academy</b>,
+        with courses and vocabulary from <b>A1 to C1</b> levels and live tutor support.
       </p>
       <ul style="max-width:700px; margin:16px auto; color:#444; font-size:1em; line-height:1.5;">
         <li>📊 <b>Dashboard</b>: Track your learning streaks, assignment progress, active contracts, and more.</li>
@@ -387,8 +427,18 @@ if not st.session_state.logged_in:
     </div>
     """, unsafe_allow_html=True)
 
+# --- Save student code to cookie AND localStorage after login ---
+def save_cookie_after_login(student_code):
+    # 1) Persistent cookie
+    cookie_manager["student_code"] = student_code
+    cookie_manager.save()
+    # 2) Mirror into localStorage (for iOS/Safari/tab switch reliability)
+    components.html(
+        f"<script>localStorage.setItem('student_code','{student_code}');</script>",
+        height=0
+    )
 
-if not st.session_state.logged_in:
+if not st.session_state.get("logged_in", False):
     # Support / Help section
     st.markdown("""
     <div class="help-contact-box">
@@ -398,6 +448,7 @@ if not st.session_state.logged_in:
       <a href="mailto:learngermanghana@gmail.com" target="_blank">✉️ Email</a>
     </div>
     """, unsafe_allow_html=True)
+
 
     # --- 4) Two Tab Login/Signup System ---
     tab1, tab2 = st.tabs(["👋 Returning", "🆕 Sign Up"])
@@ -443,21 +494,26 @@ if not st.session_state.logged_in:
         </div>
         """, unsafe_allow_html=True)
 
+   
 
-    # --- Returning Student Tab (manual login) ---
+        # --- Returning Student Tab (Google + manual login) ---
     with tab1:
+        do_google_oauth()
+        st.markdown("<div style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
         with st.form("login_form", clear_on_submit=False):
             login_id   = st.text_input("Student Code or Email")
             login_pass = st.text_input("Password", type="password")
             login_btn  = st.form_submit_button("Log In")
+
         if login_btn:
             df = load_student_data()
             df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
             df["Email"]       = df["Email"].str.lower().str.strip()
             lookup = df[
                 (df["StudentCode"] == login_id.lower()) |
-                (df["Email"] == login_id.lower())
+                (df["Email"]       == login_id.lower())
             ]
+
             if lookup.empty:
                 st.error("No matching student code or email found.")
             else:
@@ -473,14 +529,15 @@ if not st.session_state.logged_in:
                         if data.get("password") != login_pass:
                             st.error("Incorrect password.")
                         else:
+                            # Convert Series → dict for session
                             st.session_state.update({
-                                "logged_in": True,
-                                "student_row": student_row.to_dict(),
+                                "logged_in":   True,
+                                "student_row": dict(student_row),
                                 "student_code": student_row["StudentCode"],
                                 "student_name": student_row["Name"]
                             })
-                            cookie_manager["student_code"] = student_row["StudentCode"]
-                            cookie_manager.save()
+                            # Persist login in cookie + localStorage
+                            save_cookie_after_login(student_row["StudentCode"])
                             st.success(f"Welcome, {student_row['Name']}!")
                             st.rerun()
 
@@ -492,6 +549,7 @@ if not st.session_state.logged_in:
             new_code     = st.text_input("Student Code (from teacher)", key="ca_code").strip().lower()
             new_password = st.text_input("Choose a Password", type="password", key="ca_pass")
             signup_btn   = st.form_submit_button("Create Account")
+
         if signup_btn:
             if not (new_name and new_email and new_code and new_password):
                 st.error("Please fill in all fields.")
@@ -501,7 +559,7 @@ if not st.session_state.logged_in:
                 df["Email"]       = df["Email"].str.lower().str.strip()
                 valid = df[
                     (df["StudentCode"] == new_code) &
-                    (df["Email"] == new_email)
+                    (df["Email"]       == new_email)
                 ]
                 if valid.empty:
                     st.error("Your code/email aren’t registered. Ask your teacher to add you first.")
@@ -513,11 +571,13 @@ if not st.session_state.logged_in:
                     })
                     st.success("Account created! Please log in above.")
 
+
+
     # --- Autoplay Video Demo (insert before Quick Links/footer) ---
     st.markdown("""
     <div style="display:flex; justify-content:center; margin: 24px 0;">
       <video width="350" autoplay muted loop controls style="border-radius: 12px; box-shadow: 0 4px 12px #0002;">
-        <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4>
+        <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
         Sorry, your browser doesn't support embedded videos.
       </video>
     </div>
@@ -543,18 +603,29 @@ if not st.session_state.logged_in:
     </div>
     """, unsafe_allow_html=True)
     st.stop()
-#
-
 
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 if st.button("Log out"):
+    # 1) Clear persistent cookie
     cookie_manager["student_code"] = ""
     cookie_manager.save()
+
+    # 2) Clear localStorage for cross-tab/iOS persistence
+    components.html(
+        "<script>localStorage.removeItem('student_code');</script>",
+        height=0
+    )
+
+    # 3) Clear Streamlit session state
     for k in ["logged_in", "student_row", "student_code", "student_name"]:
         st.session_state[k] = False if k == "logged_in" else ""
+
     st.success("You have been logged out.")
     st.rerun()
+
+
+
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 @st.cache_data
