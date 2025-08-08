@@ -1262,9 +1262,9 @@ if tab == "Dashboard":
         "B1 Munich Klasse": {
             "days": ["Thursday", "Friday"],
             "time": "7:30pm–9:00pm",
-            "start_date": "2025-07-31",
+            "start_date": "2025-08-07",
             "end_date": "2025-10-31",
-            "doc_url": "https://drive.google.com/file/d/1ZRWUKfW3j_fEs24X1gSBtfdXsDMurT9n/view?usp=sharing"
+            "doc_url": "https://drive.google.com/file/d/1CaLw9RO6H8JOr5HmwWOZA2O7T-bVByi7/view?usp=sharing"
         },
     }
 
@@ -1973,8 +1973,8 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Positive, Comparative, and Superlative in German",
-            "video": "",
-            "youtube_link": "",
+            "video": "https://youtu.be/oo3pUo5OSDE",
+            "youtube_link": "https://youtu.be/oo3pUo5OSDE",
             "grammarbook_link": "https://drive.google.com/file/d/1Z3sSDCxPQz27TDSpN9r8lQUpHhBVfhYZ/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/18YXe9mxyyKTars1gL5cgFsXrbM25kiN8/view?usp=sharing"
         },
@@ -3489,23 +3489,6 @@ if tab == "Course Book":
             """
         )
 #
-
-        
-        # === INSTRUCTIONS: Place below columns and above copy box ===
-        st.info(
-            """
-            **How to submit your assignment:**
-
-            1. Write your complete answers in the box above.
-            2. Click **Send via WhatsApp** when done.
-            3. After clicking, you will see an **Open WhatsApp** button.
-            4. Your assignment message is organized below for you to review.
-            5. Confirm your assignment number and student code are correct.
-            6. Click **Open WhatsApp** or copy the message below to directly send it to your tutor.
-
-            _(Tip: Double-check your name and code before sending to ensure your work is properly recorded!)_
-            """
-        )
 
         # --- WhatsApp Submission + Add to Notes ---
         chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
