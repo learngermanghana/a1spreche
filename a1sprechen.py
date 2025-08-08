@@ -1115,10 +1115,6 @@ if st.session_state.get("logged_in"):
 
     st.divider()
 
-#
-
-
-
 
     # ---------- Tab Tips Section (only on Dashboard) ----------
     DASHBOARD_REMINDERS = [
@@ -1263,7 +1259,7 @@ if tab == "Dashboard":
             "days": ["Thursday", "Friday"],
             "time": "7:30pm–9:00pm",
             "start_date": "2025-08-07",
-            "end_date": "2025-10-31",
+            "end_date": "2025-11-07",
             "doc_url": "https://drive.google.com/file/d/1CaLw9RO6H8JOr5HmwWOZA2O7T-bVByi7/view?usp=sharing"
         },
     }
@@ -2711,6 +2707,7 @@ def get_b2_schedule():
             "goal": "Drücken Sie Ihre persönliche Identität und Ihre Werte aus.",
             "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "https://youtu.be/a9LxkxNdnEg",
+            "youtube_link": "https://youtu.be/a9LxkxNdnEg",
             "grammarbook_link": "https://drive.google.com/file/d/17pVc0VfLm32z4zmkaaa_cdshKJEQQxYa/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1D1eb-iwfl_WA2sXPOSPD_66NCiTB4o2w/view?usp=sharing",
             "grammar_topic": "Adjektivdeklination (Adjektivendungen nach bestimmten/unbestimmten Artikeln)"
@@ -2721,7 +2718,8 @@ def get_b2_schedule():
             "chapter": "1.2",
             "goal": "Diskutieren Sie über Beziehungstypen und Kommunikationsstrategien.",
             "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
-            "video": "",
+            "video": "https://youtu.be/gCzZnddwC_c",
+            "youtube_link": "https://youtu.be/gCzZnddwC_c",
             "grammarbook_link": "https://drive.google.com/file/d/1Mlt-cK6YqPuJe9iCWfqT9DOG9oKhJBdK/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1XCLW0y-MMyIu_bNO3EkKIgp-8QLKgEek/view?usp=sharing",
             "grammar_topic": "Konjunktiv II (höfliche Bitten & hypothetische Situationen)"
