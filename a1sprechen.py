@@ -3445,6 +3445,9 @@ if tab == "Course Book":
 
         st.divider()
         
+        # === SUBMIT ASSIGNMENT SECTION ===
+        st.markdown("### ✅ Submit Your Assignment")
+        
         # --- Save Draft to Firestore (using global db instance) ---
         def save_draft_to_db(code, lesson_key, text):
             doc_ref = db.collection('draft_answers').document(code)
@@ -3460,7 +3463,7 @@ if tab == "Course Book":
 
         st.subheader("✍️ Your Answer (Autosaves)")
         st.text_area(
-            "Answer (or attach on WhatsApp)",
+            "Type all your answers in the box below",
             value=st.session_state.get(lesson_key, ""),
             height=500,
             key=lesson_key,
@@ -3468,6 +3471,24 @@ if tab == "Course Book":
         )
         if st.session_state.get(f"{lesson_key}_saved", False):
             st.success("Draft autosaved!")
+
+        
+        # === INSTRUCTIONS: Place below columns and above copy box ===
+        st.info(
+            """
+            **How to submit your assignment:**
+
+            1. Write your complete answers in the box above.
+            2. Click **Send via WhatsApp** when done.
+            3. After clicking, you will see an **Send Assignment** button.
+            4. Your assignment message is organized below for you to review.
+            5. Confirm your assignment number and student code are correct.
+            6. Click **Send Assignment** or copy the message below to directly send it to your tutor.
+
+            _(Tip: Double-check your name and code before sending to ensure your work is properly recorded!)_
+            """
+        )
+#
 
         
         # === INSTRUCTIONS: Place below columns and above copy box ===
