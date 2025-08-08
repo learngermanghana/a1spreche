@@ -4495,44 +4495,6 @@ if tab == "Exams Mode & Custom Chat":
     )
     st.divider()
 
-    # ---- Exam Sample Images (A1/A2 Template) ----
-    image_map = {
-        ("A1", "Teil 1"): {
-            "url": "https://i.imgur.com/sKQDrpx.png",
-            "caption": "Sample – A1 Teil 1"
-        },
-        ("A1", "Teil 2"): {
-            "url": "https://i.imgur.com/xTTIUME.png",  # Replace with real image if you get a valid link!
-            "caption": "Sample – A1 Teil 2"
-        },
-        ("A1", "Teil 3"): {
-            "url": "https://i.imgur.com/MxBUCR8.png",
-            "caption": "Sample – A1 Teil 3"
-        },
-        ("A2", "Teil 1"): {
-            "url": "https://i.imgur.com/gmmu7Sn.png",
-            "caption": "Sample – A2 Teil 1"
-        },
-        ("A2", "Teil 2"): {
-            "url": "https://i.imgur.com/m6eBJu7.png",
-            "caption": "Sample – A2 Teil 2"
-        },
-        ("A2", "Teil 3"): {
-            "url": "https://i.imgur.com/1uDLrCY.png",
-            "caption": "Sample – A2 Teil 3"
-        },
-    }
-
-
-    # Display image only for selected level/teil and at the start of chat
-    level = st.session_state.get("falowen_level")
-    teil = st.session_state.get("falowen_teil")
-    msgs = st.session_state.get("falowen_messages", [])
-    # Show image if no chat yet, or only the 1st assistant instruction
-    if level and teil and (not msgs or (len(msgs) == 1 and msgs[0].get("role") == "assistant")):
-        for (map_level, map_teil), v in image_map.items():
-            if level == map_level and map_teil in teil:
-                st.image(v["url"], width=380, caption=v["caption"])
 
 
     # ---- PDF Helper ----
@@ -5161,24 +5123,6 @@ if tab == "Exams Mode & Custom Chat":
         is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
         student_code = st.session_state.get("student_code", "demo")
 
-        # Show sample image before chat starts
-        if (
-            is_exam
-            and level
-            and teil
-            and not st.session_state.get("falowen_messages")
-        ):
-            teil_short = ""
-            if "Teil 1" in teil:
-                teil_short = "Teil 1"
-            elif "Teil 2" in teil:
-                teil_short = "Teil 2"
-            elif "Teil 3" in teil:
-                teil_short = "Teil 3"
-            img_key = (level, teil_short)
-            if img_key in image_map:
-                img = image_map[img_key]
-                st.image(img["url"], width=380, caption=img["caption"])
 
         # Load chat from db once
         if not st.session_state.get("_falowen_loaded"):
