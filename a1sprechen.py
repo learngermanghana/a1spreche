@@ -3,6 +3,7 @@ import atexit
 import base64
 import bcrypt
 import difflib
+import html
 import io
 import json
 import os
@@ -13,6 +14,7 @@ import tempfile
 import time
 import urllib.parse
 from datetime import date, datetime, timedelta
+from uuid import uuid4
 
 # ==== Third-Party Packages ====
 import firebase_admin
@@ -27,9 +29,10 @@ from firebase_admin import credentials, firestore
 from fpdf import FPDF
 from gtts import gTTS
 from openai import OpenAI
-from streamlit.components.v1 import html
+from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
+
 
 
 # --- SEO: head tags (only on public/landing) ---
@@ -586,7 +589,6 @@ def save_cookie_after_login(student_code):
     safe_code = json.dumps(value)
     components.html(f"<script>localStorage.setItem('student_code', {safe_code});</script>", height=0)
 
-
 if not st.session_state.get("logged_in", False):
     # Support / Help section
     st.markdown("""
@@ -601,15 +603,27 @@ if not st.session_state.get("logged_in", False):
     # --- Google OAuth (Optional) ---
     GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
     GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
-    REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://falowen.app/")  # must match in Google Cloud
+    # Must match Google Cloud exactly (use www)
+    REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowen.app/")
+
+    def _qp_first(val):
+        if isinstance(val, list):
+            return val[0]
+        return val
 
     def do_google_oauth():
+        import secrets
+        # create and store anti-CSRF state
+        st.session_state["_oauth_state"] = secrets.token_urlsafe(24)
         params = {
             "client_id": GOOGLE_CLIENT_ID,
             "redirect_uri": REDIRECT_URI,
             "response_type": "code",
             "scope": "openid email profile",
-            "prompt": "select_account"
+            "prompt": "select_account",
+            "state": st.session_state["_oauth_state"],
+            "include_granted_scopes": "true",
+            "access_type": "online",
         }
         auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
         st.markdown(
@@ -625,9 +639,20 @@ if not st.session_state.get("logged_in", False):
 
     def handle_google_login():
         qp = qp_get()
-        if "code" not in qp:
+        code  = _qp_first(qp.get("code")) if hasattr(qp, "get") else None
+        state = _qp_first(qp.get("state")) if hasattr(qp, "get") else None
+        if not code:
             return False
-        code = qp["code"][0] if isinstance(qp["code"], list) else qp["code"]
+
+        # verify state if present
+        if st.session_state.get("_oauth_state") and state != st.session_state["_oauth_state"]:
+            st.error("OAuth state mismatch. Please try again.")
+            return False
+
+        # prevent double redemption on reruns
+        if st.session_state.get("_oauth_code_redeemed") == code:
+            return False
+
         token_url = "https://oauth2.googleapis.com/token"
         data = {
             "code": code,
@@ -639,23 +664,22 @@ if not st.session_state.get("logged_in", False):
         try:
             resp = requests.post(token_url, data=data, timeout=10)
             if not resp.ok:
-                err = ""
-                try:
-                    err = resp.json().get("error", "")
-                except Exception:
-                    pass
-                if err != "invalid_grant":
-                    st.error(f"Google login failed: {resp.text}")
+                st.error(f"Google login failed: {resp.status_code} {resp.text}")
                 return False
 
-            access_token = resp.json().get("access_token")
+            tokens = resp.json()
+            access_token = tokens.get("access_token")
             if not access_token:
                 st.error("Google login failed: no access token.")
                 return False
 
+            # mark this code as redeemed (single-use)
+            st.session_state["_oauth_code_redeemed"] = code
+
             userinfo = requests.get(
                 "https://www.googleapis.com/oauth2/v2/userinfo",
-                headers={"Authorization": f"Bearer {access_token}"}
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=10
             ).json()
             email = (userinfo.get("email") or "").lower().strip()
             if not email:
@@ -663,7 +687,6 @@ if not st.session_state.get("logged_in", False):
                 return False
 
             df = load_student_data()
-            # Email already normalized in load_student_data, but normalize again defensively
             df["Email"] = df["Email"].str.lower().str.strip()
             match = df[df["Email"] == email]
             if match.empty:
@@ -683,7 +706,7 @@ if not st.session_state.get("logged_in", False):
             })
             save_cookie_after_login(student_row["StudentCode"])
 
-            # Clean URL to avoid reruns with ?code=
+            # Clean URL to avoid reruns with ?code=...
             qp_clear()
             st.success(f"Welcome, {student_row['Name']}!")
             st.rerun()
@@ -729,8 +752,8 @@ if not st.session_state.get("logged_in", False):
                     if not doc.exists:
                         st.error("Account not found. Please create one below.")
                     else:
-                        data       = doc.to_dict() or {}
-                        stored_pw  = data.get("password", "")
+                        data      = doc.to_dict() or {}
+                        stored_pw = data.get("password", "")
 
                         import bcrypt
                         def _is_bcrypt_hash(s: str) -> bool:
@@ -4031,8 +4054,34 @@ if tab == "Course Book":
                     unsafe_allow_html=True
                 )
             st.markdown("---")
-#
 
+
+
+def linkify_html(text):
+    """Escape HTML and convert URLs in plain text to anchor tags."""
+    s = "" if text is None or (isinstance(text, float) and pd.isna(text)) else str(text)
+    s = html.escape(s)  # stdlib html module
+    url_pat = r'(https?://[^\s<]+)'
+    s = re.sub(url_pat, r'<a href="\1" target="_blank" rel="noopener">\1</a>', s)
+    return s
+
+def _clean_link(val) -> str:
+    """Return a clean string or '' if empty/NaN/common placeholders."""
+    if val is None:
+        return ""
+    if isinstance(val, float) and pd.isna(val):
+        return ""
+    s = str(val).strip()
+    if s.lower() in {"", "nan", "none", "null", "0"}:
+        return ""
+    return s
+
+def _is_http_url(s: str) -> bool:
+    try:
+        u = urllib.parse.urlparse(s)
+        return u.scheme in ("http", "https") and bool(u.netloc)
+    except Exception:
+        return False
 
 
 if tab == "My Results and Resources":
@@ -4101,24 +4150,23 @@ if tab == "My Results and Resources":
         st.write("Columns found:", df_scores.columns.tolist())
         st.stop()
 
-    code = student_code.lower().strip()
-    df_user = df_scores[df_scores.student_code.str.lower().str.strip() == code]
+    code = (student_code or "").lower().strip()
+    df_user = df_scores[df_scores.student_code.astype(str).str.lower().str.strip() == code]
     if df_user.empty:
         st.info("No results yet. Complete an assignment to see your scores!")
         st.stop()
 
     # --- Choose level
-    df_user['level'] = df_user.level.str.upper().str.strip()
+    df_user = df_user.copy()  # avoid SettingWithCopy
+    df_user['level'] = df_user['level'].astype(str).str.upper().str.strip()
     levels = sorted(df_user['level'].unique())
     level = st.selectbox("Select level:", levels)
-    df_lvl = df_user[df_user.level == level]
-
+    df_lvl = df_user[df_user.level == level].copy()
 
     # ========== METRICS ==========
     totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
     total = totals.get(level, 0)
-    completed = df_lvl.assignment.nunique()
-    df_lvl = df_lvl.copy()
+    completed = df_lvl['assignment'].nunique()
     df_lvl['score'] = pd.to_numeric(df_lvl['score'], errors='coerce')
     avg_score = df_lvl['score'].mean() or 0
     best_score = df_lvl['score'].max() or 0
@@ -4128,22 +4176,21 @@ if tab == "My Results and Resources":
     col2.metric("Completed", completed)
     col3.metric("Average Score", f"{avg_score:.1f}")
     col4.metric("Best Score", best_score)
-#
+
     # ========== DETAILED RESULTS ==========
     st.markdown("---")
     st.info("🔎 **Scroll down and expand the box below to see your full assignment history and feedback!**")
 
-    # --- Score label function ---
     def score_label(score):
         try:
-            score = float(score)
-        except:
+            s = float(score)
+        except Exception:
             return ""
-        if score >= 90:
+        if s >= 90:
             return "Excellent 🌟"
-        elif score >= 75:
+        elif s >= 75:
             return "Good 👍"
-        elif score >= 60:
+        elif s >= 60:
             return "Sufficient ✔️"
         else:
             return "Needs Improvement ❗"
@@ -4161,10 +4208,14 @@ if tab == "My Results and Resources":
                       .reset_index(drop=True)
             )
 
-            for idx, row in df_display.iterrows():
+            for _, row in df_display.iterrows():
                 perf = score_label(row['score'])
                 comment_html = linkify_html(row['comments'])
-                ref_link = str(row.get('link', '') or '').strip()
+
+                # only show a real link
+                raw_link = row['link'] if ('link' in df_display.columns) else None
+                ref_link = _clean_link(raw_link)
+                has_valid_link = bool(ref_link) and _is_http_url(ref_link)
 
                 st.markdown(
                     f"""
@@ -4179,13 +4230,14 @@ if tab == "My Results and Resources":
                     unsafe_allow_html=True
                 )
 
-                # Show Lesen/Hören reference only if there is a valid score and a link
-                has_score = pd.to_numeric(row['score'], errors='coerce')
-                if not pd.isna(has_score) and ref_link:
-                    st.markdown(
-                        f'🔍 <a href="{ref_link}" target="_blank" rel="noopener">View answer reference (Lesen & Hören)</a>',
-                        unsafe_allow_html=True
-                    )
+                # Show Lesen/Hören reference only if there is a valid numeric score AND a valid URL
+                if has_valid_link:
+                    has_score_num = pd.to_numeric(row['score'], errors='coerce')
+                    if not pd.isna(has_score_num):
+                        st.markdown(
+                            f'🔍 <a href="{ref_link}" target="_blank" rel="noopener">View answer reference (Lesen & Hören)</a>',
+                            unsafe_allow_html=True
+                        )
 
                 st.divider()
         else:
@@ -4195,6 +4247,7 @@ if tab == "My Results and Resources":
                       .reset_index(drop=True)
             )
             st.table(df_display)
+
             
     st.markdown("---") 
 
@@ -6573,14 +6626,38 @@ def get_student_level(student_code: str, default: str = "A1") -> str:
         return default
 
 
-# ================================
-# HELPERS: Vocab stats (per-user)
-# ================================
-def save_vocab_attempt(student_code, level, total, correct, practiced_words):
-    """Save one vocab practice attempt to Firestore."""
+def vocab_attempt_exists(student_code: str, session_id: str) -> bool:
+    """Check if an attempt with this session_id already exists for the student."""
+    if not session_id:
+        return False
+    _db = _get_db()
+    if _db is None:
+        return False
+
+    doc_ref = _db.collection("vocab_stats").document(student_code)
+    doc = doc_ref.get()
+    if not doc.exists:
+        return False
+
+    data = doc.to_dict() or {}
+    history = data.get("history", [])
+    return any(h.get("session_id") == session_id for h in history)
+
+
+def save_vocab_attempt(student_code, level, total, correct, practiced_words, session_id=None):
+    """
+    Save one vocab practice attempt to Firestore.
+    Duplicate-safe using session_id.
+    """
     _db = _get_db()
     if _db is None:
         st.warning("Firestore not initialized; skipping stats save.")
+        return
+
+    if not session_id:
+        session_id = str(uuid4())
+
+    if vocab_attempt_exists(student_code, session_id):
         return
 
     doc_ref = _db.collection("vocab_stats").document(student_code)
@@ -6590,22 +6667,23 @@ def save_vocab_attempt(student_code, level, total, correct, practiced_words):
 
     attempt = {
         "level": level,
-        "total": total,
-        "correct": correct,
-        "practiced_words": practiced_words,
+        "total": int(total) if total is not None else 0,
+        "correct": int(correct) if correct is not None else 0,
+        "practiced_words": list(practiced_words or []),
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "session_id": session_id,
     }
+
     history.append(attempt)
-    best = max((a.get("correct", 0) for a in history), default=0)
-    completed = set(sum((a.get("practiced_words", []) for a in history), []))
+    completed = {w for a in history for w in a.get("practiced_words", [])}
 
     doc_ref.set({
         "history":           history,
-        "best":              best,
         "last_practiced":    attempt["timestamp"],
-        "completed_words":   list(completed),
+        "completed_words":   sorted(completed),
         "total_sessions":    len(history),
     }, merge=True)
+
 
 def get_vocab_stats(student_code):
     """Load vocab practice stats from Firestore (or defaults)."""
@@ -6613,7 +6691,6 @@ def get_vocab_stats(student_code):
     if _db is None:
         return {
             "history":           [],
-            "best":              0,
             "last_practiced":    None,
             "completed_words":   [],
             "total_sessions":    0,
@@ -6622,37 +6699,21 @@ def get_vocab_stats(student_code):
     doc_ref = _db.collection("vocab_stats").document(student_code)
     doc = doc_ref.get()
     if doc.exists:
-        return doc.to_dict()
+        data = doc.to_dict() or {}
+        # Ensure we don't return "best"
+        return {
+            "history": data.get("history", []),
+            "last_practiced": data.get("last_practiced"),
+            "completed_words": data.get("completed_words", []),
+            "total_sessions": data.get("total_sessions", 0),
+        }
+
     return {
         "history":           [],
-        "best":              0,
         "last_practiced":    None,
         "completed_words":   [],
         "total_sessions":    0,
     }
-
-
-# ================================
-# LOAD SENTENCE BANK FROM EXTERNAL FILE
-# ================================
-def load_sentence_bank():
-    try:
-        try:
-            mod = importlib.import_module("sentence_bank")  # file: sentence_bank.py
-        except ModuleNotFoundError:
-            mod = importlib.import_module("sentence")       # optional fallback
-        bank = getattr(mod, "SENTENCE_BANK", None)
-        if not isinstance(bank, dict):
-            st.error("`SENTENCE_BANK` in the module is not a dictionary.")
-            return {}
-        return bank
-    except ModuleNotFoundError:
-        st.error("Couldn't import sentence_bank.py (or sentence.py). Put it next to the app.")
-        return {}
-    except Exception as e:
-        st.error(f"Error loading SENTENCE_BANK: {e}")
-        return {}
-
 
 
 # ================================
@@ -6975,28 +7036,36 @@ if tab == "Vocab Trainer":
                 st.info(st.session_state.sb_feedback)
 
     # ===========================
-    # SUBTAB: Vocab Practice (flashcards) — second
+    # SUBTAB: Vocab Practice (flashcards)
     # ===========================
     elif subtab == "Vocab Practice":
         # init session vars
-        defaults = {"vt_history": [], "vt_list": [], "vt_index": 0, "vt_score": 0, "vt_total": None}
+        defaults = {
+            "vt_history": [],
+            "vt_list": [],
+            "vt_index": 0,
+            "vt_score": 0,
+            "vt_total": None,
+            "vt_saved": False,       # save-once guard
+            "vt_session_id": None,   # unique id per practice session
+        }
         for k, v in defaults.items():
             st.session_state.setdefault(k, v)
 
-        # stats
-        stats = get_vocab_stats(student_code)
-        st.markdown("### 📝 Your Vocab Stats")
-        st.markdown(f"- **Sessions:** {stats['total_sessions']}")
-        st.markdown(f"- **Best:** {stats['best']}")
-        st.markdown(f"- **Last Practiced:** {stats['last_practiced']}")
-        st.markdown(f"- **Unique Words:** {len(stats['completed_words'])}")
-        if st.checkbox("Show Last 5 Sessions"):
-            for a in stats["history"][-5:][::-1]:
-                st.markdown(
-                    f"- {a['timestamp']} | {a['correct']}/{a['total']} | {a['level']}<br>"
-                    f"<span style='font-size:0.9em;'>Words: {', '.join(a['practiced_words'])}</span>",
-                    unsafe_allow_html=True
-                )
+        # --- Stats ---
+        with st.expander("📝 Your Vocab Stats", expanded=False):
+            stats = get_vocab_stats(student_code)
+            st.markdown(f"- **Sessions:** {stats['total_sessions']}")
+            st.markdown(f"- **Last Practiced:** {stats['last_practiced']}")
+            st.markdown(f"- **Unique Words:** {len(stats['completed_words'])}")
+
+            if st.checkbox("Show Last 5 Sessions"):
+                for a in stats["history"][-5:][::-1]:
+                    st.markdown(
+                        f"- {a['timestamp']} | {a['correct']}/{a['total']} | {a['level']}<br>"
+                        f"<span style='font-size:0.9em;'>Words: {', '.join(a['practiced_words'])}</span>",
+                        unsafe_allow_html=True
+                    )
 
         # lock level
         level = student_level_locked
@@ -7020,15 +7089,19 @@ if tab == "Vocab Trainer":
             if maxc == 0:
                 st.success("🎉 All done! Switch to 'All words' to repeat.")
                 st.stop()
+
             count = st.number_input("How many today?", 1, maxc, min(7, maxc), key="vt_count")
             if st.button("Start", key="vt_start"):
                 import random
+                from uuid import uuid4
                 random.shuffle(session_vocab)
                 st.session_state.vt_list = session_vocab[:count]
                 st.session_state.vt_total = count
                 st.session_state.vt_index = 0
                 st.session_state.vt_score = 0
                 st.session_state.vt_history = [("assistant", f"Hallo! Ich bin Herr Felix. Let's do {count} words!")]
+                st.session_state.vt_saved = False
+                st.session_state.vt_session_id = str(uuid4())
                 st.rerun()
 
         # show chat/history
@@ -7045,21 +7118,45 @@ if tab == "Vocab Trainer":
 
             # audio
             if st.button("🔊 Play & Download", key=f"tts_{idx}"):
-                t = gTTS(text=word, lang="de")
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
-                    t.save(fp.name)
-                    st.audio(fp.name, format="audio/mp3")
-                    fp.seek(0)
-                    blob = fp.read()
-                st.download_button(
-                    f"⬇️ {word}.mp3",
-                    data=blob,
-                    file_name=f"{word}.mp3",
-                    mime="audio/mp3",
-                    key=f"tts_dl_{idx}"
-                )
+                try:
+                    from gtts import gTTS
+                    import tempfile
+                    t = gTTS(text=word, lang="de")
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
+                        t.save(fp.name)
+                        st.audio(fp.name, format="audio/mp3")
+                        fp.seek(0)
+                        blob = fp.read()
+                    st.download_button(
+                        f"⬇️ {word}.mp3",
+                        data=blob,
+                        file_name=f"{word}.mp3",
+                        mime="audio/mp3",
+                        key=f"tts_dl_{idx}"
+                    )
+                except Exception as e:
+                    st.error(f"Could not generate audio (gTTS): {e}")
 
-            usr = st.text_input(f"{word} = ?", key=f"vt_input_{idx}")
+            # bigger, bolder, clearer input
+            st.markdown(
+                """
+                <style>
+                div[data-baseweb="input"] input {
+                    font-size: 18px !important;
+                    font-weight: 600 !important;
+                    color: black !important;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True
+            )
+
+            usr = st.text_input(
+                f"{word} = ?",
+                key=f"vt_input_{idx}",
+                placeholder="Type your answer here..."
+            )
+
             if usr and st.button("Check", key=f"vt_check_{idx}"):
                 st.session_state.vt_history.append(("user", usr))
                 if is_correct_answer(usr, answer):
@@ -7074,13 +7171,37 @@ if tab == "Vocab Trainer":
         # done
         if isinstance(tot, int) and idx >= tot:
             score = st.session_state.vt_score
-            words = [w for w, _ in st.session_state.vt_list]
+            words = [w for w, _ in (st.session_state.vt_list or [])]
             st.markdown(f"### 🏁 Done! You scored {score}/{tot}.")
-            save_vocab_attempt(student_code, level, tot, score, words)
+
+            # 🔒 Save exactly once per session, with Firestore duplicate check
+            if not st.session_state.get("vt_saved", False):
+                # Ensure we have a session id (covers rare cases where it wasn't set)
+                if not st.session_state.get("vt_session_id"):
+                    from uuid import uuid4
+                    st.session_state.vt_session_id = str(uuid4())
+
+                if not vocab_attempt_exists(student_code, st.session_state.vt_session_id):
+                    save_vocab_attempt(
+                        student_code=student_code,
+                        level=level,
+                        total=tot,
+                        correct=score,
+                        practiced_words=words,
+                        session_id=st.session_state.vt_session_id
+                    )
+
+                st.session_state.vt_saved = True
+                st.rerun()
+
             if st.button("Practice Again", key="vt_again"):
                 for k in defaults:
                     st.session_state[k] = defaults[k]
                 st.rerun()
+#
+
+
+
 
 
 # ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
