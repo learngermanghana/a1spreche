@@ -3396,51 +3396,46 @@ if tab == "Course Book":
         st.markdown(f"**You’ve loaded {done} / {total} lessons ({pct}%)**")
         st.divider()
 
-        # Recommended time
-        LEVEL_TIME = {"A1": 15, "A2": 25, "B1": 30, "B2": 40, "C1": 45}
-        rec_time = LEVEL_TIME.get(student_level, 20)
-        st.info(f"⏱️ **Recommended:** Invest about {rec_time} minutes to complete this lesson fully.")
-        
-        # Suggested end dates
-        start_str = student_row.get("ContractStart", "")
-        start_date = None
-        for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d/%m/%Y"):
-            try:
-                start_date = datetime.strptime(start_str, fmt).date()
-                break
-            except:
-                continue
+        # ===== COURSE BOOK INFO =====
+        with st.expander("📚 Course Book & Study Recommendations", expanded=False):
 
-        if start_date:
-            # calculate how many weeks for each pace
-            weeks_three = (total + 2) // 3
-            weeks_two   = (total + 1) // 2
-            weeks_one   = total
+            # Recommended time
+            LEVEL_TIME = {"A1": 15, "A2": 25, "B1": 30, "B2": 40, "C1": 45}
+            rec_time = LEVEL_TIME.get(student_level, 20)
+            st.info(f"⏱️ **Recommended:** Invest about {rec_time} minutes to complete this lesson fully.")
 
-            end_three = start_date + timedelta(weeks=weeks_three)
-            end_two   = start_date + timedelta(weeks=weeks_two)
-            end_one   = start_date + timedelta(weeks=weeks_one)
+            # Suggested end dates
+            start_str = student_row.get("ContractStart", "")
+            start_date = None
+            for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d/%m/%Y"):
+                try:
+                    start_date = datetime.strptime(start_str, fmt).date()
+                    break
+                except:
+                    continue
 
-            # indent right with a spacer column
-            spacer, content = st.columns([3, 7])
-            with content:
-                st.success(
-                    f"If you complete **three sessions per week**, you will finish by **{end_three.strftime('%A, %d %B %Y')}**."
-                )
-                st.info(
-                    f"If you complete **two sessions per week**, you will finish by **{end_two.strftime('%A, %d %B %Y')}**."
-                )
-                st.warning(
-                    f"If you complete **one session per week**, you will finish by **{end_one.strftime('%A, %d %B %Y')}**."
-                )
-        else:
-            spacer, content = st.columns([3, 7])
-            with content:
-                st.warning(
-                    "❓ Start date missing or invalid. Please update your contract start date."
-                )
+            if start_date:
+                total = total  # assuming this variable is already defined earlier in your code
+                # calculate weeks for different paces
+                weeks_three = (total + 2) // 3
+                weeks_two   = (total + 1) // 2
+                weeks_one   = total
+
+                end_three = start_date + timedelta(weeks=weeks_three)
+                end_two   = start_date + timedelta(weeks=weeks_two)
+                end_one   = start_date + timedelta(weeks=weeks_one)
+
+                # spacer layout
+                spacer, content = st.columns([3, 7])
+                with content:
+                    st.success(f"If you complete **three sessions per week**, you will finish by **{end_three.strftime('%A, %d %B %Y')}**.")
+                    st.info(f"If you complete **two sessions per week**, you will finish by **{end_two.strftime('%A, %d %B %Y')}**.")
+                    st.warning(f"If you complete **one session per week**, you will finish by **{end_one.strftime('%A, %d %B %Y')}**.")
+            else:
+                spacer, content = st.columns([3, 7])
+                with content:
+                    st.warning("❓ Start date missing or invalid. Please update your contract start date.")
 #
-
         info = schedule[idx]
         # ---- Fix for highlight and header ----
         lesson_title = f"Day {info['day']}: {info['topic']}"
@@ -3516,25 +3511,21 @@ if tab == "Course Book":
                 unsafe_allow_html=True
             )
 
-        st.divider()
-
-        
-        # --- Translation Links Only ---
-        st.markdown("---")
-        st.markdown(
-            '**Need translation?** '
-            '[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; '
-            '[🌐 Google Translate](https://translate.google.com)',
-            unsafe_allow_html=True
-        )
-        st.caption("Copy any text from the course book and paste it into your preferred translator.")
-
+        # --- Translation Tools ---
+        with st.expander("🌐 Translation Tools", expanded=False):
+            st.markdown("---")
+            st.markdown(
+                '**Need translation?** '
+                '[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; '
+                '[🌐 Google Translate](https://translate.google.com)',
+                unsafe_allow_html=True
+            )
+            st.caption("Copy any text from the course book and paste it into your preferred translator.")
 
         st.divider()
 
-        st.info("Before you submit your assignment, do you mind watching the Video of the Day? Click below to open it.")
-
-        with st.expander("🎬 Video of the Day for Your Level"):
+        # --- Video of the Day ---
+        with st.expander("🎬 Video of the Day for Your Level", expanded=False):
             playlist_id = YOUTUBE_PLAYLIST_IDS.get(student_level)
             if playlist_id:
                 video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
@@ -3550,11 +3541,12 @@ if tab == "Course Book":
                 st.info("No playlist found for your level yet. Stay tuned!")
 
         st.divider()
-        
-        # === SUBMIT ASSIGNMENT SECTION ===
+
+   
+            # === SUBMIT ASSIGNMENT SECTION ===
         st.markdown("### ✅ Submit Your Assignment")
-        
-        # --- Save Draft to Firestore (using global db instance) ---
+
+        # --- Save Draft to Firestore ---
         def save_draft_to_db(code, lesson_key, text):
             doc_ref = db.collection('draft_answers').document(code)
             doc_ref.set({lesson_key: text}, merge=True)
@@ -3567,36 +3559,30 @@ if tab == "Course Book":
             save_draft_to_db(code, lesson_key, text)
             st.session_state[f"{lesson_key}_saved"] = True
 
+        # --- Answer Box ---
         st.subheader("✍️ Your Answer (Autosaves)")
         st.text_area(
-            "Type all your answers in the box below",
+            "Type all your answers here",
             value=st.session_state.get(lesson_key, ""),
             height=500,
             key=lesson_key,
             on_change=autosave_draft,
         )
         if st.session_state.get(f"{lesson_key}_saved", False):
-            st.success("Draft autosaved!")
+            st.success("✅ Draft autosaved!")
 
-        
-        # === INSTRUCTIONS: Place below columns and above copy box ===
-        st.info(
-            """
-            **How to submit your assignment:**
+        # --- Instructions in Expander ---
+        with st.expander("📌 How to Submit", expanded=False):
+            st.markdown("""
+                1. Complete your answers in the box above.  
+                2. Click **Send via WhatsApp** when ready.  
+                3. Review the pre-filled message.  
+                4. Make sure your **assignment number & student code** are correct.  
+                5. Send your work to your tutor.  
+                _Tip: Always double-check before sending._
+            """)
 
-            1. Write your complete answers in the box above.
-            2. Click **Send via WhatsApp** when done.
-            3. After clicking, you will see an **Send Assignment** button.
-            4. Your assignment message is organized below for you to review.
-            5. Confirm your assignment number and student code are correct.
-            6. Click **Send Assignment** or copy the message below to directly send it to your tutor.
-
-            _(Tip: Double-check your name and code before sending to ensure your work is properly recorded!)_
-            """
-        )
-#
-
-        # --- WhatsApp Submission + Add to Notes ---
+        # --- WhatsApp Submission ---
         chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
         name = st.text_input("Name", value=student_row.get('Name', ''))
         msg = build_wa_message(
@@ -3608,25 +3594,24 @@ if tab == "Course Book":
 
         with col1:
             if st.button("📤 Send via WhatsApp"):
-                st.success("Click link below to submit through WhatsApp.")
-                st.markdown(f"[📨 Send Assignment]({url})")
-                st.caption("You can also save your answer as a note for future reference.")
+                st.success("Click the link below to send your assignment.")
+                st.markdown(f"[📨 **Send Assignment**]({url})")
 
         with col2:
-            if st.button("📝 Add Answer to Notes"):
+            if st.button("📝 Save Answer to Notes"):
                 st.session_state["edit_note_title"] = f"Day {info['day']}: {info['topic']}"
                 st.session_state["edit_note_tag"] = f"Chapter {info['chapter']}"
                 st.session_state["edit_note_text"] = st.session_state.get(lesson_key, "")
-                st.session_state["edit_note_idx"] = None  # Signal: this is a new note
+                st.session_state["edit_note_idx"] = None
                 st.session_state["switch_to_notes"] = True
                 st.rerun()
 
         with col3:
             q_for_teacher = st.text_area(
-                "Question for teacher?", 
-                key=f"ask_teacher_{lesson_key}", 
+                "💬 Question for Teacher",
+                key=f"ask_teacher_{lesson_key}",
                 height=100,
-                placeholder="Ask the teacher anything about this lesson. Everyone will see it!"
+                placeholder="Ask anything about this lesson (visible to all students)"
             )
             if st.button("❓ Post Question", key=f"post_teacherq_{lesson_key}") and q_for_teacher.strip():
                 post_message(
@@ -3635,11 +3620,11 @@ if tab == "Course Book":
                     name,
                     f"[QUESTION FOR TEACHER about Chapter {info['chapter']} – {info.get('topic', '')}]\n{q_for_teacher.strip()}"
                 )
-                st.success("Your question was posted to the community board!")              
+                st.success("✅ Question posted to the community board!")
 
-        st.text_area("📋 Copy message:", msg, height=500)
+        # --- Copy Message Box ---
+        st.text_area("📋 Copy message (if needed):", msg, height=500)
 
-#
 
     # === LEARNING NOTES SUBTAB ===
     elif cb_subtab == "📒 Learning Notes":
@@ -3977,19 +3962,53 @@ if tab == "Course Book":
             posts = posts_ref.order_by("timestamp", direction=firestore.Query.DESCENDING).stream()
             return [dict(post.to_dict(), id=post.id) for post in posts]
 
-        # --- New post form
+        # --- Motivation Banner ---
+        st.markdown("""
+            <div style="padding: 12px; background: #facc15; color: #000; border-radius: 6px;
+            font-size: 1rem; margin-bottom: 16px; text-align: center; font-weight: 500;">
+            💡 <b>Your classmates are waiting to hear from you!</b> Share a tip, question, or idea to help everyone learn faster.
+            </div>
+        """, unsafe_allow_html=True)
+
+        # --- Quick Templates ---
+        st.markdown("#### 📌 Quick Post Templates")
+        colt1, colt2, colt3 = st.columns(3)
+
+        TEMPLATES = {
+            "❓ Question": "I’m confused about [topic]. Here’s where I got stuck: …\nWhat’s a simple way to remember it?",
+            "💡 Tip": "A quick tip that helped me today: …\nTry this when you do [chapter/skill].",
+            "🤝 Study Buddy": "Anyone free to practice speaking for 15 minutes this week? I’m available on [days/times].",
+        }
+
+        with colt1:
+            if st.button("❓ Question"):
+                st.session_state["post_template"] = TEMPLATES["❓ Question"]
+        with colt2:
+            if st.button("💡 Tip"):
+                st.session_state["post_template"] = TEMPLATES["💡 Tip"]
+        with colt3:
+            if st.button("🤝 Study Buddy"):
+                st.session_state["post_template"] = TEMPLATES["🤝 Study Buddy"]
+
+        # --- New post form ---
         with st.form("post_form"):
-            new_msg = st.text_area("💬 Post a question, tip, or message to your classmates:", max_chars=400)
+            new_msg = st.text_area(
+                "💬 Post a question, tip, or message to your classmates:",
+                value=st.session_state.get("post_template", ""),
+                max_chars=400
+            )
             if st.form_submit_button("Post") and new_msg.strip():
                 post_message(student_level, student_code, student_name, new_msg)
                 st.success("Your message was posted!")
+                # Clear the template after posting
+                st.session_state["post_template"] = ""
                 st.rerun()
 
         st.divider()
 
         all_posts = get_all_posts(student_level)
 
-        # Show posts and replies, newest first
+        # --- Show posts and replies ---
         for post in [p for p in all_posts if not p.get("reply_to")]:
             st.markdown(
                 f"**{post['student_name']}** <span style='color:#888;'>{post['timestamp'].strftime('%d %b %H:%M')}</span>",
@@ -4002,7 +4021,8 @@ if tab == "Course Book":
                     post_message(student_level, student_code, student_name, reply.strip(), reply_to=post["id"])
                     st.success("Reply sent!")
                     st.rerun()
-            # Show replies for this post
+
+            # --- Show replies ---
             for reply_post in [r for r in all_posts if r.get("reply_to") == post["id"]]:
                 st.markdown(
                     f"<div style='margin-left:30px; color:#444;'>↳ <b>{reply_post['student_name']}</b> "
@@ -4012,6 +4032,7 @@ if tab == "Course Book":
                 )
             st.markdown("---")
 #
+
 
 
 if tab == "My Results and Resources":
@@ -4129,33 +4150,52 @@ if tab == "My Results and Resources":
 
     with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
         if 'comments' in df_lvl.columns:
+            # Build the display columns dynamically (include 'link' if present)
+            base_cols = ['assignment', 'score', 'date', 'comments']
+            if 'link' in df_lvl.columns:
+                base_cols.append('link')
+
             df_display = (
                 df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
-                [['assignment', 'score', 'date', 'comments']]
-                .reset_index(drop=True)
+                      [base_cols]
+                      .reset_index(drop=True)
             )
+
             for idx, row in df_display.iterrows():
                 perf = score_label(row['score'])
+                comment_html = linkify_html(row['comments'])
+                ref_link = str(row.get('link', '') or '').strip()
+
                 st.markdown(
                     f"""
                     <div style="margin-bottom: 18px;">
-                    <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span>  
-                    <br>Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span> | Date: {row['date']}<br>
-                    <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
-                    <b>Feedback:</b> {row['comments'] if pd.notnull(row['comments']) and str(row['comments']).strip().lower() != 'nan' else '<i>No feedback</i>'}
-                    </div>
+                        <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span><br>
+                        Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span> | Date: {row['date']}<br>
+                        <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
+                            <b>Feedback:</b> {comment_html}
+                        </div>
                     </div>
                     """,
                     unsafe_allow_html=True
                 )
+
+                # Show Lesen/Hören reference only if there is a valid score and a link
+                has_score = pd.to_numeric(row['score'], errors='coerce')
+                if not pd.isna(has_score) and ref_link:
+                    st.markdown(
+                        f'🔍 <a href="{ref_link}" target="_blank" rel="noopener">View answer reference (Lesen & Hören)</a>',
+                        unsafe_allow_html=True
+                    )
+
                 st.divider()
         else:
             df_display = (
                 df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
-                [['assignment', 'score', 'date']]
-                .reset_index(drop=True)
+                      [['assignment', 'score', 'date']]
+                      .reset_index(drop=True)
             )
             st.table(df_display)
+            
     st.markdown("---") 
 
     # ========== BADGES & TROPHIES ==========
@@ -6722,17 +6762,18 @@ def normalize_join(tokens):
         s = s.replace(f" {p}", p)
     return s
 
-
 # ================================
 # TAB: Vocab Trainer (locked by Level)
-# NOTE: assumes `tab` is defined in your outer app layout.
 # ================================
 if tab == "Vocab Trainer":
     # --- Who is this? ---
     student_code = st.session_state.get("student_code", "demo001")
 
     # --- Lock the level from your Sheet ---
-    student_level_locked = get_student_level(student_code, default=(st.session_state.get("student_level","A1")))
+    student_level_locked = get_student_level(
+        student_code,
+        default=(st.session_state.get("student_level", "A1"))
+    )
     if not student_level_locked:
         student_level_locked = "A1"
 
@@ -6754,141 +6795,45 @@ if tab == "Vocab Trainer":
 
     subtab = st.radio(
         "Choose practice:",
-        ["Vocab Practice", "Writing Practice"],
+        ["Sentence Builder", "Vocab Practice"],  # Sentence Builder first, Vocab second
         horizontal=True,
         key="vocab_practice_subtab"
     )
 
     # ===========================
-    # SUBTAB: Vocab Practice (flashcards)
+    # SUBTAB: Sentence Builder (now first)
     # ===========================
-    if subtab == "Vocab Practice":
-        # init session vars
-        defaults = {"vt_history":[], "vt_list":[], "vt_index":0, "vt_score":0, "vt_total":None}
-        for k,v in defaults.items(): st.session_state.setdefault(k,v)
-
-        # stats
-        stats = get_vocab_stats(student_code)
-        st.markdown("### 📝 Your Vocab Stats")
-        st.markdown(f"- **Sessions:** {stats['total_sessions']}")
-        st.markdown(f"- **Best:** {stats['best']}")
-        st.markdown(f"- **Last Practiced:** {stats['last_practiced']}")
-        st.markdown(f"- **Unique Words:** {len(stats['completed_words'])}")
-        if st.checkbox("Show Last 5 Sessions"):
-            for a in stats["history"][-5:][::-1]:
-                st.markdown(
-                    f"- {a['timestamp']} | {a['correct']}/{a['total']} | {a['level']}<br>"
-                    f"<span style='font-size:0.9em;'>Words: {', '.join(a['practiced_words'])}</span>",
-                    unsafe_allow_html=True
-                )
-
-        # lock level
-        level = student_level_locked
-        items = VOCAB_LISTS.get(level, [])
-        completed = set(stats["completed_words"])
-        not_done  = [p for p in items if p[0] not in completed]
-        st.info(f"{len(not_done)} words NOT yet done at {level}.")
-
-        # reset button
-        if st.button("🔁 Start New Practice", key="vt_reset"):
-            for k in defaults: st.session_state[k]=defaults[k]
-            st.rerun()
-
-        mode = st.radio("Select words:", ["Only new words","All words"], horizontal=True, key="vt_mode")
-        session_vocab = (not_done if mode=="Only new words" else items).copy()
-
-        # pick count and start
-        if st.session_state.vt_total is None:
-            maxc = len(session_vocab)
-            if maxc == 0:
-                st.success("🎉 All done! Switch to 'All words' to repeat.")
-                st.stop()
-            count = st.number_input("How many today?", 1, maxc, min(7,maxc), key="vt_count")
-            if st.button("Start", key="vt_start"):
-                import random
-                random.shuffle(session_vocab)
-                st.session_state.vt_list    = session_vocab[:count]
-                st.session_state.vt_total   = count
-                st.session_state.vt_index   = 0
-                st.session_state.vt_score   = 0
-                st.session_state.vt_history = [("assistant",f"Hallo! Ich bin Herr Felix. Let's do {count} words!")]
-                st.rerun()
-
-        # show chat/history
-        if st.session_state.vt_history:
-            st.markdown("### 🗨️ Practice Chat")
-            for who,msg in st.session_state.vt_history:
-                render_message(who,msg)
-
-        # practice loop
-        tot = st.session_state.vt_total
-        idx = st.session_state.vt_index
-        if isinstance(tot,int) and idx<tot:
-            word,answer = st.session_state.vt_list[idx]
-
-            # audio
-            if st.button("🔊 Play & Download", key=f"tts_{idx}"):
-                t = gTTS(text=word, lang="de")
-                with tempfile.NamedTemporaryFile(delete=False,suffix=".mp3") as fp:
-                    t.save(fp.name)
-                    st.audio(fp.name,format="audio/mp3")
-                    fp.seek(0); blob = fp.read()
-                st.download_button(f"⬇️ {word}.mp3", data=blob, file_name=f"{word}.mp3", mime="audio/mp3", key=f"tts_dl_{idx}")
-
-            usr = st.text_input(f"{word} = ?", key=f"vt_input_{idx}")
-            if usr and st.button("Check", key=f"vt_check_{idx}"):
-                st.session_state.vt_history.append(("user",usr))
-                if is_correct_answer(usr,answer):
-                    st.session_state.vt_score += 1
-                    fb = f"✅ Correct! '{word}' = '{answer}'"
-                else:
-                    fb = f"❌ Nope. '{word}' = '{answer}'"
-                st.session_state.vt_history.append(("assistant",fb))
-                st.session_state.vt_index += 1
-                st.rerun()
-
-        # done
-        if isinstance(tot,int) and idx>=tot:
-            score = st.session_state.vt_score
-            words = [w for w,_ in st.session_state.vt_list]
-            st.markdown(f"### 🏁 Done! You scored {score}/{tot}.")
-            save_vocab_attempt(student_code, level, tot, score, words)
-            if st.button("Practice Again", key="vt_again"):
-                for k in defaults: st.session_state[k]=defaults[k]
-                st.rerun()
-
-        # ===========================
-    # SUBTAB: Writing Practice (Sentence Builder)
-    # ===========================
-    elif subtab == "Writing Practice":
+    if subtab == "Sentence Builder":
         student_level = student_level_locked
         st.info(f"✍️ You are practicing **Sentence Builder** at **{student_level}** (locked from your profile).")
 
-        # Lifetime progress bar
-        done_unique, total_items = get_sentence_progress(student_code, student_level)
-        pct = int((done_unique / total_items) * 100) if total_items else 0
-        st.progress(pct)
-        st.caption(f"**Overall Progress:** {done_unique} / {total_items} unique sentences correct ({pct}%).")
+        # --- Guide & Progress (collapsed) ---
+        with st.expander("✍️ Sentence Builder — Guide & Progress", expanded=False):
+            # Lifetime progress bar
+            done_unique, total_items = get_sentence_progress(student_code, student_level)
+            pct = int((done_unique / total_items) * 100) if total_items else 0
+            st.progress(pct)
+            st.caption(f"**Overall Progress:** {done_unique} / {total_items} unique sentences correct ({pct}%).")
 
-        st.markdown(
-            """
-            <div style="padding:10px 14px; background:#7b2ff2; color:#fff; border-radius:8px; text-align:center;">
-              ✍️ <b>Sentence Builder</b> — Click the words in the correct order!
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-        st.caption(
-            "Tip: Click words to build the sentence. Clear to reset, Check to submit, "
-            "Next for a new one."
-        )
-        st.markdown(
-            "**What these numbers mean:**  \n"
-            "- **Score** = Correct sentences *this session*.  \n"
-            "- **Progress** (bar above) = Unique sentences you have *ever* solved at this level."
-        )
+            st.markdown(
+                """
+                <div style="padding:10px 14px; background:#7b2ff2; color:#fff; border-radius:8px; text-align:center;">
+                  ✍️ <b>Sentence Builder</b> — Click the words in the correct order!
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            st.caption(
+                "Tip: Click words to build the sentence. Clear to reset, Check to submit, "
+                "Next for a new one."
+            )
+            st.markdown(
+                "**What these numbers mean:**  \n"
+                "- **Score** = Correct sentences *this session*.  \n"
+                "- **Progress** (bar above) = Unique sentences you have *ever* solved at this level."
+            )
 
-        # session state
+        # ---- session state defaults ----
         init_defaults = {
             "sb_round": 0,
             "sb_pool": None,
@@ -6905,7 +6850,7 @@ if tab == "Vocab Trainer":
             if k not in st.session_state:
                 st.session_state[k] = v
 
-        # init / level change
+        # ---- init / level change ----
         if (st.session_state.sb_pool is None) or (st.session_state.sb_pool_level != student_level):
             import random
             st.session_state.sb_pool_level = student_level
@@ -6946,7 +6891,7 @@ if tab == "Vocab Trainer":
         if st.session_state.sb_current is None:
             new_sentence()
 
-        # Top metrics for session  ✅ FIXED: don't assign widget value back to session_state
+        # ---- Top metrics for session ----
         cols = st.columns([3, 2, 2])
         with cols[0]:
             st.session_state.setdefault("sb_target", 5)
@@ -6963,7 +6908,7 @@ if tab == "Vocab Trainer":
 
         st.divider()
 
-        # Buttons for word choices
+        # ---- Buttons for word choices ----
         st.markdown("#### 🧩 Click the words in order")
         if st.session_state.sb_shuffled:
             word_cols = st.columns(min(6, len(st.session_state.sb_shuffled)) or 1)
@@ -6976,12 +6921,12 @@ if tab == "Vocab Trainer":
                         st.session_state.sb_selected_idx.append(i)
                         st.rerun()
 
-        # Preview
+        # ---- Preview ----
         chosen_tokens = [st.session_state.sb_shuffled[i] for i in st.session_state.sb_selected_idx]
         st.markdown("#### ✨ Your sentence")
         st.code(normalize_join(chosen_tokens) if chosen_tokens else "—", language="text")
 
-        # Actions
+        # ---- Actions ----
         a, b, c = st.columns(3)
         with a:
             if st.button("🧹 Clear"):
@@ -6992,9 +6937,9 @@ if tab == "Vocab Trainer":
         with b:
             if st.button("✅ Check"):
                 # Map correct keys from your bank
-                target = st.session_state.sb_current.get("target_de", "").strip()
-                chosen = normalize_join(chosen_tokens).strip()
-                correct = (chosen.lower() == target.lower())
+                target_sentence = st.session_state.sb_current.get("target_de", "").strip()
+                chosen_sentence = normalize_join(chosen_tokens).strip()
+                correct = (chosen_sentence.lower() == target_sentence.lower())
                 st.session_state.sb_correct = correct
                 st.session_state.sb_total += 1
                 if correct:
@@ -7003,13 +6948,13 @@ if tab == "Vocab Trainer":
                 else:
                     tip = st.session_state.sb_current.get("hint_en", "")
                     st.session_state.sb_feedback = (
-                        f"❌ **Not quite.**\n\n**Correct:** {target}\n\n*Tip:* {tip}"
+                        f"❌ **Not quite.**\n\n**Correct:** {target_sentence}\n\n*Tip:* {tip}"
                     )
                 save_sentence_attempt(
                     student_code=student_code,
                     level=student_level,
-                    target_sentence=target,
-                    chosen_sentence=chosen,
+                    target_sentence=target_sentence,
+                    chosen_sentence=chosen_sentence,
                     correct=correct,
                     tip=st.session_state.sb_current.get("hint_en", ""),
                 )
@@ -7022,13 +6967,120 @@ if tab == "Vocab Trainer":
                 new_sentence()
                 st.rerun()
 
-        # Feedback box
+        # ---- Feedback box ----
         if st.session_state.sb_feedback:
             if st.session_state.sb_correct:
                 st.success(st.session_state.sb_feedback)
             else:
                 st.info(st.session_state.sb_feedback)
 
+    # ===========================
+    # SUBTAB: Vocab Practice (flashcards) — second
+    # ===========================
+    elif subtab == "Vocab Practice":
+        # init session vars
+        defaults = {"vt_history": [], "vt_list": [], "vt_index": 0, "vt_score": 0, "vt_total": None}
+        for k, v in defaults.items():
+            st.session_state.setdefault(k, v)
+
+        # stats
+        stats = get_vocab_stats(student_code)
+        st.markdown("### 📝 Your Vocab Stats")
+        st.markdown(f"- **Sessions:** {stats['total_sessions']}")
+        st.markdown(f"- **Best:** {stats['best']}")
+        st.markdown(f"- **Last Practiced:** {stats['last_practiced']}")
+        st.markdown(f"- **Unique Words:** {len(stats['completed_words'])}")
+        if st.checkbox("Show Last 5 Sessions"):
+            for a in stats["history"][-5:][::-1]:
+                st.markdown(
+                    f"- {a['timestamp']} | {a['correct']}/{a['total']} | {a['level']}<br>"
+                    f"<span style='font-size:0.9em;'>Words: {', '.join(a['practiced_words'])}</span>",
+                    unsafe_allow_html=True
+                )
+
+        # lock level
+        level = student_level_locked
+        items = VOCAB_LISTS.get(level, [])
+        completed = set(stats["completed_words"])
+        not_done = [p for p in items if p[0] not in completed]
+        st.info(f"{len(not_done)} words NOT yet done at {level}.")
+
+        # reset button
+        if st.button("🔁 Start New Practice", key="vt_reset"):
+            for k in defaults:
+                st.session_state[k] = defaults[k]
+            st.rerun()
+
+        mode = st.radio("Select words:", ["Only new words", "All words"], horizontal=True, key="vt_mode")
+        session_vocab = (not_done if mode == "Only new words" else items).copy()
+
+        # pick count and start
+        if st.session_state.vt_total is None:
+            maxc = len(session_vocab)
+            if maxc == 0:
+                st.success("🎉 All done! Switch to 'All words' to repeat.")
+                st.stop()
+            count = st.number_input("How many today?", 1, maxc, min(7, maxc), key="vt_count")
+            if st.button("Start", key="vt_start"):
+                import random
+                random.shuffle(session_vocab)
+                st.session_state.vt_list = session_vocab[:count]
+                st.session_state.vt_total = count
+                st.session_state.vt_index = 0
+                st.session_state.vt_score = 0
+                st.session_state.vt_history = [("assistant", f"Hallo! Ich bin Herr Felix. Let's do {count} words!")]
+                st.rerun()
+
+        # show chat/history
+        if st.session_state.vt_history:
+            st.markdown("### 🗨️ Practice Chat")
+            for who, msg in st.session_state.vt_history:
+                render_message(who, msg)
+
+        # practice loop
+        tot = st.session_state.vt_total
+        idx = st.session_state.vt_index
+        if isinstance(tot, int) and idx < tot:
+            word, answer = st.session_state.vt_list[idx]
+
+            # audio
+            if st.button("🔊 Play & Download", key=f"tts_{idx}"):
+                t = gTTS(text=word, lang="de")
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
+                    t.save(fp.name)
+                    st.audio(fp.name, format="audio/mp3")
+                    fp.seek(0)
+                    blob = fp.read()
+                st.download_button(
+                    f"⬇️ {word}.mp3",
+                    data=blob,
+                    file_name=f"{word}.mp3",
+                    mime="audio/mp3",
+                    key=f"tts_dl_{idx}"
+                )
+
+            usr = st.text_input(f"{word} = ?", key=f"vt_input_{idx}")
+            if usr and st.button("Check", key=f"vt_check_{idx}"):
+                st.session_state.vt_history.append(("user", usr))
+                if is_correct_answer(usr, answer):
+                    st.session_state.vt_score += 1
+                    fb = f"✅ Correct! '{word}' = '{answer}'"
+                else:
+                    fb = f"❌ Nope. '{word}' = '{answer}'"
+                st.session_state.vt_history.append(("assistant", fb))
+                st.session_state.vt_index += 1
+                st.rerun()
+
+        # done
+        if isinstance(tot, int) and idx >= tot:
+            score = st.session_state.vt_score
+            words = [w for w, _ in st.session_state.vt_list]
+            st.markdown(f"### 🏁 Done! You scored {score}/{tot}.")
+            save_vocab_attempt(student_code, level, tot, score, words)
+            if st.button("Practice Again", key="vt_again"):
+                for k in defaults:
+                    st.session_state[k] = defaults[k]
+                st.rerun()
 
 
 # ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
