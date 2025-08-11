@@ -9,6 +9,7 @@ import io
 import json
 import os
 import random
+import math
 import re
 import sqlite3
 import tempfile
@@ -1330,7 +1331,6 @@ if st.session_state.get("logged_in"):
           <span style="background:#eef7f1;color:#1e7a3b;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏅 Assignments</span>
           <span style="background:#fff4e5;color:#a36200;padding:4px 10px;border-radius:999px;font-size:0.9em;">🗣️ Vocab</span>
           <span style="background:#f7ecff;color:#6b29b8;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏆 Leaderboard</span>
-          <span style="background:#eaf7ff;color:#17617a;padding:4px 10px;border-radius:999px;font-size:0.9em;">💡 Tip</span>
         </div>
     """, unsafe_allow_html=True)
 
@@ -1367,17 +1367,6 @@ if st.session_state.get("logged_in"):
     if not your_row.empty:
         rank_val = int(your_row.iloc[0]['Rank'])
         leaderboard_title_extra = f"• rank #{rank_val} / {total_students}"
-
-    # -------------------- DASHBOARD TIP (compute only) --------------------
-    DASHBOARD_REMINDERS = [
-        "🤔 **Have you tried the Course Book?** Explore every lesson, see your learning progress, and never miss a topic.",
-        "📊 **Have you checked My Results and Resources?** View your quiz results, download your work, and see where you shine.",
-        "📝 **Have you used Exams Mode & Custom Chat?** Practice your speaking and real exam questions or ask your own. Get instant writing feedback and AI help!",
-        "🗣️ **Have you done some Vocab Trainer this week?** Practicing new words daily is proven to boost your fluency.",
-        "✍️ **Have you used the Schreiben Trainer?** Try building your letters with the Ideas Generator—then self-check before your tutor does!",
-        "📒 **Have you added notes in My Learning Notes?** Organize, pin, and download your best ideas and study tips.",
-    ]
-    dashboard_tip = random.choice(DASHBOARD_REMINDERS)
 
     # ==================== COLLAPSIBLE NOTIFICATIONS ====================
 
@@ -1512,9 +1501,6 @@ if st.session_state.get("logged_in"):
             else:
                 st.info("Start submitting assignments to see your progress bar here!")
 
-    # Tip (collapsed)
-    with st.expander("💡 Dashboard Tip", expanded=False):
-        st.info(dashboard_tip)
 
     st.divider()
 
@@ -3570,6 +3556,7 @@ def render_section(day_info, key, title, icon):
             for ex in (extras if isinstance(extras, list) else [extras]):
                 render_link("🔗 Extra", ex)
 
+
 def post_message(level, code, name, text, reply_to=None):
     posts_ref = db.collection("class_board").document(level).collection("posts")
     posts_ref.add({
@@ -3647,7 +3634,6 @@ if tab == "My Course":
         horizontal=True,
         key="coursebook_subtab"
     )
-
 
 
     # === COURSE BOOK SUBTAB ===
@@ -4149,14 +4135,28 @@ if tab == "My Course":
 
         db = _get_db()
 
-#
 
-        # ---------- context ----------
+        def _safe_str(v, default: str = "") -> str:
+            if v is None:
+                return default
+            if isinstance(v, float):
+                try:
+                    if math.isnan(v):
+                        return default
+                except Exception:
+                    pass
+            s = str(v).strip()
+            return "" if s.lower() in ("nan", "none") else s
+
+        def _safe_upper(v, default: str = "") -> str:
+            s = _safe_str(v, default)
+            return s.upper() if s else default
+
         student_row   = st.session_state.get("student_row", {}) or {}
-        student_code  = student_row.get("StudentCode", "demo001")
-        student_name  = student_row.get("Name", "Student")
-        student_level = (student_row.get("Level") or "A1").upper()
-        class_name    = (student_row.get("ClassName") or "").strip() or f"{student_level} General"
+        student_code  = _safe_str(student_row.get("StudentCode"), "demo001")
+        student_name  = _safe_str(student_row.get("Name"), "Student")
+        student_level = _safe_upper(student_row.get("Level"), "A1")
+        class_name    = _safe_str(student_row.get("ClassName")) or f"{student_level} General"
 
         ADMINS = set()
         try:
@@ -5264,14 +5264,6 @@ if tab == "My Course":
                                 st.rerun()
                     with cols[3]:
                         st.caption("")
-
-
-
-
-
-
-
-
 
 
 
@@ -9502,6 +9494,11 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
+
+
+
+
 
 
 
