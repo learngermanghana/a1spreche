@@ -591,9 +591,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Helper: persist login to cookie + localStorage ---
-import json
-import streamlit.components.v1 as components
-from datetime import datetime, timedelta
 
 def save_cookie_after_login(student_code: str) -> None:
     value = str(student_code or "").strip().lower()
@@ -1607,8 +1604,8 @@ if tab == "Dashboard":
             "days": ["Thursday", "Friday", "Saturday"],
             "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
             "start_date": "2025-08-15",
-            "end_date": "2025-10-10",
-            "doc_url": "https://drive.google.com/file/d/1V4TmrxEA6gwQNSCLtC8Kw0_WUoXB6gR9/view?usp=sharing"
+            "end_date": "2025-10-11",
+            "doc_url": "https://drive.google.com/file/d/1d1Ord557jGRn5NxYsmCJVmwUn1HtrqI3/view?usp=sharing"
         },
         "A2 Munich Klasse": {
             "days": ["Monday", "Tuesday", "Wednesday"],
@@ -4252,6 +4249,10 @@ if tab == "My Course":
                 "calendar_url": "https://calendar.app.google/N9iYk2ayNUut2zgB8",
                 "contact_email": "learngermanghana@gmail.com",
             },
+            _norm_class_local("A1 Koln Klasse"): {
+                "tutors": ["Felix Asadu"],
+                "calendar_url": "https://calendar.app.google/t4tbqAqF478XA9bD6",
+                "contact_email": "learngermanghana@gmail.com",
         }
 
         # Merge Firestore -> fallbacks
