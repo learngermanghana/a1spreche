@@ -3784,10 +3784,6 @@ if tab == "My Course":
         if info.get("instruction"):
             st.markdown(f"**📝 Instruction:**  {info['instruction']}")
 
-        # --- YouTube main link (clickable) ---
-        if info.get("youtube_link"):
-            st.markdown(f"[▶️ YouTube Link]({info['youtube_link']})")
-
         # ---- RENDER SECTION: lesen_hören, schreiben_sprechen, each with fallback YouTube link ----
         def render_section(day_info, key, title, icon):
             content = day_info.get(key)
@@ -4226,6 +4222,137 @@ if tab == "My Course":
                 st.info(f"You’re viewing: **{class_name}**")
 
         st.divider()
+
+        # ===================== CLASS META (safe resolver) =====================
+        import re, urllib.parse as _urllib
+
+        def _norm_class_local(s: str) -> str:
+            return re.sub(r"\s+", " ", (s or "").strip().lower())
+
+        # Fallbacks you can edit; Firestore values (if any) will override these.
+        CLASS_FALLBACKS_LOCAL = {
+            _norm_class_local("A2 Koln Klasse"): {
+                "tutors": ["Felix Asadu"],
+                "calendar_url": "https://calendar.app.google/9yZFVfPSnHY6W4kH7",
+                "contact_email": "learngermanghana@gmail.com",
+            },
+            _norm_class_local("B1 Munich Klasse"): {
+                "tutors": ["Felix Asadu"],
+                "calendar_url": "https://calendar.app.google/5aWmmumc7pVLCKJZ6",
+                "contact_email": "learngermanghana@gmail.com",
+            },
+            _norm_class_local("A2 Munich Klasse"): {
+                "tutors": ["Felix Asadu"],
+                "calendar_url": "https://calendar.google.com/calendar/event?action=TEMPLATE&tmeid=MnFxZHZmYXYxZGUwODg3b2FuaWdodWRkYTBfMjAyNTA4MDRUMTkzMDAwWiBsZWFybmdlcm1hbmdoYW5hQG0&tmsrc=learngermanghana%40gmail.com&scp=ALL",
+                "contact_email": "learngermanghana@gmail.com",
+                "image_url": "https://i.imgur.com/7uJRrbr.png",
+            },
+            _norm_class_local("A1 Munich Klasse"): {
+                "tutors": ["Felix Asadu"],
+                "calendar_url": "https://calendar.app.google/N9iYk2ayNUut2zgB8",
+                "contact_email": "learngermanghana@gmail.com",
+            },
+        }
+
+        # Merge Firestore -> fallbacks
+        _meta = {}
+        try:
+            doc = db.collection("classes").document(class_name).get()
+            if getattr(doc, "exists", False):
+                _meta.update(doc.to_dict() or {})
+        except Exception:
+            pass
+        _fb = CLASS_FALLBACKS_LOCAL.get(_norm_class_local(class_name), {})
+        _meta = {**_fb, **_meta}
+
+        tutors        = _meta.get("tutors", [])  # list of names or {name,email}
+        calendar_url  = (_meta.get("calendar_url") or "").strip()
+        contact_email = (_meta.get("contact_email") or "learngermanghana@gmail.com").strip()
+
+        # ===================== TUTORS • CALENDAR • CONTACT (no image) =====================
+
+
+        # Normalize tutors into dicts and pick lead / co-tutor
+        def _as_dict(t):
+            if isinstance(t, dict):
+                return {"name": (t.get("name") or "").strip(), "email": (t.get("email") or "").strip()}
+            return {"name": str(t or "").strip(), "email": ""}
+
+        _tutors_raw = tutors or []
+        _tutors = []
+        for t in _tutors_raw:
+            d = _as_dict(t)
+            if d["name"]:
+                _tutors.append(d)
+
+        lead_tutor = _tutors[0] if _tutors else None
+        co_tutor   = _tutors[1] if len(_tutors) > 1 else None  # only show if exists
+
+        def _tutor_line(d):
+            if not d: return ""
+            return d["name"] + (f" <span style='color:#64748b'>&lt;{d['email']}&gt;</span>" if d.get("email") else "")
+
+        # Private email (prefill subject/body)
+        _subj = f"Private message from {student_name} ({student_code}) — {class_name}"
+        _body = (
+            "Hello Tutor,\n\n"
+            f"This is a private message from {student_name} ({student_code}).\n"
+            f"Class: {class_name}\n\n"
+            "Message:\n"
+        )
+        _mailto = f"mailto:{contact_email}?{_urllib.urlencode({'subject': _subj, 'body': _body})}"
+
+        t_primary = _tutor_line(lead_tutor) if lead_tutor else "<span style='color:#64748b'>Not set</span>"
+        t_cotutor = _tutor_line(co_tutor)
+
+        st.markdown(
+            f"""
+            <div style="
+                padding: 14px;
+                background: #ecfeff;
+                border: 1px solid #bae6fd;
+                color: #0c4a6e;
+                border-radius: 10px;
+                margin-bottom: 14px;
+                box-shadow: 0 2px 6px rgba(0,0,0,.05);
+            ">
+              <div style="font-size:1.05rem; margin-bottom:8px;">
+                👩‍🏫 <b>Tutor:</b> {t_primary}
+              </div>
+              {"<div style='font-size:1.05rem; margin-bottom:8px;'>🤝 <b>Co-Tutor:</b> " + t_cotutor + "</div>" if co_tutor else ""}
+              <div style="font-size:1.05rem;">
+                📅 <b>Class Calendar:</b>
+                {"<a href='"+calendar_url+"' target='_blank'>Open calendar link</a>" if calendar_url else "<span style='color:#64748b'>No calendar link yet</span>"}
+              </div>
+              <div style="margin-top:10px; color:#0369a1;">
+                Tip: Click the calendar link and choose <b>Save/Accept</b> to add it to your Google Calendar.
+                This ensures you get reminders for every class session.
+              </div>
+              <div style="margin-top:14px;">
+                <a href="{_mailto}" target="_blank" style="
+                   display:inline-block;padding:8px 12px;border-radius:8px;
+                   background:#0ea5e9;color:#fff;text-decoration:none;font-weight:600;">
+                   ✉️ Private message your tutor
+                </a>
+                &nbsp;&nbsp;
+                <span style="color:#0c4a6e;">For <b>general questions</b>, please post in <b>Class Q&A</b> below.</span>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        if calendar_url:
+            try:
+                st.link_button("📅 Add Class Calendar (Google)", calendar_url, use_container_width=False)
+            except Exception:
+                st.markdown(f"[📅 Add Class Calendar (Google)]({calendar_url})")
+
+        st.divider()
+#
+
+
+
 
         # ===================== CLASS ROSTER =====================
         st.markdown("### 👥 Class Members")
