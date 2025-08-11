@@ -35,12 +35,8 @@ from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
 
-
-
 # --- Compatibility alias ---
 html = st_html  # ensures any html(...) calls use the Streamlit component
-
-
 
 
 
@@ -308,8 +304,6 @@ components.html("""
 """, height=0)
 
 
-
-
 # ================================================
 # STUDENT SHEET LOADING & SESSION SETUP
 # ================================================
@@ -387,40 +381,21 @@ def is_contract_expired(row):
     today = datetime.utcnow().date()
     return expiry_date.date() < today
 
+
 # ============================================================
 # 0) Cookie + localStorage “SSO” (iPhone/Safari friendly)
 # ============================================================
-ENV = os.getenv("ENV", "prod")
-CM_PREFIX = "falowen_"
-
 def _expire_str(dt: datetime) -> str:
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
-
-# --- Init cookie manager ONCE (avoid multiple .ready() calls) ---
-COOKIE_SECRET = (os.getenv("COOKIE_SECRET")
-                 or (st.secrets.get("COOKIE_SECRET") if hasattr(st, "secrets") else None))
-if not COOKIE_SECRET:
-    st.error("Cookie secret missing. Add COOKIE_SECRET to Streamlit secrets or env.")
-    st.stop()
-
-if "_cm" not in st.session_state:
-    st.session_state["_cm"] = EncryptedCookieManager(prefix=CM_PREFIX, password=COOKIE_SECRET)
-cookie_manager = st.session_state["_cm"]
-
-if not st.session_state.get("_cm_ready", False):
-    if not cookie_manager.ready():
-        st.warning("Cookies not ready; please refresh.")
-        st.stop()
-    st.session_state["_cm_ready"] = True
 
 def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     """
     Safari-friendly cookie: host-only, SameSite=Lax, Secure on HTTPS.
-    Also mirrors to localStorage.
+    Also writes a localStorage backup.
     """
     key = "student_code"
     norm = (value or "").strip().lower()
-    use_secure = (ENV != "dev")  # True on Streamlit/Render
+    use_secure = (os.getenv("ENV", "prod") != "dev")  # True on Streamlit/Render, False only for http dev
 
     # 1) Library cookie (server-visible)
     try:
@@ -447,16 +422,16 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     <script>
       (function(){{
         try {{
-          var c = "{CM_PREFIX}{key}={encoded_val}; Path=/; Max-Age={max_age}; Expires={exp_str}; SameSite=Lax";
-          {"c += '; Secure';" if (ENV != "dev") else ""}
-          document.cookie = c;  // host-only (no Domain)
+          var c = "{getattr(cookie_manager,'prefix','') or ''}{key}={encoded_val}; Path=/; Max-Age={max_age}; Expires={exp_str}; SameSite=Lax";
+          {"c += '; Secure';" if (os.getenv("ENV", "prod") != "dev") else ""}
+          document.cookie = c;  // host-only
           try {{ localStorage.setItem('student_code', {json.dumps(norm)}); }} catch(e) {{}}
         }} catch(e) {{}}
       }})();
     </script>
     """, height=0)
 
-# 1) Push localStorage.student_code → URL query param (lets us log in even if cookies fail)
+# 1) Push localStorage.student_code → URL query param (so we can log in even if cookies fail)
 components.html("""
 <script>
   (function(){
@@ -490,7 +465,17 @@ def qp_clear():
         except Exception:
             pass
 
-# 3) Handshake: set cookie from ?student_code=, then only clear the param after we confirm cookie exists
+# 3) Init cookie manager once
+COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
+if not COOKIE_SECRET:
+    st.error("Cookie secret missing. Add COOKIE_SECRET to your Streamlit secrets.")
+    st.stop()
+cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
+if not cookie_manager.ready():
+    st.warning("Cookies not ready; please refresh.")
+    st.stop()
+
+# 4) Handshake: set cookie from ?student_code=, then only clear the param after we confirm cookie exists
 params = qp_get()
 sc_param = params.get("student_code")
 if isinstance(sc_param, list):
@@ -513,7 +498,7 @@ if sc_param:
 else:
     st.session_state.pop("__cookie_attempt", None)
 
-# 4) Ensure session_state keys
+# 5) Ensure session_state keys
 for key, default in [
     ("logged_in", False),
     ("student_row", None),
@@ -522,7 +507,7 @@ for key, default in [
 ]:
     st.session_state.setdefault(key, default)
 
-# 5) Restore login: prefer cookie, else fall back to ?student_code= (keeps iPhone users logged in)
+# 6) Restore login: prefer cookie, else fall back to ?student_code= (keeps iPhone users logged in)
 code_cookie = (cookie_manager.get("student_code") or "").strip().lower()
 effective_code = code_cookie or sc_param
 
@@ -546,700 +531,6 @@ if not st.session_state.get("logged_in", False) and effective_code:
             # Expired: clear cookie + localStorage to avoid loops
             set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
             components.html("<script>try{localStorage.removeItem('student_code');}catch(e){}</script>", height=0)
-
-# --- TEMP DEBUG (remove later) ---
-st.caption("Cookie debug (temporary)")
-st.write("cookie_manager.get('student_code'):", cookie_manager.get("student_code"))
-components.html("""
-  <div style="font:13px/1.4 ui-sans-serif;">
-    <div><b>document.cookie</b> (host-only expected):</div>
-    <pre id="c" style="white-space:pre-wrap;background:#f8fafc;padding:8px;border-radius:8px;"></pre>
-    <div><b>userAgent</b>:</div>
-    <pre id="u" style="white-space:pre-wrap;background:#f8fafc;padding:8px;border-radius:8px;"></pre>
-  </div>
-  <script>
-    document.getElementById('c').textContent = document.cookie || '(empty)';
-    document.getElementById('u').textContent = navigator.userAgent;
-  </script>
-""", height=160)
-
-
-
-# --- 1) Page config & session init ---------------------------------------------
-st.set_page_config(
-    page_title="Falowen – Your German Conversation Partner",
-    page_icon="👋",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
-# --- 2) Global CSS (higher contrast + focus states) ----------------------------
-st.markdown("""
-<style>
-  .hero {
-    background: #fff;
-    border-radius: 12px;
-    padding: 24px;
-    margin: 24px auto;
-    max-width: 800px;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.05);
-  }
-  .help-contact-box {
-    background: #fff;
-    border-radius: 14px;
-    padding: 20px;
-    margin: 16px auto;
-    max-width: 500px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.04);
-    border:1px solid #ebebf2; text-align:center;
-  }
-  .quick-links { display: flex; flex-wrap: wrap; gap:12px; justify-content:center; }
-  /* Higher-contrast chips for WCAG */
-  .quick-links a {
-    background: #e2e8f0;   /* light gray for contrast */
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-weight:600;
-    text-decoration:none;
-    color:#0f172a;          /* very dark text */
-    border:1px solid #cbd5e1;
-  }
-  .quick-links a:hover { background:#cbd5e1; }
-
-  /* Buttons: strong contrast */
-  .stButton > button {
-    background:#2563eb;     /* blue */
-    color:#ffffff;
-    font-weight:700;
-    border-radius:8px;
-    border:2px solid #1d4ed8;
-  }
-  .stButton > button:hover { background:#1d4ed8; }
-
-  /* Clear keyboard focus for accessibility */
-  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible,
-  [role="button"]:focus-visible {
-    outline:3px solid #f59e0b;  /* amber focus ring */
-    outline-offset:2px;
-    box-shadow:none !important;
-  }
-
-  /* Legible inputs */
-  input, textarea { color:#0f172a !important; }
-
-  @media (max-width:600px){
-    .hero, .help-contact-box { padding:16px 4vw; }
-  }
-</style>
-""", unsafe_allow_html=True)
-
-# --- Helper: persist login to cookie + localStorage ---
-
-def save_cookie_after_login(student_code: str) -> None:
-    value = str(student_code or "").strip().lower()
-    try:
-        _cm  = globals().get("cookie_manager")
-        _set = globals().get("set_student_code_cookie")
-        if _cm and _set:
-            _set(_cm, value, expires=datetime.utcnow() + timedelta(days=180))
-    except Exception:
-        pass
-    components.html(
-        """
-        <script>
-          try { localStorage.setItem('student_code', __VAL__); } catch (e) {}
-        </script>
-        """.replace("__VAL__", json.dumps(value)),
-        height=0
-    )
-
-# --- 3) Public Homepage --------------------------------------------------------
-if not st.session_state.get("logged_in", False):
-
-    # Wider but centered content so it doesn't feel isolated on desktop
-    st.markdown("""
-    <style>
-      .page-wrap { max-width: 1100px; margin: 0 auto; }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # Hero + features
-    st.markdown("""
-    <div class="page-wrap">
-      <div class="hero" aria-label="Falowen app introduction">
-        <h1 style="text-align:center; color:#25317e;">👋 Welcome to <strong>Falowen</strong></h1>
-        <p style="text-align:center; font-size:1.1em; color:#555;">
-          Falowen is your all-in-one German learning platform, powered by
-          <b>Learn Language Education Academy</b>, with courses and vocabulary from
-          <b>A1 to C1</b> levels and live tutor support.
-        </p>
-        <ul style="max-width:700px; margin:16px auto; color:#444; font-size:1em; line-height:1.5;">
-          <li>📊 <b>Dashboard</b>: Track your learning streaks, assignment progress, active contracts, and more.</li>
-          <li>📚 <b>Course Book</b>: Access lecture videos, grammar modules, and submit assignments for levels A1–C1 in one place.</li>
-          <li>📝 <b>Exams & Quizzes</b>: Take practice tests and official exam prep right in the app.</li>
-          <li>💬 <b>Custom Chat</b>: Sprechen & expression trainer for live feedback on your speaking.</li>
-          <li>🏆 <b>Results Tab</b>: View your grades, feedback, and historical performance at a glance.</li>
-          <li>🔤 <b>Vocab Trainer</b>: Practice and master A1–C1 vocabulary with spaced-repetition quizzes.</li>
-          <li>✍️ <b>Schreiben Trainer</b>: Improve your writing with guided exercises and instant corrections.</li>
-        </ul>
-      </div>
-
-      <!-- ===== Compact stats strip ===== -->
-      <style>
-        .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:10px auto 4px auto; max-width:820px; }
-        .stat { background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
-                box-shadow:0 2px 10px rgba(2,132,199,0.15); outline: none; }
-        .stat:focus-visible { outline:3px solid #1f2937; outline-offset:2px; }
-        .stat .num { font-size:1.25rem; font-weight:800; line-height:1; }
-        .stat .label { font-size:.92rem; opacity:.98; }
-        @media (max-width:560px){ .stat { min-width:46%; } }
-      </style>
-      <div class="stats-strip" role="list" aria-label="Falowen highlights">
-        <div class="stat" role="listitem" tabindex="0" aria-label="Active learners: over 300">
-          <div class="num">300+</div>
-          <div class="label">Active learners</div>
-        </div>
-        <div class="stat" role="listitem" tabindex="0" aria-label="Assignments submitted">
-          <div class="num">1,200+</div>
-          <div class="label">Assignments submitted</div>
-        </div>
-        <div class="stat" role="listitem" tabindex="0" aria-label="Levels covered: A1 to C1">
-          <div class="num">A1–C1</div>
-          <div class="label">Full course coverage</div>
-        </div>
-        <div class="stat" role="listitem" tabindex="0" aria-label="Average student feedback">
-          <div class="num">4.8/5</div>
-          <div class="label">Avg. feedback</div>
-        </div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Short explainer: which option to use
-    st.markdown("""
-    <div class="page-wrap" style="max-width:900px;margin-top:4px;">
-      <div style="background:#f1f5f9;border:1px solid #e2e8f0;padding:12px 14px;border-radius:10px;">
-        <b>Which option should I use?</b><br>
-        • <b>Returning student</b>: you already created a password — log in.<br>
-        • <b>Sign up (approved)</b>: you’ve paid and your email & code are on the roster, but no account yet — create one.<br>
-        • <b>Request access</b>: brand new learner — fill the form and we’ll contact you.
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # --- Rotating multi-country reviews (with flags) ---
-    import json, streamlit.components.v1 as components
-    REVIEWS = [
-        {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.",
-         "author": "Ama — Accra, Ghana 🇬🇭", "level": "A2"},
-        {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.",
-         "author": "Tunde — Lagos, Nigeria 🇳🇬", "level": "B1"},
-        {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.",
-         "author": "Mariama — Freetown, Sierra Leone 🇸🇱", "level": "A1"},
-        {"quote": "I like the locked submissions and the clean Results tab.",
-         "author": "Kossi — Lomé, Togo 🇹🇬", "level": "B1"},
-        {"quote": "Exactly what I needed for B2 writing — detailed, actionable feedback every time.",
-         "author": "Lea — Berlin, Germany 🇩🇪", "level": "B2"},
-        {"quote": "Solid grammar explanations and lots of practice. My confidence improved fast.",
-         "author": "Sipho — Johannesburg, South Africa 🇿🇦", "level": "A2"},
-        {"quote": "Great structure for busy schedules. I can study, submit, and track results easily.",
-         "author": "Nadia — Windhoek, Namibia 🇳🇦", "level": "B1"},
-    ]
-    _reviews_json = json.dumps(REVIEWS, ensure_ascii=False)
-    _reviews_html = """
-<div class="page-wrap" role="region" aria-label="Student reviews" style="margin-top:10px;">
-  <div id="rev-quote" style="
-      background:#f8fafc;border-left:4px solid #6366f1;padding:12px 14px;border-radius:10px;
-      color:#475569;min-height:82px;display:flex;align-items:center;justify-content:center;text-align:center;">
-    Loading…
-  </div>
-  <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:10px;">
-    <button id="rev-prev" aria-label="Previous review" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:6px 10px;cursor:pointer;">‹</button>
-    <div id="rev-dots" aria-hidden="true" style="display:flex;gap:6px;"></div>
-    <button id="rev-next" aria-label="Next review" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:6px 10px;cursor:pointer;">›</button>
-  </div>
-</div>
-<script>
-  const data = __DATA__;
-  let i = 0;
-  const quoteEl = document.getElementById('rev-quote');
-  const dotsEl  = document.getElementById('rev-dots');
-  const prevBtn = document.getElementById('rev-prev');
-  const nextBtn = document.getElementById('rev-next');
-  function renderDots(){
-    dotsEl.innerHTML = '';
-    data.forEach((_, idx) => {
-      const d = document.createElement('button');
-      d.setAttribute('aria-label', 'Go to review ' + (idx + 1));
-      d.style.width = '10px'; d.style.height = '10px'; d.style.borderRadius = '999px';
-      d.style.border = 'none'; d.style.cursor = 'pointer';
-      d.style.background = (idx === i) ? '#6366f1' : '#c7d2fe';
-      d.addEventListener('click', () => { i = idx; render(); });
-      dotsEl.appendChild(d);
-    });
-  }
-  function render(){
-    const r = data[i];
-    quoteEl.innerHTML = '“' + r.quote + '” — <i>' + r.author + ' · ' + r.level + '</i>';
-    renderDots();
-  }
-  function next(){ i = (i + 1) % data.length; render(); }
-  function prev(){ i = (i - 1 + data.length) % data.length; render(); }
-  prevBtn.addEventListener('click', prev);
-  nextBtn.addEventListener('click', next);
-  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!reduced) { setInterval(next, 6000); }
-  render();
-</script>
-"""
-    components.html(_reviews_html.replace("__DATA__", _reviews_json), height=240)
-
-    # Support / Help section
-    st.markdown("""
-    <div class="page-wrap">
-      <div class="help-contact-box" aria-label="Help and contact options">
-        <b>❓ Need help or access?</b><br>
-        <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp us</a>
-        &nbsp;|&nbsp;
-        <a href="mailto:learngermanghana@gmail.com" target="_blank" rel="noopener">✉️ Email</a>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # --- Google OAuth (Optional) ---
-    GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
-    GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
-    REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowen.app/")
-
-    def _qp_first(val):
-        if isinstance(val, list): return val[0]
-        return val
-
-    def do_google_oauth():
-        import secrets, urllib.parse
-        st.session_state["_oauth_state"] = secrets.token_urlsafe(24)
-        params = {
-            "client_id": GOOGLE_CLIENT_ID,
-            "redirect_uri": REDIRECT_URI,
-            "response_type": "code",
-            "scope": "openid email profile",
-            "prompt": "select_account",
-            "state": st.session_state["_oauth_state"],
-            "include_granted_scopes": "true",
-            "access_type": "online",
-        }
-        auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
-        st.markdown(
-            """<div class="page-wrap" style='text-align:center;margin:12px 0;'>
-                    <a href="{url}">
-                        <button aria-label="Sign in with Google"
-                                style="background:#4285f4;color:white;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;">
-                            Sign in with Google
-                        </button>
-                    </a>
-               </div>""".replace("{url}", auth_url),
-            unsafe_allow_html=True
-        )
-
-    def handle_google_login():
-        qp = qp_get()
-        code  = _qp_first(qp.get("code")) if hasattr(qp, "get") else None
-        state = _qp_first(qp.get("state")) if hasattr(qp, "get") else None
-        if not code: return False
-        if st.session_state.get("_oauth_state") and state != st.session_state["_oauth_state"]:
-            st.error("OAuth state mismatch. Please try again."); return False
-        if st.session_state.get("_oauth_code_redeemed") == code:
-            return False
-
-        token_url = "https://oauth2.googleapis.com/token"
-        data = {
-            "code": code,
-            "client_id": GOOGLE_CLIENT_ID,
-            "client_secret": GOOGLE_CLIENT_SECRET,
-            "redirect_uri": REDIRECT_URI,
-            "grant_type": "authorization_code"
-        }
-        try:
-            resp = requests.post(token_url, data=data, timeout=10)
-            if not resp.ok:
-                st.error(f"Google login failed: {resp.status_code} {resp.text}"); return False
-            tokens = resp.json()
-            access_token = tokens.get("access_token")
-            if not access_token:
-                st.error("Google login failed: no access token."); return False
-            st.session_state["_oauth_code_redeemed"] = code
-
-            userinfo = requests.get(
-                "https://www.googleapis.com/oauth2/v2/userinfo",
-                headers={"Authorization": f"Bearer {access_token}"},
-                timeout=10
-            ).json()
-            email = (userinfo.get("email") or "").lower().strip()
-            if not email:
-                st.error("Google login failed: no email returned."); return False
-
-            df = load_student_data()
-            df["Email"] = df["Email"].str.lower().str.strip()
-            match = df[df["Email"] == email]
-            if match.empty:
-                st.error("No student account found for that Google email."); return False
-
-            student_row = match.iloc[0]
-            if is_contract_expired(student_row):
-                st.error("Your contract has expired. Contact the office."); return False
-
-            st.session_state.update({
-                "logged_in": True,
-                "student_row": student_row.to_dict(),
-                "student_code": student_row["StudentCode"],
-                "student_name": student_row["Name"]
-            })
-            save_cookie_after_login(student_row["StudentCode"])
-            qp_clear()
-            st.success(f"Welcome, {student_row['Name']}!")
-            st.rerun()
-        except Exception as e:
-            st.error(f"Google OAuth error: {e}")
-        return False
-
-    # Handle OAuth return before rendering forms
-    if handle_google_login():
-        st.stop()
-
-    # Tabs: Returning / Sign Up (Approved) / Request Access
-    tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
-
-    # --- Returning ---
-    with tab1:
-        do_google_oauth()
-        st.markdown("<div class='page-wrap' style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
-        with st.form("login_form", clear_on_submit=False):
-            login_id_input   = st.text_input("Student Code or Email", help="Use your school email or Falowen code (e.g., felixa2).")
-            login_pass_input = st.text_input("Password", type="password")
-            login_btn        = st.form_submit_button("Log In")
-
-        if login_btn:
-            login_id   = (login_id_input or "").strip().lower()
-            login_pass = (login_pass_input or "")
-            df = load_student_data()
-            df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-            df["Email"]       = df["Email"].str.lower().str.strip()
-            lookup = df[(df["StudentCode"] == login_id) | (df["Email"] == login_id)]
-
-            if lookup.empty:
-                st.error("No matching student code or email found.")
-            else:
-                student_row = lookup.iloc[0]
-                if is_contract_expired(student_row):
-                    st.error("Your contract has expired. Contact the office.")
-                else:
-                    doc_ref = db.collection("students").document(student_row["StudentCode"])
-                    doc     = doc_ref.get()
-                    if not doc.exists:
-                        st.error("Account not found. Please use 'Sign Up (Approved)' first.")
-                    else:
-                        data      = doc.to_dict() or {}
-                        stored_pw = data.get("password", "")
-                        import bcrypt
-                        def _is_bcrypt_hash(s: str) -> bool:
-                            return isinstance(s, str) and s.startswith(("$2a$", "$2b$", "$2y$")) and len(s) >= 60
-                        ok = False
-                        try:
-                            if _is_bcrypt_hash(stored_pw):
-                                ok = bcrypt.checkpw(login_pass.encode("utf-8"), stored_pw.encode("utf-8"))
-                            else:
-                                ok = (stored_pw == login_pass)
-                                if ok:
-                                    new_hash = bcrypt.hashpw(login_pass.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-                                    doc_ref.update({"password": new_hash})
-                        except Exception:
-                            ok = False
-                        if not ok:
-                            st.error("Incorrect password.")
-                        else:
-                            st.session_state.update({
-                                "logged_in":   True,
-                                "student_row": dict(student_row),
-                                "student_code": student_row["StudentCode"],
-                                "student_name": student_row["Name"]
-                            })
-                            save_cookie_after_login(student_row["StudentCode"])
-                            st.success(f"Welcome, {student_row['Name']}!")
-                            st.rerun()
-
-    # --- Sign Up (Approved students — already on roster, no account yet) ---
-    with tab2:
-        with st.form("signup_form", clear_on_submit=False):
-            new_name_input     = st.text_input("Full Name", key="ca_name")
-            new_email_input    = st.text_input("Email (must match teacher’s record)", help="Use the school email your tutor added to the roster.", key="ca_email")
-            new_code_input     = st.text_input("Student Code (from teacher)", help="Example: felixa2", key="ca_code")
-            new_password_input = st.text_input("Choose a Password", type="password", key="ca_pass")
-            signup_btn         = st.form_submit_button("Create Account")
-
-        if signup_btn:
-            new_name     = (new_name_input or "").strip()
-            new_email    = (new_email_input or "").strip().lower()
-            new_code     = (new_code_input or "").strip().lower()
-            new_password = (new_password_input or "")
-
-            if not (new_name and new_email and new_code and new_password):
-                st.error("Please fill in all fields.")
-            elif len(new_password) < 8:
-                st.error("Password must be at least 8 characters.")
-            else:
-                df = load_student_data()
-                df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-                df["Email"]       = df["Email"].str.lower().str.strip()
-                valid = df[(df["StudentCode"] == new_code) & (df["Email"] == new_email)]
-                if valid.empty:
-                    st.error("Your code/email aren’t registered. Use 'Request Access' first.")
-                else:
-                    doc_ref = db.collection("students").document(new_code)
-                    if doc_ref.get().exists:
-                        st.error("An account with this student code already exists. Please log in instead.")
-                    else:
-                        import bcrypt
-                        hashed_pw = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-                        doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
-                        st.success("Account created! Please log in on the Returning tab.")
-
-    # --- Request Access (brand new learners) ---
-    with tab3:
-        st.markdown("""
-        <div class="page-wrap" style="text-align:center; margin-top:12px;">
-          <p>New student? Request access and we’ll contact you with payment instructions.</p>
-          <p>
-            <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header"
-               target="_blank" rel="noopener"
-               style="background:#2563eb;color:#fff;padding:8px 14px;border-radius:10px;text-decoration:none;font-weight:600;">
-              Request access (Google Form)
-            </a>
-          </p>
-          <p>
-            Or message us directly:
-            <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp</a>
-          </p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # --- Autoplay Video Demo (inline, no fullscreen) -----------------------------
-    st.markdown("""
-    <style>
-      /* Hide fullscreen button on WebKit/Blink (Safari/Chrome/Edge) */
-      .no-fs::-webkit-media-controls-fullscreen-button { display: none !important; }
-      /* Keep controls tidy */
-      .no-fs::-webkit-media-controls-enclosure { overflow: hidden; }
-    </style>
-
-    <div class="page-wrap" style="display:flex; justify-content:center; margin:24px auto;">
-      <video id="falowen_demo" class="no-fs"
-        style="border-radius:12px; box-shadow:0 4px 12px #0002; width:min(92vw,420px); height:auto; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent;"
-        aria-label="Falowen demo video showing the app features"
-        autoplay
-        muted
-        loop
-        controls
-        playsinline
-        webkit-playsinline
-        disablepictureinpicture
-        x-webkit-airplay="deny"
-        controlsList="nodownload noplaybackrate noremoteplayback nofullscreen"
-        preload="metadata"
-        oncontextmenu="return false;"
-      >
-        <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
-      </video>
-    </div>
-
-    <script>
-    (function(){
-      const v = document.getElementById('falowen_demo');
-
-      // If any browser still manages to enter fullscreen, immediately exit.
-      function exitFS(){
-        try {
-          if (document.fullscreenElement) document.exitFullscreen();
-          if (document.webkitFullscreenElement && document.webkitExitFullscreen) document.webkitExitFullscreen();
-          if (document.msFullscreenElement && document.msExitFullscreen) document.msExitFullscreen();
-        } catch(e){}
-      }
-      ['fullscreenchange','webkitfullscreenchange','mozfullscreenchange','MSFullscreenChange']
-        .forEach(evt => document.addEventListener(evt, exitFS, {passive:true}));
-
-      // Block programmatic requests, just in case.
-      if (v.requestFullscreen) v.requestFullscreen = () => Promise.reject();
-      if (v.webkitRequestFullscreen) v.webkitRequestFullscreen = () => {};
-    })();
-    </script>
-    """, unsafe_allow_html=True)
-#
-
-    # Quick Links (high-contrast)
-    st.markdown("""
-    <div class="page-wrap">
-      <div class="quick-links" aria-label="Useful links">
-        <a href="https://www.learngermanghana.com/tutors"           target="_blank" rel="noopener">👩‍🏫 Tutors</a>
-        <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank" rel="noopener">🗓️ Upcoming Classes</a>
-        <a href="https://www.learngermanghana.com/accreditation"    target="_blank" rel="noopener">✅ Accreditation</a>
-        <a href="https://www.learngermanghana.com/privacy-policy"   target="_blank" rel="noopener">🔒 Privacy</a>
-        <a href="https://www.learngermanghana.com/terms-of-service" target="_blank" rel="noopener">📜 Terms</a>
-        <a href="https://www.learngermanghana.com/contact-us"       target="_blank" rel="noopener">✉️ Contact</a>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # ================= Extra homepage sections =================
-    st.markdown("---")
-
-    # 1) How Falowen works (with non-clickable uniform images)
-    LOGIN_IMG_URL      = "https://i.imgur.com/pFQ5BIn.png"
-    COURSEBOOK_IMG_URL = "https://i.imgur.com/pqXoqSC.png"  # TODO: replace with your course book image URL
-    RESULTS_IMG_URL    = "https://i.imgur.com/uiIPKUT.png"
-
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.markdown("""
-        <img src="{src}" alt="Login screenshot"
-             style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
-        <div style="height:8px;"></div>
-        <h3 style="margin:0 0 4px 0;">1️⃣ Sign in</h3>
-        <p style="margin:0;">Use your <b>student code or email</b> and start your level (A1–C1).</p>
-        """.format(src=LOGIN_IMG_URL), unsafe_allow_html=True)
-    with c2:
-        st.markdown("""
-        <img src="{src}" alt="Course Book screenshot"
-             style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
-        <div style="height:8px;"></div>
-        <h3 style="margin:0 0 4px 0;">2️⃣ Learn & submit</h3>
-        <p style="margin:0;">Watch lessons, practice vocab, and <b>submit assignments</b> in the Course Book.</p>
-        """.format(src=COURSEBOOK_IMG_URL), unsafe_allow_html=True)
-    with c3:
-        st.markdown("""
-        <img src="{src}" alt="Results screenshot"
-             style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
-        <div style="height:8px;"></div>
-        <h3 style="margin:0 0 4px 0;">3️⃣ Get results</h3>
-        <p style="margin:0;">You’ll get an <b>email when marked</b>. Check <b>Results & Resources</b> for feedback.</p>
-        """.format(src=RESULTS_IMG_URL), unsafe_allow_html=True)
-
-    st.markdown("---")
-
-    # 2) Mini FAQ
-    with st.expander("How do I log in?"):
-        st.write("Use your school email **or** Falowen code (e.g., `felixa2`). If you’re new, request access first.")
-    with st.expander("Where do I see my scores?"):
-        st.write("Scores are emailed to you and live in **Results & Resources** inside the app.")
-    with st.expander("How do assignments work?"):
-        st.write("Type your answer, confirm, and **submit**. The box locks. Your tutor is notified automatically.")
-    with st.expander("What if I open the wrong lesson?"):
-        st.write("Check the blue banner at the top (Level • Day • Chapter). Use the dropdown to switch to the correct page.")
-
-    st.markdown("---")
-
-    # Social row + footer
-    st.markdown("""
-    <div class="page-wrap" style="text-align:center; margin:24px 0;">
-      <a href="https://www.youtube.com/YourChannel" target="_blank" rel="noopener">📺 YouTube</a>
-      &nbsp;|&nbsp;
-      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp</a>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown(f"""
-    <div class="page-wrap" style="text-align:center;color:#64748b; margin-bottom:16px;">
-      © {datetime.utcnow().year} Learn Language Education Academy • Accra, Ghana<br>
-      Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> • 
-      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Stop after public homepage so the logged-in UI below doesn’t render
-    st.stop()
-
-
-# ============================================================
-# Logout helper (iPhone/Safari friendly)
-# ============================================================
-
-
-def logout_user(cookie_manager):
-    """Clear student session everywhere and reload the page."""
-    # 1) Clear server-visible cookie via the manager
-    try:
-        cookie_manager.delete("student_code")
-        cookie_manager.save()
-    except Exception:
-        pass
-
-    # 2) Also overwrite the cookie with an expired value (belt & suspenders)
-    try:
-        use_secure = (os.getenv("ENV", "prod") != "dev")
-        prefix = getattr(cookie_manager, "prefix", "") or ""
-        cname_prefixed = f"{prefix}student_code"
-        # Build a tiny JS to expire both raw and prefixed names, host-only and base-domain (just in case)
-        components.html(f"""
-        <script>
-          (function(){{
-            function expire(name, extra) {{
-              document.cookie = name + "=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Path=/" + (extra || "");
-            }}
-            try {{
-              // Remove localStorage backup
-              try {{ localStorage.removeItem('student_code'); }} catch(e) {{}}
-
-              // Remove URL param
-              const url = new URL(window.location);
-              if (url.searchParams.has('student_code')) {{
-                url.searchParams.delete('student_code');
-                window.history.replaceState({{}}, '', url.pathname + url.search);
-              }}
-
-              // Host-only cookies (most important for iOS)
-              expire({json.dumps(cname_prefixed)}, "; SameSite=Lax{'; Secure' if use_secure else ''}");
-              expire("student_code", "; SameSite=Lax{'; Secure' if use_secure else ''}");
-
-              // Try base-domain variants too (harmless if none exist)
-              try {{
-                const host = window.location.hostname;
-                const parts = host.split('.');
-                if (parts.length >= 2) {{
-                  const base = "." + parts.slice(-2).join('.');
-                  expire({json.dumps(cname_prefixed)}, "; Domain=" + base + "; SameSite=Lax{'; Secure' if use_secure else ''}");
-                  expire("student_code", "; Domain=" + base + "; SameSite=Lax{'; Secure' if use_secure else ''}");
-                }}
-              }} catch(e) {{}}
-
-              // Hard reload so Streamlit reboots without the cookie
-              window.location.replace(url.pathname + url.search);
-            }} catch(e) {{}}
-          }})();
-        </script>
-        """, height=0)
-    except Exception:
-        pass
-
-    # 3) Clear Streamlit session state immediately (server side)
-    for k, v in {
-        "logged_in": False,
-        "student_row": None,
-        "student_code": "",
-        "student_name": "",
-        "cookie_synced": False,
-        "__cookie_attempt": None,
-    }.items():
-        st.session_state[k] = v
-
-    # Stop this run; the page will reload client-side
-    st.stop()
-
-
-# ===== Example usage in your UI =====
-st.write(f"👋 Welcome, **{st.session_state.get('student_name','')}**")
-if st.button("Log out", type="primary"):
-    logout_user(cookie_manager)
-
 
 
 
