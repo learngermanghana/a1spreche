@@ -4221,7 +4221,6 @@ if tab == "My Course":
         st.divider()
 
         # ===================== CLASS META (safe resolver) =====================
-        import re, urllib.parse as _urllib
 
         def _norm_class_local(s: str) -> str:
             return re.sub(r"\s+", " ", (s or "").strip().lower())
@@ -4253,6 +4252,7 @@ if tab == "My Course":
                 "tutors": ["Felix Asadu"],
                 "calendar_url": "https://calendar.app.google/t4tbqAqF478XA9bD6",
                 "contact_email": "learngermanghana@gmail.com",
+            },
         }
 
         # Merge Firestore -> fallbacks
@@ -9495,6 +9495,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
