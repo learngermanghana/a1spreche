@@ -1261,12 +1261,14 @@ if not st.session_state.get("logged_in", False):
 #
 
 
-    # --- Autoplay Video Demo (inline, no fullscreen) -----------------------------
+    # --- Autoplay Video Demo (insert before Quick Links/footer) ---
     st.markdown("""
-    <style>
-      .no-fs::-webkit-media-controls-fullscreen-button { display: none !important; }
-      .no-fs::-webkit-media-controls-enclosure { overflow: hidden; }
-    </style>
+    <div style="display:flex; justify-content:center; margin: 24px 0;">
+      <video width="350" autoplay muted loop controls style="border-radius: 12px; box-shadow: 0 4px 12px #0002;">
+        <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
+        Sorry, your browser doesn't support embedded videos.
+      </video>
+    </div>
     """, unsafe_allow_html=True)
 
     # Quick Links (high-contrast)
@@ -3374,9 +3376,9 @@ def get_b2_schedule():
             "goal": "Sprechen Sie über Berufe, Lebensläufe und Vorstellungsgespräche.",
             "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": "",
-            "grammar_topic": "Partizip I & II als Adjektive"
+            "grammarbook_link": "https://drive.google.com/file/d/1_xVoBqbwCSCs0Xps2Rlx92Ho43Pcbreu/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1tEKd5Umb-imLpPYrmFfNQyjf4oe2weBp/view?usp=sharing",
+            "grammar_topic": "Konjunktiv I"
         },
         {
             "day": 5,
