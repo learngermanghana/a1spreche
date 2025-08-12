@@ -2878,8 +2878,8 @@ def get_a2_schedule():
             "goal": "Talk about your route to school or work.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
-            "video": "",
-            "youtube_link": "",
+            "video": "https://youtu.be/c4TpUe3teBE",
+            "youtube_link": "https://youtu.be/c4TpUe3teBE",
             "grammarbook_link": "https://drive.google.com/file/d/1XbWKmc5P7ZAR-OqFce744xqCe7PQguXo/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1Ialg19GIE_KKHiLBDMm1aHbrzfNdb7L_/view?usp=sharing"
         },
@@ -4500,7 +4500,7 @@ if tab == "My Course":
             },
             _norm_class_local("A2 Munich Klasse"): {
                 "tutors": ["Felix Asadu"],
-                "calendar_url": "https://calendar.google.com/calendar/event?action=TEMPLATE&tmeid=MnFxZHZmYXYxZGUwODg3b2FuaWdodWRkYTBfMjAyNTA4MDRUMTkzMDAwWiBsZWFybmdlcm1hbmdoYW5hQG0&tmsrc=learngermanghana%40gmail.com&scp=ALL",
+                "calendar_url": "https://calendar.app.google/hAQSZeDwKfm9aLTC8",
                 "contact_email": "learngermanghana@gmail.com",
                 "image_url": "https://i.imgur.com/7uJRrbr.png",
             },
