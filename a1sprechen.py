@@ -386,24 +386,7 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
 
 
 # ================================================
-# FORCE WWW CANONICAL HOST (place very near top)
-# ================================================
-components.html("""
-<script>
-  (function(){
-    try {
-      var h = window.location.hostname;
-      if (h === "falowen.app") {
-        window.location.replace("https://www.falowen.app" + window.location.pathname + window.location.search);
-      }
-    } catch(e) {}
-  })();
-</script>
-""", height=0)
-
-
-# ================================================
-# STUDENT SHEET LOADING & SESSION SETUP
+# STUDENT SHEET LOADING & SESSION SETUP (with Firebase silent restore)
 # ================================================
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
 
@@ -487,24 +470,32 @@ def is_contract_expired(row):
 def _expire_str(dt: datetime) -> str:
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
+def _js_set_cookie(name: str, value: str, max_age_sec: int, expires_gmt: str, secure: bool, domain: str | None = None):
+    # returns JS to set a cookie; domain can be None (host-only) or a string var
+    base = (
+        f'var c = {json.dumps(name)} + "=" + {json.dumps(_urllib.quote(value))} + '
+        f'"; Path=/; Max-Age={max_age_sec}; Expires={json.dumps(expires_gmt)}; SameSite=Lax";\n'
+        f'if ({str(bool(secure)).lower()}) c += "; Secure";\n'
+    )
+    if domain:
+        base += f'c += "; Domain=" + {domain} + "";\n'
+    base += "document.cookie = c;\n"
+    return base
+
 def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     """
-    Safari-friendly cookie: host-only, SameSite=Lax, Secure on HTTPS.
+    iOS/Safari friendly: set both host-only and base-domain cookies for student_code.
     Also mirrors to localStorage.
     """
     key = "student_code"
     norm = (value or "").strip().lower()
-    use_secure = (os.getenv("ENV", "prod") != "dev")  # True on Streamlit/Render
+    use_secure = (os.getenv("ENV", "prod") != "dev")
+    max_age = 60 * 60 * 24 * 180  # 180 days
+    exp_str = _expire_str(expires)
 
-    # 1) Library cookie (server-visible)
+    # Library cookie (encrypted; host-only)
     try:
-        cookie_manager.set(
-            key, norm,
-            expires=expires,
-            secure=use_secure,
-            samesite="Lax",
-            path="/",
-        )
+        cookie_manager.set(key, norm, expires=expires, secure=use_secure, samesite="Lax", path="/")
         cookie_manager.save()
     except Exception:
         try:
@@ -513,22 +504,70 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
         except Exception:
             pass
 
-    # 2) JS cookie (host-only, NO Domain=) + Max-Age (helps Safari)
-    max_age = 60 * 60 * 24 * 180  # 180 days
-    encoded_val = _urllib.quote(norm)
-    exp_str = _expire_str(expires)
-    components.html(f"""
+    # JS cookies: host-only AND base-domain (e.g., .falowen.app)
+    host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
+    host_js = _js_set_cookie(host_cookie_name, norm, max_age, exp_str, use_secure, domain=None)
+    script = f"""
     <script>
       (function(){{
         try {{
-          var c = "{getattr(cookie_manager,'prefix','') or ''}{key}={encoded_val}; Path=/; Max-Age={max_age}; Expires={exp_str}; SameSite=Lax";
-          {"c += '; Secure';" if (os.getenv("ENV", "prod") != "dev") else ""}
-          document.cookie = c;  // host-only (no Domain)
+          {host_js}
+          try {{
+            var h = window.location.hostname.split('.');
+            if (h.length >= 2) {{
+              var base='.' + h.slice(-2).join('.');
+              {_js_set_cookie(host_cookie_name, norm, max_age, exp_str, use_secure, "base")}
+            }}
+          }} catch(e) {{}}
           try {{ localStorage.setItem('student_code', {json.dumps(norm)}); }} catch(e) {{}}
         }} catch(e) {{}}
       }})();
     </script>
-    """, height=0)
+    """
+    components.html(script, height=0)
+
+def set_session_token_cookie(cookie_manager, token: str, expires: datetime):
+    """
+    Mirror the Firestore session token in cookies (host-only + base-domain) and localStorage.
+    """
+    key = "session_token"
+    val = (token or "").strip()
+    use_secure = (os.getenv("ENV", "prod") != "dev")
+    max_age = 60 * 60 * 24 * 30  # 30 days (Firestore TTL still authoritative)
+    exp_str = _expire_str(expires)
+
+    # Library cookie (host-only)
+    try:
+        cookie_manager.set(key, val, expires=expires, secure=use_secure, samesite="Lax", path="/")
+        cookie_manager.save()
+    except Exception:
+        try:
+            cookie_manager[key] = val
+            cookie_manager.save()
+        except Exception:
+            pass
+
+    # JS cookies: host-only + base-domain
+    host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
+    host_js = _js_set_cookie(host_cookie_name, val, max_age, exp_str, use_secure, domain=None)
+    script = f"""
+    <script>
+      (function(){{
+        try {{
+          {host_js}
+          try {{
+            var h = window.location.hostname.split('.');
+            if (h.length >= 2) {{
+              var base='.' + h.slice(-2).join('.');
+              {_js_set_cookie(host_cookie_name, val, max_age, exp_str, use_secure, "base")}
+            }}
+          }} catch(e) {{}}
+          try {{ localStorage.setItem('session_token', {json.dumps(val)}); }} catch(e) {{}}
+        }} catch(e) {{}}
+      }})();
+    </script>
+    """
+    components.html(script, height=0)
 
 # 0a) UA/LS query-parameter bridge (no postMessage)
 components.html("""
@@ -552,6 +591,37 @@ components.html("""
      }catch(e){}
    })();
  })();
+</script>
+""", height=0)
+
+# 0a.5) Firebase Web SDK + silent restore -> ?ftok=
+components.html(f"""
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script>
+(function(){
+  try {{
+    var cfg = {{
+      apiKey: {json.dumps(st.secrets.get("FIREBASE_WEB_API_KEY",""))},
+      authDomain: {json.dumps(st.secrets.get("FIREBASE_AUTH_DOMAIN",""))},
+      projectId: {json.dumps(st.secrets.get("FIREBASE_PROJECT_ID",""))}
+    }};
+    if (!firebase.apps?.length) {{ firebase.initializeApp(cfg); }}
+    var lastSent = "";
+    firebase.auth().onAuthStateChanged(async function(user){{
+      try {{
+        if (!user) return;
+        const idt = await user.getIdToken(false);
+        if (!idt || idt === lastSent) return;
+        lastSent = idt;
+        const url = new URL(window.location);
+        if (url.searchParams.get('ftok') === idt) return;
+        url.searchParams.set('ftok', idt);
+        window.location.replace(url.toString());
+      }} catch(e) {{}}
+    }});
+  }} catch(e) {{}}
+})();
 </script>
 """, height=0)
 
@@ -612,6 +682,66 @@ def _ingest_ua_ls_from_query():
     return changed
 _ingest_ua_ls_from_query()
 
+# NEW: verify ?ftok=<Firebase ID token> and re-mint Firestore session
+def handle_firebase_ftok():
+    qp = qp_get()
+    ftok = qp.get("ftok")
+    if isinstance(ftok, list):
+        ftok = ftok[0]
+    ftok = (ftok or "").strip()
+    if not ftok:
+        return False
+
+    try:
+        from firebase_admin import auth as fb_auth
+        decoded = fb_auth.verify_id_token(ftok)
+        email = (decoded.get("email") or "").lower().strip()
+        if not email:
+            qp_clear_keys("ftok")
+            return False
+
+        df = load_student_data()
+        df["Email"] = df["Email"].str.lower().str.strip()
+        match = df[df["Email"] == email]
+        if match.empty:
+            qp_clear_keys("ftok")
+            return False
+
+        row = match.iloc[0]
+        if is_contract_expired(row):
+            qp_clear_keys("ftok")
+            return False
+
+        ua_hash = st.session_state.get("__ua_hash", "")
+        sess_token = create_session_token(row["StudentCode"], row["Name"], ua_hash=ua_hash)
+
+        st.session_state.update({
+            "logged_in": True,
+            "student_row": row.to_dict(),
+            "student_code": row["StudentCode"],
+            "student_name": row["Name"],
+            "session_token": sess_token,
+        })
+        set_student_code_cookie(cookie_manager, row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
+        set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
+        components.html(f"""
+        <script>
+          try {{
+            localStorage.setItem('student_code', {json.dumps(row["StudentCode"])});
+            localStorage.setItem('session_token', {json.dumps(sess_token)});
+          }} catch(e) {{}}
+        </script>
+        """, height=0)
+        qp_clear_keys("ftok")
+        st.rerun()
+        return True
+    except Exception:
+        qp_clear_keys("ftok")
+        return False
+
+# run silent-restore handler early (before other restore paths)
+handle_firebase_ftok()
+
 # Defensive scrub in case a shared link includes bridge params
 qp_clear_keys("t", "ua", "ls")
 
@@ -634,12 +764,10 @@ sc_param = (sc_param or "").strip().lower()
 
 if sc_param:
     if not st.session_state.get("__cookie_attempt"):
-        # First attempt: set cookie then rerun
         st.session_state["__cookie_attempt"] = sc_param
         set_student_code_cookie(cookie_manager, sc_param, expires=datetime.utcnow() + timedelta(days=180))
         st.rerun()
     else:
-        # Second pass: did the cookie stick? Clear URL param if yes.
         attempted = st.session_state.get("__cookie_attempt", "")
         have = (cookie_manager.get("student_code") or "").strip().lower()
         if have == attempted:
@@ -656,7 +784,8 @@ def _get_token_candidates():
     t = (t or "").strip()
     ls = (st.session_state.get("__ls_token") or "").strip()
     mem = (st.session_state.get("session_token") or "").strip()
-    out = [x for x in [mem, t, ls] if x]
+    cookie_tok = (cookie_manager.get("session_token") or "").strip()  # NEW: cookie token
+    out = [x for x in [mem, t, ls, cookie_tok] if x]
     seen, uniq = set(), []
     for x in out:
         if x not in seen:
@@ -689,6 +818,8 @@ if not st.session_state.get("logged_in", False):
         # Refresh/rotate; persist new token client-side; scrub ?t=
         new_tok = refresh_or_rotate_session_token(tok) or tok
         st.session_state["session_token"] = new_tok
+
+        # Persist to LS and cookies
         components.html(f"""
         <script>
           try {{
@@ -698,10 +829,11 @@ if not st.session_state.get("logged_in", False):
           }} catch(e) {{}}
         </script>
         """, height=0)
+        set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))  # NEW
         restored = True
         break
 
-# Fallback: original cookie/param login using student_code
+# Fallback: original cookie/param login using student_code (no password)
 if (not restored) and (not st.session_state.get("logged_in", False)):
     code_cookie = (cookie_manager.get("student_code") or "").strip().lower()
     effective_code = code_cookie or sc_param
@@ -763,6 +895,32 @@ def _persist_session_client(token: str, student_code: str = "") -> None:
     </script>
     """, height=0)
 
+# --- Keep-alive to keep iOS storage fresh + let server extend TTL --------------
+components.html("""
+<script>
+  (function(){
+    try {
+      let last=0;
+      function ping(){
+        const now = Date.now();
+        if (document.hidden) return;
+        if (now - last < 4*60*1000) return; // every ~4min
+        last = now;
+        try { localStorage.setItem('falowen_alive', String(now)); } catch(e){}
+        try {
+          const u = new URL(window.location);
+          u.hash = 'alive' + now;
+          history.replaceState({}, '', u);
+        } catch(e){}
+      }
+      document.addEventListener('visibilitychange', ping, {passive:true});
+      setInterval(ping, 60*1000);
+      ping();
+    } catch(e){}
+  })();
+</script>
+""", height=0)
+
 
 # --- 2) Global CSS (higher contrast + focus states) ----------------------------
 st.markdown("""
@@ -785,7 +943,6 @@ st.markdown("""
     border:1px solid #ebebf2; text-align:center;
   }
   .quick-links { display: flex; flex-wrap: wrap; gap:12px; justify-content:center; }
-  /* Higher-contrast chips for WCAG */
   .quick-links a {
     background: #e2e8f0;
     padding: 8px 16px;
@@ -825,14 +982,10 @@ st.markdown("""
 # --- 3) Public Homepage --------------------------------------------------------
 if not st.session_state.get("logged_in", False):
 
-    # Wider but centered content so it doesn't feel isolated on desktop
     st.markdown("""
-    <style>
-      .page-wrap { max-width: 1100px; margin: 0 auto; }
-    </style>
+    <style>.page-wrap { max-width: 1100px; margin: 0 auto; }</style>
     """, unsafe_allow_html=True)
 
-    # Hero + features
     st.markdown("""
     <div class="page-wrap">
       <div class="hero" aria-label="Falowen app introduction">
@@ -855,7 +1008,6 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
-    # Support / Help section
     st.markdown("""
     <div class="page-wrap">
       <div class="help-contact-box" aria-label="Help and contact options">
@@ -949,7 +1101,6 @@ if not st.session_state.get("logged_in", False):
             if is_contract_expired(student_row):
                 st.error("Your contract has expired. Contact the office."); return False
 
-            # --- NEW: issue server-side session token
             ua_hash = st.session_state.get("__ua_hash", "")
             sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
 
@@ -960,9 +1111,9 @@ if not st.session_state.get("logged_in", False):
                 "student_name": student_row["Name"],
                 "session_token": sess_token,
             })
-            # Persist code cookie + token locally, scrub URL params
             set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
             _persist_session_client(sess_token, student_row["StudentCode"])
+            set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
 
             qp_clear()
             st.success(f"Welcome, {student_row['Name']}!")
@@ -971,7 +1122,6 @@ if not st.session_state.get("logged_in", False):
             st.error(f"Google OAuth error: {e}")
         return False
 
-    # Handle OAuth return before rendering forms
     if handle_google_login():
         st.stop()
 
@@ -1028,7 +1178,6 @@ if not st.session_state.get("logged_in", False):
                         if not ok:
                             st.error("Incorrect password.")
                         else:
-                            # --- NEW: issue server-side session token
                             ua_hash = st.session_state.get("__ua_hash", "")
                             sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
 
@@ -1039,9 +1188,9 @@ if not st.session_state.get("logged_in", False):
                                 "student_name": student_row["Name"],
                                 "session_token": sess_token,
                             })
-                            # Persist code cookie + token locally, scrub URL params
                             set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
                             _persist_session_client(sess_token, student_row["StudentCode"])
+                            set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
 
                             st.success(f"Welcome, {student_row['Name']}!")
                             st.rerun()
@@ -1084,9 +1233,7 @@ if not st.session_state.get("logged_in", False):
     # --- Autoplay Video Demo (inline, no fullscreen) -----------------------------
     st.markdown("""
     <style>
-      /* Hide fullscreen button on WebKit/Blink (Safari/Chrome/Edge) */
       .no-fs::-webkit-media-controls-fullscreen-button { display: none !important; }
-      /* Keep controls tidy */
       .no-fs::-webkit-media-controls-enclosure { overflow: hidden; }
     </style>
     """, unsafe_allow_html=True)
@@ -1105,10 +1252,8 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
-    # ================= Extra homepage sections =================
     st.markdown("---")
 
-    # 1) How Falowen works (with non-clickable uniform images)
     LOGIN_IMG_URL      = "https://i.imgur.com/pFQ5BIn.png"
     COURSEBOOK_IMG_URL = "https://i.imgur.com/pqXoqSC.png"
     RESULTS_IMG_URL    = "https://i.imgur.com/uiIPKUT.png"
@@ -1141,7 +1286,6 @@ if not st.session_state.get("logged_in", False):
 
     st.markdown("---")
 
-    # 2) Mini FAQ
     with st.expander("How do I log in?"):
         st.write("Use your school email **or** Falowen code (e.g., `felixa2`). If you’re new, request access first.")
     with st.expander("Where do I see my scores?"):
@@ -1151,9 +1295,6 @@ if not st.session_state.get("logged_in", False):
     with st.expander("What if I open the wrong lesson?"):
         st.write("Check the blue banner at the top (Level • Day • Chapter). Use the dropdown to switch to the correct page.")
 
-    st.markdown("---")
-
-    # Social row + footer
     st.markdown("""
     <div class="page-wrap" style="text-align:center; margin:24px 0;">
       <a href="https://www.youtube.com/YourChannel" target="_blank" rel="noopener">📺 YouTube</a>
@@ -1170,16 +1311,13 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
-    # Stop after public homepage so the logged-in UI below doesn’t render
     st.stop()
-
 
 
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 
 if st.button("Log out"):
-    # 0) Best-effort: destroy server-side session token
     try:
         tok = st.session_state.get("session_token", "")
         if tok:
@@ -1187,41 +1325,37 @@ if st.button("Log out"):
     except Exception:
         pass
 
-    # 1) Expire the host-only cookie immediately (server + JS)
     try:
         set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
+        set_session_token_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
     except Exception:
         pass
 
-    # Also try library delete (if supported)
     try:
         cookie_manager.delete("student_code")
+        cookie_manager.delete("session_token")
         cookie_manager.save()
     except Exception:
         pass
 
     _prefix = getattr(cookie_manager, "prefix", "") or ""
-    _cookie_name_code = f"{_prefix}student_code"   # cookie set by EncryptedCookieManager
-    _cookie_name_tok  = "falowen_session"          # optional JS-set mirror for session token
+    _cookie_name_code = f"{_prefix}student_code"
+    _cookie_name_tok  = f"{_prefix}session_token"
     _secure_js = "true" if (os.getenv("ENV", "prod") != "dev") else "false"
 
-    # 2) Clear localStorage + URL params + cookies (host-only + legacy base-domain) and reload
     components.html(f"""
     <script>
       (function() {{
         try {{
-          // localStorage
           try {{
             localStorage.removeItem('student_code');
             localStorage.removeItem('session_token');
           }} catch (e) {{}}
 
-          // URL params (student_code + token bridge)
           const url = new URL(window.location);
-          ['student_code','t','ua','ls'].forEach(k => url.searchParams.delete(k));
+          ['student_code','t','ua','ls','ftok'].forEach(k => url.searchParams.delete(k));
           window.history.replaceState({{}}, '', url);
 
-          // Cookies: expire host-only + base-domain variants
           const isSecure = {_secure_js};
           const past = "Thu, 01 Jan 1970 00:00:00 GMT";
           const names = [{json.dumps(_cookie_name_code)}, {json.dumps(_cookie_name_tok)}];
@@ -1233,10 +1367,8 @@ if st.button("Log out"):
             document.cookie = s;
           }}
 
-          // Host-only (current)
           names.forEach(n => expireCookie(n));
 
-          // Base-domain (legacy cleanup)
           const host  = window.location.hostname;
           const parts = host.split('.');
           if (parts.length >= 2) {{
@@ -1244,14 +1376,12 @@ if st.button("Log out"):
             names.forEach(n => expireCookie(n, base));
           }}
 
-          // Reload
           window.location.replace(url.pathname + url.search);
         }} catch (e) {{}}
       }})();
     </script>
     """, height=0)
 
-    # 3) Clear Streamlit session state immediately
     for k, v in {
         "logged_in": False,
         "student_row": None,
@@ -1271,7 +1401,6 @@ if st.button("Log out"):
         pass
 
     st.stop()
-
 
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
@@ -7385,7 +7514,7 @@ SENTENCE_BANK = {
         {
             "prompt_en": "Given the circumstances, the decision is understandable.",
             "target_de": "Angesichts der Umstände ist die Entscheidung nachvollziehbar.",
-            "tokens": ["Angesichts", "der", "Umstände", "ist", "die", "Entscheidung", "nachvollziehbar", "."],
+            "tokens": ["Angesichts", " der", " Umstände", " ist", " die", " Entscheidung", " nachvollziehbar", "."],
             "distractors": ["Wegen", "Trotz", "Angesicht"],
             "hint_en": "Genitive preposition ‘angesichts’.",
             "grammar_tag": "Präp. Genitiv",
@@ -7608,10 +7737,7 @@ SENTENCE_BANK = {
 # Vocab
 # =========================================
 
-# sentence_bank.py
-SENTENCE_BANK = {
-    # ... (KEEP YOUR FULL SENTENCE_BANK EXACTLY AS YOU POSTED ABOVE)
-}
+# (Removed duplicate SENTENCE_BANK redefinition — it was overwriting the full bank)
 
 # If you initialize Firestore elsewhere, expose it here.
 # This helper prevents NameError if db isn't ready.
@@ -7901,7 +8027,6 @@ def _dict_tts_bytes_de(word: str, slow: bool = False):
     except Exception:
         return None
 
-
 # ================================
 # TAB: Vocab Trainer (locked by Level)
 # ================================
@@ -7935,13 +8060,13 @@ if tab == "Vocab Trainer":
 
     subtab = st.radio(
         "Choose practice:",
-        ["Sentence Builder", "Vocab Practice", "Dictionary"],  # ← added Dictionary
+        ["Sentence Builder", "Vocab Practice", "Dictionary"],
         horizontal=True,
         key="vocab_practice_subtab"
     )
 
     # ===========================
-    # SUBTAB: Sentence Builder (now first)
+    # SUBTAB: Sentence Builder
     # ===========================
     if subtab == "Sentence Builder":
         student_level = student_level_locked
@@ -7949,12 +8074,10 @@ if tab == "Vocab Trainer":
 
         # --- Guide & Progress (collapsed) ---
         with st.expander("✍️ Sentence Builder — Guide & Progress", expanded=False):
-            # Lifetime progress bar
             done_unique, total_items = get_sentence_progress(student_code, student_level)
             pct = int((done_unique / total_items) * 100) if total_items else 0
             st.progress(pct)
             st.caption(f"**Overall Progress:** {done_unique} / {total_items} unique sentences correct ({pct}%).")
-
             st.markdown(
                 """
                 <div style="padding:10px 14px; background:#7b2ff2; color:#fff; border-radius:8px; text-align:center;">
@@ -7973,7 +8096,7 @@ if tab == "Vocab Trainer":
                 "- **Progress** (bar above) = Unique sentences you have *ever* solved at this level."
             )
 
-        # ---- session state defaults ----
+        # ---- Session state defaults ----
         init_defaults = {
             "sb_round": 0,
             "sb_pool": None,
@@ -7990,7 +8113,7 @@ if tab == "Vocab Trainer":
             if k not in st.session_state:
                 st.session_state[k] = v
 
-        # ---- init / level change ----
+        # ---- Init / Level change ----
         if (st.session_state.sb_pool is None) or (st.session_state.sb_pool_level != student_level):
             import random
             st.session_state.sb_pool_level = student_level
@@ -8017,7 +8140,6 @@ if tab == "Vocab Trainer":
                 random.shuffle(st.session_state.sb_pool)
             if st.session_state.sb_pool:
                 st.session_state.sb_current = st.session_state.sb_pool.pop()
-                # Expect keys: tokens (list), target_de (string), hint_en (string), prompt_en (string)
                 words = st.session_state.sb_current.get("tokens", [])[:]
                 random.shuffle(words)
                 st.session_state.sb_shuffled = words
@@ -8048,10 +8170,10 @@ if tab == "Vocab Trainer":
 
         st.divider()
 
-        # --- English prompt panel (what to translate) ---
+        # --- English prompt panel ---
         cur = st.session_state.sb_current or {}
-        prompt_en   = cur.get("prompt_en", "")
-        hint_en     = cur.get("hint_en", "")
+        prompt_en = cur.get("prompt_en", "")
+        hint_en = cur.get("hint_en", "")
         grammar_tag = cur.get("grammar_tag", "")
 
         if prompt_en:
@@ -8067,14 +8189,13 @@ if tab == "Vocab Trainer":
                 """,
                 unsafe_allow_html=True
             )
-            # Optional helper
             with st.expander("💡 Need a nudge? (Hint)"):
                 if hint_en:
                     st.markdown(f"**Hint:** {hint_en}")
                 if grammar_tag:
                     st.caption(f"Grammar: {grammar_tag}")
 
-        # ---- Buttons for word choices ----
+        # ---- Word buttons ----
         st.markdown("#### 🧩 Click the words in order")
         if st.session_state.sb_shuffled:
             word_cols = st.columns(min(6, len(st.session_state.sb_shuffled)) or 1)
@@ -8102,7 +8223,6 @@ if tab == "Vocab Trainer":
                 st.rerun()
         with b:
             if st.button("✅ Check"):
-                # Map correct keys from your bank
                 target_sentence = st.session_state.sb_current.get("target_de", "").strip()
                 chosen_sentence = normalize_join(chosen_tokens).strip()
                 correct = (chosen_sentence.lower() == target_sentence.lower())
@@ -8151,8 +8271,8 @@ if tab == "Vocab Trainer":
             "vt_index": 0,
             "vt_score": 0,
             "vt_total": None,
-            "vt_saved": False,       # save-once guard
-            "vt_session_id": None,   # unique id per practice session
+            "vt_saved": False,
+            "vt_session_id": None,
         }
         for k, v in defaults.items():
             st.session_state.setdefault(k, v)
@@ -8175,6 +8295,9 @@ if tab == "Vocab Trainer":
         # lock level
         level = student_level_locked
         items = VOCAB_LISTS.get(level, [])
+        # re-use stats outside the expander
+        if 'stats' not in locals():
+            stats = get_vocab_stats(student_code)
         completed = set(stats["completed_words"])
         not_done = [p for p in items if p[0] not in completed]
         st.info(f"{len(not_done)} words NOT yet done at {level}.")
@@ -8279,13 +8402,11 @@ if tab == "Vocab Trainer":
             words = [w for w, _ in (st.session_state.vt_list or [])]
             st.markdown(f"### 🏁 Done! You scored {score}/{tot}.")
 
-            # 🔒 Save exactly once per session, with Firestore duplicate check
+            # Save exactly once per session, duplicate-safe
             if not st.session_state.get("vt_saved", False):
-                # Ensure we have a session id (covers rare cases where it wasn't set)
                 if not st.session_state.get("vt_session_id"):
                     from uuid import uuid4
                     st.session_state.vt_session_id = str(uuid4())
-
                 if not vocab_attempt_exists(student_code, st.session_state.vt_session_id):
                     save_vocab_attempt(
                         student_code=student_code,
@@ -8295,7 +8416,6 @@ if tab == "Vocab Trainer":
                         practiced_words=words,
                         session_id=st.session_state.vt_session_id
                     )
-
                 st.session_state.vt_saved = True
                 st.rerun()
 
@@ -8305,33 +8425,18 @@ if tab == "Vocab Trainer":
                 st.rerun()
 
     # ===========================
-    # SUBTAB: Dictionary (friendly, details above table, scrollable)
+    # SUBTAB: Dictionary (simple, sticky search, mobile-friendly)
     # ===========================
     elif subtab == "Dictionary":
-        import io, json
+        import io, json, difflib
 
-        # -------- Friendly header --------
-        st.markdown(
-            """
-            <div style="padding:10px 14px; background:#eef2ff; border:1px solid #c7d2fe;
-                        border-left:6px solid #6366f1; border-radius:10px;">
-              <div style="font-size:1.02rem;">
-                <b>Dictionary</b> — Type a word and click it to see IPA, examples, and audio.
-                The table shows all words for your current level.
-              </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-        st.caption(f"Level in view: **{student_level_locked}**")
-
-        # -------- Helpers (local) --------
+        # ---------- Helpers ----------
         def _fallback_df(levels):
             rows = []
             for lvl in levels:
                 for de, en in VOCAB_LISTS.get(lvl, []):
-                    rows.append({"Level": lvl, "German": de, "English": en, "IPA": ""})
-            return pd.DataFrame(rows)
+                    rows.append({"Level": lvl, "German": de, "English": en, "Pronunciation": ""})
+            return pd.DataFrame(rows) if rows else pd.DataFrame(columns=["Level","German","English","Pronunciation"])
 
         def _merge_sentence_bank(df, levels):
             extra = []
@@ -8342,10 +8447,10 @@ if tab == "Vocab Trainer":
                         if not t or t in [",", ".", "!", "?", ":", ";"]:
                             continue
                         if not ((df["German"] == t) & (df["Level"] == lvl)).any():
-                            extra.append({"Level": lvl, "German": t, "English": "", "IPA": ""})
+                            extra.append({"Level": lvl, "German": t, "English": "", "Pronunciation": ""})
             if extra:
                 df = pd.concat([df, pd.DataFrame(extra)], ignore_index=True)
-                df = df.drop_duplicates(subset=["Level", "German"]).reset_index(drop=True)
+                df = df.drop_duplicates(subset=["Level","German"]).reset_index(drop=True)
             return df
 
         def _tts_bytes_de(text: str) -> bytes:
@@ -8359,11 +8464,11 @@ if tab == "Vocab Trainer":
                 return b""
 
         def _json_from_text(raw: str) -> dict:
-            txt = raw.strip()
+            txt = (raw or "").strip()
             if txt.startswith("```"):
-                # strip code fences
                 txt = txt.strip("`")
-                txt = txt.split("\n", 1)[-1]
+                if "\n" in txt:
+                    txt = txt.split("\n", 1)[1]
                 if "```" in txt:
                     txt = txt.split("```", 1)[0]
             try:
@@ -8372,166 +8477,222 @@ if tab == "Vocab Trainer":
                 return {}
 
         def _enrich_word(german: str, english_hint: str, level: str):
-            """
-            Quietly look up IPA + 2 examples (de/en).
-            Returns {"ipa": "...", "examples":[{"de": "...", "en": "..."}, ...], "english": "..."}.
-            """
+            """Fill Pronunciation + English + 2 examples if missing (quiet background call)."""
             try:
                 prompt = (
                     "You are a precise German lexicographer.\n"
-                    f'Word: "{german}"\nKnown English/gloss hint (may be empty): "{english_hint}"\nLevel: {level}\n\n'
-                    "Return compact JSON with keys: ipa (IPA for standard German), english (1 short gloss), "
-                    "examples (array of 2 objects with keys de and en). "
-                    "No extra text."
+                    f'Word: "{german}"\n'
+                    f'Known English hint (may be empty): "{english_hint}"\n'
+                    f'Level: {level}\n\n'
+                    "Return compact JSON with keys: ipa, english, examples (2 items with keys de and en)."
                 )
                 resp = client.chat.completions.create(
                     model="gpt-4o",
                     temperature=0.2,
                     max_tokens=220,
                     messages=[
-                        {"role": "system", "content": "Return minimal JSON only."},
+                        {"role": "system", "content": "Return strict JSON only."},
                         {"role": "user", "content": prompt},
                     ],
                 )
-                data = _json_from_text(resp.choices[0].message.content or "")
+                data = _json_from_text(resp.choices[0].message.content)
                 ipa = str(data.get("ipa", "") or "")
                 eng = str(data.get("english", "") or english_hint or "")
-                examples = data.get("examples", []) or []
-                cleaned = []
-                for ex in examples[:2]:
-                    cleaned.append({"de": str(ex.get("de", "") or ""), "en": str(ex.get("en", "") or "")})
-                return {"ipa": ipa, "english": eng, "examples": cleaned}
+                exs = data.get("examples", []) or []
+                clean = []
+                for ex in exs[:2]:
+                    clean.append({
+                        "de": str(ex.get("de", "") or ""),
+                        "en": str(ex.get("en", "") or "")
+                    })
+                return {"pron": ipa, "english": eng, "examples": clean}
             except Exception:
-                return {"ipa": "", "english": english_hint or "", "examples": []}
+                return {"pron": "", "english": english_hint or "", "examples": []}
 
-        # -------- Build dataframe (CSV + Sentence Bank; student level only) --------
+        # diacritic/umlaut normalization so "ae" finds "ä", etc.
+        _map = {"ä":"ae","ö":"oe","ü":"ue","ß":"ss"}
+        def _norm(s: str) -> str:
+            s = (s or "").strip().lower()
+            for k,v in _map.items():
+                s = s.replace(k, v)
+            return "".join(ch for ch in s if ch.isalnum() or ch.isspace())
+
+        # ---------- Build data (CSV + Sentence Bank) ----------
         levels = [student_level_locked]
-        try:
-            df_dict = _fallback_df(levels)
-        except Exception:
-            df_dict = pd.DataFrame(columns=["Level", "German", "English", "IPA"])
-
-        # Always augment with sentence-bank tokens (student doesn’t need to know)
+        df_dict = _fallback_df(levels)
         df_dict = _merge_sentence_bank(df_dict, levels)
-
-        # Safety columns
-        for c in ["Level", "German", "English", "IPA"]:
+        for c in ["Level","German","English","Pronunciation"]:
             if c not in df_dict.columns:
                 df_dict[c] = ""
+        df_dict["g_norm"] = df_dict["German"].astype(str).map(_norm)
+        df_dict["e_norm"] = df_dict["English"].astype(str).map(_norm)
+        df_dict = df_dict.sort_values(["German"]).reset_index(drop=True)
 
-        # -------- Search --------
-        q = st.text_input("🔎 Search (e.g., Wochenende)", key="dict_q").strip()
+        # ---------- Mobile-friendly sticky search ----------
+        st.markdown(
+            """
+            <style>
+              .sticky-search { position: sticky; top: 0; z-index: 999; background: white; padding: 8px 0 10px 0; }
+              input[type="text"] { font-size: 18px !important; }
+              .chip { display:inline-block; padding:6px 10px; border-radius:999px; border:1px solid #e5e7eb; margin-right:6px; margin-bottom:6px; }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+        with st.container():
+            st.markdown('<div class="sticky-search">', unsafe_allow_html=True)
+            cols = st.columns([6, 3, 3])
+            with cols[0]:
+                q = st.text_input("🔎 Search (German or English)", key="dict_q", placeholder="e.g., Wochenende, bakery, spielen")
+            with cols[1]:
+                search_in = st.selectbox("Field", ["Both", "German", "English"], index=0, key="dict_field")
+            with cols[2]:
+                match_mode = st.selectbox("Match", ["Contains", "Starts with", "Exact"], index=0, key="dict_mode")
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        # ---------- Filter (and add enrichment when empty) ----------
         df_view = df_dict.copy()
+        suggestions = []
+        top_row = None
 
         if q:
-            qlow = q.lower()
-            mask = (
-                df_view["German"].astype(str).str.lower().str.contains(qlow)
-                | df_view["English"].astype(str).str.lower().str.contains(qlow)
-            )
-            if not mask.any():
-                # Not found locally → create a temporary row using enrichment
+            qn = _norm(q)
+
+            # masks by field
+            g_contains = df_view["g_norm"].str.contains(qn, na=False) if search_in in ("Both","German") else pd.Series([False]*len(df_view))
+            g_starts   = df_view["g_norm"].str.startswith(qn, na=False) if search_in in ("Both","German") else pd.Series([False]*len(df_view))
+            g_exact    = df_view["g_norm"].eq(qn) if search_in in ("Both","German") else pd.Series([False]*len(df_view))
+
+            e_contains = df_view["e_norm"].str.contains(qn, na=False) if search_in in ("Both","English") else pd.Series([False]*len(df_view))
+            e_starts   = df_view["e_norm"].str.startswith(qn, na=False) if search_in in ("Both","English") else pd.Series([False]*len(df_view))
+            e_exact    = df_view["e_norm"].eq(qn) if search_in in ("Both","English") else pd.Series([False]*len(df_view))
+
+            if match_mode == "Contains":
+                mask = g_contains | e_contains
+            elif match_mode == "Starts with":
+                mask = g_starts | e_starts
+            else:
+                mask = g_exact | e_exact
+
+            if mask.any():
+                df_view = df_view[mask].copy().reset_index(drop=True)
+                # prefer exact > starts > contains
+                exact_mask  = (g_exact | e_exact)
+                starts_mask = (g_starts | e_starts)
+                if exact_mask.any():
+                    top_row = df_view[exact_mask].iloc[0]
+                elif starts_mask.any():
+                    top_row = df_view[starts_mask].iloc[0]
+                else:
+                    top_row = df_view.iloc[0]
+            else:
+                # no local match → show fuzzy suggestions + enrich the query so learners still get value
+                vocab_all = df_view["German"].astype(str).unique().tolist()
+                suggestions = difflib.get_close_matches(q, vocab_all, n=5, cutoff=0.72)
+
                 enrich = _enrich_word(q, "", student_level_locked)
                 new_row = {
                     "Level": student_level_locked,
                     "German": q.capitalize() if q.islower() else q,
                     "English": enrich.get("english", ""),
-                    "IPA": enrich.get("ipa", ""),
+                    "Pronunciation": enrich.get("pron", ""),
+                    "g_norm": _norm(q),
+                    "e_norm": _norm(enrich.get("english","")),
                 }
-                temp_df = pd.DataFrame([new_row])
-                df_view = pd.concat([df_view, temp_df], ignore_index=True)
-                # cache examples for detail panel
+                df_view = pd.concat([df_view, pd.DataFrame([new_row])], ignore_index=True)
+                top_row = pd.Series(new_row)
                 st.session_state.setdefault("dict_cache", {})
                 st.session_state["dict_cache"][(new_row["German"], student_level_locked)] = {
-                    "ipa": new_row["IPA"],
-                    "examples": enrich.get("examples", []),
+                    "pron": new_row["Pronunciation"],
                     "english": new_row["English"],
+                    "examples": enrich.get("examples", []),
                 }
-            else:
-                df_view = df_view[mask].copy()
+        else:
+            # no query → show first word (nice landing state) if available
+            if not df_view.empty:
+                top_row = df_view.iloc[0]
 
-        df_view = df_view.sort_values(["German"]).reset_index(drop=True)
-
-        # -------- Details (above table) --------
-        labels = [f"{r.German} — {r.English or '…'}" for r in df_view.itertuples()]
-        default_index = 0
-        if q:
-            # preselect first result for a quicker flow
-            default_index = 1 if len(labels) >= 1 else 0
-
-        pick = st.selectbox(
-            "Pick a word to view details:",
-            options=["— select —"] + labels,
-            index=default_index,
-            key="dict_pick"
-        )
-
+        # ---------- Details (always ABOVE) ----------
         if "dict_cache" not in st.session_state:
             st.session_state["dict_cache"] = {}
 
-        if pick != "— select —":
-            i = labels.index(pick)
-            row = df_view.iloc[i]
-            de = str(row["German"])
-            en = str(row["English"] or "")
-            lvl = str(row["Level"] or student_level_locked)
-            ipa = str(row.get("IPA", "") or "")
+        if top_row is not None and len(top_row) > 0:
+            de  = str(top_row["German"])
+            en  = str(top_row.get("English", "") or "")
+            lvl = str(top_row.get("Level", student_level_locked))
+            pron = str(top_row.get("Pronunciation", "") or "")
 
             cache_key = (de, lvl)
             cached = st.session_state["dict_cache"].get(cache_key, {})
 
-            # If we lack IPA or examples, enrich quietly
-            need_ipa = (ipa.strip() == "")
-            need_examples = not cached.get("examples")
-            if need_ipa or need_examples:
+            # Backfill pronunciation/english/examples if missing
+            if not pron or not cached.get("examples"):
                 enrich = _enrich_word(de, en, lvl)
-                if need_ipa and enrich.get("ipa"):
-                    ipa = enrich["ipa"]
+                if not pron and enrich.get("pron"):
+                    pron = enrich["pron"]
                 if not en and enrich.get("english"):
                     en = enrich["english"]
-                if need_examples and enrich.get("examples"):
+                if enrich.get("examples"):
                     cached["examples"] = enrich["examples"]
-                st.session_state["dict_cache"][cache_key] = {"ipa": ipa, "examples": cached.get("examples", []), "english": en}
+                st.session_state["dict_cache"][cache_key] = {
+                    "pron": pron, "english": en, "examples": cached.get("examples", [])
+                }
 
-            # Final examples
             examples = st.session_state["dict_cache"].get(cache_key, {}).get("examples", [])
 
             st.markdown(f"### {de}")
             if en:
                 st.markdown(f"**Meaning:** {en}")
-            if ipa:
-                st.caption(f"**IPA:** /{ipa}/")
+            if pron:
+                st.caption(f"**Pronunciation:** /{pron}/")
 
-            c1, c2 = st.columns([1, 4])
+            audio_bytes = _tts_bytes_de(de)
+            c1, c2 = st.columns([1, 2])
             with c1:
                 if st.button("🔊 Pronounce", key=f"say_{de}_{lvl}"):
-                    audio_bytes = _tts_bytes_de(de)
                     if audio_bytes:
                         st.audio(audio_bytes, format="audio/mp3")
             with c2:
-                with st.expander("📌 Example sentences", expanded=True):
-                    if examples:
-                        for ex in examples[:2]:
-                            de_ex = ex.get("de", "").strip()
-                            en_ex = ex.get("en", "").strip()
-                            if de_ex:
-                                st.markdown(f"- **{de_ex}**")
-                                if en_ex:
-                                    st.caption(f"  ↳ {en_ex}")
-                    else:
-                        st.caption("No examples yet.")
+                if audio_bytes:
+                    st.download_button(
+                        "⬇️ Download MP3",
+                        data=audio_bytes,
+                        file_name=f"{de}.mp3",
+                        mime="audio/mpeg",
+                        key=f"dl_{de}_{lvl}"
+                    )
+                else:
+                    st.caption("Audio currently unavailable.")
 
-            st.divider()
+            with st.expander("📌 Examples", expanded=True):
+                if examples:
+                    for ex in examples[:2]:
+                        de_ex = (ex.get("de", "") or "").strip()
+                        en_ex = (ex.get("en", "") or "").strip()
+                        if de_ex:
+                            st.markdown(f"- **{de_ex}**")
+                            if en_ex:
+                                st.caption(f"  ↳ {en_ex}")
+                else:
+                    st.caption("No examples yet.")
 
-        # -------- Table (scrollable so learners see their range) --------
-        st.caption(f"Showing {len(df_view)} of {len(df_dict)} words for level **{student_level_locked}**")
-        st.dataframe(
-            df_view[["German", "English", "IPA"]],
-            use_container_width=True,
-            height=440
-        )
+        # ---------- Did you mean (chips) ----------
+        if q and suggestions:
+            st.markdown("**Did you mean:**")
+            bcols = st.columns(min(5, len(suggestions)))
+            for i, s in enumerate(suggestions[:5]):
+                with bcols[i]:
+                    if st.button(s, key=f"sugg_{i}"):
+                        st.session_state["dict_q"] = s
+                        st.rerun()
+
+        # ---------- Scrollable table INSIDE an expander (clean page) ----------
+        with st.expander(f"Browse all words at level {student_level_locked}", expanded=False):
+            df_show = df_view[["German","English","Pronunciation"]].copy()
+            st.dataframe(df_show, use_container_width=True, height=420)
 #
 
+                
 
 # ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
 def bubble(role, text):
@@ -8544,8 +8705,6 @@ def bubble(role, text):
             <b>{name}:</b><br>{text}
         </div>
     """
-
-
 
 
 
