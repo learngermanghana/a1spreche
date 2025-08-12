@@ -4511,7 +4511,7 @@ if tab == "My Course":
             },
             _norm_class_local("A1 Koln Klasse"): {
                 "tutors": ["Felix Asadu"],
-                "calendar_url": "https://calendar.app.google/t4tbqAqF478XA9bD6",
+                "calendar_url": "https://calendar.app.google/ye4Xbe2K6LiWPtBR8",
                 "contact_email": "learngermanghana@gmail.com",
             },
         }
