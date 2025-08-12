@@ -1,18 +1,7 @@
 # ==== Standard Library ====
-import atexit
-import base64
-import difflib
-import hashlib
-import html as html_stdlib  # renamed stdlib html to avoid conflicts
-import io
-import json
-import os
-import random
-import math
-import re
-import sqlite3
-import tempfile
-import time
+import atexit, base64, difflib, hashlib
+import html as html_stdlib
+import io, json, os, random, math, re, sqlite3, tempfile, time
 import urllib.parse as _urllib
 from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
@@ -43,10 +32,21 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Compatibility alias ---
-html = st_html  # ensures any html(...) calls use the Streamlit component
+# PWA + iOS head tags (served from /static) — now safely after set_page_config
+components.html("""
+<link rel="manifest" href="/static/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icons/falowen-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Falowen">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+""", height=0)
 
-# --- State bootstrap (idempotent; prevents double-click on first render) -------
+# --- Compatibility alias ---
+html = st_html
+
+# --- State bootstrap ---
 def _bootstrap_state():
     defaults = {
         "logged_in": False,
@@ -63,37 +63,21 @@ def _bootstrap_state():
     }
     for k, v in defaults.items():
         st.session_state.setdefault(k, v)
-
 _bootstrap_state()
 
-# --- SEO: head tags (only on public/landing) ---
+# --- SEO (only on public/landing) ---
 if not st.session_state.get("logged_in", False):
     html("""
     <script>
-      // Page <title>
       document.title = "Falowen – Learn German with Learn Language Education Academy";
-
-      // Meta description
       const desc = "Falowen is the German learning companion from Learn Language Education Academy. Join live classes or self-study with A1–C1 courses, recorded lectures, and real progress tracking.";
       let m = document.querySelector('meta[name="description"]');
-      if (!m) {
-        m = document.createElement('meta');
-        m.name = "description";
-        document.head.appendChild(m);
-      }
+      if (!m) { m = document.createElement('meta'); m.name = "description"; document.head.appendChild(m); }
       m.setAttribute("content", desc);
-
-      // Canonical
       const canonicalHref = window.location.origin + "/";
       let link = document.querySelector('link[rel="canonical"]');
-      if (!link) {
-        link = document.createElement('link');
-        link.rel = "canonical";
-        document.head.appendChild(link);
-      }
+      if (!link) { link = document.createElement('link'); link.rel = "canonical"; document.head.appendChild(link); }
       link.href = canonicalHref;
-
-      // Open Graph (helps WhatsApp/FB previews)
       function setOG(p, v){ let t=document.querySelector(`meta[property="${p}"]`);
         if(!t){ t=document.createElement('meta'); t.setAttribute('property', p); document.head.appendChild(t); }
         t.setAttribute('content', v);
@@ -102,32 +86,19 @@ if not st.session_state.get("logged_in", False):
       setOG("og:description", desc);
       setOG("og:type", "website");
       setOG("og:url", canonicalHref);
-
-      // JSON-LD
-      const ld = {
-        "@context": "https://schema.org",
-        "@type": "WebSite",
-        "name": "Falowen",
-        "alternateName": "Falowen by Learn Language Education Academy",
-        "url": canonicalHref
-      };
-      const s = document.createElement('script');
-      s.type = "application/ld+json";
-      s.text = JSON.stringify(ld);
-      document.head.appendChild(s);
+      const ld = {"@context":"https://schema.org","@type":"WebSite","name":"Falowen","alternateName":"Falowen by Learn Language Education Academy","url": canonicalHref};
+      const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
 
-# ==== HIDE STREAMLIT FOOTER/MENU ====
-st.markdown(
-    """
-    <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+# ==== Hide Streamlit chrome ====
+st.markdown("""
+<style>
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+</style>
+""", unsafe_allow_html=True)
+
 
 # ==== FIREBASE ADMIN INIT & SESSION STORE ====
 try:
