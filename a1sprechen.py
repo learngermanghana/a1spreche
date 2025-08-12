@@ -467,18 +467,24 @@ def is_contract_expired(row):
 # 0) Cookie + localStorage “SSO” (+ UA/LS bridge & token-first restore)
 # ============================================================
 
+from typing import Optional  # ensure available if you were using 3.9
+
 def _expire_str(dt: datetime) -> str:
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
-def _js_set_cookie(name: str, value: str, max_age_sec: int, expires_gmt: str, secure: bool, domain: str | None = None):
-    # returns JS to set a cookie; domain can be None (host-only) or a string var
+def _js_set_cookie(name: str, value: str, max_age_sec: int, expires_gmt: str, secure: bool, domain: Optional[str] = None):
+    """
+    Returns JS code to set a cookie. If 'domain' is the name of a JS variable (e.g., 'base'),
+    pass it as that identifier string and we'll emit it as a JS variable (not a quoted literal).
+    """
     base = (
         f'var c = {json.dumps(name)} + "=" + {json.dumps(_urllib.quote(value))} + '
         f'"; Path=/; Max-Age={max_age_sec}; Expires={json.dumps(expires_gmt)}; SameSite=Lax";\n'
         f'if ({str(bool(secure)).lower()}) c += "; Secure";\n'
     )
     if domain:
-        base += f'c += "; Domain=" + {domain} + "";\n'
+        # 'domain' is intended to be a JS variable identifier, not a string literal
+        base += f'c += "; Domain=" + {domain};\n'
     base += "document.cookie = c;\n"
     return base
 
@@ -515,7 +521,7 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
           try {{
             var h = window.location.hostname.split('.');
             if (h.length >= 2) {{
-              var base='.' + h.slice(-2).join('.');
+              var base = '.' + h.slice(-2).join('.');
               {_js_set_cookie(host_cookie_name, norm, max_age, exp_str, use_secure, "base")}
             }}
           }} catch(e) {{}}
@@ -558,7 +564,7 @@ def set_session_token_cookie(cookie_manager, token: str, expires: datetime):
           try {{
             var h = window.location.hostname.split('.');
             if (h.length >= 2) {{
-              var base='.' + h.slice(-2).join('.');
+              var base = '.' + h.slice(-2).join('.');
               {_js_set_cookie(host_cookie_name, val, max_age, exp_str, use_secure, "base")}
             }}
           }} catch(e) {{}}
@@ -599,29 +605,33 @@ components.html(f"""
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script>
-(function(){
+(function(){{
   try {{
     var cfg = {{
       apiKey: {json.dumps(st.secrets.get("FIREBASE_WEB_API_KEY",""))},
       authDomain: {json.dumps(st.secrets.get("FIREBASE_AUTH_DOMAIN",""))},
       projectId: {json.dumps(st.secrets.get("FIREBASE_PROJECT_ID",""))}
     }};
-    if (!firebase.apps?.length) {{ firebase.initializeApp(cfg); }}
+    if (!window.firebase) return;
+    if (!firebase.apps || !firebase.apps.length) {{ firebase.initializeApp(cfg); }}
     var lastSent = "";
-    firebase.auth().onAuthStateChanged(async function(user){{
+    firebase.auth().onAuthStateChanged(function(user){{
       try {{
         if (!user) return;
-        const idt = await user.getIdToken(false);
-        if (!idt || idt === lastSent) return;
-        lastSent = idt;
-        const url = new URL(window.location);
-        if (url.searchParams.get('ftok') === idt) return;
-        url.searchParams.set('ftok', idt);
-        window.location.replace(url.toString());
+        user.getIdToken(false).then(function(idt){{
+          try {{
+            if (!idt || idt === lastSent) return;
+            lastSent = idt;
+            var url = new URL(window.location);
+            if (url.searchParams.get('ftok') === idt) return;
+            url.searchParams.set('ftok', idt);
+            window.location.replace(url.toString());
+          }} catch(e) {{}}
+        }}).catch(function(){{}});
       }} catch(e) {{}}
     }});
   }} catch(e) {{}}
-})();
+}})();
 </script>
 """, height=0)
 
@@ -682,10 +692,22 @@ def _ingest_ua_ls_from_query():
     return changed
 _ingest_ua_ls_from_query()
 
-# NEW: verify ?ftok=<Firebase ID token> and re-mint Firestore session
+# Defensive scrub in case a shared link includes bridge params
+qp_clear_keys("t", "ua", "ls")
+
+# 0d) Init cookie manager once
+COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
+if not COOKIE_SECRET:
+    st.error("Cookie secret missing. Add COOKIE_SECRET to your Streamlit secrets.")
+    st.stop()
+cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
+if not cookie_manager.ready():
+    st.warning("Cookies not ready; please refresh.")
+    st.stop()
+
+# NEW: verify ?ftok=<Firebase ID token> and re-mint Firestore session (AFTER cookie_manager exists)
 def handle_firebase_ftok():
-    qp = qp_get()
-    ftok = qp.get("ftok")
+    ftok = qp_get().get("ftok")
     if isinstance(ftok, list):
         ftok = ftok[0]
     ftok = (ftok or "").strip()
@@ -694,6 +716,7 @@ def handle_firebase_ftok():
 
     try:
         from firebase_admin import auth as fb_auth
+        # If you want revocation checks, use: verify_id_token(ftok, check_revoked=True)
         decoded = fb_auth.verify_id_token(ftok)
         email = (decoded.get("email") or "").lower().strip()
         if not email:
@@ -722,6 +745,8 @@ def handle_firebase_ftok():
             "student_name": row["Name"],
             "session_token": sess_token,
         })
+
+        # Persist both cookies + localStorage now that cookie_manager exists
         set_student_code_cookie(cookie_manager, row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
         set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
         components.html(f"""
@@ -732,6 +757,7 @@ def handle_firebase_ftok():
           }} catch(e) {{}}
         </script>
         """, height=0)
+
         qp_clear_keys("ftok")
         st.rerun()
         return True
@@ -739,21 +765,8 @@ def handle_firebase_ftok():
         qp_clear_keys("ftok")
         return False
 
-# run silent-restore handler early (before other restore paths)
+# Run the silent-restore handler early (but AFTER cookie_manager init)
 handle_firebase_ftok()
-
-# Defensive scrub in case a shared link includes bridge params
-qp_clear_keys("t", "ua", "ls")
-
-# 0d) Init cookie manager once
-COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
-if not COOKIE_SECRET:
-    st.error("Cookie secret missing. Add COOKIE_SECRET to your Streamlit secrets.")
-    st.stop()
-cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
-if not cookie_manager.ready():
-    st.warning("Cookies not ready; please refresh.")
-    st.stop()
 
 # 0e) Handshake: set cookie from ?student_code=, then only clear the param after we confirm cookie exists
 params = qp_get()
@@ -859,7 +872,6 @@ if (not restored) and (not st.session_state.get("logged_in", False)):
                 set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
                 components.html("<script>try{localStorage.removeItem('student_code');}catch(e){}</script>", height=0)
 
-
 # --- Helper: persist login to cookie + localStorage (kept for back-compat) ----
 def save_cookie_after_login(student_code: str) -> None:
     value = str(student_code or "").strip().lower()
@@ -920,7 +932,6 @@ components.html("""
   })();
 </script>
 """, height=0)
-
 
 # --- 2) Global CSS (higher contrast + focus states) ----------------------------
 st.markdown("""
@@ -1125,7 +1136,7 @@ if not st.session_state.get("logged_in", False):
     if handle_google_login():
         st.stop()
 
-    # Tabs: Returning / Sign Up (Approved) / Request Access
+     # Tabs: Returning / Sign Up (Approved) / Request Access
     tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
 
     # --- Returning ---
@@ -1229,6 +1240,27 @@ if not st.session_state.get("logged_in", False):
                         hashed_pw = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
                         doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
                         st.success("Account created! Please log in on the Returning tab.")
+
+    # --- Request Access ---
+    with tab3:
+        st.markdown(
+            """
+            <div class="page-wrap" style="text-align:center; margin-top:20px;">
+                <p style="font-size:1.1em; color:#444;">
+                    If you don't have an account yet, please request access by filling out this form.
+                </p>
+                <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header" 
+                   target="_blank" rel="noopener">
+                    <button style="background:#25317e; color:white; padding:10px 20px; border:none; border-radius:6px; cursor:pointer;">
+                        📝 Open Request Access Form
+                    </button>
+                </a>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+#
+
 
     # --- Autoplay Video Demo (inline, no fullscreen) -----------------------------
     st.markdown("""
