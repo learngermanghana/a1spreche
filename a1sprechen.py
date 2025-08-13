@@ -5,6 +5,7 @@ import io, json, os, random, math, re, sqlite3, tempfile, time
 import urllib.parse as _urllib
 from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
+from typing import Optional
 
 # ==== Third-Party Packages ====
 import bcrypt
@@ -32,19 +33,71 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# PWA + iOS head tags (served from /static) — now safely after set_page_config
-components.html("""
-<link rel="manifest" href="/static/manifest.webmanifest">
-<link rel="apple-touch-icon" href="/static/icons/falowen-180.png">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Falowen">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="theme-color" content="#000000">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-""", height=0)
+# Top spacing + chrome (tighter)
+st.markdown("""
+<style>
+/* Remove Streamlit's top padding */
+[data-testid="stAppViewContainer"] > .main .block-container {
+  padding-top: 0 !important;
+}
 
-# --- Compatibility alias ---
+/* First rendered block (often a head-inject) — keep a small gap only */
+[data-testid="stAppViewContainer"] .main .block-container > div:first-child {
+  margin-top: 0 !important;
+  margin-bottom: 8px !important;   /* was 24px */
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* If that first block is an iframe, collapse it completely */
+[data-testid="stAppViewContainer"] .main .block-container > div:first-child [data-testid="stIFrame"] {
+  display: block;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Keep hero flush and compact */
+.hero {
+  margin-top: 4px !important;      /* was 0/12 — pulls hero up */
+  margin-bottom: 8px !important;   /* tighter space before tabs */
+  padding-top: 6px !important;
+  display: flow-root;
+}
+.hero h1:first-child { margin-top: 0 !important; }
+
+/* Trim default gap above Streamlit tabs */
+[data-testid="stTabs"] {
+  margin-top: 8px !important;
+}
+
+/* Hide default Streamlit chrome */
+#MainMenu { visibility: hidden; }
+footer { visibility: hidden; }
+</style>
+""", unsafe_allow_html=True)
+
+# Compatibility alias
 html = st_html
+
+# ---- PWA head helper (define BEFORE you call it) ----
+BASE = st.secrets.get("PUBLIC_BASE_URL", "")
+_manifest = f'{BASE}/static/manifest.webmanifest' if BASE else "/static/manifest.webmanifest"
+_icon180  = f'{BASE}/static/icons/falowen-180.png' if BASE else "/static/icons/falowen-180.png"
+
+def _inject_meta_tags():
+    components.html(f"""
+      <link rel="manifest" href="{_manifest}">
+      <link rel="apple-touch-icon" href="{_icon180}">
+      <meta name="apple-mobile-web-app-capable" content="yes">
+      <meta name="apple-mobile-web-app-title" content="Falowen">
+      <meta name="apple-mobile-web-app-status-bar-style" content="black">
+      <meta name="theme-color" content="#000000">
+      <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    """, height=0)
 
 # --- State bootstrap ---
 def _bootstrap_state():
@@ -57,39 +110,12 @@ def _bootstrap_state():
         "cookie_synced": False,
         "__last_refresh": 0.0,
         "__ua_hash": "",
-        "__ls_token": "",
         "_oauth_state": "",
         "_oauth_code_redeemed": "",
     }
     for k, v in defaults.items():
         st.session_state.setdefault(k, v)
 _bootstrap_state()
-
-# --- SEO (only on public/landing) ---
-if not st.session_state.get("logged_in", False):
-    html("""
-    <script>
-      document.title = "Falowen – Learn German with Learn Language Education Academy";
-      const desc = "Falowen is the German learning companion from Learn Language Education Academy. Join live classes or self-study with A1–C1 courses, recorded lectures, and real progress tracking.";
-      let m = document.querySelector('meta[name="description"]');
-      if (!m) { m = document.createElement('meta'); m.name = "description"; document.head.appendChild(m); }
-      m.setAttribute("content", desc);
-      const canonicalHref = window.location.origin + "/";
-      let link = document.querySelector('link[rel="canonical"]');
-      if (!link) { link = document.createElement('link'); link.rel = "canonical"; document.head.appendChild(link); }
-      link.href = canonicalHref;
-      function setOG(p, v){ let t=document.querySelector(`meta[property="${p}"]`);
-        if(!t){ t=document.createElement('meta'); t.setAttribute('property', p); document.head.appendChild(t); }
-        t.setAttribute('content', v);
-      }
-      setOG("og:title", "Falowen – Learn German with Learn Language Education Academy");
-      setOG("og:description", desc);
-      setOG("og:type", "website");
-      setOG("og:url", canonicalHref);
-      const ld = {"@context":"https://schema.org","@type":"WebSite","name":"Falowen","alternateName":"Falowen by Learn Language Education Academy","url": canonicalHref};
-      const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
-    </script>
-    """, height=0)
 
 # ==== Hide Streamlit chrome ====
 st.markdown("""
@@ -99,8 +125,7 @@ footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-
-# ==== FIREBASE ADMIN INIT & SESSION STORE ====
+# ==== FIREBASE ADMIN INIT (Firestore only; no Firebase Auth in login) ====
 try:
     if not firebase_admin._apps:
         cred_dict = dict(st.secrets["firebase"])
@@ -112,7 +137,6 @@ except Exception as e:
     st.stop()
 
 # ---- Firestore sessions (server-side auth state) ----
-# Enable a TTL policy on `expires_at` in Firebase Console for auto-cleanup.
 SESSIONS_COL = "sessions"
 SESSION_TTL_MIN = 60 * 24 * 14         # 14 days
 SESSION_ROTATE_AFTER_MIN = 60 * 24 * 7 # 7 days
@@ -158,7 +182,6 @@ def refresh_or_rotate_session_token(token: str) -> str:
         now = time.time()
         # Extend TTL
         ref.update({"expires_at": now + (SESSION_TTL_MIN * 60)})
-
         # Rotate if old
         if now - float(data.get("issued_at", now)) > (SESSION_ROTATE_AFTER_MIN * 60):
             new_token = _rand_token()
@@ -305,40 +328,24 @@ def inc_sprechen_usage(student_code):
 def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
     return get_sprechen_usage(student_code) < limit
 
-# ==== YOUTUBE PLAYLIST HELPERS ====
+def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
+    return get_sprechen_usage(student_code) < limit
 
-# Prefer secrets for keys; fallback to existing value
+# ==== YOUTUBE PLAYLIST HELPERS ====
 YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY", "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4")
 
 YOUTUBE_PLAYLIST_IDS = {
-    "A1": [
-        "PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b",
-    ],
-    "A2": [
-        "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
-        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc",
-        "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c",
-    ],
-    "B1": [
-        "PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-",
-        "PLB92CD6B288E5DB61",
-    ],
-    "B2": [
-        "PLs7zUO7VPyJ5XMfT7pLvweRx6kHVgP_9C",
-        "PLs7zUO7VPyJ6jZP-s6dlkINuEjFPvKMG0",
-        "PLs7zUO7VPyJ4SMosRdB-35Q07brhnVToY",
-    ],
+    "A1": ["PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b"],
+    "A2": ["PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY", "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc", "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c"],
+    "B1": ["PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-", "PLB92CD6B288E5DB61"],
+    "B2": ["PLs7zUO7VPyJ5XMfT7pLvweRx6kHVgP_9C", "PLs7zUO7VPyJ6jZP-s6dlkINuEjFPvKMG0", "PLs7zUO7VPyJ4SMosRdB-35Q07brhnVToY"],
 }
+
 
 @st.cache_data(ttl=43200)
 def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
     base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
-    params = {
-        "part": "snippet",
-        "playlistId": playlist_id,
-        "maxResults": 50,
-        "key": api_key,
-    }
+    params = {"part": "snippet", "playlistId": playlist_id, "maxResults": 50, "key": api_key}
     videos, next_page = [], ""
     while True:
         if next_page:
@@ -347,45 +354,39 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
         data = response.json()
         for item in data.get("items", []):
             vid = item["snippet"]["resourceId"]["videoId"]
-            url = f"https://www.youtube.com/watch?v={vid}"
-            title = item["snippet"]["title"]
-            videos.append({"title": title, "url": url})
+            videos.append({"title": item["snippet"]["title"], "url": f"https://www.youtube.com/watch?v={vid}"})
         next_page = data.get("nextPageToken")
         if not next_page:
             break
     return videos
 
-
-# ================================================
-# STUDENT SHEET LOADING & SESSION SETUP (with Firebase silent restore)
-# ================================================
+# ==== STUDENT SHEET LOADING ====
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
 
-@st.cache_data(ttl=300)  # refresh every 5 minutes
+@st.cache_data(ttl=300)
 def load_student_data():
     try:
-        resp = requests.get(GOOGLE_SHEET_CSV, timeout=10)
+        resp = requests.get(GOOGLE_SHEET_CSV, timeout=12)
         resp.raise_for_status()
-        df = pd.read_csv(
-            io.StringIO(resp.text),
-            dtype=str,
-            keep_default_na=True,
-            na_values=["", " ", "nan", "NaN", "None"]
-        )
-    except Exception:
-        st.error("❌ Could not load student data.")
+        # guard: ensure CSV not HTML
+        txt = resp.text
+        if "<html" in txt[:512].lower():
+            raise RuntimeError("Expected CSV, got HTML (check sheet privacy).")
+        df = pd.read_csv(io.StringIO(txt), dtype=str, keep_default_na=True, na_values=["", " ", "nan", "NaN", "None"])
+    except Exception as e:
+        st.error(f"❌ Could not load student data. {e}")
         st.stop()
 
     # Normalize headers and trim cells while preserving NaN
     df.columns = df.columns.str.strip().str.replace(" ", "")
     for col in df.columns:
         s = df[col]
-        df[col] = s.where(s.isna(), s.str.strip())
+        df[col] = s.where(s.isna(), s.astype(str).str.strip())
 
     # Keep only rows with a ContractEnd value
     df = df[df["ContractEnd"].notna() & (df["ContractEnd"].str.len() > 0)]
 
-    # Robust parse (MM/DD/YYYY, DD/MM/YYYY, ISO, fallback)
+    # Robust parse
     def _parse_contract_end(s: str):
         for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
             try:
@@ -397,7 +398,7 @@ def load_student_data():
     df["ContractEnd_dt"] = df["ContractEnd"].apply(_parse_contract_end)
     df = df[df["ContractEnd_dt"].notna()]
 
-    # Normalize identifiers for later lookups
+    # Normalize identifiers
     if "StudentCode" in df.columns:
         df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
     if "Email" in df.columns:
@@ -409,79 +410,70 @@ def load_student_data():
             .drop(columns=["ContractEnd_dt"]))
     return df
 
-
 def is_contract_expired(row):
     expiry_str = str(row.get("ContractEnd", "") or "").strip()
     if not expiry_str or expiry_str.lower() == "nan":
         return True
-
     expiry_date = None
     for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
         try:
-            expiry_date = datetime.strptime(expiry_str, fmt)
-            break
+            expiry_date = datetime.strptime(expiry_str, fmt); break
         except ValueError:
             continue
-
     if expiry_date is None:
         parsed = pd.to_datetime(expiry_str, errors="coerce")
-        if pd.isnull(parsed):
-            return True
+        if pd.isnull(parsed): return True
         expiry_date = parsed.to_pydatetime()
+    return expiry_date.date() < datetime.utcnow().date()
 
-    # Use UTC date to avoid local skew/DST issues
-    today = datetime.utcnow().date()
-    return expiry_date.date() < today
+# ==== Query param helpers (stable) ====
+def qp_get():
+    # returns a dict-like object
+    return st.query_params
 
+def qp_clear():
+    # clears all query params from the URL
+    st.query_params.clear()
 
-# ============================================================
-# 0) Cookie + localStorage “SSO” (+ UA/LS bridge & token-first restore)
-# ============================================================
+def qp_clear_keys(*keys):
+    # remove only the specified keys
+    for k in keys:
+        try:
+            del st.query_params[k]
+        except KeyError:
+            pass
 
-from typing import Optional  # ensure available if you were using 3.9
-
+# ==== Cookie helpers (normal cookies) ====
 def _expire_str(dt: datetime) -> str:
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
 def _js_set_cookie(name: str, value: str, max_age_sec: int, expires_gmt: str, secure: bool, domain: Optional[str] = None):
-    """
-    Returns JS code to set a cookie. If 'domain' is the name of a JS variable (e.g., 'base'),
-    pass it as that identifier string and we'll emit it as a JS variable (not a quoted literal).
-    """
     base = (
-        f'var c = {json.dumps(name)} + "=" + {json.dumps(_urllib.quote(value))} + '
+        f'var c = {json.dumps(name)} + "=" + {json.dumps(_urllib.quote(value, safe=""))} + '
         f'"; Path=/; Max-Age={max_age_sec}; Expires={json.dumps(expires_gmt)}; SameSite=Lax";\n'
         f'if ({str(bool(secure)).lower()}) c += "; Secure";\n'
     )
     if domain:
-        # 'domain' is intended to be a JS variable identifier, not a string literal
         base += f'c += "; Domain=" + {domain};\n'
     base += "document.cookie = c;\n"
     return base
 
 def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
-    """
-    iOS/Safari friendly: set both host-only and base-domain cookies for student_code.
-    Also mirrors to localStorage.
-    """
     key = "student_code"
     norm = (value or "").strip().lower()
     use_secure = (os.getenv("ENV", "prod") != "dev")
     max_age = 60 * 60 * 24 * 180  # 180 days
     exp_str = _expire_str(expires)
-
     # Library cookie (encrypted; host-only)
     try:
         cookie_manager.set(key, norm, expires=expires, secure=use_secure, samesite="Lax", path="/")
         cookie_manager.save()
     except Exception:
         try:
-            cookie_manager[key] = norm
-            cookie_manager.save()
+            cookie_manager[key] = norm; cookie_manager.save()
         except Exception:
             pass
-
-    # JS cookies: host-only AND base-domain (e.g., .falowen.app)
+    # JS host-only + base-domain (guard invalid hosts)
     host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
     host_js = _js_set_cookie(host_cookie_name, norm, max_age, exp_str, use_secure, domain=None)
     script = f"""
@@ -490,7 +482,7 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
         try {{
           {host_js}
           try {{
-            var h = window.location.hostname.split('.');
+            var h = (window.location.hostname||'').split('.').filter(Boolean);
             if (h.length >= 2) {{
               var base = '.' + h.slice(-2).join('.');
               {_js_set_cookie(host_cookie_name, norm, max_age, exp_str, use_secure, "base")}
@@ -504,27 +496,19 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     components.html(script, height=0)
 
 def set_session_token_cookie(cookie_manager, token: str, expires: datetime):
-    """
-    Mirror the Firestore session token in cookies (host-only + base-domain) and localStorage.
-    """
     key = "session_token"
     val = (token or "").strip()
     use_secure = (os.getenv("ENV", "prod") != "dev")
-    max_age = 60 * 60 * 24 * 30  # 30 days (Firestore TTL still authoritative)
+    max_age = 60 * 60 * 24 * 30  # 30 days
     exp_str = _expire_str(expires)
-
-    # Library cookie (host-only)
     try:
         cookie_manager.set(key, val, expires=expires, secure=use_secure, samesite="Lax", path="/")
         cookie_manager.save()
     except Exception:
         try:
-            cookie_manager[key] = val
-            cookie_manager.save()
+            cookie_manager[key] = val; cookie_manager.save()
         except Exception:
             pass
-
-    # JS cookies: host-only + base-domain
     host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
     host_js = _js_set_cookie(host_cookie_name, val, max_age, exp_str, use_secure, domain=None)
     script = f"""
@@ -533,7 +517,7 @@ def set_session_token_cookie(cookie_manager, token: str, expires: datetime):
         try {{
           {host_js}
           try {{
-            var h = window.location.hostname.split('.');
+            var h = (window.location.hostname||'').split('.').filter(Boolean);
             if (h.length >= 2) {{
               var base = '.' + h.slice(-2).join('.');
               {_js_set_cookie(host_cookie_name, val, max_age, exp_str, use_secure, "base")}
@@ -546,323 +530,6 @@ def set_session_token_cookie(cookie_manager, token: str, expires: datetime):
     """
     components.html(script, height=0)
 
-# 0a) UA/LS query-parameter bridge (no postMessage)
-components.html("""
-<script>
- (function(){
-   async function sha256Hex(s){
-     const enc = new TextEncoder(); const data = enc.encode(s);
-     const buf = await crypto.subtle.digest('SHA-256', data);
-     return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-   }
-   (async function(){
-     try{
-       const ua = navigator.userAgent||''; const lang = navigator.language||'';
-       const h  = await sha256Hex(ua + '|' + lang);
-       const ls = localStorage.getItem('session_token')||'';
-       const url = new URL(window.location);
-       let mut = false;
-       if (!url.searchParams.get('ua')) { url.searchParams.set('ua', h); mut = true; }
-       if (ls && !url.searchParams.get('ls')) { url.searchParams.set('ls', ls); mut = true; }
-       if (mut) window.location.replace(url.toString());
-     }catch(e){}
-   })();
- })();
-</script>
-""", height=0)
-
-# 0a.5) Firebase Web SDK + silent restore -> ?ftok=
-components.html(f"""
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script>
-(function(){{
-  try {{
-    var cfg = {{
-      apiKey: {json.dumps(st.secrets.get("FIREBASE_WEB_API_KEY",""))},
-      authDomain: {json.dumps(st.secrets.get("FIREBASE_AUTH_DOMAIN",""))},
-      projectId: {json.dumps(st.secrets.get("FIREBASE_PROJECT_ID",""))}
-    }};
-    if (!window.firebase) return;
-    if (!firebase.apps || !firebase.apps.length) {{ firebase.initializeApp(cfg); }}
-    var lastSent = "";
-    firebase.auth().onAuthStateChanged(function(user){{
-      try {{
-        if (!user) return;
-        user.getIdToken(false).then(function(idt){{
-          try {{
-            if (!idt || idt === lastSent) return;
-            lastSent = idt;
-            var url = new URL(window.location);
-            if (url.searchParams.get('ftok') === idt) return;
-            url.searchParams.set('ftok', idt);
-            window.location.replace(url.toString());
-          }} catch(e) {{}}
-        }}).catch(function(){{}});
-      }} catch(e) {{}}
-    }});
-  }} catch(e) {{}}
-}})();
-</script>
-""", height=0)
-
-# 0b) Query param helpers
-def qp_get():
-    try:
-        return st.query_params
-    except Exception:
-        return st.experimental_get_query_params()
-
-def qp_clear():
-    try:
-        st.query_params.clear()
-    except Exception:
-        try:
-            st.experimental_set_query_params()
-        except Exception:
-            pass
-
-def qp_clear_keys(*keys):
-    try:
-        qp = st.query_params
-        for k in keys:
-            if k in qp:
-                del qp[k]
-    except Exception:
-        try:
-            st.experimental_set_query_params(**{k: [] for k in keys})
-        except Exception:
-            pass
-    # scrub in browser history
-    components.html("""
-    <script>
-      (function(){
-        try{
-          const u = new URL(window.location);
-          %s
-          window.history.replaceState({}, '', u);
-        }catch(e){}
-      })();
-    </script>
-    """ % "\n".join([f"if(u.searchParams.has('{k}')) u.searchParams.delete('{k}');" for k in keys]), height=0)
-
-# 0c) Ingest UA/LS bridge into session_state then scrub
-def _ingest_ua_ls_from_query():
-    qp = qp_get()
-    def _get1(k):
-        v = qp.get(k)
-        if isinstance(v, list): v = v[0]
-        return (v or "").strip()
-    ua = _get1("ua")
-    ls = _get1("ls")
-    changed = False
-    if ua and ua != st.session_state.get("__ua_hash"): st.session_state["__ua_hash"] = ua; changed = True
-    if ls and ls != st.session_state.get("__ls_token"): st.session_state["__ls_token"] = ls; changed = True
-    if ua or ls:
-        qp_clear_keys("ua", "ls")
-    return changed
-_ingest_ua_ls_from_query()
-
-# Defensive scrub in case a shared link includes bridge params
-qp_clear_keys("t", "ua", "ls")
-
-# 0d) Init cookie manager once
-COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
-if not COOKIE_SECRET:
-    st.error("Cookie secret missing. Add COOKIE_SECRET to your Streamlit secrets.")
-    st.stop()
-cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
-if not cookie_manager.ready():
-    st.warning("Cookies not ready; please refresh.")
-    st.stop()
-
-# NEW: verify ?ftok=<Firebase ID token> and re-mint Firestore session (AFTER cookie_manager exists)
-def handle_firebase_ftok():
-    ftok = qp_get().get("ftok")
-    if isinstance(ftok, list):
-        ftok = ftok[0]
-    ftok = (ftok or "").strip()
-    if not ftok:
-        return False
-
-    try:
-        from firebase_admin import auth as fb_auth
-        # If you want revocation checks, use: verify_id_token(ftok, check_revoked=True)
-        decoded = fb_auth.verify_id_token(ftok)
-        email = (decoded.get("email") or "").lower().strip()
-        if not email:
-            qp_clear_keys("ftok")
-            return False
-
-        df = load_student_data()
-        df["Email"] = df["Email"].str.lower().str.strip()
-        match = df[df["Email"] == email]
-        if match.empty:
-            qp_clear_keys("ftok")
-            return False
-
-        row = match.iloc[0]
-        if is_contract_expired(row):
-            qp_clear_keys("ftok")
-            return False
-
-        ua_hash = st.session_state.get("__ua_hash", "")
-        sess_token = create_session_token(row["StudentCode"], row["Name"], ua_hash=ua_hash)
-
-        st.session_state.update({
-            "logged_in": True,
-            "student_row": row.to_dict(),
-            "student_code": row["StudentCode"],
-            "student_name": row["Name"],
-            "session_token": sess_token,
-        })
-
-        # Persist both cookies + localStorage now that cookie_manager exists
-        set_student_code_cookie(cookie_manager, row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
-        set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
-        components.html(f"""
-        <script>
-          try {{
-            localStorage.setItem('student_code', {json.dumps(row["StudentCode"])});
-            localStorage.setItem('session_token', {json.dumps(sess_token)});
-          }} catch(e) {{}}
-        </script>
-        """, height=0)
-
-        qp_clear_keys("ftok")
-        st.rerun()
-        return True
-    except Exception:
-        qp_clear_keys("ftok")
-        return False
-
-# Run the silent-restore handler early (but AFTER cookie_manager init)
-handle_firebase_ftok()
-
-# 0e) Handshake: set cookie from ?student_code=, then only clear the param after we confirm cookie exists
-params = qp_get()
-sc_param = params.get("student_code")
-if isinstance(sc_param, list):
-    sc_param = sc_param[0]
-sc_param = (sc_param or "").strip().lower()
-
-if sc_param:
-    if not st.session_state.get("__cookie_attempt"):
-        st.session_state["__cookie_attempt"] = sc_param
-        set_student_code_cookie(cookie_manager, sc_param, expires=datetime.utcnow() + timedelta(days=180))
-        st.rerun()
-    else:
-        attempted = st.session_state.get("__cookie_attempt", "")
-        have = (cookie_manager.get("student_code") or "").strip().lower()
-        if have == attempted:
-            qp_clear_keys("student_code")
-            st.session_state.pop("__cookie_attempt", None)
-else:
-    st.session_state.pop("__cookie_attempt", None)
-
-# 0f) Restore login (PREFER SERVER TOKEN), else fallback to student_code
-def _get_token_candidates():
-    qp = qp_get()
-    t = qp.get("t")
-    if isinstance(t, list): t = t[0]
-    t = (t or "").strip()
-    ls = (st.session_state.get("__ls_token") or "").strip()
-    mem = (st.session_state.get("session_token") or "").strip()
-    cookie_tok = (cookie_manager.get("session_token") or "").strip()  # NEW: cookie token
-    out = [x for x in [mem, t, ls, cookie_tok] if x]
-    seen, uniq = set(), []
-    for x in out:
-        if x not in seen:
-            uniq.append(x); seen.add(x)
-    return uniq
-
-restored = False
-if not st.session_state.get("logged_in", False):
-    for tok in _get_token_candidates():
-        data = validate_session_token(tok, st.session_state.get("__ua_hash", ""))
-        if not data:
-            continue
-        # Roster/contract guard
-        try:
-            df_students = load_student_data()
-            found = df_students[df_students["StudentCode"] == data.get("student_code","")]
-        except Exception:
-            found = pd.DataFrame()
-        if found.empty or is_contract_expired(found.iloc[0]):
-            continue
-
-        row = found.iloc[0]
-        st.session_state.update({
-            "logged_in": True,
-            "student_row": row.to_dict(),
-            "student_code": row["StudentCode"],
-            "student_name": row["Name"],
-            "session_token": tok,
-        })
-        # Refresh/rotate; persist new token client-side; scrub ?t=
-        new_tok = refresh_or_rotate_session_token(tok) or tok
-        st.session_state["session_token"] = new_tok
-
-        # Persist to LS and cookies
-        components.html(f"""
-        <script>
-          try {{
-            localStorage.setItem('session_token', {json.dumps(new_tok)});
-            const u = new URL(window.location);
-            if (u.searchParams.has('t')) {{ u.searchParams.delete('t'); window.history.replaceState({{}}, '', u); }}
-          }} catch(e) {{}}
-        </script>
-        """, height=0)
-        set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))  # NEW
-        restored = True
-        break
-
-# Fallback: original cookie/param login using student_code (no password)
-if (not restored) and (not st.session_state.get("logged_in", False)):
-    code_cookie = (cookie_manager.get("student_code") or "").strip().lower()
-    effective_code = code_cookie or sc_param
-
-    if effective_code:
-        try:
-            df_students = load_student_data()
-            found = df_students[df_students["StudentCode"].str.lower().str.strip() == effective_code]
-        except Exception:
-            found = pd.DataFrame()
-
-        if not found.empty:
-            student_row = found.iloc[0]
-            if not is_contract_expired(student_row):
-                st.session_state.update({
-                    "logged_in": True,
-                    "student_row": student_row.to_dict(),
-                    "student_code": student_row["StudentCode"],
-                    "student_name": student_row["Name"]
-                })
-            else:
-                # Expired: clear cookie + localStorage to avoid loops
-                set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
-                components.html("<script>try{localStorage.removeItem('student_code');}catch(e){}</script>", height=0)
-
-# --- Helper: persist login to cookie + localStorage (kept for back-compat) ----
-def save_cookie_after_login(student_code: str) -> None:
-    value = str(student_code or "").strip().lower()
-    try:
-        _cm  = globals().get("cookie_manager")
-        _set = globals().get("set_student_code_cookie")
-        if _cm and _set:
-            _set(_cm, value, expires=datetime.utcnow() + timedelta(days=180))
-    except Exception:
-        pass
-    components.html(
-        """
-        <script>
-          try { localStorage.setItem('student_code', __VAL__); } catch (e) {}
-        </script>
-        """.replace("__VAL__", json.dumps(value)),
-        height=0
-    )
-
-# --- NEW: persist session token client-side + scrub URL params -----------------
 def _persist_session_client(token: str, student_code: str = "") -> None:
     components.html(f"""
     <script>
@@ -872,130 +539,84 @@ def _persist_session_client(token: str, student_code: str = "") -> None:
           localStorage.setItem('student_code', {json.dumps(student_code)});
         }}
         const u = new URL(window.location);
-        ['t','ua','ls'].forEach(k => u.searchParams.delete(k));
+        ['code','state'].forEach(k => u.searchParams.delete(k));
         window.history.replaceState({{}}, '', u);
       }} catch(e) {{}}
     </script>
     """, height=0)
 
-# --- Keep-alive to keep iOS storage fresh + let server extend TTL --------------
-components.html("""
-<script>
-  (function(){
-    try {
-      let last=0;
-      function ping(){
-        const now = Date.now();
-        if (document.hidden) return;
-        if (now - last < 4*60*1000) return; // every ~4min
-        last = now;
-        try { localStorage.setItem('falowen_alive', String(now)); } catch(e){}
-        try {
-          const u = new URL(window.location);
-          u.hash = 'alive' + now;
-          history.replaceState({}, '', u);
-        } catch(e){}
-      }
-      document.addEventListener('visibilitychange', ping, {passive:true});
-      setInterval(ping, 60*1000);
-      ping();
-    } catch(e){}
-  })();
-</script>
-""", height=0)
+# ==== Cookie manager init ====
+COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
+if not COOKIE_SECRET:
+    st.error("Cookie secret missing. Add COOKIE_SECRET to your Streamlit secrets.")
+    st.stop()
+cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
+if not cookie_manager.ready():
+    st.warning("Cookies not ready; please refresh.")
+    st.stop()
 
-# --- Early client-side restore gate (no infinite "restoring" state) ---
-has_cookie_tok = bool((cookie_manager.get("session_token") or "").strip())
-
-if (not st.session_state.get("logged_in", False)) and (not has_cookie_tok):
-    # If Safari nuked cookies but LS still has the token, bounce it into the URL (?ls=...)
-    components.html(
-        """
-        <script>
-          (function(){
-            try {
-              var tok = localStorage.getItem('session_token') || '';
-              if (tok) {
-                var u = new URL(window.location);
-                if (!u.searchParams.get('t') && !u.searchParams.get('ls') && !u.searchParams.get('ftok')) {
-                  u.searchParams.set('ls', tok);
-                  window.location.replace(u.toString());
-                }
-              }
-            } catch (e) {}
-          })();
-        </script>
-        """,
-        height=0
-    )
-    # NOTE: no st.stop() here — if there's no LS token, we just render the normal homepage.
+# ---- Restore from existing session token (cookie) ----
+restored = False
+if not st.session_state.get("logged_in", False):
+    cookie_tok = (cookie_manager.get("session_token") or "").strip()
+    if cookie_tok:
+        data = validate_session_token(cookie_tok, st.session_state.get("__ua_hash", ""))
+        if data:
+            # Validate the student still exists and contract active
+            try:
+                df_students = load_student_data()
+                found = df_students[df_students["StudentCode"] == data.get("student_code","")]
+            except Exception:
+                found = pd.DataFrame()
+            if not found.empty and not is_contract_expired(found.iloc[0]):
+                row = found.iloc[0]
+                st.session_state.update({
+                    "logged_in": True,
+                    "student_row": row.to_dict(),
+                    "student_code": row["StudentCode"],
+                    "student_name": row["Name"],
+                    "session_token": cookie_tok,
+                })
+                new_tok = refresh_or_rotate_session_token(cookie_tok) or cookie_tok
+                st.session_state["session_token"] = new_tok
+                set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))
+                restored = True
 
 
-
-# --- 2) Global CSS (higher contrast + focus states) ----------------------------
+# --- 2) Global CSS (tightened spacing) ---
 st.markdown("""
 <style>
   .hero {
-    background: #fff;
-    border-radius: 12px;
-    padding: 24px;
-    margin: 24px auto;
-    max-width: 800px;
+    background: #fff; border-radius: 12px; padding: 24px; margin: 12px auto; max-width: 800px;
     box-shadow: 0 4px 16px rgba(0,0,0,0.05);
   }
   .help-contact-box {
-    background: #fff;
-    border-radius: 14px;
-    padding: 20px;
-    margin: 16px auto;
-    max-width: 500px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.04);
-    border:1px solid #ebebf2; text-align:center;
+    background: #fff; border-radius: 14px; padding: 20px; margin: 8px auto; max-width: 500px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.04); border:1px solid #ebebf2; text-align:center;
   }
   .quick-links { display: flex; flex-wrap: wrap; gap:12px; justify-content:center; }
   .quick-links a {
-    background: #e2e8f0;
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-weight:600;
-    text-decoration:none;
-    color:#0f172a;
-    border:1px solid #cbd5e1;
+    background: #e2e8f0; padding: 8px 16px; border-radius: 8px; font-weight:600; text-decoration:none;
+    color:#0f172a; border:1px solid #cbd5e1;
   }
   .quick-links a:hover { background:#cbd5e1; }
-
-  .stButton > button {
-    background:#2563eb;
-    color:#ffffff;
-    font-weight:700;
-    border-radius:8px;
-    border:2px solid #1d4ed8;
-  }
+  .stButton > button { background:#2563eb; color:#ffffff; font-weight:700; border-radius:8px; border:2px solid #1d4ed8; }
   .stButton > button:hover { background:#1d4ed8; }
-
-  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible,
-  [role="button"]:focus-visible {
-    outline:3px solid #f59e0b;
-    outline-offset:2px;
-    box-shadow:none !important;
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, [role="button"]:focus-visible {
+    outline:3px solid #f59e0b; outline-offset:2px; box-shadow:none !important;
   }
-
   input, textarea { color:#0f172a !important; }
-
-  @media (max-width:600px){
-    .hero, .help-contact-box { padding:16px 4vw; }
-  }
+  .page-wrap { max-width: 1100px; margin: 0 auto; }
+  @media (max-width:600px){ .hero, .help-contact-box { padding:16px 4vw; } }
 </style>
 """, unsafe_allow_html=True)
 
+def login_page():
 
-# --- 3) Public Homepage --------------------------------------------------------
-if not st.session_state.get("logged_in", False):
+    # Optional container width helper (safe if you already defined it in global CSS)
+    st.markdown('<style>.page-wrap{max-width:1100px;margin:0 auto;}</style>', unsafe_allow_html=True)
 
-    st.markdown("""
-    <style>.page-wrap { max-width: 1100px; margin: 0 auto; }</style>
-    """, unsafe_allow_html=True)
-
+    # HERO FIRST — this is the first visible element on the page
     st.markdown("""
     <div class="page-wrap">
       <div class="hero" aria-label="Falowen app introduction">
@@ -1018,16 +639,33 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("""
-    <div class="page-wrap">
-      <div class="help-contact-box" aria-label="Help and contact options">
-        <b>❓ Need help or access?</b><br>
-        <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp us</a>
-        &nbsp;|&nbsp;
-        <a href="mailto:learngermanghana@gmail.com" target="_blank" rel="noopener">✉️ Email</a>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Inject PWA/meta link tags AFTER the hero (zero-height iframe)
+    _inject_meta_tags()
+
+    # Inject SEO head tags AFTER the hero (zero-height iframe)
+    html("""
+    <script>
+      document.title = "Falowen – Learn German with Learn Language Education Academy";
+      const desc = "Falowen is the German learning companion from Learn Language Education Academy. Join live classes or self-study with A1–C1 courses, recorded lectures, and real progress tracking.";
+      let m = document.querySelector('meta[name="description"]');
+      if (!m) { m = document.createElement('meta'); m.name = "description"; document.head.appendChild(m); }
+      m.setAttribute("content", desc);
+      const canonicalHref = window.location.origin + "/";
+      let link = document.querySelector('link[rel="canonical"]');
+      if (!link) { link = document.createElement('link'); link.rel = "canonical"; document.head.appendChild(link); }
+      link.href = canonicalHref;
+      function setOG(p, v){ let t=document.querySelector(`meta[property="${p}"]`);
+        if(!t){ t=document.createElement('meta'); t.setAttribute('property', p); document.head.appendChild(t); }
+        t.setAttribute('content', v);
+      }
+      setOG("og:title", "Falowen – Learn German with Learn Language Education Academy");
+      setOG("og:description", desc);
+      setOG("og:type", "website");
+      setOG("og:url", canonicalHref);
+      const ld = {"@context":"https://schema.org","@type":"WebSite","name":"Falowen","alternateName":"Falowen by Learn Language Education Academy","url": canonicalHref};
+      const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
+    </script>
+    """, height=0)
 
     # --- Google OAuth (Optional) ---
     GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
@@ -1135,7 +773,7 @@ if not st.session_state.get("logged_in", False):
     if handle_google_login():
         st.stop()
 
-     # Tabs: Returning / Sign Up (Approved) / Request Access
+    # Tabs: Returning / Sign Up (Approved) / Request Access
     tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
 
     # --- Returning ---
@@ -1258,20 +896,111 @@ if not st.session_state.get("logged_in", False):
             """,
             unsafe_allow_html=True
         )
-#
 
-
-    # --- Autoplay Video Demo (insert before Quick Links/footer) ---
+    
     st.markdown("""
-    <div style="display:flex; justify-content:center; margin: 24px 0;">
-      <video width="350" autoplay muted loop controls style="border-radius: 12px; box-shadow: 0 4px 12px #0002;">
-        <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
-        Sorry, your browser doesn't support embedded videos.
-      </video>
+    <div class="page-wrap">
+      <div class="help-contact-box" aria-label="Help and contact options">
+        <b>❓ Need help or access?</b><br>
+        <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp us</a>
+        &nbsp;|&nbsp;
+        <a href="mailto:learngermanghana@gmail.com" target="_blank" rel="noopener">✉️ Email</a>
+      </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # Quick Links (high-contrast)
+
+    # --- Centered Video (pick a frame style by changing the class) ---
+    st.markdown("""
+    <div class="page-wrap">
+      <div class="video-wrap">
+        <div class="video-shell style-gradient">
+          <video
+            width="360"
+            autoplay
+            muted
+            loop
+            playsinline
+            tabindex="-1"
+            oncontextmenu="return false;"
+            draggable="false"
+            style="pointer-events:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;">
+            <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
+            Sorry, your browser doesn't support embedded videos.
+          </video>
+        </div>
+      </div>
+    </div>
+
+    <style>
+      /* Layout */
+      .video-wrap{
+        display:flex; justify-content:center; align-items:center;
+        margin: 12px 0 24px;
+      }
+      .video-shell{
+        position:relative; border-radius:16px; padding:4px;
+      }
+      .video-shell > video{
+        display:block; width:min(360px, 92vw); border-radius:12px; margin:0;
+        box-shadow: 0 4px 12px rgba(0,0,0,.08);
+      }
+
+      /* 1) Soft gradient frame (default) */
+      .video-shell.style-gradient{
+        background: linear-gradient(135deg,#e8eeff,#f6f9ff);
+        box-shadow: 0 8px 24px rgba(0,0,0,.08);
+      }
+
+      /* 2) Glow pulse */
+      .video-shell.style-glow{
+        background:#0b1220;
+        box-shadow: 0 0 0 2px #1d4ed8, 0 0 18px #1d4ed8;
+        animation: glowPulse 3.8s ease-in-out infinite;
+      }
+      @keyframes glowPulse{
+        0%,100%{ box-shadow:0 0 0 2px #1d4ed8, 0 0 12px #1d4ed8; }
+        50%{    box-shadow:0 0 0 2px #06b6d4, 0 0 22px #06b6d4; }
+      }
+
+      /* 3) Glassmorphism */
+      .video-shell.style-glass{
+        background: rgba(255,255,255,.25);
+        border: 1px solid rgba(255,255,255,.35);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        box-shadow: 0 10px 30px rgba(0,0,0,.10);
+      }
+
+      /* 4) Animated dashes */
+      .video-shell.style-dash{
+        padding:6px; border-radius:18px;
+        background:
+          repeating-linear-gradient(90deg,#1d4ed8 0 24px,#93c5fd 24px 48px);
+        background-size: 48px 100%;
+        animation: dashMove 6s linear infinite;
+      }
+      @keyframes dashMove { to { background-position: 48px 0; } }
+
+      /* 5) Shimmer frame */
+      .video-shell.style-shimmer{
+        background: linear-gradient(120deg,#e5e7eb, #f8fafc, #e5e7eb);
+        background-size: 200% 200%;
+        animation: shimmer 6s linear infinite;
+        box-shadow: 0 8px 24px rgba(0,0,0,.08);
+      }
+      @keyframes shimmer{ 0%{background-position:0% 50%;} 100%{background-position:100% 50%;} }
+
+      /* Mobile nudge */
+      @media (max-width:600px){
+        .video-wrap{ margin: 8px 0 16px; }
+      }
+    </style>
+    """, unsafe_allow_html=True)
+    #
+#
+
+    # Quick Links
     st.markdown("""
     <div class="page-wrap">
       <div class="quick-links" aria-label="Useful links">
@@ -1347,14 +1076,18 @@ if not st.session_state.get("logged_in", False):
     st.stop()
 
 
+if not st.session_state.get("logged_in", False):
+    login_page()
+
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
+
+_inject_meta_tags()
 
 if st.button("Log out"):
     try:
         tok = st.session_state.get("session_token", "")
-        if tok:
-            destroy_session_token(tok)
+        if tok: destroy_session_token(tok)
     except Exception:
         pass
 
@@ -1371,47 +1104,19 @@ if st.button("Log out"):
     except Exception:
         pass
 
-    _prefix = getattr(cookie_manager, "prefix", "") or ""
-    _cookie_name_code = f"{_prefix}student_code"
-    _cookie_name_tok  = f"{_prefix}session_token"
-    _secure_js = "true" if (os.getenv("ENV", "prod") != "dev") else "false"
-
-    components.html(f"""
+    # clear LS + strip OAuth params
+    components.html("""
     <script>
-      (function() {{
-        try {{
-          try {{
-            localStorage.removeItem('student_code');
-            localStorage.removeItem('session_token');
-          }} catch (e) {{}}
-
-          const url = new URL(window.location);
-          ['student_code','t','ua','ls','ftok'].forEach(k => url.searchParams.delete(k));
-          window.history.replaceState({{}}, '', url);
-
-          const isSecure = {_secure_js};
-          const past = "Thu, 01 Jan 1970 00:00:00 GMT";
-          const names = [{json.dumps(_cookie_name_code)}, {json.dumps(_cookie_name_tok)}];
-
-          function expireCookie(name, domain) {{
-            var s = name + "=; Expires=" + past + "; Path=/; SameSite=Lax";
-            if (isSecure) s += "; Secure";
-            if (domain) s += "; Domain=" + domain;
-            document.cookie = s;
-          }}
-
-          names.forEach(n => expireCookie(n));
-
-          const host  = window.location.hostname;
-          const parts = host.split('.');
-          if (parts.length >= 2) {{
-            const base = '.' + parts.slice(-2).join('.');
-            names.forEach(n => expireCookie(n, base));
-          }}
-
-          window.location.replace(url.pathname + url.search);
-        }} catch (e) {{}}
-      }})();
+      (function(){
+        try {
+          localStorage.removeItem('student_code');
+          localStorage.removeItem('session_token');
+          const u = new URL(window.location);
+          ['code','state'].forEach(k => u.searchParams.delete(k));
+          window.history.replaceState({}, '', u);
+          window.location.reload();
+        } catch(e){}
+      })();
     </script>
     """, height=0)
 
@@ -1424,14 +1129,10 @@ if st.button("Log out"):
         "cookie_synced": False,
         "__last_refresh": 0.0,
         "__ua_hash": "",
-        "__ls_token": "",
+        "_oauth_state": "",
+        "_oauth_code_redeemed": "",
     }.items():
         st.session_state[k] = v
-
-    try:
-        qp_clear()
-    except Exception:
-        pass
 
     st.stop()
 
@@ -1449,7 +1150,7 @@ def load_assignment_scores():
 
 @st.cache_data
 def load_full_vocab_sheet():
-    SHEET_ID = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
+    SHEET_ID = "1I1yAnqzSh3DPjwWRhcdRSfzNSPsi7o4r5Taj9Y36NU".replace("WRhcd","WRh9c")  # guard typo
     csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
     try:
         df = pd.read_csv(csv_url, dtype=str)
@@ -1463,19 +1164,85 @@ def load_full_vocab_sheet():
     df["Level"] = df["Level"].str.upper().str.strip()
     return df
 
-def get_vocab_of_the_day(df, level):
-    level = level.upper().strip()
-    subset = df[df["Level"] == level]
+# ---- ROBUST VOCAB LOADER + SAFE PICKER ----
+@st.cache_data(ttl=43200)
+def load_full_vocab_sheet():
+    SHEET_ID = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
+    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
+    try:
+        df = pd.read_csv(csv_url, dtype=str)
+    except Exception:
+        # Network/privacy/etc. Return an empty, well-formed frame so downstream code never crashes.
+        st.error("Could not load vocab sheet.")
+        return pd.DataFrame(columns=["level", "german", "english", "example"])
+
+    # Normalize headers (strip spaces, lowercase)
+    df.columns = df.columns.str.strip().str.lower()
+
+    # Try to map common variants to our canonical names
+    def _match(colnames, *candidates):
+        s = set(colnames)
+        for cand in candidates:
+            if cand in s:
+                return cand
+        # fallback: fuzzy-ish startswith
+        for c in colnames:
+            if any(c.startswith(x) for x in candidates):
+                return c
+        return None
+
+    col_level   = _match(df.columns, "level")
+    col_german  = _match(df.columns, "german", "de", "word", "wort")
+    col_english = _match(df.columns, "english", "en", "meaning", "translation")
+    col_example = _match(df.columns, "example", "sentence", "usage")
+
+    # If required columns missing, return empty shaped frame
+    if not (col_level and col_german and col_english):
+        return pd.DataFrame(columns=["level", "german", "english", "example"])
+
+    # Rename to canonical names
+    rename_map = {
+        col_level: "level",
+        col_german: "german",
+        col_english: "english",
+    }
+    if col_example:
+        rename_map[col_example] = "example"
+    df = df.rename(columns=rename_map)
+
+    # Keep only the columns we care about
+    if "example" not in df.columns:
+        df["example"] = ""
+
+    # Clean & normalize
+    for c in ["level", "german", "english", "example"]:
+        df[c] = df[c].astype(str).str.strip()
+
+    df = df[df["level"].notna() & (df["level"] != "")]
+    df["level"] = df["level"].str.upper()
+
+    return df[["level", "german", "english", "example"]]
+
+
+def get_vocab_of_the_day(df: pd.DataFrame, level: str):
+    # Defensive guards so this never throws
+    if df is None or df.empty:
+        return None
+    if not {"level", "german", "english", "example"}.issubset(df.columns):
+        return None
+
+    lvl = (level or "").upper().strip()
+    subset = df[df["level"] == lvl]
     if subset.empty:
         return None
+
     from datetime import date as _date
-    today_ordinal = _date.today().toordinal()
-    idx = today_ordinal % len(subset)
+    idx = _date.today().toordinal() % len(subset)
     row = subset.reset_index(drop=True).iloc[idx]
     return {
-        "german": row.get("German", ""),
-        "english": row.get("English", ""),
-        "example": row.get("Example", "") if "Example" in row else ""
+        "german": row.get("german", ""),
+        "english": row.get("english", ""),
+        "example": row.get("example", ""),
     }
 
 def parse_contract_end(date_str):
@@ -1495,6 +1262,26 @@ def load_reviews():
     df = pd.read_csv(url)
     df.columns = df.columns.str.strip().str.lower()
     return df
+
+# ---- Payment date helpers ----
+from calendar import monthrange
+
+def parse_contract_start(date_str: str):
+    # Reuse the same parsers as ContractEnd
+    return parse_contract_end(date_str)
+
+def add_months(dt: datetime, n: int) -> datetime:
+    y = dt.year + (dt.month - 1 + n) // 12
+    m = (dt.month - 1 + n) % 12 + 1
+    d = min(dt.day, monthrange(y, m)[1])
+    return dt.replace(year=y, month=m, day=d)
+
+def months_between(start_dt: datetime, end_dt: datetime) -> int:
+    months = (end_dt.year - start_dt.year) * 12 + (end_dt.month - start_dt.month)
+    if end_dt.day < start_dt.day:
+        months -= 1
+    return months
+
 
 if st.session_state.get("logged_in"):
     student_code = st.session_state["student_code"].strip().lower()
@@ -1517,8 +1304,8 @@ if st.session_state.get("logged_in"):
     contract_title_extra = "• no date"
     contract_notice_level = "info"
     contract_msg = "Contract end date unavailable or in wrong format."
-
     urgent_contract = False
+
     if contract_end:
         days_left = (contract_end - today_dt).days
         contract_title_extra = f"• {contract_end.strftime('%d %b %Y')}"
@@ -1543,11 +1330,55 @@ if st.session_state.get("logged_in"):
             contract_notice_level = "info"
             contract_msg = f"✅ Contract active. End date: {contract_end.strftime('%d %b %Y')}."
 
+    # -------------------- PAYMENT / DUES (1 month after Contract Start) --------------------
+    _start_keys = ["ContractStart", "StartDate", "ContractBegin", "Start", "Begin"]
+    start_str = ""
+    for k in _start_keys:
+        v = str(student_row.get(k, "") or "").strip()
+        if v:
+            start_str = v
+            break
+
+    payment_title_extra = "• no start date"
+    payment_notice_level = "info"
+    payment_msg = "We couldn't read your contract start date."
+    owes = False
+    first_due = None
+    amount_due = MONTHLY_RENEWAL
+    overdue_days = 0
+
+    if start_str:
+        contract_start = parse_contract_start(start_str)
+        if contract_start:
+            first_due = add_months(contract_start, 1)
+            delta_days = (first_due.date() - today_dt.date()).days
+            payment_title_extra = f"• due {first_due:%d %b %Y}"
+
+            if delta_days > 1:
+                payment_msg = f"💳 Next payment due in **{delta_days} days** ({first_due:%d %b %Y}). Amount: **₵{MONTHLY_RENEWAL:,}**."
+            elif delta_days == 1:
+                payment_msg = f"💳 Payment due **tomorrow** ({first_due:%d %b %Y}). Amount: **₵{MONTHLY_RENEWAL:,}**."
+            elif delta_days == 0:
+                payment_notice_level = "warning"
+                payment_msg = f"💳 Payment due **today** ({first_due:%d %b %Y}). Amount: **₵{MONTHLY_RENEWAL:,}**."
+            else:
+                owes = True
+                overdue_days = -delta_days
+                months_late = max(1, months_between(first_due, today_dt))
+                amount_due = MONTHLY_RENEWAL * months_late
+                payment_notice_level = "error"
+                payment_title_extra = f"• overdue {overdue_days}d"
+                payment_msg = (
+                    f"💸 **Overdue by {overdue_days} days.** "
+                    f"Estimated amount due: **₵{amount_due:,}** (₵{MONTHLY_RENEWAL:,}/month). "
+                    f"First due: {first_due:%d %b %Y}."
+                )
+        else:
+            payment_msg = "We couldn't parse your contract start date format."
+
     # -------------------- ASSIGNMENT STREAK / WEEKLY GOAL --------------------
     df_assign = load_assignment_scores()
-    df_assign["date"] = pd.to_datetime(
-        df_assign["date"], format="%Y-%m-%d", errors="coerce"
-    ).dt.date
+    df_assign["date"] = pd.to_datetime(df_assign["date"], format="%Y-%m-%d", errors="coerce").dt.date
     mask_student = df_assign["studentcode"].str.lower().str.strip() == student_code
 
     from datetime import timedelta, date
@@ -1565,27 +1396,27 @@ if st.session_state.get("logged_in"):
     WEEKLY_GOAL = 3
     goal_left = max(0, WEEKLY_GOAL - assignment_count)
     streak_title_extra = f"• {assignment_count}/{WEEKLY_GOAL} this week • {streak}d streak"
+    urgent_assignments = goal_left > 0 and (today.weekday() >= 5)
 
-    urgent_assignments = goal_left > 0 and (today.weekday() >= 5)  # urgent if weekend is here
-
-
-    # -------------------- BELL STATIC LOGIC --------------------
-    bell_color = "#333"  # Static, non-urgent color
-
+    # -------------------- BELL --------------------
+    bell_color = "#333"
     st.markdown(f"""
         <div style="display:flex;align-items:center;gap:10px;
                     font-size:1.3em;font-weight:600;margin:12px 0 6px 0;
                     padding:6px 10px;background:#fdf6e3;border-radius:8px;">
-            <span style="font-size:1.3em;display:inline-block;
-                         transform-origin: top center;
-                         color:{bell_color};">🔔</span> Your Notifications
+            <span style="font-size:1.3em;display:inline-block;color:{bell_color};">🔔</span> Your Notifications
         </div>
     """, unsafe_allow_html=True)
 
-    # -------------------- SINGLE BADGE ROW (keep only this one) --------------------
-    st.markdown("""
+    # -------------------- BADGES --------------------
+    pay_bg = "#fee2e2" if owes else ("#fff7ed" if payment_notice_level=="warning" else "#eef7f1")
+    pay_fg = "#991b1b" if owes else ("#7c2d12" if payment_notice_level=="warning" else "#1e7a3b")
+    pay_text = "💸 Payment: OVERDUE" if owes else ("💳 Payment: due soon" if payment_notice_level=="warning" else "💳 Payment")
+
+    st.markdown(f"""
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px 0;">
           <span style="background:#eef4ff;color:#2541b2;padding:4px 10px;border-radius:999px;font-size:0.9em;">⏰ Contract</span>
+          <span style="background:{pay_bg};color:{pay_fg};padding:4px 10px;border-radius:999px;font-size:0.9em;">{pay_text}</span>
           <span style="background:#eef7f1;color:#1e7a3b;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏅 Assignments</span>
           <span style="background:#fff4e5;color:#a36200;padding:4px 10px;border-radius:999px;font-size:0.9em;">🗣️ Vocab</span>
           <span style="background:#f7ecff;color:#6b29b8;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏆 Leaderboard</span>
@@ -1599,13 +1430,11 @@ if st.session_state.get("logged_in"):
     vocab_title_extra = f"• {student_level}" if vocab_item else "• none"
 
     # -------------------- LEADERBOARD (compute only) --------------------
-    import random
-    MIN_ASSIGNMENTS = 3
-
-    user_level = student_row.get('Level', '').upper() if 'student_row' in locals() or 'student_row' in globals() else ''
     df_assign['level'] = df_assign['level'].astype(str).str.upper().str.strip()
     df_assign['score'] = pd.to_numeric(df_assign['score'], errors='coerce')
 
+    MIN_ASSIGNMENTS = 3
+    user_level = student_row.get('Level', '').upper() if student_row else ''
     df_level = (
         df_assign[df_assign['level'] == user_level]
         .groupby(['studentcode', 'name'], as_index=False)
@@ -1617,14 +1446,9 @@ if st.session_state.get("logged_in"):
 
     your_row = df_level[df_level['studentcode'].str.lower() == student_code.lower()]
     total_students = len(df_level)
-
     totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
     total_possible = totals.get(user_level, 0)
-
-    leaderboard_title_extra = "• not ranked"
-    if not your_row.empty:
-        rank_val = int(your_row.iloc[0]['Rank'])
-        leaderboard_title_extra = f"• rank #{rank_val} / {total_students}"
+    leaderboard_title_extra = "• not ranked" if your_row.empty else f"• rank #{int(your_row.iloc[0]['Rank'])} / {total_students}"
 
     # ==================== COLLAPSIBLE NOTIFICATIONS ====================
 
@@ -1641,6 +1465,44 @@ if st.session_state.get("logged_in"):
             f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
             "Do your best to complete your course on time to avoid extra fees!"
         )
+
+    # Payments (collapsed) + ALWAYS-VISIBLE summary right under it
+    with st.expander(f"💳 Payments {payment_title_extra}", expanded=False):
+        if payment_notice_level == "error":
+            st.error(payment_msg)
+        elif payment_notice_level == "warning":
+            st.warning(payment_msg)
+        else:
+            st.info(payment_msg)
+
+    # ---- Always-visible Payment Status strip (sits directly under the expander) ----
+    if owes:
+        bg, border, fg, icon = "#fee2e2", "#ef4444", "#991b1b", "💸"
+        summary_line = f"Overdue by {overdue_days} days — est. **₵{amount_due:,}** due (₵{MONTHLY_RENEWAL:,}/month)."
+    elif first_due is None:
+        bg, border, fg, icon = "#f1f5f9", "#cbd5e1", "#334155", "ℹ️"
+        summary_line = "Contract start date missing — we can’t compute your first payment."
+    else:
+        delta = (first_due.date() - today_dt.date()).days
+        if delta <= 1:
+            bg, border, fg, icon = "#fff7ed", "#f59e0b", "#7c2d12", "⏳"
+            due_phrase = "today" if delta == 0 else "tomorrow"
+            summary_line = f"Payment due **{due_phrase}** ({first_due:%d %b %Y}) — **₵{MONTHLY_RENEWAL:,}**."
+        else:
+            bg, border, fg, icon = "#ecfdf5", "#10b981", "#065f46", "✅"
+            summary_line = f"Next payment in **{delta} days** ({first_due:%d %b %Y}) — **₵{MONTHLY_RENEWAL:,}**."
+
+    st.markdown(f"""
+        <div style="
+            margin:8px 0 16px 0; padding:10px 12px;
+            background:{bg}; border:1px solid {border}; border-radius:10px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size:1.15em">{icon}</span>
+                <div style="color:{fg}; font-weight:600">{summary_line}</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
 
     # Assignment streak & weekly goal (collapsed)
     with st.expander(f"🏅 Assignment Streak & Weekly Goal {streak_title_extra}", expanded=False):
@@ -1896,6 +1758,13 @@ if tab == "Dashboard":
             "end_date": "2025-11-07",
             "doc_url": "https://drive.google.com/file/d/1CaLw9RO6H8JOr5HmwWOZA2O7T-bVByi7/view?usp=sharing"
         },
+        "B2 Munich Klasse": {
+            "days": ["Friday", "Saturday"],
+            "time": "Fri: 2pm-3:30pm, Sat: 9;30am-10am",
+            "start_date": "2025-08-08",
+            "start_date": "2025-10-08",
+            "doc_url": "https://drive.google.com/file/d/1gn6vYBbRyHSvKgqvpj5rr8OfUOYRL09W/view?usp=sharing"
+        },
     }
 
     # ==== SHOW UPCOMING CLASSES CARD ====
@@ -2112,7 +1981,6 @@ if tab == "Dashboard":
             f"> — **{r.get('student_name','')}**  \n"
             f"> {stars}"
         )
-
 
 def get_a1_schedule():
     return [
@@ -9275,6 +9143,9 @@ if tab == "Schreiben Trainer":
                     "- Encourage the student. If the improvement is significant, say so.\n"
                     "1. If student dont improve after the third try, end the chat politely and tell the student to try again tomorrow. Dont continue to give the feedback after third try.\n"
                     "2. Always explain your feeback in English for them to understand. You can still highlight their german phrases. But your correction should be english\n"
+                    "3. For A1 and A2 students, make sure a sentence is not more than 7 words."
+                    "4. For A1 and A2 students, break their phrases down for them when they use relative clauses."
+                    "5. For A1 and A2 students, only recommend connectors such as deshalb, weil, ich mochte wissen,und,oder."
                     "- Give a revised score out of 25 (Score: X/25)."
                 )
                 with st.spinner("👨‍🏫 Herr Felix is comparing your improvement..."):
@@ -9783,181 +9654,6 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
