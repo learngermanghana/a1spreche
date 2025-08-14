@@ -1516,51 +1516,129 @@ if _logout_clicked:
 
     st.stop()
 
-# ===========================================
-# ---------- Announcements (safe) -----------
-# ===========================================
+
+
+# =========================================================
+# ============= Announcements (mobile-friendly) ===========
+# =========================================================
 def render_announcements(ANNOUNCEMENTS: list):
-    """Responsive rotating announcement board with safe link creation."""
+    """Responsive rotating announcement board with mobile-first, light card on phones."""
     if not ANNOUNCEMENTS:
+        st.info("📣 No announcements to show.")
         return
+
     _html = """
     <style>
+      /* ---------- THEME TOKENS ---------- */
       :root{
-        --brand:#2563eb; --ring:#93c5fd; --text:#0f172a; --muted:#475569;
-        --card:#111827; --chip-bg:#1f2937; --chip-fg:#e5e7eb;
-        --link:#60a5fa; --shell-border: rgba(148,163,184,.22);
+        /* brand */
+        --brand:#1d4ed8;      /* primary */
+        --ring:#93c5fd;
+
+        /* light defaults */
+        --text:#0b1220;
+        --muted:#475569;
+        --card:#ffffff;       /* <- light card by default */
+        --chip-bg:#eaf2ff;
+        --chip-fg:#1e3a8a;
+        --link:#1d4ed8;
+        --shell-border: rgba(2,6,23,.08);
       }
-      @media (prefers-color-scheme: light){
+
+      /* Dark scheme (desktop/tablet). We will still force light card on phones below. */
+      @media (prefers-color-scheme: dark){
         :root{
-          --text:#0f172a; --muted:#475569; --card:#ffffff;
-          --chip-bg:#e0f2fe; --chip-fg:#075985; --link:#1d4ed8; --shell-border: rgba(148,163,184,.25);
+          --text:#e5e7eb;
+          --muted:#cbd5e1;
+          --card:#111827;
+          --chip-bg:#1f2937;
+          --chip-fg:#e5e7eb;
+          --link:#93c5fd;
+          --shell-border: rgba(148,163,184,.25);
         }
       }
+
+      /* ---------- LAYOUT ---------- */
       .page-wrap{max-width:1100px;margin:0 auto;padding:0 10px;}
-      .ann-title{font-weight:700;font-size:1.05rem;line-height:1.2;padding-left:12px;border-left:5px solid var(--brand);margin:2px 0 6px 0;color:var(--text);}
-      .ann-shell{border-radius:12px;border:1px solid var(--shell-border);background:var(--card);box-shadow:0 6px 18px rgba(2,6,23,.18);padding:12px 14px;isolation:isolate;overflow:hidden;}
-      .ann-heading{display:flex;align-items:center;gap:8px;margin:0 0 6px 0;font-weight:700;color:var(--text)}
-      .ann-chip{font-size:.75rem;font-weight:700;letter-spacing:.2px;background:var(--chip-bg);color:var(--chip-fg);padding:4px 8px;border-radius:999px;border:1px solid var(--shell-border)}
-      .ann-body{color:var(--muted);margin:0;line-height:1.5;font-size:.96rem}
-      .ann-actions{margin-top:8px}
-      .ann-actions a{color:var(--link);text-decoration:none;font-weight:600}
-      .ann-dots{display:flex;gap:10px;justify-content:center;margin-top:10px}
-      .ann-dot{width:9px;height:9px;border-radius:999px;background:#9ca3af;opacity:.9;transform:scale(.95);transition:transform .2s, background .2s, opacity .2s}
-      .ann-dot[aria-current="true"]{background:var(--brand);opacity:1;transform:scale(1.22);box-shadow:0 0 0 4px var(--ring)}
+      .ann-title{
+        font-weight:800; font-size:1.05rem; line-height:1.2;
+        padding-left:12px; border-left:5px solid var(--brand);
+        margin: 0 0 6px 0; color: var(--text);
+        letter-spacing: .2px;
+      }
+      .ann-shell{
+        border-radius:14px;
+        border:1px solid var(--shell-border);
+        background:var(--card);
+        box-shadow:0 6px 18px rgba(2,6,23,.12);
+        padding:12px 14px; isolation:isolate; overflow:hidden;
+      }
+      .ann-heading{
+        display:flex; align-items:center; gap:10px; margin:0 0 6px 0;
+        font-weight:800; color:var(--text); letter-spacing:.2px;
+      }
+      .ann-chip{
+        font-size:.78rem; font-weight:800; text-transform:uppercase;
+        background:var(--chip-bg); color:var(--chip-fg);
+        padding:4px 9px; border-radius:999px; border:1px solid var(--shell-border);
+      }
+      .ann-body{ color:var(--muted); margin:0; line-height:1.55; font-size:1rem }
+      .ann-actions{ margin-top:8px }
+      .ann-actions a{ color:var(--link); text-decoration:none; font-weight:700 }
+
+      .ann-dots{
+        display:flex; gap:12px; justify-content:center; margin-top:12px
+      }
+      .ann-dot{
+        width:11px; height:11px; border-radius:999px; background:#9ca3af;
+        opacity:.9; transform:scale(.95);
+        transition:transform .2s, background .2s, opacity .2s;
+        border:none; cursor:pointer;
+      }
+      .ann-dot[aria-current="true"]{
+        background:var(--brand); opacity:1; transform:scale(1.22);
+        box-shadow:0 0 0 4px var(--ring)
+      }
+
       @keyframes fadeInUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
       .ann-anim{animation:fadeInUp .25s ease both}
       @media (prefers-reduced-motion: reduce){ .ann-anim{animation:none} .ann-dot{transition:none} }
+
+      /* ---------- MOBILE OVERRIDES ---------- */
+      @media (max-width: 640px){
+        /* Force a light look on phones, regardless of system dark mode */
+        :root{
+          --card:#ffffff !important;
+          --text:#0b1220 !important;
+          --muted:#334155 !important;
+          --link:#1d4ed8 !important;
+          --chip-bg:#eaf2ff !important;
+          --chip-fg:#1e3a8a !important;
+          --shell-border: rgba(2,6,23,.10) !important;
+        }
+        .page-wrap{ padding:0 8px; }
+        .ann-shell{ padding:10px 12px; border-radius:12px; }
+        .ann-title{ font-size:1rem; margin:0 0 4px 0; }
+        .ann-heading{ gap:8px; }
+        .ann-chip{ font-size:.72rem; padding:3px 8px; }
+        .ann-body{ font-size:1.02rem; line-height:1.6; }
+        .ann-dots{ gap:10px; margin-top:10px; }
+        .ann-dot{ width:12px; height:12px; }
+      }
+
+      /* Tight spacer utility for Streamlit blocks around this widget */
+      .tight-section{ margin:6px 0 !important; }
     </style>
 
-    <div class="page-wrap">
-      <div class="ann-title">📣 Announcement</div>
+    <div class="page-wrap tight-section">
+      <div class="ann-title">📣 Announcements</div>
       <div class="ann-shell" id="ann_shell" aria-live="polite">
         <div class="ann-anim" id="ann_card">
           <div class="ann-heading">
             <span class="ann-chip" id="ann_tag" style="display:none;"></span>
             <span id="ann_title"></span>
           </div>
-          <p class="ann-body" id="ann_body"></p>
+          <p class="ann-body" id="ann_body">loading…</p>
           <div class="ann-actions" id="ann_action" style="display:none;"></div>
         </div>
         <div class="ann-dots" id="ann_dots" role="tablist" aria-label="Announcement selector"></div>
@@ -1577,7 +1655,9 @@ def render_announcements(ANNOUNCEMENTS: list):
       const card    = document.getElementById('ann_card');
       const shell   = document.getElementById('ann_shell');
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      let i = 0, timer = null; const INTERVAL = 6500;
+
+      let i = 0, timer = null;
+      const INTERVAL = 6500;
 
       function setActiveDot(idx){
         [...dotsWrap.children].forEach((d, j)=> d.setAttribute('aria-current', j===idx ? 'true' : 'false'));
@@ -1585,18 +1665,33 @@ def render_announcements(ANNOUNCEMENTS: list):
       function render(idx){
         const c = data[idx] || {};
         card.classList.remove('ann-anim'); void card.offsetWidth; card.classList.add('ann-anim');
+
         titleEl.textContent = c.title || '';
         bodyEl.textContent  = c.body  || '';
-        if (c.tag){ tagEl.textContent = c.tag; tagEl.style.display=''; } else { tagEl.style.display='none'; }
+
+        if (c.tag){
+          tagEl.textContent = c.tag;
+          tagEl.style.display='';
+        } else {
+          tagEl.style.display='none';
+        }
+
         if (c.href){
-          const link = document.createElement('a'); link.href = c.href; link.target = '_blank'; link.rel='noopener'; link.textContent='Open';
-          actionEl.textContent = ''; actionEl.appendChild(link); actionEl.style.display='';
-        } else { actionEl.style.display='none'; actionEl.textContent=''; }
+          const link = document.createElement('a');
+          link.href = c.href; link.target = '_blank'; link.rel = 'noopener';
+          link.textContent = 'Open';
+          actionEl.textContent = '';
+          actionEl.appendChild(link);
+          actionEl.style.display='';
+        } else {
+          actionEl.style.display='none';
+          actionEl.textContent = '';
+        }
         setActiveDot(idx);
       }
-      function next(){ i=(i+1)%data.length; render(i); }
-      function start(){ if(!reduced) timer=setInterval(next, INTERVAL); }
-      function stop(){ if(timer) clearInterval(timer); timer=null; }
+      function next(){ i = (i+1) % data.length; render(i); }
+      function start(){ if (!reduced && data.length > 1) timer = setInterval(next, INTERVAL); }
+      function stop(){ if (timer) clearInterval(timer); timer = null; }
       function restart(){ stop(); start(); }
 
       data.forEach((_, idx)=>{
@@ -1616,25 +1711,79 @@ def render_announcements(ANNOUNCEMENTS: list):
     </script>
     """
     data_json = json.dumps(ANNOUNCEMENTS, ensure_ascii=False)
-    components.html(_html.replace("__DATA__", data_json), height=200, scrolling=False)
+    components.html(_html.replace("__DATA__", data_json), height=220, scrolling=False)
 
+
+# Optional: extra style injector for status chips & mini-cards if you want to reuse elsewhere
+def inject_notice_css():
+    st.markdown("""
+    <style>
+      :root{
+        --chip-border: rgba(148,163,184,.35);
+      }
+      @media (prefers-color-scheme: dark){
+        :root{
+          --chip-border: rgba(148,163,184,.28);
+        }
+      }
+      .statusbar { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 6px 0; }
+      .chip { display:inline-flex; align-items:center; gap:8px;
+              padding:8px 12px; border-radius:999px; font-weight:700; font-size:.98rem;
+              border:1px solid var(--chip-border); mix-blend-mode: normal; }
+      .chip-red   { background:#fef2f2; color:#991b1b; border-color:#fecaca; }
+      .chip-amber { background:#fff7ed; color:#7c2d12; border-color:#fed7aa; }
+      .chip-blue  { background:#eef4ff; color:#2541b2; border-color:#c7d2fe; }
+      .chip-gray  { background:#f1f5f9; color:#334155; border-color:#cbd5e1; }
+
+      .minirow { display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 2px 0; }
+      .minicard { flex:1 1 280px; border:1px solid var(--chip-border); border-radius:12px; padding:12px;
+                  background: #ffffff; isolation:isolate; mix-blend-mode: normal; }
+      .minicard h4 { margin:0 0 6px 0; font-size:1.02rem; color:#0f172a; }
+      .minicard .sub { color:#475569; font-size:.92rem; }
+
+      .pill { display:inline-block; padding:3px 9px; border-radius:999px; font-weight:700; font-size:.92rem; }
+      .pill-green { background:#e6ffed; color:#0a7f33; }
+      .pill-purple { background:#efe9ff; color:#5b21b6; }
+      .pill-amber { background:#fff7ed; color:#7c2d12; }
+
+      @media (max-width: 640px){
+        .chip{ padding:7px 10px; font-size:.95rem; }
+        .minicard{ padding:11px; }
+      }
+    </style>
+    """, unsafe_allow_html=True)
+
+
+# =========================================================
+# ================== Demo data for announcements ==========
+# =========================================================
 announcements = [
-    {"title": "A2 Mock Exam this Saturday",
-     "body":  "Arrive by 8:20am with ID. Speaking slots post on Friday.",
-     "tag":   "Exam",
-     "href":  "https://www.learngermanghana.com/upcoming-classes"},
-    {"title": "System Update",
-     "body":  "Course Book uploads are now 2× faster. Report issues to support.",
-     "tag":   "System"},
-    {"title": "New B1 Writing Pack",
-     "body":  "Practice letters + opinions with 10 model answers.",
-     "tag":   "B1",
-     "href":  "https://www.learngermanghana.com/resources"},
+    {
+        "title": "New! Dictionary tab in Vocab Trainer",
+        "body":  "Look up quick definitions and example sentences. Open: Vocab Trainer → Dictionary.",
+        "tag":   "Update"
+    },
+    {
+        "title": "Calendar & Zoom in My Course → Classroom (no WhatsApp)",
+        "body":  "All class reminders and updates are now inside the app. Go to My Course → Classroom to add the calendar and join Zoom. We’re discontinuing WhatsApp for announcements.",
+        "tag":   "Action"
+    },
+    {
+        "title": "Answers by Email + Weekly Summary",
+        "body":  "Your marked answers will arrive in your email. You’ll also get a weekly summary of your submissions.",
+        "tag":   "Email"
+    },
+    {
+        "title": "Before You Submit Assignments",
+        "body":  "Always make sure your assignment is fully complete before submitting — add your Schreiben, Lesen & Hören work if required, type your final answers in My Course → Classroom (answer box), then submit.",
+        "tag":   "Reminder"
+    }
 ]
 
-# ===========================================
-# ---------- Data loaders & helpers ---------
-# ===========================================
+
+# =========================================================
+# ============== Data loaders & helpers ===================
+# =========================================================
 @st.cache_data
 def load_assignment_scores():
     SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
@@ -1698,6 +1847,23 @@ def parse_contract_end(date_str):
         except ValueError: continue
     return None
 
+import re as _re
+
+def _read_money(val) -> float:
+    """Robustly parse currency-like strings to float. Handles '₵1,000', 'GHS 2000', etc."""
+    s = str(val or "").strip()
+    if not s:
+        return 0.0
+    # normalize common currency marks and thousand separators
+    s = s.replace(",", "").replace("₵", "").replace("GHS", "").replace("GHC", "")
+    # keep only digits, minus, and dot (defensive)
+    s = _re.sub(r"[^\d\.\-]", "", s)
+    try:
+        return float(s)
+    except Exception:
+        return 0.0
+
+
 @st.cache_data
 def load_reviews():
     SHEET_ID = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
@@ -1715,73 +1881,61 @@ def add_months(dt: datetime, n: int) -> datetime:
     """
     y = dt.year + (dt.month - 1 + n) // 12
     m = (dt.month - 1 + n) % 12 + 1
-    last_day = calendar.monthrange(y, m)[1]   # <-- fully qualified, no NameError
+    last_day = calendar.monthrange(y, m)[1]
     d = min(dt.day, last_day)
     return dt.replace(year=y, month=m, day=d)
-
 
 def months_between(start_dt: datetime, end_dt: datetime) -> int:
     months = (end_dt.year - start_dt.year) * 12 + (end_dt.month - start_dt.month)
     if end_dt.day < start_dt.day: months -= 1
     return months
 
-# ===========================================
-# --------------- Tabs ----------------------
-# ===========================================
+# =========================================================
+# ===================== Tabs UI ===========================
+# =========================================================
 tab = st.radio(
     "How do you want to practice?",
     ["Dashboard","My Course","My Results and Resources","Exams Mode & Custom Chat","Vocab Trainer","Schreiben Trainer"],
     key="main_tab_select"
 )
 
+# =========================================================
+# ===================== Dashboard =========================
+# =========================================================
 if tab == "Dashboard":
-    import pandas as pd
-    import streamlit as st
-    from datetime import datetime as _dt, date as _date, timedelta as _td
-
-    # ---------- helpers ----------
+    # ---------- Helpers ----------
     def safe_get(row, key, default=""):
-        # mapping-style
-        try:
-            return row.get(key, default)
-        except Exception:
-            pass
-        # attribute-style
-        try:
-            return getattr(row, key, default)
-        except Exception:
-            pass
-        # index/key access
-        try:
-            return row[key]
-        except Exception:
-            return default
+        try: return row.get(key, default)
+        except Exception: pass
+        try: return getattr(row, key, default)
+        except Exception: pass
+        try: return row[key]
+        except Exception: return default
 
     # Fallback parsers if globals not present
     def _fallback_parse_date(s):
         fmts = ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y")
         for f in fmts:
-            try:
-                return _dt.strptime(str(s).strip(), f)
-            except Exception:
-                pass
+            try: return datetime.strptime(str(s).strip(), f)
+            except Exception: pass
         return None
 
     def _fallback_add_months(dt, n):
-        import calendar as _cal
         y = dt.year + (dt.month - 1 + n) // 12
         m = (dt.month - 1 + n) % 12 + 1
-        d = min(dt.day, _cal.monthrange(y, m)[1])
+        d = min(dt.day, calendar.monthrange(y, m)[1])
         return dt.replace(year=y, month=m, day=d)
 
     parse_contract_start_fn = globals().get("parse_contract_start", _fallback_parse_date)
     parse_contract_end_fn   = globals().get("parse_contract_end",   _fallback_parse_date)
     add_months_fn           = globals().get("add_months",           _fallback_add_months)
 
-    # ---------- ensure student_row exists ----------
+    # Global styles for chips & mini-cards
+    inject_notice_css()
+
+    # ---------- Ensure we have a student row ----------
     load_student_data_fn = globals().get("load_student_data")
     if load_student_data_fn is None:
-        # minimal empty frame fallback to avoid crashes
         def load_student_data_fn():
             return pd.DataFrame(columns=["StudentCode"])
 
@@ -1797,117 +1951,80 @@ if tab == "Dashboard":
         except Exception:
             pass
 
-    # fallback to session_state copy if available
-    if (not student_row) and isinstance(st.session_state.get("student_row"), dict):
-        if st.session_state["student_row"]:
-            student_row = st.session_state["student_row"]
+    if (not student_row) and isinstance(st.session_state.get("student_row"), dict) and st.session_state["student_row"]:
+        student_row = st.session_state["student_row"]
 
-    # tiny spacer to keep UI tight
     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
     if not student_row:
         st.info("🚩 No student selected.")
         st.stop()
 
-    # ===== ALWAYS-VISIBLE STATUS BAR (Payment + Contract) =====
-    # (place this near the top of the Dashboard, right after the student info card)
-    from datetime import datetime, date, timedelta
-    import pandas as pd
-    import random
+    # ---------- 1) Announcements (top) ----------
+    render_announcements(announcements)
+    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
-    # styles for compact chips (scoped)
-    st.markdown("""
-    <style>
-      .statusbar { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 6px 0; }
-      .chip { display:inline-flex; align-items:center; gap:8px;
-              padding:6px 10px; border-radius:999px; font-weight:600; font-size:.95rem;
-              border:1px solid rgba(148,163,184,.35); }
-      .chip-red   { background:#fee2e2; color:#991b1b; border-color:#fecaca; }
-      .chip-amber { background:#fff7ed; color:#7c2d12; border-color:#fed7aa; }
-      .chip-blue  { background:#eef4ff; color:#2541b2; border-color:#c7d2fe; }
-      .chip-gray  { background:#f1f5f9; color:#334155; border-color:#cbd5e1; }
-      @media (prefers-color-scheme: dark){
-        .chip { border-color: rgba(148,163,184,.22); }
-      }
-    </style>
-    """, unsafe_allow_html=True)
-
+    # ---------- 2) Status bar chips (payment + contract) ----------
     MONTHLY_EXTENSION_FEE = 1000
     today_dt = datetime.today()
 
-    # ---- Payment chip: only show if balance > 0 and (due today or overdue or schedule unknown)
-    # Read balance safely
+    # Payment chip (only when balance>0 and due today/overdue, or schedule unknown)
     try:
-        _balance = float(str(safe_get(student_row, "Balance", 0)).strip())
+        _balance = float(str(safe_get(student_row, "Balance", 0)).strip() or 0)
     except Exception:
         _balance = 0.0
 
-    # Compute first_due = 1 month after contract start
     _first_due = None
     for _k in ["ContractStart","StartDate","ContractBegin","Start","Begin"]:
         _s = str(safe_get(student_row, _k, "") or "").strip()
         if _s:
-            _cs = parse_contract_start(_s)
+            _cs = parse_contract_start_fn(_s)
             if _cs:
-                _first_due = add_months(_cs, 1)
+                _first_due = add_months_fn(_cs, 1)
             break
 
     payment_chip_html = ""
-    payment_title_suffix = ""   # you can append this to your expander title if you keep it
+    payment_title_suffix = ""
 
     if _balance > 0:
         if _first_due:
             _delta = (_first_due.date() - today_dt.date()).days
             if _delta < 0:
-                # overdue
                 payment_chip_html = (
-                    f"<span class='chip chip-red'>💸 Overdue {_delta*-1}d — ₵{_balance:,.2f} "
+                    f"<span class='chip chip-red'>💸 Overdue {abs(_delta)}d — ₵{_balance:,.2f} "
                     f"(first due {_first_due:%d %b %Y})</span>"
                 )
                 payment_title_suffix = f" • overdue {abs(_delta)}d"
             elif _delta == 0:
-                # due today
-                payment_chip_html = (
-                    f"<span class='chip chip-amber'>⏳ Due today — ₵{_balance:,.2f}</span>"
-                )
+                payment_chip_html = f"<span class='chip chip-amber'>⏳ Due today — ₵{_balance:,.2f}</span>"
                 payment_title_suffix = " • due today"
-            # if _delta > 0 → not due yet → no chip at top
+            # if > 0: not due yet → no chip
         else:
-            # balance > 0 but no readable start date
             payment_chip_html = "<span class='chip chip-gray'>ℹ️ Balance outstanding — schedule unknown</span>"
             payment_title_suffix = " • schedule unknown"
 
-    # ---- Contract chip: show if ends in ≤14 days or already ended
+    # Contract chip (<=14 days left or ended)
     contract_chip_html = ""
-    _ce = parse_contract_end(safe_get(student_row, "ContractEnd", ""))
+    _ce = parse_contract_end_fn(safe_get(student_row, "ContractEnd", ""))
     if _ce:
-        _days_left = (_ce.date() - today_dt.date()).days if isinstance(_ce, datetime) else (_ce - today_dt).days
+        _ce_date = _ce.date() if hasattr(_ce, "date") else _ce
+        _days_left = (_ce_date - today_dt.date()).days
         if _days_left < 0:
             contract_chip_html = (
-                f"<span class='chip chip-red'>⚠️ Contract ended ({_ce:%d %b %Y}) — "
+                f"<span class='chip chip-red'>⚠️ Contract ended ({_ce_date:%d %b %Y}) — "
                 f"extension ₵{MONTHLY_EXTENSION_FEE:,}/month</span>"
             )
         elif _days_left <= 14:
             contract_chip_html = (
-                f"<span class='chip chip-amber'>⏰ Ends in {_days_left}d ({_ce:%d %b %Y}) — "
+                f"<span class='chip chip-amber'>⏰ Ends in {_days_left}d ({_ce_date:%d %b %Y}) — "
                 f"extension ₵{MONTHLY_EXTENSION_FEE:,}/month</span>"
             )
 
-    # Render the status bar if we have at least one chip
-    _chips = " ".join([x for x in [payment_chip_html, contract_chip_html] if x]).strip()
-    if _chips:
-        st.markdown(f"<div class='statusbar'>{_chips}</div>", unsafe_allow_html=True)
+    chips_html = " ".join([x for x in [payment_chip_html, contract_chip_html] if x]).strip()
+    if chips_html:
+        st.markdown(f"<div class='statusbar'>{chips_html}</div>", unsafe_allow_html=True)
 
-    # (Optional) if you still render the detailed Payments expander later,
-    # you can append the small suffix to its title like this:
-    try:
-        payment_title_extra = (payment_title_extra + payment_title_suffix) if payment_title_suffix else payment_title_extra
-    except NameError:
-        # if the variable doesn't exist in your file, ignore safely
-        pass
-
-    # ===== Motivation & Progress (compact, above the fold) =====
-    # Assignment metrics
+    # ---------- 3) Motivation mini-cards (streak / vocab / leaderboard) ----------
     _student_code = (st.session_state.get("student_code", "") or "").strip().lower()
     _df_assign = load_assignment_scores()
     _df_assign["date"] = pd.to_datetime(_df_assign["date"], errors="coerce").dt.date
@@ -1926,12 +2043,10 @@ if tab == "Dashboard":
     _submitted_this_week = _df_assign[_mask_student & (_df_assign["date"] >= _monday)].shape[0]
     _goal_left = max(0, _weekly_goal - _submitted_this_week)
 
-    # Vocab of the day
     _level = (safe_get(student_row, "Level", "A1") or "A1").upper().strip()
     _vocab_df = load_full_vocab_sheet()
     _vocab_item = get_vocab_of_the_day(_vocab_df, _level)
 
-    # Leaderboard (compact summary)
     _df_assign['level'] = _df_assign['level'].astype(str).str.upper().str.strip()
     _df_assign['score'] = pd.to_numeric(_df_assign['score'], errors='coerce')
     _min_assignments = 3
@@ -1945,26 +2060,6 @@ if tab == "Dashboard":
     _df_level['Rank'] = _df_level.index + 1
     _your_row = _df_level[_df_level['studentcode'].str.lower() == _student_code.lower()]
     _total_students = len(_df_level)
-    _totals_map = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
-    _total_possible = _totals_map.get(_level, 0)
-
-    # compact mini-cards (reuse earlier styles if you like; these are simple)
-    st.markdown("""
-    <style>
-      .minirow { display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 2px 0; }
-      .minicard { flex:1 1 280px; border:1px solid rgba(148,163,184,.35); border-radius:12px; padding:12px; }
-      .minicard h4 { margin:0 0 6px 0; font-size:1.02rem; }
-      .minicard .sub { color:#475569; font-size:.92rem; }
-      .pill { display:inline-block; padding:3px 9px; border-radius:999px; font-weight:700; font-size:.92rem; }
-      .pill-green { background:#e6ffed; color:#0a7f33; }
-      .pill-purple { background:#efe9ff; color:#5b21b6; }
-      .pill-amber { background:#fff7ed; color:#7c2d12; }
-      @media (prefers-color-scheme: dark){
-        .minicard { border-color: rgba(148,163,184,.22); background:#0b1220; }
-        .minicard .sub { color:#94a3b8; }
-      }
-    </style>
-    """, unsafe_allow_html=True)
 
     _streak_line = (
         f"<span class='pill pill-green'>{_streak} day{'s' if _streak != 1 else ''} streak</span>"
@@ -2013,10 +2108,8 @@ if tab == "Dashboard":
         """,
         unsafe_allow_html=True
     )
-#
 
-
-    # ---------- Student info card (tight spacing) ----------
+    # ---------- Student info card ----------
     name = safe_get(student_row, "Name")
     info_html = f"""
     <div style='
@@ -2051,7 +2144,7 @@ if tab == "Dashboard":
     """
     st.markdown(info_html, unsafe_allow_html=True)
 
-    # quick balance banner (not a reminder—just info)
+    # ---------- Quick balance banner (pure info) ----------
     try:
         bal_val = float(str(safe_get(student_row, "Balance", 0)).strip() or 0)
         if bal_val > 0:
@@ -2059,73 +2152,72 @@ if tab == "Dashboard":
     except Exception:
         pass
 
-    # ---------- Payment reminder (ONLY when balance > 0 AND first payment is due/past) ----------
-    today_dt = _dt.today()
+    # ---- Payment chip: show ONLY when the student actually owes (due today or overdue).
+    # If the student does NOT owe (balance <= 0), show a gentle heads-up that
+    # the first payment is one month after contract start (if we can compute it).
 
-    # compute first_due = start + 1 month
-    first_due = None
-    for k in ["ContractStart", "StartDate", "ContractBegin", "Start", "Begin"]:
-        v = str(safe_get(student_row, k, "") or "").strip()
-        if v:
-            cs = parse_contract_start_fn(v)
-            if cs:
-                first_due = add_months_fn(cs, 1)
+    # Safe money reader (fallback if not defined elsewhere)
+    _read_money = globals().get("_read_money")
+    if _read_money is None:
+        def _read_money(x):
+            try:
+                s = str(x).replace(",", "").strip()
+                return float(s) if s not in ("", "nan", "None") else 0.0
+            except Exception:
+                return 0.0
+
+    from datetime import datetime as _dt, timedelta as _timedelta
+    today_dt = globals().get("today_dt") or _dt.today()
+
+    # ---- Payment chip core inputs ----
+    _balance = _read_money(safe_get(student_row, "Balance", 0))
+
+    _cs = None
+    _first_due = None
+    for _k in ["ContractStart", "StartDate", "ContractBegin", "Start", "Begin"]:
+        _s = str(safe_get(student_row, _k, "") or "").strip()
+        if _s:
+            _cs = parse_contract_start_fn(_s)
+            if _cs:
+                _first_due = add_months_fn(_cs, 1)
+        if _first_due:
             break
 
-    show_payment_ui = False
-    payment_title_extra = ""
-    payment_notice_level = "info"
-    payment_msg = ""
-    overdue_days = 0
+    payment_chip_html = ""
+    payment_title_suffix = ""  # can be appended to the Payments expander title later
 
-    try:
-        balance = float(str(safe_get(student_row, "Balance", 0)).strip() or 0)
-    except Exception:
-        balance = 0.0
-
-    if balance > 0:
-        if first_due:
-            delta_days = (first_due.date() - today_dt.date()).days
-            if delta_days < 0:
-                # overdue
-                show_payment_ui = True
-                overdue_days = -delta_days
-                payment_notice_level = "error"
-                payment_title_extra = f"• overdue {overdue_days}d"
-                payment_msg = (
-                    f"💸 **Overdue by {overdue_days} days.** "
-                    f"Amount due: **₵{balance:,.2f}**. First due: {first_due:%d %b %Y}."
+    if _balance > 0:
+        # Student potentially owes; only surface when actually due (today or past)
+        if _first_due:
+            _delta = (_first_due.date() - today_dt.date()).days
+            if _delta < 0:
+                # Overdue
+                payment_chip_html = (
+                    f"<span class='chip chip-red'>💸 Overdue {abs(_delta)}d — ₵{_balance:,.2f} "
+                    f"(first due {_first_due:%d %b %Y})</span>"
                 )
-            elif delta_days == 0:
-                # due today
-                show_payment_ui = True
-                payment_notice_level = "warning"
-                payment_title_extra = "• due today"
-                payment_msg = (
-                    f"💳 Payment due **today** ({first_due:%d %b %Y}). "
-                    f"Amount due: **₵{balance:,.2f}**."
-                )
-            # if delta_days > 0 → not due yet → show nothing
+                payment_title_suffix = f" • overdue {abs(_delta)}d"
+            elif _delta == 0:
+                # Due today
+                payment_chip_html = f"<span class='chip chip-amber'>⏳ Due today — ₵{_balance:,.2f}</span>"
+                payment_title_suffix = " • due today"
+            # If _delta > 0 → not due yet → don't show a red/amber chip
         else:
-            # positive balance but no readable start → nudge
-            show_payment_ui = True
-            payment_notice_level = "info"
-            payment_title_extra = "• schedule unknown"
-            payment_msg = (
-                "ℹ️ You have an outstanding balance, but we couldn't read your contract start date "
-                "to compute the first payment date. Please contact the office."
+            # Balance > 0 but we can't read contract start → still surface neutral notice
+            payment_chip_html = "<span class='chip chip-gray'>ℹ️ Balance outstanding — schedule unknown</span>"
+            payment_title_suffix = " • schedule unknown"
+    else:
+        # Student does NOT owe (balance <= 0). Don't show urgent chip.
+        # Instead, if we can compute the first due date AND it's in the future, show a gentle info chip.
+        if _first_due and today_dt.date() < _first_due.date():
+            payment_chip_html = (
+                f"<span class='chip chip-gray'>💡 First payment is one month after contract start — due on {_first_due:%d %b %Y}</span>"
             )
+        # else: no chip at all
+#
 
-    if show_payment_ui:
-        with st.expander(f"💳 Payments {payment_title_extra}", expanded=False):
-            if payment_notice_level == "error":
-                st.error(payment_msg)
-            elif payment_notice_level == "warning":
-                st.warning(payment_msg)
-            else:
-                st.info(payment_msg)
 
-    # ---------- Contract reminder (ONLY when ≤ 14 days left, or ended) ----------
+    # ---------- Contract reminder (ONLY ≤14 days left, or ended) ----------
     EXTENSION_FEE = 1000
     contract_end = parse_contract_end_fn(safe_get(student_row, "ContractEnd", ""))
     if contract_end:
@@ -2143,7 +2235,7 @@ if tab == "Dashboard":
                     f"({contract_end:%d %b %Y}). Extension is **₵{EXTENSION_FEE:,}/month**, or try to finish."
                 )
 
-    # ================= CLASS SCHEDULES =================
+    # ---------- Class schedules ----------
     GROUP_SCHEDULES = {
         "A1 Munich Klasse": {
             "days": ["Monday", "Tuesday", "Wednesday"],
@@ -2203,8 +2295,7 @@ if tab == "Dashboard":
         },
     }
 
-    # ---- Upcoming classes card ----
-    from datetime import datetime, timedelta  # local import ok
+    from datetime import datetime as _dt_local, timedelta as _td_local
     class_name = str(safe_get(student_row, "ClassName", "")).strip()
     class_schedule = GROUP_SCHEDULES.get(class_name)
     week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -2218,17 +2309,17 @@ if tab == "Dashboard":
         end_dt = class_schedule.get("end_date", "")
         doc_url = class_schedule.get("doc_url", "")
 
-        today = datetime.today().date()
+        today = _dt_local.today().date()
         start_date_obj = None
         end_date_obj = None
         try:
             if start_dt:
-                start_date_obj = datetime.strptime(start_dt, "%Y-%m-%d").date()
+                start_date_obj = _dt_local.strptime(start_dt, "%Y-%m-%d").date()
         except Exception:
             start_date_obj = None
         try:
             if end_dt:
-                end_date_obj = datetime.strptime(end_dt, "%Y-%m-%d").date()
+                end_date_obj = _dt_local.strptime(end_dt, "%Y-%m-%d").date()
         except Exception:
             end_date_obj = None
 
@@ -2246,7 +2337,7 @@ if tab == "Dashboard":
                     break
                 if check_date.weekday() in weekday_indices:
                     results.append(check_date)
-                check_date += timedelta(days=1)
+                check_date += _td_local(days=1)
             return results
 
         if before_start and start_date_obj:
@@ -2328,7 +2419,6 @@ if tab == "Dashboard":
             )
 
     # ---------- Goethe exam & video ----------
-    from datetime import date
     GOETHE_EXAM_DATES = {
         "A1": (date(2025, 10, 13), 2850, None),
         "A2": (date(2025, 10, 14), 2400, None),
@@ -2401,7 +2491,6 @@ if tab == "Dashboard":
             f"> — **{r.get('student_name','')}**  \n"
             f"> {stars}"
         )
-
 
 
 def get_a1_schedule():
@@ -2921,8 +3010,8 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Dative Preposition",
-            "video": "",
-            "youtube_link": "",
+            "video": "https://youtu.be/8dX40NXG_gI",
+            "youtube_link": "https://youtu.be/8dX40NXG_gI",
             "grammarbook_link": "https://drive.google.com/file/d/11yEcMioSB9x1ZD-x5_67ApFzP53iau-N/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1dIsFg7wNaqyyOHm95h7xv4Ssll5Fm0V1/view?usp=sharing"
         },
@@ -3287,8 +3376,8 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "grammar_topic": "Adjektivdeklination mit unbestimmten Artikeln",
-            "video": "",
-            "youtube_link": "",
+            "video": "https://youtu.be/8k0Iaw_-o8c",
+            "youtube_link": "https://youtu.be/8k0Iaw_-o8c",
             "grammarbook_link": "https://drive.google.com/file/d/1kUtriLOZfJXUxj2IVU2VHZZkghIWDWKv/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1qVANqTLg4FOU40_WfLZyVTu5KBluzYrh/view?usp=sharing"
         },
@@ -3303,7 +3392,7 @@ def get_b1_schedule():
             "grammar_topic": "Wechselpräpositionen – In der Stadt, auf dem Land",
             "video": "",
             "youtube_link": "",
-            "grammarbook_link": "https://drive.google.com/file/d/12r_HE51QtpknXSSU0R75ur-EDFpTjzXU/view?usp=sharing",
+            "grammarbook_link": "https://drive.google.com/file/d/1NW5F0R5zj6nn2SqDjhpQlkGcfK-UBUqk/view?usp=drive_link",
             "workbook_link": "https://drive.google.com/file/d/12r_HE51QtpknXSSU0R75ur-EDFpTjzXU/view?usp=sharing"
         },
         # TAG 5
@@ -7053,15 +7142,17 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("⬅️ Back"):
             back_step()
 
-    # ——— Stage 99: Pronunciation & Speaking Checker (unchanged, uses your limits) ———
+    # ——— Stage 99: Pronunciation & Speaking Checker
     if st.session_state.get("falowen_stage") == 99:
-        import datetime
-        today_str = datetime.date.today().isoformat()
+        import datetime as _dt
+
+        today_str = _dt.date.today().isoformat()
         uploads_ref = db.collection("pron_uses").document(st.session_state["student_code"])
         doc = uploads_ref.get()
         data = doc.to_dict() if doc.exists else {}
         last_date = data.get("date")
         count = data.get("count", 0)
+
         if last_date != today_str:
             count = 0
         if count >= 3:
@@ -7072,54 +7163,93 @@ if tab == "Exams Mode & Custom Chat":
         st.info(
             """
             Record or upload your speaking sample below (max 60 seconds).  
-            • Use your phone's voice recorder **or** visit vocaroo.com and download the recording file to your phone.  
-            • Then tap **Browse** and select the saved WAV/MP3/M4A audio file.
+            • Use your phone's voice recorder **or** visit [vocaroo.com](https://vocaroo.com) and download the recording file to your device.  
+            • Then tap **Browse** and select the saved **.wav / .mp3 / .m4a** audio file.
             """
         )
+
         audio_file = st.file_uploader(
             "Upload your audio file (≤ 60 seconds, WAV/MP3/M4A).",
-            type=None, accept_multiple_files=False, key="pron_audio_uploader"
+            type=None,
+            accept_multiple_files=False,
+            key="pron_audio_uploader",
         )
+
         if audio_file:
             allowed_types = {
-                "audio/mpeg","audio/mp3","audio/wav","audio/x-wav","audio/x-m4a","audio/m4a","audio/mp4"
+                "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
+                "audio/x-m4a", "audio/m4a", "audio/mp4",
+                "audio/3gpp", "video/3gpp",
+                "audio/aac", "audio/x-aac",
+                "audio/ogg", "audio/webm", "video/webm",
             }
-            allowed_exts = (".mp3",".wav",".m4a")
-            if not (audio_file.type in allowed_types or audio_file.name.lower().endswith(allowed_exts)):
-                st.error("Please upload a .mp3, .wav, or .m4a audio file.")
+            allowed_exts = (
+                ".mp3", ".wav", ".m4a", ".3gp", ".aac", ".ogg", ".webm"
+            )
+
+            file_type = (audio_file.type or "").lower()
+            file_name = audio_file.name.lower()
+            if not (
+                file_type.startswith("audio/")
+                or file_type in allowed_types
+                or file_name.endswith(allowed_exts)
+            ):
+                st.error(
+                    "Please upload a supported audio file (.mp3, .wav, .m4a, .3gp, .aac, .ogg, .webm)."
+                )
             else:
                 st.audio(audio_file)
-                # Transcription
+
+                try:
+                    audio_file.seek(0)
+                except Exception:
+                    pass
+
+                # Force German transcription (no translation)
                 try:
                     transcript_resp = client.audio.transcriptions.create(
-                        file=audio_file, model="whisper-1"
+                        file=audio_file,
+                        model="whisper-1",
+                        language="de",
+                        temperature=0,
+                        prompt="Dies ist deutsche Sprache. Bitte nur transkribieren (keine Übersetzung).",
                     )
                     transcript_text = transcript_resp.text
                 except Exception as e:
                     st.error(f"Sorry, could not process audio: {e}")
                     st.stop()
 
-                st.markdown(f"**I heard you say:**  \n> {transcript_text}")
+                st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
 
+                # Evaluate in English
                 eval_prompt = (
-                    "You are a German tutor. The student said:\n"
-                    f'"{transcript_text}"\n\n'
-                    "Please score their Pronunciation, Grammar, and Fluency each out of 100, "
-                    "and then give three concise tips per category. "
-                    "Format as:\n"
+                    "You are an English-speaking tutor evaluating a **German** speaking sample.\n"
+                    f'The student said (in German): "{transcript_text}"\n\n'
+                    "Please provide scores **in English only**:\n"
+                    "• Rate Pronunciation, Grammar, and Fluency each from 0–100.\n"
+                    "• Give three concise, actionable tips for each category.\n"
+                    "• Do not translate the student's text; focus on evaluating it.\n\n"
+                    "Respond exactly in this format:\n"
                     "Pronunciation: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
                     "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
                     "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
                 )
+
                 with st.spinner("Evaluating your sample..."):
                     try:
                         eval_resp = client.chat.completions.create(
                             model="gpt-4o",
                             messages=[
-                                {"role": "system", "content": "You are a helpful German tutor."},
-                                {"role": "user", "content": eval_prompt}
+                                {
+                                    "role": "system",
+                                    "content": (
+                                        "You are an English-speaking tutor evaluating German speech. "
+                                        "Always answer in clear, concise English using the requested format."
+                                    ),
+                                },
+                                {"role": "user", "content": eval_prompt},
                             ],
-                            temperature=0.2
+                            temperature=0.2,
                         )
                         result_text = eval_resp.choices[0].message.content
                     except Exception as e:
@@ -7138,6 +7268,9 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("⬅️ Back to Start"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
+#
+
+
 
 # =========================================
 # End
@@ -10105,7 +10238,6 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
-
 
 
 
