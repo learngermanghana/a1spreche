@@ -1891,11 +1891,75 @@ def months_between(start_dt: datetime, end_dt: datetime) -> int:
 # =========================================================
 # ===================== Tabs UI ===========================
 # =========================================================
-tab = st.radio(
-    "How do you want to practice?",
-    ["Dashboard","My Course","My Results and Resources","Exams Mode & Custom Chat","Vocab Trainer","Schreiben Trainer"],
-    key="main_tab_select"
-)
+def render_dropdown_nav():
+    """
+    Mobile-friendly dropdown nav with a one-time coachmark that says:
+    'Tap the arrow ▾ to open the menu and see all sections.'
+
+    - Remembers dismissal in session_state["nav_hint_dismissed"]
+    - Syncs with URL query param ?tab=...
+    - Keeps st.session_state["main_tab_select"] in sync
+    """
+    tabs = [
+        "Dashboard",
+        "My Course",
+        "My Results and Resources",
+        "Exams Mode & Custom Chat",
+        "Vocab Trainer",
+        "Schreiben Trainer",
+    ]
+    icons = {
+        "Dashboard": "🏠",
+        "My Course": "📚",
+        "My Results and Resources": "📊",
+        "Exams Mode & Custom Chat": "🤖",
+        "Vocab Trainer": "🗣️",
+        "Schreiben Trainer": "✍️",
+    }
+
+    # --- One-time coachmark (shows until dismissed) ---
+    if not st.session_state.get("nav_hint_dismissed", False):
+        with st.container():
+            st.markdown(
+                "<div style='background:#fff7ed;border:1px solid #fed7aa;"
+                "border-radius:10px;padding:8px 10px;margin:4px 0;'>"
+                "👉 <b>Tip:</b> Tap the arrow <b>▾</b> to open the menu and see all sections."
+                "</div>",
+                unsafe_allow_html=True,
+            )
+            if st.button("Got it", key="nav_hint_gotit"):
+                st.session_state["nav_hint_dismissed"] = True
+                st.rerun()
+
+    # --- Default from URL (?tab=...) or session ---
+    default = st.query_params.get(
+        "tab",
+        [st.session_state.get("main_tab_select", "Dashboard")]
+    )[0]
+    if default not in tabs:
+        default = "Dashboard"
+
+    # --- Selectbox with help tooltip and icons in labels ---
+    def _fmt(x: str) -> str:
+        return f"{icons.get(x,'•')}  {x}"
+
+    sel = st.selectbox(
+        "Choose a section (tap ▾)",
+        tabs,
+        index=tabs.index(default),
+        key="nav_dd",
+        format_func=_fmt,
+        help="Tap the arrow ▾ to open the menu and view all sections."
+    )
+
+    # --- Persist selection to URL + session ---
+    if sel != default:
+        st.query_params["tab"] = sel
+    st.session_state["main_tab_select"] = sel
+    return sel
+
+# usage:
+tab = render_dropdown_nav()
 
 # =========================================================
 # ===================== Dashboard =========================
@@ -4917,23 +4981,25 @@ if tab == "My Course":
             except Exception:
                 pass
 
-        # ===================== ZOOM HEADER =====================
+        # ===================== ZOOM HEADER (official link + reminder to use calendar) =====================
         with st.container():
             st.markdown(
                 """
                 <div style="padding: 12px; background: #facc15; color: #000; border-radius: 8px;
-                     font-size: 1rem; margin-bottom: 16px; text-align: left; font-weight: 500;">
-                  📣 <b>Zoom Classroom</b><br>
-                  Join our live class using the details below.
+                     font-size: 1rem; margin-bottom: 16px; text-align: left; font-weight: 600;">
+                  📣 <b>Zoom Classroom (Official)</b><br>
+                  This is the <u>official Zoom link</u> for your class. <span style="font-weight:500;">Add the calendar below to get notifications before each class.</span>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
+
             ZOOM = {
                 "link": "https://us06web.zoom.us/j/6886900916?pwd=bEdtR3RLQ2dGTytvYzNrMUV3eFJwUT09",
                 "meeting_id": "688 690 0916",
                 "passcode": "german",
             }
+            # Allow secrets override
             try:
                 zs = st.secrets.get("zoom", {})
                 if zs.get("link"):       ZOOM["link"]       = zs["link"]
@@ -4942,18 +5008,62 @@ if tab == "My Course":
             except Exception:
                 pass
 
+            # Build iOS/Android deep-link (opens Zoom app directly)
+            _mid_digits = ZOOM["meeting_id"].replace(" ", "")
+            _pwd_enc = _urllib.quote(ZOOM["passcode"] or "")
+            zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
+
             z1, z2 = st.columns([3, 2])
             with z1:
+                # Primary join button (browser)
                 try:
-                    st.link_button("➡️ Join Zoom Meeting", ZOOM["link"], key="zoom_join_btn")
+                    st.link_button("➡️ Join Zoom Meeting (Browser)", ZOOM["link"], key="zoom_join_btn")
                 except Exception:
-                    st.markdown(f"[➡️ Join Zoom Meeting]({ZOOM['link']})")
+                    st.markdown(f"[➡️ Join Zoom Meeting (Browser)]({ZOOM['link']})")
+
+                # Secondary: open in Zoom app (mobile deep link)
+                try:
+                    st.link_button("📱 Open in Zoom App", zoom_deeplink, key="zoom_app_btn")
+                except Exception:
+                    st.markdown(f"[📱 Open in Zoom App]({zoom_deeplink})")
+
                 st.write(f"**Meeting ID:** `{ZOOM['meeting_id']}`")
                 st.write(f"**Passcode:** `{ZOOM['passcode']}`")
+
+                # Copy helpers (mobile-friendly)
+                components.html(
+                    """
+                    <div style="display:flex;gap:8px;margin-top:8px;">
+                      <button onclick="navigator.clipboard.writeText('%s').then(()=>{this.innerText='✓ Copied Link'; setTimeout(()=>this.innerText='Copy Link',1500);})"
+                              style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                        Copy Link
+                      </button>
+                      <button onclick="navigator.clipboard.writeText('%s').then(()=>{this.innerText='✓ Copied ID'; setTimeout(()=>this.innerText='Copy ID',1500);})"
+                              style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                        Copy ID
+                      </button>
+                      <button onclick="navigator.clipboard.writeText('%s').then(()=>{this.innerText='✓ Copied Passcode'; setTimeout(()=>this.innerText='Copy Passcode',1500);})"
+                              style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                        Copy Passcode
+                      </button>
+                    </div>
+                    """ % (
+                        ZOOM["link"].replace("'", "\\'"),
+                        ZOOM["meeting_id"].replace("'", "\\'"),
+                        ZOOM["passcode"].replace("'", "\\'")
+                    ),
+                    height=48,
+                )
+
             with z2:
-                st.info(f"You’re viewing: **{class_name}**")
+                st.info(
+                    f"You’re viewing: **{class_name}**  \n\n"
+                    "✅ Use the **calendar below** to receive automatic class reminders.",
+                    icon="📅",
+                )
 
         st.divider()
+#
 
         # ===================== CLASS META (safe resolver) =====================
 
@@ -5005,8 +5115,13 @@ if tab == "My Course":
         calendar_url  = (_meta.get("calendar_url") or "").strip()
         contact_email = (_meta.get("contact_email") or "learngermanghana@gmail.com").strip()
 
-        # ===================== TUTORS • CALENDAR • CONTACT (no image) =====================
+        # ===================== TUTORS • CALENDAR • CONTACT (with general calendar fallback) =====================
 
+        # 1) Optional global/general calendar (set in secrets or env, else leave blank)
+        GENERAL_CALENDAR_URL = (
+            (st.secrets.get("calendars", {}).get("general", "") if hasattr(st, "secrets") else "")
+            or os.getenv("GENERAL_CLASS_CALENDAR_URL", "").strip()
+        )
 
         # Normalize tutors into dicts and pick lead / co-tutor
         def _as_dict(t):
@@ -5025,7 +5140,8 @@ if tab == "My Course":
         co_tutor   = _tutors[1] if len(_tutors) > 1 else None  # only show if exists
 
         def _tutor_line(d):
-            if not d: return ""
+            if not d: 
+                return ""
             return d["name"] + (f" <span style='color:#64748b'>&lt;{d['email']}&gt;</span>" if d.get("email") else "")
 
         # Private email (prefill subject/body)
@@ -5040,6 +5156,11 @@ if tab == "My Course":
 
         t_primary = _tutor_line(lead_tutor) if lead_tutor else "<span style='color:#64748b'>Not set</span>"
         t_cotutor = _tutor_line(co_tutor)
+
+        # 2) Choose the primary calendar to show (class-specific first, else general)
+        _class_cal = (calendar_url or "").strip()
+        _primary_cal = _class_cal or (GENERAL_CALENDAR_URL or "")
+        _has_general_extra = bool(GENERAL_CALENDAR_URL and _class_cal and GENERAL_CALENDAR_URL != _class_cal)
 
         st.markdown(
             f"""
@@ -5057,12 +5178,12 @@ if tab == "My Course":
               </div>
               {"<div style='font-size:1.05rem; margin-bottom:8px;'>🤝 <b>Co-Tutor:</b> " + t_cotutor + "</div>" if co_tutor else ""}
               <div style="font-size:1.05rem;">
-                📅 <b>Class Calendar:</b>
-                {"<a href='"+calendar_url+"' target='_blank'>Open calendar link</a>" if calendar_url else "<span style='color:#64748b'>No calendar link yet</span>"}
+                📅 <b>{'Class Calendar' if _class_cal else 'Calendar'}</b>:
+                {"<a href='"+_primary_cal+"' target='_blank'>Open calendar link</a>" if _primary_cal else "<span style='color:#64748b'>No calendar link yet</span>"}
               </div>
               <div style="margin-top:10px; color:#0369a1;">
-                Tip: Click the calendar link and choose <b>Save/Accept</b> to add it to your Google Calendar.
-                This ensures you get reminders for every class session.
+                Tip: Tap the calendar link and choose <b>Save/Accept</b> to add it to your Google/phone calendar.
+                You’ll then get reminders before every class.
               </div>
               <div style="margin-top:14px;">
                 <a href="{_mailto}" target="_blank" style="
@@ -5078,40 +5199,70 @@ if tab == "My Course":
             unsafe_allow_html=True
         )
 
-        if calendar_url:
-            try:
-                st.link_button("📅 Add Class Calendar (Google)", calendar_url, use_container_width=False)
-            except Exception:
-                st.markdown(f"[📅 Add Class Calendar (Google)]({calendar_url})")
+        # 3) Buttons: Add to Calendar (primary), optional "All classes calendar", and a copy-link button (mobile-friendly)
+        c1, c2, c3 = st.columns([2, 2, 1])
+        with c1:
+            if _primary_cal:
+                try:
+                    st.link_button("📅 Add to Calendar", _primary_cal, use_container_width=True, key="btn_cal_primary")
+                except Exception:
+                    st.markdown(f"[📅 Add to Calendar]({_primary_cal})")
+            else:
+                st.info("No calendar link yet.")
+
+        with c2:
+            if _has_general_extra:
+                try:
+                    st.link_button("🗂 All Classes Calendar", GENERAL_CALENDAR_URL, use_container_width=True, key="btn_cal_general")
+                except Exception:
+                    st.markdown(f"[🗂 All Classes Calendar]({GENERAL_CALENDAR_URL})")
+            else:
+                st.markdown("")
+
+        with c3:
+            if _primary_cal:
+                # simple JS clipboard copy (works on mobile)
+                components.html(
+                    f"""
+                    <button onclick="navigator.clipboard.writeText('{_primary_cal.replace("'", "\\'")}').then(()=>{{this.innerText='✓ Copied'; setTimeout(()=>this.innerText='Copy',1500);}})" 
+                            style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                        Copy
+                    </button>
+                    """,
+                    height=40,
+                )
 
         st.divider()
 #
 
-
-
-
         # ===================== CLASS ROSTER =====================
-        st.markdown("### 👥 Class Members")
-        try:
-            df_students = load_student_data()
-            if "ClassName" in df_students.columns:
-                df_students["ClassName"] = df_students["ClassName"].fillna("").str.strip()
-            else:
-                df_students["ClassName"] = ""
-            same_class = df_students[df_students["ClassName"] == class_name].copy()
-            cols_show = [c for c in ["Name", "Email", "StudentCode"] if c in same_class.columns]
-            if not same_class.empty and cols_show:
-                st.dataframe(
-                    same_class[cols_show].reset_index(drop=True),
-                    use_container_width=True,
-                    hide_index=True,
-                )
-            else:
-                st.write("No members found for this class yet.")
-        except Exception:
-            st.warning("Couldn’t load the class roster right now.")
+        with st.expander("👥 Class Members", expanded=False):
+            try:
+                df_students = load_student_data()
 
-        st.divider()
+                # Normalize required columns
+                for col in ("ClassName", "Name", "Email", "Location"):
+                    if col not in df_students.columns:
+                        df_students[col] = ""
+                    df_students[col] = df_students[col].fillna("").astype(str).str.strip()
+
+                # Filter to this class
+                same_class = df_students[df_students["ClassName"] == class_name].copy()
+
+                # Columns to display (no StudentCode)
+                cols_show = [c for c in ["Name", "Email", "Location"] if c in same_class.columns]
+
+                if not same_class.empty and cols_show:
+                    st.dataframe(
+                        same_class[cols_show].reset_index(drop=True),
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+                else:
+                    st.info("No members found for this class yet.")
+            except Exception as e:
+                st.warning(f"Couldn’t load the class roster right now. {e}")
+#
 
         # ===================== ANNOUNCEMENTS (CSV) + REPLIES (FIRESTORE) =====================
         st.markdown("### 📢 Announcements")
@@ -10333,6 +10484,8 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
+
 
 
 
