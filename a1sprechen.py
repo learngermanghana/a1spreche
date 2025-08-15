@@ -1428,57 +1428,39 @@ def login_page():
 
     st.stop()
 
+# =========================
+# Logged-in header + Logout (no callback; rerun works)
+# =========================
 
-# ===== Logout callback =====
-def _do_logout():
-    """Revoke token, clear cookies & session, then rerun immediately."""
-    # 1) Revoke server-side token (best-effort)
-    try:
-        tok = st.session_state.get("session_token", "")
-        if tok and "destroy_session_token" in globals():
-            destroy_session_token(tok)
-    except Exception as e:
-        st.warning(f"Logout warning (destroy token): {e}")
 
-    # 2) Expire cookies (if you use cookie_manager)
-    try:
-        if "cookie_manager" in globals():
-            expires_past = datetime.utcnow() - timedelta(seconds=1)
-            if "set_student_code_cookie" in globals():
-                set_student_code_cookie(cookie_manager, "", expires=expires_past)
-            if "set_session_token_cookie" in globals():
-                set_session_token_cookie(cookie_manager, "", expires=expires_past)
-            cookie_manager.delete("student_code")
-            cookie_manager.delete("session_token")
-            cookie_manager.save()
-    except Exception as e:
-        st.warning(f"Logout warning (cookies): {e}")
+# --- helper for query params ---
+def qp_clear_keys(*keys):
+    for k in keys:
+        try:
+            del st.query_params[k]
+        except KeyError:
+            pass
 
-    # 3) Clear session state
-    for k, v in {
-        "logged_in": False,
-        "student_row": None,
-        "student_code": "",
-        "student_name": "",
-        "session_token": "",
-        "cookie_synced": False,
-        "__last_refresh": 0.0,
-        "__ua_hash": "",
-        "_oauth_state": "",
-        "_oauth_code_redeemed": "",
-    }.items():
-        st.session_state[k] = v
+# --- run once right after a logout to clean client storage & URL ---
+if st.session_state.pop("_inject_logout_js", False):
+    components.html("""
+      <script>
+        try {
+          localStorage.removeItem('student_code');
+          localStorage.removeItem('session_token');
+          const u = new URL(window.location);
+          ['code','state','token'].forEach(k => u.searchParams.delete(k));
+          window.history.replaceState({}, '', u);
+        } catch(e) {}
+      </script>
+    """, height=0)
 
-    # 4) Immediate rerun so auth guard below takes effect now
-    st.rerun()
-
-# ===== AUTH GUARD (place BEFORE rendering any header/UI for logged-in users) =====
+# ===== AUTH GUARD =====
 if not st.session_state.get("logged_in", False):
-    # Show your login page and stop execution so no header is drawn
     login_page()
     st.stop()
 
-# ===== Compact header + logout button (only runs when logged in) =====
+# ===== Header + plain button (no on_click) =====
 st.markdown("""
 <style>
   .post-login-header { margin-top:0; margin-bottom:4px; }
@@ -1494,10 +1476,59 @@ with col1:
     st.write(f"👋 Welcome, **{st.session_state.get('student_name','Student')}**")
 with col2:
     st.markdown("<div style='display:flex;justify-content:flex-end;align-items:center;'>", unsafe_allow_html=True)
-    st.button("Log out", key="logout_btn", on_click=_do_logout)
+    _logout_clicked = st.button("Log out", key="logout_btn")  # <-- no on_click
     st.markdown("</div>", unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
 
+# ===== Logout handling (works in all versions) =====
+if _logout_clicked:
+    # 1) Revoke server token if available
+    try:
+        tok = st.session_state.get("session_token", "")
+        if tok and "destroy_session_token" in globals():
+            destroy_session_token(tok)
+    except Exception as e:
+        st.warning(f"Logout warning (revoke): {e}")
+
+    # 2) Expire cookies
+    try:
+        expires_past = datetime.utcnow() - timedelta(seconds=1)
+        if "set_student_code_cookie" in globals():
+            set_student_code_cookie(cookie_manager, "", expires=expires_past)
+        if "set_session_token_cookie" in globals():
+            set_session_token_cookie(cookie_manager, "", expires=expires_past)
+    except Exception as e:
+        st.warning(f"Logout warning (expire cookies): {e}")
+
+    try:
+        cookie_manager.delete("student_code")
+        cookie_manager.delete("session_token")
+        cookie_manager.save()
+    except Exception:
+        pass
+
+    # 3) Clean server-side URL params
+    qp_clear_keys("code", "state", "token")
+
+    # 4) Reset session state
+    st.session_state.update({
+        "logged_in": False,
+        "student_row": None,
+        "student_code": "",
+        "student_name": "",
+        "session_token": "",
+        "cookie_synced": False,
+        "__last_refresh": 0.0,
+        "__ua_hash": "",
+        "_oauth_state": "",
+        "_oauth_code_redeemed": "",
+    })
+
+    # 5) On next run, clear localStorage & URL on the client
+    st.session_state["_inject_logout_js"] = True
+
+    # 6) Now safe to rerun (not in a callback)
+    st.rerun()
 
 
 
@@ -1748,7 +1779,7 @@ announcements = [
     },
     {
         "title": "Calendar & Zoom in My Course → Classroom (no WhatsApp)",
-        "body":  "All class reminders and updates are now inside the app. Go to My Course → Classroom to add the calendar and join Zoom. We’re discontinuing WhatsApp for announcements.",
+        "body":  "All class reminders and updates are now inside the app. Go to My Course → Classroom to add the calendar and join Zoom.",
         "tag":   "Action"
     },
     {
@@ -10302,6 +10333,8 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
+
 
 
 
