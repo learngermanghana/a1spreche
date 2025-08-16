@@ -7984,6 +7984,10 @@ if tab == "Exams Mode & Custom Chat":
 
     # ——— Stage 99: Pronunciation & Speaking Checker (Web Recorder only)
     if st.session_state.get("falowen_stage") == 99:
+        import datetime as _dt
+        from io import BytesIO
+        import urllib.parse as _urllib
+        import requests
         try:
             FSQuery  # defined earlier as alias to firestore.Query
         except NameError:
