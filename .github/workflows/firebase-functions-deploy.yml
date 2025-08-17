@@ -1,31 +1,43 @@
-name: Deploy Cloud Functions
+name: Deploy Firebase (Hosting + Functions)
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
     paths:
       - "functions/**"
-      - ".github/workflows/firebase-functions-deploy.yml"
+      - "public/**"
+      - "firebase.json"
+      - ".firebaserc"
+      - ".github/workflows/firebase-deploy.yml"
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # needed for google-github-actions/auth
+
+    env:
+      FIREBASE_PROJECT_ID: language-academy-3e1de
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Use Node 18 for functions
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: "20"   # match functions "engines.node": "20"
 
-      - name: Install functions deps
-        working-directory: functions
-        run: npm install
+      - name: Install Firebase CLI
+        run: npm i -g firebase-tools
 
-      - name: Deploy Functions
-        uses: FirebaseExtended/action-hosting-deploy@v0
+      # Auth using the JSON you added as a repo secret
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
         with:
-          repoToken: "${{ secrets.GITHUB_TOKEN }}"
-          firebaseServiceAccount: "${{ secrets.FIREBASE_SERVICE_ACCOUNT_LANGUAGE_ACADEMY_3E1DE }}"
-          channelId: live
-          projectId: language-academy-3e1de
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_LANGUAGE_ACADEMY_3E1DE }}
+
+      - name: Install Functions deps
+        run: npm ci --prefix functions
+
+      - name: Deploy Functions + Hosting
+        run: firebase deploy --project $FIREBASE_PROJECT_ID --only functions,hosting --non-interactive
