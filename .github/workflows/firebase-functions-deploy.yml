@@ -3,41 +3,32 @@ name: Deploy Firebase (Hosting + Functions)
 on:
   push:
     branches: [ main ]
-    paths:
-      - "functions/**"
-      - "public/**"
-      - "firebase.json"
-      - ".firebaserc"
-      - ".github/workflows/firebase-deploy.yml"
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write  # needed for google-github-actions/auth
-
-    env:
-      FIREBASE_PROJECT_ID: language-academy-3e1de
+      id-token: write
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
-        with:
-          node-version: "20"   # match functions "engines.node": "20"
+        with: { node-version: "20" }
 
       - name: Install Firebase CLI
         run: npm i -g firebase-tools
 
-      # Auth using the JSON you added as a repo secret
-      - name: Authenticate to Google Cloud
+      - name: Auth with Google
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_LANGUAGE_ACADEMY_3E1DE }}
 
+      # If you don't have functions/package-lock.json, use npm install (not ci)
       - name: Install Functions deps
-        run: npm ci --prefix functions
+        run: npm install --prefix functions
 
-      - name: Deploy Functions + Hosting
-        run: firebase deploy --project $FIREBASE_PROJECT_ID --only functions,hosting --non-interactive
+      - name: Deploy Functions + Hosting (force)
+        run: firebase deploy --project language-academy-3e1de --only functions,hosting --non-interactive --force
