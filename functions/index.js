@@ -1,34 +1,44 @@
-// index.js
-const express = require("express");
-const cors = require("cors");
-const multer = require("multer");
-const admin = require("firebase-admin");
+name: Deploy Firebase (Hosting + Functions)
 
-// v2 import:
-const { onRequest } = require("firebase-functions/v2/https");
-// (optional) pick a region explicitly so rewrites never get confused
-const { setGlobalOptions } = require("firebase-functions/v2");
-setGlobalOptions({ region: "us-central1" });
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "functions/**"
+      - "public/**"
+      - "firebase.json"
+      - ".firebaserc"
+      - ".github/workflows/firebase-functions-deploy.yml"
 
-admin.initializeApp();
-const app = express();
-app.use(cors({ origin: true }));
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
 
-app.get("/health", (req, res) => res.send("ok"));
+    steps:
+      - uses: actions/checkout@v4
 
-const upload = multer({ storage: multer.memoryStorage() });
-app.post("/upload", upload.single("file"), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).send("no file");
-    const bucket = admin.storage().bucket();
-    const filename = `uploads/${Date.now()}_${req.file.originalname}`;
-    await bucket.file(filename).save(req.file.buffer, { contentType: req.file.mimetype });
-    res.json({ ok: true, path: filename });
-  } catch (e) {
-    console.error(e);
-    res.status(500).send("upload failed");
-  }
-});
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
 
-// name must stay "api" to match your firebase.json rewrite
-exports.api = onRequest(app);
+      - name: Install Firebase CLI
+        run: npm i -g firebase-tools
+
+      - name: Auth with Google
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_LANGUAGE_ACADEMY_3E1DE }}
+
+      - name: Install Functions deps
+        run: |
+          if [ -f functions/package-lock.json ]; then
+            npm ci --prefix functions
+          else
+            npm install --prefix functions
+          fi
+
+      - name: Deploy Functions + Hosting
+        run: firebase deploy --project language-academy-3e1de --only functions,hosting --non-interactive
