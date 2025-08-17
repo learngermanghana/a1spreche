@@ -1,5 +1,5 @@
 [theme]
-base = "light"       # or "dark"
+base = "light"   
 primaryColor = "#25317e"
 backgroundColor = "#f3f7fb"
 secondaryBackgroundColor = "#eef3fc"
@@ -7,7 +7,7 @@ textColor = "#1a2340"
 font = "sans serif"
 
 [ui]
-customTheme = true   # enables the user theme switcher
+customTheme = false   # enables the user theme switcher
 
 [server]
 # These lines will be injected into your HTML <head>
