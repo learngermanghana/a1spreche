@@ -3616,7 +3616,7 @@ def get_b1_schedule():
             "video": "",
             "youtube_link": "",
             "grammarbook_link": "",
-            "workbook_link": ""
+            "workbook_link": "https://drive.google.com/file/d/1-HaOiGQtP_JI7ujg4-h-u1GnCumabdx_/view?usp=sharing"
         },
         # TAG 6
         {
@@ -5003,6 +5003,9 @@ if tab == "My Course":
             st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
 
 
+
+
+
     if cb_subtab == "🧑‍🏫 Classroom":
         # --- Classroom banner (top of subtab) ---
         st.markdown(
@@ -5107,7 +5110,20 @@ if tab == "My Course":
             except Exception:
                 pass
 
-        # ===================== ZOOM HEADER (official link + reminder to use calendar) =====================
+          # ===================== ZOOM HEADER (official link + reminder to use calendar) =====================
+        # utilities & guards
+        import re, io, json, hashlib, requests
+        from uuid import uuid4
+        try:
+            import streamlit.components.v1 as components
+        except Exception:
+            components = None
+
+        def _ukey(base: str) -> str:
+            # unique widget key per class (prevents duplicate-key crashes)
+            seed = f"{base}|{class_name}"
+            return f"{base}_{hashlib.md5(seed.encode()).hexdigest()[:8]}"
+
         # ensure urllib alias exists
         try:
             _ = _urllib.quote
@@ -5149,13 +5165,13 @@ if tab == "My Course":
             with z1:
                 # Primary join button (browser)
                 try:
-                    st.link_button("➡️ Join Zoom Meeting (Browser)", ZOOM["link"], key="zoom_join_btn")
+                    st.link_button("➡️ Join Zoom Meeting (Browser)", ZOOM["link"], key=_ukey("zoom_join_btn"))
                 except Exception:
                     st.markdown(f"[➡️ Join Zoom Meeting (Browser)]({ZOOM['link']})")
 
                 # Secondary: open in Zoom app (mobile deep link)
                 try:
-                    st.link_button("📱 Open in Zoom App", zoom_deeplink, key="zoom_app_btn")
+                    st.link_button("📱 Open in Zoom App", zoom_deeplink, key=_ukey("zoom_app_btn"))
                 except Exception:
                     st.markdown(f"[📱 Open in Zoom App]({zoom_deeplink})")
 
@@ -5216,7 +5232,7 @@ if tab == "My Course":
 
         st.divider()
 
-       # ===================== CALENDAR TAB BANNER =====================
+        # ===================== CALENDAR TAB BANNER =====================
         with st.container():
             st.markdown(
                 '''
@@ -5239,12 +5255,10 @@ if tab == "My Course":
                 unsafe_allow_html=True
             )
         st.divider()
-#
 
         # ===================== CALENDAR QUICK ADD (no schedule/dictionary UI) =====================
         from datetime import datetime as _dt, timedelta as _td
-        import re, uuid, json, io, requests
-        import urllib.parse as _urllib
+        import urllib.parse as _urllib  # (alias used below)
 
         # Try dateutil if available (for robust date parsing); fall back gracefully.
         try:
@@ -5487,37 +5501,62 @@ if tab == "My Course":
                 icon="📅",
             )
 
-            # ---------- helpers ----------
+            # ---------- day/time parsing (RELAXED) ----------
             _WKD_ORDER = ["MO","TU","WE","TH","FR","SA","SU"]
             _FULL_TO_CODE = {
                 "monday":"MO","tuesday":"TU","wednesday":"WE","thursday":"TH","friday":"FR","saturday":"SA","sunday":"SU",
                 "mon":"MO","tue":"TU","tues":"TU","wed":"WE","thu":"TH","thur":"TH","thurs":"TH","fri":"FR","sat":"SA","sun":"SU"
             }
 
+            DEFAULT_AMPM = "pm"  # default when AM/PM not provided
+
+            def _normalize_time_groups(s: str) -> str:
+                s = (s or "").strip()
+                s = s.replace("–", "-").replace("—", "-")
+                # e.g. "friday11 - 12" → "friday: 11 - 12"
+                s = re.sub(
+                    r"(?i)\b(mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*(\d)",
+                    r"\1: \2",
+                    s,
+                )
+                return s
+
             def _to_24h(h, m, ampm):
-                h = int(h); m = int(m); ap = ampm.lower()
+                h = int(h); m = int(m); ap = (ampm or "").lower()
                 if ap == "pm" and h != 12: h += 12
                 if ap == "am" and h == 12: h = 0
                 return h, m
 
-            def _parse_time_component(s):
-                s = s.strip().lower()
-                m = re.match(r"^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$", s)
+            def _parse_time_component_relaxed(s, default_ampm=DEFAULT_AMPM):
+                s = (s or "").strip().lower()
+                # Accept "14:30", "14", "2:30pm", "2pm"
+                m = re.match(r"^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$", s)
                 if not m: return None
-                h = m.group(1); mm = m.group(2) or "0"; ap = m.group(3)
-                return _to_24h(h, mm, ap)
+                hh = int(m.group(1)); mm = int(m.group(2) or 0); ap = m.group(3)
+                if ap:
+                    return _to_24h(hh, mm, ap)
+                # No AM/PM supplied → infer 24h or apply default
+                if 0 <= hh <= 23:
+                    if hh <= 12 and default_ampm in ("am","pm"):
+                        return _to_24h(hh, mm, default_ampm)
+                    return (hh, mm)
+                return None
 
-            def _parse_time_range(rng):
-                rng = rng.strip().lower().replace("–","-").replace("—","-")
-                parts = [p.strip() for p in rng.split("-")]
+            def _parse_time_range_relaxed(rng, default_ampm=DEFAULT_AMPM):
+                rng = (rng or "").strip().lower().replace("–","-").replace("—","-")
+                parts = [p.strip() for p in rng.split("-", 1)]
                 if len(parts) != 2: return None
-                a = _parse_time_component(parts[0]); b = _parse_time_component(parts[1])
-                if not a or not b: return None
-                return a, b
+                a = _parse_time_component_relaxed(parts[0], default_ampm=default_ampm)
+                if not a: return None
+                # Inherit AM/PM for second if omitted
+                ap_hint = re.search(r"(am|pm)\s*$", parts[0])
+                second_default = ap_hint.group(1) if ap_hint else default_ampm
+                b = _parse_time_component_relaxed(parts[1], default_ampm=second_default)
+                return (a, b) if b else None
 
             def _expand_day_token(tok):
-                tok = tok.strip().lower().replace("–","-").replace("—","-")
-                if "-" in tok:  # mon–wed
+                tok = (tok or "").strip().lower().replace("–","-").replace("—","-")
+                if "-" in tok:  # mon-wed
                     a, b = [t.strip() for t in tok.split("-", 1)]
                     a_code = _FULL_TO_CODE.get(a, ""); b_code = _FULL_TO_CODE.get(b, "")
                     if a_code and b_code:
@@ -5528,11 +5567,11 @@ if tab == "My Course":
                 return [c] if c else []
 
             def _parse_time_blocks(time_str, days_list):
-                if not (isinstance(time_str, str) and time_str.strip()):
-                    return []
-                s = time_str.strip()
-                if ":" in s:  # grouped "Days: time"
-                    blocks = []
+                # Accept both "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am" AND simple "Mon–Wed 2–3"
+                s = _normalize_time_groups(time_str)
+                blocks = []
+
+                if ":" in s:
                     groups = [g.strip() for g in s.split(",") if g.strip()]
                     for g in groups:
                         if ":" not in g:
@@ -5542,15 +5581,19 @@ if tab == "My Course":
                         codes = []
                         for tok in day_tokens:
                             codes.extend(_expand_day_token(tok))
-                        tr = _parse_time_range(right)
+                        tr = _parse_time_range_relaxed(right)
                         if codes and tr:
                             (sh, sm), (eh, em) = tr
-                            blocks.append({"byday": sorted(set(codes), key=_WKD_ORDER.index),
-                                           "start": (sh, sm), "end": (eh, em)})
+                            blocks.append({
+                                "byday": sorted(set(codes), key=_WKD_ORDER.index),
+                                "start": (sh, sm), "end": (eh, em)
+                            })
                     return blocks
-                # single time for given days[]
-                tr = _parse_time_range(s)
-                if not tr: return []
+
+                # Fallback: single time for provided days (e.g., "2–3")
+                tr = _parse_time_range_relaxed(s)
+                if not tr:
+                    return []
                 (sh, sm), (eh, em) = tr
                 codes = []
                 for d in (days_list or []):
@@ -5565,11 +5608,123 @@ if tab == "My Course":
 
             # Build ICS (with 15-minute preset reminder + URL field)
             _blocks = _parse_time_blocks(time_str, days)
-            _zl = (ZOOM or {}).get("link", ""); _zid = (ZOOM or {}).get("meeting_id", ""); _zpw = (ZOOM or {}).get("passcode", "")
+
+            # Fallback to ensure Android links still show even if parsing was shaky
+            if not _blocks and (days and str(time_str or "").strip()):
+                tr_fallback = _parse_time_range_relaxed(str(time_str))
+                if tr_fallback:
+                    (sh, sm), (eh, em) = tr_fallback
+                    codes = []
+                    for d in (days or []):
+                        c = _FULL_TO_CODE.get(str(d).lower().strip(), "")
+                        if c: codes.append(c)
+                    if codes:
+                        codes = sorted(set(codes), key=_WKD_ORDER.index)
+                        _blocks = [{"byday": codes, "start": (sh, sm), "end": (eh, em)}]
+
+            # === Next class countdown (human label + live ticking) ======================
+            def _compute_next_class_instance(now_utc: _dt):
+                """Return (start_dt, end_dt, label) for the next upcoming (or in-progress) class."""
+                if not _blocks:
+                    return None, None, ""
+                _wmap = {"MO":0,"TU":1,"WE":2,"TH":3,"FR":4,"SA":5,"SU":6}
+                best = None
+
+                cur = max(start_date_obj, now_utc.date())
+                while cur <= end_date_obj:
+                    widx = cur.weekday()
+                    for blk in _blocks:
+                        if any(_wmap[c] == widx for c in blk["byday"]):
+                            sh, sm = blk["start"]; eh, em = blk["end"]
+                            sdt = _dt(cur.year, cur.month, cur.day, sh, sm)   # Ghana == UTC
+                            edt = _dt(cur.year, cur.month, cur.day, eh, em)
+                            if edt <= now_utc:
+                                continue
+
+                            def _fmt_ampm(h, m):
+                                ap = "AM" if h < 12 else "PM"
+                                hh = h if 1 <= h <= 12 else (12 if h % 12 == 0 else h % 12)
+                                return f"{hh}:{m:02d}{ap}"
+
+                            label = f"{cur.strftime('%a %d %b')} • {_fmt_ampm(sh, sm)}–{_fmt_ampm(eh, em)}"
+                            cand = (sdt, edt, label)
+                            if (best is None) or (sdt < best[0]):
+                                best = cand
+                    cur += _td(days=1)
+
+                return best if best else (None, None, "")
+
+            def _human_delta_ms(ms: int) -> str:
+                s = max(0, ms // 1000)
+                d, r = divmod(s, 86400)
+                h, r = divmod(r, 3600)
+                m, _ = divmod(r, 60)
+                parts = []
+                if d: parts.append(f"{d}d")
+                if h: parts.append(f"{h}h")
+                if (d == 0) and (m or not parts):
+                    parts.append(f"{m}m")
+                return " ".join(parts) if parts else "0m"
+
+            _now = _dt.utcnow()
+            nxt_start, nxt_end, nxt_label = _compute_next_class_instance(_now)
+
+            if nxt_start and nxt_end:
+                start_ms = int(nxt_start.timestamp() * 1000)
+                now_ms   = int(_now.timestamp() * 1000)
+                time_left_label = _human_delta_ms(start_ms - now_ms) if now_ms < start_ms else "now"
+                st.info(f"**Next class:** {nxt_label}  •  **Starts in:** {time_left_label}", icon="⏰")
+
+                if components:
+                    components.html(
+                        f"""
+                        <div id="nextCount" style="margin:6px 0 2px;color:#0f172a;font-weight:600;"></div>
+                        <script>
+                          (function(){{
+                            const startMs = {start_ms};
+                            const el = document.getElementById('nextCount');
+                            function tick(){{
+                              const now = Date.now();
+                              if (now >= startMs) {{
+                                el.textContent = "Class is LIVE or started.";
+                              }} else {{
+                                const diff = startMs - now;
+                                const s = Math.floor(diff/1000);
+                                const d = Math.floor(s/86400);
+                                const h = Math.floor((s%86400)/3600);
+                                const m = Math.floor((s%3600)/60);
+                                const sec = s % 60;
+                                let txt = "Starts in: ";
+                                if (d) txt += d + "d ";
+                                if (h) txt += h + "h ";
+                                if (d || h) {{
+                                  txt += m + "m";
+                                }} else {{
+                                  txt += m + "m " + sec + "s";
+                                }}
+                                el.textContent = txt;
+                              }}
+                              setTimeout(tick, 1000);
+                            }}
+                            tick();
+                          }})();
+                        </script>
+                        """,
+                        height=28,
+                    )
+
+            # ================= ICS BUILD (full course) =================
+            _zl = (ZOOM or {}).get("link", "")
+            _zid = (ZOOM or {}).get("meeting_id", "")
+            _zpw = (ZOOM or {}).get("passcode", "")
             _details = f"Zoom link: {_zl}\\nMeeting ID: {_zid}\\nPasscode: {_zpw}"
             _dtstamp = _dt.utcnow().strftime("%Y%m%dT%H%M%SZ")
             _until = _dt(end_date_obj.year, end_date_obj.month, end_date_obj.day, 23, 59, 59).strftime("%Y%m%dT%H%M%SZ")
             _summary = f"{class_name} — Live German Class"
+
+            # Optional TZID mode (kept off by default; Ghana is UTC)
+            USE_TZID = False
+            TZID = "Africa/Accra"
 
             _ics_lines = [
                 "BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Falowen//Course Scheduler//EN",
@@ -5579,17 +5734,23 @@ if tab == "My Course":
             if not _blocks:
                 _start_dt = _dt(start_date_obj.year, start_date_obj.month, start_date_obj.day, 18, 0)
                 _end_dt   = _dt(start_date_obj.year, start_date_obj.month, start_date_obj.day, 19, 0)
+                if USE_TZID:
+                    dtfmt = "%Y%m%dT%H%M%S"
+                    dtstart_line = f"DTSTART;TZID={TZID}:{_start_dt.strftime(dtfmt)}"
+                    dtend_line   = f"DTEND;TZID={TZID}:{_end_dt.strftime(dtfmt)}"
+                else:
+                    dtstart_line = f"DTSTART:{_start_dt.strftime('%Y%m%dT%H%M%SZ')}"
+                    dtend_line   = f"DTEND:{_end_dt.strftime('%Y%m%dT%H%M%SZ')}"
                 _ics_lines += [
                     "BEGIN:VEVENT",
-                    f"UID:{uuid.uuid4()}@falowen",
+                    f"UID:{uuid4()}@falowen",
                     f"DTSTAMP:{_dtstamp}",
-                    f"DTSTART:{_start_dt.strftime('%Y%m%dT%H%M%SZ')}",
-                    f"DTEND:{_end_dt.strftime('%Y%m%dT%H%M%SZ')}",
+                    dtstart_line,
+                    dtend_line,
                     f"SUMMARY:{_summary}",
                     f"DESCRIPTION:{_details}",
                     f"URL:{_zl}",
                     "LOCATION:Zoom",
-                    # preset alert 15 minutes before
                     "BEGIN:VALARM",
                     "ACTION:DISPLAY",
                     "DESCRIPTION:Class starts soon",
@@ -5609,18 +5770,26 @@ if tab == "My Course":
                     first_date = min(first_dates)
                     dt_start = _dt(first_date.year, first_date.month, first_date.day, sh, sm)
                     dt_end   = _dt(first_date.year, first_date.month, first_date.day, eh, em)
+
+                    if USE_TZID:
+                        dtfmt = "%Y%m%dT%H%M%S"
+                        dtstart_line = f"DTSTART;TZID={TZID}:{dt_start.strftime(dtfmt)}"
+                        dtend_line   = f"DTEND;TZID={TZID}:{dt_end.strftime(dtfmt)}"
+                    else:
+                        dtstart_line = f"DTSTART:{dt_start.strftime('%Y%m%dT%H%M%SZ')}"
+                        dtend_line   = f"DTEND:{dt_end.strftime('%Y%m%dT%H%M%SZ')}"
+
                     _ics_lines += [
                         "BEGIN:VEVENT",
-                        f"UID:{uuid.uuid4()}@falowen",
+                        f"UID:{uuid4()}@falowen",
                         f"DTSTAMP:{_dtstamp}",
-                        f"DTSTART:{dt_start.strftime('%Y%m%dT%H%M%SZ')}",
-                        f"DTEND:{dt_end.strftime('%Y%m%dT%H%M%SZ')}",
+                        dtstart_line,
+                        dtend_line,
                         f"RRULE:FREQ=WEEKLY;BYDAY={','.join(byday_codes)};UNTIL={_until}",
                         f"SUMMARY:{_summary}",
                         f"DESCRIPTION:{_details}",
                         f"URL:{_zl}",
                         "LOCATION:Zoom",
-                        # preset alert 15 minutes before
                         "BEGIN:VALARM",
                         "ACTION:DISPLAY",
                         "DESCRIPTION:Class starts soon",
@@ -5632,7 +5801,7 @@ if tab == "My Course":
             _ics_lines.append("END:VCALENDAR")
             _course_ics = "\n".join(_ics_lines)
 
-            # UI (full course download only; next-session button removed)
+            # UI (full course download only; unique key avoids DuplicateElementKey)
             c1, c2 = st.columns([1, 1])
             with c1:
                 st.download_button(
@@ -5640,12 +5809,10 @@ if tab == "My Course":
                     data=_course_ics,
                     file_name=f"{class_name.replace(' ', '_')}_course.ics",
                     mime="text/calendar",
-                    key="dl_course_ics",
+                    key=_ukey("dl_course_ics"),
                 )
             with c2:
                 st.caption("Calendar created. Use the download button to import the full course.")
-#
-
 
             # --- Phone app quick links (Android) — concise only ---
             # Build per-block Google Calendar repeating links from the schedule
@@ -5677,6 +5844,7 @@ if tab == "My Course":
                         _end_str   = _end_dt.strftime("%Y%m%dT%H%M%SZ")
 
                         # RRULE weekly until course end
+                        _until = _dt(end_date_obj.year, end_date_obj.month, end_date_obj.day, 23, 59, 59).strftime("%Y%m%dT%H%M%SZ")
                         _rrule = f"RRULE:FREQ=WEEKLY;BYDAY={','.join(byday_codes)};UNTIL={_until}"
 
                         # Friendly label e.g. "Thu/Fri 6:00PM–7:00PM" or "Sat 8:00AM–9:00AM"
@@ -5712,7 +5880,6 @@ if tab == "My Course":
                     "</div>"
                 )
 
-
             st.markdown(
                 f"""
                 **Computer or iPhone:** Download the **.ics** above and install.  
@@ -5721,8 +5888,7 @@ if tab == "My Course":
 
                 **Android (Google Calendar app):** The app **can’t import `.ics`**. So use the links below to add it on your phone (**with repeat**):
                 {_phone_links_ul}
-                <div style="margin:8px 0 0 2px;">
-                </div>
+                <div style="margin:8px 0 0 2px;"></div>
                 """,
                 unsafe_allow_html=True,
             )
@@ -5807,10 +5973,91 @@ if tab == "My Course":
                     st.info("No members found for this class yet.")
             except Exception as e:
                 st.warning(f"Couldn’t load the class roster right now. {e}")
-#
 
 
-          # ===================== ANNOUNCEMENTS (CSV) + REPLIES (FIRESTORE) =====================
+
+        # ===================== CLASS ROSTER =====================
+
+        # Subtle banner above the expander to draw attention
+        st.markdown(
+            """
+            <div style="
+                padding:10px 12px;
+                background:#f0f9ff;
+                border:1px solid #bae6fd;
+                border-radius:12px;
+                margin: 6px 0 8px 0;
+                display:flex;align-items:center;gap:8px;">
+              <span style="font-size:1.05rem;">👥 <b>Class Members</b></span>
+              <span style="font-size:.92rem;color:#055d87;">Tap below to open and view the list</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # Light CSS to make *all* expanders stand out a bit more
+        st.markdown(
+            """
+            <style>
+              /* Make expander headers pop a little */
+              div[data-testid="stExpander"] > details > summary {
+                  background:#f0f9ff !important;
+                  border:1px solid #bae6fd !important;
+                  border-radius:12px !important;
+                  padding:10px 12px !important;
+              }
+              div[data-testid="stExpander"] > details[open] > summary {
+                  background:#e0f2fe !important;
+                  border-color:#7dd3fc !important;
+              }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        with st.expander("👥 Class Members", expanded=False):
+            try:
+                df_students = load_student_data()
+
+                # Normalize required columns
+                for col in ("ClassName", "Name", "Email", "Location"):
+                    if col not in df_students.columns:
+                        df_students[col] = ""
+                    df_students[col] = df_students[col].fillna("").astype(str).str.strip()
+
+                # Filter to this class
+                same_class = df_students[df_students["ClassName"] == class_name].copy()
+
+                # Tiny header line inside with class + count
+                _n = len(same_class)
+                st.markdown(
+                    f"""
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 6px 0;">
+                      <div style="font-weight:600;color:#0f172a;">{class_name}</div>
+                      <span style="background:#0ea5e922;border:1px solid #0ea5e9;color:#0369a1;
+                                   padding:3px 8px;border-radius:999px;font-size:.9rem;">
+                        {_n} member{'' if _n==1 else 's'}
+                      </span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+                # Columns to display (no StudentCode)
+                cols_show = [c for c in ["Name", "Email", "Location"] if c in same_class.columns]
+
+                if not same_class.empty and cols_show:
+                    st.dataframe(
+                        same_class[cols_show].reset_index(drop=True),
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+                else:
+                    st.info("No members found for this class yet.")
+            except Exception as e:
+                st.warning(f"Couldn’t load the class roster right now. {e}")
+
+        # ===================== ANNOUNCEMENTS (CSV) + REPLIES (FIRESTORE) =====================
 
         # Prefer cached helper if exists; else fallback to direct CSV
         try:
@@ -5830,7 +6077,6 @@ if tab == "My Course":
         # ---------- Announcement banner (with NEW count) ----------
         _new_badge_html = ""
         try:
-            from datetime import datetime as _dt
             _today = _dt.today().date()
             _recent = 0
             if not df.empty and "Date" in df.columns:
@@ -5878,12 +6124,10 @@ if tab == "My Course":
                 ''',
                 unsafe_allow_html=True
             )
-#
-
 
         def _short_label_from_url(u: str) -> str:
             try:
-                p = urllib.parse.urlparse(u)
+                p = _urlparse(u)
                 host = (p.netloc or "").replace("www.", "")
                 path = (p.path or "").strip("/")
                 label = host if not path else f"{host}/{path}"
@@ -6000,7 +6244,7 @@ if tab == "My Course":
         def _update_reply_text(ann_id: str, reply_id: str, new_text: str):
             _ann_reply_coll(ann_id).document(reply_id).update({
                 "text": new_text.strip(),
-                "edited_at": datetime.utcnow(),
+                "edited_at": _dt.utcnow(),
                 "edited_by": student_name,
                 "edited_by_code": student_code,
             })
@@ -6112,7 +6356,7 @@ if tab == "My Course":
                                     _notify_slack(
                                         f"🗑️ *Announcement reply deleted* — {class_name}\n"
                                         f"*By:* {student_name} ({student_code})\n"
-                                        f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+                                        f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
                                     )
                                     st.success("Reply deleted.")
                                     st.rerun()
@@ -6133,7 +6377,7 @@ if tab == "My Course":
                                             _notify_slack(
                                                 f"✏️ *Announcement reply edited* — {class_name}\n"
                                                 f"*By:* {student_name} ({student_code})\n"
-                                                f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                                                f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
                                                 f"*Preview:* {new_txt[:180]}{'…' if len(new_txt)>180 else ''}"
                                             )
                                             st.success("Reply updated.")
@@ -6164,13 +6408,13 @@ if tab == "My Course":
                             "student_code": student_code,
                             "student_name": student_name,
                             "text": reply_text.strip(),
-                            "timestamp": datetime.utcnow(),
+                            "timestamp": _dt.utcnow(),
                         }
                         _ann_reply_coll(ann_id).add(payload)
                         _notify_slack(
                             f"💬 *New announcement reply* — {class_name}\n"
                             f"*By:* {student_name} ({student_code})\n"
-                            f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                            f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
                             f"*Preview:* {payload['text'][:180]}{'…' if len(payload['text'])>180 else ''}"
                         )
                         st.session_state[flag_key] = True
@@ -6193,12 +6437,17 @@ if tab == "My Course":
         # --- Compute NEW (≤7 days) and UNANSWERED counts for badges ---
         _new7, _unans, _total = 0, 0, 0
         try:
-            from datetime import datetime as _dt
             _now = _dt.utcnow()
 
             # Try ordered fetch first; fall back to basic stream
             try:
-                _qdocs = list(q_base.order_by("created_at", direction="DESCENDING").limit(250).stream())
+                # Use Admin SDK Query constant if available; else pass string
+                try:
+                    from firebase_admin import firestore as fbfs
+                    direction_desc = getattr(fbfs.Query, "DESCENDING", "DESCENDING")
+                    _qdocs = list(q_base.order_by("created_at", direction=direction_desc).limit(250).stream())
+                except Exception:
+                    _qdocs = list(q_base.order_by("created_at", direction="DESCENDING").limit(250).stream())
             except Exception:
                 _qdocs = list(q_base.stream())
 
@@ -6292,7 +6541,6 @@ if tab == "My Course":
                 return ts.strftime("%d %b %H:%M")
             except Exception:
                 return ""
-#
 
         # Post a new question (single click -> rerun)
         with st.expander("➕ Ask a new question", expanded=False):
@@ -6309,7 +6557,7 @@ if tab == "My Course":
                     "question": new_q.strip(),
                     "asked_by_name": student_name,
                     "asked_by_code": student_code,
-                    "timestamp": datetime.utcnow(),
+                    "timestamp": _dt.utcnow(),
                     "topic": (topic or "").strip(),
                 }
                 q_base.document(q_id).set(payload)
@@ -6318,7 +6566,7 @@ if tab == "My Course":
                 _notify_slack(
                     f"❓ *New class question* — {class_name}{topic_tag}\n"
                     f"*From:* {student_name} ({student_code})\n"
-                    f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                    f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
                     f"*Q:* {preview}"
                 )
                 # clear and rerun
@@ -6338,7 +6586,12 @@ if tab == "My Course":
 
         # Load questions (fresh each run)
         try:
-            q_docs = list(q_base.order_by("timestamp", direction=firestore.Query.DESCENDING).stream())
+            try:
+                from firebase_admin import firestore as fbfs
+                direction_desc = getattr(fbfs.Query, "DESCENDING", "DESCENDING")
+                q_docs = list(q_base.order_by("timestamp", direction=direction_desc).stream())
+            except Exception:
+                q_docs = list(q_base.order_by("timestamp", direction="DESCENDING").stream())
             questions = [dict(d.to_dict() or {}, id=d.id) for d in q_docs]
         except Exception:
             q_docs = list(q_base.stream())
@@ -6400,7 +6653,7 @@ if tab == "My Course":
                             _notify_slack(
                                 f"🗑️ *Q&A question deleted* — {class_name}\n"
                                 f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
-                                f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+                                f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
                             )
                             st.success("Question deleted.")
                             st.rerun()
@@ -6425,12 +6678,12 @@ if tab == "My Course":
                             q_base.document(q_id).update({
                                 "question": new_text.strip(),
                                 "topic": (new_topic or "").strip(),
-                                "edited_at": datetime.utcnow(),
+                                "edited_at": _dt.utcnow(),
                             })
                             _notify_slack(
                                 f"✏️ *Q&A question edited* — {class_name}\n"
                                 f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
-                                f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                                f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
                                 f"*New:* {(new_text[:180] + '…') if len(new_text) > 180 else new_text}"
                             )
                             st.session_state[f"q_editing_{q_id}"] = False
@@ -6474,7 +6727,7 @@ if tab == "My Course":
                                     _notify_slack(
                                         f"🗑️ *Q&A reply deleted* — {class_name}\n"
                                         f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
-                                        f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+                                        f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
                                     )
                                     st.success("Reply deleted.")
                                     st.rerun()
@@ -6492,12 +6745,12 @@ if tab == "My Course":
                                 if rsave and new_rtext.strip():
                                     r.reference.update({
                                         "reply_text": new_rtext.strip(),
-                                        "edited_at": datetime.utcnow(),
+                                        "edited_at": _dt.utcnow(),
                                     })
                                     _notify_slack(
                                         f"✏️ *Q&A reply edited* — {class_name}\n"
                                         f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
-                                        f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                                        f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
                                         f"*New:* {(new_rtext[:180] + '…') if len(new_rtext) > 180 else new_rtext}"
                                     )
                                     st.session_state[f"r_editing_{q_id}_{rid}"] = False
@@ -6523,7 +6776,7 @@ if tab == "My Course":
                         "reply_text": reply_text.strip(),
                         "replied_by_name": student_name,
                         "replied_by_code": student_code,
-                        "timestamp": datetime.utcnow(),
+                        "timestamp": _dt.utcnow(),
                     }
                     r_ref = q_base.document(q_id).collection("replies")
                     r_ref.document(str(uuid4())[:8]).set(reply_payload)
@@ -6531,13 +6784,13 @@ if tab == "My Course":
                     _notify_slack(
                         f"💬 *New Q&A reply* — {class_name}\n"
                         f"*By:* {student_name} ({student_code})  •  *QID:* {q_id}\n"
-                        f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                        f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
                         f"*Reply:* {prev}"
                     )
                     st.session_state[clear_key] = True
                     st.success("Reply sent!")
                     st.rerun()
-#
+
 
 
     # === LEARNING NOTES SUBTAB ===
@@ -8082,167 +8335,223 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("⬅️ Back"):
             back_step()
 
-    # ——— Stage 99: Pronunciation & Speaking Checker (Web Recorder only)
+    # ——— Stage 99: Pronunciation & Speaking Checker (no-debug version)
     if st.session_state.get("falowen_stage") == 99:
         import datetime as _dt
         from io import BytesIO
-        import urllib.parse as _urllib
         import requests
-        try:
-            FSQuery  # defined earlier as alias to firestore.Query
-        except NameError:
-            from google.cloud import firestore as _fs
-            FSQuery = _fs.Query
 
-        # ----- Daily limit guard (3/day)
-        code_val = (st.session_state.get("student_code") or "").strip()
-        if not code_val:
-            st.error("Missing student code in session. Please sign in again.")
-            st.stop()
+        # ---------- Config ----------
+        HOST_BASE = st.secrets.get("HOST_BASE", "https://language-academy-3e1de.web.app")
+        API_ENDPOINT = f"{HOST_BASE}/api/speech/grade"  # Hosting rewrite to Functions: /api/**
+        MAX_DAILY_UPLOADS = 3
+        MAX_MB = 24  # keep <25MB
 
+        # ---------- Daily limit ----------
         today_str = _dt.date.today().isoformat()
-        uses_ref = db.collection("pron_uses").document(code_val)
-        snap = uses_ref.get()
-        data = snap.to_dict() if snap.exists else {}
+        student_code = st.session_state.get("student_code", "")
+        uploads_ref = db.collection("pron_uses").document(student_code or "unknown")
+        doc = uploads_ref.get()
+        data = doc.to_dict() if doc.exists else {}
         last_date = data.get("date")
-        count = int(data.get("count", 0))
+        count = data.get("count", 0)
         if last_date != today_str:
             count = 0
-        if count >= 3:
+        if count >= MAX_DAILY_UPLOADS:
             st.warning("You’ve hit your daily upload limit (3). Try again tomorrow.")
-            if st.button("⬅️ Back to Start"):
-                st.session_state["falowen_stage"] = 1
-                st.rerun()
             st.stop()
 
-        # ----- UI
+        # ---------- UI ----------
         st.subheader("🎤 Pronunciation & Speaking Checker")
         st.info(
-            "Step 1) Tap **Open Web Recorder** and record (≤ 60s), then press **Upload** on that page.\n\n"
-            "Step 2) Return here and tap **Check latest upload** to transcribe and get feedback."
+            """
+            Record or upload your **German** speaking sample (about 60 seconds).
+            • Use your phone’s voice recorder **or** our simple recorder page.
+            • Then upload the saved **.wav / .mp3 / .m4a / .3gp / .aac / .ogg / .webm** file below.
+            """
         )
 
-        # Use the GitHub Pages recorder (speak.falowen.app not ready yet)
-        RECORDER_URL = "https://speak.falowen.app/"
-        rec_url = RECORDER_URL + f"?code={_urllib.quote(code_val)}"
+        # Quick path to tiny web recorder
+        try:
+            st.link_button("🎙️ Open Web Recorder (new tab)", f"{HOST_BASE}/recorder", use_container_width=True)
+        except Exception:
+            st.markdown(f"[🎙️ Open Recorder (new tab)]({HOST_BASE}/recorder)")
 
-        c1, c2 = st.columns([1, 1])
-        with c1:
-            st.link_button("🎙️ Open Web Recorder", rec_url, use_container_width=True)
-        with c2:
-            go = st.button("🔎 Check latest upload", use_container_width=True)
+        with st.expander("Tap for quick steps"):
+            st.markdown(
+                """
+                1) Direct recording works on all devices).  
+                2) Uploading is only possible on computer and ios.   
+                3) When uploading here, choose **Files → Audio/Recordings** (not Photos).  
+                """
+            )
 
-        st.caption("Tip: After uploading in the recorder, wait ~2 seconds before clicking **Check latest upload**.")
+        # ---------- Uploader ----------
+        audio_file = st.file_uploader(
+            "Upload your audio file",
+            type=["mp3", "wav", "m4a", "3gp", "aac", "ogg", "webm"],
+            accept_multiple_files=False,
+            key="pron_audio_uploader",
+        )
 
-        if go:
-            # Query newest upload for this student (needs composite index: code==, createdAt desc)
+        if audio_file:
+            # Read
+            file_type = (audio_file.type or "").lower()
+            file_name = (audio_file.name or "speech").lower()
             try:
-                q = (
-                    db.collection("pron_inbox")
-                    .where("code", "==", code_val)
-                    .order_by("createdAt", direction=FSQuery.DESCENDING)
-                    .limit(1)
-                )
-                docs = list(q.stream())
+                audio_file.seek(0)
             except Exception:
-                st.error("Couldn’t fetch your cloud upload. Create the Firestore index for (code ==, createdAt desc) if prompted, then try again.")
+                pass
+            raw_bytes = audio_file.read() or b""
+            if len(raw_bytes) > MAX_MB * 1024 * 1024:
+                st.error(f"File is larger than {MAX_MB} MB. Please trim or export at a lower bitrate.")
                 st.stop()
 
-            if not docs:
-                st.info("No cloud upload found yet. Make sure you pressed **Upload** in the Web Recorder.")
-                st.stop()
+            st.audio(BytesIO(raw_bytes))
 
-            rec = docs[0].to_dict() or {}
-            url = rec.get("url")
-            ctype = (rec.get("contentType") or "").lower()
-            if not url:
-                st.error("Upload record is missing a download URL. Please try uploading again.")
-                st.stop()
+            # Ensure extension (Android sometimes has none)
+            def _ensure_ext(name: str, mime: str) -> str:
+                name = name or "speech"
+                if "." in name:
+                    return name
+                if "wav" in mime:
+                    return name + ".wav"
+                if "mpeg" in mime or "mp3" in mime:
+                    return name + ".mp3"
+                if "m4a" in mime or "mp4" in mime or "aac" in mime:
+                    return name + ".m4a"
+                if "3gpp" in mime:
+                    return name + ".3gp"
+                if "ogg" in mime:
+                    return name + ".ogg"
+                if "webm" in mime:
+                    return name + ".webm"
+                return name + ".mp3"
 
-            # Preview from cloud
-            st.audio(url)
+            file_name = _ensure_ext(file_name, file_type)
 
-            # Download for Whisper
+            # Try normalizing to 16k mono WAV (best for ASR); fall back to original
+            buf_for_backend = None
+            out_mime = "audio/wav"
             try:
-                resp = requests.get(url, timeout=20)
-                resp.raise_for_status()
-            except Exception as e:
-                st.error(f"Couldn’t download your audio from cloud storage: {e}")
-                st.stop()
+                from pydub import AudioSegment
+                import tempfile, os
+                suffix = "." + file_name.split(".")[-1] if "." in file_name else ".bin"
+                tmp_in = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+                tmp_in.write(raw_bytes); tmp_in.flush(); tmp_in.close()
+                seg = AudioSegment.from_file(tmp_in.name)
+                seg = seg.set_channels(1).set_frame_rate(16000)
+                wav_io = BytesIO()
+                seg.export(wav_io, format="wav")
+                wav_io.seek(0)
+                setattr(wav_io, "name", "speech.wav")
+                buf_for_backend = wav_io
+                try:
+                    os.unlink(tmp_in.name)
+                except Exception:
+                    pass
+            except Exception:
+                raw_bio = BytesIO(raw_bytes); raw_bio.seek(0)
+                setattr(raw_bio, "name", file_name)
+                buf_for_backend = raw_bio
+                out_mime = (file_type or "application/octet-stream")
 
-            bio = BytesIO(resp.content); bio.seek(0)
+            # ---------- Preferred: call your Firebase Function ----------
+            with st.spinner("Uploading & evaluating in the cloud…"):
+                try:
+                    files = {"file": (getattr(buf_for_backend, "name", file_name), buf_for_backend, out_mime)}
+                    data = {"student_code": student_code, "language": "de"}
+                    resp = requests.post(API_ENDPOINT, files=files, data=data, timeout=180)
+                    if resp.status_code == 200:
+                        try:
+                            j = resp.json()
+                        except Exception:
+                            j = {}
+                        transcript_text = j.get("transcript") or j.get("text") or ""
+                        evaluation_text = j.get("evaluation_text") or j.get("evaluation") or ""
+                        if transcript_text:
+                            st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
+                        if evaluation_text:
+                            st.markdown(evaluation_text)
+                        else:
+                            st.success("Uploaded successfully.")
+                        uploads_ref.set({"count": count + 1, "date": today_str})
+                        st.info("💡 Tip: Use **Custom Chat** first to build ideas, then record and upload here.")
+                        if st.button("🔄 Try Another"):
+                            st.rerun()
+                        st.stop()
+                    else:
+                        st.warning(f"Cloud evaluation not available (HTTP {resp.status_code}). Using local evaluation…")
+                except Exception as e:
+                    st.warning(f"Cloud evaluation failed ({e}). Using local evaluation…")
 
-            # Pick extension to help Whisper
-            ext = "webm"
-            if "mp3" in ctype:
-                ext = "mp3"
-            elif "wav" in ctype:
-                ext = "wav"
-            elif "m4a" in ctype or "mp4" in ctype or "aac" in ctype:
-                ext = "m4a"
-            elif "ogg" in ctype:
-                ext = "ogg"
-            elif "3gpp" in ctype:
-                ext = "3gp"
-            setattr(bio, "name", f"speech.{ext}")
-
-            # Transcribe (German)
+            # ---------- Fallback: local Whisper + GPT (requires `client`) ----------
             try:
-                t = client.audio.transcriptions.create(
-                    file=bio,
+                _client = globals().get("client")
+                if _client is None:
+                    st.error("Local evaluation not configured. Please try again later.")
+                    st.stop()
+
+                # Transcribe (German only)
+                transcript_resp = _client.audio.transcriptions.create(
+                    file=buf_for_backend,
                     model="whisper-1",
                     language="de",
                     temperature=0,
                     prompt="Dies ist deutsche Sprache. Bitte nur transkribieren (keine Übersetzung).",
                 )
-                transcript_text = t.text
-            except Exception as e:
-                st.error(f"Sorry, could not process audio: {e}")
-                st.stop()
+                transcript_text = getattr(transcript_resp, "text", "") or ""
+                st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
 
-            st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
+                # Evaluate in English
+                eval_prompt = (
+                    "You are an English-speaking tutor evaluating a **German** speaking sample.\n"
+                    f'The student said (in German): "{transcript_text}"\n\n'
+                    "Please provide scores **in English only**:\n"
+                    "• Rate Pronunciation, Grammar, and Fluency each from 0–100.\n"
+                    "• Give three concise, actionable tips for each category.\n"
+                    "• Do not translate the student's text; focus on evaluating it.\n\n"
+                    "Respond exactly in this format:\n"
+                    "Pronunciation: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
+                    "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
+                    "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
+                )
 
-            # Evaluate (English)
-            eval_prompt = (
-                "You are an English-speaking tutor evaluating a **German** speaking sample.\n"
-                f'The student said (in German): "{transcript_text}"\n\n'
-                "Please provide scores **in English only**:\n"
-                "• Rate Pronunciation, Grammar, and Fluency each from 0–100.\n"
-                "• Give three concise, actionable tips for each category.\n"
-                "• Do not translate the student's text; focus on evaluating it.\n\n"
-                "Respond exactly in this format:\n"
-                "Pronunciation: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
-                "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
-                "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
-            )
-            with st.spinner("Evaluating your sample..."):
-                try:
-                    r = client.chat.completions.create(
+                with st.spinner("Evaluating your sample…"):
+                    eval_resp = _client.chat.completions.create(
                         model="gpt-4o",
                         messages=[
-                            {"role": "system", "content": "You are an English-speaking tutor evaluating German speech. Always answer in clear, concise English using the requested format."},
+                            {
+                                "role": "system",
+                                "content": (
+                                    "You are an English-speaking tutor evaluating German speech. "
+                                    "Always answer in clear, concise English using the requested format."
+                                ),
+                            },
                             {"role": "user", "content": eval_prompt},
                         ],
                         temperature=0.2,
                     )
-                    result_text = r.choices[0].message.content
-                except Exception as e:
-                    st.error(f"Evaluation error: {e}")
-                    result_text = None
+                result_text = eval_resp.choices[0].message.content if getattr(eval_resp, "choices", None) else None
 
-            if result_text:
-                st.markdown(result_text)
-                uses_ref.set({"count": count + 1, "date": today_str})
-                st.success(f"Saved ✅ — attempt {count + 1} of 3 for today.")
-                if st.button("🔄 Check another upload"):
-                    st.rerun()
-            else:
-                st.error("Could not get feedback. Please try again later.")
+                if result_text:
+                    st.markdown(result_text)
+                    uploads_ref.set({"count": count + 1, "date": today_str})
+                    st.info("💡 Tip: Use **Custom Chat** first to build ideas, then record and upload here.")
+                    if st.button("🔄 Try Another"):
+                        st.rerun()
+                else:
+                    st.error("Could not get feedback. Please try again later.")
 
+            except Exception as e:
+                st.error(f"Local evaluation failed: {e}")
+
+        # ---------- Back ----------
         if st.button("⬅️ Back to Start"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
-#
+
+
 
 
 # =========================================
@@ -11010,6 +11319,8 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
+
 
 
 
