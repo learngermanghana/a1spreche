@@ -1,164 +1,60 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8"/>
-  <title>Falowen • Recorder</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 18px; }
-    .card { max-width: 560px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 14px; padding: 18px; box-shadow: 0 6px 16px rgba(0,0,0,.06); }
-    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    button { padding: 10px 14px; border: 0; border-radius: 10px; cursor: pointer; font-weight: 600; }
-    .start { background: #10b981; color: #fff; }
-    .stop  { background: #ef4444; color: #fff; }
-    .upload{ background: #2563eb; color: #fff; }
-    .ghost { background: #f3f4f6; }
-    .muted { color: #6b7280; font-size: 14px; }
-    audio { width: 100%; margin-top: 10px; }
-    .warn  { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 10px; margin-top: 10px; }
-    .ok    { background: #ecfeff; border: 1px solid #a5f3fc; border-radius: 10px; padding: 10px; margin-top: 10px; }
-    .err   { background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 10px; margin-top: 10px; }
-  </style>
-</head>
-<body>
-<div class="card">
-  <h2>🎤 Falowen Recorder</h2>
-  <p class="muted">Record up to <b>60 seconds</b>. If recording isn’t supported, you’ll see a file picker.</p>
+<script>
+function getParam(k){
+  const m = new URLSearchParams(location.search).get(k);
+  return (m || '').trim();
+}
 
-  <div id="iosFallback" class="warn" style="display:none;">
-    Your browser doesn’t support in-page recording. Use the file picker below (or Voice Memos / any recorder), then upload.
-  </div>
+let studentCode = getParam('code') || (localStorage.getItem('falowen_code') || '').trim();
 
-  <div class="row" id="recRow">
-    <button id="btnStart" class="start">Start</button>
-    <button id="btnStop"  class="stop" disabled>Stop</button>
-    <span id="timer" class="muted">00:00</span>
-  </div>
+function ensureCodeBeforeUse() {
+  const gate = document.getElementById('code-gate');
+  const main = document.getElementById('app');
+  if (!studentCode) {
+    gate.style.display = 'block';
+    main.style.display = 'none';
+  } else {
+    gate.style.display = 'none';
+    main.style.display = 'block';
+  }
+}
 
-  <audio id="player" controls style="display:none;"></audio>
+function saveCode() {
+  const inp = document.getElementById('code-input');
+  const v = (inp.value || '').trim().toLowerCase();
+  if (!v) { alert('Please enter your student code.'); return; }
+  studentCode = v;
+  localStorage.setItem('falowen_code', v);
+  ensureCodeBeforeUse();
+}
 
-  <div class="row" style="margin-top:10px;">
-    <input id="filePick" type="file" accept="audio/*" capture style="display:none;"/>
-    <button id="btnPick" class="ghost">Pick audio file</button>
-    <button id="btnUpload" class="upload" disabled>Upload to Falowen</button>
-  </div>
+// Call once on load
+document.addEventListener('DOMContentLoaded', ensureCodeBeforeUse);
 
-  <div id="msg"></div>
+// When you POST the audio, ALWAYS include the code:
+async function uploadBlob(blob) {
+  if (!studentCode) { alert('Missing student code.'); return; }
+
+  const fd = new FormData();
+  fd.append('audio', blob, 'recording.webm');
+  fd.append('code', studentCode); // <— important
+
+  // example endpoint; keep yours as-is
+  const r = await fetch('/api/upload', { method: 'POST', body: fd });
+  if (!r.ok) { alert('Upload failed.'); return; }
+  const js = await r.json().catch(()=>({}));
+  // show result/redirect/etc.
+}
+</script>
+
+<!-- Add this small gate UI somewhere near the top of <body> -->
+<div id="code-gate" style="display:none; max-width:680px; margin:16px auto; padding:12px; border:1px solid #e5e7eb; border-radius:10px;">
+  <h3 style="margin:0 0 8px 0;">Enter your student code</h3>
+  <p style="margin:0 0 8px 0;">We couldn’t find <code>?code=...</code> in the link. Please enter it once to continue.</p>
+  <input id="code-input" placeholder="e.g., felixa1" style="padding:8px; width:260px;">
+  <button onclick="saveCode()" style="padding:8px 12px; margin-left:8px;">Save</button>
 </div>
 
-<script>
-(function(){
-  const apiBase = "/api"; // will be wired to Firebase Functions in the next step
-  const qs = new URLSearchParams(location.search);
-  const studentCode = (qs.get("code") || "").trim().toLowerCase();
-  const msg = (html, cls="ok") => { const d=document.getElementById("msg"); d.className=cls; d.innerHTML=html; };
-
-  const hasRecorder = !!(navigator.mediaDevices && window.MediaRecorder);
-  const btnStart = document.getElementById("btnStart");
-  const btnStop  = document.getElementById("btnStop");
-  const btnPick  = document.getElementById("btnPick");
-  const btnUpload= document.getElementById("btnUpload");
-  const filePick = document.getElementById("filePick");
-  const player   = document.getElementById("player");
-  const timerEl  = document.getElementById("timer");
-  const iosFallback = document.getElementById("iosFallback");
-
-  let chunks = [];
-  let rec = null;
-  let blob = null;
-  let t0 = 0, tickId = null;
-
-  function fmt(t){
-    const m = Math.floor(t/60), s = Math.floor(t%60);
-    return (m<10?"0":"")+m+":"+(s<10?"0":"")+s;
-  }
-  function startTimer(){
-    t0 = Date.now(); timerEl.textContent = "00:00";
-    tickId = setInterval(()=>{
-      const secs = (Date.now()-t0)/1000;
-      timerEl.textContent = fmt(secs);
-      if (secs >= 60) stopRec();
-    }, 250);
-  }
-  function stopTimer(){ clearInterval(tickId); tickId = null; }
-
-  async function startRec(){
-    try{
-      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
-      const options = { mimeType: MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "" };
-      rec = new MediaRecorder(stream, options);
-      chunks = [];
-      rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
-      rec.onstop = () => {
-        blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
-        player.src = URL.createObjectURL(blob);
-        player.style.display = "block";
-        btnUpload.disabled = false;
-      };
-      rec.start();
-      startTimer();
-      btnStart.disabled = true;
-      btnStop.disabled = false;
-      msg("Recording…", "warn");
-    } catch(e){
-      iosFallback.style.display = "block";
-      msg("Microphone permission or recording failed. Use file picker instead.", "err");
-    }
-  }
-  function stopRec(){
-    if (rec && rec.state !== "inactive") {
-      rec.stop();
-      rec.stream.getTracks().forEach(t=>t.stop());
-    }
-    stopTimer();
-    btnStart.disabled = false;
-    btnStop.disabled = true;
-    msg("Recording stopped. Review, then upload.", "ok");
-  }
-  function pickFile(){ filePick.click(); }
-
-  filePick.addEventListener("change", ()=>{
-    const f = filePick.files && filePick.files[0];
-    if(!f){ return; }
-    blob = f;
-    player.src = URL.createObjectURL(f);
-    player.style.display = "block";
-    btnUpload.disabled = false;
-    msg("File ready. Click Upload.", "ok");
-  });
-
-  async function upload(){
-    if (!studentCode) { msg("Missing <b>?code=STUDENTCODE</b> in the URL.", "err"); return; }
-    if (!blob){ msg("No audio to upload.", "err"); return; }
-    try{
-      btnUpload.disabled = true;
-      msg("Uploading…", "warn");
-      const fd = new FormData();
-      fd.append("student_code", studentCode);
-      fd.append("source", "web-recorder");
-      fd.append("file", blob, (blob.name || "speech.webm"));
-
-      const res = await fetch(apiBase + "/upload-audio", { method:"POST", body: fd });
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      const j = await res.json();
-      if (j.ok){
-        msg(`✅ Uploaded. You can close this and return to the Falowen app.<br><small>ID: ${j.id}</small>`, "ok");
-      } else {
-        msg("Upload failed: " + (j.error || "unknown"), "err");
-      }
-    } catch(e){
-      msg("Upload error: " + e.message, "err");
-    } finally {
-      btnUpload.disabled = false;
-    }
-  }
-
-  if (!hasRecorder){ iosFallback.style.display = "block"; }
-  btnStart.addEventListener("click", startRec);
-  btnStop .addEventListener("click", stopRec);
-  btnPick .addEventListener("click", pickFile);
-  btnUpload.addEventListener("click", upload);
-})();
-</script>
-</body>
-</html>
+<!-- Wrap your main recorder UI so we can hide/show -->
+<div id="app" style="display:none;">
+  <!-- your existing recorder controls go here -->
+</div>
