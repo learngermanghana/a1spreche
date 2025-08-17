@@ -1,60 +1,160 @@
-<script>
-function getParam(k){
-  const m = new URLSearchParams(location.search).get(k);
-  return (m || '').trim();
-}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Falowen — Recorder</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;background:#f6f8fb;color:#0f172a}
+    .wrap{max-width:720px;margin:18px auto;padding:16px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px 16px 20px 16px;box-shadow:0 6px 18px rgba(0,0,0,.05)}
+    h1{font-size:20px;margin:0 0 8px}
+    label{font-weight:600;font-size:14px}
+    input[type=text]{width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:15px}
+    button{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;font-weight:600}
+    .btn{background:#2563eb;color:#fff}
+    .btn-secondary{background:#0ea5e9;color:#fff}
+    .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+    .row > *{flex:1 1 220px}
+    .muted{color:#64748b;font-size:13px;margin-top:6px}
+    .err{background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:10px;padding:10px;margin-top:10px}
+    .ok {background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;border-radius:10px;padding:10px;margin-top:10px}
+    audio{width:100%;margin-top:10px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>🎙️ Falowen — Voice Recorder</h1>
+      <p class="muted">Record your speaking sample here. When you upload, we’ll attach your student code automatically.</p>
 
-let studentCode = getParam('code') || (localStorage.getItem('falowen_code') || '').trim();
+      <div class="row">
+        <div>
+          <label for="code">Student Code</label>
+          <input id="code" type="text" placeholder="e.g., felixa1" />
+          <div class="muted">If you came from the app, this may be prefilled.</div>
+        </div>
+        <div style="align-self:flex-end">
+          <button class="btn-secondary" id="saveCodeBtn">Save Code</button>
+        </div>
+      </div>
 
-function ensureCodeBeforeUse() {
-  const gate = document.getElementById('code-gate');
-  const main = document.getElementById('app');
-  if (!studentCode) {
-    gate.style.display = 'block';
-    main.style.display = 'none';
-  } else {
-    gate.style.display = 'none';
-    main.style.display = 'block';
-  }
-}
+      <div class="row" style="margin-top:14px">
+        <div>
+          <button class="btn" id="recBtn">Start Recording</button>
+        </div>
+        <div>
+          <button class="btn-secondary" id="uploadBtn" disabled>Upload</button>
+        </div>
+      </div>
 
-function saveCode() {
-  const inp = document.getElementById('code-input');
-  const v = (inp.value || '').trim().toLowerCase();
-  if (!v) { alert('Please enter your student code.'); return; }
-  studentCode = v;
-  localStorage.setItem('falowen_code', v);
-  ensureCodeBeforeUse();
-}
+      <audio id="player" controls></audio>
 
-// Call once on load
-document.addEventListener('DOMContentLoaded', ensureCodeBeforeUse);
+      <div id="msg"></div>
 
-// When you POST the audio, ALWAYS include the code:
-async function uploadBlob(blob) {
-  if (!studentCode) { alert('Missing student code.'); return; }
+      <p class="muted" style="margin-top:10px">
+        Tips: Use Chrome on Android. If the mic prompt doesn’t show, check Site Settings → Microphone.
+      </p>
+    </div>
+  </div>
 
-  const fd = new FormData();
-  fd.append('audio', blob, 'recording.webm');
-  fd.append('code', studentCode); // <— important
+  <script>
+    // ----- student code handling -----
+    const codeInput = document.getElementById('code');
+    const saveBtn   = document.getElementById('saveCodeBtn');
+    const params    = new URLSearchParams(location.search);
+    const msg       = document.getElementById('msg');
 
-  // example endpoint; keep yours as-is
-  const r = await fetch('/api/upload', { method: 'POST', body: fd });
-  if (!r.ok) { alert('Upload failed.'); return; }
-  const js = await r.json().catch(()=>({}));
-  // show result/redirect/etc.
-}
-</script>
+    function setMsg(html, cls){ msg.className = cls || ''; msg.innerHTML = html || ''; }
 
-<!-- Add this small gate UI somewhere near the top of <body> -->
-<div id="code-gate" style="display:none; max-width:680px; margin:16px auto; padding:12px; border:1px solid #e5e7eb; border-radius:10px;">
-  <h3 style="margin:0 0 8px 0;">Enter your student code</h3>
-  <p style="margin:0 0 8px 0;">We couldn’t find <code>?code=...</code> in the link. Please enter it once to continue.</p>
-  <input id="code-input" placeholder="e.g., felixa1" style="padding:8px; width:260px;">
-  <button onclick="saveCode()" style="padding:8px 12px; margin-left:8px;">Save</button>
-</div>
+    // Prefill from ?code= or localStorage
+    (function initCode(){
+      const fromQS = (params.get('code') || '').trim().toLowerCase().replace(/\s+/g,'');
+      const fromLS = (localStorage.getItem('falowen_code') || '').trim();
+      if (fromQS) {
+        codeInput.value = fromQS;
+        localStorage.setItem('falowen_code', fromQS);
+      } else if (fromLS) {
+        codeInput.value = fromLS;
+      }
+    })();
 
-<!-- Wrap your main recorder UI so we can hide/show -->
-<div id="app" style="display:none;">
-  <!-- your existing recorder controls go here -->
-</div>
+    saveBtn.onclick = () => {
+      const v = (codeInput.value || '').trim().toLowerCase().replace(/\s+/g,'');
+      if (!v) return setMsg('Please enter a valid student code.', 'err');
+      localStorage.setItem('falowen_code', v);
+      setMsg('Saved ✔️ Next time this will be prefilled.', 'ok');
+    };
+
+    // ----- recording -----
+    const recBtn   = document.getElementById('recBtn');
+    const uploadBtn= document.getElementById('uploadBtn');
+    const player   = document.getElementById('player');
+
+    let mediaRecorder = null;
+    let chunks = [];
+    let blob = null;
+
+    recBtn.onclick = async () => {
+      setMsg('', '');
+      if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+        // start
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          chunks = [];
+          mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+          mediaRecorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+          mediaRecorder.onstop = () => {
+            blob = new Blob(chunks, { type: 'audio/webm' });
+            player.src = URL.createObjectURL(blob);
+            uploadBtn.disabled = false;
+          };
+          mediaRecorder.start();
+          recBtn.textContent = 'Stop Recording';
+          uploadBtn.disabled = true;
+          setMsg('Recording… speak now. Click “Stop Recording” when done (max ~60s).', 'muted');
+          setTimeout(() => {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+              mediaRecorder.stop();
+              recBtn.textContent = 'Start Recording';
+              setMsg('Stopped automatically at 60s.', 'ok');
+            }
+          }, 60000);
+        } catch (e) {
+          setMsg('Microphone error: ' + e.message, 'err');
+        }
+      } else {
+        // stop
+        mediaRecorder.stop();
+        recBtn.textContent = 'Start Recording';
+        setMsg('Recording stopped. You can play it back or upload.', 'ok');
+      }
+    };
+
+    // ----- upload -----
+    uploadBtn.onclick = async () => {
+      setMsg('', '');
+      const code = (codeInput.value || localStorage.getItem('falowen_code') || '').trim().toLowerCase().replace(/\s+/g,'');
+      if (!code) return setMsg('Please enter your student code and click “Save Code” first.', 'err');
+      if (!blob)  return setMsg('No recording found. Please record first.', 'err');
+
+      // NOTE: You must deploy a Cloud Function named "api" that handles POST /api/upload
+      // and accepts multipart form-data with fields: file, code
+      const API = '/api/upload';
+
+      const form = new FormData();
+      form.append('code', code);
+      form.append('file', blob, `speech_${Date.now()}.webm`);
+
+      try {
+        const res = await fetch(API, { method: 'POST', body: form });
+        if (!res.ok) throw new Error('Upload failed: HTTP ' + res.status);
+        const j = await res.json().catch(()=> ({}));
+        setMsg('Upload complete ✔️ You can return to the app for results.', 'ok');
+      } catch (e) {
+        setMsg('Upload error: ' + e.message + '<br/>Backend not deployed? Ensure Functions route /api/upload exists.', 'err');
+      }
+    };
+  </script>
+</body>
+</html>
