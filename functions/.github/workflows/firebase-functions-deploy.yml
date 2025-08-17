@@ -1,0 +1,33 @@
+name: Deploy Cloud Functions
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'functions/**'
+      - '.github/workflows/firebase-functions-deploy.yml'
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install functions deps
+        working-directory: functions
+        run: npm ci
+
+      - name: Deploy Functions
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud.json
+        run: |
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_LANGUAGE_ACADEMY_3E1DE }}' > "$GOOGLE_APPLICATION_CREDENTIALS"
+          npx --yes firebase-tools deploy --only functions --project language-academy-3e1de
