@@ -1,0 +1,31 @@
+name: Deploy Cloud Functions
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "functions/**"
+      - ".github/workflows/firebase-functions-deploy.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node 18 for functions
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install functions deps
+        working-directory: functions
+        run: npm install
+
+      - name: Deploy Functions
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: "${{ secrets.GITHUB_TOKEN }}"
+          firebaseServiceAccount: "${{ secrets.FIREBASE_SERVICE_ACCOUNT_LANGUAGE_ACADEMY_3E1DE }}"
+          channelId: live
+          projectId: language-academy-3e1de
