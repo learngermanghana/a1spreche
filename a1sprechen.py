@@ -4467,8 +4467,8 @@ def autosave_maybe(
     Also updates local 'last saved' markers to avoid redundant writes.
 
     Args:
-        code: Student code (document id in draft_answers).
-        lesson_field_key: Field name in the draft doc (e.g., 'draft_A1_day3_chX').
+        code: Student code (document id).
+        lesson_field_key: Field name / draft key (e.g., 'draft_A1_day3_chX').
         text: Current textarea content.
         min_secs: Minimum seconds between saves for small changes.
         min_delta: Minimum character count difference to treat as 'big change'.
@@ -4648,37 +4648,102 @@ def is_locked(level: str, code: str, lesson_key: str) -> bool:
     except Exception:
         return False
 
-# ---- DRAFTS: content + timestamp (server-side) ----
+# ---- Drafts v2 path helpers (user-rooted) ----
+def _extract_level_and_lesson(field_key: str) -> tuple[str, str]:
+    """
+    From a field_key like 'draft_A2_day3_chX', return (level, lesson_key).
+    If field_key doesn't start with 'draft_', treat the whole thing as lesson_key.
+    """
+    lesson_key = field_key[6:] if field_key.startswith("draft_") else field_key
+    level = (lesson_key.split("_day")[0] or "").upper()
+    return level, lesson_key
+
+def _draft_doc_ref(level: str, lesson_key: str, code: str):
+    """
+    New user-rooted location:
+      drafts_v2/{code}/lessons/{lesson_key}
+    (We keep 'level' in signature for compatibility; not used in the path.)
+    """
+    return (db.collection("drafts_v2")
+              .document(code)
+              .collection("lessons")
+              .document(lesson_key))
+
+# ---- DRAFTS (server-side) — now stored separately from submissions ----
 def save_draft_to_db(code: str, field_key: str, text: str) -> None:
     """
-    Save the draft body AND server timestamp into draft_answers/{code}.
-    field_key is your per-lesson field name (e.g., 'draft_A1_day3_chX').
+    Save the draft to:
+      drafts_v2/{code}/lessons/{lesson_key}
+    Includes metadata (level, lesson_key, student_code).
     """
     if text is None:
         text = ""
+    level, lesson_key = _extract_level_and_lesson(field_key)
+    ref = _draft_doc_ref(level, lesson_key, code)
     payload = {
-        field_key: text,
-        f"{field_key}__updated_at": firestore.SERVER_TIMESTAMP,
+        "text": text,
+        "updated_at": firestore.SERVER_TIMESTAMP,
+        "level": level,
+        "lesson_key": lesson_key,
+        "student_code": code,
     }
-    db.collection("draft_answers").document(code).set(payload, merge=True)
+    ref.set(payload, merge=True)
+    # Optional: uncomment to see where it saved
+    # st.caption(f"Draft saved to: {ref.path}")
 
 def load_draft_from_db(code: str, field_key: str) -> str:
-    """Return the draft body for field_key from draft_answers/{code} ('' if missing)."""
+    """Return the draft text (prefers new path; falls back to legacy paths)."""
+    text, _ = load_draft_meta_from_db(code, field_key)
+    return text or ""
+
+def load_draft_meta_from_db(code: str, field_key: str) -> tuple[str, datetime | None]:
+    """
+    Return (text, updated_at_or_None).
+    Search order:
+      1) drafts_v2/{code}/lessons/{lesson_key}
+      2) (compat) drafts_v2/{level}/lessons/{lesson_key}/users/{code}
+      3) (legacy) draft_answers/{code} (field_key & field_key__updated_at)
+    """
+    level, lesson_key = _extract_level_and_lesson(field_key)
+
+    # 1) New user-rooted path
     try:
-        doc = db.collection("draft_answers").document(code).get()
-        if doc.exists:
-            data = doc.to_dict() or {}
-            return data.get(field_key, "")
+        snap = _draft_doc_ref(level, lesson_key, code).get()
+        if snap.exists:
+            data = snap.to_dict() or {}
+            return data.get("text", ""), data.get("updated_at")
     except Exception:
         pass
-    return ""
+
+    # 2) Compatibility: old level-rooted nested path (if you wrote there earlier)
+    try:
+        comp = (db.collection("drafts_v2").document(level)
+                  .collection("lessons").document(lesson_key)
+                  .collection("users").document(code).get())
+        if comp.exists:
+            data = comp.to_dict() or {}
+            return data.get("text", ""), data.get("updated_at")
+    except Exception:
+        pass
+
+    # 3) Legacy flat doc
+    try:
+        legacy_doc = db.collection("draft_answers").document(code).get()
+        if legacy_doc.exists:
+            data = legacy_doc.to_dict() or {}
+            return data.get(field_key, ""), data.get(f"{field_key}__updated_at")
+    except Exception:
+        pass
+
+    return "", None
+
 
 def resolve_current_content(level: str, code: str, lesson_key: str, draft_key: str) -> dict:
     """
     Decide what the editor should show for this lesson.
     Priority:
       1) Submitted answer (locked, read-only)
-      2) Saved draft from Firestore (editable)
+      2) Saved draft (from drafts_v2 or legacy)
       3) Empty
     """
     latest = fetch_latest(level, code, lesson_key)
@@ -4708,20 +4773,6 @@ def resolve_current_content(level: str, code: str, lesson_key: str, draft_key: s
         "locked": False,
         "source": "empty",
     }
-
-def load_draft_meta_from_db(code: str, field_key: str) -> tuple[str, datetime | None]:
-    """
-    Return (text, updated_at_or_None) for the given field_key.
-    Useful for a '↻ Reload last saved draft' button.
-    """
-    try:
-        doc = db.collection("draft_answers").document(code).get()
-        if doc.exists:
-            data = doc.to_dict() or {}
-            return data.get(field_key, ""), data.get(f"{field_key}__updated_at")
-    except Exception:
-        pass
-    return "", None
 
 def fetch_latest(level: str, code: str, lesson_key: str) -> dict | None:
     """Fetch the most recent submission for this user/lesson (or None)."""
@@ -4758,13 +4809,13 @@ def post_message(level: str, code: str, name: str, text: str, reply_to: str | No
         "reply_to": reply_to,
     })
 
-
 RESOURCE_LABELS = {
     'video': '🎥 Video',
     'grammarbook_link': '📘 Grammar',
     'workbook_link': '📒 Workbook',
     'extra_resources': '🔗 Extra'
 }
+
 
 
 # ---- Firestore Helpers ----
@@ -5179,11 +5230,23 @@ if tab == "My Course":
                 st.session_state[locked_key] = True
             locked = db_locked or st.session_state.get(locked_key, False)
 
-               # ---------- Decide what to show (guarded hydration) ----------
+            # ---------- save previous lesson on switch + force hydrate for this one ----------
+            prev_active_key = st.session_state.get("__active_draft_key")
+            if prev_active_key and prev_active_key != draft_key:
+                try:
+                    prev_text = st.session_state.get(prev_active_key, "")
+                    save_draft_to_db(code, prev_active_key, prev_text)
+                except Exception:
+                    pass  # never block UI
+                # ensure the newly selected lesson re-hydrates from cloud
+                st.session_state.pop(f"{draft_key}__hydrated_v2", None)
+            st.session_state["__active_draft_key"] = draft_key
+
+            # ---------- Decide what to show (guarded hydration) ----------
             pending_key      = f"{draft_key}__pending_reload"
             pending_text_key = f"{draft_key}__reload_text"
             pending_ts_key   = f"{draft_key}__reload_ts"
-            hydrated_key     = f"{draft_key}__hydrated_v2"  # new: only hydrate once per lesson
+            hydrated_key     = f"{draft_key}__hydrated_v2"  # only hydrate once per lesson
 
             last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
 
@@ -5244,15 +5307,24 @@ if tab == "My Course":
 
                         st.session_state[hydrated_key] = True
 
-                        # Friendly notice
                         if cloud_text:
                             when = f"{cloud_ts.strftime('%Y-%m-%d %H:%M')} UTC" if cloud_ts else ""
                             st.info(f"💾 Restored your saved draft. {('Last saved ' + when) if when else ''}")
                         else:
                             st.caption("Start typing your answer.")
-                    # else: already hydrated this lesson → DO NOTHING (preserve in-progress typing)
+                    else:
+                        # If 'hydrated' but local is empty, pull cloud once
+                        if not st.session_state.get(draft_key, "") and not locked:
+                            ctext, cts = load_draft_meta_from_db(code, draft_key)
+                            if ctext:
+                                st.session_state[draft_key]      = ctext
+                                st.session_state[last_val_key]   = ctext
+                                st.session_state[last_ts_key]    = time.time()
+                                st.session_state[saved_flag_key] = True
+                                st.session_state[saved_at_key]   = (cts or datetime.now(timezone.utc))
 
             st.subheader("✍️ Your Answer")
+
 
             # ---------- Editor (save on blur + debounce) ----------
             st.text_area(
@@ -5265,9 +5337,11 @@ if tab == "My Course":
                 help="Autosaves on blur and in the background while you type."
             )
 
-            # Debounced autosave (kept so small ongoing edits also persist)
+            # Debounced autosave (safe so empty first-render won't wipe a non-empty cloud draft)
             current_text = st.session_state.get(draft_key, "")
-            autosave_maybe(code, draft_key, current_text, min_secs=2.0, min_delta=12, locked=locked)
+            last_val = st.session_state.get(last_val_key, "")
+            if not locked and (current_text.strip() or not last_val.strip()):
+                autosave_maybe(code, draft_key, current_text, min_secs=2.0, min_delta=12, locked=locked)
 
             # ---------- Manual save + last saved time + safe reload ----------
             csave1, csave2, csave3 = st.columns([1, 1, 1])
@@ -5358,31 +5432,67 @@ if tab == "My Course":
                 can_submit = (confirm_final and confirm_lock and (not locked))
 
                 if st.button("✅ Confirm & Submit", type="primary", disabled=not can_submit):
-                    if not acquire_lock(student_level, code, lesson_key):
-                        st.session_state[locked_key] = True
-                        st.warning("You have already submitted this assignment. It is locked.")
-                    else:
-                        posts_ref = db.collection("submissions").document(student_level).collection("posts")
-                        now = datetime.now(timezone.utc)
-                        payload = {
-                            "student_code": code,
-                            "student_name": name or "Student",
-                            "level": student_level,
-                            "day": info["day"],
-                            "chapter": chapter_name,
-                            "lesson_key": lesson_key,
-                            "answer": st.session_state.get(draft_key, "").strip(),
-                            "status": "submitted",
-                            "created_at": now,
-                            "updated_at": now,
-                            "version": 1,
-                        }
-                        _, ref = posts_ref.add(payload)
-                        short_ref = f"{ref.id[:8].upper()}-{info['day']}"
-                        st.session_state[locked_key] = True
-                        st.success("Submitted! Your work has been sent to your tutor.")
-                        st.caption("You’ll be **emailed when it’s marked**. Check **Results & Resources** for your score and feedback.")
+                    # 1) Try to acquire the lock first
+                    got_lock = acquire_lock(student_level, code, lesson_key)
 
+                    # If lock exists already, check whether a submission exists; if yes, reflect lock and rerun.
+                    if not got_lock:
+                        if has_existing_submission(student_level, code, lesson_key):
+                            st.session_state[locked_key] = True
+                            st.warning("You have already submitted this assignment. It is locked.")
+                            st.rerun()
+                        else:
+                            st.info("Found an old lock without a submission — recovering and submitting now…")
+
+                    posts_ref = db.collection("submissions").document(student_level).collection("posts")
+
+                    # 2) Pre-create doc (avoids add() tuple-order mismatch)
+                    doc_ref = posts_ref.document()  # auto-ID now available
+                    short_ref = f"{doc_ref.id[:8].upper()}-{info['day']}"
+
+                    payload = {
+                        "student_code": code,
+                        "student_name": name or "Student",
+                        "level": student_level,
+                        "day": info["day"],
+                        "chapter": chapter_name,
+                        "lesson_key": lesson_key,
+                        "answer": (st.session_state.get(draft_key, "") or "").strip(),
+                        "status": "submitted",
+                        "receipt": short_ref,  # persist receipt immediately
+                        "created_at": firestore.SERVER_TIMESTAMP,
+                        "updated_at": firestore.SERVER_TIMESTAMP,
+                        "version": 1,
+                    }
+
+                    saved_ok = False
+                    try:
+                        doc_ref.set(payload)  # write the submission
+                        saved_ok = True
+                        st.caption(f"Saved to: `{doc_ref.path}`")  # optional debug
+                    except Exception as e:
+                        st.error(f"Could not save submission: {e}")
+
+                    if saved_ok:
+                        # 3) Success: lock UI, remember receipt, archive draft, notify, rerun
+                        st.session_state[locked_key] = True
+                        st.session_state[f"{lesson_key}__receipt"] = short_ref
+
+                        st.success("Submitted! Your work has been sent to your tutor.")
+                        st.caption(
+                            f"Receipt: `{short_ref}` • You’ll be emailed when it’s marked. "
+                            "See **Results & Resources** for scores & feedback."
+                        )
+
+                        # Archive the draft so it won't rehydrate again (drafts_v2)
+                        try:
+                            _draft_doc_ref(student_level, lesson_key, code).set(
+                                {"status": "submitted", "archived_at": firestore.SERVER_TIMESTAMP}, merge=True
+                            )
+                        except Exception:
+                            pass
+
+                        # Notify Slack (best-effort)
                         webhook = get_slack_webhook()
                         if webhook:
                             notify_slack_submission(
@@ -5396,27 +5506,16 @@ if tab == "My Course":
                                 preview=st.session_state.get(draft_key, "")
                             )
 
-            with col2:
-                st.markdown("#### ❓ Ask the Teacher")
-                if st.button("Open Classroom Q&A", key=f"open_qna_{lesson_key}", disabled=locked):
-                    st.session_state["__go_classroom"] = True
-                    st.rerun()
+                        # Rerun so hydration path immediately shows locked view
+                        st.rerun()
+                    else:
+                        # 4) Failure: remove the lock doc so student can retry cleanly
+                        try:
+                            db.collection("submission_locks").document(lock_id(student_level, code, lesson_key)).delete()
+                        except Exception:
+                            pass
+                        st.warning("Submission not saved. Please fix the issue and try again.")
 
-            with col3:
-                st.markdown("#### 📝 Add Notes")
-                if st.button("Open Notes", key=f"open_notes_{lesson_key}", disabled=locked):
-                    st.session_state["__go_notes"] = True
-                    st.rerun()
-
-            st.divider()
-            latest = fetch_latest(student_level, code, lesson_key)
-            if latest:
-                ts = latest.get('updated_at')
-                when = f"{ts.strftime('%Y-%m-%d %H:%M')} UTC" if ts else ""
-                st.markdown(f"**Status:** `{latest.get('status','submitted')}`  {'·  **Updated:** ' + when if when else ''}")
-                st.caption("You’ll receive an **email** when it’s marked. See **Results & Resources** for scores & feedback.")
-            else:
-                st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
 
 
     if cb_subtab == "🧑‍🏫 Classroom":
