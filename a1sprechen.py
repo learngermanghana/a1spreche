@@ -1290,7 +1290,7 @@ def login_page():
 
     def render_reviews():
         REVIEWS = [
-            {"quote": "Falowen helped me pass A2 in 20 weeks. The assignments and feedback were spot on.", "author": "Ama — Accra, Ghana 🇬🇭", "level": "A2"},
+            {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.", "author": "Ama — Accra, Ghana 🇬🇭", "level": "A2"},
             {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.", "author": "Tunde — Lagos, Nigeria 🇳🇬", "level": "B1"},
             {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.", "author": "Mariama — Freetown, Sierra Leone 🇸🇱", "level": "A1"},
             {"quote": "I like the locked submissions and the clean Results tab.", "author": "Kwaku — Kumasi, Ghana 🇬🇭", "level": "B2"},
@@ -1785,9 +1785,9 @@ def inject_notice_css():
 # =========================================================
 announcements = [
     {
-        "title": "Save Assignment Drafts",
-        "body":  "Drafts persist across refresh/devices. Use “↻ Reload last saved draft” in Submit to pull the server copy.",
-        "tag":   "Update"
+        "title": "Download Draft (TXT) Backup",
+        "body":  "In Submit, use “⬇️ Download draft (TXT)” to save a clean backup with level, day, chapter, and timestamp.",
+        "tag":   "New"
     },
     {
         "title": "Submit Flow & Locking",
@@ -1803,11 +1803,6 @@ announcements = [
         "title": "Lesson Links — One Download",
         "body":  "Grab all lesson resources as a single TXT file under **Your Work & Links**. Videos are embedded once; no duplicates.",
         "tag":   "New"
-    },
-    {
-        "title": "Video of the Day + Translator",
-        "body":  "Each level gets a rotating ‘Video of the Day’ in Supporting Materials, plus quick links to DeepL and Google Translate.",
-        "tag":   "Support"
     },
     {
         "title": "Sprechen: Instant Pronunciation Feedback",
@@ -4356,10 +4351,12 @@ def load_level_schedules():
         "B2": get_b2_schedule(),
         "C1": get_c1_schedule(),
     }
+
 # -------------------------
 # UI helpers
 # -------------------------
-def render_assignment_reminder():
+def render_assignment_reminder() -> None:
+    """Show a yellow assignment reminder box."""
     st.markdown(
         '''
         <div style="
@@ -4385,11 +4382,13 @@ def render_assignment_reminder():
         unsafe_allow_html=True
     )
 
-def render_link(label, url):
+def render_link(label: str, url: str) -> None:
+    """Render a bullet link."""
     st.markdown(f"- [{label}]({url})")
 
 @st.cache_data(ttl=86400)
-def build_wa_message(name, code, level, day, chapter, answer):
+def build_wa_message(name: str, code: str, level: str, day: int, chapter: str, answer: str) -> str:
+    """Build a WhatsApp-friendly submission message."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     body = (answer or "").strip()
     return (
@@ -4403,7 +4402,8 @@ def build_wa_message(name, code, level, day, chapter, answer):
         f"Answer: {body if body else '[See attached file/photo]'}"
     )
 
-def highlight_terms(text, terms):
+def highlight_terms(text: str, terms: list[str]) -> str:
+    """Wrap each term in <span> to highlight matches inside text."""
     if not text:
         return ""
     for term in terms:
@@ -4415,7 +4415,8 @@ def highlight_terms(text, terms):
         )
     return text
 
-def filter_matches(lesson, terms):
+def filter_matches(lesson: dict, terms: list[str]) -> bool:
+    """True if any search term appears in key lesson fields."""
     searchable = (
         str(lesson.get('topic', '')).lower() +
         str(lesson.get('chapter', '')).lower() +
@@ -4426,8 +4427,9 @@ def filter_matches(lesson, terms):
     )
     return any(term in searchable for term in terms)
 
-# ---- Draft autosave helpers (debounced) ----
-def _draft_state_keys(draft_key: str):
+# ---- Draft autosave helpers (on-blur + debounced) ----
+def _draft_state_keys(draft_key: str) -> tuple[str, str, str, str]:
+    """Return the session-state keys used to track last save info for a draft."""
     return (
         f"{draft_key}__last_val",
         f"{draft_key}__last_ts",
@@ -4435,15 +4437,46 @@ def _draft_state_keys(draft_key: str):
         f"{draft_key}_saved_at"
     )
 
-def autosave_maybe(code: str, lesson_field_key: str, text: str,
-                   *, min_secs: float = 5.0, min_delta: int = 30, locked: bool = False):
+def save_now(draft_key: str, code: str) -> None:
     """
-    Debounced autosave:
-      - Save only if content changed AND enough time passed OR change is large.
-      - Stores last saved value & time in session state to avoid redundant writes.
+    Immediate save invoked by the text area's on_change hook.
+    Guarantees a Firestore write on blur or explicit change.
+    """
+    text = st.session_state.get(draft_key, "") or ""
+    save_draft_to_db(code, draft_key, text)
+
+    # Update local 'last saved' markers so the UI shows the correct time.
+    last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
+    st.session_state[last_val_key]   = text
+    st.session_state[last_ts_key]    = time.time()
+    st.session_state[saved_flag_key] = True
+    st.session_state[saved_at_key]   = datetime.now(timezone.utc)
+
+def autosave_maybe(
+    code: str,
+    lesson_field_key: str,
+    text: str,
+    *,
+    min_secs: float = 5.0,
+    min_delta: int = 30,
+    locked: bool = False
+) -> None:
+    """
+    Debounced background autosave.
+    Saves only if content changed AND (enough time passed OR change is large).
+    Also updates local 'last saved' markers to avoid redundant writes.
+
+    Args:
+        code: Student code (document id in draft_answers).
+        lesson_field_key: Field name in the draft doc (e.g., 'draft_A1_day3_chX').
+        text: Current textarea content.
+        min_secs: Minimum seconds between saves for small changes.
+        min_delta: Minimum character count difference to treat as 'big change'.
+        locked: If True, do nothing (submitted/locked state).
     """
     if locked:
         return
+
     last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(lesson_field_key)
     last_val = st.session_state.get(last_val_key, "")
     last_ts  = float(st.session_state.get(last_ts_key, 0.0))
@@ -4460,7 +4493,8 @@ def autosave_maybe(code: str, lesson_field_key: str, text: str,
         st.session_state[saved_flag_key] = True
         st.session_state[saved_at_key]   = datetime.now(timezone.utc)
 
-def render_section(day_info, key, title, icon):
+def render_section(day_info: dict, key: str, title: str, icon: str) -> None:
+    """Render a lesson section (supports list or single dict)."""
     content = day_info.get(key)
     if not content:
         return
@@ -4491,7 +4525,7 @@ def render_section(day_info, key, title, icon):
 SLACK_DEBUG = (os.getenv("SLACK_DEBUG", "0") == "1")
 
 def _slack_url() -> str:
-    # 1) ENV var  2) optional fallback to st.secrets.slack.webhook_url
+    """Resolve Slack webhook URL (ENV first, then st.secrets)."""
     url = (os.getenv("SLACK_WEBHOOK_URL") or "").strip()
     if not url:
         try:
@@ -4500,13 +4534,14 @@ def _slack_url() -> str:
             url = ""
     return url
 
-def get_slack_webhook() -> str:  # back-compat alias
+def get_slack_webhook() -> str:
+    """Back-compat alias to _slack_url()."""
     return _slack_url()
 
-def notify_slack(text: str):
+def notify_slack(text: str) -> tuple[bool, str]:
     """
-    Returns (ok: bool, info: str). Uses one webhook for all events.
-    Set SLACK_DEBUG=1 in Render to see failure details in-app (admins only).
+    Post a plain text message to the Slack webhook.
+    Returns (ok, info). If SLACK_DEBUG=1, more verbose info is printed in logs.
     """
     url = _slack_url()
     if not url:
@@ -4518,8 +4553,18 @@ def notify_slack(text: str):
     except Exception as e:
         return False, str(e)
 
-def notify_slack_submission(webhook_url: str, *, student_name: str, student_code: str,
-                            level: str, day: int, chapter: str, receipt: str, preview: str):
+def notify_slack_submission(
+    webhook_url: str,
+    *,
+    student_name: str,
+    student_code: str,
+    level: str,
+    day: int,
+    chapter: str,
+    receipt: str,
+    preview: str
+) -> None:
+    """Send a compact submission notification to Slack (best-effort)."""
     if not webhook_url:
         return
     text = (
@@ -4538,15 +4583,17 @@ def notify_slack_submission(webhook_url: str, *, student_name: str, student_code
 # Firestore helpers (uses your existing `db` and `from firebase_admin import firestore`)
 # -------------------------
 def lesson_key_build(level: str, day: int, chapter: str) -> str:
-    """Unique key for this lesson (safe for reuse in docs)."""
+    """Unique, safe key for this lesson (reusable in docs/fields)."""
     safe_ch = re.sub(r'[^A-Za-z0-9_\-]+', '_', str(chapter))
     return f"{level}_day{day}_ch{safe_ch}"
 
 def lock_id(level: str, code: str, lesson_key: str) -> str:
+    """Stable document id for submission lock."""
     safe_code = re.sub(r'[^A-Za-z0-9_\-]+', '_', str(code))
     return f"{level}__{safe_code}__{lesson_key}"
 
 def has_existing_submission(level: str, code: str, lesson_key: str) -> bool:
+    """True if a submission exists for this (level, code, lesson_key)."""
     posts_ref = db.collection("submissions").document(level).collection("posts")
     try:
         q = (posts_ref.where("student_code", "==", code)
@@ -4578,7 +4625,6 @@ def acquire_lock(level: str, code: str, lesson_key: str) -> bool:
         return True
     except Exception:
         try:
-            # If it exists, it's locked; if not, create it
             exists = ref.get().exists
             if exists:
                 return False
@@ -4603,7 +4649,7 @@ def is_locked(level: str, code: str, lesson_key: str) -> bool:
         return False
 
 # ---- DRAFTS: content + timestamp (server-side) ----
-def save_draft_to_db(code: str, field_key: str, text: str):
+def save_draft_to_db(code: str, field_key: str, text: str) -> None:
     """
     Save the draft body AND server timestamp into draft_answers/{code}.
     field_key is your per-lesson field name (e.g., 'draft_A1_day3_chX').
@@ -4627,7 +4673,7 @@ def load_draft_from_db(code: str, field_key: str) -> str:
         pass
     return ""
 
-def resolve_current_content(level: str, code: str, lesson_key: str, draft_key: str):
+def resolve_current_content(level: str, code: str, lesson_key: str, draft_key: str) -> dict:
     """
     Decide what the editor should show for this lesson.
     Priority:
@@ -4663,9 +4709,7 @@ def resolve_current_content(level: str, code: str, lesson_key: str, draft_key: s
         "source": "empty",
     }
 
-
-
-def load_draft_meta_from_db(code: str, field_key: str):
+def load_draft_meta_from_db(code: str, field_key: str) -> tuple[str, datetime | None]:
     """
     Return (text, updated_at_or_None) for the given field_key.
     Useful for a '↻ Reload last saved draft' button.
@@ -4679,7 +4723,8 @@ def load_draft_meta_from_db(code: str, field_key: str):
         pass
     return "", None
 
-def fetch_latest(level: str, code: str, lesson_key: str):
+def fetch_latest(level: str, code: str, lesson_key: str) -> dict | None:
+    """Fetch the most recent submission for this user/lesson (or None)."""
     posts_ref = db.collection("submissions").document(level).collection("posts")
     try:
         docs = (posts_ref.where("student_code", "==", code)
@@ -4699,11 +4744,11 @@ def fetch_latest(level: str, code: str, lesson_key: str):
             return None
     return None
 
-
 # -------------------------
 # Misc existing helper preserved
 # -------------------------
-def post_message(level, code, name, text, reply_to=None):
+def post_message(level: str, code: str, name: str, text: str, reply_to: str | None = None) -> None:
+    """Post a message to the class board."""
     posts_ref = db.collection("class_board").document(level).collection("posts")
     posts_ref.add({
         "student_code": code,
@@ -4712,6 +4757,7 @@ def post_message(level, code, name, text, reply_to=None):
         "timestamp": datetime.utcnow(),
         "reply_to": reply_to,
     })
+
 
 RESOURCE_LABELS = {
     'video': '🎥 Video',
@@ -4783,7 +4829,7 @@ if tab == "My Course":
     )
 
 
-    # === COURSE BOOK SUBTAB (mini-tabs inside) ===
+       # === COURSE BOOK SUBTAB (mini-tabs inside) ===
     if cb_subtab == "📘 Course Book":
         from datetime import date, timedelta  # needed inside this branch
 
@@ -4805,10 +4851,15 @@ if tab == "My Course":
         )
         st.divider()
 
-        # ---- Load schedule & search ----
+        # ---- Load schedule (normalized) ----
+        level_key = (student_level or "A1").strip().upper()
         schedules = load_level_schedules()
-        schedule = schedules.get(student_level, schedules.get("A1", []))
+        schedule = schedules.get(level_key, schedules.get("A1", []))
+        if not schedule:
+            st.warning(f"No lessons found for level **{level_key}**.")
+            st.stop()
 
+        # ---- Search ----
         query = st.text_input("🔍 Search for topic, chapter, grammar, day, or anything…")
         search_terms = [q for q in query.strip().lower().split() if q] if query else []
 
@@ -4854,7 +4905,6 @@ if tab == "My Course":
 
         st.divider()
 
-
         # ---------- mini-tabs inside Course Book ----------
         t_overview, t_worklinks, t_tv, t_submit = st.tabs(
             ["Overview", "Assignment", "Support Materials", "Submit"]
@@ -4864,7 +4914,7 @@ if tab == "My Course":
         with t_overview:
             with st.expander("📚 Course Book & Study Recommendations", expanded=True):
                 LEVEL_TIME = {"A1": 15, "A2": 25, "B1": 30, "B2": 40, "C1": 45}
-                rec_time = LEVEL_TIME.get(student_level, 20)
+                rec_time = LEVEL_TIME.get(level_key, 20)
                 st.info(f"⏱️ **Recommended:** Invest about {rec_time} minutes to complete this lesson fully.")
 
                 start_str = student_row.get("ContractStart", "")
@@ -4893,7 +4943,7 @@ if tab == "My Course":
                     with content:
                         st.warning("❓ Start date missing or invalid. Please update your contract start date.")
 
-        # YOUR WORK & LINKS (Activities + Resources together) — no duplicate videos, links download only
+        # ASSIGNMENT (activities + resources; tolerant across A1–C1)
         with t_worklinks:
             from urllib.parse import urlsplit, parse_qs, urlparse
             import io, json
@@ -4935,20 +4985,27 @@ if tab == "My Course":
                 except Exception:
                     return str(u).strip().lower()
 
-            seen_videos = set()
+            def pick_sections(day_info: dict):
+                """Find any section keys present for this lesson across levels."""
+                candidates = [
+                    ("lesen_hören",        "Lesen & Hören",        "📚"),
+                    ("lesen_hoeren",       "Lesen & Hören",        "📚"),
+                    ("lesenhoeren",        "Lesen & Hören",        "📚"),
+                    ("lesen",              "Lesen",                "📖"),
+                    ("hören",              "Hören",                "🎧"),
+                    ("hoeren",             "Hören",                "🎧"),
+                    ("schreiben_sprechen", "Schreiben & Sprechen", "📝"),
+                    ("sprechen_schreiben", "Schreiben & Sprechen", "📝"),
+                    ("sprechen",           "Sprechen",             "🗣️"),
+                    ("schreiben",          "Schreiben",            "✍️"),
+                ]
+                found = []
+                for key, title, icon in candidates:
+                    if day_info.get(key):
+                        found.append((key, title, icon))
+                return found
 
-            def _embed_video_once(url: str):
-                cid = _canon_video(url)
-                if not cid or cid in seen_videos:
-                    return
-                st.video(url)
-                st.markdown(f"[▶️ Watch on YouTube]({url})")
-                seen_videos.add(cid)
-
-            # ---------- YOUR WORK (shows activities; embeds each video at most once) ----------
-            st.markdown("### 🧪 Your Work")
-
-            def render_section_no_dupe(day_info, key, title, icon):
+            def render_section_any(day_info, key, title, icon, seen_videos: set):
                 content = day_info.get(key)
                 if not content:
                     return
@@ -4960,8 +5017,12 @@ if tab == "My Course":
                     # videos (embed once)
                     for maybe_vid in [part.get("video"), part.get("youtube_link")]:
                         if _is_url(maybe_vid):
-                            _embed_video_once(maybe_vid)
-                    # links/resources inline (so students can open them)
+                            cid = _canon_video(maybe_vid)
+                            if cid not in seen_videos:
+                                st.video(maybe_vid)
+                                st.markdown(f"[▶️ Watch on YouTube]({maybe_vid})")
+                                seen_videos.add(cid)
+                    # links/resources inline
                     if part.get('grammarbook_link'):
                         st.markdown(f"- [📘 Grammar Book (Notes)]({part['grammarbook_link']})")
                         st.markdown('<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.', unsafe_allow_html=True)
@@ -4973,8 +5034,36 @@ if tab == "My Course":
                         for ex in _as_list(extras):
                             st.markdown(f"- [🔗 Extra]({ex})")
 
-            render_section_no_dupe(info, "lesen_hören", "Lesen & Hören", "📚")
-            render_section_no_dupe(info, "schreiben_sprechen", "Schreiben & Sprechen", "📝")
+            # ---------- YOUR WORK (tolerant across levels; embeds each video at most once) ----------
+            st.markdown("### 🧪 Your Work")
+            seen_videos = set()
+            sections = pick_sections(info)
+
+            if sections:
+                for key, title, icon in sections:
+                    render_section_any(info, key, title, icon, seen_videos)
+            else:
+                # Fallback: show top-level resources even if there are no section keys
+                showed = False
+                if info.get("video"):
+                    cid = _canon_video(info["video"])
+                    if cid not in seen_videos:
+                        st.video(info["video"])
+                        st.markdown(f"[▶️ Watch on YouTube]({info['video']})")
+                        seen_videos.add(cid)
+                    showed = True
+                if info.get("grammarbook_link"):
+                    st.markdown(f"- [📘 Grammar Book (Notes)]({info['grammarbook_link']})")
+                    showed = True
+                if info.get("workbook_link"):
+                    st.markdown(f"- [📒 Workbook (Assignment)]({info['workbook_link']})")
+                    render_assignment_reminder(); showed = True
+                for ex in _as_list(info.get("extra_resources")):
+                    st.markdown(f"- [🔗 Extra]({ex})")
+                    showed = True
+
+                if not showed:
+                    st.info("No activity sections or links found for this lesson. Check the lesson data for A2/B1 key names.")
 
             # ---------- Build a clean downloadable bundle of links (no on-page repetition) ----------
             st.divider()
@@ -4994,9 +5083,9 @@ if tab == "My Course":
             _add("Workbook", info.get("workbook_link"))
             _add("Extras", info.get("extra_resources"))
 
-            # nested
-            for section in ("lesen_hören", "schreiben_sprechen"):
-                for part in _as_list(info.get(section)):
+            # nested: include whatever sections exist for this lesson
+            for section_key, _, _ in sections or []:
+                for part in _as_list(info.get(section_key)):
                     if not isinstance(part, dict):
                         continue
                     _add("Videos", [part.get("video"), part.get("youtube_link")])
@@ -5007,44 +5096,37 @@ if tab == "My Course":
             # dedupe + remove videos already embedded above
             for k in list(resources.keys()):
                 resources[k] = _dedup(resources[k])
-            resources["Videos"] = [v for v in resources["Videos"] if _canon_video(v) not in seen_videos]
 
             # If nothing remains after filtering, don't show anything
             if not any(resources.values()):
                 st.caption("All lesson links are already shown above. No extra links to download.")
             else:
                 # Prepare TXT bundle
-                lesson_header = f"Level: {student_level} | Day: {info.get('day','?')} | Chapter: {info.get('chapter','?')} | Topic: {info.get('topic','')}"
+                lesson_header = f"Level: {level_key} | Day: {info.get('day','?')} | Chapter: {info.get('chapter','?')} | Topic: {info.get('topic','')}"
                 parts_txt = [lesson_header, "-" * len(lesson_header)]
-                for title, key in [("📘 Grammar Notes", "Grammar Notes"),
-                                   ("📒 Workbook", "Workbook"),
-                                   ("🎥 Videos", "Videos"),
-                                   ("🔗 Extras", "Extras")]:
-                    if resources[key]:
+                for title, key_name in [("📘 Grammar Notes", "Grammar Notes"),
+                                        ("📒 Workbook", "Workbook"),
+                                        ("🎥 Videos", "Videos"),
+                                        ("🔗 Extras", "Extras")]:
+                    if resources[key_name]:
                         parts_txt.append(title)
-                        parts_txt.extend([f"- {u}" for u in resources[key]])
+                        parts_txt.extend([f"- {u}" for u in resources[key_name]])
                         parts_txt.append("")
                 bundle_txt = "\n".join(parts_txt).strip() + "\n"
 
-
-                # Download buttons (no on-page list)
                 cdl1, cdl2 = st.columns([1, 1])
                 with cdl1:
                     st.download_button(
                         "⬇️ Download lesson links (TXT)",
                         data=bundle_txt.encode("utf-8"),
-                        file_name=f"lesson_links_{student_level}_day{info.get('day','')}.txt",
+                        file_name=f"lesson_links_{level_key}_day{info.get('day','')}.txt",
                         mime="text/plain",
                         key="dl_links_txt",
                     )
 
-
         # TRANSLATOR & VIDEO OF THE DAY
         with t_tv:
-            from datetime import date
             st.markdown("### 🌐 Translator & 🎬 Video of the Day")
-
-            st.markdown("**Need a quick translation?**")
             st.markdown(
                 "[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; "
                 "[🌐 Google Translate](https://translate.google.com)",
@@ -5054,7 +5136,7 @@ if tab == "My Course":
 
             st.divider()
             st.markdown("#### 🎬 Video of the Day for Your Level")
-            playlist_id = YOUTUBE_PLAYLIST_IDS.get(student_level) if "YOUTUBE_PLAYLIST_IDS" in globals() else None
+            playlist_id = YOUTUBE_PLAYLIST_IDS.get(level_key) if "YOUTUBE_PLAYLIST_IDS" in globals() else None
             if playlist_id and "fetch_youtube_playlist_videos" in globals() and "YOUTUBE_API_KEY" in globals():
                 video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
                 if video_list:
@@ -5066,7 +5148,6 @@ if tab == "My Course":
                     st.info("No videos found for your level’s playlist. Check back soon!")
             else:
                 st.info("No playlist found for your level yet. Stay tuned!")
-
 
         # SUBMIT
         with t_submit:
@@ -5170,25 +5251,21 @@ if tab == "My Course":
                         else:
                             st.caption("Start typing your answer.")
                     # else: already hydrated this lesson → DO NOTHING (preserve in-progress typing)
-#
-
 
             st.subheader("✍️ Your Answer")
 
             # ---------- Editor (save on blur + debounce) ----------
             st.text_area(
                 "Type all your answers here",
-                value=st.session_state.get(draft_key, ""),
                 height=500,
-                key=draft_key,
-                # OPTIONAL: if you added save_now helper, uncomment next two lines:
-                # on_change=save_now,
-                # args=(draft_key, code),
+                key=draft_key,              # value already hydrated in st.session_state[draft_key]
+                on_change=save_now,         # guaranteed save on blur/change
+                args=(draft_key, code),
                 disabled=locked,
-                help="Autosaves while you type and when you leave this box."
+                help="Autosaves on blur and in the background while you type."
             )
 
-            # Debounced autosave (more eager so it feels alive)
+            # Debounced autosave (kept so small ongoing edits also persist)
             current_text = st.session_state.get(draft_key, "")
             autosave_maybe(code, draft_key, current_text, min_secs=2.0, min_delta=12, locked=locked)
 
@@ -5212,16 +5289,49 @@ if tab == "My Course":
                     st.caption("No local save yet")
 
             with csave3:
-                if st.button("↻ Reload last saved draft", disabled=locked, help="Pull the latest saved draft from the server"):
-                    cloud_text, cloud_ts = load_draft_meta_from_db(code, draft_key)
-                    if not (cloud_text or cloud_ts):
-                        st.warning("No saved draft found for this assignment.")
-                    else:
-                        # Stash and rerun; apply before widget is created next run
-                        st.session_state[pending_text_key] = cloud_text
-                        st.session_state[pending_ts_key]   = cloud_ts
-                        st.session_state[pending_key]      = True
-                        st.rerun()
+                # Current draft text
+                draft_txt = st.session_state.get(draft_key, "") or ""
+
+                # Last-saved timestamp (for header)
+                _, _, _, saved_at_key = _draft_state_keys(draft_key)
+                ts = st.session_state.get(saved_at_key)
+                when = (
+                    ts.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+                    if ts else datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+                )
+
+                # Strip any previous backup header the student may have pasted back
+                def _strip_old_header(txt: str) -> str:
+                    if not txt:
+                        return ""
+                    # Remove ONE leading “Falowen — Draft Backup … ======” block if present
+                    pattern = r"(?s)\AFalowen\s+—\s+Draft\s+Backup.*?\n[-=]{8,}\n\n"
+                    return re.sub(pattern, "", txt, count=1)
+
+                clean_body = (_strip_old_header(draft_txt).rstrip() + "\n")
+
+                # Build a simple, single header
+                header_lines = [
+                    "Falowen — Draft Backup",
+                    f"Level: {student_level}  •  Day: {info['day']}  •  Chapter: {info.get('chapter','')}",
+                    f"Student: {name}  •  Code: {code}",
+                    f"Saved (UTC): {when}",
+                    "=" * 56,
+                    ""  # blank line before body
+                ]
+                header = "\n".join(header_lines)
+
+                # Safe filename
+                safe_chapter = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(info.get("chapter", "")))
+                fname = f"falowen_draft_{student_level}_day{info['day']}_{safe_chapter}.txt"
+
+                st.download_button(
+                    "⬇️ Download draft (TXT)",
+                    data=(header + clean_body).encode("utf-8"),
+                    file_name=fname,
+                    mime="text/plain",
+                    help="Save a clean backup of your current draft"
+                )
 
             with st.expander("📌 How to Submit", expanded=False):
                 st.markdown(f"""
@@ -11306,6 +11416,9 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
+
+
 
 
 
