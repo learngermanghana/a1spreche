@@ -3654,7 +3654,7 @@ def get_b1_schedule():
             "goal": "Über Wohnungssuche und Wohnformen sprechen.",
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
-            "grammar_topic": "Wechselpräpositionen – In der Stadt, auf dem Land",
+            "grammar_topic": "Wechselpräpositionen",
             "video": "https://youtu.be/kR8SmSY99c8",
             "youtube_link": "https://youtu.be/kR8SmSY99c8",
             "grammarbook_link": "https://drive.google.com/file/d/1NW5F0R5zj6nn2SqDjhpQlkGcfK-UBUqk/view?usp=drive_link",
@@ -3668,9 +3668,10 @@ def get_b1_schedule():
             "goal": "Einen Besichtigungstermin beschreiben.",
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
+            "grammar_topic": "Modalverben, Konjunktiv II",
             "video": "",
             "youtube_link": "",
-            "grammarbook_link": "",
+            "grammarbook_link": "https://drive.google.com/file/d/13SI6AiqC2BAWLZjPh-AsiyTEfvGyk8DR/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1-HaOiGQtP_JI7ujg4-h-u1GnCumabdx_/view?usp=sharing"
         },
         # TAG 6
@@ -3681,10 +3682,11 @@ def get_b1_schedule():
             "goal": "Stadtleben und Landleben vergleichen.",
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
+            "grammar_topic": "Relativsätze",
             "video": "",
             "youtube_link": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1qUPAIGiwKNm4O9Z1VsFPprVVoNOZzCbF/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1xAUFfq2knYxfoGMTlXO_MA8F_RK5_i8o/view?usp=sharing"
         },
         # TAG 7
         {
@@ -5631,113 +5633,11 @@ if tab == "My Course":
             return f"{base}_{hashlib.md5(seed.encode()).hexdigest()[:8]}"
 
         # ---------- NEW: mini-tabs inside 'Classroom' ----------
-        t_join, t_calendar, t_members, t_announcements, t_qna = st.tabs(
-            ["Join", "Calendar", "Members", "Announcements", "Q&A"]
+        t_calendar, t_join, t_members, t_announcements, t_qna = st.tabs(
+            ["Calender", "Join on Zoom", "Members", "Announcements", "Q&A"]
         )
 
-        # ===================== JOIN =====================
-        with t_join:
-            with st.container():
-                st.markdown(
-                    """
-                    <div style="padding: 12px; background: #facc15; color: #000; border-radius: 8px;
-                         font-size: 1rem; margin-bottom: 16px; text-align: left; font-weight: 600;">
-                      📣 <b>Zoom Classroom (Official)</b><br>
-                      This is the <u>official Zoom link</u> for your class. <span style="font-weight:500;">Add the calendar below to get notifications before each class.</span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-                ZOOM = {
-                    "link": "https://us06web.zoom.us/j/6886900916?pwd=bEdtR3RLQ2dGTytvYzNrMUV3eFJwUT09",
-                    "meeting_id": "688 690 0916",
-                    "passcode": "german",
-                }
-                # Allow secrets override
-                try:
-                    zs = st.secrets.get("zoom", {})
-                    if zs.get("link"):       ZOOM["link"]       = zs["link"]
-                    if zs.get("meeting_id"): ZOOM["meeting_id"] = zs["meeting_id"]
-                    if zs.get("passcode"):   ZOOM["passcode"]   = zs["passcode"]
-                except Exception:
-                    pass
-
-                # Build iOS/Android deep-link (opens Zoom app directly)
-                _mid_digits = ZOOM["meeting_id"].replace(" ", "")
-                _pwd_enc = _urllib.quote(ZOOM["passcode"] or "")
-                zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
-
-                z1, z2 = st.columns([3, 2])
-                with z1:
-                    # Primary join button (browser)
-                    try:
-                        st.link_button("➡️ Join Zoom Meeting (Browser)", ZOOM["link"], key=_ukey("zoom_join_btn"))
-                    except Exception:
-                        st.markdown(f"[➡️ Join Zoom Meeting (Browser)]({ZOOM['link']})")
-
-                    # Secondary: open in Zoom app (mobile deep link)
-                    try:
-                        st.link_button("📱 Open in Zoom App", zoom_deeplink, key=_ukey("zoom_app_btn"))
-                    except Exception:
-                        st.markdown(f"[📱 Open in Zoom App]({zoom_deeplink})")
-
-                    st.write(f"**Meeting ID:** `{ZOOM['meeting_id']}`")
-                    st.write(f"**Passcode:** `{ZOOM['passcode']}`")
-
-                    # Copy helpers (mobile-friendly, safe escaping)
-                    _link_safe = ZOOM["link"].replace("'", "\\'")
-                    _id_safe   = ZOOM["meeting_id"].replace("'", "\\'")
-                    _pwd_safe  = ZOOM["passcode"].replace("'", "\\'")
-                    if components:
-                        components.html(
-                            f"""
-                            <div style="display:flex;gap:8px;margin-top:8px;">
-                              <button id="zCopyLink"
-                                      style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
-                                Copy Link
-                              </button>
-                              <button id="zCopyId"
-                                      style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
-                                Copy ID
-                              </button>
-                              <button id="zCopyPwd"
-                                      style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
-                                Copy Passcode
-                              </button>
-                            </div>
-                            <script>
-                              (function(){{
-                                try {{
-                                  var link = '{_link_safe}', mid = '{_id_safe}', pwd = '{_pwd_safe}';
-                                  function wire(btnId, txt, label) {{
-                                    var b = document.getElementById(btnId);
-                                    if (!b) return;
-                                    b.addEventListener('click', function(){{
-                                      navigator.clipboard.writeText(txt).then(function(){{
-                                        b.innerText = '✓ Copied ' + label;
-                                        setTimeout(function(){{ b.innerText = 'Copy ' + label; }}, 1500);
-                                      }}).catch(function(){{}});
-                                    }});
-                                  }}
-                                  wire('zCopyLink', link, 'Link');
-                                  wire('zCopyId',   mid,  'ID');
-                                  wire('zCopyPwd',  pwd,  'Passcode');
-                                }} catch(e) {{}}
-                              }})();
-                            </script>
-                            """,
-                            height=72,
-                        )
-
-                with z2:
-                    st.info(
-                        f"You’re viewing: **{class_name}**  \n\n"
-                        "✅ Use the **calendar** tab to receive automatic class reminders.",
-                        icon="📅",
-                    )
-
-        # ===================== CALENDAR =====================
+                # ===================== CALENDAR =====================
         with t_calendar:
             # Banner
             st.markdown(
@@ -6426,6 +6326,110 @@ if tab == "My Course":
                     )
                 else:
                     st.info("No members found for this class yet.")
+#
+
+        # ===================== JOIN =====================
+        with t_join:
+            with st.container():
+                st.markdown(
+                    """
+                    <div style="padding: 12px; background: #facc15; color: #000; border-radius: 8px;
+                         font-size: 1rem; margin-bottom: 16px; text-align: left; font-weight: 600;">
+                      📣 <b>Zoom Classroom (Official)</b><br>
+                      This is the <u>official Zoom link</u> for your class. <span style="font-weight:500;">Add the calendar below to get notifications before each class.</span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+                ZOOM = {
+                    "link": "https://us06web.zoom.us/j/6886900916?pwd=bEdtR3RLQ2dGTytvYzNrMUV3eFJwUT09",
+                    "meeting_id": "688 690 0916",
+                    "passcode": "german",
+                }
+                # Allow secrets override
+                try:
+                    zs = st.secrets.get("zoom", {})
+                    if zs.get("link"):       ZOOM["link"]       = zs["link"]
+                    if zs.get("meeting_id"): ZOOM["meeting_id"] = zs["meeting_id"]
+                    if zs.get("passcode"):   ZOOM["passcode"]   = zs["passcode"]
+                except Exception:
+                    pass
+
+                # Build iOS/Android deep-link (opens Zoom app directly)
+                _mid_digits = ZOOM["meeting_id"].replace(" ", "")
+                _pwd_enc = _urllib.quote(ZOOM["passcode"] or "")
+                zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
+
+                z1, z2 = st.columns([3, 2])
+                with z1:
+                    # Primary join button (browser)
+                    try:
+                        st.link_button("➡️ Join Zoom Meeting (Browser)", ZOOM["link"], key=_ukey("zoom_join_btn"))
+                    except Exception:
+                        st.markdown(f"[➡️ Join Zoom Meeting (Browser)]({ZOOM['link']})")
+
+                    # Secondary: open in Zoom app (mobile deep link)
+                    try:
+                        st.link_button("📱 Open in Zoom App", zoom_deeplink, key=_ukey("zoom_app_btn"))
+                    except Exception:
+                        st.markdown(f"[📱 Open in Zoom App]({zoom_deeplink})")
+
+                    st.write(f"**Meeting ID:** `{ZOOM['meeting_id']}`")
+                    st.write(f"**Passcode:** `{ZOOM['passcode']}`")
+
+                    # Copy helpers (mobile-friendly, safe escaping)
+                    _link_safe = ZOOM["link"].replace("'", "\\'")
+                    _id_safe   = ZOOM["meeting_id"].replace("'", "\\'")
+                    _pwd_safe  = ZOOM["passcode"].replace("'", "\\'")
+                    if components:
+                        components.html(
+                            f"""
+                            <div style="display:flex;gap:8px;margin-top:8px;">
+                              <button id="zCopyLink"
+                                      style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                                Copy Link
+                              </button>
+                              <button id="zCopyId"
+                                      style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                                Copy ID
+                              </button>
+                              <button id="zCopyPwd"
+                                      style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                                Copy Passcode
+                              </button>
+                            </div>
+                            <script>
+                              (function(){{
+                                try {{
+                                  var link = '{_link_safe}', mid = '{_id_safe}', pwd = '{_pwd_safe}';
+                                  function wire(btnId, txt, label) {{
+                                    var b = document.getElementById(btnId);
+                                    if (!b) return;
+                                    b.addEventListener('click', function(){{
+                                      navigator.clipboard.writeText(txt).then(function(){{
+                                        b.innerText = '✓ Copied ' + label;
+                                        setTimeout(function(){{ b.innerText = 'Copy ' + label; }}, 1500);
+                                      }}).catch(function(){{}});
+                                    }});
+                                  }}
+                                  wire('zCopyLink', link, 'Link');
+                                  wire('zCopyId',   mid,  'ID');
+                                  wire('zCopyPwd',  pwd,  'Passcode');
+                                }} catch(e) {{}}
+                              }})();
+                            </script>
+                            """,
+                            height=72,
+                        )
+
+                with z2:
+                    st.info(
+                        f"You’re viewing: **{class_name}**  \n\n"
+                        "✅ Use the **calendar** tab to receive automatic class reminders.",
+                        icon="📅",
+                    )
+
 
         # ===================== ANNOUNCEMENTS =====================
         with t_announcements:
@@ -11488,33 +11492,7 @@ if tab == "Schreiben Trainer":
                 st.rerun()
 
 
-# Inject PWA/meta link tags AFTER the hero (zero-height iframe)
-    _inject_meta_tags()
 
-    # Inject SEO head tags AFTER the hero (using components.html)
-    components.html("""
-    <script>
-      document.title = "Falowen – Learn German with Learn Language Education Academy";
-      const desc = "Falowen is the German learning companion from Learn Language Education Academy. Join live classes or self-study with A1–C1 courses, recorded lectures, and real progress tracking.";
-      let m = document.querySelector('meta[name="description"]');
-      if (!m) { m = document.createElement('meta'); m.name = "description"; document.head.appendChild(m); }
-      m.setAttribute("content", desc);
-      const canonicalHref = window.location.origin + "/";
-      let link = document.querySelector('link[rel="canonical"]');
-      if (!link) { link = document.createElement('link'); link.rel = "canonical"; document.head.appendChild(link); }
-      link.href = canonicalHref;
-      function setOG(p, v){ let t=document.querySelector(`meta[property="${p}"]`);
-        if(!t){ t=document.createElement('meta'); t.setAttribute('property', p); document.head.appendChild(t); }
-        t.setAttribute('content', v);
-      }
-      setOG("og:title", "Falowen – Learn German with Learn Language Education Academy");
-      setOG("og:description", desc);
-      setOG("og:type", "website");
-      setOG("og:url", canonicalHref);
-      const ld = {"@context":"https://schema.org","@type":"WebSite","name":"Falowen","alternateName":"Falowen by Learn Language Education Academy","url": canonicalHref};
-      const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
-    </script>
-    """, height=0)
 
 
 
