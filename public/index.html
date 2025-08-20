@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Falowen — Learn German</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#25317e" />
+
+  <style>
+    html, body { height:100%; margin:0; background:#fff; }
+    .app { position:fixed; inset:0; }
+    iframe { border:0; width:100%; height:100%; display:block; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <iframe
+      title="Falowen"
+      src="STREAMLIT_APP_URL"
+      allow="clipboard-write; autoplay; fullscreen"
+      referrerpolicy="no-referrer-when-downgrade">
+    </iframe>
+  </div>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(()=>{});
+    }
+  </script>
+</body>
+</html>
