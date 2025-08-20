@@ -1,7 +1,6 @@
 [build]
   publish = "."
 
-# Headers you had (optional)
 [[headers]]
   for = "/manifest.webmanifest"
   [headers.values]
@@ -27,14 +26,14 @@
     X-Content-Type-Options = "nosniff"
     X-Frame-Options = "SAMEORIGIN"
 
-# Optional: www → apex (safe; only affects your custom domain)
+# Optional: www → apex (for your custom domain)
 [[redirects]]
   from = "https://www.falowen.app/*"
   to   = "https://falowen.app/:splat"
   status = 301
   force = true
 
-# IMPORTANT: SPA rewrite to your wrapper page
+# IMPORTANT: route all paths to the wrapper (no proxying)
 [[redirects]]
   from = "/*"
   to   = "/index.html"
