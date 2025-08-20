@@ -3241,8 +3241,8 @@ def get_a1_schedule():
             "instruction": "Review the workbook and do the practicals in it. Answers are attached",
             "grammar_topic": "Erlaubt and Verboten",
             "schreiben_sprechen": {
-                "video": "https://youtu.be/MqAp84GthAo",
-                "youtube_link": "https://youtu.be/MqAp84GthAo",
+                "video": "https://youtu.be/n9Y0kt_XRZY",
+                "youtube_link": "https://youtu.be/n9Y0kt_XRZY",
                 "assignment": False,
                 "workbook_link": "https://drive.google.com/file/d/1CkoYa_qeqsGju0kTS6ElurCAlEW6pVFL/view?usp=sharing"
             }
