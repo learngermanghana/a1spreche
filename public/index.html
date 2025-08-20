@@ -4,27 +4,42 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Falowen — Learn German</title>
+  <meta name="description" content="Falowen: German learning platform A1–C1 with videos, quizzes, assignments and results." />
 
+  <!-- PWA -->
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="theme-color" content="#25317e" />
+  <link rel="icon" href="/static/icons/falowen-192.png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="/static/icons/falowen-192.png" />
+
   <style>
+    :root { color-scheme: light dark; }
     html, body { height:100%; margin:0; background:#fff; }
     .app { position:fixed; inset:0; }
     iframe { border:0; width:100%; height:100%; display:block; }
+    /* Mobile viewport fix */
+    @media (hover:none) and (pointer:coarse) {
+      html, body { height:100dvh; }
+    }
   </style>
 </head>
 <body>
+  <noscript>This app requires JavaScript.</noscript>
+
   <div class="app">
     <iframe
       title="Falowen"
-      src="https://a1spreche.streamlit.app/"
+      src="https://a1spreche.streamlit.app/?embed=true"
       allow="clipboard-write; autoplay; fullscreen"
       referrerpolicy="no-referrer-when-downgrade">
     </iframe>
   </div>
+
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(()=>{});
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function(){});
+      });
     }
   </script>
 </body>
