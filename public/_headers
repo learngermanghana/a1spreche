@@ -1,0 +1,5 @@
+/sw.js                      /sw.js                          200
+/manifest.webmanifest       /manifest.webmanifest           200
+/offline.html               /offline.html                  200
+/.well-known/assetlinks.json /.well-known/assetlinks.json  200
+/*  https://YOUR-STREAMLIT-APP-URL/:splat                  200
