@@ -1,0 +1,25 @@
+[build]
+  publish = "public"
+  command = ""
+
+# Make sure these files are not swallowed by SPA fallback
+[[redirects]]
+  from = "/sw.js"
+  to = "/sw.js"
+  status = 200
+
+[[redirects]]
+  from = "/manifest.webmanifest"
+  to = "/manifest.webmanifest"
+  status = 200
+
+[[redirects]]
+  from = "/.well-known/*"
+  to = "/.well-known/:splat"
+  status = 200
+
+# Optional SPA fallback for other routes
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
