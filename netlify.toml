@@ -1,8 +1,7 @@
 [build]
-  # static site (no build): leave command empty or remove the section.
   publish = "."
 
-# ----- Headers -----
+# Headers you had (optional)
 [[headers]]
   for = "/manifest.webmanifest"
   [headers.values]
@@ -28,16 +27,15 @@
     X-Content-Type-Options = "nosniff"
     X-Frame-Options = "SAMEORIGIN"
 
-# ----- Redirects/Rewrites -----
-# www → apex
+# Optional: www → apex (safe; only affects your custom domain)
 [[redirects]]
   from = "https://www.falowen.app/*"
-  to = "https://falowen.app/:splat"
+  to   = "https://falowen.app/:splat"
   status = 301
   force = true
 
-# Proxy everything else to Streamlit (MUST be last)
+# IMPORTANT: SPA rewrite to your wrapper page
 [[redirects]]
   from = "/*"
-  to = "https://a1spreche.streamlit.app/:splat"
+  to   = "/index.html"
   status = 200
