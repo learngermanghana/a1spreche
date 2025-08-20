@@ -10,7 +10,7 @@
   Service-Worker-Allowed: /
   Cache-Control: no-store, must-revalidate
 
-/* 
+/*
   Referrer-Policy: same-origin
   X-Content-Type-Options: nosniff
   X-Frame-Options: SAMEORIGIN
