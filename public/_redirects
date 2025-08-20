@@ -1,10 +1,10 @@
-/sw.js                        /sw.js                          200
-/manifest.webmanifest         /manifest.webmanifest           200
-/offline.html                 /offline.html                   200
-/.well-known/assetlinks.json  /.well-known/assetlinks.json    200
+/sw.js                        /sw.js                           200
+/manifest.webmanifest         /manifest.webmanifest            200
+/offline.html                 /offline.html                    200
+/.well-known/assetlinks.json  /.well-known/assetlinks.json     200
 
-# (optional) pick one canonical domain. This forces www → apex:
-https://www.falowen.app/*     https://falowen.app/:splat      301!
+# (optional) www → apex
+https://www.falowen.app/*     https://falowen.app/:splat       301!
 
-# proxy everything else to your Streamlit app:
-/*                           https://a1spreche.streamlit.app/:splat   200
+# proxy everything else to Streamlit (leave this LAST)
+ /*                           https://a1spreche.streamlit.app/:splat   200
