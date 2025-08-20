@@ -17,10 +17,7 @@
     html, body { height:100%; margin:0; background:#fff; }
     .app { position:fixed; inset:0; }
     iframe { border:0; width:100%; height:100%; display:block; }
-    /* Mobile viewport fix */
-    @media (hover:none) and (pointer:coarse) {
-      html, body { height:100dvh; }
-    }
+    @media (hover:none) and (pointer:coarse) { html, body { height:100dvh; } }
   </style>
 </head>
 <body>
@@ -29,7 +26,7 @@
   <div class="app">
     <iframe
       title="Falowen"
-      src="https://a1spreche.streamlit.app/?embed=true"
+      src="https://falowen.render.com/"
       allow="clipboard-write; autoplay; fullscreen"
       referrerpolicy="no-referrer-when-downgrade">
     </iframe>
@@ -37,8 +34,8 @@
 
   <script>
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function () {
-        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function(){});
+      addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(()=>{});
       });
     }
   </script>
