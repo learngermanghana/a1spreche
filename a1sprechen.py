@@ -584,14 +584,23 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     use_secure = (os.getenv("ENV", "prod") != "dev")
     max_age = 60 * 60 * 24 * 180  # 180 days
     exp_str = _expire_str(expires)
-    try:
-        cookie_manager.set(key, norm, expires=expires, secure=use_secure, samesite="Lax", path="/")
-        cookie_manager.save()
-    except Exception:
+    if cookie_manager.ready():
         try:
-            cookie_manager[key] = norm; cookie_manager.save()
+            cookie_manager.set(
+                key,
+                norm,
+                expires=expires,
+                secure=use_secure,
+                samesite="Lax",
+                path="/",
+            )
+            cookie_manager.save()
         except Exception:
-            pass
+            try:
+                cookie_manager[key] = norm
+                cookie_manager.save()
+            except Exception:
+                pass
     host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
     host_js = _js_set_cookie(host_cookie_name, norm, max_age, exp_str, use_secure, domain=None)
     script = f"""
@@ -619,14 +628,23 @@ def set_session_token_cookie(cookie_manager, token: str, expires: datetime):
     use_secure = (os.getenv("ENV", "prod") != "dev")
     max_age = 60 * 60 * 24 * 30  # 30 days
     exp_str = _expire_str(expires)
-    try:
-        cookie_manager.set(key, val, expires=expires, secure=use_secure, samesite="Lax", path="/")
-        cookie_manager.save()
-    except Exception:
+    if cookie_manager.ready():
         try:
-            cookie_manager[key] = val; cookie_manager.save()
+            cookie_manager.set(
+                key,
+                val,
+                expires=expires,
+                secure=use_secure,
+                samesite="Lax",
+                path="/",
+            )
+            cookie_manager.save()
         except Exception:
-            pass
+            try:
+                cookie_manager[key] = val
+                cookie_manager.save()
+            except Exception:
+                pass
     host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
     host_js = _js_set_cookie(host_cookie_name, val, max_age, exp_str, use_secure, domain=None)
     script = f"""
@@ -666,43 +684,32 @@ def _persist_session_client(token: str, student_code: str = "") -> None:
 # ------------------------------------------------------------------------------
 # Cookie manager init
 # ------------------------------------------------------------------------------
-from datetime import datetime, timedelta
-import streamlit as st
-import streamlit.components.v1 as components
-from streamlit_cookies_manager import EncryptedCookieManager
+
 
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
 
 def _bootstrap_cookies(cm):
+    st.session_state.setdefault("_cookie_boot_attempted", False)
+
     if cm.ready():
         return True
 
-    # remember we tried once
-    tries = st.session_state.get("_cookie_boot_tries", 0)
-    st.session_state["_cookie_boot_tries"] = tries + 1
-
-    # Mount a tiny element so the component JS loads, then do a one-time silent reload
-    components.html("""
+    if not st.session_state["_cookie_boot_attempted"]:
+        st.session_state["_cookie_boot_attempted"] = True
+        components.html("""
       <script>
         try { document.cookie = "falowen_boot=1; Path=/; SameSite=Lax"; } catch(e) {}
-        // one-time reload to complete cookie handshake
         if (!sessionStorage.getItem("falowen_cookie_boot")) {
           sessionStorage.setItem("falowen_cookie_boot", "1");
           setTimeout(function(){ window.location.reload(); }, 0);
         }
       </script>
     """, height=0)
-
-    if tries == 0:
-        # First pass: keep UI clean, just stop
-        st.stop()
-    else:
-        # Second pass and still not ready → cookies are blocked
-        st.error("Your browser is blocking cookies for this site. Please enable cookies (SameSite=Lax) or open the app in a new tab/window.")
         st.stop()
 
-_bootstrap_cookies(cookie_manager)
+    st.error("Your browser is blocking cookies for this site. Please enable cookies (SameSite=Lax) or open the app in a new tab/window.")
+    st.stop()
 
 
 # ------------------------------------------------------------------------------
@@ -710,7 +717,9 @@ _bootstrap_cookies(cookie_manager)
 # ------------------------------------------------------------------------------
 restored = False
 if not st.session_state.get("logged_in", False):
-    cookie_tok = (cookie_manager.get("session_token") or "").strip()
+    cookie_tok = ""
+    if cookie_manager.ready():
+        cookie_tok = (cookie_manager.get("session_token") or "").strip()
     if cookie_tok:
         data = validate_session_token(cookie_tok, st.session_state.get("__ua_hash", ""))
         if data:
@@ -3803,8 +3812,8 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "grammar_topic": "Modalverben, Konjunktiv II",
-            "video": "",
-            "youtube_link": "",
+            "video": "https://youtu.be/2lUPAnzx4e4",
+            "youtube_link": "https://youtu.be/2lUPAnzx4e4",
             "grammarbook_link": "https://drive.google.com/file/d/13SI6AiqC2BAWLZjPh-AsiyTEfvGyk8DR/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1-HaOiGQtP_JI7ujg4-h-u1GnCumabdx_/view?usp=sharing"
         },
@@ -11624,6 +11633,10 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
+
+
+
 
 
 
