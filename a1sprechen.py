@@ -152,7 +152,7 @@ try:
     db = firestore.client()
 except Exception as e:
     st.error(f"Firebase init failed: {e}")
-    st.stop()
+    raise RuntimeError("Firebase initialization failed") from e
 
 # ------------------------------------------------------------------------------
 # Top spacing + chrome (tighter)
@@ -324,13 +324,31 @@ def destroy_session_token(token: str) -> None:
     except Exception:
         pass
 
+def api_get(url, headers=None, params=None, **kwargs):
+    headers = headers or {}
+    params = params or {}
+    tok = st.session_state.get("session_token", "")
+    if tok:
+        headers.setdefault("X-Session-Token", tok)
+        params.setdefault("session_token", tok)
+    return requests.get(url, headers=headers, params=params, **kwargs)
+
+def api_post(url, headers=None, params=None, **kwargs):
+    headers = headers or {}
+    params = params or {}
+    tok = st.session_state.get("session_token", "")
+    if tok:
+        headers.setdefault("X-Session-Token", tok)
+        params.setdefault("session_token", tok)
+    return requests.post(url, headers=headers, params=params, **kwargs)
+
 # ------------------------------------------------------------------------------
 # OpenAI (used elsewhere in app)
 # ------------------------------------------------------------------------------
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     st.error("Missing OpenAI API key. Please add OPENAI_API_KEY in Streamlit secrets.")
-    st.stop()
+    raise RuntimeError("Missing OpenAI API key")
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -489,7 +507,7 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
 
 @st.cache_data(ttl=300)
-def load_student_data():
+def _load_student_data_cached():
     try:
         resp = requests.get(GOOGLE_SHEET_CSV, timeout=12)
         resp.raise_for_status()
@@ -499,7 +517,7 @@ def load_student_data():
         df = pd.read_csv(io.StringIO(txt), dtype=str, keep_default_na=True, na_values=["", " ", "nan", "NaN", "None"])
     except Exception as e:
         st.error(f"❌ Could not load student data. {e}")
-        st.stop()
+        return None
 
     df.columns = df.columns.str.strip().str.replace(" ", "")
     for col in df.columns:
@@ -516,6 +534,7 @@ def load_student_data():
                 continue
         return pd.to_datetime(s, errors="coerce")
 
+    # create parsed date column and keep only valid dates
     df["ContractEnd_dt"] = df["ContractEnd"].apply(_parse_contract_end)
     df = df[df["ContractEnd_dt"].notna()]
 
@@ -524,10 +543,16 @@ def load_student_data():
     if "Email" in df.columns:
         df["Email"] = df["Email"].str.lower().str.strip()
 
-    df = (df.sort_values("ContractEnd_dt", ascending=False)
-            .drop_duplicates(subset=["StudentCode"], keep="first")
-            .drop(columns=["ContractEnd_dt"]))
+    df = (
+        df.sort_values("ContractEnd_dt", ascending=False)
+          .drop_duplicates(subset=["StudentCode"], keep="first")
+          .drop(columns=["ContractEnd_dt"])
+    )
     return df
+
+def load_student_data():
+    """Load student roster, or return None if unavailable."""
+    return _load_student_data_cached()
 
 def is_contract_expired(row):
     expiry_str = str(row.get("ContractEnd", "") or "").strip()
@@ -536,14 +561,17 @@ def is_contract_expired(row):
     expiry_date = None
     for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
         try:
-            expiry_date = datetime.strptime(expiry_str, fmt); break
+            expiry_date = datetime.strptime(expiry_str, fmt)
+            break
         except ValueError:
             continue
     if expiry_date is None:
         parsed = pd.to_datetime(expiry_str, errors="coerce")
-        if pd.isnull(parsed): return True
+        if pd.isnull(parsed):
+            return True
         expiry_date = parsed.to_pydatetime()
     return expiry_date.date() < datetime.utcnow().date()
+
 
 # ------------------------------------------------------------------------------
 # Query param helpers
@@ -689,27 +717,73 @@ def _persist_session_client(token: str, student_code: str = "") -> None:
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
 
+def _ensure_session_token_from_client():
+    if st.session_state.get("session_token"):
+        return
+    tok = st.query_params.get("session_token")
+    if tok:
+        st.session_state["session_token"] = tok
+        return
+    components.html(
+        """
+    <script>
+      try {
+        const tok = localStorage.getItem('session_token');
+        if (tok) {
+          const params = new URLSearchParams(window.location.search);
+          if (params.get('session_token') !== tok) {
+            params.set('session_token', tok);
+            window.location.replace(window.location.pathname + '?' + params.toString());
+          }
+        }
+      } catch(e) {}
+    </script>
+    """,
+        height=0,
+    )
+
 def _bootstrap_cookies(cm):
-    st.session_state.setdefault("_cookie_boot_attempted", False)
+    st.session_state.setdefault("_cookie_boot_done", False)
+    st.session_state.setdefault("_cookie_disabled", False)
 
     if cm.ready():
+        if st.session_state.get("_cookie_disabled") and st.session_state.get("session_token"):
+            set_session_token_cookie(
+                cm,
+                st.session_state["session_token"],
+                expires=datetime.utcnow() + timedelta(days=30),
+            )
+        st.session_state["_cookie_disabled"] = False
         return True
 
-    if not st.session_state["_cookie_boot_attempted"]:
-        st.session_state["_cookie_boot_attempted"] = True
-        components.html("""
+    if not st.session_state["_cookie_boot_done"]:
+        st.session_state["_cookie_boot_done"] = True
+        components.html(
+            """
       <script>
         try { document.cookie = "falowen_boot=1; Path=/; SameSite=Lax"; } catch(e) {}
-        if (!sessionStorage.getItem("falowen_cookie_boot")) {
-          sessionStorage.setItem("falowen_cookie_boot", "1");
+        if (!localStorage.getItem("falowen_cookie_boot")) {
+          localStorage.setItem("falowen_cookie_boot", "1");
+          try {
+            const tok = localStorage.getItem('session_token');
+            if (tok) {
+              document.cookie = "session_token=" + tok + "; Path=/; SameSite=Lax";
+            }
+          } catch(e) {}
           setTimeout(function(){ window.location.reload(); }, 0);
         }
       </script>
-    """, height=0)
-        st.stop()
+    """,
+            height=0,
+        )
+        return
 
-    st.error("Your browser is blocking cookies for this site. Please enable cookies (SameSite=Lax) or open the app in a new tab/window.")
-    st.stop()
+    st.session_state["_cookie_disabled"] = True
+    _ensure_session_token_from_client()
+    return False
+
+if _bootstrap_cookies(cookie_manager) is None:
+        st.rerun()
 
 
 # ------------------------------------------------------------------------------
@@ -720,12 +794,17 @@ if not st.session_state.get("logged_in", False):
     cookie_tok = ""
     if cookie_manager.ready():
         cookie_tok = (cookie_manager.get("session_token") or "").strip()
+    if not cookie_tok:
+        cookie_tok = st.session_state.get("session_token", "")
     if cookie_tok:
         data = validate_session_token(cookie_tok, st.session_state.get("__ua_hash", ""))
         if data:
             try:
                 df_students = load_student_data()
-                found = df_students[df_students["StudentCode"] == data.get("student_code","")]
+                if df_students is None:
+                    found = pd.DataFrame()
+                else:
+                    found = df_students[df_students["StudentCode"] == data.get("student_code","")]
             except Exception:
                 found = pd.DataFrame()
             if not found.empty and not is_contract_expired(found.iloc[0]):
@@ -740,6 +819,7 @@ if not st.session_state.get("logged_in", False):
                 new_tok = refresh_or_rotate_session_token(cookie_tok) or cookie_tok
                 st.session_state["session_token"] = new_tok
                 set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))
+                qp_clear_keys("session_token")
                 restored = True
 
 # ------------------------------------------------------------------------------
@@ -754,7 +834,7 @@ def reset_password_page(token: str):
         st.error("Invalid or expired reset link.")
         if st.button("Back to Login"):
             qp_clear_keys("token")
-            st.rerun()
+            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
         return
 
     info = doc.to_dict() or {}
@@ -771,7 +851,7 @@ def reset_password_page(token: str):
         except Exception: pass
         if st.button("Back to Login"):
             qp_clear_keys("token")
-            st.rerun()
+            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
         return
 
     st.info(f"Resetting password for **{email}**")
@@ -794,6 +874,9 @@ def reset_password_page(token: str):
     try:
         # Try roster for StudentCode first
         df = load_student_data()
+        if df is None:
+             st.error("Student roster unavailable. Please try again later.")
+             return
         df["Email"] = df["Email"].str.lower().str.strip()
         match = df[df["Email"] == email]
 
@@ -824,7 +907,7 @@ def reset_password_page(token: str):
         st.success("✅ Password updated! You can now sign in with your new password.")
         if st.button("Back to Login"):
             qp_clear_keys("token")
-            st.rerun()
+            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
     except Exception as e:
         st.error(f"Could not update password: {e}")
@@ -876,6 +959,9 @@ REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowe
 
 def _handle_google_oauth(code: str, state: str) -> None:
     df = load_student_data()
+    if df is None:
+        st.error("Student roster unavailable. Please try again later.")
+        return
     df["Email"] = df["Email"].str.lower().str.strip()
     try:
         if st.session_state.get("_oauth_state") and state != st.session_state["_oauth_state"]:
@@ -923,7 +1009,7 @@ def _handle_google_oauth(code: str, state: str) -> None:
         set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
         qp_clear()
         st.success(f"Welcome, {student_row['Name']}!")
-        st.rerun()
+        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
     except Exception as e:
         st.error(f"Google OAuth error: {e}")
 
@@ -980,6 +1066,9 @@ def render_signup_form():
     if len(new_password) < 8:
         st.error("Password must be at least 8 characters."); return
     df = load_student_data()
+    if df is None:
+        st.error("Student roster unavailable. Please try again later.")
+        return
     df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
     df["Email"] = df["Email"].str.lower().str.strip()
     valid = df[(df["StudentCode"] == new_code) & (df["Email"] == new_email)]
@@ -1212,6 +1301,9 @@ def render_login_form():
     # ---- LOGIN ----
     if login_btn:
         df = load_student_data()
+        if df is None:
+            st.error("Student roster unavailable. Please try again later.")
+            return
         df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
         df["Email"] = df["Email"].str.lower().str.strip()
         lookup = df[(df["StudentCode"] == login_id) | (df["Email"] == login_id)]
@@ -1262,7 +1354,7 @@ def render_login_form():
         _persist_session_client(sess_token, student_row["StudentCode"])
         set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
         st.success(f"Welcome, {student_row['Name']}!")
-        st.rerun()
+        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
     # ---- FORGOT PASSWORD (inline) ----
     if forgot_toggle:
@@ -1293,7 +1385,7 @@ def render_login_form():
 
         if back_btn:
             st.session_state["show_reset_panel"] = False
-            st.rerun()
+            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
         if send_btn:
             if not email_for_reset:
@@ -1578,24 +1670,18 @@ def login_page():
         st.write("Type your answer, confirm, and **submit**. The box locks. Your tutor is notified automatically.")
     with st.expander("What if I open the wrong lesson?"):
         st.write("Check the blue banner at the top (Level • Day • Chapter). Use the dropdown to switch to the correct page.")
-
-    st.markdown("""
-    <div class="page-wrap" style="text-align:center; margin:24px 0;">
-      <a href="https://www.youtube.com/YourChannel" target="_blank" rel="noopener">📺 YouTube</a>
-      &nbsp;|&nbsp;
-      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp</a>
-    </div>
-    """, unsafe_allow_html=True)
-
+  
     st.markdown(f"""
-    <div class="page-wrap" style="text-align:center;color:#64748b; margin-bottom:16px;">
-      © {datetime.utcnow().year} Learn Language Education Academy • Accra, Ghana<br>
-      Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> • 
-      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>
-    </div>
+    <div class="page-wrap" style="text-align:center;color:#64748b; margin-bottom:16px;">␊
+      © {datetime.utcnow().year} Learn Language Education Academy • Accra, Ghana<br>␊
+      Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> •
+      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>␊
+    </div>␊
     """, unsafe_allow_html=True)
 
-    st.stop()
+    return
+
+
 
 # ------------------------------------------------------------------------------
 # =========================
@@ -1619,8 +1705,9 @@ if st.session_state.pop("_inject_logout_js", False):
 
 # ===== AUTH GUARD =====
 if not st.session_state.get("logged_in", False):
-    login_page()
-    st.stop()
+    page_result = login_page()
+    if page_result is None:
+        st.stop()
 
 # ===== Header + plain button (no on_click) =====
 st.markdown("""
@@ -1683,7 +1770,7 @@ if _logout_clicked:
     })
 
     st.session_state["_inject_logout_js"] = True
-    st.rerun()
+    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
 
 
@@ -1959,8 +2046,8 @@ announcements = [
 # =========================================================
 # ============== Data loaders & helpers ===================
 # =========================================================
-@st.cache_data
-def load_assignment_scores():
+@st.cache_data(ttl=600)
+def _load_assignment_scores_cached():
     SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
     df = pd.read_csv(url, dtype=str)
@@ -1969,8 +2056,15 @@ def load_assignment_scores():
         df[col] = df[col].astype(str).str.strip()
     return df
 
+def load_assignment_scores():
+    """Return assignment scores DataFrame cached and stored in session state."""
+    if "assignment_scores_df" not in st.session_state:
+        st.session_state["assignment_scores_df"] = _load_assignment_scores_cached()
+    return st.session_state["assignment_scores_df"]
+
+
 @st.cache_data(ttl=43200)
-def load_full_vocab_sheet():
+def _load_full_vocab_sheet_cached():
     SHEET_ID = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
     csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
     try:
@@ -2005,6 +2099,12 @@ def load_full_vocab_sheet():
     df["level"] = df["level"].str.upper()
     return df[["level","german","english","example"]]
 
+def load_full_vocab_sheet():
+    """Return full vocab sheet DataFrame from session state or cache."""
+    if "full_vocab_df" not in st.session_state:
+        st.session_state["full_vocab_df"] = _load_full_vocab_sheet_cached()
+    return st.session_state["full_vocab_df"]
+
 def get_vocab_of_the_day(df: pd.DataFrame, level: str):
     if df is None or df.empty: return None
     if not {"level","german","english","example"}.issubset(df.columns): return None
@@ -2023,13 +2123,32 @@ def parse_contract_end(date_str):
     return None
 
 
-@st.cache_data
-def load_reviews():
+@st.cache_data(ttl=3600)
+def _load_reviews_cached():
     SHEET_ID = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
     df = pd.read_csv(url)
     df.columns = df.columns.str.strip().str.lower()
     return df
+
+def load_reviews():
+    """Return reviews DataFrame cached and stored in session state."""
+    if "reviews_df" not in st.session_state:
+        st.session_state["reviews_df"] = _load_reviews_cached()
+    return st.session_state["reviews_df"]
+
+@st.cache_data(ttl=300)
+def _fetch_announcements_csv_cached():
+    csv_url = "https://docs.google.com/spreadsheets/d/16gjj0krncWsDwMfMbhlxODPSJsI50fuHAzkF7Prrs1k/export?format=csv&gid=0"
+    try:
+        return pd.read_csv(csv_url)
+    except Exception:
+        return pd.DataFrame()
+
+def fetch_announcements_csv():
+    if "announcements_df" not in st.session_state:
+        st.session_state["announcements_df"] = _fetch_announcements_csv_cached()
+    return st.session_state["announcements_df"]
 
 def parse_contract_start(date_str: str):
     return parse_contract_end(date_str)
@@ -2247,6 +2366,8 @@ if tab == "Dashboard":
             return pd.DataFrame(columns=["StudentCode"])
 
     df_students = load_student_data_fn()
+    if df_students is None:
+        df_students = pd.DataFrame(columns=["StudentCode"])
     student_code = (st.session_state.get("student_code", "") or "").strip().lower()
 
     student_row = {}
@@ -2632,9 +2753,7 @@ if tab == "Dashboard":
                 # Dismiss for today (so students can acknowledge but can't claim they never saw it)
                 if st.button("Got it — hide this notice for today", key=f"btn_contract_alert_{_student_code}"):
                     st.session_state[_alert_key] = True
-                    st.rerun()
-#
-
+                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
      # ---------- Class schedules ----------
     with st.expander("🗓️ Class Schedule & Upcoming Sessions", expanded=False):
@@ -4488,7 +4607,7 @@ student_level = student_row.get("Level", "A1").upper()
 
 # --- Cache level schedules with TTL for periodic refresh ---
 @st.cache_data(ttl=86400)
-def load_level_schedules():
+def _load_level_schedules_cached():
     return {
         "A1": get_a1_schedule(),
         "A2": get_a2_schedule(),
@@ -4496,6 +4615,11 @@ def load_level_schedules():
         "B2": get_b2_schedule(),
         "C1": get_c1_schedule(),
     }
+
+def load_level_schedules():
+    if "level_schedules" not in st.session_state:
+        st.session_state["level_schedules"] = _load_level_schedules_cached()
+    return st.session_state["level_schedules"]
 
 # -------------------------
 # UI helpers
@@ -4692,7 +4816,7 @@ def notify_slack(text: str) -> tuple[bool, str]:
     if not url:
         return False, "missing_webhook"
     try:
-        resp = requests.post(url, json={"text": text}, timeout=6)
+        resp = api_post(url, json={"text": text}, timeout=6)
         ok = 200 <= resp.status_code < 300
         return ok, f"status={resp.status_code}"
     except Exception as e:
@@ -4720,7 +4844,7 @@ def notify_slack_submission(
         f"*Preview:* {preview[:180]}{'…' if len(preview) > 180 else ''}"
     )
     try:
-        requests.post(webhook_url, json={"text": text}, timeout=6)
+        api_post(webhook_url, json={"text": text}, timeout=6)
     except Exception:
         pass  # never block the student
 
@@ -4980,18 +5104,18 @@ if tab == "My Course":
     if st.session_state.get("__go_classroom"):
         st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
         del st.session_state["__go_classroom"]
-        st.rerun()
+        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
     if st.session_state.get("__go_notes"):
         st.session_state["coursebook_subtab"] = "📒 Learning Notes"
         del st.session_state["__go_notes"]
-        st.rerun()
+        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
     # Backward-compat: older code may still set this
     if st.session_state.get("switch_to_notes"):
         st.session_state["coursebook_subtab"] = "📒 Learning Notes"
         del st.session_state["switch_to_notes"]
-        st.rerun()
+        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
     # First run default
     if "coursebook_subtab" not in st.session_state:
@@ -5470,7 +5594,6 @@ if tab == "My Course":
 
             st.subheader("✍️ Your Answer")
 
-
             # ---------- Editor (save on blur + debounce) ----------
             st.text_area(
                 "Type all your answers here",
@@ -5487,6 +5610,9 @@ if tab == "My Course":
             last_val = st.session_state.get(last_val_key, "")
             if not locked and (current_text.strip() or not last_val.strip()):
                 autosave_maybe(code, draft_key, current_text, min_secs=2.0, min_delta=12, locked=locked)
+
+            # NEW: require non-empty answer before enabling submit
+            non_empty = bool(current_text.strip())
 
             # ---------- Manual save + last saved time + safe reload ----------
             csave1, csave2, csave3 = st.columns([1, 1, 1])
@@ -5574,9 +5700,19 @@ if tab == "My Course":
                     key=f"confirm_lock_{lesson_key}",
                     disabled=locked
                 )
-                can_submit = (confirm_final and confirm_lock and (not locked))
+
+                # Require non-empty text to enable submit
+                can_submit = (confirm_final and confirm_lock and (not locked) and non_empty)
+
+                if (not non_empty) and (not locked):
+                    st.info("✋ Please type your answer before submitting.")
 
                 if st.button("✅ Confirm & Submit", type="primary", disabled=not can_submit):
+                    # Double-guard: prevent empty submission if text changed between render and click
+                    if not (st.session_state.get(draft_key, "") or "").strip():
+                        st.warning("Your answer box is empty. Please type something before submitting.")
+                        st.stop()
+
                     # 1) Try to acquire the lock first
                     got_lock = acquire_lock(student_level, code, lesson_key)
 
@@ -5585,7 +5721,7 @@ if tab == "My Course":
                         if has_existing_submission(student_level, code, lesson_key):
                             st.session_state[locked_key] = True
                             st.warning("You have already submitted this assignment. It is locked.")
-                            st.rerun()
+                            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
                         else:
                             st.info("Found an old lock without a submission — recovering and submitting now…")
 
@@ -5652,7 +5788,7 @@ if tab == "My Course":
                             )
 
                         # Rerun so hydration path immediately shows locked view
-                        st.rerun()
+                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
                     else:
                         # 4) Failure: remove the lock doc so student can retry cleanly
                         try:
@@ -5660,6 +5796,8 @@ if tab == "My Course":
                         except Exception:
                             pass
                         st.warning("Submission not saved. Please fix the issue and try again.")
+#
+
 
 
 
@@ -6439,6 +6577,8 @@ if tab == "My Course":
                     df_students = load_student_data()
                 except Exception:
                     df_students = pd.DataFrame()
+                if df_students is None:
+                    df_students = pd.DataFrame()
 
                 for col in ("ClassName", "Name", "Email", "Location"):
                     if col not in df_students.columns:
@@ -6848,7 +6988,7 @@ if tab == "My Course":
                                     if st.button("✏️ Edit", key=f"ann_edit_reply_{ann_id}_{r['__id']}"):
                                         st.session_state[f"edit_mode_{ann_id}_{r['__id']}"] = True
                                         st.session_state[f"edit_text_{ann_id}_{r['__id']}"] = r.get("text", "")
-                                        st.rerun()
+                                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
                                 with c_del:
                                     if st.button("🗑️ Delete", key=f"ann_del_reply_{ann_id}_{r['__id']}"):
                                         _delete_reply(ann_id, r["__id"])
@@ -6858,7 +6998,7 @@ if tab == "My Course":
                                             f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
                                         )
                                         st.success("Reply deleted.")
-                                        st.rerun()
+                                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
                                 if st.session_state.get(f"edit_mode_{ann_id}_{r['__id']}", False):
                                     new_txt = st.text_area(
@@ -6881,12 +7021,12 @@ if tab == "My Course":
                                                 st.success("Reply updated.")
                                             st.session_state.pop(f"edit_mode_{ann_id}_{r['__id']}", None)
                                             st.session_state.pop(f"edit_text_{ann_id}_{r['__id']}", None)
-                                            st.rerun()
+                                            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
                                     with ec2:
                                         if st.button("❌ Cancel", key=f"ann_cancel_reply_{ann_id}_{r['__id']}"):
                                             st.session_state.pop(f"edit_mode_{ann_id}_{r['__id']}", None)
                                             st.session_state.pop(f"edit_text_{ann_id}_{r['__id']}", None)
-                                            st.rerun()
+                                            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
                 for _, row in pinned_df.iterrows():
                     render_announcement(row, is_pinned=True)
@@ -7011,7 +7151,7 @@ if tab == "My Course":
                     )
                     st.session_state["__clear_q_form"] = True
                     st.success("Question posted!")
-                    st.rerun()
+                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
             colsa, colsb, colsc = st.columns([2, 1, 1])
             with colsa:
@@ -7020,7 +7160,7 @@ if tab == "My Course":
                 show_latest = st.toggle("Newest first", value=True, key="q_show_latest")
             with colsc:
                 if st.button("↻ Refresh", key="qna_refresh"):
-                    st.rerun()
+                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
             try:
                 try:
@@ -7085,7 +7225,7 @@ if tab == "My Course":
                                     f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
                                 )
                                 st.success("Question deleted.")
-                                st.rerun()
+                                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
                         if st.session_state.get(f"q_editing_{q_id}", False):
                             with st.form(f"q_edit_form_{q_id}"):
@@ -7116,10 +7256,10 @@ if tab == "My Course":
                                 )
                                 st.session_state[f"q_editing_{q_id}"] = False
                                 st.success("Question updated.")
-                                st.rerun()
+                                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
                             if cancel_edit:
                                 st.session_state[f"q_editing_{q_id}"] = False
-                                st.rerun()
+                                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
                     r_ref = q_base.document(q_id).collection("replies")
                     try:
@@ -7156,7 +7296,7 @@ if tab == "My Course":
                                             f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
                                         )
                                         st.success("Reply deleted.")
-                                        st.rerun()
+                                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
                                 if st.session_state.get(f"r_editing_{q_id}_{rid}", False):
                                     with st.form(f"r_edit_form_{q_id}_{rid}"):
@@ -7181,10 +7321,10 @@ if tab == "My Course":
                                         )
                                         st.session_state[f"r_editing_{q_id}_{rid}"] = False
                                         st.success("Reply updated.")
-                                        st.rerun()
+                                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
                                     if rcancel:
                                         st.session_state[f"r_editing_{q_id}_{rid}"] = False
-                                        st.rerun()
+                                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
                     input_key = f"q_reply_box_{q_id}"
                     clear_key = f"__clear_{input_key}"
@@ -7214,7 +7354,7 @@ if tab == "My Course":
                         )
                         st.session_state[clear_key] = True
                         st.success("Reply sent!")
-                        st.rerun()
+                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
 
     # === LEARNING NOTES SUBTAB ===
@@ -7294,13 +7434,13 @@ if tab == "My Course":
                 st.session_state[key_notes] = notes
                 save_notes_to_db(student_code, notes)
                 st.session_state["switch_to_library"] = True
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
             if cancel_btn:
                 for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
                     if k in st.session_state: del st.session_state[k]
                 st.session_state["switch_to_library"] = True
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
         elif notes_subtab == "📚 My Notes Library":
             st.markdown("#### 📚 All My Notes")
@@ -7499,27 +7639,27 @@ if tab == "My Course":
                             st.session_state["edit_note_text"] = note["text"]
                             st.session_state["edit_note_tag"] = note.get("tag", "")
                             st.session_state["switch_to_edit_note"] = True
-                            st.rerun()
+                            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
                     with cols[1]:
                         if st.button("🗑️ Delete", key=f"del_{i}"):
                             notes.remove(note)
                             st.session_state[key_notes] = notes
                             save_notes_to_db(student_code, notes)
                             st.success("Note deleted.")
-                            st.rerun()
+                            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
                     with cols[2]:
                         if note.get("pinned"):
                             if st.button("📌 Unpin", key=f"unpin_{i}"):
                                 note["pinned"] = False
                                 st.session_state[key_notes] = notes
                                 save_notes_to_db(student_code, notes)
-                                st.rerun()
+                                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
                         else:
                             if st.button("📍 Pin", key=f"pin_{i}"):
                                 note["pinned"] = True
                                 st.session_state[key_notes] = notes
                                 save_notes_to_db(student_code, notes)
-                                st.rerun()
+                                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
                     with cols[3]:
                         st.caption("")
 
@@ -7659,7 +7799,7 @@ if tab == "My Results and Resources":
         if st.button("🔄 Refresh"):
             st.cache_data.clear()
             st.success("Cache cleared! Reloading…")
-            st.rerun()
+            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
     # Load data
     df_scores = fetch_scores(GOOGLE_SHEET_CSV)
@@ -8057,15 +8197,15 @@ def back_step():
         st.session_state.pop(key, None)
     st.session_state["_falowen_loaded"] = False
     st.session_state["falowen_stage"] = 1
-    st.rerun()
+    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
 # --- CONFIG (same doc, no duplicate db init) ---
 exam_sheet_id = "1zaAT5NjRGKiITV7EpuSHvYMBHHENMs9Piw3pNcyQtho"
 exam_sheet_name = "exam_topics"
 exam_csv_url = f"https://docs.google.com/spreadsheets/d/{exam_sheet_id}/gviz/tq?tqx=out:csv&sheet={exam_sheet_name}"
 
-@st.cache_data
-def load_exam_topics():
+@st.cache_data(ttl=3600)
+def _load_exam_topics_cached():
     df = pd.read_csv(exam_csv_url)
     for col in ['Level', 'Teil', 'Topic/Prompt', 'Keyword/Subtopic']:
         if col not in df.columns:
@@ -8076,7 +8216,10 @@ def load_exam_topics():
             df[c] = df[c].astype(str).str.strip()
     return df
 
-df_exam = load_exam_topics()
+def load_exam_topics():
+    if "exam_topics_df" not in st.session_state:
+        st.session_state["exam_topics_df"] = _load_exam_topics_cached()
+    return st.session_state["exam_topics_df"]
 
 # ================= UI styles: bubbles + highlights (yours, restored) =================
 bubble_user = (
@@ -8444,7 +8587,7 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_teil"] = None
             st.session_state["falowen_messages"] = []
             st.session_state["custom_topic_intro_done"] = False
-            st.rerun()
+            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
     # ——— Step 2: Level ———
     if st.session_state["falowen_stage"] == 2:
@@ -8457,7 +8600,7 @@ if tab == "Exams Mode & Custom Chat":
                 st.session_state["falowen_stage"] = 1
                 st.session_state["falowen_messages"] = []
                 st.session_state["_falowen_loaded"] = False
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
         with col2:
             if st.button("Next ➡️", key="falowen_next_level"):
                 st.session_state["falowen_level"] = level
@@ -8465,7 +8608,7 @@ if tab == "Exams Mode & Custom Chat":
                 st.session_state["falowen_teil"] = None
                 st.session_state["falowen_messages"] = []
                 st.session_state["custom_topic_intro_done"] = False
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
         st.stop()
 
     # ——— Step 3: Exam Part or Lesen/Hören links ———
@@ -8528,12 +8671,13 @@ if tab == "Exams Mode & Custom Chat":
             if st.button("⬅️ Back", key="lesen_hoeren_back"):
                 st.session_state["falowen_stage"] = 2
                 st.session_state["falowen_messages"] = []
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
         else:
             # Topic picker (your format: "Topic/Prompt" + "Keyword/Subtopic")
             teil_number = teil.split()[1]  # e.g., "1"
-            exam_topics = df_exam[(df_exam["Level"] == level) & (df_exam["Teil"] == f"Teil {teil_number}")].copy()
+            exam_df = load_exam_topics()
+            exam_topics = exam_df[(exam_df["Level"] == level) & (exam_df["Teil"] == f"Teil {teil_number}")].copy()
 
             topics_list = []
             if not exam_topics.empty:
@@ -8578,7 +8722,7 @@ if tab == "Exams Mode & Custom Chat":
                 if st.button("⬅️ Back", key="falowen_back_part"):
                     st.session_state["falowen_stage"]    = 2
                     st.session_state["falowen_messages"] = []
-                    st.rerun()
+                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
             with col2:
                 if st.button("Start Practice", key="falowen_start_practice"):
                     st.session_state["falowen_teil"]            = teil
@@ -8588,7 +8732,7 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["remaining_topics"]        = filtered.copy()
                     random.shuffle(st.session_state["remaining_topics"])
                     st.session_state["used_topics"]             = []
-                    st.rerun()
+                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
 
     # ——— Step 4: Chat (Exam or Custom) ———
@@ -8796,7 +8940,7 @@ if tab == "Exams Mode & Custom Chat":
                         st.session_state.pop(k, None)
                     st.session_state["falowen_stage"] = 1
                     st.success("All chat history deleted.")
-                    st.rerun()
+                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
         with col2:
             if st.button("⬅️ Back", key=_wkey("btn_back_stage4")):
                 back_step()
@@ -8804,7 +8948,7 @@ if tab == "Exams Mode & Custom Chat":
         st.divider()
         if st.button("✅ End Session & Show Summary", key=_wkey("btn_end_session")):
             st.session_state["falowen_stage"] = 5
-            st.rerun()
+            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 #
 
 
@@ -8848,7 +8992,7 @@ if tab == "Exams Mode & Custom Chat":
                 _entered = _norm_code(_entered)
                 if _entered:
                     st.session_state["student_code"] = _entered
-                    st.rerun()
+                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
             st.stop()
 
         try:
@@ -8891,11 +9035,7 @@ if tab == "Exams Mode & Custom Chat":
 
         if st.button("⬅️ Back to Start"):
             st.session_state["falowen_stage"] = 1
-            st.rerun()
-
-#
-
-
+            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
 # =========================================
 # End
@@ -10136,7 +10276,7 @@ if tab == "Vocab Trainer":
         if st.button("🔄 Refresh vocab from sheet", use_container_width=True):
             refresh_vocab_from_sheet()
             st.success("Refreshed vocab + audio from sheet.")
-            st.rerun()
+            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
     with tcol2:
         st.caption("Uses 'Audio (slow)' for A1 by default; 'Audio (normal)' for others.")
 
@@ -10265,7 +10405,7 @@ if tab == "Vocab Trainer":
                 with col:
                     if st.button(btn_label, key=f"sb_word_{st.session_state.sb_round}_{i}", disabled=selected):
                         st.session_state.sb_selected_idx.append(i)
-                        st.rerun()
+                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
         # Preview
         chosen_tokens = [st.session_state.sb_shuffled[i] for i in st.session_state.sb_selected_idx]
@@ -10279,7 +10419,7 @@ if tab == "Vocab Trainer":
                 st.session_state.sb_selected_idx = []
                 st.session_state.sb_feedback = ""
                 st.session_state.sb_correct = None
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
         with b:
             if st.button("✅ Check"):
                 target_sentence = st.session_state.sb_current.get("target_de", "").strip()
@@ -10301,14 +10441,14 @@ if tab == "Vocab Trainer":
                     correct=correct,
                     tip=st.session_state.sb_current.get("hint_en", ""),
                 )
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
         with c:
             next_disabled = (st.session_state.sb_correct is None)
             if st.button("➡️ Next", disabled=next_disabled):
                 if st.session_state.sb_total >= st.session_state.sb_target:
                     st.success(f"Session complete! Score: {st.session_state.sb_score}/{st.session_state.sb_total}")
                 new_sentence()
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
         # Feedback
         if st.session_state.sb_feedback:
@@ -10353,7 +10493,7 @@ if tab == "Vocab Trainer":
         if st.button("🔁 Start New Practice", key="vt_reset"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
-            st.rerun()
+            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
         mode = st.radio("Select words:", ["Only new words", "All words"], horizontal=True, key="vt_mode")
         session_vocab = (not_done if mode == "Only new words" else items).copy()
@@ -10375,7 +10515,7 @@ if tab == "Vocab Trainer":
                 st.session_state.vt_history = [("assistant", f"Hallo! Ich bin Herr Felix. Let's do {count} words!")]
                 st.session_state.vt_saved = False
                 st.session_state.vt_session_id = str(uuid4())
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
         if st.session_state.vt_history:
             st.markdown("### 🗨️ Practice Chat")
@@ -10424,7 +10564,7 @@ if tab == "Vocab Trainer":
                     fb = f"❌ Nope. '{word}' = '{answer}'"
                 st.session_state.vt_history.append(("assistant", fb))
                 st.session_state.vt_index += 1
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
         if isinstance(tot, int) and idx >= tot:
             score = st.session_state.vt_score
@@ -10444,11 +10584,11 @@ if tab == "Vocab Trainer":
                         session_id=st.session_state.vt_session_id
                     )
                 st.session_state.vt_saved = True
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
             if st.button("Practice Again", key="vt_again"):
                 for k in defaults:
                     st.session_state[k] = defaults[k]
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
     # ===========================
     # SUBTAB: Dictionary  (download-only audio)
@@ -10579,7 +10719,7 @@ if tab == "Vocab Trainer":
                 with bcols[i]:
                     if st.button(s, key=f"sugg_{i}"):
                         st.session_state["dict_q"] = s
-                        st.rerun()
+                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
         with st.expander(f"Browse all words at level {student_level_locked}", expanded=False):
             df_show = df_view[["German","English"]].copy()
@@ -11427,7 +11567,7 @@ if tab == "Schreiben Trainer":
                     st.session_state[ns("prompt")],
                     st.session_state[ns("chat")],
                 )
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
             if prompt:
                 st.markdown("---")
@@ -11486,7 +11626,7 @@ if tab == "Schreiben Trainer":
                     st.session_state[ns("prompt")],
                     st.session_state[ns("chat")],
                 )
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
             # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
             import streamlit.components.v1 as components
@@ -11632,7 +11772,39 @@ if tab == "Schreiben Trainer":
                     "",
                     [],
                 )
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
