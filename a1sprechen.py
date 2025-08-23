@@ -63,23 +63,30 @@ from falowen.db import (
 if os.environ.get("RENDER"):
     import fastapi
     from fastapi import FastAPI
-    from uvicorn import Config, Server
 
-    # Lightweight endpoint so Render gets 200 OK
-    api = FastAPI()
+    try:
+        from uvicorn import Config, Server
+    except ImportError:
+        print(
+            "WARNING: uvicorn is not installed; health check endpoint will be skipped."
+        )
+    else:
+         # Lightweight endpoint so Render gets 200 OK
+         api = FastAPI()
 
-    @api.get("/healthz")
-    async def healthz():
-        return {"status": "ok"}
 
-    # Start the API on a background thread
-    import threading
+         @api.get("/healthz")
+         async def healthz():
+             return {"status": "ok"}
 
-    def _start_health():
-        cfg = Config(api, host="0.0.0.0", port=8000, log_level="warning")
-        Server(cfg).run()
+             # Start the API on a background thread
+             import threading
 
-    threading.Thread(target=_start_health, daemon=True).start()
+             def _start_health():
+                  cfg = Config(api, host="0.0.0.0", port=8000, log_level="warning")
+                  Server(cfg).run()
+
+             threading.Thread(target=_start_health, daemon=True).start()
 
 # ------------------------------------------------------------------------------
 # Page config MUST be the first Streamlit call
@@ -250,7 +257,7 @@ os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Initialize local SQLite database
-init_db(
+init_db()
 
 
 # ------------------------------------------------------------------------------
@@ -11541,6 +11548,8 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
+
 
 
 
