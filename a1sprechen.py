@@ -53,6 +53,77 @@ st.set_page_config(
 )
 
 # ------------------------------------------------------------------------------
+# Global META + THEME (force light, align with Falowen palette)
+# ------------------------------------------------------------------------------
+# Keep meta first so mobile browsers pick it up quickly
+st.markdown("""
+<meta name="description" content="Falowen is your all-in-one German learning platform, powered by Learn Language Education Academy. Track streaks, submit assignments, watch lectures, practice vocab & writing, and more.">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#f3f7fb">
+""", unsafe_allow_html=True)
+
+THEME_CSS = """
+<style>
+:root{
+  /* Falowen palette */
+  --fal-primary:#25317e;
+  --fal-bg:#f3f7fb;
+  --fal-bg-alt:#eef3fc;
+  --fal-text:#1a2340;
+  --fal-muted:#40507a;
+  --fal-border:#d9e4f5;
+  --fal-radius:14px;
+  color-scheme: light;
+}
+
+/* App surfaces */
+html,body,.stApp{background:var(--fal-bg)!important; color:var(--fal-text)!important;}
+[data-testid="stSidebar"]{background:var(--fal-bg-alt)!important; border-right:1px solid var(--fal-border)!important;}
+
+/* Typography */
+h1,h2,h3,h4,h5,h6{color:var(--fal-text)!important;}
+p,li,span,small{color:var(--fal-text)!important;}
+
+/* Buttons */
+.stButton > button{
+  background:var(--fal-primary)!important;
+  color:#fff!important;
+  border:1px solid var(--fal-primary)!important;
+  border-radius:999px!important;
+  padding:.6rem 1.1rem!important;
+  font-weight:600!important;
+}
+.stButton > button:hover{filter:brightness(0.95);}
+
+/* Inputs */
+input,textarea,select,
+.stTextInput input,.stTextArea textarea,.stSelectbox div[data-baseweb="select"]>div{
+  background:#fff!important;
+  color:var(--fal-text)!important;
+  border:1px solid var(--fal-border)!important;
+  border-radius:var(--fal-radius)!important;
+}
+
+/* Data containers */
+.stDataFrame, .dataframe{
+  border:1px solid var(--fal-border)!important;
+  border-radius:var(--fal-radius)!important;
+}
+
+/* Spacing / chrome clean-up */
+[data-testid="stAppViewContainer"] > .main .block-container{padding-top:0!important; padding-bottom:1.25rem!important;}
+[data-testid="stAppViewContainer"] .main .block-container > div:first-child{margin-top:0!important; margin-bottom:8px!important; padding-top:0!important; padding-bottom:0!important;}
+[data-testid="stAppViewContainer"] .main .block-container > div:first-child [data-testid="stIFrame"]{
+  display:block; height:0!important; min-height:0!important; margin:0!important; padding:0!important; border:0!important; overflow:hidden!important;
+}
+[data-testid="stTabs"]{margin-top:8px!important;}
+#MainMenu, footer{visibility:hidden;}
+</style>
+"""
+st.markdown(THEME_CSS, unsafe_allow_html=True)
+
+# ------------------------------------------------------------------------------
 # Silence the st.cache deprecation banner & provide a compat shim
 # ------------------------------------------------------------------------------
 try:
@@ -155,52 +226,14 @@ except Exception as e:
     raise RuntimeError("Firebase initialization failed") from e
 
 # ------------------------------------------------------------------------------
-# Top spacing + chrome (tighter)
+# PWA + head helper (define BEFORE you call it)
 # ------------------------------------------------------------------------------
-st.markdown("""
-<style>
-/* Remove Streamlit's top padding */
-[data-testid="stAppViewContainer"] > .main .block-container {
-  padding-top: 0 !important;
-}
-/* First rendered block — keep a small gap only */
-[data-testid="stAppViewContainer"] .main .block-container > div:first-child {
-  margin-top: 0 !important;
-  margin-bottom: 8px !important;
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
-}
-/* If that first block is an iframe, collapse it completely */
-[data-testid="stAppViewContainer"] .main .block-container > div:first-child [data-testid="stIFrame"] {
-  display: block;
-  height: 0 !important;
-  min-height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-  overflow: hidden !important;
-}
-/* Keep hero flush and compact */
-.hero { margin-top: 2px !important; margin-bottom: 4px !important; padding-top: 6px !important; display: flow-root; }
-.hero h1:first-child { margin-top: 0 !important; }
-/* Trim default gap above Streamlit tabs */
-[data-testid="stTabs"] { margin-top: 8px !important; }
-/* Hide default Streamlit chrome */
-#MainMenu { visibility: hidden; }
-footer { visibility: hidden; }
-</style>
-""", unsafe_allow_html=True)
-
-# Compatibility alias
-html = st_html
-
-# ---- PWA head helper (define BEFORE you call it) ----
 BASE = st.secrets.get("PUBLIC_BASE_URL", "")
 _manifest = f'{BASE}/manifest.webmanifest' if BASE else "/manifest.webmanifest"
 _icon180  = f'{BASE}/static/icons/falowen-180.png' if BASE else "/static/icons/falowen-180.png"
 
 def _inject_meta_tags():
-    """Inject PWA meta + register the service worker once per session."""
+    """Inject PWA meta + register the service worker once per session (light theme)."""
     if st.session_state.get("_pwa_head_done"):
         return
     components.html(f"""
@@ -208,8 +241,9 @@ def _inject_meta_tags():
       <link rel="apple-touch-icon" href="{_icon180}">
       <meta name="apple-mobile-web-app-capable" content="yes">
       <meta name="apple-mobile-web-app-title" content="Falowen">
-      <meta name="apple-mobile-web-app-status-bar-style" content="black">
-      <meta name="theme-color" content="#000000">
+      <meta name="apple-mobile-web-app-status-bar-style" content="default">
+      <meta name="color-scheme" content="light">
+      <meta name="theme-color" content="#f3f7fb">
       <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
       <script>
         if ('serviceWorker' in navigator) {{
@@ -240,13 +274,8 @@ def _bootstrap_state():
         st.session_state.setdefault(k, v)
 _bootstrap_state()
 
-# ==== Hide Streamlit chrome ====
-st.markdown("""
-<style>
-#MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
-</style>
-""", unsafe_allow_html=True)
+# Compatibility alias
+html = st_html
 
 # ------------------------------------------------------------------------------
 # Firestore sessions (server-side auth state)
@@ -341,6 +370,7 @@ def api_post(url, headers=None, params=None, **kwargs):
         headers.setdefault("X-Session-Token", tok)
         params.setdefault("session_token", tok)
     return requests.post(url, headers=headers, params=params, **kwargs)
+
 
 # ------------------------------------------------------------------------------
 # OpenAI (used elsewhere in app)
