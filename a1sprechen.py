@@ -7748,13 +7748,25 @@ if tab == "My Results and Resources":
     schedules_map = _get_level_schedules()
     schedule = schedules_map.get(level, [])
 
-    # ---------- SUB-TABS ----------
-    t_overview, t_assign, t_badges, t_missed, t_pdf, t_res = st.tabs(
-        ["Overview", "Assignments", "Badges", "Missed & Next", "PDF", "Resources"]
+    # ---------- SUB-SECTIONS (radio style) ----------
+    if "rr_page" not in st.session_state:
+        st.session_state["rr_page"] = "Overview"
+    if "rr_prev_page" not in st.session_state:
+        st.session_state["rr_prev_page"] = st.session_state["rr_page"]
+
+    def on_rr_page_change():
+        st.session_state["rr_prev_page"] = st.session_state.get("rr_page")
+
+    rr_page = st.radio(
+        "Results & Resources section",
+        ["Overview", "My Scores", "Badges", "Missed & Next", "PDF", "Resources"],
+        horizontal=True,
+        key="rr_page",
+        on_change=on_rr_page_change,
     )
 
     # ============ OVERVIEW ============
-    with t_overview:
+    if rr_page == "Overview":
         st.subheader("Quick Overview")
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Total Assignments", total)
@@ -7781,7 +7793,7 @@ if tab == "My Results and Resources":
             st.caption("See the **Assignments** tab for the full list and feedback.")
 
     # ============ ASSIGNMENTS ============
-    with t_assign:
+    elif rr_page == "My Scores":
         st.subheader("All Assignments & Feedback")
         base_cols = ["assignment", "score", "date", "comments", "link"]
         for _, row in df_display[base_cols].iterrows():
@@ -7811,7 +7823,7 @@ if tab == "My Results and Resources":
             st.divider()
 
     # ============ BADGES ============
-    with t_badges:
+    elif rr_page == "Badges":
         st.subheader("Badges & Trophies")
         with st.expander("What badges can you earn?", expanded=False):
             st.markdown(
@@ -7844,7 +7856,7 @@ if tab == "My Results and Resources":
             st.warning("No badges yet. Complete more assignments to earn badges!")
 
     # ============ MISSED & NEXT ============
-    with t_missed:
+    elif rr_page == "Missed & Next":
         st.subheader("Missed Assignments & Next Recommendation")
 
         def _extract_all_nums(chapter_str):
@@ -8034,7 +8046,7 @@ if tab == "My Results and Resources":
             st.info("If the button does not work, right-click the blue link above and choose 'Save link as...'")
 
     # ============ RESOURCES ============
-    with t_res:
+    elif rr_page == "Resources":
         st.subheader("Useful Resources")
         st.markdown(
             """
