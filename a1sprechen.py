@@ -4822,6 +4822,37 @@ def load_notes_from_db(student_code):
 def save_notes_to_db(student_code, notes):
     ref = db.collection("learning_notes").document(student_code)
     ref.set({"notes": notes}, merge=True)
+
+def autosave_learning_note(student_code: str, key_notes: str) -> None:
+    """Autosave current note draft to Firestore."""
+    notes = st.session_state.get(key_notes, [])
+    idx = st.session_state.get("edit_note_idx")
+    draft = st.session_state.get("learning_note_draft", "")
+    title = st.session_state.get("learning_note_title", "")
+    tag = st.session_state.get("learning_note_tag", "")
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    note = {
+        "title": title.strip().title(),
+        "tag": tag.strip().title(),
+        "text": draft.strip(),
+        "pinned": False,
+        "created": ts,
+        "updated": ts,
+    }
+
+    if idx is not None and idx < len(notes):
+        existing = notes[idx]
+        note["pinned"] = existing.get("pinned", False)
+        note["created"] = existing.get("created", ts)
+        notes[idx] = note
+    else:
+        notes.insert(0, note)
+        st.session_state["edit_note_idx"] = 0
+
+    st.session_state[key_notes] = notes
+    save_notes_to_db(student_code, notes)
+    st.session_state["learning_note_last_saved"] = ts
     
 
 if tab == "My Course":
@@ -7158,41 +7189,56 @@ if tab == "My Course":
             st.markdown("#### ✍️ Create a new note or update an old one")
 
             with st.form("note_form", clear_on_submit=not editing):
-                new_title = st.text_input("Note Title", value=title, max_chars=50)
-                new_tag = st.text_input("Category/Tag (optional)", value=tag, max_chars=20)
-                new_text = st.text_area("Your Note", value=text, height=200, max_chars=3000)
-                save_btn = st.form_submit_button("💾 Save Note")
-                cancel_btn = editing and st.form_submit_button("❌ Cancel Edit")
+                st.session_state.setdefault("learning_note_title", title)
+                st.session_state.setdefault("learning_note_tag", tag)
+                st.session_state.setdefault("learning_note_draft", text)
+                st.session_state.setdefault("learning_note_last_saved", None)
 
-            if save_btn:
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-                if not new_title.strip():
-                    st.warning("Please enter a title.")
-                    st.stop()
-                note = {
-                    "title": new_title.strip().title(),
-                    "tag": new_tag.strip().title(),
-                    "text": new_text.strip(),
-                    "pinned": False,
-                    "created": timestamp,
-                    "updated": timestamp
-                }
-                if editing:
-                    notes[idx] = note
-                    for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
-                        if k in st.session_state: del st.session_state[k]
-                    st.success("Note updated!")
-                else:
-                    notes.insert(0, note)
-                    st.success("Note added!")
-                st.session_state[key_notes] = notes
-                save_notes_to_db(student_code, notes)
-                st.session_state["switch_to_library"] = True
-                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                st.text_input(
+                    "Note Title",
+                    max_chars=50,
+                    key="learning_note_title",
+                    on_change=autosave_learning_note,
+                    args=(student_code, key_notes),
+                )
+                st.text_input(
+                    "Category/Tag (optional)",
+                    max_chars=20,
+                    key="learning_note_tag",
+                    on_change=autosave_learning_note,
+                    args=(student_code, key_notes),
+                )
+                st.text_area(
+                    "Your Note",
+                    height=200,
+                    max_chars=3000,
+                    key="learning_note_draft",
+                    on_change=autosave_learning_note,
+                    args=(student_code, key_notes),
+                )
+                if st.session_state.get("learning_note_last_saved"):
+                    st.caption(
+                    f"Last saved {st.session_state['learning_note_last_saved']} UTC"
+                    )
+                cancel_btn = editing and st.button("❌ Cancel Edit")
+
+            
 
             if cancel_btn:
-                for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
-                    if k in st.session_state: del st.session_state[k]
+
+                for k in [
+                    "edit_note_idx",
+                    "edit_note_title",
+                    "edit_note_text",
+                    "edit_note_tag",
+                    "learning_note_title",
+                    "learning_note_tag",
+                    "learning_note_draft",
+                    "learning_note_last_saved",
+                ]:
+                    if k in st.session_state:
+                        del st.session_state[k]
+
                 st.session_state["switch_to_library"] = True
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
