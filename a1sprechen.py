@@ -5762,13 +5762,28 @@ if tab == "My Course":
             seed = f"{base}|{class_name}"
             return f"{base}_{hashlib.md5(seed.encode()).hexdigest()[:8]}"
 
-        # ---------- NEW: mini-tabs inside 'Classroom' ----------
-        t_calendar, t_join, t_members, t_announcements, t_qna = st.tabs(
-            ["Calender", "Join on Zoom", "Members", "Announcements", "Q&A"]
+
+        # ---------- MINI-TABS INSIDE 'CLASSROOM' (radio style) ----------
+        if "classroom_page" not in st.session_state:
+            st.session_state["classroom_page"] = "Calendar"
+        if "classroom_prev_page" not in st.session_state:
+            st.session_state["classroom_prev_page"] = st.session_state["classroom_page"]
+
+        def on_classroom_page_change() -> None:
+            prev = st.session_state.get("classroom_prev_page")
+            curr = st.session_state.get("classroom_page")
+            st.session_state["classroom_prev_page"] = curr
+
+        classroom_section = st.radio(
+            "Classroom section",
+            ["Calendar", "Join on Zoom", "Members", "Announcements", "Q&A"],
+            horizontal=True,
+            key="classroom_page",
+            on_change=on_classroom_page_change,
         )
 
                 # ===================== CALENDAR =====================
-        with t_calendar:
+        if classroom_section == "Calendar":
             # Banner
             st.markdown(
                 '''
@@ -6384,7 +6399,7 @@ if tab == "My Course":
                 )
 
         # ===================== MEMBERS =====================
-        with t_members:
+        elif classroom_section == "Members":
             # Subtle hint banner
             st.markdown(
                 """
@@ -6461,7 +6476,7 @@ if tab == "My Course":
 #
 
         # ===================== JOIN =====================
-        with t_join:
+        elif classroom_section == "Join on Zoom":
             with st.container():
                 st.markdown(
                     """
@@ -6564,7 +6579,7 @@ if tab == "My Course":
 
 
         # ===================== ANNOUNCEMENTS =====================
-        with t_announcements:
+        elif classroom_section == "Announcements":
             # Fetch CSV (prefer cached helper)
             try:
                 df = fetch_announcements_csv()
@@ -6883,7 +6898,7 @@ if tab == "My Course":
                     render_announcement(row, is_pinned=False)
 
         # ===================== Q&A =====================
-        with t_qna:
+        elif classroom_section == "Q&A":
             q_base = db.collection("class_qna").document(class_name).collection("questions")
 
             _new7, _unans, _total = 0, 0, 0
