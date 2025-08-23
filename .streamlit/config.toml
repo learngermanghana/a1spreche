@@ -1,10 +1,10 @@
 [theme]
-base = "light"
+base = "light"       
 primaryColor = "#25317e"
 backgroundColor = "#f3f7fb"
 secondaryBackgroundColor = "#eef3fc"
 textColor = "#1a2340"
 font = "sans serif"
 
-[browser]
-gatherUsageStats = false
+[ui]
+customTheme = false   # enables the user theme switcher
