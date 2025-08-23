@@ -77,4 +77,4 @@ def test_is_contract_expired():
     future_date = (datetime.now(UTC) + timedelta(days=30)).strftime("%Y-%m-%d")
     future = {"ContractEnd": future_date}
     assert is_contract_expired(past) is True
-    assert is_contract_expired(future) is Fals
+    assert is_contract_expired(future) is False
