@@ -13,3 +13,4 @@ streamlit-quill
 beautifulsoup4
 fastapi
 uvicorn
+pytest
