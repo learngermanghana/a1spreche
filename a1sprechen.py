@@ -4,8 +4,7 @@ import calendar
 import difflib
 import hashlib
 import html as html_stdlib
-import io
-import json
+import io, json
 import math
 import os
 import random
@@ -13,6 +12,7 @@ import re
 import tempfile
 import time
 import urllib.parse as _urllib
+from urllib.parse import urlsplit, parse_qs, urlparse
 from datetime import date, timedelta, timezone as _timezone, UTC
 from datetime import datetime
 from datetime import datetime as _dt
@@ -4965,10 +4965,29 @@ if tab == "My Course":
         # ---------- mini-tabs inside Course Book ----------
         if "coursebook_page" not in st.session_state:
             st.session_state["coursebook_page"] = "Overview"
+        if "coursebook_prev_page" not in st.session_state:
+            st.session_state["coursebook_prev_page"] = st.session_state["coursebook_page"]
+        def on_coursebook_page_change() -> None:
+            prev = st.session_state.get("coursebook_prev_page")
+            curr = st.session_state.get("coursebook_page")
+            if prev in {"Assignment", "Submit"}:
+                draft_key = st.session_state.get("coursebook_draft_key")
+                code = (
+                    st.session_state.get("student_code")
+                    or (st.session_state.get("student_row") or {}).get("StudentCode", "")
+                 )
+                 if draft_key and code:
+                     last_val_key, *_ = _draft_state_keys(draft_key)
+                     if st.session_state.get(draft_key, "") != st.session_state.get(last_val_key, ""):
+                         save_now(draft_key, code)
+            st.session_state["coursebook_prev_page"] = curr
+
+        
         coursebook_section = st.radio(
             "Section",
             ["Overview", "Assignment", "Support Materials", "Submit"],
             key="coursebook_page",
+            on_change=on_coursebook_page_change,
         )
 
         # OVERVIEW
@@ -5006,9 +5025,8 @@ if tab == "My Course":
                         st.warning("❓ Start date missing or invalid. Please update your contract start date.")
 
         # ASSIGNMENT (activities + resources; tolerant across A1–C1)
-        elif coursebook_section == "Assignment"
-            from urllib.parse import urlsplit, parse_qs, urlparse
-            import io, json
+        elif coursebook_section == "Assignment":
+
 
             # ---------- helpers ----------
             def _as_list(x):
@@ -5233,6 +5251,7 @@ if tab == "My Course":
             name = st.text_input("Name", value=student_row.get('Name', ''))
 
             draft_key = f"draft_{lesson_key}"
+            st.session_state["coursebook_draft_key"] = draft_key
             db_locked = is_locked(student_level, code, lesson_key)
             locked_key = f"{lesson_key}_locked"
             if db_locked:
@@ -11254,7 +11273,7 @@ if tab == "Schreiben Trainer":
             st.markdown("### ✏️ Enter your exam prompt or draft to start coaching")
             with st.form(ns("prompt_form"), clear_on_submit=True):
                 prompt = st.text_area(
-                    "Exam prompt"
+                    "Exam prompt",
                     value=st.session_state[ns("prompt")],
                     height=120,
                     placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ...",
