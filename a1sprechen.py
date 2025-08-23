@@ -229,7 +229,7 @@ _inject_meta_tags()
 def _bootstrap_state():
     defaults = {
         "logged_in": False,
-        "student_row": None,
+        "student_row": {},
         "student_code": "",
         "student_name": "",
         "session_token": "",
@@ -1527,7 +1527,7 @@ if _logout_clicked:
 
     st.session_state.update({
         "logged_in": False,
-        "student_row": None,
+        "student_row": {},
         "student_code": "",
         "student_name": "",
         "session_token": "",
@@ -4362,7 +4362,7 @@ except Exception:
         pass
 
 # --- FORCE A MOCK LOGIN FOR TESTING ---
-if "student_row" not in st.session_state:
+if not st.session_state.get("student_row"):
     st.session_state["student_row"] = {
         "Name": "Test Student",
         "Level": "A1",
@@ -4370,7 +4370,7 @@ if "student_row" not in st.session_state:
         "ClassName": "A1 Berlin Klasse",
     }
 
-student_row = st.session_state.get("student_row", {})
+student_row = st.session_state.get("student_row") or {}
 student_level = student_row.get("Level", "A1").upper()
 
 # --- Cache level schedules with TTL for periodic refresh ---
@@ -5644,7 +5644,7 @@ if tab == "My Course":
             s = _safe_str(v, default)
             return s.upper() if s else default
 
-        student_row   = st.session_state.get("student_row", {}) or {}
+        student_row   = st.session_state.get("student_row") or {}
         student_code  = _safe_str(student_row.get("StudentCode"), "demo001")
         student_name  = _safe_str(student_row.get("Name"), "Student")
         student_level = _safe_upper(student_row.get("Level"), "A1")
@@ -7540,7 +7540,7 @@ def fetch_scores(csv_url: str):
 
 # Tiny helpers for current user
 def _get_current_student():
-    row = st.session_state.get("student_row", {}) or {}
+    row = st.session_state.get("student_row") or {}
     code = (row.get("StudentCode") or st.session_state.get("student_code", "") or "").strip()
     name = (row.get("Name") or st.session_state.get("student_name", "") or "").strip()
     level = (row.get("Level") or "").strip().upper()
@@ -11105,6 +11105,7 @@ if tab == "Schreiben Trainer":
                 )
 
 
+
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
 
@@ -11295,11 +11296,10 @@ if tab == "Schreiben Trainer":
             st.markdown("### ✏️ Enter your exam prompt or draft to start coaching")
             with st.form(ns("prompt_form"), clear_on_submit=True):
                 prompt = st.text_area(
-                    "Exam prompt or draft",
+                    "",
                     value=st.session_state[ns("prompt")],
                     height=120,
-                    placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ...",
-                    label_visibility="collapsed",
+                    placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ..."
                 )
                 send = st.form_submit_button("✉️ Start Letter Coach")
 
@@ -11342,7 +11342,6 @@ if tab == "Schreiben Trainer":
                     st.session_state[ns("prompt")],
                     st.session_state[ns("chat")],
                 )
-                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
                 st.rerun()
 
             if prompt:
@@ -11375,12 +11374,11 @@ if tab == "Schreiben Trainer":
 
             with st.form(ns("letter_coach_chat_form"), clear_on_submit=True):
                 user_input = st.text_area(
-                    "Your reply",
+                    "",
                     value="",
                     key=ns("user_input"),
                     height=400,
-                     placeholder="Type your reply, ask about a section, or paste your draft here...",
-                     label_visibility="collapsed",
+                    placeholder="Type your reply, ask about a section, or paste your draft here..."
                 )
                 send = st.form_submit_button("Send")
             if send and user_input.strip():
@@ -11403,7 +11401,7 @@ if tab == "Schreiben Trainer":
                     st.session_state[ns("prompt")],
                     st.session_state[ns("chat")],
                 )
-                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                st.rerun()
 
             # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
             import streamlit.components.v1 as components
@@ -11549,8 +11547,7 @@ if tab == "Schreiben Trainer":
                     "",
                     [],
                 )
-                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-
+                st.rerun()
 
 
 
