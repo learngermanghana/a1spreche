@@ -4890,7 +4890,7 @@ if tab == "My Course":
 
     # First run default
     if "coursebook_subtab" not in st.session_state:
-        st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
+        st.session_state["coursebook_subtab"] = "📘 Course Book"
 
     # Header (render once)
     st.markdown(
