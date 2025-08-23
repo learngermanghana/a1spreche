@@ -4435,7 +4435,11 @@ def save_now(draft_key: str, code: str) -> None:
     Guarantees a Firestore write on blur or explicit change.
     """
     text = st.session_state.get(draft_key, "") or ""
-    save_draft_to_db(code, draft_key, text)
+    if st.session_state.get("falowen_chat_draft_key") == draft_key:
+        conv = st.session_state.get("falowen_conv_key", "")
+        save_chat_draft_to_db(code, conv, text)
+    else:
+        save_draft_to_db(code, draft_key, text)
 
     # Update local 'last saved' markers so the UI shows the correct time.
     last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
@@ -4479,7 +4483,11 @@ def autosave_maybe(
     time_ok    = (now - last_ts) >= min_secs
 
     if changed and (time_ok or big_change):
-        save_draft_to_db(code, lesson_field_key, text)
+        if st.session_state.get("falowen_chat_draft_key") == lesson_field_key:
+            conv = st.session_state.get("falowen_conv_key", "")
+            save_chat_draft_to_db(code, conv, text)
+        else:
+            save_draft_to_db(code, lesson_field_key, text)
         st.session_state[last_val_key]   = text
         st.session_state[last_ts_key]    = now
         st.session_state[saved_flag_key] = True
@@ -4687,6 +4695,27 @@ def load_draft_from_db(code: str, field_key: str) -> str:
     """Return the draft text (prefers new path; falls back to legacy paths)."""
     text, _ = load_draft_meta_from_db(code, field_key)
     return text or ""
+
+def save_chat_draft_to_db(code: str, conv_key: str, text: str) -> None:
+    """Persist an unsent chat draft for the given conversation."""
+    ref = db.collection("falowen_chats").document(code)
+    if text:
+        ref.set({"drafts": {conv_key: text}}, merge=True)
+    else:
+        ref.set({"drafts": {conv_key: firestore.DELETE_FIELD}}, merge=True)
+
+
+def load_chat_draft_from_db(code: str, conv_key: str) -> str:
+    """Retrieve any saved chat draft for the conversation."""
+    try:
+        snap = db.collection("falowen_chats").document(code).get()
+        if snap.exists:
+            data = snap.to_dict() or {}
+            drafts = data.get("drafts", {}) or {}
+            return drafts.get(conv_key, "") or ""
+    except Exception:
+        pass
+    return ""
 
 def load_draft_meta_from_db(code: str, field_key: str) -> tuple[str, datetime | None]:
     """
@@ -8169,9 +8198,16 @@ def clear_falowen_chat(student_code, mode, level, teil):
     if doc.exists:
         data = doc.to_dict()
         chats = data.get("chats", {})
+        drafts = data.get("drafts", {})
+        changed = False
         if chat_key in chats:
             del chats[chat_key]
-            doc_ref.set({"chats": chats}, merge=True)
+            changed = True
+        if chat_key in drafts:
+            del drafts[chat_key]
+            changed = True
+        if changed:
+            doc_ref.set({"chats": chats, "drafts": drafts}, merge=True)
 
 # ====== Quick links (kept) ======
 lesen_links = {
@@ -8669,9 +8705,12 @@ if tab == "Exams Mode & Custom Chat":
         mode  = st.session_state.get("falowen_mode")
         is_exam = (mode == "Exams Mode")
         student_code = st.session_state.get("student_code", "demo")
-
-        # === Load messages PER (student_code + mode/level/teil) ===
+        
+        # === Load messages & draft PER (student_code + mode/level/teil) ===
         conv_key = f"{mode}_{level}_{(teil or 'custom')}"
+        draft_key = _wkey("chat_draft")
+        st.session_state["falowen_chat_draft_key"] = draft_key
+        st.session_state["falowen_conv_key"] = conv_key
         load_key = f"{student_code}::{conv_key}"
         if st.session_state.get("falowen_loaded_key") != load_key:
             try:
@@ -8683,6 +8722,13 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["falowen_messages"] = []
             except Exception:
                 st.session_state["falowen_messages"] = []
+            draft_text = load_chat_draft_from_db(student_code, conv_key)
+            st.session_state[draft_key] = draft_text
+            lv, lt, sf, sa = _draft_state_keys(draft_key)
+            st.session_state[lv] = draft_text
+            st.session_state[lt] = time.time()
+            st.session_state[sf] = True
+            st.session_state[sa] = datetime.now(_timezone.utc)
             st.session_state["falowen_loaded_key"] = load_key
 
         # Seed the first assistant instruction if chat is empty
@@ -8742,12 +8788,34 @@ if tab == "Exams Mode & Custom Chat":
                 'text-decoration:none;font-weight:700;">🎙️ Record your answer now (Sprechen Recorder)</a>',
                 unsafe_allow_html=True,
             )
+        chat_display = st.container()
         st.caption("You can keep chatting here or record your answer now.")
 
         # ========= Handle new input FIRST =========
-        user_input = st.chat_input("Type your answer or message here...", key=_wkey("chat_input"))
+
+        def _on_chat_change() -> None:
+            save_now(draft_key, student_code)
+
+        col_in, col_btn = st.columns([8, 1])
+        with col_in:
+            st.text_area(
+                "Type your answer or message here...",
+                key=draft_key,
+                on_change=_on_chat_change,
+            )
+        with col_btn:
+            send_clicked = st.button("Send", key=_wkey("chat_send"), type="primary")
+
+        autosave_maybe(
+            student_code,
+            draft_key,
+            st.session_state.get(draft_key, ""),
+            min_secs=2.0,
+            min_delta=12,
+        )
+
+        user_input = st.session_state.get(draft_key, "").strip() if send_clicked else ""
         if user_input:
-            # 1) append user message
             st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
             try:
                 if "inc_sprechen_usage" in globals():
@@ -8755,7 +8823,6 @@ if tab == "Exams Mode & Custom Chat":
             except Exception:
                 pass
 
-            # 2) get assistant reply
             with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                 messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
                 try:
@@ -8763,7 +8830,7 @@ if tab == "Exams Mode & Custom Chat":
                         model="gpt-4o",
                         messages=messages,
                         temperature=0.15,
-                        max_tokens=600
+                        max_tokens=600,
                     )
                     ai_reply = (resp.choices[0].message.content or "").strip()
                 except Exception as e:
@@ -8772,7 +8839,6 @@ if tab == "Exams Mode & Custom Chat":
             # 3) append assistant message
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
-            # 4) save thread
             try:
                 doc = db.collection("falowen_chats").document(student_code)
                 snap = doc.get()
@@ -8782,23 +8848,24 @@ if tab == "Exams Mode & Custom Chat":
             except Exception:
                 pass
 
-        # ========= Render the whole conversation =========
-        for msg in st.session_state["falowen_messages"]:
-            if msg["role"] == "assistant":
-                with st.chat_message("assistant", avatar="🧑‍🏫"):
-                    st.markdown(
-                        "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
-                        f"<div style='{bubble_assistant}'>{highlight_keywords(msg['content'], highlight_words)}</div>",
-                        unsafe_allow_html=True
-                    )
-            else:  # user
-                with st.chat_message("user"):
-                    st.markdown(
-                        f"<div style='display:flex;justify-content:flex-end;'>"
-                        f"<div style='{bubble_user}'>🗣️ {msg['content']}</div></div>",
-                        unsafe_allow_html=True
-                    )
-
+            st.session_state[draft_key] = ""
+            save_now(draft_key, student_code)
+        with chat_display:
+            for msg in st.session_state["falowen_messages"]:
+                if msg["role"] == "assistant":
+                    with st.chat_message("assistant", avatar="🧑‍🏫"):
+                        st.markdown(
+                            "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>",
+                            f"<div style='{bubble_assistant}'>{highlight_keywords(msg['content'], highlight_words)}</div>",
+                            unsafe_allow_html=True
+                        )
+                else:  # user
+                    with st.chat_message("user"):
+                        st.markdown(
+                            f"<div style='display:flex;justify-content:flex-end;'>",
+                            f"<div style='{bubble_user}'>🗣️ {msg['content']}</div></div>",
+                            unsafe_allow_html=True
+                        )
         # ---- Downloads
         if st.session_state["falowen_messages"]:
             from fpdf import FPDF
