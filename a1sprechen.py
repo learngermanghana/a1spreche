@@ -7211,7 +7211,7 @@ if tab == "My Course":
                     reply_text = st.text_input(
                         f"Reply to Q{q_id}",
                         key=draft_key,
-                        placeholder="Write your reply…"
+                        placeholder="Write your reply…",
                         on_change=save_now,
                         args=(draft_key, student_code),
                     )
