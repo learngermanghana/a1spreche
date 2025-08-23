@@ -4853,6 +4853,41 @@ def autosave_learning_note(student_code: str, key_notes: str) -> None:
     st.session_state[key_notes] = notes
     save_notes_to_db(student_code, notes)
     st.session_state["learning_note_last_saved"] = ts
+
+def on_cb_subtab_change():
+    """Save or restore classroom reply drafts when switching subtabs."""
+    prev = st.session_state.get("__cb_subtab_prev")
+    curr = st.session_state.get("coursebook_subtab")
+    code = st.session_state.get("student_code", "")
+
+    if prev == "🧑‍🏫 Classroom" and curr != "🧑‍🏫 Classroom":
+        for key in [k for k in st.session_state.keys() if k.startswith("classroom_reply_draft_")]:
+            try:
+                save_draft_to_db(code, key, st.session_state.get(key, ""))
+            except Exception:
+                pass
+            last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(key)
+            for k in (key, last_val_key, last_ts_key, saved_flag_key, saved_at_key):
+                st.session_state.pop(k, None)
+
+    elif curr == "🧑‍🏫 Classroom" and prev != "🧑‍🏫 Classroom":
+        try:
+            lessons = db.collection("drafts_v2").document(code).collection("lessons")
+            for doc in lessons.stream():
+                if doc.id.startswith("classroom_reply_draft_"):
+                    data = doc.to_dict() or {}
+                    text = data.get("text", "")
+                    ts = data.get("updated_at")
+                    st.session_state[doc.id] = text
+                    last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(doc.id)
+                    st.session_state[last_val_key] = text
+                    st.session_state[last_ts_key] = time.time()
+                    st.session_state[saved_flag_key] = bool(text)
+                    st.session_state[saved_at_key] = ts
+        except Exception:
+            pass
+
+    st.session_state["__cb_subtab_prev"] = curr
     
 
 if tab == "My Course":
