@@ -4877,6 +4877,8 @@ if tab == "My Course":
     # First run default
     if "coursebook_subtab" not in st.session_state:
         st.session_state["coursebook_subtab"] = "📘 Course Book"
+    if "cb_prev_subtab" not in st.session_state:
+        st.session_state["cb_prev_subtab"] = st.session_state["coursebook_subtab"]
 
     # Header (render once)
     st.markdown(
@@ -4898,11 +4900,46 @@ if tab == "My Course":
     st.divider()
 
     # Subtabs (1: Classroom, 2: Course Book, 3: Learning Notes)
+    def on_cb_subtab_change() -> None:
+        prev = st.session_state.get("cb_prev_subtab")
+        curr = st.session_state.get("coursebook_subtab")
+        if prev == "📒 Learning Notes":
+            code = st.session_state.get("student_code", "demo001")
+            notes_key = f"notes_{code}"
+            notes = st.session_state.get(notes_key)
+            if notes is not None:
+                save_notes_to_db(code, notes)
+        elif prev == "🧑‍🏫 Classroom":
+            code = (
+                st.session_state.get("student_code")
+                or (st.session_state.get("student_row") or {}).get("StudentCode", "")
+            )
+            if code:
+                if str(st.session_state.get("q_text", "")).strip():
+                    save_now("q_text", code)
+                for k in [key for key in st.session_state.keys() if key.startswith("q_reply_box_")]:
+                    if str(st.session_state.get(k, "")).strip():
+                        save_now(k, code)
+        elif prev == "📘 Course Book":
+            draft_key = st.session_state.get("coursebook_draft_key")
+            code = (
+                st.session_state.get("student_code")
+                or (st.session_state.get("student_row") or {}).get("StudentCode", "")
+            )
+            if draft_key and code:
+                last_val_key, *_ = _draft_state_keys(draft_key)
+                if st.session_state.get(draft_key, "") != st.session_state.get(last_val_key, ""):
+                    save_now(draft_key, code)
+        st.session_state["cb_prev_subtab"] = curr
+
+
+    # Subtabs (1: Classroom, 2: Course Book, 3: Learning Notes)
     cb_subtab = st.radio(
         "Select section:",
         ["🧑‍🏫 Classroom", "📘 Course Book", "📒 Learning Notes"],
         horizontal=True,
         key="coursebook_subtab"
+        on_change=on_cb_subtab_change,
     )
 
 
