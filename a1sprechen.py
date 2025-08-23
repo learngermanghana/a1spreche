@@ -4973,7 +4973,7 @@ if tab == "My Course":
         "Select section:",
         ["🧑‍🏫 Classroom", "📘 Course Book", "📒 Learning Notes"],
         horizontal=True,
-        key="coursebook_subtab"
+        key="coursebook_subtab",
         on_change=on_cb_subtab_change,
     )
 
