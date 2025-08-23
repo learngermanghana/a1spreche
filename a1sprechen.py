@@ -7226,6 +7226,7 @@ if tab == "My Course":
                         r_ref = q_base.document(q_id).collection("replies")
                         r_ref.document(str(uuid4())[:8]).set(reply_payload)
                         prev = (reply_payload["reply_text"][:180] + "…") if len(reply_payload["reply_text"]) > 180 else reply_payload["reply_text"]
+                        _notify_slack(
                             f"💬 *New Q&A reply* — {class_name}\n"
                             f"*By:* {student_name} ({student_code})  •  *QID:* {q_id}\n"
                             f"*When:* {_dt.now(_timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC\n"
