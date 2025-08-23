@@ -29,6 +29,7 @@ import warnings
 import streamlit.components.v1 as components
 from docx import Document
 from firebase_admin import credentials, firestore
+from google.cloud.firestore_v1 import FieldFilter
 from fpdf import FPDF
 from gtts import gTTS
 from openai import OpenAI
@@ -914,9 +915,9 @@ def reset_password_page(token: str):
             student_doc_ref = db.collection("students").document(code)
         else:
             # Fallback to Firestore lookup by lowercase OR Titlecase key
-            found = db.collection("students").where("email", "==", email).get()
+            found = db.collection("students").where(filter=FieldFilter("email", "==", email)).get()
             if not found:
-                found = db.collection("students").where("Email", "==", email).get()
+                found = db.collection("students").where(filter=FieldFilter("Email", "==", email)).get()
             if not found:
                 st.error("No student account found for that email. Contact support.")
                 return
@@ -1425,7 +1426,7 @@ def render_login_form():
                 # Firestore may store 'email' or 'Email'
                 user_query = db.collection("students").where("email", "==", e).get()
                 if not user_query:
-                    user_query = db.collection("students").where("Email", "==", e).get()
+                    user_query = db.collection("students").where(filter=FieldFilter("email", "==", e)).get()
 
                 if not user_query:
                     st.error("No account found with that email.")
@@ -1457,7 +1458,7 @@ def render_login_form():
                     # Store token for GAS/Streamlit reset pages to read
                     db.collection("password_resets").document(token).set({
                         "email": e,
-                        "created": datetime.now(UTC).isoformat()
+                        "created": datetime.now(UTC).isoformat(),
                         "expires_at": expires_at.isoformat()
                     })
 
