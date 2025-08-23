@@ -26,7 +26,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import requests
 import streamlit as st
-import warnings
 import streamlit.components.v1 as components
 from docx import Document
 from firebase_admin import credentials, firestore
@@ -124,41 +123,6 @@ input,textarea,select,
 """
 
 
-# ------------------------------------------------------------------------------
-# Silence the st.cache deprecation banner & provide a compat shim
-# ------------------------------------------------------------------------------
-try:
-    try:
-        from streamlit.errors import StreamlitDeprecationWarning as _StDepWarn
-    except Exception:
-        try:
-            from streamlit import StreamlitDeprecationWarning as _StDepWarn
-        except Exception:
-            _StDepWarn = DeprecationWarning
-
-    warnings.filterwarnings(
-        "ignore",
-        r".*st\.cache is deprecated and will be removed soon.*",
-        category=_StDepWarn,
-    )
-    warnings.filterwarnings(
-        "ignore",
-        r".*st\.cache is deprecated and will be removed soon.*",
-        category=DeprecationWarning,
-    )
-except Exception:
-    pass
-
-def _cache_compat(*dargs, **dkwargs):
-    allow_mut = bool(dkwargs.pop("allow_output_mutation", False))
-    decorator = st.cache_resource if allow_mut else st.cache_data
-    return decorator(*dargs, **dkwargs)
-
-try:
-    if getattr(getattr(st, "cache", None), "__name__", "") != "_cache_compat":
-        st.cache = _cache_compat  # monkey-patch only if not already our shim
-except Exception:
-    pass
 
 # ------------------------------------------------------------------------------
 # Email creds
