@@ -7183,19 +7183,28 @@ if tab == "My Course":
                                         st.session_state[f"r_editing_{q_id}_{rid}"] = False
                                         st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
-                    input_key = f"q_reply_box_{q_id}"
-                    clear_key = f"__clear_{input_key}"
-                    if st.session_state.get(clear_key):
-                        st.session_state.pop(clear_key, None)
-                        st.session_state[clear_key] = True
+                    draft_key = f"classroom_reply_draft_{q_id}"
+                    last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
+                    if draft_key not in st.session_state:
+                        txt, ts = load_draft_meta_from_db(student_code, draft_key)
+                        st.session_state[draft_key] = txt or ""
+                        st.session_state[last_val_key] = st.session_state[draft_key]
+                        st.session_state[last_ts_key] = time.time()
+                        st.session_state[saved_flag_key] = bool(txt)
+                        st.session_state[saved_at_key] = ts
+                    reply_text = st.text_input(
                     reply_text = st.text_input(
                         f"Reply to Q{q_id}",
-                        key=input_key,
+                        key=draft_key,
                         placeholder="Write your reply…"
+                        on_change=save_now,
+                        args=(draft_key, student_code),
                     )
-                    if st.button(f"Send Reply {q_id}", key=f"q_reply_btn_{q_id}") and reply_text.strip():
+                    current_text = st.session_state.get(draft_key, "")
+                    autosave_maybe(student_code, draft_key, current_text, min_secs=2.0, min_delta=12)
+                    if st.button(f"Send Reply {q_id}", key=f"q_reply_btn_{q_id}") and current_text.strip():
                         reply_payload = {
-                            "reply_text": reply_text.strip(),
+                            "reply_text": current_text.strip(),
                             "replied_by_name": student_name,
                             "replied_by_code": student_code,
                             "timestamp": _dt.now(_timezone.utc),
@@ -7203,13 +7212,18 @@ if tab == "My Course":
                         r_ref = q_base.document(q_id).collection("replies")
                         r_ref.document(str(uuid4())[:8]).set(reply_payload)
                         prev = (reply_payload["reply_text"][:180] + "…") if len(reply_payload["reply_text"]) > 180 else reply_payload["reply_text"]
-                        _notify_slack(
                             f"💬 *New Q&A reply* — {class_name}\n"
                             f"*By:* {student_name} ({student_code})  •  *QID:* {q_id}\n"
                             f"*When:* {_dt.now(_timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC\n"
                             f"*Reply:* {prev}"
                         )
-                        st.session_state[clear_key] = True
+
+                        save_draft_to_db(student_code, draft_key, "")
+                        st.session_state[draft_key] = ""
+                        st.session_state[last_val_key] = ""
+                        st.session_state[last_ts_key] = time.time()
+                        st.session_state[saved_flag_key] = False
+                        st.session_state[saved_at_key] = None
                         st.success("Reply sent!")
                         st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
