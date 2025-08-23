@@ -4963,12 +4963,17 @@ if tab == "My Course":
         st.divider()
 
         # ---------- mini-tabs inside Course Book ----------
-        t_overview, t_worklinks, t_tv, t_submit = st.tabs(
-            ["Overview", "Assignment", "Support Materials", "Submit"]
+        if "coursebook_page" not in st.session_state:
+            st.session_state["coursebook_page"] = "Overview"
+        coursebook_section = st.radio(
+            "Section",
+            ["Overview", "Assignment", "Support Materials", "Submit"],
+            key="coursebook_page",
         )
 
         # OVERVIEW
-        with t_overview:
+        if coursebook_section == "Overview":
+        
             with st.expander("📚 Course Book & Study Recommendations", expanded=True):
                 LEVEL_TIME = {"A1": 15, "A2": 25, "B1": 30, "B2": 40, "C1": 45}
                 rec_time = LEVEL_TIME.get(level_key, 20)
@@ -5001,7 +5006,7 @@ if tab == "My Course":
                         st.warning("❓ Start date missing or invalid. Please update your contract start date.")
 
         # ASSIGNMENT (activities + resources; tolerant across A1–C1)
-        with t_worklinks:
+        elif coursebook_section == "Assignment"
             from urllib.parse import urlsplit, parse_qs, urlparse
             import io, json
 
@@ -5076,7 +5081,6 @@ if tab == "My Course":
                         if _is_url(maybe_vid):
                             cid = _canon_video(maybe_vid)
                             if cid not in seen_videos:
-                                st.video(maybe_vid)
                                 st.markdown(f"[▶️ Watch on YouTube]({maybe_vid})")
                                 seen_videos.add(cid)
                     # links/resources inline
@@ -5105,7 +5109,6 @@ if tab == "My Course":
                 if info.get("video"):
                     cid = _canon_video(info["video"])
                     if cid not in seen_videos:
-                        st.video(info["video"])
                         st.markdown(f"[▶️ Watch on YouTube]({info['video']})")
                         seen_videos.add(cid)
                     showed = True
@@ -5182,7 +5185,7 @@ if tab == "My Course":
                     )
 
         # TRANSLATOR & VIDEO OF THE DAY
-        with t_tv:
+        elif coursebook_section == "Support Materials":
             st.markdown("### 🌐 Translator & 🎬 Video of the Day")
             st.markdown(
                 "[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; "
@@ -5207,7 +5210,7 @@ if tab == "My Course":
                 st.info("No playlist found for your level yet. Stay tuned!")
 
         # SUBMIT
-        with t_submit:
+        elif coursebook_section == "Submit":
             st.markdown("### ✅ Submit Your Assignment")
             st.markdown(
                 f"""
