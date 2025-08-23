@@ -5192,11 +5192,21 @@ if tab == "My Course":
                 labels.append(f"{title}  {'<span style=\"color:#007bff\">['+grammar+']</span>' if grammar else ''}")
 
             st.markdown("<span style='font-weight:700; font-size:1rem;'>Lessons:</span>", unsafe_allow_html=True)
-            sel = st.selectbox("", list(range(len(matches))), format_func=lambda i: labels[i], key="course_search_sel")
+            sel = st.selectbox(
+                "",
+                list(range(len(matches))),
+                format_func=lambda i: labels[i],
+                key="course_search_sel",
+                label_visibility="collapsed",
             idx = matches[sel][0]
         else:
             st.markdown("<span style='font-weight:700; font-size:1rem;'>Choose your lesson/day:</span>", unsafe_allow_html=True)
-            idx = st.selectbox("", range(len(schedule)), format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}")
+            idx = st.selectbox(
+                "",
+                range(len(schedule)),
+                format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}",
+                label_visibility="collapsed",
+             )
 
         st.divider()
 
