@@ -7299,24 +7299,22 @@ if tab == "My Course":
                     "Note Title",
                     max_chars=50,
                     key="learning_note_title",
-                    on_change=autosave_learning_note,
-                    args=(student_code, key_notes),
                 )
                 st.text_input(
                     "Category/Tag (optional)",
                     max_chars=20,
                     key="learning_note_tag",
-                    on_change=autosave_learning_note,
-                    args=(student_code, key_notes),
                 )
                 st.text_area(
                     "Your Note",
                     height=200,
                     max_chars=3000,
                     key="learning_note_draft",
-                    on_change=autosave_learning_note,
-                    args=(student_code, key_notes),
                 )
+
+                save_btn = st.form_submit_button("Save")
+                if save_btn:
+                    autosave_learning_note(student_code, key_notes)
                 if st.session_state.get("learning_note_last_saved"):
                     st.caption(
                     f"Last saved {st.session_state['learning_note_last_saved']} UTC"
