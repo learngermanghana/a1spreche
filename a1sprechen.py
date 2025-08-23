@@ -11295,10 +11295,11 @@ if tab == "Schreiben Trainer":
             st.markdown("### ✏️ Enter your exam prompt or draft to start coaching")
             with st.form(ns("prompt_form"), clear_on_submit=True):
                 prompt = st.text_area(
-                    "",
+                    "Exam prompt or draft",
                     value=st.session_state[ns("prompt")],
                     height=120,
-                    placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ..."
+                    placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ...",
+                    label_visibility="collapsed",
                 )
                 send = st.form_submit_button("✉️ Start Letter Coach")
 
@@ -11373,11 +11374,12 @@ if tab == "Schreiben Trainer":
 
             with st.form(ns("letter_coach_chat_form"), clear_on_submit=True):
                 user_input = st.text_area(
-                    "",
+                    "Your reply",
                     value="",
                     key=ns("user_input"),
                     height=400,
-                    placeholder="Type your reply, ask about a section, or paste your draft here..."
+                     placeholder="Type your reply, ask about a section, or paste your draft here...",
+                     label_visibility="collapsed",
                 )
                 send = st.form_submit_button("Send")
             if send and user_input.strip():
