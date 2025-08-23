@@ -26,6 +26,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import requests
 import streamlit as st
+st.cache = st.cache_data 
 import streamlit.components.v1 as components
 from docx import Document
 from firebase_admin import credentials, firestore
