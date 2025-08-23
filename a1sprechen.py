@@ -5207,12 +5207,11 @@ if tab == "My Course":
         else:
             st.markdown("<span style='font-weight:700; font-size:1rem;'>Choose your lesson/day:</span>", unsafe_allow_html=True)
             idx = st.selectbox(
-                "",
                 "Lesson selection",
                 range(len(schedule)),
                 format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}",
                 label_visibility="collapsed",
-             )
+            )
 
         st.divider()
 
@@ -7044,6 +7043,7 @@ if tab == "My Course":
                     _qdocs = list(q_base.order_by("created_at", direction=direction_desc).limit(250).stream())
                 except Exception:
                     _qdocs = list(q_base.order_by("created_at", direction="DESCENDING").limit(250).stream())
+
                 def _to_datetime_any(v):
                     if v is None:
                         return None
@@ -7053,14 +7053,13 @@ if tab == "My Course":
                     except Exception:
                         dt_val = None
                     if dt_val is None:
-
                         try:
                             if hasattr(v, "seconds"):
-                                 dt_val = _dt.fromtimestamp(int(v.seconds), _timezone.utc)
+                                dt_val = _dt.fromtimestamp(int(v.seconds), _timezone.utc)
                         except Exception:
                             dt_val = None
                     if dt_val is None:
-                         try:
+                        try:
                             if _dateparse:
                                 dt_val = _dateparse.parse(str(v))
                         except Exception:
@@ -7073,9 +7072,9 @@ if tab == "My Course":
                             except Exception:
                                 continue
                     if dt_val and dt_val.tzinfo is None:
-                         dt_val = dt_val.replace(tzinfo=_timezone.utc)
-                     return dt_val
-                    
+                        dt_val = dt_val.replace(tzinfo=_timezone.utc)
+                    return dt_val
+                   
 
                 for _doc in _qdocs:
                     _d = (_doc.to_dict() or {})
@@ -7348,7 +7347,7 @@ if tab == "My Course":
                             "reply_text": reply_text.strip(),
                             "replied_by_name": student_name,
                             "replied_by_code": student_code,
-                            "timestamp": _dt.utcnow(),
+                            "timestamp": _dt.now(_timezone.utc),
                         }
                         r_ref = q_base.document(q_id).collection("replies")
                         r_ref.document(str(uuid4())[:8]).set(reply_payload)
@@ -7356,7 +7355,7 @@ if tab == "My Course":
                         _notify_slack(
                             f"💬 *New Q&A reply* — {class_name}\n"
                             f"*By:* {student_name} ({student_code})  •  *QID:* {q_id}\n"
-                            f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                            f"*When:* {_dt.now(_timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC\n"
                             f"*Reply:* {prev}"
                         )
                         st.session_state[clear_key] = True
