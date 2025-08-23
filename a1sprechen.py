@@ -15,8 +15,8 @@ import sqlite3
 import tempfile
 import time
 import urllib.parse as _urllib
-from datetime import date, datetime, timedelta, timezone, UTC
-from typing import Optional
+from datetime import date, datetime, timedelta, timezone as _timezone, UTC
+from datetime import datetime as _dt
 from uuid import uuid4
 
 # ==== Third-Party Packages ====
@@ -1391,7 +1391,7 @@ def render_login_form():
                 e = email_for_reset.lower().strip()
 
                 # Firestore may store 'email' or 'Email'
-                user_query = db.collection("students").where("email", "==", e).get()
+                user_query = db.collection("students").where(filter=FieldFilter("email", "==", e)).get()
                 if not user_query:
                     user_query = db.collection("students").where(filter=FieldFilter("email", "==", e)).get()
 
@@ -4716,7 +4716,7 @@ def save_now(draft_key: str, code: str) -> None:
     st.session_state[last_val_key]   = text
     st.session_state[last_ts_key]    = time.time()
     st.session_state[saved_flag_key] = True
-    st.session_state[saved_at_key]   = datetime.now(timezone.utc)
+    st.session_state[saved_at_key]   = datetime.now(_timezone.utc)
 
 def autosave_maybe(
     code: str,
@@ -4757,7 +4757,7 @@ def autosave_maybe(
         st.session_state[last_val_key]   = text
         st.session_state[last_ts_key]    = now
         st.session_state[saved_flag_key] = True
-        st.session_state[saved_at_key]   = datetime.now(timezone.utc)
+        st.session_state[saved_at_key]   = datetime.now(_timezone.utc)
 
 def render_section(day_info: dict, key: str, title: str, icon: str) -> None:
     """Render a lesson section (supports list or single dict)."""
@@ -5044,10 +5044,13 @@ def fetch_latest(level: str, code: str, lesson_key: str) -> dict | None:
     """Fetch the most recent submission for this user/lesson (or None)."""
     posts_ref = db.collection("submissions").document(level).collection("posts")
     try:
-        docs = (posts_ref.where("student_code", "==", code)
-                         .where("lesson_key", "==", lesson_key)
-                         .order_by("updated_at", direction=firestore.Query.DESCENDING)
-                         .limit(1).stream())
+        docs = (
+            posts_ref.where(filter=FieldFilter("student_code", "==", code))
+            .where(filter=FieldFilter("lesson_key", "==", lesson_key))
+            .order_by("updated_at", direction=firestore.Query.DESCENDING)
+            .limit(1)
+            .stream()
+        )
         for d in docs:
             return d.to_dict()
     except Exception:
@@ -5071,7 +5074,7 @@ def post_message(level: str, code: str, name: str, text: str, reply_to: str | No
         "student_code": code,
         "student_name": name,
         "text": text.strip(),
-        "timestamp": datetime.utcnow(),
+        "timestamp": _dt.now(_timezone.utc),
         "reply_to": reply_to,
     })
 
@@ -5558,7 +5561,7 @@ if tab == "My Course":
                     st.session_state[last_val_key]   = sub_txt
                     st.session_state[last_ts_key]    = time.time()
                     st.session_state[saved_flag_key] = True
-                    st.session_state[saved_at_key]   = (sub_ts or datetime.now(timezone.utc))
+                    st.session_state[saved_at_key]   = (sub_ts or datetime.now(_timezone.utc))
                     st.session_state[locked_key]     = True
                     st.session_state[hydrated_key]   = True
                     locked = True  # enforce read-only
@@ -5575,7 +5578,7 @@ if tab == "My Course":
                             st.session_state[last_val_key]   = st.session_state[draft_key]
                             st.session_state[last_ts_key]    = time.time()
                             st.session_state[saved_flag_key] = True
-                            st.session_state[saved_at_key]   = (cloud_ts or datetime.now(timezone.utc))
+                            st.session_state[saved_at_key]   = (cloud_ts or datetime.now(_timezone.utc))
                         else:
                             st.session_state.setdefault(draft_key, "")
                             st.session_state.setdefault(last_val_key, "")
@@ -5599,7 +5602,7 @@ if tab == "My Course":
                                 st.session_state[last_val_key]   = ctext
                                 st.session_state[last_ts_key]    = time.time()
                                 st.session_state[saved_flag_key] = True
-                                st.session_state[saved_at_key]   = (cts or datetime.now(timezone.utc))
+                                st.session_state[saved_at_key]   = (cts or datetime.now(_timezone.utc))
 
             st.subheader("✍️ Your Answer")
 
@@ -5630,7 +5633,7 @@ if tab == "My Course":
                     st.session_state[last_val_key]   = current_text
                     st.session_state[last_ts_key]    = time.time()
                     st.session_state[saved_flag_key] = True
-                    st.session_state[saved_at_key]   = datetime.now(timezone.utc)
+                    st.session_state[saved_at_key]   = datetime.now(_timezone.utc)
                     st.success("Draft saved.")
 
             with csave2:
@@ -5649,7 +5652,7 @@ if tab == "My Course":
                 ts = st.session_state.get(saved_at_key)
                 when = (
                     ts.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-                    if ts else datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+                    if ts else datetime.now(_timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
                 )
 
                 # Strip any previous backup header the student may have pasted back
@@ -6287,8 +6290,8 @@ if tab == "My Course":
                         for blk in _blocks:
                             if any(_wmap[c] == widx for c in blk["byday"]):
                                 sh, sm = blk["start"]; eh, em = blk["end"]
-                                sdt = _dt(cur.year, cur.month, cur.day, sh, sm)   # Ghana == UTC
-                                edt = _dt(cur.year, cur.month, cur.day, eh, em)
+                                sdt = _dt(cur.year, cur.month, cur.day, sh, sm, tzinfo=_timezone.utc)   # Ghana == UTC
+                                edt = _dt(cur.year, cur.month, cur.day, eh, em, tzinfo=_timezone.utc)
                                 if edt <= now_utc:
                                     continue
                                 def _fmt_ampm(h, m):
@@ -10823,7 +10826,7 @@ def update_schreiben_stats(student_code: str):
     """
     Recalculates stats for a student after every submission.
     """
-    submissions = db.collection("schreiben_submissions").where(
+    submissions = db.collection("schreiben_submissions").where(filter=FieldFilter("student_code", "==", student_code)).stream()
         "student_code", "==", student_code
     ).stream()
 
