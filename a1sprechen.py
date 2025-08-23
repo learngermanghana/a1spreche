@@ -45,6 +45,27 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+if os.environ.get("RENDER"):
+    import fastapi
+    from fastapi import FastAPI
+    from uvicorn import Config, Server
+
+    # Lightweight endpoint so Render gets 200 OK
+    api = FastAPI()
+
+    @api.get("/healthz")
+    async def healthz():
+        return {"status": "ok"}
+
+    # Start the API on a background thread
+    import threading
+
+    def _start_health():
+        cfg = Config(api, host="0.0.0.0", port=8000, log_level="warning")
+        Server(cfg).run()
+
+    threading.Thread(target=_start_health, daemon=True).start()
+
 # ------------------------------------------------------------------------------
 # Page config MUST be the first Streamlit call
 # ------------------------------------------------------------------------------
