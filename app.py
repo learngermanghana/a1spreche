@@ -3,6 +3,16 @@ import os
 import tornado.ioloop
 import tornado.web
 
+COOKIE_SECRET = os.getenv("COOKIE_SECRET")
+if not COOKIE_SECRET:
+    if os.getenv("ALLOW_DEV_COOKIE_SECRET"):
+        COOKIE_SECRET = "development-cookie-secret"
+        print(
+            "Using development cookie secret. Do not use in production.", flush=True
+        )
+    else:
+        raise RuntimeError("COOKIE_SECRET environment variable is required.")
+
 BASE = os.path.dirname(__file__)
 PUBLIC = os.path.join(BASE, "public")
 
