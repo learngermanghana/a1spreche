@@ -7208,7 +7208,6 @@ if tab == "My Course":
                         st.session_state[saved_flag_key] = bool(txt)
                         st.session_state[saved_at_key] = ts
                     reply_text = st.text_input(
-                    reply_text = st.text_input(
                         f"Reply to Q{q_id}",
                         key=draft_key,
                         placeholder="Write your reply…",
