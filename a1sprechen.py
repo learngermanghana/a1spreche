@@ -149,6 +149,27 @@ input,textarea,select,
 # Apply theme CSS
 st.markdown(THEME_CSS, unsafe_allow_html=True)
 
+# Custom styling for logout button
+LOGOUT_CSS = """
+<style>
+#logout_btn,
+div[data-testid="stButton"][data-baseweb="button"] button#logout_btn{
+  background:#dc2626!important;
+  color:#fff!important;
+  border:1px solid #dc2626!important;
+}
+#logout_btn:hover,#logout_btn:focus,
+div[data-testid="stButton"][data-baseweb="button"] button#logout_btn:hover,
+div[data-testid="stButton"][data-baseweb="button"] button#logout_btn:focus{
+  background:#b91c1c!important;
+  border-color:#b91c1c!important;
+  color:#fff!important;
+}
+</style>
+"""
+
+st.markdown(LOGOUT_CSS, unsafe_allow_html=True)
+
 # ------------------------------------------------------------------------------
 # Email creds
 # ------------------------------------------------------------------------------
