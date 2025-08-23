@@ -122,7 +122,8 @@ input,textarea,select,
 </style>
 """
 
-
+# Apply theme CSS
+st.markdown(THEME_CSS, unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
 # Email creds
