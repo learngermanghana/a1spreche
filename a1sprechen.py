@@ -7340,15 +7340,17 @@ if tab == "My Course":
                     max_chars=3000,
                     key="learning_note_draft",
                 )
-
-                save_btn = st.form_submit_button("Save")
+                
+                col1, col2 = st.columns(2)
+                save_btn = col1.form_submit_button("Save")
+                cancel_btn = editing and col2.form_submit_button("❌ Cancel Edit")
                 if save_btn:
                     autosave_learning_note(student_code, key_notes)
                 if st.session_state.get("learning_note_last_saved"):
                     st.caption(
-                    f"Last saved {st.session_state['learning_note_last_saved']} UTC"
+                        f"Last saved {st.session_state['learning_note_last_saved']} UTC"
                     )
-                cancel_btn = editing and st.button("❌ Cancel Edit")
+
 
             
 
