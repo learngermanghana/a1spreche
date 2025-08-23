@@ -4975,12 +4975,13 @@ if tab == "My Course":
                 code = (
                     st.session_state.get("student_code")
                     or (st.session_state.get("student_row") or {}).get("StudentCode", "")
-                 )
-                 if draft_key and code:
-                     last_val_key, *_ = _draft_state_keys(draft_key)
-                     if st.session_state.get(draft_key, "") != st.session_state.get(last_val_key, ""):
-                         save_now(draft_key, code)
+                )
+                if draft_key and code:
+                    last_val_key, *_ = _draft_state_keys(draft_key)
+                    if st.session_state.get(draft_key, "") != st.session_state.get(last_val_key, ""):
+                        save_now(draft_key, code)
             st.session_state["coursebook_prev_page"] = curr
+
 
         
         coursebook_section = st.radio(
