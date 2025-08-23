@@ -29,6 +29,7 @@ st.cache = st.cache_data
 import streamlit.components.v1 as components
 from docx import Document
 from google.cloud.firestore_v1 import FieldFilter
+from firebase_admin import firestore
 from fpdf import FPDF
 from gtts import gTTS
 from openai import OpenAI
@@ -10504,8 +10505,6 @@ if tab == "Vocab Trainer":
 
 
 # ===== Schreiben =====
-
-db = firestore.client()
 
 # -- Feedback HTML Highlight Helper --
 highlight_words = ["correct", "should", "mistake", "improve", "tip"]
