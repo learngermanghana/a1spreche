@@ -14,8 +14,7 @@ import re
 import sqlite3
 import tempfile
 import time
-import urllib.parse as _urllib
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone, UTC
 from typing import Optional
 from uuid import uuid4
 
@@ -600,7 +599,7 @@ def is_contract_expired(row):
         if pd.isnull(parsed):
             return True
         expiry_date = parsed.to_pydatetime()
-    return expiry_date.date() < datetime.utcnow().date()
+    return expiry_date.date() < datetime.now(UTC).date()
 
 
 # ------------------------------------------------------------------------------
@@ -781,7 +780,7 @@ def _bootstrap_cookies(cm):
             set_session_token_cookie(
                 cm,
                 st.session_state["session_token"],
-                expires=datetime.utcnow() + timedelta(days=30),
+                expires=datetime.now(UTC) + timedelta(days=30),
             )
         st.session_state["_cookie_disabled"] = False
         return True
@@ -848,7 +847,7 @@ if not st.session_state.get("logged_in", False):
                 })
                 new_tok = refresh_or_rotate_session_token(cookie_tok) or cookie_tok
                 st.session_state["session_token"] = new_tok
-                set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))
+                set_session_token_cookie(cookie_manager, new_tok, expires=datetime.now(UTC) + timedelta(days=30))
                 qp_clear_keys("session_token")
                 restored = True
 
@@ -873,9 +872,9 @@ def reset_password_page(token: str):
     try:
         expires_at = datetime.fromisoformat(expires_raw)
     except Exception:
-        expires_at = datetime.utcnow() - timedelta(seconds=1)  # treat as expired
+        expires_at = datetime.now(UTC) - timedelta(seconds=1)  # treat as expired
 
-    if datetime.utcnow() > expires_at:
+    if datetime.now(UTC) > expires_at:
         st.error("This reset link has expired. Please request a new one.")
         try: db.collection("password_resets").document(token).delete()
         except Exception: pass
@@ -1034,9 +1033,9 @@ def _handle_google_oauth(code: str, state: str) -> None:
             "student_name": student_row["Name"],
             "session_token": sess_token,
         })
-        set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
+        set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
         _persist_session_client(sess_token, student_row["StudentCode"])
-        set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
+        set_session_token_cookie(cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
         qp_clear()
         st.success(f"Welcome, {student_row['Name']}!")
         st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
@@ -1380,9 +1379,9 @@ def render_login_form():
             "student_name": student_row["Name"],
             "session_token": sess_token,
         })
-        set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
+        set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
         _persist_session_client(sess_token, student_row["StudentCode"])
-        set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
+        set_session_token_cookie(cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
         st.success(f"Welcome, {student_row['Name']}!")
         st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
@@ -1432,7 +1431,7 @@ def render_login_form():
                     st.error("No account found with that email.")
                 else:
                     token = uuid4().hex
-                    expires_at = datetime.utcnow() + timedelta(hours=1)
+                    expires_at = datetime.now(UTC) + timedelta(hours=1)
 
                     # Build reset link (prefer Apps Script page)
                     gas_url = (st.secrets.get("GAS_RESET_URL", GAS_RESET_URL) or "").strip()
@@ -1458,7 +1457,7 @@ def render_login_form():
                     # Store token for GAS/Streamlit reset pages to read
                     db.collection("password_resets").document(token).set({
                         "email": e,
-                        "created": datetime.utcnow().isoformat(),
+                        "created": datetime.now(UTC).isoformat()
                         "expires_at": expires_at.isoformat()
                     })
 
@@ -1703,7 +1702,7 @@ def login_page():
   
     st.markdown(f"""
     <div class="page-wrap" style="text-align:center;color:#64748b; margin-bottom:16px;">␊
-      © {datetime.utcnow().year} Learn Language Education Academy • Accra, Ghana<br>␊
+      © {datetime.now(UTC).year} Learn Language Education Academy • Accra, Ghana<br>␊
       Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> •
       <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>␊
     </div>␊
@@ -1769,7 +1768,7 @@ if _logout_clicked:
         st.warning(f"Logout warning (revoke): {e}")
 
     try:
-        expires_past = datetime.utcnow() - timedelta(seconds=1)
+        expires_past = datetime.now(UTC) - timedelta(seconds=1)
         if "set_student_code_cookie" in globals():
             set_student_code_cookie(cookie_manager, "", expires=expires_past)
         if "set_session_token_cookie" in globals():
