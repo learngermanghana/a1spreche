@@ -6317,7 +6317,7 @@ if tab == "My Course":
                         parts.append(f"{m}m")
                     return " ".join(parts) if parts else "0m"
 
-                _now = _dt.utcnow()
+                _now = _dt.now(_timezone.utc)
                 nxt_start, nxt_end, nxt_label = _compute_next_class_instance(_now)
                 if nxt_start and nxt_end:
                     start_ms = int(nxt_start.timestamp() * 1000)
@@ -6372,8 +6372,8 @@ if tab == "My Course":
                 _zid = (ZOOM or {}).get("meeting_id", "")
                 _zpw = (ZOOM or {}).get("passcode", "")
                 _details = f"Zoom link: {_zl}\\nMeeting ID: {_zid}\\nPasscode: {_zpw}"
-                _dtstamp = _dt.utcnow().strftime("%Y%m%dT%H%M%SZ")
-                _until = _dt(end_date_obj.year, end_date_obj.month, end_date_obj.day, 23, 59, 59).strftime("%Y%m%dT%H%M%SZ")
+                _dtstamp = _dt.now(_timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+                _until = _dt(end_date_obj.year, end_date_obj.month, end_date_obj.day, 23, 59, 59, tzinfo=_timezone.utc).strftime("%Y%m%dT%H%M%SZ")
                 _summary = f"{class_name} — Live German Class"
 
                 USE_TZID = False
@@ -6887,7 +6887,7 @@ if tab == "My Course":
             def _update_reply_text(ann_id: str, reply_id: str, new_text: str):
                 _ann_reply_coll(ann_id).document(reply_id).update({
                     "text": new_text.strip(),
-                    "edited_at": _dt.utcnow(),
+                    "edited_at": _dt.now(_timezone.utc),
                     "edited_by": student_name,
                     "edited_by_code": student_code,
                 })
@@ -6993,7 +6993,7 @@ if tab == "My Course":
                                         _notify_slack(
                                             f"🗑️ *Announcement reply deleted* — {class_name}\n"
                                             f"*By:* {student_name} ({student_code})\n"
-                                            f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+                                            f"*When:* {_dt.now(_timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC"
                                         )
                                         st.success("Reply deleted.")
                                         st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
@@ -7037,7 +7037,7 @@ if tab == "My Course":
 
             _new7, _unans, _total = 0, 0, 0
             try:
-                _now = _dt.utcnow()
+                _now = _dt.now(_timezone.utc)
                 try:
                     from firebase_admin import firestore as fbfs
                     direction_desc = getattr(fbfs.Query, "DESCENDING", "DESCENDING")
@@ -7051,23 +7051,32 @@ if tab == "My Course":
                         if hasattr(v, "to_datetime"):
                             return v.to_datetime()
                     except Exception:
-                        pass
-                    try:
-                        if hasattr(v, "seconds"):
-                            return _dt.utcfromtimestamp(int(v.seconds))
-                    except Exception:
-                        pass
-                    try:
-                        if _dateparse:
-                            return _dateparse.parse(str(v))
-                    except Exception:
-                        pass
-                    for fmt in ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"):
+                        dt_val = None
+                    if dt_val is None:
+
                         try:
-                            return _dt.strptime(str(v), fmt)
+                            if hasattr(v, "seconds"):
+                                 dt_val = _dt.fromtimestamp(int(v.seconds), _timezone.utc)
                         except Exception:
-                            continue
-                    return None
+                            dt_val = None
+                    if dt_val is None:
+                         try:
+                            if _dateparse:
+                                dt_val = _dateparse.parse(str(v))
+                        except Exception:
+                            dt_val = None
+                    if dt_val is None:
+                        for fmt in ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"):
+                            try:
+                                dt_val = _dt.strptime(str(v), fmt)
+                                break
+                            except Exception:
+                                continue
+                    if dt_val and dt_val.tzinfo is None:
+                         dt_val = dt_val.replace(tzinfo=_timezone.utc)
+                     return dt_val
+                    
+
                 for _doc in _qdocs:
                     _d = (_doc.to_dict() or {})
                     _total += 1
@@ -7244,7 +7253,7 @@ if tab == "My Course":
                                 q_base.document(q_id).update({
                                     "question": new_text.strip(),
                                     "topic": (new_topic or "").strip(),
-                                    "edited_at": _dt.utcnow(),
+                                    f"*When:* {_dt.now(_timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC\n"
                                 })
                                 _notify_slack(
                                     f"✏️ *Q&A question edited* — {class_name}\n"
@@ -7291,7 +7300,7 @@ if tab == "My Course":
                                         _notify_slack(
                                             f"🗑️ *Q&A reply deleted* — {class_name}\n"
                                             f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
-                                            f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+                                            f"*When:* {_dt.now(_timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC"
                                         )
                                         st.success("Reply deleted.")
                                         st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
@@ -7309,12 +7318,12 @@ if tab == "My Course":
                                     if rsave and new_rtext.strip():
                                         r.reference.update({
                                             "reply_text": new_rtext.strip(),
-                                            "edited_at": _dt.utcnow(),
+                                             "edited_at": _dt.now(_timezone.utc),
                                         })
                                         _notify_slack(
                                             f"✏️ *Q&A reply edited* — {class_name}\n"
                                             f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
-                                            f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                                            f"*When:* {_dt.now(_timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC\n"
                                             f"*New:* {(new_rtext[:180] + '…') if len(new_rtext) > 180 else new_rtext}"
                                         )
                                         st.session_state[f"r_editing_{q_id}_{rid}"] = False
