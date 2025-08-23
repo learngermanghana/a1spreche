@@ -4895,14 +4895,14 @@ def has_existing_submission(level: str, code: str, lesson_key: str) -> bool:
     """True if a submission exists for this (level, code, lesson_key)."""
     posts_ref = db.collection("submissions").document(level).collection("posts")
     try:
-        q = (posts_ref.where("student_code", "==", code)
-                      .where("lesson_key", "==", lesson_key)
+        q = (posts_ref.where(filter=FieldFilter("student_code", "==", code))
+                      .where(filter=FieldFilter("lesson_key", "==", lesson_key))
                       .limit(1).stream())
         return any(True for _ in q)
     except Exception:
         try:
-            for _ in posts_ref.where("student_code", "==", code)\
-                              .where("lesson_key", "==", lesson_key).stream():
+            for _ in posts_ref.where(filter=FieldFilter("student_code", "==", code))\
+                              .where(filter=FieldFilter("lesson_key", "==", lesson_key)).stream():
                 return True
         except Exception:
             pass
@@ -5085,8 +5085,8 @@ def fetch_latest(level: str, code: str, lesson_key: str) -> dict | None:
             return d.to_dict()
     except Exception:
         try:
-            docs = posts_ref.where("student_code", "==", code)\
-                            .where("lesson_key", "==", lesson_key).stream()
+            docs = posts_ref.where(filter=FieldFilter("student_code", "==", code))\
+                            .where(filter=FieldFilter("lesson_key", "==", lesson_key)).stream()
             items = [d.to_dict() for d in docs]
             items.sort(key=lambda x: x.get("updated_at"), reverse=True)
             return items[0] if items else None
