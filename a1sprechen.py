@@ -8855,14 +8855,14 @@ if tab == "Exams Mode & Custom Chat":
                 if msg["role"] == "assistant":
                     with st.chat_message("assistant", avatar="🧑‍🏫"):
                         st.markdown(
-                            "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>",
+                            "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
                             f"<div style='{bubble_assistant}'>{highlight_keywords(msg['content'], highlight_words)}</div>",
                             unsafe_allow_html=True
                         )
                 else:  # user
                     with st.chat_message("user"):
                         st.markdown(
-                            f"<div style='display:flex;justify-content:flex-end;'>",
+                            f"<div style='display:flex;justify-content:flex-end;'>"
                             f"<div style='{bubble_user}'>🗣️ {msg['content']}</div></div>",
                             unsafe_allow_html=True
                         )
