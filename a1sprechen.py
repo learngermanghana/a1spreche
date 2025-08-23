@@ -7938,7 +7938,7 @@ if tab == "My Results and Resources":
             st.success("🎉 You’re up to date!")
 
     # ============ PDF ============
-    with t_pdf:
+    elif rr_page == "PDF":
         st.subheader("Download PDF Summary")
 
         COL_ASSN_W, COL_SCORE_W, COL_DATE_W = 45, 18, 30
