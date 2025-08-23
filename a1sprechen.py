@@ -99,99 +99,54 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ------------------------------------------------------------------------------
-# Global META + THEME (force light, align with Falowen palette)
-# ------------------------------------------------------------------------------
-# Keep meta first so mobile browsers pick it up quickly
+# Top spacing + chrome (tighter)
 st.markdown("""
-<meta name="description" content="Falowen is your all-in-one German learning platform, powered by Learn Language Education Academy. Track streaks, submit assignments, watch lectures, practice vocab & writing, and more.">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="color-scheme" content="light">
-<meta name="theme-color" content="#f3f7fb">
+<style>
+/* Remove Streamlit's top padding */
+[data-testid="stAppViewContainer"] > .main .block-container {
+  padding-top: 0 !important;
+}
+
+/* First rendered block (often a head-inject) — keep a small gap only */
+[data-testid="stAppViewContainer"] .main .block-container > div:first-child {
+  margin-top: 0 !important;
+  margin-bottom: 8px !important;   /* was 24px */
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* If that first block is an iframe, collapse it completely */
+[data-testid="stAppViewContainer"] .main .block-container > div:first-child [data-testid="stIFrame"] {
+  display: block;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Keep hero flush and compact */
+  .hero {
+    margin-top: 2px !important;      /* was 0/12 — pulls hero up */
+    margin-bottom: 4px !important;   /* tighter space before tabs */
+    padding-top: 6px !important;
+    display: flow-root;
+  }
+.hero h1:first-child { margin-top: 0 !important; }
+/* Trim default gap above Streamlit tabs */
+[data-testid="stTabs"] {
+  margin-top: 8px !important;
+}
+
+/* Hide default Streamlit chrome */
+#MainMenu { visibility: hidden; }
+footer { visibility: hidden; }
+</style>
 """, unsafe_allow_html=True)
 
-THEME_CSS = """
-<style>
-:root{
-  /* Falowen palette */
-  --fal-primary:#25317e;
-  --fal-bg:#f3f7fb;
-  --fal-bg-alt:#eef3fc;
-  --fal-text:#1a2340;
-  --fal-muted:#40507a;
-  --fal-border:#d9e4f5;
-  --fal-radius:14px;
-  color-scheme: light;
-}
-
-/* App surfaces */
-html,body,.stApp{background:var(--fal-bg)!important; color:var(--fal-text)!important;}
-[data-testid="stSidebar"]{background:var(--fal-bg-alt)!important; border-right:1px solid var(--fal-border)!important;}
-
-/* Typography */
-h1,h2,h3,h4,h5,h6{color:var(--fal-text)!important;}
-p,li,span,small{color:var(--fal-text)!important;}
-
-/* Buttons */
-.stButton > button{
-  background:var(--fal-primary)!important;
-  color:#fff!important;
-  border:1px solid var(--fal-primary)!important;
-  border-radius:999px!important;
-  padding:.6rem 1.1rem!important;
-  font-weight:600!important;
-}
-.stButton > button:hover{filter:brightness(0.95);}
-
-/* Inputs */
-input,textarea,select,
-.stTextInput input,.stTextArea textarea,.stSelectbox div[data-baseweb="select"]>div{
-  background:#fff!important;
-  color:var(--fal-text)!important;
-  border:1px solid var(--fal-border)!important;
-  border-radius:var(--fal-radius)!important;
-}
-
-/* Data containers */
-.stDataFrame, .dataframe{
-  border:1px solid var(--fal-border)!important;
-  border-radius:var(--fal-radius)!important;
-}
-
-/* Spacing / chrome clean-up */
-[data-testid="stAppViewContainer"] > .main .block-container{padding-top:0!important; padding-bottom:1.25rem!important;}
-[data-testid="stAppViewContainer"] .main .block-container > div:first-child{margin-top:0!important; margin-bottom:8px!important; padding-top:0!important; padding-bottom:0!important;}
-[data-testid="stAppViewContainer"] .main .block-container > div:first-child [data-testid="stIFrame"]{
-  display:block; height:0!important; min-height:0!important; margin:0!important; padding:0!important; border:0!important; overflow:hidden!important;
-}
-[data-testid="stTabs"]{margin-top:8px!important;}
-#MainMenu, footer{visibility:hidden;}
-</style>
-"""
-
-# Apply theme CSS
-st.markdown(THEME_CSS, unsafe_allow_html=True)
-
-# Custom styling for logout button
-LOGOUT_CSS = """
-<style>
-#logout_btn,
-div[data-testid="stButton"][data-baseweb="button"] button#logout_btn{
-  background:#dc2626!important;
-  color:#fff!important;
-  border:1px solid #dc2626!important;
-}
-#logout_btn:hover,#logout_btn:focus,
-div[data-testid="stButton"][data-baseweb="button"] button#logout_btn:hover,
-div[data-testid="stButton"][data-baseweb="button"] button#logout_btn:focus{
-  background:#b91c1c!important;
-  border-color:#b91c1c!important;
-  color:#fff!important;
-}
-</style>
-"""
-
-st.markdown(LOGOUT_CSS, unsafe_allow_html=True)
+# Compatibility alias
+html = st_html
 
 
 # ------------------------------------------------------------------------------
