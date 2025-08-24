@@ -5316,7 +5316,6 @@ if tab == "My Course":
 
             st.divider()
             st.markdown("#### 🎬 Video of the Day for Your Level")
-            )
             playlist_map = YOUTUBE_PLAYLIST_IDS if "YOUTUBE_PLAYLIST_IDS" in globals() else {}
             playlist_ids = playlist_map.get(level_key)
             if not playlist_ids:
