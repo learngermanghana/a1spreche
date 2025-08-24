@@ -8221,7 +8221,8 @@ def back_step():
     for key in [
         "falowen_mode", "falowen_level", "falowen_teil",
         "falowen_exam_topic", "falowen_exam_keyword",
-        "remaining_topics", "used_topics", "falowen_messages"
+        "remaining_topics", "used_topics", "falowen_messages",
+        "falowen_loaded_key"
     ]:
         st.session_state.pop(key, None)
     st.session_state["_falowen_loaded"] = False
@@ -8816,13 +8817,15 @@ if tab == "Exams Mode & Custom Chat":
         except Exception:
             st.session_state["falowen_messages"] = []
 
-        draft_text = load_chat_draft_from_db(student_code, conv_key)
-        st.session_state[draft_key] = draft_text
-        lv, lt, sf, sa = _draft_state_keys(draft_key)
-        st.session_state[lv] = draft_text
-        st.session_state[lt] = time.time()
-        st.session_state[sf] = True
-        st.session_state[sa] = datetime.now(_timezone.utc)
+        if st.session_state.get("falowen_loaded_key") != conv_key:
+            draft_text = load_chat_draft_from_db(student_code, conv_key)
+            st.session_state[draft_key] = draft_text
+            lv, lt, sf, sa = _draft_state_keys(draft_key)
+            st.session_state[lv] = draft_text
+            st.session_state[lt] = time.time()
+            st.session_state[sf] = True
+            st.session_state[sa] = datetime.now(_timezone.utc)
+            st.session_state["falowen_loaded_key"] = conv_key
 
         # Seed the first assistant instruction if chat is empty
         if not st.session_state["falowen_messages"]:
@@ -8904,6 +8907,7 @@ if tab == "Exams Mode & Custom Chat":
                 min_secs=2.0,
                 min_delta=12,
             )
+        st.autorefresh(interval=2000, key=_wkey("chat_autosave"))
         with col_btn:
             send_clicked = st.button("Send", key=_wkey("chat_send"), type="primary")
 
@@ -9026,6 +9030,7 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
         with col2:
             if st.button("⬅️ Back", key=_wkey("btn_back_stage4")):
+                save_now(draft_key, student_code)
                 back_step()
 
         st.divider()
