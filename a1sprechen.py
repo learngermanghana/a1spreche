@@ -2002,6 +2002,7 @@ except Exception as e:
     st.warning(f"Navigation init issue: {e}. Falling back to Dashboard.")
     tab = "Dashboard"
 
+
 # =========================================================
 # ===================== Dashboard =========================
 # =========================================================
@@ -2068,11 +2069,6 @@ if tab == "Dashboard":
     if not student_row:
         st.info("🚩 No student selected.")
         st.stop()
-
-    # ---------- Announcements (top) ----------
-    st.divider()
-    render_announcements(announcements)
-    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
     # ---------- Motivation mini-cards (streak / vocab / leaderboard) ----------
     st.divider()
@@ -2202,7 +2198,6 @@ if tab == "Dashboard":
             "snoozed_until": {},  # mid -> datetime
             "pinned": set(),
         })
-        # ensure types
         store["dismissed"] = set(store.get("dismissed", set()))
         store["snoozed_until"] = dict(store.get("snoozed_until", {}))
         store["pinned"] = set(store.get("pinned", set()))
@@ -2233,7 +2228,26 @@ if tab == "Dashboard":
     def is_pinned(mid: str) -> bool:
         return mid in _STATE["pinned"]
 
-    # Inject simple inbox CSS (supports dark)
+    # Small helper to render an external link as a button (works on all Streamlit versions)
+    def open_link_button(label: str, url: str):
+        if not url:
+            return
+        if hasattr(st, "link_button"):
+            try:
+                st.link_button(label, url)  # do NOT pass `key` (older versions TypeError)
+                return
+            except TypeError:
+                pass
+        # Fallback HTML button-style link
+        st.markdown(
+            f"""<a href="{url}" target="_blank" rel="noopener"
+                  style="display:inline-block;padding:0.5rem 0.75rem;border-radius:8px;
+                         border:1px solid rgba(148,163,184,.35);text-decoration:none;
+                         font-weight:700;">{label}</a>""",
+            unsafe_allow_html=True
+        )
+
+    # Inbox CSS
     st.markdown("""
     <style>
       .inbox-wrap { margin: 8px 0 2px 0; }
@@ -2261,7 +2275,7 @@ if tab == "Dashboard":
     # =========================================================
     msgs = []
 
-    # ----- Billing / Payments logic (was in expander) -----
+    # ----- Billing / Payments -----
     def _read_money(x):
         try:
             s = str(x).replace(",", "").strip()
@@ -2326,7 +2340,7 @@ if tab == "Dashboard":
             "href": None,
         })
 
-    # ----- Contract end alert (was separate alert) -----
+    # ----- Contract end alert -----
     _ce_raw = parse_contract_end_fn(safe_get(student_row, "ContractEnd", "")) or None
     _ce_date = _ce_raw.date() if hasattr(_ce_raw, "date") else _ce_raw
     EXT_FEE = 1000
@@ -2479,7 +2493,7 @@ if tab == "Dashboard":
             "href": None,
         })
 
-    # ----- Goethe exam countdown & video -----
+    # ----- Goethe exam countdown -----
     GOETHE_EXAM_DATES = {
         "A1": (_date(2025, 10, 13), 2850, None),
         "A2": (_date(2025, 10, 14), 2400, None),
@@ -2525,53 +2539,43 @@ if tab == "Dashboard":
                 "href": "https://www.goethe.de/ins/gh/en/spr/prf.html",
             })
 
-    # ----- App announcements → inbox items (from your list + optional CSV) -----
-    # From hardcoded list
-    for i_, a in enumerate(announcements):
-        msgs.append({
-            "id": f"announce:list:{i_}:{a.get('title','')}",
-            "title": f"📣 {a.get('title','')}",
-            "body": a.get("body",""),
-            "severity": "info" if a.get("tag","").lower() not in ("action","urgent") else "warn",
-            "category": "Announcements",
-            "when": _dt.utcnow(),
-            "href": a.get("href") or None,
-        })
-    # From CSV (if provided)
-    ann_df = fetch_announcements_csv()
-    if isinstance(ann_df, pd.DataFrame) and not ann_df.empty:
-        cols = {c.lower(): c for c in ann_df.columns}
-        for _, r in ann_df.iterrows():
-            title = str(r.get(cols.get("title","title"), "")).strip()
-            body  = str(r.get(cols.get("body","body"), "")).strip()
-            tag   = str(r.get(cols.get("tag","tag"), "")).strip()
-            href  = str(r.get(cols.get("href","href"), "")).strip()
-            if title or body:
-                msgs.append({
-                    "id": f"announce:sheet:{hash(title+body) % (10**9)}",
-                    "title": f"📣 {title}" if title else "📣 Update",
-                    "body": body,
-                    "severity": "warn" if tag.lower() in ("urgent","action") else "info",
-                    "category": "Announcements",
-                    "when": _dt.utcnow(),
-                    "href": href or None,
-                })
+    # ----- (Optional) Video of the Day inbox card -----
+    playlist_id = (globals().get("YOUTUBE_PLAYLIST_IDS") or {}).get(level_key)
+    fetch_videos = globals().get("fetch_youtube_playlist_videos")
+    api_key = globals().get("YOUTUBE_API_KEY")
+    if playlist_id and fetch_videos and api_key:
+        try:
+            video_list = fetch_videos(playlist_id, api_key)
+        except Exception:
+            video_list = []
+        if video_list:
+            pick = _date.today().toordinal() % len(video_list)
+            video = video_list[pick]
+            msgs.append({
+                "id": f"video:daily:{level_key}:{pick}",
+                "title": f"🎬 Today’s video for {level_key}",
+                "body": video.get("title",""),
+                "severity": "info",
+                "category": "Learning",
+                "when": _dt.utcnow(),
+                "href": video.get("url",""),
+            })
+
+    # NOTE: No app announcements and no student reviews on Dashboard per request.
 
     # =========================================================
     # ============== Priority, filters, rendering =============
     # =========================================================
     def priority_score(m):
         base = {"urgent": 90, "warn": 60, "info": 30}.get(m.get("severity","info"), 30)
-        # recency boost (last 20 hours)
         when = m.get("when") or _dt.utcnow()
-        rec = max(0, 20 - int((_dt.utcnow() - when).total_seconds()/3600))
-        # keyword bonuses
+        rec = max(0, 20 - int((_dt.utcnow() - when).total_seconds()/3600))  # recency boost
         t = (m.get("title","") + " " + m.get("body","")).lower()
         if "overdue" in t: base += 25
         if "today"   in t: base += 12
         return base + rec + (30 if is_pinned(m["id"]) else 0)
 
-    # Remove duplicates by id, keep highest-sev version
+    # De-duplicate by id
     _seen = {}
     for m in msgs:
         if m["id"] not in _seen or priority_score(m) > priority_score(_seen[m["id"]]):
@@ -2588,7 +2592,7 @@ if tab == "Dashboard":
     st.subheader("📥 Inbox")
     filter_tab = st.radio(
         "Filter",
-        ["All","Unread","Urgent","Billing","Schedule","Exams","Announcements"],
+        ["All","Unread","Urgent","Billing","Schedule","Exams","Learning"],
         horizontal=True, key="inbox_filter"
     )
 
@@ -2597,13 +2601,12 @@ if tab == "Dashboard":
         if filter_tab == "Billing": return m.get("category") == "Billing"
         if filter_tab == "Schedule": return m.get("category") == "Schedule"
         if filter_tab == "Exams": return m.get("category") == "Exams"
-        if filter_tab == "Announcements": return m.get("category") == "Announcements"
-        # "Unread" == everything currently active (not dismissed/snoozed)
-        return True
+        if filter_tab == "Learning": return m.get("category") == "Learning"
+        return True  # All/Unread
 
     view_msgs = [m for m in active_msgs if _matches(m)]
 
-    # Next best action (top card)
+    # Next best action
     if view_msgs:
         nba = view_msgs[0]
         sev_cls = {"urgent":"sev-urgent","warn":"sev-warn","info":"sev-info"}.get(nba.get("severity","info"), "sev-info")
@@ -2634,31 +2637,16 @@ if tab == "Dashboard":
             )
             # Actions row
             c1, c2, c3, c4 = st.columns([1,1,1,2])
-            if m.get("href"):
-                with c1:
-                    st.link_button("Open", m["href"], key=f"open_{m['id']}")
+            with c1:
+                open_link_button("Open", m.get("href"))
             with c2:
-                st.button(
-                    "Snooze 3 days",
-                    key=f"snooze_{m['id']}",
-                    on_click=inbox_op,
-                    args=("snooze", m["id"], 3)
-                )
+                st.button("Snooze 3 days", key=f"snooze_{m['id']}", on_click=inbox_op, args=("snooze", m["id"], 3))
             with c3:
-                st.button(
-                    "Dismiss",
-                    key=f"dismiss_{m['id']}",
-                    on_click=inbox_op,
-                    args=("dismiss", m["id"], 0)
-                )
+                st.button("Dismiss", key=f"dismiss_{m['id']}", on_click=inbox_op, args=("dismiss", m["id"], 0))
             with c4:
-                st.button(
-                    "Unpin" if is_pinned(m["id"]) else "Pin",
-                    key=f"pin_{m['id']}",
-                    on_click=inbox_op,
-                    args=("pin", m["id"], 0)
-                )
+                st.button("Unpin" if is_pinned(m["id"]) else "Pin", key=f"pin_{m['id']}", on_click=inbox_op, args=("pin", m["id"], 0))
             st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+
 
 
 
@@ -5267,7 +5255,15 @@ if tab == "My Course":
 
             st.divider()
             st.markdown("#### 🎬 Video of the Day for Your Level")
-            playlist_id = YOUTUBE_PLAYLIST_IDS.get(level_key) if "YOUTUBE_PLAYLIST_IDS" in globals() else None
+            playlist_ids = (
+                YOUTUBE_PLAYLIST_IDS.get(level_key, [])
+                if "YOUTUBE_PLAYLIST_IDS" in globals()
+                else []
+            )
+            if isinstance(playlist_ids, str):
+                playlist_id = playlist_ids
+            else:
+                playlist_id = random.choice(playlist_ids) if playlist_ids else None
             if playlist_id and "fetch_youtube_playlist_videos" in globals() and "YOUTUBE_API_KEY" in globals():
                 video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
                 if video_list:
@@ -11244,6 +11240,17 @@ if tab == "Schreiben Trainer":
             if ns(k) not in st.session_state:
                 st.session_state[ns(k)] = default
 
+        
+        if st.session_state.get(ns("reset_coach")):
+            st.session_state[ns("prompt")] = ""
+            st.session_state[ns("chat")] = []
+            st.session_state[ns("stage")] = 0
+            st.session_state[ns("prompt_draft")] = ""
+            st.session_state[ns("chat_draft")] = ""
+            save_now(ns("prompt_draft"), student_code)
+            save_now(ns("chat_draft"), student_code)
+            st.session_state.pop(ns("reset_coach"))
+
 
         LETTER_COACH_PROMPTS = {
             "A1": (
@@ -11409,6 +11416,9 @@ if tab == "Schreiben Trainer":
 
         # --- Stage 0: Prompt input ---
         if st.session_state[ns("stage")] == 0:
+                if st.button("Start new write-up"):
+                st.session_state[ns("reset_coach")] = True
+                st.rerun()
             st.markdown("### ✏️ Enter your exam prompt or draft to start coaching")
             draft_key = ns("prompt_draft")
             if draft_key not in st.session_state:
@@ -11437,10 +11447,12 @@ if tab == "Schreiben Trainer":
                 word_count = len(prompt.split())
                 char_count = len(prompt)
                 st.markdown(
-                    f"<div style='color:#7b2ff2; font-size:0.97em; margin-bottom:0.18em;'>",
-                    f"Words: <b>{word_count}</b> &nbsp;|&nbsp; Characters: <b>{char_count}</b>",
-                    "</div>",
-                    unsafe_allow_html=True
+                    (
+                        "<div style='color:#7b2ff2; font-size:0.97em; margin-bottom:0.18em;'>"
+                        f"Words: <b>{word_count}</b> &nbsp;|&nbsp; Characters: <b>{char_count}</b>"
+                        "</div>"
+                    ),
+                    unsafe_allow_html=True,
                 )
 
             if st.button("✉️ Start Letter Coach"):
@@ -11701,12 +11713,16 @@ if tab == "Schreiben Trainer":
                 st.session_state[ns("prompt")] = ""
                 st.session_state[ns("selected_letter_lines")] = []
                 st.session_state[ns("stage")] = 0
+                st.session_state[ns("prompt_draft")] = ""
+                st.session_state[ns("chat_draft")] = ""
                 save_letter_coach_progress(
                     student_code,
                     st.session_state.get("schreiben_level", "A1"),
                     "",
                     [],
                 )
+                save_now(ns("prompt_draft"), student_code)
+                save_now(ns("chat_draft"), student_code)
                 st.rerun()
 
 
