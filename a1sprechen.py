@@ -11253,24 +11253,16 @@ if tab == "Schreiben Trainer":
                 height=120,
                 placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ...",
                 label_visibility="collapsed",
-                on_change=save_now,
-                args=(draft_key, student_code),
+                on_change=lambda: save_now(draft_key, student_code),
             )
 
-            autosave_maybe(student_code, draft_key, st.session_state.get(draft_key, ""), min_secs=2.0, min_delta=20)
-
-            with st.form(ns("prompt_form"), clear_on_submit=True):
-
-                prompt = st.text_area(
-       
-                    "Exam prompt",
-                    key=draft_key,
-                    value=existing_draft,
-                    height=120,
-                    placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ...",
-                    label_visibility="collapsed",
-                )
-                send = st.form_submit_button("✉️ Start Letter Coach")
+            autosave_maybe(
+                student_code,
+                draft_key,
+                st.session_state.get(draft_key, ""),
+                min_secs=2.0,
+                min_delta=20,
+            )
 
             prompt = st.session_state.get(draft_key, "")
 
@@ -11284,42 +11276,43 @@ if tab == "Schreiben Trainer":
                     unsafe_allow_html=True
                 )
 
-            if send:
+            if st.button("✉️ Start Letter Coach"):
                 save_now(draft_key, student_code)
 
-            if send and prompt:
-                st.session_state[ns("prompt")] = prompt
-                student_level = st.session_state.get("schreiben_level", "A1")
-                system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=prompt)
-                chat_history = [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt}
-                ]
-                try:
-                    resp = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=chat_history,
-                        temperature=0.22,
-                        max_tokens=380
+               prompt = st.session_state.get(draft_key, "")
+                if prompt:
+                    st.session_state[ns("prompt")] = prompt
+                    student_level = st.session_state.get("schreiben_level", "A1")
+                    system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=prompt)
+                    chat_history = [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": prompt}
+                    ]
+                    try:
+                        resp = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=chat_history,
+                            temperature=0.22,
+                            max_tokens=380
+                        )
+                        ai_reply = resp.choices[0].message.content
+                    except Exception as e:
+                        ai_reply = "Sorry, there was an error generating a response. Please try again."
+                    chat_history.append({"role": "assistant", "content": ai_reply})
+
+                    st.session_state[ns("chat")] = chat_history
+                    st.session_state[ns("stage")] = 1
+                    inc_letter_coach_usage(student_code)
+                    save_letter_coach_progress(
+                        student_code,
+                        student_level,
+                        st.session_state[ns("prompt")],
+                        st.session_state[ns("chat")],
                     )
-                    ai_reply = resp.choices[0].message.content
-                except Exception as e:
-                    ai_reply = "Sorry, there was an error generating a response. Please try again."
-                chat_history.append({"role": "assistant", "content": ai_reply})
-
-                st.session_state[ns("chat")] = chat_history
-                st.session_state[ns("stage")] = 1
-                inc_letter_coach_usage(student_code)
-                save_letter_coach_progress(
-                    student_code,
-                    student_level,
-                    st.session_state[ns("prompt")],
-                    st.session_state[ns("chat")],
-                )
-                st.session_state[draft_key] = ""
-                save_now(draft_key, student_code)
-                st.rerun()
-
+                    st.session_state[draft_key] = ""
+                    save_now(draft_key, student_code)
+                    st.rerun()
+                    
             if prompt:
                 st.markdown("---")
                 st.markdown(f"📝 **Letter/Essay Prompt or Draft:**\n\n{prompt}")
@@ -11353,26 +11346,32 @@ if tab == "Schreiben Trainer":
             if draft_key not in st.session_state:
                 st.session_state[draft_key] = load_draft_from_db(student_code, draft_key)
 
-            chat_input = st.text_area(
+            st.text_area(
                 "Chat input",
                 key=draft_key,
                 height=400,
                 placeholder="Type your reply, ask about a section, or paste your draft here...",
                 label_visibility="collapsed",
-                on_change=save_now,
-                args=(draft_key, student_code),
+                on_change=lambda: save_now(draft_key, student_code),
+            )
+            
+            autosave_maybe(
+                student_code,
+                draft_key,
+                st.session_state.get(draft_key, ""),
+                min_secs=2.0,
+                min_delta=20,
             )
 
-            autosave_maybe(student_code, draft_key, st.session_state.get(draft_key, ""), min_secs=2.0, min_delta=20)
-            
-            with st.form(ns("letter_coach_chat_form"), clear_on_submit=True):
-                send = st.form_submit_button("Send")
-
+            send = st.button("Send")
              
             if send:
+                user_input = st.session_state[draft_key].strip()
                 save_now(draft_key, student_code)
                 
-            user_input = chat_input.strip() if send else ""
+            else:
+                user_input = ""
+
             if user_input:
                 chat_history.append({"role": "user", "content": user_input})
                 student_level = st.session_state.get("schreiben_level", "A1")
