@@ -11279,7 +11279,7 @@ if tab == "Schreiben Trainer":
             if st.button("✉️ Start Letter Coach"):
                 save_now(draft_key, student_code)
 
-               prompt = st.session_state.get(draft_key, "")
+                prompt = st.session_state.get(draft_key, "")
                 if prompt:
                     st.session_state[ns("prompt")] = prompt
                     student_level = st.session_state.get("schreiben_level", "A1")
