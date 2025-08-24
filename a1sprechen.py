@@ -10953,7 +10953,6 @@ if tab == "Schreiben Trainer":
     prev_student_code = st.session_state.get("prev_student_code", None)
     if student_code != prev_student_code:
         stats = get_schreiben_stats(student_code)
-        st.session_state[f"{student_code}_schreiben_input"] = stats.get("last_letter", "")
         st.session_state[f"{student_code}_last_feedback"] = None
         st.session_state[f"{student_code}_last_user_letter"] = None
         st.session_state[f"{student_code}_delta_compare_feedback"] = None
@@ -10999,25 +10998,30 @@ if tab == "Schreiben Trainer":
         daily_so_far = get_schreiben_usage(student_code)
         st.markdown(f"**Daily usage:** {daily_so_far} / {MARK_LIMIT}")
 
+        
+        try:
+            _ = _wkey
+        except NameError:
+            import hashlib
+
+            def _wkey(base: str) -> str:
+                sc = str(st.session_state.get("student_code", "anon"))
+                return f"{base}_{hashlib.md5(f'{base}|{sc}'.encode()).hexdigest()[:8]}"
+
+        draft_key = _wkey("schreiben_letter")
+        existing_draft = load_draft_from_db(student_code, draft_key)
+
         user_letter = st.text_area(
             "Paste or type your German letter/essay here.",
-            key=f"{student_code}_schreiben_input",
-            value=st.session_state.get(f"{student_code}_schreiben_input", ""),
+            key=draft_key,
+            value=existing_draft,
+            on_change=lambda: save_now(draft_key, student_code),
             disabled=(daily_so_far >= MARK_LIMIT),
             height=400,
-            placeholder="Write your German letter here..."
+            placeholder="Write your German letter here...",
         )
-
-        # AUTOSAVE LOGIC (save every edit that's different from last_letter)
-        if (
-            user_letter.strip() and
-            user_letter != get_schreiben_stats(student_code).get("last_letter", "")
-        ):
-            doc_ref = db.collection("schreiben_stats").document(student_code)
-            doc = doc_ref.get()
-            data = doc.to_dict() if doc.exists else {}
-            data["last_letter"] = user_letter
-            doc_ref.set(data, merge=True)
+        
+        autosave_maybe(student_code, draft_key, user_letter, min_secs=2.0, min_delta=20)
 
         # --- Word count and Goethe exam rules ---
         import re
@@ -11145,15 +11149,17 @@ if tab == "Schreiben Trainer":
                 score_match = re.search(r"Score[: ]+(\d+)", feedback)
                 score = int(score_match.group(1)) if score_match else 0
                 passed = score >= 17
-                save_submission(
-                    student_code=student_code,
-                    score=score,
-                    passed=passed,
-                    timestamp=None,  # Not needed
-                    level=schreiben_level,
-                    letter=user_letter
-                )
-                update_schreiben_stats(student_code)
+                  save_submission(
+                      student_code=student_code,
+                      score=score,
+                      passed=passed,
+                      timestamp=None,  # Not needed
+                      level=schreiben_level,
+                      letter=user_letter
+                  )
+                  update_schreiben_stats(student_code)
+                  save_draft_to_db(student_code, draft_key, "")
+                  st.session_state.pop(draft_key, None)
 
 
 
