@@ -2003,11 +2003,11 @@ except Exception as e:
 
 
 
-# =========================================================
-# ===================== Dashboard =========================
-# =========================================================
 if tab == "Dashboard":
-    # ---------- Helpers ----------
+    # ===================== Helpers / student row =====================
+    import pandas as pd
+    from datetime import datetime as _dt, date as _date, timedelta as _td
+
     def safe_get(row, key, default=""):
         try: return row.get(key, default)
         except Exception: pass
@@ -2016,28 +2016,7 @@ if tab == "Dashboard":
         try: return row[key]
         except Exception: return default
 
-    # Fallback parsers if globals not present
-    def _fallback_parse_date(s):
-        fmts = ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y")
-        for f in fmts:
-            try: return datetime.strptime(str(s).strip(), f)
-            except Exception: pass
-        return None
-
-    def _fallback_add_months(dt, n):
-        y = dt.year + (dt.month - 1 + n) // 12
-        m = (dt.month - 1 + n) % 12 + 1
-        d = min(dt.day, calendar.monthrange(y, m)[1])
-        return dt.replace(year=y, month=m, day=d)
-
-    parse_contract_start_fn = globals().get("parse_contract_start", _fallback_parse_date)
-    parse_contract_end_fn   = globals().get("parse_contract_end",   _fallback_parse_date)
-    add_months_fn           = globals().get("add_months",           _fallback_add_months)
-
-    # Global styles for chips & mini-cards
-    inject_notice_css()
-
-    # ---------- Ensure we have a student row ----------
+    # Get student row (reuses your existing loader if available)
     load_student_data_fn = globals().get("load_student_data")
     if load_student_data_fn is None:
         def load_student_data_fn():
@@ -2046,8 +2025,8 @@ if tab == "Dashboard":
     df_students = load_student_data_fn()
     if df_students is None:
         df_students = pd.DataFrame(columns=["StudentCode"])
-    student_code = (st.session_state.get("student_code", "") or "").strip().lower()
 
+    student_code = (st.session_state.get("student_code", "") or "").strip().lower()
     student_row = {}
     if student_code and not df_students.empty and "StudentCode" in df_students.columns:
         try:
@@ -2056,108 +2035,15 @@ if tab == "Dashboard":
                 student_row = matches.iloc[0].to_dict()
         except Exception:
             pass
-
     if (not student_row) and isinstance(st.session_state.get("student_row"), dict) and st.session_state["student_row"]:
         student_row = st.session_state["student_row"]
 
     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-
     if not student_row:
         st.info("🚩 No student selected.")
         st.stop()
-        
-    st.divider()
-    # ---------- 1) Announcements (top) ----------
-    render_announcements(announcements)
-    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
-    st.divider()
-    # ---------- 3) Motivation mini-cards (streak / vocab / leaderboard) ----------
-    _student_code = (st.session_state.get("student_code", "") or "").strip().lower()
-    _df_assign = load_assignment_scores()
-    _df_assign["date"] = pd.to_datetime(_df_assign["date"], errors="coerce").dt.date
-    _mask_student = _df_assign["studentcode"].str.lower().str.strip() == _student_code
-
-    _dates = sorted(_df_assign[_mask_student]["date"].dropna().unique(), reverse=True)
-    _streak = 1 if _dates else 0
-    for i in range(1, len(_dates)):
-        if (_dates[i - 1] - _dates[i]).days == 1:
-            _streak += 1
-        else:
-            break
-
-    _monday = date.today() - timedelta(days=date.today().weekday())
-    _weekly_goal = 3
-    _submitted_this_week = _df_assign[_mask_student & (_df_assign["date"] >= _monday)].shape[0]
-    _goal_left = max(0, _weekly_goal - _submitted_this_week)
-
-    _level = (safe_get(student_row, "Level", "A1") or "A1").upper().strip()
-    _vocab_df = load_full_vocab_sheet()
-    _vocab_item = get_vocab_of_the_day(_vocab_df, _level)
-
-    _df_assign['level'] = _df_assign['level'].astype(str).str.upper().str.strip()
-    _df_assign['score'] = pd.to_numeric(_df_assign['score'], errors='coerce')
-    _min_assignments = 3
-    _df_level = (
-        _df_assign[_df_assign['level'] == _level]
-        .groupby(['studentcode', 'name'], as_index=False)
-        .agg(total_score=('score', 'sum'), completed=('assignment', 'nunique'))
-    )
-    _df_level = _df_level[_df_level['completed'] >= _min_assignments]
-    _df_level = _df_level.sort_values(['total_score', 'completed'], ascending=[False, False]).reset_index(drop=True)
-    _df_level['Rank'] = _df_level.index + 1
-    _your_row = _df_level[_df_level['studentcode'].str.lower() == _student_code.lower()]
-    _total_students = len(_df_level)
-
-    _streak_line = (
-        f"<span class='pill pill-green'>{_streak} day{'s' if _streak != 1 else ''} streak</span>"
-        if _streak > 0 else
-        "<span class='pill pill-amber'>Start your streak today</span>"
-    )
-    _goal_line = (
-        f"Submitted {_submitted_this_week}/{_weekly_goal} this week"
-        + (f" — {_goal_left} to go" if _goal_left else " — goal met 🎉")
-    )
-
-    if _vocab_item:
-        _vocab_chip = f"<span class='pill pill-purple'>{_vocab_item.get('german','')}</span>"
-        _vocab_sub = f"{_vocab_item.get('english','')} · Level {_level}"
-    else:
-        _vocab_chip = "<span class='pill pill-amber'>No vocab available</span>"
-        _vocab_sub = f"Level {_level}"
-
-    if not _your_row.empty:
-        _rank = int(_your_row.iloc[0]["Rank"])
-        _rank_text = f"Rank #{_rank} of {_total_students}"
-        _lead_chip = "<span class='pill pill-purple'>On the board</span>"
-    else:
-        _rank_text = "Complete 3+ assignments to be ranked"
-        _lead_chip = "<span class='pill pill-amber'>Not ranked yet</span>"
-
-    st.markdown(
-        f"""
-        <div class="minirow">
-          <div class="minicard">
-            <h4>🏅 Assignment Streak</h4>
-            <div>{_streak_line}</div>
-            <div class="sub">{_goal_line}</div>
-          </div>
-          <div class="minicard">
-            <h4>🗣️ Vocab of the Day</h4>
-            <div>{_vocab_chip}</div>
-            <div class="sub">{_vocab_sub}</div>
-          </div>
-          <div class="minicard">
-            <h4>🏆 Leaderboard</h4>
-            <div>{_lead_chip}</div>
-            <div class="sub">{_rank_text}</div>
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    st.divider()
-    # ---------- Student header (compact) + details (expander) ----------
+    # Compact student header
     name = safe_get(student_row, "Name")
     level = safe_get(student_row, "Level", "")
     code  = safe_get(student_row, "StudentCode", "")
@@ -2166,7 +2052,6 @@ if tab == "Dashboard":
     except Exception:
         bal_val = 0.0
 
-    # Always-visible compact header (one line)
     st.markdown(
         f"<div style='display:flex;flex-wrap:wrap;gap:10px;align-items:center;"
         f"padding:8px 10px;border:1px solid rgba(148,163,184,.35);border-radius:10px;"
@@ -2180,522 +2065,389 @@ if tab == "Dashboard":
         + "</div>",
         unsafe_allow_html=True
     )
+    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
-    # Full details inside an expander
-    with st.expander("👤 Student details", expanded=False):
-        info_html = f"""
-        <div style='
-            background:#f8fbff;
-            border:1.6px solid #cfe3ff;
-            border-radius:12px;
-            padding:12px 14px;
-            margin-top:8px;
-            box-shadow:0 2px 8px rgba(44,106,221,0.04);
-            font-size:1.04em;
-            color:#17325e;
-            font-family:"Segoe UI","Arial",sans-serif;
-            letter-spacing:.01em;'>
-            <div style="font-weight:700;font-size:1.12em;margin-bottom:6px;">
-                👤 {name}
-            </div>
-            <div style="font-size:1em; margin-bottom:4px;">
-                <b>Level:</b> {safe_get(student_row, 'Level', '')} &nbsp;|&nbsp; 
-                <b>Code:</b> <code>{safe_get(student_row, 'StudentCode', '')}</code> &nbsp;|&nbsp;
-                <b>Status:</b> {safe_get(student_row, 'Status', '')}
-            </div>
-            <div style="font-size:1em; margin-bottom:4px;">
-                <b>Email:</b> {safe_get(student_row, 'Email', '')} &nbsp;|&nbsp;
-                <b>Phone:</b> {safe_get(student_row, 'Phone', '')} &nbsp;|&nbsp;
-                <b>Location:</b> {safe_get(student_row, 'Location', '')}
-            </div>
-            <div style="font-size:1em;">
-                <b>Contract:</b> {safe_get(student_row, 'ContractStart', '')} ➔ {safe_get(student_row, 'ContractEnd', '')} &nbsp;|&nbsp;
-                <b>Enroll Date:</b> {safe_get(student_row, 'EnrollDate', '')}
-            </div>
-        </div>
-        """
-        st.markdown(info_html, unsafe_allow_html=True)
+    # ===================== MESSAGE INBOX (inline integration) =====================
+    import hashlib, json
 
-    # ---------- Payments & Renewal (policy-aligned, all inside one expander) ----------
-    from datetime import datetime as _dt
-    import calendar as _cal
+    def _inbox_css():
+        st.markdown("""
+        <style>
+          .inbox-head{display:flex;align-items:center;justify-content:space-between;
+            padding:10px 12px;margin:2px 0 10px 0;background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;}
+          .badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:.85rem;margin-left:6px;}
+          .b-urgent{background:#fee2e2;color:#991b1b;border:1px solid #fecaca;}
+          .b-new{background:#dcfce7;color:#166534;border:1px solid #bbf7d0;}
+          .inbox-card{border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;margin:8px 0;background:#ffffff;}
+          .inbox-card.urgent{border-color:#fecaca;background:#fff7f7;}
+          .inbox-card.warn{border-color:#fed7aa;background:#fff7ed;}
+          .inbox-card.info{border-color:#e5e7eb;background:#ffffff;}
+          .inbox-title{font-weight:700;font-size:1.02rem;margin-bottom:2px;display:flex;gap:8px;align-items:center;}
+          .inbox-meta{color:#64748b;font-size:.86rem;margin-bottom:6px;}
+          .inbox-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+          .btn{display:inline-block;padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;
+               background:#f1f5f9;color:#0f172a;text-decoration:none;font-weight:600;}
+          .btn.primary{background:#2563eb;color:#fff;border-color:#1d4ed8;}
+          .carousel-wrap{border:1px solid #e5e7eb;border-radius:12px;background:#f8fafc;padding:10px 12px;margin-bottom:10px;}
+          .car-title{font-weight:800;color:#0f172a;margin:0 0 6px 0}
+        </style>
+        """, unsafe_allow_html=True)
 
-    # Safe money reader (fallback if not provided elsewhere)
-    _read_money = globals().get("_read_money")
-    if _read_money is None:
+    def _hash_id(x) -> str:
+        try:
+            return hashlib.sha1(json.dumps(x, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+        except Exception:
+            return hashlib.sha1(str(x).encode("utf-8")).hexdigest()[:16]
+
+    def _fmt_when(dtobj):
+        try:
+            return dtobj.strftime("%d %b %Y · %H:%M UTC")
+        except Exception:
+            return ""
+
+    def _dismissed_set_key():
+        who = (st.session_state.get("student_code") or "student").lower()
+        today = _date.today().isoformat()
+        return f"_inbox_dismissed::{who}::{today}"
+
+    def _is_dismissed(mid: str) -> bool:
+        skey = _dismissed_set_key()
+        if skey not in st.session_state: st.session_state[skey] = set()
+        return mid in st.session_state[skey]
+
+    def _dismiss(mid: str):
+        skey = _dismissed_set_key()
+        if skey not in st.session_state: st.session_state[skey] = set()
+        st.session_state[skey].add(mid)
+
+    def _push(msgs, *, mid, title, body, severity="info", icon="🔔", when=None, actions=None, sticky=False):
+        sev = {"error":"urgent", "warning":"warn", "success":"info", "info":"info"}.get(severity, "info")
+        if when is None: when = _dt.utcnow()
+        msgs.append({
+            "id": str(mid), "title": str(title), "body": str(body),
+            "severity": sev, "icon": icon, "when": when,
+            "actions": actions or [], "sticky": bool(sticky)
+        })
+
+    def _parse_any_date(s):
+        for f in ("%Y-%m-%d","%m/%d/%Y","%d.%m.%y","%d/%m/%Y","%d-%m-%Y"):
+            try: return _dt.strptime(str(s).strip(), f)
+            except: pass
+        try:
+            return pd.to_datetime(s, errors="coerce").to_pydatetime()
+        except:
+            return None
+
+    # ---- Announcements slider (uses your fetch_announcements_csv) ----
+    def _announcement_carousel():
+        df_ann = pd.DataFrame()
+        try:
+            if callable(globals().get("fetch_announcements_csv")):
+                df_ann = fetch_announcements_csv()
+        except Exception:
+            df_ann = pd.DataFrame()
+        if df_ann is None or df_ann.empty:
+            return
+
+        cols = {c.lower(): c for c in df_ann.columns}
+        def col(name): return cols.get(name.lower())
+        title_col  = col("Announcement") or list(df_ann.columns)[0]
+        class_col  = col("Class")
+        date_col   = col("Date")
+        pinned_col = col("Pinned")
+
+        view = df_ann.copy()
+        if pinned_col:
+            view["Pinned"] = view[pinned_col].astype(str).str.lower().isin(["true","1","yes"])
+        else:
+            view["Pinned"] = False
+
+        class_name = (st.session_state.get("student_row") or {}).get("ClassName", "")
+        if class_col and class_name:
+            cnorm = str(class_name).strip().lower()
+            try:
+                view = view[view[class_col].astype(str).str.strip().str.lower() == cnorm]
+            except Exception:
+                pass
+
+        def _dt_any(x):
+            for f in ("%Y-%m-%d","%d/%m/%Y","%m/%d/%Y","%d-%m-%Y"):
+                try: return _dt.strptime(str(x), f)
+                except: pass
+            try: return pd.to_datetime(x, errors="coerce").to_pydatetime()
+            except: return _dt.utcnow()
+
+        if date_col:
+            view["__dt"] = view[date_col].apply(_dt_any)
+        else:
+            view["__dt"] = _dt.utcnow()
+        now = _dt.utcnow()
+        view["__recent"] = (now - view["__dt"]).dt.days <= 7
+        try:
+            view = view.sort_values(["Pinned","__recent","__dt"], ascending=[False, False, False])
+        except Exception:
+            pass
+
+        items = view.to_dict("records")
+        if not items: return
+
+        st.markdown("<div class='carousel-wrap'><div class='car-title'>📢 Announcements</div>", unsafe_allow_html=True)
+        key_idx = "_ann_car_idx"
+        if key_idx not in st.session_state: st.session_state[key_idx] = 0
+        n = len(items)
+
+        c_prev, c_mid, c_next = st.columns([1, 6, 1])
+        with c_prev:
+            if st.button("◀", key="ann_prev"): st.session_state[key_idx] = (st.session_state[key_idx]-1) % n
+        with c_next:
+            if st.button("▶", key="ann_next"): st.session_state[key_idx] = (st.session_state[key_idx]+1) % n
+
+        cur = items[st.session_state[key_idx]]
+        title = str(cur.get(title_col, "")) if title_col else "(no title)"
+        dtxt  = cur.get(date_col, "")
+        pin   = bool(cur.get("Pinned", False))
+        badge = " <span class='badge b-new'>NEW</span>" if cur.get("__recent", False) else ""
+        pinb  = " <span class='badge b-urgent'>PINNED</span>" if pin else ""
+        st.markdown(
+            f"<div class='inbox-card info'><div class='inbox-title'>📣 {title}{pinb}{badge}</div>"
+            f"<div class='inbox-meta'>{dtxt}</div></div>",
+            unsafe_allow_html=True
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # ---- Main inbox renderer ----
+    def render_student_inbox(_row: dict):
+        _inbox_css()
+        _announcement_carousel()
+
+        msgs = []
+        now = _dt.utcnow()
+        today = _date.today()
+
+        # Payments / first-due (≈ +30 days after contract start)
         def _read_money(x):
             try:
                 s = str(x).replace(",", "").strip()
                 return float(s) if s not in ("", "nan", "None") else 0.0
             except Exception:
                 return 0.0
+        balance = _read_money(_row.get("Balance", 0))
 
-    # Fallbacks for date parsing / month add
-    def _fallback_parse_date(s):
-        for f in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):
-            try:
-                return _dt.strptime(str(s).strip(), f)
-            except Exception:
-                pass
-        return None
+        cs = None
+        for k in ["ContractStart","StartDate","ContractBegin","Start","Begin"]:
+            v = (_row.get(k) or "").strip()
+            if v:
+                cs = _parse_any_date(v)
+                if cs: break
+        first_due = (cs + _td(days=30)).date() if cs else None  # simple +30d
 
-    def _fallback_add_months(dt, n):
-        y = dt.year + (dt.month - 1 + n) // 12
-        m = (dt.month - 1 + n) % 12 + 1
-        d = min(dt.day, _cal.monthrange(y, m)[1])
-        return dt.replace(year=y, month=m, day=d)
-
-    # Use app-provided helpers if available, otherwise fallbacks
-    _parse_start = (
-        globals().get("parse_contract_start_fn")
-        or globals().get("parse_contract_start")
-        or _fallback_parse_date
-    )
-    _parse_end = (
-        globals().get("parse_contract_end_fn")
-        or globals().get("parse_contract_end")
-        or _fallback_parse_date
-    )
-    _add_months = (
-        globals().get("add_months_fn")
-        or globals().get("add_months")
-        or _fallback_add_months
-    )
-
-    # Normalize "today" to a date
-    _today = _dt.today().date()
-
-    # Contract start -> first payment due (start + 1 month)
-    _cs = None
-    for _k in ["ContractStart", "StartDate", "ContractBegin", "Start", "Begin"]:
-        _s = str(safe_get(student_row, _k, "") or "").strip()
-        if _s:
-            _cs = _parse_start(_s)
-            break
-    _first_due_dt = _add_months(_cs, 1) if _cs else None
-    _first_due = _first_due_dt.date() if _first_due_dt and hasattr(_first_due_dt, "date") else _first_due_dt
-
-    # Read balance and compute status
-    _balance = _read_money(safe_get(student_row, "Balance", 0))
-
-    # Build expander title/body according to policy
-    _exp_title = "💳 Payments (info)"
-    _severity = "info"
-    if _balance > 0 and _first_due:
-        if _today > _first_due:
-            _days_over = (_today - _first_due).days
-            _exp_title = f"💳 Payments • overdue {_days_over}d"
-            _severity = "error"
-            _msg = (
-                f"💸 **Overdue by {_days_over} day{'s' if _days_over != 1 else ''}.** "
-                f"Amount due: **₵{_balance:,.2f}**. First due: {_first_due:%d %b %Y}."
-            )
-        elif _today == _first_due:
-            _exp_title = "💳 Payments • due today"
-            _severity = "warning"
-            _msg = f"⏳ **Payment due today** ({_first_due:%d %b %Y}). Amount due: **₵{_balance:,.2f}**."
-        else:
-            # Balance positive but still before first due → not expected to pay yet
-            _exp_title = "💳 Payments (info)"
-            _severity = "info"
-            _days_left = (_first_due - _today).days
-            _msg = (
-                f"No payment expected yet. Your first payment date is **{_first_due:%d %b %Y}** "
-                f"(in {_days_left} day{'s' if _days_left != 1 else ''}). Current balance: **₵{_balance:,.2f}**."
-            )
-    elif _balance > 0 and not _first_due:
-        _exp_title = "💳 Payments • schedule unknown"
-        _severity = "info"
-        _msg = (
-            "ℹ️ You have a positive balance, but I couldn’t read your contract start date "
-            "to compute the first payment date. Please contact the office."
-        )
-    else:
-        # balance <= 0 → not expected to pay anything now
-        _exp_title = "💳 Payments (info)"
-        _severity = "info"
-        if _first_due:
-            _msg = (
-                "No outstanding balance. You’re not expected to pay anything now. "
-                f"Your first payment date (if applicable) is **{_first_due:%d %b %Y}**."
-            )
-        else:
-            _msg = (
-                "No outstanding balance. You’re not expected to pay anything now. "
-                "We’ll compute your first payment date after your contract start is on file."
-            )
-
-    with st.expander(_exp_title, expanded=False):
-        if _severity == "error":
-            st.error(_msg)
-        elif _severity == "warning":
-            st.warning(_msg)
-        else:
-            st.info(_msg)
-
-        # Always show raw details
-        _cs_str = _cs.strftime("%d %b %Y") if _cs else "—"
-        _fd_str = _first_due.strftime("%d %b %Y") if _first_due else "—"
-        st.markdown(
-            f"""
-            **Details**
-            - Contract start: **{_cs_str}**
-            - First payment due (start + 1 month): **{_fd_str}**
-            - Current balance: **₵{_balance:,.2f}**
-            """
-        )
-
-        # ---- Renewal (contract end → extension policy) ----
-        EXT_FEE = 1000
-        _ce = _parse_end(safe_get(student_row, "ContractEnd", ""))
-        _ce_date = _ce.date() if hasattr(_ce, "date") else _ce
-        if _ce_date:
-            _days_left = (_ce_date - _today).days
-            if _days_left < 0:
-                st.error(
-                    f"⚠️ Your contract ended on **{_ce_date:%d %b %Y}**. "
-                    f"If you need more time, extension costs **₵{EXT_FEE:,}/month**."
+        if balance > 0 and first_due:
+            if today > first_due:
+                dd = (today - first_due).days
+                _push(
+                    msgs,
+                    mid=_hash_id(["pay-overdue", str(first_due), balance]),
+                    title=f"💳 Payment overdue by {dd} day{'s' if dd!=1 else ''}",
+                    body=f"Amount due: ₵{balance:,.2f}. First due was {first_due:%d %b %Y}.",
+                    severity="error", icon="💳", when=now - _td(minutes=1)
                 )
-            elif _days_left <= 14:
-                st.warning(
-                    f"⏰ Your contract ends in **{_days_left} day{'s' if _days_left != 1 else ''}** "
-                    f"(**{_ce_date:%d %b %Y}**). Extension costs **₵{EXT_FEE:,}/month**."
+            elif today == first_due:
+                _push(
+                    msgs, mid=_hash_id(["pay-today", str(first_due), balance]),
+                    title="💳 Payment due today",
+                    body=f"Amount due: ₵{balance:,.2f}. Due: {first_due:%d %b %Y}.",
+                    severity="warning", icon="💳", when=now - _td(minutes=1)
                 )
-        # If contract end is further out, we stay silent per policy.
-
-    # ---------- Always-visible Contract Alert (cannot be missed) ----------
-    from datetime import datetime as _dt
-
-    # Fallback date parser if app helpers aren’t injected
-    def _fallback_parse_date(_s):
-        for _f in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):
-            try:
-                return _dt.strptime(str(_s).strip(), _f)
-            except Exception:
-                pass
-        return None
-
-    _parse_end = (
-        globals().get("parse_contract_end_fn")
-        or globals().get("parse_contract_end")
-        or _fallback_parse_date
-    )
-
-    _today = _dt.today().date()
-    _ce_raw = _parse_end(safe_get(student_row, "ContractEnd", ""))
-    _ce_date = _ce_raw.date() if hasattr(_ce_raw, "date") else _ce_raw
-
-    # Mobile-friendly, readable alert styles
-    st.markdown("""
-    <style>
-      .contract-alert { border-radius:12px; padding:12px 14px; margin:8px 0 10px 0; font-weight:600; }
-      .ca-warn { background:#fff7ed; color:#7c2d12; border:1px solid #fed7aa; }
-      .ca-err  { background:#fef2f2; color:#991b1b; border:1px solid #fecaca; }
-      .ca-text { font-size:1rem; line-height:1.55; }
-      .ca-cta  { margin-top:6px; font-size:.95rem; }
-      @media (max-width:640px){
-        .contract-alert{ padding:10px 12px; }
-        .ca-text{ font-size:1.02rem; }
-      }
-    </style>
-    """, unsafe_allow_html=True)
-
-    if _ce_date:
-        _days_left = (_ce_date - _today).days
-        _student_code = str(safe_get(student_row, "StudentCode", "") or "").strip().lower()
-        _alert_key = f"hide_contract_alert:{_student_code}:{_ce_date.isoformat()}:{_today.isoformat()}"
-        _ext_fee = 1000
-
-        if not st.session_state.get(_alert_key, False):
-            if _days_left < 0:
-                _msg = (
-                    f"⚠️ <b>Your contract ended on {_ce_date:%d %b %Y}.</b> "
-                    f"To continue, extension costs <b>₵{_ext_fee:,}/month</b>."
-                )
-                _cls = "ca-err"
-            elif _days_left <= 14:
-                _msg = (
-                    f"⏰ <b>Your contract ends in {_days_left} day{'s' if _days_left != 1 else ''} "
-                    f"({_ce_date:%d %b %Y}).</b> Extension costs <b>₵{_ext_fee:,}/month</b>."
-                )
-                _cls = "ca-warn"
             else:
-                _msg = ""
-                _cls = ""
-
-            if _msg:
-                st.markdown(
-                    f"<div class='contract-alert {_cls}'><div class='ca-text'>{_msg}</div></div>",
-                    unsafe_allow_html=True
+                left = (first_due - today).days
+                _push(
+                    msgs, mid=_hash_id(["pay-upcoming", str(first_due), balance]),
+                    title="💳 Upcoming payment",
+                    body=f"First payment is {left} day{'s' if left!=1 else ''} away ({first_due:%d %b %Y}). Current balance: ₵{balance:,.2f}.",
+                    severity="info", icon="💳", when=now - _td(minutes=1)
                 )
-                # Dismiss for today (so students can acknowledge but can't claim they never saw it)
-                if st.button("Got it — hide this notice for today", key=f"btn_contract_alert_{_student_code}"):
-                    st.session_state[_alert_key] = True
-                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-
-     # ---------- Class schedules ----------
-    with st.expander("🗓️ Class Schedule & Upcoming Sessions", expanded=False):
-        GROUP_SCHEDULES = {
-            "A1 Munich Klasse": {
-                "days": ["Monday", "Tuesday", "Wednesday"],
-                "time": "6:00pm–7:00pm",
-                "start_date": "2025-07-08",
-                "end_date": "2025-09-02",
-                "doc_url": "https://drive.google.com/file/d/1en_YG8up4C4r36v4r7E714ARcZyvNFD6/view?usp=sharing"
-            },
-            "A1 Berlin Klasse": {
-                "days": ["Thursday", "Friday", "Saturday"],
-                "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
-                "start_date": "2025-06-14",
-                "end_date": "2025-08-09",
-                "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
-            },
-            "A1 Koln Klasse": {
-                "days": ["Thursday", "Friday", "Saturday"],
-                "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
-                "start_date": "2025-08-15",
-                "end_date": "2025-10-11",
-                "doc_url": "https://drive.google.com/file/d/1d1Ord557jGRn5NxYsmCJVmwUn1HtrqI3/view?usp=sharing"
-            },
-            "A2 Munich Klasse": {
-                "days": ["Monday", "Tuesday", "Wednesday"],
-                "time": "7:30pm–9:00pm",
-                "start_date": "2025-06-24",
-                "end_date": "2025-08-26",
-                "doc_url": "https://drive.google.com/file/d/1Zr3iN6hkAnuoEBvRELuSDlT7kHY8s2LP/view?usp=sharing"
-            },
-            "A2 Berlin Klasse": {
-                "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-                "time": "Mon–Wed: 11:00am–12:00pm, Thu/Fri: 11:00am–12:00pm, Wed: 2:00pm–3:00pm",
-                "start_date": "",
-                "end_date": "",
-                "doc_url": ""
-            },
-            "A2 Koln Klasse": {
-                "days": ["Wednesday", "Thursday", "Friday"],
-                "time": "11:00am–12:00pm",
-                "start_date": "2025-08-06",
-                "end_date": "2025-10-08",
-                "doc_url": "https://drive.google.com/file/d/19cptfdlmBDYe9o84b8ZCwujmxuMCKXAD/view?usp=sharing"
-            },
-            "B1 Munich Klasse": {
-                "days": ["Thursday", "Friday"],
-                "time": "7:30pm–9:00pm",
-                "start_date": "2025-08-07",
-                "end_date": "2025-11-07",
-                "doc_url": "https://drive.google.com/file/d/1CaLw9RO6H8JOr5HmwWOZA2O7T-bVByi7/view?usp=sharing"
-            },
-            "B2 Munich Klasse": {
-                "days": ["Friday", "Saturday"],
-                "time": "Fri: 2pm-3:30pm, Sat: 9:30am-10am",
-                "start_date": "2025-08-08",
-                "end_date": "2025-10-08",
-                "doc_url": "https://drive.google.com/file/d/1gn6vYBbRyHSvKgqvpj5rr8OfUOYRL09W/view?usp=sharing"
-            },
-        }
-
-        from datetime import datetime as _dt_local, timedelta as _td_local
-        class_name = str(safe_get(student_row, "ClassName", "")).strip()
-        class_schedule = GROUP_SCHEDULES.get(class_name)
-        week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-
-        if not class_name or not class_schedule:
-            st.info("🚩 Your class is not set yet. Please contact your teacher or the office.")
+        elif balance > 0:
+            _push(
+                msgs, mid=_hash_id(["pay-balance", balance]),
+                title="💳 Balance on file",
+                body="We’ll compute your first payment once your contract start is confirmed.",
+                severity="info", icon="💳", when=now - _td(minutes=1)
+            )
         else:
-            days = class_schedule.get("days", [])
-            time_str = class_schedule.get("time", "")
-            start_dt = class_schedule.get("start_date", "")
-            end_dt = class_schedule.get("end_date", "")
-            doc_url = class_schedule.get("doc_url", "")
+            _push(
+                msgs, mid=_hash_id(["pay-clear"]),
+                title="💳 No outstanding balance",
+                body="You’re not expected to pay anything now.",
+                severity="info", icon="💳", when=now - _td(minutes=1)
+            )
 
-            today = _dt_local.today().date()
-            start_date_obj = None
-            end_date_obj = None
-            try:
-                if start_dt:
-                    start_date_obj = _dt_local.strptime(start_dt, "%Y-%m-%d").date()
-            except Exception:
-                start_date_obj = None
-            try:
-                if end_dt:
-                    end_date_obj = _dt_local.strptime(end_dt, "%Y-%m-%d").date()
-            except Exception:
-                end_date_obj = None
-
-            before_start = bool(start_date_obj and today < start_date_obj)
-            after_end = bool(end_date_obj and today > end_date_obj)
-            day_indices = [week_days.index(d) for d in days if d in week_days] if isinstance(days, list) else []
-
-            def get_next_sessions(from_date, weekday_indices, limit=3, end_date=None):
-                results = []
-                if not weekday_indices:
-                    return results
-                check_date = from_date
-                while len(results) < limit:
-                    if end_date and check_date > end_date:
-                        break
-                    if check_date.weekday() in weekday_indices:
-                        results.append(check_date)
-                    check_date += _td_local(days=1)
-                return results
-
-            if before_start and start_date_obj:
-                upcoming_sessions = get_next_sessions(start_date_obj, day_indices, limit=3, end_date=end_date_obj)
-            elif after_end:
-                upcoming_sessions = []
-            else:
-                upcoming_sessions = get_next_sessions(today, day_indices, limit=3, end_date=end_date_obj)
-
-            if after_end:
-                end_str = end_date_obj.strftime('%d %b %Y') if end_date_obj else end_dt
-                st.error(f"❌ Your class ({class_name}) ended on {end_str}. Please contact the office for next steps.")
-            else:
-                if upcoming_sessions:
-                    items = []
-                    for session_date in upcoming_sessions:
-                        weekday_name = week_days[session_date.weekday()]
-                        display_date = session_date.strftime("%d %b")
-                        items.append(
-                            f"<li style='margin-bottom:6px;'><b>{weekday_name}</b> "
-                            f"<span style='color:#1976d2;'>{display_date}</span> "
-                            f"<span style='color:#333;'>{time_str}</span></li>"
-                        )
-                    session_items_html = "<ul style='padding-left:16px; margin:9px 0 0 0;'>" + "".join(items) + "</ul>"
-                else:
-                    session_items_html = "<span style='color:#c62828;'>No upcoming sessions in the visible window.</span>"
-
-                if before_start and start_date_obj:
-                    days_until = (start_date_obj - today).days
-                    label = f"Starts in {days_until} day{'s' if days_until != 1 else ''} (on {start_date_obj.strftime('%d %b %Y')})"
-                    bar_html = f"""
-        <div style="margin-top:8px; font-size:0.85em;">
-          <div style="margin-bottom:4px;">{label}</div>
-          <div style="background:#ddd; border-radius:6px; overflow:hidden; height:12px; width:100%;">
-            <div style="width:3%; background:#1976d2; height:100%;"></div>
-          </div>
-        </div>"""
-                elif start_date_obj and end_date_obj:
-                    total_days = (end_date_obj - start_date_obj).days + 1
-                    elapsed = max(0, (today - start_date_obj).days + 1) if today >= start_date_obj else 0
-                    remaining = max(0, (end_date_obj - today).days)
-                    percent = int((elapsed / total_days) * 100) if total_days > 0 else 100
-                    percent = min(100, max(0, percent))
-                    label = f"{remaining} day{'s' if remaining != 1 else ''} remaining in course"
-                    bar_html = f"""
-        <div style="margin-top:8px; font-size:0.85em;">
-          <div style="margin-bottom:4px;">{label}</div>
-          <div style="background:#ddd; border-radius:6px; overflow:hidden; height:12px; width:100%;">
-            <div style="width:{percent}%; background: linear-gradient(90deg,#1976d2,#4da6ff); height:100%;"></div>
-          </div>
-          <div style="margin-top:2px; font-size:0.75em;">
-            Progress: {percent}% (started {elapsed} of {total_days} days)
-          </div>
-        </div>"""
-                else:
-                    bar_html = f"""
-        <div style="margin-top:8px; font-size:0.85em;">
-          <b>Course period:</b> {start_dt or '[not set]'} to {end_dt or '[not set]'}
-        </div>"""
-
-                period_str = f"{start_dt or '[not set]'} to {end_dt or '[not set]'}"
-                st.markdown(
-                    f"""
-        <div style='border:2px solid #17617a; border-radius:14px;
-                    padding:13px 11px; margin-bottom:13px;
-                    background:#eaf6fb; font-size:1.15em;
-                    line-height:1.65; color:#232323;'>
-          <b style="font-size:1.09em;">🗓️ Your Next Classes ({class_name}):</b><br>
-          {session_items_html}
-          {bar_html}
-          <div style="font-size:0.98em; margin-top:6px;">
-            <b>Course period:</b> {period_str}
-          </div>
-          {f'<a href="{doc_url}" target="_blank" '
-            f'style="font-size:1em;color:#17617a;text-decoration:underline;margin-top:6px;display:inline-block;">📄 View/download full class schedule</a>'
-            if doc_url else ''}
-        </div>""",
-                    unsafe_allow_html=True,
+        # Contract end
+        ce = _parse_any_date(_row.get("ContractEnd",""))
+        if ce:
+            dleft = (ce.date() - today).days
+            if dleft < 0:
+                _push(
+                    msgs, mid=_hash_id(["contract-ended", ce.isoformat()]),
+                    title="⛔ Contract ended",
+                    body=f"Your contract ended on {ce:%d %b %Y}. Contact the office to extend if needed.",
+                    severity="error", icon="⛔", when=now - _td(minutes=2)
+                )
+            elif dleft <= 14:
+                _push(
+                    msgs, mid=_hash_id(["contract-soon", ce.isoformat()]),
+                    title="⏳ Contract ending soon",
+                    body=f"Ends in {dleft} day{'s' if dleft!=1 else ''} ({ce:%d %b %Y}). Ask about extension options.",
+                    severity="warning", icon="⏳", when=now - _td(minutes=2)
                 )
 
-    # ---------- Goethe exam & video ----------
-    with st.expander("⏳ Goethe Exam Countdown & Video of the Day", expanded=False):
-        from datetime import date
+        # Goethe exams
         GOETHE_EXAM_DATES = {
-            "A1": (date(2025, 10, 13), 2850, None),
-            "A2": (date(2025, 10, 14), 2400, None),
-            "B1": (date(2025, 10, 15), 2750, 880),
-            "B2": (date(2025, 10, 16), 2500, 840),
-            "C1": (date(2025, 10, 17), 2450, 700),
+            "A1": (_date(2025,10,13), 2850, None),
+            "A2": (_date(2025,10,14), 2400, None),
+            "B1": (_date(2025,10,15), 2750, 880),
+            "B2": (_date(2025,10,16), 2500, 840),
+            "C1": (_date(2025,10,17), 2450, 700),
         }
-        level = (safe_get(student_row, "Level", "") or "").upper().replace(" ", "")
-        exam_info = GOETHE_EXAM_DATES.get(level)
-
-        if exam_info:
-            exam_date, fee, module_fee = exam_info
-            days_to_exam = (exam_date - date.today()).days
-            fee_text = f"**Fee:** ₵{fee:,}"
-            if module_fee:
-                fee_text += f" &nbsp; | &nbsp; **Per Module:** ₵{module_fee:,}"
-            if days_to_exam > 0:
-                st.info(
-                    f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).  \n"
-                    f"{fee_text}  \n"
-                    "[Register online here](https://www.goethe.de/ins/gh/en/spr/prf.html)"
-                )
-            elif days_to_exam == 0:
-                st.success("🚀 Exam is today! Good luck!")
+        level = str(_row.get("Level","A1")).upper().replace(" ","")
+        if level in GOETHE_EXAM_DATES:
+            ex_date, fee, module_fee = GOETHE_EXAM_DATES[level]
+            delta = (ex_date - today).days
+            if delta < 0:
+                title = f"{level} exam passed"
+                body  = f"Your exam was on {ex_date:%d %b %Y} ({abs(delta)} days ago). Fee was ₵{fee:,}."
+                sev   = "info"
+            elif delta == 0:
+                title = "Exam is today — viel Erfolg!"
+                body  = f"{level} exam today. Fee: ₵{fee:,}" + (f" · per module: ₵{module_fee:,}" if module_fee else "")
+                sev   = "warning"
+            elif delta <= 21:
+                title = f"{level} exam in {delta} days"
+                body  = f"{ex_date:%d %b %Y}. Fee: ₵{fee:,}" + (f" (₵{module_fee:,}/module)" if module_fee else "") + \
+                        " · Register: https://www.goethe.de/ins/gh/en/spr/prf.html"
+                sev   = "warning" if delta > 7 else "error"
             else:
-                st.error(
-                    f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.  \n"
-                    f"{fee_text}"
-                )
-
-            playlist_id = (globals().get("YOUTUBE_PLAYLIST_IDS") or {}).get(level)
-            fetch_videos = globals().get("fetch_youtube_playlist_videos")
-            api_key = globals().get("YOUTUBE_API_KEY")
-            if playlist_id and fetch_videos and api_key:
-                try:
-                    video_list = fetch_videos(playlist_id, api_key)
-                except Exception:
-                    video_list = []
-                if video_list:
-                    pick = date.today().toordinal() % len(video_list)
-                    video = video_list[pick]
-                    st.markdown(f"**🎬 Video of the Day for {level}: {video.get('title','')}**")
-                    st.video(video.get('url',''))
-                else:
-                    st.info("No videos found for your level’s playlist. Check back soon!")
-            else:
-                st.info("No playlist found for your level yet. Stay tuned!")
-        else:
-            st.warning("No exam date configured for your level.")
-    
-    # ---------- Reviews ----------
-    with st.expander("🗣️ What Our Students Say", expanded=False):
-        import datetime as _pydt
-        reviews = load_reviews()
-        if reviews.empty:
-            st.info("No reviews yet. Be the first to share your experience!")
-        else:
-            rev_list = reviews.to_dict("records")
-            pick = _pydt.date.today().toordinal() % len(rev_list)
-            r = rev_list[pick]
-            try:
-                rating = int(r.get("rating", 5))
-            except Exception:
-                rating = 5
-            rating = max(0, min(5, rating))
-            stars = "★" * rating + "☆" * (5 - rating)
-            st.markdown(
-                f"> {r.get('review_text','')}\n"
-                f"> — **{r.get('student_name','')}**  \n"
-                f"> {stars}"
+                title = f"{level} exam scheduled"
+                body  = f"{ex_date:%d %b %Y}. Fee: ₵{fee:,}" + (f" (₵{module_fee:,}/module)" if module_fee else "")
+                sev   = "info"
+            _push(
+                msgs,
+                mid=_hash_id(["goethe", level, ex_date.isoformat()]),
+                title=f"🎓 {title}",
+                body=body,
+                severity=sev,
+                icon="🎓",
+                when=now - _td(minutes=3),
+                actions=[{"label":"Goethe Info","url":"https://www.goethe.de/ins/gh/en/spr/prf.html"}],
             )
-   
-    st.divider()
-  
-#
 
+        # Next class (if GROUP_SCHEDULES exists)
+        class_name = str(_row.get("ClassName","")).strip()
+        GROUP_SCHEDULES = globals().get("GROUP_SCHEDULES", {})  # use your global if set elsewhere
+        cfg = GROUP_SCHEDULES.get(class_name, {})
+        days = cfg.get("days", [])
+        time_str = cfg.get("time","")
+        start_dt = cfg.get("start_date",""); end_dt = cfg.get("end_date","")
+        try: sd = _dt.strptime(start_dt, "%Y-%m-%d").date() if start_dt else None
+        except: sd = None
+        try: ed = _dt.strptime(end_dt, "%Y-%m-%d").date() if end_dt else None
+        except: ed = None
+        if class_name and days and time_str and sd and ed and today <= ed:
+            wmap = {"Monday":0,"Tuesday":1,"Wednesday":2,"Thursday":3,"Friday":4,"Saturday":5,"Sunday":6}
+            dcodes = [wmap[d] for d in days if d in wmap]
+            cur = max(today, sd)
+            nxt = None
+            for _ in range(90):
+                if ed and cur > ed: break
+                if cur.weekday() in dcodes:
+                    nxt = cur; break
+                cur += _td(days=1)
+            if nxt:
+                left = (nxt - today).days
+                lbl = "today" if left == 0 else (f"in {left} day{'s' if left!=1 else ''}")
+                _push(
+                    msgs,
+                    mid=_hash_id(["next-class", class_name, str(nxt)]),
+                    title=f"🧑‍🏫 Next class {lbl}",
+                    body=f"{class_name}: {nxt:%a %d %b} • {time_str}",
+                    severity="info",
+                    icon="🧑‍🏫",
+                    when=now - _td(minutes=4),
+                )
+
+        # Video of the day (optional — only if your helpers exist)
+        playlist_map = (globals().get("YOUTUBE_PLAYLIST_IDS") or {})
+        fetch_videos  = globals().get("fetch_youtube_playlist_videos")
+        api_key       = globals().get("YOUTUBE_API_KEY")
+        pid = playlist_map.get(level)
+        if pid and fetch_videos and api_key:
+            try:
+                vids = fetch_videos(pid, api_key)
+            except Exception:
+                vids = []
+            if vids:
+                pick = _date.today().toordinal() % len(vids)
+                v = vids[pick]
+                _push(
+                    msgs,
+                    mid=_hash_id(["video", level, v.get("url","")]),
+                    title=f"🎬 Video of the Day · {level}",
+                    body=v.get("title",""),
+                    severity="info",
+                    icon="🎬",
+                    when=now - _td(minutes=5),
+                    actions=[{"label":"Watch","url":v.get("url","")}]
+                )
+
+        # ---------- Render inbox ----------
+        sev_rank = {"urgent":3, "warn":2, "info":1}
+        msgs.sort(key=lambda m: ((not m["sticky"]), -sev_rank.get(m["severity"],1), m["when"]), reverse=False)
+
+        unread = [m for m in msgs if not _is_dismissed(m["id"])]
+        urgent_count = sum(1 for m in unread if m["severity"] == "urgent")
+        st.markdown(
+            f"<div class='inbox-head'><div><b>📥 Message Inbox</b>"
+            f"{f'<span class=\"badge b-urgent\">{urgent_count} urgent</span>' if urgent_count else ''}"
+            f"{f'<span class=\"badge b-new\">{len(unread)} new</span>' if unread else ''}"
+            f"</div></div>", unsafe_allow_html=True
+        )
+
+        only_urgent = st.toggle("Show only urgent", value=False, key="_inbox_only_urgent")
+
+        for m in msgs:
+            if _is_dismissed(m["id"]): 
+                continue
+            if only_urgent and m["severity"] != "urgent":
+                continue
+            cls = m["severity"]
+            st.markdown(
+                f"<div class='inbox-card {cls}'>"
+                f"<div class='inbox-title'>{m['icon']} {m['title']}</div>"
+                f"<div class='inbox-meta'>{_fmt_when(m['when'])}</div>"
+                f"<div>{m['body']}</div>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+            c1, c2 = st.columns([6,1])
+            with c1:
+                if m["actions"]:
+                    st.markdown("<div class='inbox-actions'>", unsafe_allow_html=True)
+                    for i, a in enumerate(m["actions"]):
+                        url = a.get("url")
+                        label = a.get("label", "Open")
+                        if url:
+                            try:
+                                st.link_button(label, url, key=f"inbox_action_{m['id']}_{i}")
+                            except Exception:
+                                st.markdown(f"[{label}]({url})", unsafe_allow_html=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
+            with c2:
+                if st.button("Dismiss", key=f"dismiss_{m['id']}"):
+                    _dismiss(m["id"])
+                    try: st.rerun()
+                    except Exception: st.experimental_rerun()
+
+    # ---- Call the inbox (this replaces your old expanders) ----
+    render_student_inbox(student_row)
 
 
 def get_a1_schedule():
