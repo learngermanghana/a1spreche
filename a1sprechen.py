@@ -8850,8 +8850,13 @@ if tab == "Exams Mode & Custom Chat":
             except Exception:
                 pass
 
-            st.session_state[draft_key] = ""
-            save_now(draft_key, student_code)
+            # Guard against empty or missing draft_key before clearing the draft
+            if isinstance(draft_key, str) and draft_key:
+                st.session_state.setdefault(draft_key, "")
+                st.session_state[draft_key] = ""
+                save_now(draft_key, student_code)
+            else:
+                st.warning("Missing draft key; nothing to clear.")
         with chat_display:
             for msg in st.session_state["falowen_messages"]:
                 if msg["role"] == "assistant":
