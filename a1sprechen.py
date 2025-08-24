@@ -386,6 +386,64 @@ def qp_clear_keys(*keys):
             pass
 
 # ------------------------------------------------------------------------------
+# falowen state <-> query params
+# ------------------------------------------------------------------------------
+FALOWEN_QP_KEYS = [
+    "falowen_stage",
+    "falowen_mode",
+    "falowen_level",
+    "falowen_teil",
+]
+
+
+def seed_falowen_state_from_qp() -> None:
+    """Seed st.session_state from query parameters if available."""
+    try:
+        qp = st.query_params
+        for key in FALOWEN_QP_KEYS:
+            if key in st.session_state:
+                continue
+            val = qp.get(key)
+            if isinstance(val, list):
+                val = val[0]
+            if val is None:
+                continue
+            if key == "falowen_stage":
+                try:
+                    st.session_state[key] = int(val)
+                except ValueError:
+                    pass
+            else:
+                st.session_state[key] = val
+    except Exception:
+        pass
+
+
+seed_falowen_state_from_qp()
+
+
+def persist_falowen_state_to_qp() -> None:
+    """Persist current falowen state to query parameters."""
+    vals = {k: st.session_state.get(k) for k in FALOWEN_QP_KEYS}
+    stage = vals.get("falowen_stage")
+
+    # Clear at start or end or when nothing meaningful to store
+    if stage in (None, 1, 5) and not any(
+        vals.get(k) for k in ["falowen_mode", "falowen_level", "falowen_teil"]
+    ):
+        qp_clear_keys(*FALOWEN_QP_KEYS)
+        return
+
+    for key, val in vals.items():
+        if val in (None, ""):
+            try:
+                del st.query_params[key]
+            except KeyError:
+                pass
+        else:
+            st.query_params[key] = str(val)
+
+# ------------------------------------------------------------------------------
 # Cookie helpers
 # ------------------------------------------------------------------------------
 def _expire_str(dt: datetime) -> str:
@@ -8699,13 +8757,16 @@ if tab == "Exams Mode & Custom Chat":
             else:
                 st.info("No topics found. Try a different search.")
 
-            col1, col2 = st.columns([1, 2])
-            with col1:
+            col_mode, col_level, col_start = st.columns([1, 1, 2])
+            with col_mode:
+                if st.button("↩ Back to Mode", key="falowen_back_mode"):
+                    back_step()
+            with col_level:
                 if st.button("⬅️ Back", key="falowen_back_part"):
                     st.session_state["falowen_stage"]    = 2
                     st.session_state["falowen_messages"] = []
                     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-            with col2:
+            with col_start:
                 if st.button("Start Practice", key="falowen_start_practice"):
                     st.session_state["falowen_teil"]            = teil
                     st.session_state["falowen_stage"]           = 4
@@ -8745,25 +8806,23 @@ if tab == "Exams Mode & Custom Chat":
         draft_key = _wkey("chat_draft")
         st.session_state["falowen_chat_draft_key"] = draft_key
         st.session_state["falowen_conv_key"] = conv_key
-        load_key = f"{student_code}::{conv_key}"
-        if st.session_state.get("falowen_loaded_key") != load_key:
-            try:
-                doc = db.collection("falowen_chats").document(student_code).get()
-                if doc.exists:
-                    chats = (doc.to_dict() or {}).get("chats", {})
-                    st.session_state["falowen_messages"] = chats.get(conv_key, [])
-                else:
-                    st.session_state["falowen_messages"] = []
-            except Exception:
+        try:
+            doc = db.collection("falowen_chats").document(student_code).get()
+            if doc.exists:
+                chats = (doc.to_dict() or {}).get("chats", {})
+                st.session_state["falowen_messages"] = chats.get(conv_key, [])
+            else:
                 st.session_state["falowen_messages"] = []
-            draft_text = load_chat_draft_from_db(student_code, conv_key)
-            st.session_state[draft_key] = draft_text
-            lv, lt, sf, sa = _draft_state_keys(draft_key)
-            st.session_state[lv] = draft_text
-            st.session_state[lt] = time.time()
-            st.session_state[sf] = True
-            st.session_state[sa] = datetime.now(_timezone.utc)
-            st.session_state["falowen_loaded_key"] = load_key
+        except Exception:
+            st.session_state["falowen_messages"] = []
+
+        draft_text = load_chat_draft_from_db(student_code, conv_key)
+        st.session_state[draft_key] = draft_text
+        lv, lt, sf, sa = _draft_state_keys(draft_key)
+        st.session_state[lv] = draft_text
+        st.session_state[lt] = time.time()
+        st.session_state[sf] = True
+        st.session_state[sa] = datetime.now(_timezone.utc)
 
         # Seed the first assistant instruction if chat is empty
         if not st.session_state["falowen_messages"]:
