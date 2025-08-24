@@ -5338,13 +5338,17 @@ if tab == "My Course":
 
             st.divider()
             st.markdown("#### 🎬 Video of the Day for Your Level")
+            playlist_ids = get_playlist_ids_for_level(level_key)
+            fetch_videos = globals().get("fetch_youtube_playlist_videos")
+            api_key = globals().get("YOUTUBE_API_KEY")
             playlist_id = random.choice(playlist_ids) if playlist_ids else None
-            if (
-                playlist_id
-                and "fetch_youtube_playlist_videos" in globals()
-                and "YOUTUBE_API_KEY" in globals()
-            ):
-                video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
+
+
+            if playlist_id and fetch_videos and api_key:
+                try:
+                    video_list = fetch_videos(playlist_id, api_key)
+                except Exception:
+                    video_list = []
                 if video_list:
                     today_idx = date.today().toordinal() % len(video_list)
                     video = video_list[today_idx]
@@ -11321,6 +11325,7 @@ if tab == "Schreiben Trainer":
             ("stage", 0),
             ("clear_prompt", False),
             ("clear_chat", False),
+            ("clear_chat_draft", False),
         ]:
             if ns(k) not in st.session_state:
                 st.session_state[ns(k)] = default
@@ -11615,6 +11620,10 @@ if tab == "Schreiben Trainer":
             if draft_key not in st.session_state:
                 st.session_state[draft_key] = load_draft_from_db(student_code, draft_key)
 
+            
+            if st.session_state.pop(ns("clear_chat_draft"), False):
+                st.session_state[draft_key] = ""
+
             if st.session_state.pop(ns("clear_chat"), False):
                 st.session_state[draft_key] = ""
                 save_now(draft_key, student_code)
@@ -11803,20 +11812,10 @@ if tab == "Schreiben Trainer":
             )
 
             if st.button("Start New Letter Coach"):
+                st.session_state[ns("clear_chat_draft")] = True
                 st.session_state[ns("chat")] = []
                 st.session_state[ns("prompt")] = ""
                 st.session_state[ns("selected_letter_lines")] = []
-                st.session_state[ns("stage")] = 0
-                st.session_state[ns("prompt_draft")] = ""
-                st.session_state[ns("chat_draft")] = ""
-                save_letter_coach_progress(
-                    student_code,
-                    st.session_state.get("schreiben_level", "A1"),
-                    "",
-                    [],
-                )
-                save_now(ns("prompt_draft"), student_code)
-                save_now(ns("chat_draft"), student_code)
                 st.rerun()
 
 
