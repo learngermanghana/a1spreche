@@ -2021,7 +2021,10 @@ if tab == "Dashboard":
         def load_student_data_fn():
             return pd.DataFrame(columns=["StudentCode"])
 
-    df_students = load_student_data_fn() or pd.DataFrame(columns=["StudentCode"])
+    df_students = load_student_data_fn()
+    if df_students is None or not isinstance(df_students, pd.DataFrame):
+        df_students = pd.DataFrame(columns=["StudentCode"])
+
     student_code = (st.session_state.get("student_code", "") or "").strip().lower()
 
     student_row = {}
@@ -2156,7 +2159,6 @@ if tab == "Dashboard":
     st.divider()
 
     # ===================== MESSAGE INBOX (replaces expanders) =====================
-    # --- Inline CSS for the inbox UI ---
     st.markdown("""
     <style>
       .inbox-head{display:flex;align-items:center;justify-content:space-between;
@@ -2177,7 +2179,7 @@ if tab == "Dashboard":
     </style>
     """, unsafe_allow_html=True)
 
-    # --- Helpers for inbox state ---
+    import hashlib, json
     def _hash_id(x) -> str:
         try:
             return hashlib.sha1(json.dumps(x, sort_keys=True).encode("utf-8")).hexdigest()[:16]
@@ -2192,7 +2194,6 @@ if tab == "Dashboard":
 
     def _dismissed_set_key():
         who = (st.session_state.get("student_code") or "student").lower()
-        # Reset daily so “new” comes back the next day
         today = _date.today().isoformat()
         return f"_inbox_dismissed::{who}::{today}"
 
@@ -2236,7 +2237,7 @@ if tab == "Dashboard":
     now = _dt.utcnow()
     today = _date.today()
 
-    # 1) Payment status (uses contract start + 1 month)
+    # 1) Payment status
     balance = _read_money(safe_get(student_row, "Balance", 0))
     cs = None
     for k in ["ContractStart","StartDate","ContractBegin","Start","Begin"]:
@@ -2305,64 +2306,16 @@ if tab == "Dashboard":
                 severity="warning", icon="⏳", when=now - _td(minutes=2)
             )
 
-    # 3) Next class reminder (inline schedule map)
+    # 3) Next class reminder
     GROUP_SCHEDULES = {
-        "A1 Munich Klasse": {
-            "days": ["Monday", "Tuesday", "Wednesday"],
-            "time": "6:00pm–7:00pm",
-            "start_date": "2025-07-08",
-            "end_date": "2025-09-02",
-            "doc_url": "https://drive.google.com/file/d/1en_YG8up4C4r36v4r7E714ARcZyvNFD6/view?usp=sharing"
-        },
-        "A1 Berlin Klasse": {
-            "days": ["Thursday", "Friday", "Saturday"],
-            "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
-            "start_date": "2025-06-14",
-            "end_date": "2025-08-09",
-            "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
-        },
-        "A1 Koln Klasse": {
-            "days": ["Thursday", "Friday", "Saturday"],
-            "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
-            "start_date": "2025-08-15",
-            "end_date": "2025-10-11",
-            "doc_url": "https://drive.google.com/file/d/1d1Ord557jGRn5NxYsmCJVmwUn1HtrqI3/view?usp=sharing"
-        },
-        "A2 Munich Klasse": {
-            "days": ["Monday", "Tuesday", "Wednesday"],
-            "time": "7:30pm–9:00pm",
-            "start_date": "2025-06-24",
-            "end_date": "2025-08-26",
-            "doc_url": "https://drive.google.com/file/d/1Zr3iN6hkAnuoEBvRELuSDlT7kHY8s2LP/view?usp=sharing"
-        },
-        "A2 Berlin Klasse": {
-            "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-            "time": "Mon–Wed: 11:00am–12:00pm, Thu/Fri: 11:00am–12:00pm, Wed: 2:00pm–3:00pm",
-            "start_date": "",
-            "end_date": "",
-            "doc_url": ""
-        },
-        "A2 Koln Klasse": {
-            "days": ["Wednesday", "Thursday", "Friday"],
-            "time": "11:00am–12:00pm",
-            "start_date": "2025-08-06",
-            "end_date": "2025-10-08",
-            "doc_url": "https://drive.google.com/file/d/19cptfdlmBDYe9o84b8ZCwujmxuMCKXAD/view?usp=sharing"
-        },
-        "B1 Munich Klasse": {
-            "days": ["Thursday", "Friday"],
-            "time": "7:30pm–9:00pm",
-            "start_date": "2025-08-07",
-            "end_date": "2025-11-07",
-            "doc_url": "https://drive.google.com/file/d/1CaLw9RO6H8JOr5HmwWOZA2O7T-bVByi7/view?usp=sharing"
-        },
-        "B2 Munich Klasse": {
-            "days": ["Friday", "Saturday"],
-            "time": "Fri: 2pm-3:30pm, Sat: 9:30am-10am",
-            "start_date": "2025-08-08",
-            "end_date": "2025-10-08",
-            "doc_url": "https://drive.google.com/file/d/1gn6vYBbRyHSvKgqvpj5rr8OfUOYRL09W/view?usp=sharing"
-        },
+        "A1 Munich Klasse": {"days":["Monday","Tuesday","Wednesday"], "time":"6:00pm–7:00pm", "start_date":"2025-07-08", "end_date":"2025-09-02", "doc_url":"https://drive.google.com/file/d/1en_YG8up4C4r36v4r7E714ARcZyvNFD6/view?usp=sharing"},
+        "A1 Berlin Klasse": {"days":["Thursday","Friday","Saturday"], "time":"Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am", "start_date":"2025-06-14", "end_date":"2025-08-09", "doc_url":"https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"},
+        "A1 Koln Klasse": {"days":["Thursday","Friday","Saturday"], "time":"Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am", "start_date":"2025-08-15", "end_date":"2025-10-11", "doc_url":"https://drive.google.com/file/d/1d1Ord557jGRn5NxYsmCJVmwUn1HtrqI3/view?usp=sharing"},
+        "A2 Munich Klasse": {"days":["Monday","Tuesday","Wednesday"], "time":"7:30pm–9:00pm", "start_date":"2025-06-24", "end_date":"2025-08-26", "doc_url":"https://drive.google.com/file/d/1Zr3iN6hkAnuoEBvRELuSDlT7kHY8s2LP/view?usp=sharing"},
+        "A2 Berlin Klasse": {"days":["Monday","Tuesday","Wednesday","Thursday","Friday"], "time":"Mon–Wed: 11:00am–12:00pm, Thu/Fri: 11:00am–12:00pm, Wed: 2:00pm–3:00pm", "start_date":"", "end_date":"", "doc_url":""},
+        "A2 Koln Klasse": {"days":["Wednesday","Thursday","Friday"], "time":"11:00am–12:00pm", "start_date":"2025-08-06", "end_date":"2025-10-08", "doc_url":"https://drive.google.com/file/d/19cptfdlmBDYe9o84b8ZCwujmxuMCKXAD/view?usp=sharing"},
+        "B1 Munich Klasse": {"days":["Thursday","Friday"], "time":"7:30pm–9:00pm", "start_date":"2025-08-07", "end_date":"2025-11-07", "doc_url":"https://drive.google.com/file/d/1CaLw9RO6H8JOr5HmwWOZA2O7T-bVByi7/view?usp=sharing"},
+        "B2 Munich Klasse": {"days":["Friday","Saturday"], "time":"Fri: 2pm-3:30pm, Sat: 9:30am-10am", "start_date":"2025-08-08", "end_date":"2025-10-08", "doc_url":"https://drive.google.com/file/d/1gn6vYBbRyHSvKgqvpj5rr8OfUOYRL09W/view?usp=sharing"},
     }
     class_name = str(safe_get(student_row, "ClassName", "")).strip()
     cfg = GROUP_SCHEDULES.get(class_name, {})
@@ -2377,8 +2330,7 @@ if tab == "Dashboard":
     if class_name and days and time_str and sd and (not ed or today <= ed):
         wmap = {"Monday":0,"Tuesday":1,"Wednesday":2,"Thursday":3,"Friday":4,"Saturday":5,"Sunday":6}
         dcodes = [wmap[d] for d in days if d in wmap]
-        cur = max(today, sd)
-        nxt = None
+        cur, nxt = max(today, sd), None
         for _ in range(90):
             if ed and cur > ed: break
             if cur.weekday() in dcodes: nxt = cur; break
@@ -2397,7 +2349,7 @@ if tab == "Dashboard":
                 actions=([{"label":"Schedule doc","url":doc_url}] if doc_url else [])
             )
 
-    # 4) Goethe exam + fee + registration link
+    # 4) Goethe exam notice
     GOETHE_EXAM_DATES = {
         "A1": (_date(2025,10,13), 2850, None),
         "A2": (_date(2025,10,14), 2400, None),
@@ -2439,19 +2391,16 @@ if tab == "Dashboard":
                 actions=[{"label":"Register", "url":link}]
             )
 
-    # 5) Video of the day (if your helpers exist)
+    # 5) Video of the day (if helpers exist)
     playlist_map = (globals().get("YOUTUBE_PLAYLIST_IDS") or {})
     fetch_videos  = globals().get("fetch_youtube_playlist_videos")
     api_key       = globals().get("YOUTUBE_API_KEY")
     pid = playlist_map.get(level)
     if pid and fetch_videos and api_key:
-        try:
-            vids = fetch_videos(pid, api_key)
-        except Exception:
-            vids = []
+        try: vids = fetch_videos(pid, api_key)
+        except Exception: vids = []
         if vids:
-            pick = _date.today().toordinal() % len(vids)
-            v = vids[pick]
+            v = vids[_date.today().toordinal() % len(vids)]
             _push(
                 msgs,
                 mid=_hash_id(["video", level, v.get("url","")]),
@@ -2463,13 +2412,13 @@ if tab == "Dashboard":
                 actions=[{"label":"Watch","url":v.get("url","")}]
             )
 
-    # 6) Review spotlight (nice-to-have, low priority)
+    # 6) Review spotlight
     try:
         _reviews = load_reviews()
         if not _reviews.empty:
             rlist = _reviews.to_dict("records")
             r = rlist[_date.today().toordinal() % len(rlist)]
-            stars = "★"*int(max(0,min(5,int(r.get("rating",5)))))  # rough star count
+            stars = "★"*int(max(0,min(5,int(r.get("rating",5)))))
             _push(
                 msgs,
                 mid=_hash_id(["review", r.get("student_name",""), r.get("review_text","")[:24]]),
@@ -2497,7 +2446,7 @@ if tab == "Dashboard":
 
     c1, c2 = st.columns([3,1])
     with c1:
-        only_urgent = st.toggle("Show only urgent", value=False, key="_inbox_only_urgent")
+        only_urgent = st.checkbox("Show only urgent", value=False, key="_inbox_only_urgent")
     with c2:
         if st.button("Mark all read"):
             for m in msgs: _dismiss(m["id"])
@@ -2506,7 +2455,7 @@ if tab == "Dashboard":
 
     shown = 0
     for m in msgs:
-        if _is_dismissed(m["id"]): 
+        if _is_dismissed(m["id"]):
             continue
         if only_urgent and m["severity"] != "urgent":
             continue
