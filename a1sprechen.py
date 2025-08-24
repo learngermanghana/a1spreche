@@ -104,10 +104,8 @@ def get_playlist_ids_for_level(level: str) -> list[str]:
     st.info(f"No playlist configured for level {level_key}.")
     return []
 
-"""YouTube helper functions for Falowen App."""
 
-import requests
-import streamlit as st
+
 
 YOUTUBE_API_KEY = st.secrets.get(
     "YOUTUBE_API_KEY", "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
