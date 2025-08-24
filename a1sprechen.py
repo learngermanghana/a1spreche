@@ -41,7 +41,6 @@ from streamlit_quill import st_quill
 
 # --- Falowen modules ---
 from falowen.email_utils import send_reset_email, build_gas_reset_link
-from falowen.youtube import fetch_youtube_playlist_videos, YOUTUBE_PLAYLIST_IDS
 from falowen.sessions import (
     db,
     create_session_token,
