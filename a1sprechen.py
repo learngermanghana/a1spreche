@@ -70,6 +70,41 @@ from src.contracts import (
     is_contract_expired,
 )
 
+DEFAULT_PLAYLIST_LEVEL = "A1"
+
+
+def _validate_youtube_playlists() -> None:
+    """Warn if any playlist level lacks video IDs."""
+    for lvl, ids in YOUTUBE_PLAYLIST_IDS.items():
+        if not ids:
+            st.warning(f"No YouTube playlist IDs configured for level {lvl}.")
+
+
+def get_playlist_ids_for_level(level: str) -> list[str]:
+    """Return playlist IDs for a CEFR level with a fallback.
+
+    The lookup is case-sensitive after normalizing the level to uppercase.
+    If the level is missing, fall back to ``DEFAULT_PLAYLIST_LEVEL`` and show a
+    message. Returns an empty list if no playlists exist at all.
+    """
+
+    level_key = (level or "").strip().upper()
+    playlist_ids = YOUTUBE_PLAYLIST_IDS.get(level_key, [])
+    if playlist_ids:
+        return playlist_ids
+
+    fallback = YOUTUBE_PLAYLIST_IDS.get(DEFAULT_PLAYLIST_LEVEL, [])
+    if fallback:
+        st.info(
+            f"No playlist found for level {level_key}; using "
+            f"{DEFAULT_PLAYLIST_LEVEL} playlist instead."
+        )
+        return fallback
+
+    st.info(f"No playlist configured for level {level_key}.")
+    return []
+
+
 if os.environ.get("RENDER"):
     import fastapi
     from fastapi import FastAPI
@@ -2666,23 +2701,10 @@ if tab == "Dashboard":
                     f"{fee_text}"
                 )
 
-            playlist_map = globals().get("YOUTUBE_PLAYLIST_IDS") or {}
-            playlist_ids = playlist_map.get(level)
-            if not playlist_ids:
-                playlist_ids = playlist_map.get("A1")
-                if playlist_ids:
-                    st.info(
-                        f"No playlist found for level {level}; using A1 playlist instead."
-                    )
-                else:
-                    st.info(f"No playlist configured for level {level}.")
+            playlist_ids = get_playlist_ids_for_level(level)
             fetch_videos = globals().get("fetch_youtube_playlist_videos")
             api_key = globals().get("YOUTUBE_API_KEY")
-            playlist_id = (
-                random.choice(playlist_ids)
-                if isinstance(playlist_ids, list)
-                else playlist_ids
-            )
+            playlist_id = random.choice(playlist_ids) if playlist_ids else None
             if playlist_id and fetch_videos and api_key:
                 try:
                     video_list = fetch_videos(playlist_id, api_key)
@@ -5316,20 +5338,8 @@ if tab == "My Course":
 
             st.divider()
             st.markdown("#### 🎬 Video of the Day for Your Level")
-            playlist_map = YOUTUBE_PLAYLIST_IDS if "YOUTUBE_PLAYLIST_IDS" in globals() else {}
-            playlist_ids = playlist_map.get(level_key)
-            if not playlist_ids:
-                playlist_ids = playlist_map.get("A1")
-                if playlist_ids:
-                    st.info(
-                        f"No playlist found for level {level_key}; using A1 playlist instead."
-                    )
-                else:
-                    st.info(f"No playlist found for level {level_key}. Stay tuned!")
-            if isinstance(playlist_ids, str):
-                playlist_id = playlist_ids
-            else:
-                playlist_id = random.choice(playlist_ids) if playlist_ids else None
+            playlist_id = random.choice(playlist_ids) if playlist_ids else None
+            playlist_id = random.choice(playlist_ids) if playlist_ids else None
             if (
                 playlist_id
                 and "fetch_youtube_playlist_videos" in globals()
