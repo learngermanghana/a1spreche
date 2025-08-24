@@ -8907,7 +8907,17 @@ if tab == "Exams Mode & Custom Chat":
                 min_secs=2.0,
                 min_delta=12,
             )
-        st.autorefresh(interval=2000, key=_wkey("chat_autosave"))
+        # Older Streamlit releases lack ``st.autorefresh``. Try to use the
+        # ``streamlit-autorefresh`` helper when available so the chat area
+        # periodically reruns in those environments.
+        try:
+            from streamlit_autorefresh import st_autorefresh
+
+            st_autorefresh(interval=2000, key=_wkey("chat_autosave"))
+        except ImportError:
+            # Fall back to manual refresh or ``st.rerun`` if the helper isn't
+            # installed.
+            pass
         with col_btn:
             send_clicked = st.button("Send", key=_wkey("chat_send"), type="primary")
 
