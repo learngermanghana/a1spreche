@@ -4371,6 +4371,7 @@ if not st.session_state.get("student_row"):
 
 student_row = st.session_state.get("student_row") or {}
 student_level = student_row.get("Level", "A1").upper()
+level = student_row.get("Level")
 
 # --- Cache level schedules with TTL for periodic refresh ---
 @st.cache_data(ttl=86400)
@@ -8568,8 +8569,12 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["custom_topic_intro_done"] = False
             st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
+    if st.session_state["falowen_stage"] == 2 and level:
+        st.session_state["falowen_level"] = level.upper().strip()
+        st.session_state["falowen_stage"] = 3 if st.session_state["falowen_mode"] == "Exams Mode" else 4
+
     # ——— Step 2: Level ———
-    if st.session_state["falowen_stage"] == 2:
+    if st.session_state["falowen_stage"] == 2 and not st.session_state.get("falowen_level"):
         st.subheader("Step 2: Choose Your Level")
         level = st.radio("Select your level:", ["A1","A2","B1","B2","C1"], key="falowen_level_center")
 
@@ -8824,26 +8829,26 @@ if tab == "Exams Mode & Custom Chat":
 
         # ========= Handle new input FIRST =========
 
-        def _on_chat_change() -> None:
-            save_now(draft_key, student_code)
-
         col_in, col_btn = st.columns([8, 1])
+        if st.session_state.pop("falowen_clear_draft", False):
+            st.session_state[draft_key] = ""
+            save_now(draft_key, student_code)
         with col_in:
             st.text_area(
-                "Type your answer or message here...",
+                "Type your answer...",
                 key=draft_key,
-                on_change=_on_chat_change,
+                on_change=save_now,
+                args=(draft_key, student_code),
+            )
+            autosave_maybe(
+                student_code,
+                draft_key,
+                st.session_state[draft_key],
+                min_secs=2.0,
+                min_delta=12,
             )
         with col_btn:
             send_clicked = st.button("Send", key=_wkey("chat_send"), type="primary")
-
-        autosave_maybe(
-            student_code,
-            draft_key,
-            st.session_state.get(draft_key, ""),
-            min_secs=2.0,
-            min_delta=12,
-        )
 
         user_input = st.session_state.get(draft_key, "").strip() if send_clicked else ""
         if user_input:
@@ -8886,8 +8891,8 @@ if tab == "Exams Mode & Custom Chat":
                 and draft_key in st.session_state
             ):
                 try:
-                    st.session_state[draft_key] = ""
-                    save_now(draft_key, student_code)
+                    st.session_state["falowen_clear_draft"] = True
+                    st.rerun()
                 except StreamlitAPIException as e:
                     st.error(f"Unexpected error clearing draft: {e}")
             else:
