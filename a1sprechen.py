@@ -1217,6 +1217,7 @@ def render_login_form():
         set_session_token_cookie(cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
         st.success(f"Welcome, {student_row['Name']}!")
         st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+        return True
 
     # ---- FORGOT PASSWORD (inline) ----
     if forgot_toggle:
@@ -1380,10 +1381,12 @@ def login_page():
 
     tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
 
+    login_result = None
+
     with tab1:
         render_google_oauth()
         st.markdown("<div class='page-wrap' style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
-        render_login_form()
+        login_result = render_login_form()
 
     with tab2:
         render_signup_form()
@@ -1541,7 +1544,12 @@ def login_page():
     </div>␊
     """, unsafe_allow_html=True)
 
-    return
+    if login_result:
+        if hasattr(st, "rerun"):
+            st.rerun()
+        else:  # pragma: no cover
+            st.rerun()
+    return login_result
 
 
 
