@@ -2666,9 +2666,23 @@ if tab == "Dashboard":
                     f"{fee_text}"
                 )
 
-            playlist_id = (globals().get("YOUTUBE_PLAYLIST_IDS") or {}).get(level)
+            playlist_map = globals().get("YOUTUBE_PLAYLIST_IDS") or {}
+            playlist_ids = playlist_map.get(level)
+            if not playlist_ids:
+                playlist_ids = playlist_map.get("A1")
+                if playlist_ids:
+                    st.info(
+                        f"No playlist found for level {level}; using A1 playlist instead."
+                    )
+                else:
+                    st.info(f"No playlist configured for level {level}.")
             fetch_videos = globals().get("fetch_youtube_playlist_videos")
             api_key = globals().get("YOUTUBE_API_KEY")
+            playlist_id = (
+                random.choice(playlist_ids)
+                if isinstance(playlist_ids, list)
+                else playlist_ids
+            )
             if playlist_id and fetch_videos and api_key:
                 try:
                     video_list = fetch_videos(playlist_id, api_key)
@@ -2677,12 +2691,14 @@ if tab == "Dashboard":
                 if video_list:
                     pick = date.today().toordinal() % len(video_list)
                     video = video_list[pick]
-                    st.markdown(f"**🎬 Video of the Day for {level}: {video.get('title','')}**")
+                    st.markdown(
+                        f"**🎬 Video of the Day for {level}: {video.get('title','')}**"
+                    )
                     st.video(video.get('url',''))
                 else:
                     st.info("No videos found for your level’s playlist. Check back soon!")
             else:
-                st.info("No playlist found for your level yet. Stay tuned!")
+                st.info("No playlist available for your level yet. Stay tuned!")
         else:
             st.warning("No exam date configured for your level.")
 
@@ -5300,16 +5316,26 @@ if tab == "My Course":
 
             st.divider()
             st.markdown("#### 🎬 Video of the Day for Your Level")
-            playlist_ids = (
-                YOUTUBE_PLAYLIST_IDS.get(level_key, [])
-                if "YOUTUBE_PLAYLIST_IDS" in globals()
-                else []
             )
+            playlist_map = YOUTUBE_PLAYLIST_IDS if "YOUTUBE_PLAYLIST_IDS" in globals() else {}
+            playlist_ids = playlist_map.get(level_key)
+            if not playlist_ids:
+                playlist_ids = playlist_map.get("A1")
+                if playlist_ids:
+                    st.info(
+                        f"No playlist found for level {level_key}; using A1 playlist instead."
+                    )
+                else:
+                    st.info(f"No playlist found for level {level_key}. Stay tuned!")
             if isinstance(playlist_ids, str):
                 playlist_id = playlist_ids
             else:
                 playlist_id = random.choice(playlist_ids) if playlist_ids else None
-            if playlist_id and "fetch_youtube_playlist_videos" in globals() and "YOUTUBE_API_KEY" in globals():
+            if (
+                playlist_id
+                and "fetch_youtube_playlist_videos" in globals()
+                and "YOUTUBE_API_KEY" in globals()
+            ):
                 video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
                 if video_list:
                     today_idx = date.today().toordinal() % len(video_list)
@@ -11475,15 +11501,16 @@ if tab == "Schreiben Trainer":
                 height=120,
                 placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ...",
                 label_visibility="collapsed",
-                on_change=lambda: save_now(draft_key, student_code),
+                on_change=save_now,
+                args=(draft_key, student_code),
             )
 
             autosave_maybe(
                 student_code,
                 draft_key,
                 st.session_state.get(draft_key, ""),
-                min_secs=2.0,
-                min_delta=20,
+                min_secs=0.2,
+                min_delta=1,
             )
 
             prompt = st.session_state.get(draft_key, "")
@@ -11576,15 +11603,16 @@ if tab == "Schreiben Trainer":
                 height=400,
                 placeholder="Type your reply, ask about a section, or paste your draft here...",
                 label_visibility="collapsed",
-                on_change=lambda: save_now(draft_key, student_code),
+                on_change=save_now,
+                args=(draft_key, student_code),
             )
             
             autosave_maybe(
                 student_code,
                 draft_key,
                 st.session_state.get(draft_key, ""),
-                min_secs=2.0,
-                min_delta=20,
+                min_secs=0.2,
+                min_delta=1,
             )
 
             send = st.button("Send")
