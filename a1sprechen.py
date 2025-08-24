@@ -1860,42 +1860,25 @@ def fetch_announcements_csv():
     return st.session_state["announcements_df"]
 
 def parse_contract_start(date_str: str):
-    return parse_contract_end(date_str)
 
+    """Parse a contract start date in multiple common formats.
 
-from urllib.parse import unquote_plus
-
-# EXACTLY match your real tab labels/order:
-TABS = ["Dashboard", "My Course", "Vocab Trainer", "Dictionary"]
-
-def render_dropdown_nav():
-    # 1) Read ?tab=... from URL (new API only)
-    raw = st.query_params.get("tab", None)
-    if isinstance(raw, list):              # be robust across versions
-        raw = raw[0] if raw else None
-    deeplink = unquote_plus(raw).strip() if raw else None
-
-    # 2) Choose default (deeplink wins if valid)
-    default = st.session_state.get("main_tab_select", TABS[0])
-    if deeplink in TABS:
-        default = deeplink
-    idx = TABS.index(default) if default in TABS else 0
-
-    # 3) Render control
-    tab = st.selectbox("Navigate", TABS, index=idx, key="main_tab_select")
-
-    # 4) Keep URL in sync (no experimental API)
-    if st.query_params.get("tab") != tab:
-        st.query_params["tab"] = tab
-
-    return tab
+    Mirrors the formats used by the fallback date parser so that contract
+    start dates are handled consistently across the application.
+    """
+    if not date_str or str(date_str).strip().lower() in ("nan", "none", ""):
+        return None
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(date_str, fmt)
+        except ValueError:
+            continue
+    return None
 
 
 # =========================================================
 # ===================== NAV & HELPERS =====================
 # =========================================================
-
-
 
 # --- Query-param helpers (single API; no experimental mix) ---
 if "_qp_get_first" not in globals():
@@ -1949,10 +1932,10 @@ def render_dropdown_nav():
     ]
     icons = {
         "Dashboard": "🏠",
-        "My Course": "📚",
+        "My Course": "📈",
         "My Results and Resources": "📊",
-        "Exams Mode & Custom Chat": "🤖",
-        "Vocab Trainer": "🗣️",
+        "Exams Mode & Custom Chat": "🗣️",
+        "Vocab Trainer": "📚",
         "Schreiben Trainer": "✍️",
     }
 
@@ -5103,13 +5086,15 @@ if tab == "My Course":
                 st.info(f"⏱️ **Recommended:** Invest about {rec_time} minutes to complete this lesson fully.")
 
                 start_str = student_row.get("ContractStart", "")
+                parse_start = (
+                    globals().get("parse_contract_start_fn")
+                    or globals().get("parse_contract_start")
+                 )
                 start_date = None
-                for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d/%m/%Y"):
-                    try:
-                        start_date = datetime.strptime(start_str, fmt).date()
-                        break
-                    except Exception:
-                        continue
+                if start_str and parse_start:
+                    _parsed = parse_start(start_str)
+                    if _parsed:
+                        start_date = _parsed.date() if hasattr(_parsed, "date") else _parsed
 
                 if start_date and total:
                     weeks_three = (total + 2) // 3
