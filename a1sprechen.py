@@ -11449,7 +11449,8 @@ if tab == "Schreiben Trainer":
             draft_key = ns("prompt_draft")
             existing_draft = load_draft_from_db(student_code, draft_key)
             with st.form(ns("prompt_form"), clear_on_submit=True):
-                st.text_area(
+
+                prompt = st.text_area(
        
                     "Exam prompt",
                     key=draft_key,
@@ -11457,10 +11458,12 @@ if tab == "Schreiben Trainer":
                     height=120,
                     placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ...",
                     label_visibility="collapsed",
-                    on_change=lambda: save_now(draft_key, student_code),
                 )
                 send = st.form_submit_button("✉️ Start Letter Coach")
 
+            if send:
+                save_now(draft_key, student_code)
+                
             if prompt:
                 word_count = len(prompt.split())
                 char_count = len(prompt)
@@ -11540,20 +11543,19 @@ if tab == "Schreiben Trainer":
             if draft_key not in st.session_state:
                 st.session_state[draft_key] = load_draft_from_db(student_code, draft_key)
             with st.form(ns("letter_coach_chat_form"), clear_on_submit=True):
-                st.text_area(
+                chat_input = st.text_area(
                     "Chat input",
                     key=draft_key,
                     value=st.session_state.get(draft_key, ""),
                     height=400,
                     placeholder="Type your reply, ask about a section, or paste your draft here...",
                     label_visibility="collapsed",
-                    on_change=lambda: save_now(draft_key, student_code),
                 )
                 send = st.form_submit_button("Send")
 
              
             autosave_maybe(student_code, draft_key, st.session_state.get(draft_key, ""), min_secs=2.0, min_delta=20)
-            user_input = st.session_state.get(draft_key, "").strip() if send else ""
+            user_input = chat_input.strip() if send else ""
             if user_input:
                 chat_history.append({"role": "user", "content": user_input})
                 student_level = st.session_state.get("schreiben_level", "A1")
