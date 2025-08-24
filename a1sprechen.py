@@ -71,6 +71,22 @@ from src.contracts import (
     is_contract_expired,
 )
 
+from src.firestore_utils import (
+    _draft_doc_ref,
+    load_chat_draft_from_db,
+    load_draft_from_db,
+    load_draft_meta_from_db,
+    save_chat_draft_to_db,
+    save_draft_to_db,
+)
+from src.ui_components import render_assignment_reminder, render_link
+from src.stats import (
+    get_student_level,
+    get_vocab_stats,
+    save_vocab_attempt,
+    vocab_attempt_exists,
+)
+
 DEFAULT_PLAYLIST_LEVEL = "A1"
 
 
@@ -4457,36 +4473,6 @@ def load_level_schedules():
 # -------------------------
 # UI helpers
 # -------------------------
-def render_assignment_reminder() -> None:
-    """Show a yellow assignment reminder box."""
-    st.markdown(
-        '''
-        <div style="
-            box-sizing: border-box;
-            width: 100%;
-            max-width: 600px;
-            padding: 16px;
-            background: #ffc107;
-            color: #000;
-            border-left: 6px solid #e0a800;
-            margin: 16px auto;
-            border-radius: 8px;
-            font-size: 1.1rem;
-            line-height: 1.4;
-            text-align: center;
-            overflow-wrap: break-word;
-            word-wrap: break-word;
-        ">
-            ⬆️ <strong>Your Assignment:</strong><br>
-            Complete the exercises in your <em>workbook</em> for this chapter.
-        </div>
-        ''',
-        unsafe_allow_html=True
-    )
-
-def render_link(label: str, url: str) -> None:
-    """Render a bullet link."""
-    st.markdown(f"- [{label}]({url})")
 
 @st.cache_data(ttl=86400)
 def build_wa_message(name: str, code: str, level: str, day: int, chapter: str, answer: str) -> str:
@@ -4757,116 +4743,6 @@ def is_locked(level: str, code: str, lesson_key: str) -> bool:
         return ref.get().exists
     except Exception:
         return False
-
-# ---- Drafts v2 path helpers (user-rooted) ----
-def _extract_level_and_lesson(field_key: str) -> tuple[str, str]:
-    """
-    From a field_key like 'draft_A2_day3_chX', return (level, lesson_key).
-    If field_key doesn't start with 'draft_', treat the whole thing as lesson_key.
-    """
-    lesson_key = field_key[6:] if field_key.startswith("draft_") else field_key
-    level = (lesson_key.split("_day")[0] or "").upper()
-    return level, lesson_key
-
-def _draft_doc_ref(level: str, lesson_key: str, code: str):
-    """
-    New user-rooted location:
-      drafts_v2/{code}/lessons/{lesson_key}
-    (We keep 'level' in signature for compatibility; not used in the path.)
-    """
-    return (db.collection("drafts_v2")
-              .document(code)
-              .collection("lessons")
-              .document(lesson_key))
-
-# ---- DRAFTS (server-side) — now stored separately from submissions ----
-def save_draft_to_db(code: str, field_key: str, text: str) -> None:
-    """
-    Save the draft to:
-      drafts_v2/{code}/lessons/{lesson_key}
-    Includes metadata (level, lesson_key, student_code).
-    """
-    if text is None:
-        text = ""
-    level, lesson_key = _extract_level_and_lesson(field_key)
-    ref = _draft_doc_ref(level, lesson_key, code)
-    payload = {
-        "text": text,
-        "updated_at": firestore.SERVER_TIMESTAMP,
-        "level": level,
-        "lesson_key": lesson_key,
-        "student_code": code,
-    }
-    ref.set(payload, merge=True)
-    # Optional: uncomment to see where it saved
-    # st.caption(f"Draft saved to: {ref.path}")
-
-def load_draft_from_db(code: str, field_key: str) -> str:
-    """Return the draft text (prefers new path; falls back to legacy paths)."""
-    text, _ = load_draft_meta_from_db(code, field_key)
-    return text or ""
-
-def save_chat_draft_to_db(code: str, conv_key: str, text: str) -> None:
-    """Persist an unsent chat draft for the given conversation."""
-    ref = db.collection("falowen_chats").document(code)
-    if text:
-        ref.set({"drafts": {conv_key: text}}, merge=True)
-    else:
-        ref.set({"drafts": {conv_key: firestore.DELETE_FIELD}}, merge=True)
-
-
-def load_chat_draft_from_db(code: str, conv_key: str) -> str:
-    """Retrieve any saved chat draft for the conversation."""
-    try:
-        snap = db.collection("falowen_chats").document(code).get()
-        if snap.exists:
-            data = snap.to_dict() or {}
-            drafts = data.get("drafts", {}) or {}
-            return drafts.get(conv_key, "") or ""
-    except Exception:
-        pass
-    return ""
-
-def load_draft_meta_from_db(code: str, field_key: str) -> tuple[str, datetime | None]:
-    """
-    Return (text, updated_at_or_None).
-    Search order:
-      1) drafts_v2/{code}/lessons/{lesson_key}
-      2) (compat) drafts_v2/{level}/lessons/{lesson_key}/users/{code}
-      3) (legacy) draft_answers/{code} (field_key & field_key__updated_at)
-    """
-    level, lesson_key = _extract_level_and_lesson(field_key)
-
-    # 1) New user-rooted path
-    try:
-        snap = _draft_doc_ref(level, lesson_key, code).get()
-        if snap.exists:
-            data = snap.to_dict() or {}
-            return data.get("text", ""), data.get("updated_at")
-    except Exception:
-        pass
-
-    # 2) Compatibility: old level-rooted nested path (if you wrote there earlier)
-    try:
-        comp = (db.collection("drafts_v2").document(level)
-                  .collection("lessons").document(lesson_key)
-                  .collection("users").document(code).get())
-        if comp.exists:
-            data = comp.to_dict() or {}
-            return data.get("text", ""), data.get("updated_at")
-    except Exception:
-        pass
-
-    # 3) Legacy flat doc
-    try:
-        legacy_doc = db.collection("draft_answers").document(code).get()
-        if legacy_doc.exists:
-            data = legacy_doc.to_dict() or {}
-            return data.get(field_key, ""), data.get(f"{field_key}__updated_at")
-    except Exception:
-        pass
-
-    return "", None
 
 
 def resolve_current_content(level: str, code: str, lesson_key: str, draft_key: str) -> dict:
@@ -10085,161 +9961,7 @@ SENTENCE_BANK = {
 # Vocab
 # =========================================
 
-# (Removed duplicate SENTENCE_BANK redefinition — it was overwriting the full bank)
 
-# If you initialize Firestore elsewhere, expose it here.
-# This helper prevents NameError if db isn't ready.
-def _get_db():
-    try:
-        return db  # provided by your app elsewhere
-    except NameError:
-        return None
-
-
-# ================================
-# HELPERS: Level loading (Google Sheet)
-# ================================
-@st.cache_data
-def load_student_levels():
-    """
-    Load the roster with a 'Level' column.
-    Expected columns (case-insensitive): student_code, level
-    We normalize headers and try common alternatives for student code and level.
-    """
-    sheet_id = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
-    csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
-    df = pd.read_csv(csv_url)
-    # normalize headers
-    df.columns = [c.strip().lower() for c in df.columns]
-
-    # try to align student_code column
-    code_col_candidates = ["student_code", "studentcode", "code", "student id", "id"]
-    level_col_candidates = ["level", "klasse", "stufe"]
-    code_col = next((c for c in code_col_candidates if c in df.columns), None)
-    level_col = next((c for c in level_col_candidates if c in df.columns), None)
-
-    if code_col is None or level_col is None:
-        st.error(
-            f"Roster is missing required columns. "
-            f"Found: {list(df.columns)}; need one of {code_col_candidates} and one of {level_col_candidates}."
-        )
-        # still return something so callers don't crash
-        df["__dummy_code__"] = "demo001"
-        df["__dummy_level__"] = "A1"
-        return df.rename(columns={"__dummy_code__": "student_code", "__dummy_level__": "level"})
-
-    # rename to canonical names
-    df = df.rename(columns={code_col: "student_code", level_col: "level"})
-    return df
-
-def get_student_level(student_code: str, default: str = "A1") -> str:
-    """
-    Return student's Level (A1..C1) from the roster for this student_code.
-    Case-insensitive match on student_code.
-    """
-    try:
-        df = load_student_levels()
-        # ensure columns exist after normalization/rename
-        if "student_code" not in df.columns or "level" not in df.columns:
-            return default
-        sc = str(student_code).strip().lower()
-        row = df[df["student_code"].astype(str).str.strip().str.lower() == sc]
-        if not row.empty:
-            return str(row.iloc[0]["level"]).upper().strip()
-        return default
-    except Exception as e:
-        st.warning(f"Could not load level from roster ({e}). Using default {default}.")
-        return default
-
-
-def vocab_attempt_exists(student_code: str, session_id: str) -> bool:
-    """Check if an attempt with this session_id already exists for the student."""
-    if not session_id:
-        return False
-    _db = _get_db()
-    if _db is None:
-        return False
-
-    doc_ref = _db.collection("vocab_stats").document(student_code)
-    doc = doc_ref.get()
-    if not doc.exists:
-        return False
-
-    data = doc.to_dict() or {}
-    history = data.get("history", [])
-    return any(h.get("session_id") == session_id for h in history)
-
-
-def save_vocab_attempt(student_code, level, total, correct, practiced_words, session_id=None):
-    """
-    Save one vocab practice attempt to Firestore.
-    Duplicate-safe using session_id.
-    """
-    _db = _get_db()
-    if _db is None:
-        st.warning("Firestore not initialized; skipping stats save.")
-        return
-
-    if not session_id:
-        session_id = str(uuid4())
-
-    if vocab_attempt_exists(student_code, session_id):
-        return
-
-    doc_ref = _db.collection("vocab_stats").document(student_code)
-    doc = doc_ref.get()
-    data = doc.to_dict() if doc.exists else {}
-    history = data.get("history", [])
-
-    attempt = {
-        "level": level,
-        "total": int(total) if total is not None else 0,
-        "correct": int(correct) if correct is not None else 0,
-        "practiced_words": list(practiced_words or []),
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "session_id": session_id,
-    }
-
-    history.append(attempt)
-    completed = {w for a in history for w in a.get("practiced_words", [])}
-
-    doc_ref.set({
-        "history":           history,
-        "last_practiced":    attempt["timestamp"],
-        "completed_words":   sorted(completed),
-        "total_sessions":    len(history),
-    }, merge=True)
-
-
-def get_vocab_stats(student_code):
-    """Load vocab practice stats from Firestore (or defaults)."""
-    _db = _get_db()
-    if _db is None:
-        return {
-            "history":           [],
-            "last_practiced":    None,
-            "completed_words":   [],
-            "total_sessions":    0,
-        }
-
-    doc_ref = _db.collection("vocab_stats").document(student_code)
-    doc = doc_ref.get()
-    if doc.exists:
-        data = doc.to_dict() or {}
-        # Ensure we don't return "best"
-        return {
-            "history": data.get("history", []),
-            "last_practiced": data.get("last_practiced"),
-            "completed_words": data.get("completed_words", []),
-            "total_sessions": data.get("total_sessions", 0),
-        }
-
-    return {
-        "history":           [],
-        "last_practiced":    None,
-        "completed_words":   [],
-        "total_sessions":    0,
-    }
 
 
 # ================================
