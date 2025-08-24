@@ -11244,7 +11244,21 @@ if tab == "Schreiben Trainer":
         if st.session_state[ns("stage")] == 0:
             st.markdown("### ✏️ Enter your exam prompt or draft to start coaching")
             draft_key = ns("prompt_draft")
-            existing_draft = load_draft_from_db(student_code, draft_key)
+            if draft_key not in st.session_state:
+                st.session_state[draft_key] = load_draft_from_db(student_code, draft_key)
+
+            prompt = st.text_area(
+                "Exam prompt",
+                key=draft_key,
+                height=120,
+                placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ...",
+                label_visibility="collapsed",
+                on_change=save_now,
+                args=(draft_key, student_code),
+            )
+
+            autosave_maybe(student_code, draft_key, st.session_state.get(draft_key, ""), min_secs=2.0, min_delta=20)
+
             with st.form(ns("prompt_form"), clear_on_submit=True):
 
                 prompt = st.text_area(
@@ -11258,21 +11272,25 @@ if tab == "Schreiben Trainer":
                 )
                 send = st.form_submit_button("✉️ Start Letter Coach")
 
-            if send:
-                save_now(draft_key, student_code)
-                
+            prompt = st.session_state.get(draft_key, "")
+
             if prompt:
                 word_count = len(prompt.split())
                 char_count = len(prompt)
                 st.markdown(
-                     f"<div style='color:#7b2ff2; font-size:0.97em; margin-bottom:0.18em;'>",
+
+            if prompt:
+                word_count = len(prompt.split())
+                char_count = len(prompt)
+                st.markdown(
+                    f"<div style='color:#7b2ff2; font-size:0.97em; margin-bottom:0.18em;'>",
                     f"Words: <b>{word_count}</b> &nbsp;|&nbsp; Characters: <b>{char_count}</b>",
                     "</div>",
                     unsafe_allow_html=True
                 )
-                
-            prompt = st.session_state.get(draft_key, "")
-            autosave_maybe(student_code, draft_key, prompt, min_secs=2.0, min_delta=20)
+
+            if send:
+                save_now(draft_key, student_code)
 
             if send and prompt:
                 st.session_state[ns("prompt")] = prompt
@@ -11339,19 +11357,26 @@ if tab == "Schreiben Trainer":
             draft_key = ns("chat_draft")
             if draft_key not in st.session_state:
                 st.session_state[draft_key] = load_draft_from_db(student_code, draft_key)
+
+            chat_input = st.text_area(
+                "Chat input",
+                key=draft_key,
+                height=400,
+                placeholder="Type your reply, ask about a section, or paste your draft here...",
+                label_visibility="collapsed",
+                on_change=save_now,
+                args=(draft_key, student_code),
+            )
+
+            autosave_maybe(student_code, draft_key, st.session_state.get(draft_key, ""), min_secs=2.0, min_delta=20)
+            
             with st.form(ns("letter_coach_chat_form"), clear_on_submit=True):
-                chat_input = st.text_area(
-                    "Chat input",
-                    key=draft_key,
-                    value=st.session_state.get(draft_key, ""),
-                    height=400,
-                    placeholder="Type your reply, ask about a section, or paste your draft here...",
-                    label_visibility="collapsed",
-                )
                 send = st.form_submit_button("Send")
 
              
-            autosave_maybe(student_code, draft_key, st.session_state.get(draft_key, ""), min_secs=2.0, min_delta=20)
+            if send:
+                save_now(draft_key, student_code)
+                
             user_input = chat_input.strip() if send else ""
             if user_input:
                 chat_history.append({"role": "user", "content": user_input})
