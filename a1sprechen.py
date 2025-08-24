@@ -11416,7 +11416,7 @@ if tab == "Schreiben Trainer":
 
         # --- Stage 0: Prompt input ---
         if st.session_state[ns("stage")] == 0:
-                if st.button("Start new write-up"):
+            if st.button("Start new write-up"):
                 st.session_state[ns("reset_coach")] = True
                 st.rerun()
             st.markdown("### ✏️ Enter your exam prompt or draft to start coaching")
