@@ -11149,18 +11149,17 @@ if tab == "Schreiben Trainer":
                 score_match = re.search(r"Score[: ]+(\d+)", feedback)
                 score = int(score_match.group(1)) if score_match else 0
                 passed = score >= 17
-                  save_submission(
-                      student_code=student_code,
-                      score=score,
-                      passed=passed,
-                      timestamp=None,  # Not needed
-                      level=schreiben_level,
-                      letter=user_letter
-                  )
-                  update_schreiben_stats(student_code)
-                  save_draft_to_db(student_code, draft_key, "")
-                  st.session_state.pop(draft_key, None)
-
+                save_submission(
+                    student_code=student_code,
+                    score=score,
+                    passed=passed,
+                    timestamp=None,  # Not needed
+                    level=schreiben_level,
+                    letter=user_letter
+                )
+                update_schreiben_stats(student_code)
+                save_draft_to_db(student_code, draft_key, "")
+                st.session_state.pop(draft_key, None)
 
 
         # --- Improvement section: Compare, download, WhatsApp ---
