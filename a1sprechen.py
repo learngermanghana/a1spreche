@@ -2493,75 +2493,105 @@ if tab == "Dashboard":
             "href": None,
         })
 
-    # ----- Goethe exam countdown -----
+# ---------- Goethe exam (countdown only — no video) ----------
+with st.expander("⏳ Goethe Exam Countdown", expanded=False):
+    from datetime import date
+
     GOETHE_EXAM_DATES = {
-        "A1": (_date(2025, 10, 13), 2850, None),
-        "A2": (_date(2025, 10, 14), 2400, None),
-        "B1": (_date(2025, 10, 15), 2750, 880),
-        "B2": (_date(2025, 10, 16), 2500, 840),
-        "C1": (_date(2025, 10, 17), 2450, 700),
+        "A1": (date(2025, 10, 13), 2850, None),
+        "A2": (date(2025, 10, 14), 2400, None),
+        "B1": (date(2025, 10, 15), 2750, 880),
+        "B2": (date(2025, 10, 16), 2500, 840),
+        "C1": (date(2025, 10, 17), 2450, 700),
     }
-    level_key = (safe_get(student_row, "Level", "") or "").upper().replace(" ", "")
-    exam_info = GOETHE_EXAM_DATES.get(level_key)
+
+    level = (safe_get(student_row, "Level", "") or "").upper().replace(" ", "")
+    exam_info = GOETHE_EXAM_DATES.get(level)
+
     if exam_info:
         exam_date, fee, module_fee = exam_info
-        days_to_exam = (exam_date - _date.today()).days
+        days_to_exam = (exam_date - date.today()).days
+        fee_text = f"**Fee:** ₵{fee:,}"
+        if module_fee:
+            fee_text += f" &nbsp; | &nbsp; **Per Module:** ₵{module_fee:,}"
+
         if days_to_exam > 0:
-            sev = "warn" if days_to_exam <= 14 else "info"
-            fee_text = f"Fee: ₵{fee:,}" + (f" · Per module: ₵{module_fee:,}" if module_fee else "")
-            msgs.append({
-                "id": f"exam:{level_key}:{exam_date.isoformat()}",
-                "title": f"🎓 {level_key} exam in {days_to_exam} day{'s' if days_to_exam!=1 else ''}",
-                "body": f"{exam_date:%d %b %Y} · {fee_text}",
-                "severity": sev,
-                "category": "Exams",
-                "when": _dt.utcnow(),
-                "href": "https://www.goethe.de/ins/gh/en/spr/prf.html",
-            })
+            st.info(
+                f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).  \n"
+                f"{fee_text}  \n"
+                "[Register online here](https://www.goethe.de/ins/gh/en/spr/prf.html)"
+            )
         elif days_to_exam == 0:
-            msgs.append({
-                "id": f"exam:{level_key}:today",
-                "title": "🎓 Exam is today!",
-                "body": "Viel Erfolg! You’ve got this.",
-                "severity": "urgent",
-                "category": "Exams",
-                "when": _dt.utcnow(),
-                "href": None,
-            })
+            st.success("🚀 Exam is today! Good luck!")
         else:
-            msgs.append({
-                "id": f"exam:{level_key}:past",
-                "title": f"🎓 {level_key} exam was on {exam_date:%d %b %Y}",
-                "body": f"{abs(days_to_exam)} day(s) ago. Check new dates on Goethe’s site.",
-                "severity": "info",
-                "category": "Exams",
-                "when": _dt.utcnow(),
-                "href": "https://www.goethe.de/ins/gh/en/spr/prf.html",
-            })
+            st.error(
+                f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.  \n"
+                f"{fee_text}"
+            )
+    else:
+        st.warning("No exam date configured for your level.")
 
-    # ----- (Optional) Video of the Day inbox card -----
-    playlist_id = (globals().get("YOUTUBE_PLAYLIST_IDS") or {}).get(level_key)
-    fetch_videos = globals().get("fetch_youtube_playlist_videos")
-    api_key = globals().get("YOUTUBE_API_KEY")
-    if playlist_id and fetch_videos and api_key:
-        try:
-            video_list = fetch_videos(playlist_id, api_key)
-        except Exception:
-            video_list = []
-        if video_list:
-            pick = _date.today().toordinal() % len(video_list)
-            video = video_list[pick]
-            msgs.append({
-                "id": f"video:daily:{level_key}:{pick}",
-                "title": f"🎬 Today’s video for {level_key}",
-                "body": video.get("title",""),
-                "severity": "info",
-                "category": "Learning",
-                "when": _dt.utcnow(),
-                "href": video.get("url",""),
-            })
 
-    # NOTE: No app announcements and no student reviews on Dashboard per request.
+# ---------- Footer component (links: Terms, Privacy, Delete Account, Support) ----------
+def render_footer():
+    from datetime import datetime as _dt
+
+    # Read from secrets if you have them, else use placeholders you can replace anytime.
+    _links = {}
+    try:
+        _links = (st.secrets.get("links", {}) if hasattr(st, "secrets") else {}) or {}
+    except Exception:
+        _links = {}
+
+    TERMS   = _links.get("terms",   "https://example.com/terms")
+    PRIVACY = _links.get("privacy", "https://example.com/privacy")
+    DELETE  = _links.get("delete",  "https://example.com/account-deletion")
+    SUPPORT = _links.get("support", "mailto:support@example.com")
+
+    year = _dt.utcnow().year
+
+    st.markdown(
+        f"""
+        <style>
+          .app-footer {{
+            margin: 16px 0 6px 0;
+            border-top: 1px solid rgba(148,163,184,.35);
+            padding-top: 12px;
+            color:#334155;
+          }}
+          .foot-links {{
+            display:flex; flex-wrap:wrap; gap:10px;
+            margin-bottom:8px;
+          }}
+          .foot-chip {{
+            display:inline-block; padding:7px 10px; border-radius:999px;
+            border:1px solid rgba(148,163,184,.35);
+            background:#ffffff; font-weight:700; font-size:.95rem;
+          }}
+          .foot-chip a {{ color:#1d4ed8; text-decoration:none; }}
+          .foot-small {{ font-size:.92rem; color:#64748b; }}
+          @media (max-width:640px){{
+            .foot-chip {{ padding:6px 9px; font-size:.94rem; }}
+            .foot-small {{ font-size:.94rem; }}
+          }}
+        </style>
+        <div class="app-footer">
+          <div class="foot-links">
+            <span class="foot-chip"><a href="{TERMS}" target="_blank" rel="noopener">Terms &amp; Conditions</a></span>
+            <span class="foot-chip"><a href="{PRIVACY}" target="_blank" rel="noopener">Privacy Policy</a></span>
+            <span class="foot-chip"><a href="{DELETE}" target="_blank" rel="noopener">Request Account Deletion</a></span>
+            <span class="foot-chip"><a href="{SUPPORT}" target="_blank" rel="noopener">Contact Support</a></span>
+          </div>
+          <div class="foot-small">© {year} Falowen — All rights reserved.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# ---------- Call footer at the very end of the Dashboard ----------
+st.divider()
+render_footer()
 
     # =========================================================
     # ============== Priority, filters, rendering =============
