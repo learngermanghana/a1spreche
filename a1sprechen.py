@@ -11550,10 +11550,12 @@ if tab == "Schreiben Trainer":
                     "Try to wrap up, click **END SUMMARY** or download your letter as TXT."
                 )
 
+
             draft_key = ns("chat_draft")
             if draft_key not in st.session_state:
                 st.session_state[draft_key] = load_draft_from_db(student_code, draft_key)
             with st.form(ns("letter_coach_chat_form"), clear_on_submit=True):
+                st.text_area(
                     "Chat input",
                     key=draft_key,
                     value=st.session_state.get(draft_key, ""),
@@ -11563,7 +11565,8 @@ if tab == "Schreiben Trainer":
                     on_change=lambda: save_now(draft_key, student_code),
                 )
                 send = st.form_submit_button("Send")
-                
+
+             
             autosave_maybe(student_code, draft_key, st.session_state.get(draft_key, ""), min_secs=2.0, min_delta=20)
             user_input = st.session_state.get(draft_key, "").strip() if send else ""
             if user_input:
