@@ -5339,7 +5339,6 @@ if tab == "My Course":
             st.divider()
             st.markdown("#### 🎬 Video of the Day for Your Level")
             playlist_id = random.choice(playlist_ids) if playlist_ids else None
-            playlist_id = random.choice(playlist_ids) if playlist_ids else None
             if (
                 playlist_id
                 and "fetch_youtube_playlist_videos" in globals()
@@ -11316,7 +11315,13 @@ if tab == "Schreiben Trainer":
             st.session_state["prev_letter_coach_code"] = student_code
 
         # --- Set per-student defaults if missing ---
-        for k, default in [("prompt", ""), ("chat", []), ("stage", 0)]:
+        for k, default in [
+            ("prompt", ""),
+            ("chat", []),
+            ("stage", 0),
+            ("clear_prompt", False),
+            ("clear_chat", False),
+        ]:
             if ns(k) not in st.session_state:
                 st.session_state[ns(k)] = default
 
@@ -11504,6 +11509,11 @@ if tab == "Schreiben Trainer":
             if draft_key not in st.session_state:
                 st.session_state[draft_key] = load_draft_from_db(student_code, draft_key)
 
+            
+            if st.session_state.pop(ns("clear_prompt"), False):
+                st.session_state[draft_key] = ""
+                save_now(draft_key, student_code)
+
             prompt = st.text_area(
                 "Exam prompt",
                 key=draft_key,
@@ -11569,8 +11579,7 @@ if tab == "Schreiben Trainer":
                         st.session_state[ns("prompt")],
                         st.session_state[ns("chat")],
                     )
-                    st.session_state[draft_key] = ""
-                    save_now(draft_key, student_code)
+                    st.session_state[ns("clear_prompt")] = True
                     st.rerun()
                     
             if prompt:
@@ -11605,6 +11614,10 @@ if tab == "Schreiben Trainer":
             draft_key = ns("chat_draft")
             if draft_key not in st.session_state:
                 st.session_state[draft_key] = load_draft_from_db(student_code, draft_key)
+
+            if st.session_state.pop(ns("clear_chat"), False):
+                st.session_state[draft_key] = ""
+                save_now(draft_key, student_code)
 
             st.text_area(
                 "Chat input",
@@ -11653,8 +11666,7 @@ if tab == "Schreiben Trainer":
                     st.session_state[ns("prompt")],
                     st.session_state[ns("chat")],
                 )
-                st.session_state[draft_key] = ""
-                save_now(draft_key, student_code)
+                st.session_state[ns("clear_chat")] = True
                 st.rerun()
 
             # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
