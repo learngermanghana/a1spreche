@@ -1,4 +1,4 @@
-"""YouTube helper functions for Falowen."""
+"""YouTube helper functions for Falowen App."""
 
 import requests
 import streamlit as st
