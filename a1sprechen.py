@@ -6,6 +6,7 @@ import hashlib
 import html as html_stdlib
 import io, json
 import math
+import logging
 import os
 import random
 import re
@@ -30,6 +31,7 @@ st.cache = st.cache_data
 import streamlit.components.v1 as components
 from docx import Document
 from google.cloud.firestore_v1 import FieldFilter
+from google.api_core.exceptions import GoogleAPICallError
 from firebase_admin import firestore
 from fpdf import FPDF
 from gtts import gTTS
@@ -11003,27 +11005,28 @@ def update_schreiben_stats(student_code: str):
 
 # -- Firestore-only: Fetch stats for display (for status panel etc) --
 def get_schreiben_stats(student_code: str):
-    if not student_code:
-        st.warning("No student code provided; returning empty stats.")
-        return {
-            "total": 0,
-            "passed": 0,
-            "average_score": 0,
-            "best_score": 0,
-            "pass_rate": 0,
-            "last_attempt": None,
-            "attempts": [],
-            "last_letter": "",
-        }
+    default_stats = {
+        "total": 0,
+        "passed": 0,
+        "average_score": 0,
+        "best_score": 0,
+        "pass_rate": 0,
+        "last_attempt": None,
+        "attempts": [],
+        "last_letter": "",
+    }
     stats_ref = db.collection("schreiben_stats").document(student_code)
-    doc = stats_ref.get()
+    
+    try:
+        doc = stats_ref.get()
+    except GoogleAPICallError as exc:  # pragma: no cover - network failure
+        logging.error("Failed to fetch schreiben stats: %s", exc)
+        return default_stats
+        
     if doc.exists:
         return doc.to_dict()
     else:
-        return {
-            "total": 0, "passed": 0, "average_score": 0, "best_score": 0,
-            "pass_rate": 0, "last_attempt": None, "attempts": [], "last_letter": ""
-        }
+        return default_stats
 
 # -- Firestore: Save/load latest Schreiben feedback --
 def save_schreiben_feedback(student_code: str, feedback: str) -> None:
