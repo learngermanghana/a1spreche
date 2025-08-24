@@ -62,6 +62,14 @@ from falowen.db import (
     has_sprechen_quota,
 )
 
+from src.assignment import linkify_html, _clean_link, _is_http_url
+from src.contracts import (
+    parse_contract_end,
+    add_months,
+    months_between,
+    is_contract_expired,
+)
+
 if os.environ.get("RENDER"):
     import fastapi
     from fastapi import FastAPI
@@ -270,23 +278,6 @@ def load_student_data():
     """Load student roster, or return None if unavailable."""
     return _load_student_data_cached()
 
-def is_contract_expired(row):
-    expiry_str = str(row.get("ContractEnd", "") or "").strip()
-    if not expiry_str or expiry_str.lower() == "nan":
-        return True
-    expiry_date = None
-    for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
-        try:
-            expiry_date = datetime.strptime(expiry_str, fmt)
-            break
-        except ValueError:
-            continue
-    if expiry_date is None:
-        parsed = pd.to_datetime(expiry_str, errors="coerce")
-        if pd.isnull(parsed):
-            return True
-        expiry_date = parsed.to_pydatetime()
-    return expiry_date.date() < datetime.now(UTC).date()
 
 
 # ------------------------------------------------------------------------------
@@ -1840,13 +1831,6 @@ def get_vocab_of_the_day(df: pd.DataFrame, level: str):
     row = subset.reset_index(drop=True).iloc[idx]
     return {"german": row.get("german",""), "english": row.get("english",""), "example": row.get("example","")}
 
-def parse_contract_end(date_str):
-    if not date_str or str(date_str).strip().lower() in ("nan","none",""): return None
-    for fmt in ("%Y-%m-%d","%m/%d/%Y","%d.%m.%y","%d/%m/%Y","%d-%m-%Y"):
-        try: return datetime.strptime(date_str, fmt)
-        except ValueError: continue
-    return None
-
 
 @st.cache_data(ttl=3600)
 def _load_reviews_cached():
@@ -1878,20 +1862,6 @@ def fetch_announcements_csv():
 def parse_contract_start(date_str: str):
     return parse_contract_end(date_str)
 
-def add_months(dt: datetime, n: int) -> datetime:
-    """
-    Add n calendar months to dt, clamping the day to the last day of the target month.
-    """
-    y = dt.year + (dt.month - 1 + n) // 12
-    m = (dt.month - 1 + n) % 12 + 1
-    last_day = calendar.monthrange(y, m)[1]
-    d = min(dt.day, last_day)
-    return dt.replace(year=y, month=m, day=d)
-
-def months_between(start_dt: datetime, end_dt: datetime) -> int:
-    months = (end_dt.year - start_dt.year) * 12 + (end_dt.month - start_dt.month)
-    if end_dt.day < start_dt.day: months -= 1
-    return months
 
 from urllib.parse import unquote_plus
 
@@ -7598,31 +7568,6 @@ if tab == "My Course":
 
 # =========================== MY RESULTS & RESOURCES ===========================
 # Safe utilities (define only if missing to avoid duplicates)
-if "html_stdlib" not in globals():
-    import html as html_stdlib
-if "urllib" not in globals():
-    import urllib
-if "linkify_html" not in globals():
-    def linkify_html(text):
-        """Escape HTML and convert URLs in plain text to anchor tags."""
-        s = "" if text is None or (isinstance(text, float) and pd.isna(text)) else str(text)
-        s = html_stdlib.escape(s)
-        s = re.sub(r'(https?://[^\s<]+)', r'<a href="\1" target="_blank" rel="noopener">\1</a>', s)
-        return s
-if "_clean_link" not in globals():
-    def _clean_link(val) -> str:
-        """Return a clean string or '' if empty/NaN/common placeholders."""
-        if val is None: return ""
-        if isinstance(val, float) and pd.isna(val): return ""
-        s = str(val).strip()
-        return "" if s.lower() in {"", "nan", "none", "null", "0"} else s
-if "_is_http_url" not in globals():
-    def _is_http_url(s: str) -> bool:
-        try:
-            u = urllib.parse.urlparse(str(s))
-            return u.scheme in ("http", "https") and bool(u.netloc)
-        except Exception:
-            return False
 
 # Reuse the app’s schedules provider if available (no duplicate calls)
 def _get_level_schedules():
