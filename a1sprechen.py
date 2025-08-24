@@ -5604,7 +5604,9 @@ if tab == "My Course":
 
             st.subheader("✍️ Your Answer")
 
-
+            if locked:
+                st.warning("This box is locked because you have already submitted your work.")
+                
             # ---------- Editor (save on blur + debounce) ----------
             st.text_area(
                 "Type all your answers here",
