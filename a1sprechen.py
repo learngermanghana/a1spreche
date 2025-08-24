@@ -316,18 +316,18 @@ _bootstrap_state()
 html = st_html
 
 
-# ------------------------------------------------------------------------------
-# OpenAI (used elsewhere in app)
-# ------------------------------------------------------------------------------
-OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
-if not OPENAI_API_KEY:
-    st.error("Missing OpenAI API key. Please add OPENAI_API_KEY in Streamlit secrets.")
-    raise RuntimeError("Missing OpenAI API key")
-os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
-client = OpenAI(api_key=OPENAI_API_KEY)
 
-# Initialize local SQLite database
-init_db()
+# Prefer env on Cloud Run; fall back to st.secrets for local dev
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
+OPENAI_PROJECT = os.getenv("OPENAI_PROJECT") or st.secrets.get("OPENAI_PROJECT")
+
+if not OPENAI_API_KEY:
+    st.error("Missing OpenAI API key. Set OPENAI_API_KEY in env/Secret Manager.")
+    raise RuntimeError("Missing OPENAI_API_KEY")
+
+# Use project if your key starts with sk-proj- (recommended)
+client = OpenAI(api_key=OPENAI_API_KEY, project=OPENAI_PROJECT) if OPENAI_PROJECT else OpenAI(api_key=OPENAI_API_KEY)
+
 
 
     
