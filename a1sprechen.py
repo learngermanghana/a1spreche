@@ -11706,8 +11706,6 @@ if tab == "Schreiben Trainer":
                 height=120,
                 placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ...",
                 label_visibility="collapsed",
-                on_change=save_now,
-                args=(draft_key, student_code),
             )
 
             autosave_maybe(
@@ -11717,6 +11715,11 @@ if tab == "Schreiben Trainer":
                 min_secs=0.2,
                 min_delta=1,
             )
+
+            
+            saved_at = st.session_state.get(f"{draft_key}_saved_at")
+            if saved_at:
+                st.caption(f"Last saved at {saved_at.strftime('%H:%M:%S')}")
 
             prompt = st.session_state.get(draft_key, "")
 
@@ -11815,8 +11818,7 @@ if tab == "Schreiben Trainer":
                 height=400,
                 placeholder="Type your reply, ask about a section, or paste your draft here...",
                 label_visibility="collapsed",
-                on_change=save_now,
-                args=(draft_key, student_code),
+
             )
             
             autosave_maybe(
@@ -11826,6 +11828,10 @@ if tab == "Schreiben Trainer":
                 min_secs=0.2,
                 min_delta=1,
             )
+           
+            saved_at = st.session_state.get(f"{draft_key}_saved_at")
+            if saved_at:
+                st.caption(f"Last saved at {saved_at.strftime('%H:%M:%S')}")
 
             send = st.button("Send")
              
