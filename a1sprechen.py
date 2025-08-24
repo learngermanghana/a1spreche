@@ -25,7 +25,8 @@ import bcrypt
 import pandas as pd
 import requests
 import streamlit as st
-st.cache = st.cache_data 
+from streamlit.errors import StreamlitAPIException
+st.cache = st.cache_data
 import streamlit.components.v1 as components
 from docx import Document
 from google.cloud.firestore_v1 import FieldFilter
@@ -8851,10 +8852,16 @@ if tab == "Exams Mode & Custom Chat":
                 pass
 
             # Guard against empty or missing draft_key before clearing the draft
-            if isinstance(draft_key, str) and draft_key:
-                st.session_state.setdefault(draft_key, "")
-                st.session_state[draft_key] = ""
-                save_now(draft_key, student_code)
+            if (
+                isinstance(draft_key, str)
+                and draft_key
+                and draft_key in st.session_state
+            ):
+                try:
+                    st.session_state[draft_key] = ""
+                    save_now(draft_key, student_code)
+                except StreamlitAPIException as e:
+                    st.error(f"Unexpected error clearing draft: {e}")
             else:
                 st.warning("Missing draft key; nothing to clear.")
         with chat_display:
