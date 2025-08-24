@@ -11278,11 +11278,6 @@ if tab == "Schreiben Trainer":
                 word_count = len(prompt.split())
                 char_count = len(prompt)
                 st.markdown(
-
-            if prompt:
-                word_count = len(prompt.split())
-                char_count = len(prompt)
-                st.markdown(
                     f"<div style='color:#7b2ff2; font-size:0.97em; margin-bottom:0.18em;'>",
                     f"Words: <b>{word_count}</b> &nbsp;|&nbsp; Characters: <b>{char_count}</b>",
                     "</div>",
