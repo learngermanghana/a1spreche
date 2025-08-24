@@ -11461,13 +11461,18 @@ if tab == "Schreiben Trainer":
         # --- Stage 0: Prompt input ---
         if st.session_state[ns("stage")] == 0:
             st.markdown("### ✏️ Enter your exam prompt or draft to start coaching")
+            draft_key = ns("prompt_draft")
+            existing_draft = load_draft_from_db(student_code, draft_key)
             with st.form(ns("prompt_form"), clear_on_submit=True):
-                prompt = st.text_area(
+                st.text_area(
+       
                     "Exam prompt",
-                    value=st.session_state[ns("prompt")],
+                    key=draft_key,
+                    value=existing_draft,
                     height=120,
                     placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ...",
                     label_visibility="collapsed",
+                    on_change=lambda: save_now(draft_key, student_code),
                 )
                 send = st.form_submit_button("✉️ Start Letter Coach")
 
@@ -11475,11 +11480,14 @@ if tab == "Schreiben Trainer":
                 word_count = len(prompt.split())
                 char_count = len(prompt)
                 st.markdown(
-                    f"<div style='color:#7b2ff2; font-size:0.97em; margin-bottom:0.18em;'>"
-                    f"Words: <b>{word_count}</b> &nbsp;|&nbsp; Characters: <b>{char_count}</b>"
+                     f"<div style='color:#7b2ff2; font-size:0.97em; margin-bottom:0.18em;'>",
+                    f"Words: <b>{word_count}</b> &nbsp;|&nbsp; Characters: <b>{char_count}</b>",
                     "</div>",
                     unsafe_allow_html=True
                 )
+                
+            prompt = st.session_state.get(draft_key, "")
+            autosave_maybe(student_code, draft_key, prompt, min_secs=2.0, min_delta=20)
 
             if send and prompt:
                 st.session_state[ns("prompt")] = prompt
@@ -11510,6 +11518,8 @@ if tab == "Schreiben Trainer":
                     st.session_state[ns("prompt")],
                     st.session_state[ns("chat")],
                 )
+                st.session_state[draft_key] = ""
+                save_now(draft_key, student_code)
                 st.rerun()
 
             if prompt:
@@ -11540,17 +11550,23 @@ if tab == "Schreiben Trainer":
                     "Try to wrap up, click **END SUMMARY** or download your letter as TXT."
                 )
 
+            draft_key = ns("chat_draft")
+            if draft_key not in st.session_state:
+                st.session_state[draft_key] = load_draft_from_db(student_code, draft_key)
             with st.form(ns("letter_coach_chat_form"), clear_on_submit=True):
-                user_input = st.text_area(
                     "Chat input",
-                    value="",
-                    key=ns("user_input"),
+                    key=draft_key,
+                    value=st.session_state.get(draft_key, ""),
                     height=400,
                     placeholder="Type your reply, ask about a section, or paste your draft here...",
                     label_visibility="collapsed",
+                    on_change=lambda: save_now(draft_key, student_code),
                 )
                 send = st.form_submit_button("Send")
-            if send and user_input.strip():
+                
+            autosave_maybe(student_code, draft_key, st.session_state.get(draft_key, ""), min_secs=2.0, min_delta=20)
+            user_input = st.session_state.get(draft_key, "").strip() if send else ""
+            if user_input:
                 chat_history.append({"role": "user", "content": user_input})
                 student_level = st.session_state.get("schreiben_level", "A1")
                 system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=st.session_state[ns("prompt")])
@@ -11570,6 +11586,8 @@ if tab == "Schreiben Trainer":
                     st.session_state[ns("prompt")],
                     st.session_state[ns("chat")],
                 )
+                st.session_state[draft_key] = ""
+                save_now(draft_key, student_code)
                 st.rerun()
 
             # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
