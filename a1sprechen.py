@@ -2004,589 +2004,368 @@ except Exception as e:
 
 
 # =========================================================
-# ===================== Dashboard =========================
+# =============== Announcement Inbox + Footer =============
 # =========================================================
-if tab == "Dashboard":
-    # ---------- Helpers ----------
-    from datetime import datetime as _dt, timedelta as _td, date as _date
-    import calendar as _cal
+import json, hashlib, calendar
+from datetime import datetime, timedelta, date
+from typing import Dict, Any, List, Optional
 
-    def safe_get(row, key, default=""):
-        try: return row.get(key, default)
-        except Exception: pass
-        try: return getattr(row, key, default)
-        except Exception: pass
-        try: return row[key]
-        except Exception: return default
+import streamlit as st
 
-    # Fallback parsers if globals not present
-    def _fallback_parse_date(s):
-        fmts = ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y")
-        for f in fmts:
-            try: return _dt.strptime(str(s).strip(), f)
-            except Exception: pass
+# ------------ Firestore (uses your existing initialized app) -------------
+def _get_fs():
+    """Return Firestore client. Assumes firebase_admin.initialize_app() already ran in your app."""
+    try:
+        from firebase_admin import firestore as _fs, _apps, initialize_app, credentials
+        if not _apps:
+            # If your app already initializes elsewhere, this branch won't run.
+            # As a safe fallback, try secrets or default creds.
+            try:
+                cred = credentials.Certificate(dict(st.secrets["firebase"]))
+                initialize_app(cred)
+            except Exception:
+                initialize_app()
+        return _fs.client()
+    except Exception as e:
+        st.error("Firestore unavailable — announcement actions won't persist.")
         return None
 
-    def _fallback_add_months(dt, n):
-        y = dt.year + (dt.month - 1 + n) // 12
-        m = (dt.month - 1 + n) % 12 + 1
-        d = min(dt.day, _cal.monthrange(y, m)[1])
-        return dt.replace(year=y, month=m, day=d)
 
-    parse_contract_start_fn = globals().get("parse_contract_start", _fallback_parse_date)
-    parse_contract_end_fn   = globals().get("parse_contract_end",   _fallback_parse_date)
-    add_months_fn           = globals().get("add_months",           _fallback_add_months)
+# ----------------------- Helpers & persistence ---------------------------
+def _hash_id(s: str) -> str:
+    return hashlib.sha1(s.encode("utf-8")).hexdigest()[:12]
 
-    # Global styles for chips & mini-cards
-    inject_notice_css()
+def ensure_ann_id(a: Dict[str, Any]) -> str:
+    """Guarantee a stable id for an announcement dict."""
+    if a.get("id"):
+        return str(a["id"])
+    base = f"{a.get('title','')}|{a.get('body','')}|{a.get('tag','')}"
+    a["id"] = "ann_" + _hash_id(base)
+    return a["id"]
 
-    # ---------- Ensure we have a student row ----------
-    load_student_data_fn = globals().get("load_student_data")
-    if load_student_data_fn is None:
-        def load_student_data_fn():
-            return pd.DataFrame(columns=["StudentCode"])
+def _prefs_key(student_code: str) -> str:
+    return f"__ann_prefs:{(student_code or '').strip().lower()}"
 
-    df_students = load_student_data_fn()
-    if df_students is None:
-        df_students = pd.DataFrame(columns=["StudentCode"])
+def _parse_iso(s: str) -> Optional[datetime]:
+    if not s: return None
+    try:
+        return datetime.fromisoformat(s.replace("Z",""))
+    except Exception:
+        return None
 
-    student_code = (st.session_state.get("student_code", "") or "").strip().lower()
+def load_notice_prefs(student_code: str) -> Dict[str, Any]:
+    """
+    Returns a dict like:
+    {"actions": {ann_id: {"status":"dismissed|snoozed","snooze_until":"ISO","ts":"ISO"}}}
+    """
+    fs = _get_fs()
+    sid = (student_code or "").strip().lower()
+    if fs is None:
+        return st.session_state.get(_prefs_key(sid), {"actions": {}})
+    try:
+        snap = fs.collection("student_notice_prefs").document(sid).get()
+        return snap.to_dict() or {"actions": {}}
+    except Exception:
+        return {"actions": {}}
 
-    student_row = {}
-    if student_code and not df_students.empty and "StudentCode" in df_students.columns:
+def save_notice_action(student_code: str, ann_id: str, status: str, snooze_until: Optional[datetime] = None):
+    """Upsert a student's action for a single announcement."""
+    fs = _get_fs()
+    sid = (student_code or "").strip().lower()
+    payload = {
+        "status": status,
+        "ts": datetime.utcnow().isoformat(timespec="seconds"),
+        "snooze_until": snooze_until.isoformat(timespec="seconds") if snooze_until else "",
+    }
+
+    if fs is None:
+        prefs = st.session_state.get(_prefs_key(sid), {"actions": {}})
+        prefs["actions"][ann_id] = payload
+        st.session_state[_prefs_key(sid)] = prefs
+        return
+
+    try:
+        fs.collection("student_notice_prefs").document(sid).set(
+            {"actions": {ann_id: payload}}, merge=True
+        )
+    except Exception:
+        # Fallback to session on write failure
+        prefs = st.session_state.get(_prefs_key(sid), {"actions": {}})
+        prefs["actions"][ann_id] = payload
+        st.session_state[_prefs_key(sid)] = prefs
+
+
+# ----------------------- Dynamic announcements --------------------------
+def _safe_float(x, default=0.0):
+    try:
+        s = str(x).replace(",", "").strip()
+        return float(s) if s and s.lower() not in ("nan","none") else default
+    except Exception:
+        return default
+
+def _parse_date_flex(s: str) -> Optional[datetime]:
+    if not s: return None
+    for f in ("%Y-%m-%d","%m/%d/%Y","%d.%m.%y","%d/%m/%Y","%d-%m-%Y"):
         try:
-            matches = df_students[df_students["StudentCode"].astype(str).str.lower() == student_code]
-            if not matches.empty:
-                student_row = matches.iloc[0].to_dict()
+            return datetime.strptime(str(s).strip(), f)
         except Exception:
             pass
+    return None
 
-    if (not student_row) and isinstance(st.session_state.get("student_row"), dict) and st.session_state["student_row"]:
-        student_row = st.session_state["student_row"]
+def build_dynamic_announcements(student_row: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Generate time-sensitive items: payments, contract, exams."""
+    items: List[Dict[str, Any]] = []
+    today = date.today()
 
-    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+    # first payment = contract start + 1 month
+    cs = None
+    for k in ("ContractStart","StartDate","ContractBegin","Start","Begin"):
+        raw = str((student_row or {}).get(k, "") or "").strip()
+        if raw:
+            cs = _parse_date_flex(raw)
+            if cs: break
 
-    if not student_row:
-        st.info("🚩 No student selected.")
-        st.stop()
+    first_due = None
+    if cs:
+        y = cs.year + (cs.month - 1 + 1) // 12
+        m = (cs.month - 1 + 1) % 12 + 1
+        last_day = calendar.monthrange(y, m)[1]
+        d = min(cs.day, last_day)
+        first_due = cs.replace(year=y, month=m, day=d).date()
 
-    # ---------- Motivation mini-cards (streak / vocab / leaderboard) ----------
-    st.divider()
-    _student_code = (st.session_state.get("student_code", "") or "").strip().lower()
-    _df_assign = load_assignment_scores()
-    if not _df_assign.empty:
-        _df_assign["date"] = pd.to_datetime(_df_assign["date"], errors="coerce").dt.date
-    else:
-        _df_assign["date"] = pd.Series(dtype="datetime64[ns]").dt.date
-    _mask_student = _df_assign.get("studentcode", pd.Series([], dtype=str)).astype(str).str.lower().str.strip() == _student_code
-
-    _dates = sorted(_df_assign[_mask_student]["date"].dropna().unique(), reverse=True)
-    _streak = 1 if _dates else 0
-    for i in range(1, len(_dates)):
-        if (_dates[i - 1] - _dates[i]).days == 1:
-            _streak += 1
-        else:
-            break
-
-    _monday = _date.today() - _td(days=_date.today().weekday())
-    _weekly_goal = 3
-    _submitted_this_week = _df_assign[_mask_student & (_df_assign["date"] >= _monday)].shape[0]
-    _goal_left = max(0, _weekly_goal - _submitted_this_week)
-
-    _level = (safe_get(student_row, "Level", "A1") or "A1").upper().strip()
-    _vocab_df = load_full_vocab_sheet()
-    _vocab_item = get_vocab_of_the_day(_vocab_df, _level)
-
-    if not _df_assign.empty:
-        _df_assign['level'] = _df_assign['level'].astype(str).str.upper().str.strip()
-        _df_assign['score'] = pd.to_numeric(_df_assign['score'], errors='coerce')
-        _min_assignments = 3
-        _df_level = (
-            _df_assign[_df_assign['level'] == _level]
-            .groupby(['studentcode', 'name'], as_index=False)
-            .agg(total_score=('score', 'sum'), completed=('assignment', 'nunique'))
-        )
-        _df_level = _df_level[_df_level['completed'] >= _min_assignments]
-        _df_level = _df_level.sort_values(['total_score', 'completed'], ascending=[False, False]).reset_index(drop=True)
-        _df_level['Rank'] = _df_level.index + 1
-        _your_row = _df_level[_df_level['studentcode'].astype(str).str.lower() == _student_code.lower()]
-        _total_students = len(_df_level)
-    else:
-        _your_row = pd.DataFrame()
-        _total_students = 0
-
-    _streak_line = (
-        f"<span class='pill pill-green'>{_streak} day{'s' if _streak != 1 else ''} streak</span>"
-        if _streak > 0 else
-        "<span class='pill pill-amber'>Start your streak today</span>"
-    )
-    _goal_line = (
-        f"Submitted {_submitted_this_week}/{_weekly_goal} this week"
-        + (f" — {_goal_left} to go" if _goal_left else " — goal met 🎉")
-    )
-
-    if _vocab_item:
-        _vocab_chip = f"<span class='pill pill-purple'>{_vocab_item.get('german','')}</span>"
-        _vocab_sub = f"{_vocab_item.get('english','')} · Level {_level}"
-    else:
-        _vocab_chip = "<span class='pill pill-amber'>No vocab available</span>"
-        _vocab_sub = f"Level {_level}"
-
-    if not _your_row.empty:
-        _rank = int(_your_row.iloc[0]["Rank"])
-        _rank_text = f"Rank #{_rank} of {_total_students}"
-        _lead_chip = "<span class='pill pill-purple'>On the board</span>"
-    else:
-        _rank_text = "Complete 3+ assignments to be ranked"
-        _lead_chip = "<span class='pill pill-amber'>Not ranked yet</span>"
-
-    st.markdown(
-        f"""
-        <div class="minirow">
-          <div class="minicard">
-            <h4>🏅 Assignment Streak</h4>
-            <div>{_streak_line}</div>
-            <div class="sub">{_goal_line}</div>
-          </div>
-          <div class="minicard">
-            <h4>🗣️ Vocab of the Day</h4>
-            <div>{_vocab_chip}</div>
-            <div class="sub">{_vocab_sub}</div>
-          </div>
-          <div class="minicard">
-            <h4>🏆 Leaderboard</h4>
-            <div>{_lead_chip}</div>
-            <div class="sub">{_rank_text}</div>
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    st.divider()
-
-    # ---------- Student header (compact) ----------
-    name = safe_get(student_row, "Name")
-    level = safe_get(student_row, "Level", "")
-    code  = safe_get(student_row, "StudentCode", "")
-    try:
-        bal_val = float(str(safe_get(student_row, "Balance", 0)).replace(",", "").strip() or 0)
-    except Exception:
-        bal_val = 0.0
-
-    st.markdown(
-        f"<div style='display:flex;flex-wrap:wrap;gap:10px;align-items:center;"
-        f"padding:8px 10px;border:1px solid rgba(148,163,184,.35);border-radius:10px;"
-        f"background:#ffffff;'>"
-        f"<b>👤 {name}</b>"
-        f"<span style='background:#eef4ff;color:#2541b2;padding:2px 8px;border-radius:999px;'>Level: {level}</span>"
-        f"<span style='background:#f1f5f9;color:#334155;padding:2px 8px;border-radius:999px;'>Code: <code>{code}</code></span>"
-        + (f"<span style='background:#fff7ed;color:#7c2d12;padding:2px 8px;border-radius:999px;'>Balance: ₵{bal_val:,.2f}</span>"
-           if bal_val > 0 else
-           "<span style='background:#ecfdf5;color:#065f46;padding:2px 8px;border-radius:999px;'>Balance: ₵0.00</span>")
-        + "</div>",
-        unsafe_allow_html=True
-    )
-
-    # =========================================================
-    # ============== Inbox state & styling helpers ============
-    # =========================================================
-    def _ensure_inbox_state(student_code: str) -> dict:
-        st.session_state.setdefault("inbox_state", {})
-        store = st.session_state["inbox_state"].setdefault(student_code, {
-            "dismissed": set(),
-            "snoozed_until": {},  # mid -> datetime
-            "pinned": set(),
-        })
-        store["dismissed"] = set(store.get("dismissed", set()))
-        store["snoozed_until"] = dict(store.get("snoozed_until", {}))
-        store["pinned"] = set(store.get("pinned", set()))
-        return store
-
-    _STATE = _ensure_inbox_state(_student_code)
-
-    def inbox_op(op: str, mid: str, days: int = 0):
-        store = _ensure_inbox_state(_student_code)
-        now = _dt.utcnow()
-        if op == "dismiss":
-            store["dismissed"].add(mid)
-        elif op == "snooze":
-            store["snoozed_until"][mid] = now + _td(days=days)
-        elif op == "pin":
-            if mid in store["pinned"]:
-                store["pinned"].remove(mid)
-            else:
-                store["pinned"].add(mid)
-
-    def is_dismissed(mid: str) -> bool:
-        return mid in _STATE["dismissed"]
-
-    def is_snoozed(mid: str) -> bool:
-        until = _STATE["snoozed_until"].get(mid)
-        return bool(until and until > _dt.utcnow())
-
-    def is_pinned(mid: str) -> bool:
-        return mid in _STATE["pinned"]
-
-    # Small helper to render an external link as a button (works on all Streamlit versions)
-    def open_link_button(label: str, url: str):
-        if not url:
-            return
-        if hasattr(st, "link_button"):
-            try:
-                st.link_button(label, url)  # do NOT pass `key` (older versions TypeError)
-                return
-            except TypeError:
-                pass
-        # Fallback HTML button-style link
-        st.markdown(
-            f"""<a href="{url}" target="_blank" rel="noopener"
-                  style="display:inline-block;padding:0.5rem 0.75rem;border-radius:8px;
-                         border:1px solid rgba(148,163,184,.35);text-decoration:none;
-                         font-weight:700;">{label}</a>""",
-            unsafe_allow_html=True
-        )
-
-    # Inbox CSS
-    st.markdown("""
-    <style>
-      .inbox-wrap { margin: 8px 0 2px 0; }
-      .inbox-card {
-        border:1px solid rgba(148,163,184,.35);
-        border-radius:12px; padding:12px; margin:8px 0; background:#ffffff;
-      }
-      .inbox-title { font-weight:800; font-size:1.03rem; margin-bottom:6px; }
-      .inbox-meta { display:flex; flex-wrap:wrap; gap:8px; font-size:.88rem; color:#475569; margin-top:6px; }
-      .sev-urgent { border-color:#fecaca; background:#fef2f2; }
-      .sev-warn   { border-color:#fed7aa; background:#fff7ed; }
-      .sev-info   { border-color:#cbd5e1; background:#f8fafc; }
-      .pin-badge  { background:#efe9ff; color:#5b21b6; padding:2px 8px; border-radius:999px; font-weight:700; font-size:.82rem; }
-      @media (prefers-color-scheme: dark){
-        .inbox-card { background:#111827; border-color:rgba(148,163,184,.28); }
-        .sev-urgent { background:#1b1111; }
-        .sev-warn { background:#1b1710; }
-        .sev-info { background:#0f172a; }
-      }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # =========================================================
-    # ============== Build inbox messages (smart) =============
-    # =========================================================
-    msgs = []
-
-    # ----- Billing / Payments -----
-    def _read_money(x):
-        try:
-            s = str(x).replace(",", "").strip()
-            return float(s) if s not in ("", "nan", "None") else 0.0
-        except Exception:
-            return 0.0
-
-    today = _dt.today().date()
-
-    # Contract start -> first due = start + 1 month
-    _cs = None
-    for _k in ["ContractStart", "StartDate", "ContractBegin", "Start", "Begin"]:
-        _s = str(safe_get(student_row, _k, "") or "").strip()
-        if _s:
-            _cs = parse_contract_start_fn(_s) or _fallback_parse_date(_s)
-            break
-    _first_due_dt = add_months_fn(_cs, 1) if _cs else None
-    _first_due = _first_due_dt.date() if _first_due_dt and hasattr(_first_due_dt, "date") else _first_due_dt
-    _balance = _read_money(safe_get(student_row, "Balance", 0))
-
-    if _balance > 0 and _first_due:
-        if today > _first_due:
-            _days_over = (today - _first_due).days
-            msgs.append({
-                "id": f"billing:overdue:{_first_due.isoformat()}:{_student_code}",
-                "title": f"💳 Payment overdue by {_days_over} day{'s' if _days_over!=1 else ''}",
-                "body": f"Amount due: ₵{_balance:,.2f}. First payment date was {_first_due:%d %b %Y}.",
-                "severity": "urgent",
-                "category": "Billing",
-                "when": _dt.utcnow(),
-                "href": None,
+    balance = _safe_float((student_row or {}).get("Balance", 0))
+    if balance > 0 and first_due:
+        days = (today - first_due).days
+        if days > 0:
+            items.append({
+                "id": "pay_overdue",
+                "title": "Payment overdue",
+                "body": f"Overdue by {days} day{'s' if days!=1 else ''}. Amount due: ₵{balance:,.2f}.",
+                "tag": "Urgent",
+                "priority": 100,
             })
-        elif today == _first_due:
-            msgs.append({
-                "id": f"billing:due_today:{_first_due.isoformat()}:{_student_code}",
-                "title": "💳 Payment due today",
-                "body": f"Amount due: ₵{_balance:,.2f}. Due date: {_first_due:%d %b %Y}.",
-                "severity": "warn",
-                "category": "Billing",
-                "when": _dt.utcnow(),
-                "href": None,
+        elif days == 0:
+            items.append({
+                "id": "pay_due_today",
+                "title": "Payment due today",
+                "body": f"Your first payment is due today. Amount due: ₵{balance:,.2f}.",
+                "tag": "Action",
+                "priority": 90,
             })
-        else:
-            _days_left = (_first_due - today).days
-            msgs.append({
-                "id": f"billing:upcoming:{_first_due.isoformat()}:{_student_code}",
-                "title": "💳 Payment schedule info",
-                "body": f"Your first payment date is {_first_due:%d %b %Y} (in {_days_left} day{'s' if _days_left!=1 else ''}). Current balance: ₵{_balance:,.2f}.",
-                "severity": "info",
-                "category": "Billing",
-                "when": _dt.utcnow(),
-                "href": None,
-            })
-    elif _balance > 0 and not _first_due:
-        msgs.append({
-            "id": f"billing:schedule_unknown:{_student_code}",
-            "title": "💳 Payment schedule unknown",
-            "body": "You have a positive balance, but contract start date was not found to compute the first due date.",
-            "severity": "info",
-            "category": "Billing",
-            "when": _dt.utcnow(),
-            "href": None,
-        })
-
-    # ----- Contract end alert -----
-    _ce_raw = parse_contract_end_fn(safe_get(student_row, "ContractEnd", "")) or None
-    _ce_date = _ce_raw.date() if hasattr(_ce_raw, "date") else _ce_raw
-    EXT_FEE = 1000
-    if _ce_date:
-        _days_left = (_ce_date - today).days
-        if _days_left < 0:
-            msgs.append({
-                "id": f"contract:ended:{_ce_date.isoformat()}:{_student_code}",
-                "title": "📄 Contract ended",
-                "body": f"Your contract ended on {_ce_date:%d %b %Y}. Extension costs ₵{EXT_FEE:,}/month.",
-                "severity": "urgent",
-                "category": "Billing",
-                "when": _dt.utcnow(),
-                "href": None,
-            })
-        elif _days_left <= 14:
-            msgs.append({
-                "id": f"contract:ending:{_ce_date.isoformat()}:{_student_code}",
-                "title": "⏰ Contract ending soon",
-                "body": f"Ends in {_days_left} day{'s' if _days_left!=1 else ''} ({_ce_date:%d %b %Y}). Extension costs ₵{EXT_FEE:,}/month.",
-                "severity": "warn",
-                "category": "Billing",
-                "when": _dt.utcnow(),
-                "href": None,
+        elif -7 <= days < 0:
+            items.append({
+                "id": "pay_coming_up",
+                "title": "Payment coming up",
+                "body": f"First payment due on {first_due.strftime('%d %b %Y')} (in {abs(days)} days).",
+                "tag": "Heads up",
+                "priority": 70,
             })
 
-    # ----- Class schedule (next sessions) -----
-    GROUP_SCHEDULES = {
-        "A1 Munich Klasse": {
-            "days": ["Monday", "Tuesday", "Wednesday"],
-            "time": "6:00pm–7:00pm",
-            "start_date": "2025-07-08",
-            "end_date": "2025-09-02",
-            "doc_url": "https://drive.google.com/file/d/1en_YG8up4C4r36v4r7E714ARcZyvNFD6/view?usp=sharing"
-        },
-        "A1 Berlin Klasse": {
-            "days": ["Thursday", "Friday", "Saturday"],
-            "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
-            "start_date": "2025-06-14",
-            "end_date": "2025-08-09",
-            "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
-        },
-        "A1 Koln Klasse": {
-            "days": ["Thursday", "Friday", "Saturday"],
-            "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
-            "start_date": "2025-08-15",
-            "end_date": "2025-10-11",
-            "doc_url": "https://drive.google.com/file/d/1d1Ord557jGRn5NxYsmCJVmwUn1HtrqI3/view?usp=sharing"
-        },
-        "A2 Munich Klasse": {
-            "days": ["Monday", "Tuesday", "Wednesday"],
-            "time": "7:30pm–9:00pm",
-            "start_date": "2025-06-24",
-            "end_date": "2025-08-26",
-            "doc_url": "https://drive.google.com/file/d/1Zr3iN6hkAnuoEBvRELuSDlT7kHY8s2LP/view?usp=sharing"
-        },
-        "A2 Berlin Klasse": {
-            "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-            "time": "Mon–Wed: 11:00am–12:00pm, Thu/Fri: 11:00am–12:00pm, Wed: 2:00pm–3:00pm",
-            "start_date": "",
-            "end_date": "",
-            "doc_url": ""
-        },
-        "A2 Koln Klasse": {
-            "days": ["Wednesday", "Thursday", "Friday"],
-            "time": "11:00am–12:00pm",
-            "start_date": "2025-08-06",
-            "end_date": "2025-10-08",
-            "doc_url": "https://drive.google.com/file/d/19cptfdlmBDYe9o84b8ZCwujmxuMCKXAD/view?usp=sharing"
-        },
-        "B1 Munich Klasse": {
-            "days": ["Thursday", "Friday"],
-            "time": "7:30pm–9:00pm",
-            "start_date": "2025-08-07",
-            "end_date": "2025-11-07",
-            "doc_url": "https://drive.google.com/file/d/1CaLw9RO6H8JOr5HmwWOZA2O7T-bVByi7/view?usp=sharing"
-        },
-        "B2 Munich Klasse": {
-            "days": ["Friday", "Saturday"],
-            "time": "Fri: 2pm-3:30pm, Sat: 9:30am-10am",
-            "start_date": "2025-08-08",
-            "end_date": "2025-10-08",
-            "doc_url": "https://drive.google.com/file/d/1gn6vYBbRyHSvKgqvpj5rr8OfUOYRL09W/view?usp=sharing"
-        },
-    }
-    class_name = str(safe_get(student_row, "ClassName", "")).strip()
-    class_schedule = GROUP_SCHEDULES.get(class_name)
-    if class_schedule:
-        week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-        days = class_schedule.get("days", [])
-        time_str = class_schedule.get("time", "")
-        start_dt = class_schedule.get("start_date", "")
-        end_dt = class_schedule.get("end_date", "")
-        doc_url = class_schedule.get("doc_url", "")
-
-        today_d = _dt.today().date()
-        def _parse(d):
-            try: return _dt.strptime(d, "%Y-%m-%d").date() if d else None
-            except Exception: return None
-        start_date_obj = _parse(start_dt); end_date_obj = _parse(end_dt)
-        day_indices = [week_days.index(d) for d in days if d in week_days] if isinstance(days, list) else []
-
-        def get_next_sessions(from_date, weekday_indices, limit=3, end_date=None):
-            results = []
-            if not weekday_indices:
-                return results
-            check_date = from_date
-            while len(results) < limit:
-                if end_date and check_date > end_date:
-                    break
-                if check_date.weekday() in weekday_indices:
-                    results.append(check_date)
-                check_date += _td(days=1)
-            return results
-
-        if start_date_obj and today_d < start_date_obj:
-            upcoming = get_next_sessions(start_date_obj, day_indices, 3, end_date_obj)
-        else:
-            upcoming = get_next_sessions(today_d, day_indices, 3, end_date_obj)
-
-        if upcoming:
-            pretty = ", ".join([d.strftime("%a %d %b") for d in upcoming])
-            msgs.append({
-                "id": f"schedule:next:{class_name}:{upcoming[0].isoformat()}",
-                "title": f"🧑‍🏫 Next classes ({class_name})",
-                "body": f"{pretty} · {time_str}",
-                "severity": "info",
-                "category": "Schedule",
-                "when": _dt.utcnow(),
-                "href": doc_url or None,
+    # contract end
+    ce = _parse_date_flex((student_row or {}).get("ContractEnd",""))
+    if ce:
+        days_left = (ce.date() - today).days
+        if days_left < 0:
+            items.append({
+                "id": "contract_ended",
+                "title": "Contract ended",
+                "body": f"Your contract ended on {ce.strftime('%d %b %Y')}. Contact the office if you need an extension.",
+                "tag": "Important",
+                "priority": 95,
             })
-        elif end_date_obj and today_d > end_date_obj:
-            msgs.append({
-                "id": f"schedule:ended:{class_name}:{end_date_obj.isoformat()}",
-                "title": f"🧑‍🏫 Course ended ({class_name})",
-                "body": f"Course ended on {end_date_obj:%d %b %Y}. Please contact the office for next steps.",
-                "severity": "warn",
-                "category": "Schedule",
-                "when": _dt.utcnow(),
-                "href": doc_url or None,
+        elif days_left <= 14:
+            items.append({
+                "id": "contract_ending",
+                "title": "Contract ending soon",
+                "body": f"Ends in {days_left} day{'s' if days_left!=1 else ''} ({ce.strftime('%d %b %Y')}).",
+                "tag": "Reminder",
+                "priority": 85,
             })
-    else:
-        msgs.append({
-            "id": f"schedule:notset:{_student_code}",
-            "title": "🧑‍🏫 Class not set",
-            "body": "Your class is not set yet. Please contact your teacher or the office.",
-            "severity": "info",
-            "category": "Schedule",
-            "when": _dt.utcnow(),
-            "href": None,
-        })
 
-# ---------- Goethe exam (countdown only — no video) ----------
-with st.expander("⏳ Goethe Exam Countdown", expanded=False):
-    from datetime import date
-
+    # Goethe exam (no video)
     GOETHE_EXAM_DATES = {
-        "A1": (date(2025, 10, 13), 2850, None),
-        "A2": (date(2025, 10, 14), 2400, None),
-        "B1": (date(2025, 10, 15), 2750, 880),
-        "B2": (date(2025, 10, 16), 2500, 840),
-        "C1": (date(2025, 10, 17), 2450, 700),
+        "A1": (date(2025,10,13), 2850, None),
+        "A2": (date(2025,10,14), 2400, None),
+        "B1": (date(2025,10,15), 2750, 880),
+        "B2": (date(2025,10,16), 2500, 840),
+        "C1": (date(2025,10,17), 2450, 700),
     }
+    level = str((student_row or {}).get("Level","") or "").upper().replace(" ","")
+    if level in GOETHE_EXAM_DATES:
+        ex_date, fee, module_fee = GOETHE_EXAM_DATES[level]
+        days_to = (ex_date - today).days
+        if days_to <= 60:
+            fee_text = f"Fee: ₵{fee:,}" + (f" | Per module: ₵{module_fee:,}" if module_fee else "")
+            title = f"{level} Exam: " + ("today!" if days_to==0 else (f"in {days_to} days" if days_to>0 else f"{abs(days_to)} days ago"))
+            items.append({
+                "id": f"exam_{level.lower()}",
+                "title": title,
+                "body": f"Date: {ex_date:%d %b %Y}. {fee_text}. Register via Goethe Institute.",
+                "tag": "Exam",
+                "priority": 80 if days_to >= 0 else 60,
+                "href": "https://www.goethe.de/ins/gh/en/spr/prf.html",
+            })
 
-    level = (safe_get(student_row, "Level", "") or "").upper().replace(" ", "")
-    exam_info = GOETHE_EXAM_DATES.get(level)
+    if not items:
+        items.append({
+            "id": "welcome_tip",
+            "title": "Welcome 👋",
+            "body": "Check your Course tab for schedule, and Results & Resources for past submissions.",
+            "tag": "Tip",
+            "priority": 10,
+        })
 
-    if exam_info:
-        exam_date, fee, module_fee = exam_info
-        days_to_exam = (exam_date - date.today()).days
-        fee_text = f"**Fee:** ₵{fee:,}"
-        if module_fee:
-            fee_text += f" &nbsp; | &nbsp; **Per Module:** ₵{module_fee:,}"
-
-        if days_to_exam > 0:
-            st.info(
-                f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).  \n"
-                f"{fee_text}  \n"
-                "[Register online here](https://www.goethe.de/ins/gh/en/spr/prf.html)"
-            )
-        elif days_to_exam == 0:
-            st.success("🚀 Exam is today! Good luck!")
-        else:
-            st.error(
-                f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.  \n"
-                f"{fee_text}"
-            )
-    else:
-        st.warning("No exam date configured for your level.")
+    for it in items:
+        it.setdefault("generated_at", datetime.utcnow().isoformat(timespec="seconds"))
+        ensure_ann_id(it)
+    return items
 
 
-# ---------- Footer component (links: Terms, Privacy, Delete Account, Support) ----------
-def render_footer():
-    from datetime import datetime as _dt
+def _should_show(ann: Dict[str, Any], actions_map: Dict[str, Any]) -> bool:
+    now = datetime.utcnow()
+    ann_id = ensure_ann_id(ann)
 
-    # Read from secrets if you have them, else use placeholders you can replace anytime.
-    _links = {}
-    try:
-        _links = (st.secrets.get("links", {}) if hasattr(st, "secrets") else {}) or {}
-    except Exception:
-        _links = {}
+    # optional time windows on announcements
+    starts_at  = _parse_iso(str(ann.get("starts","") or ""))
+    expires_at = _parse_iso(str(ann.get("expires","") or ""))
+    if starts_at and now < starts_at: return False
+    if expires_at and now > expires_at: return False
 
-    TERMS   = _links.get("terms",   "https://example.com/terms")
-    PRIVACY = _links.get("privacy", "https://example.com/privacy")
-    DELETE  = _links.get("delete",  "https://example.com/account-deletion")
-    SUPPORT = _links.get("support", "mailto:support@example.com")
+    act = (actions_map or {}).get(ann_id)
+    if not act: return True
 
-    year = _dt.utcnow().year
+    status = (act.get("status") or "").lower()
+    if status == "dismissed":
+        return False
+    if status == "snoozed":
+        su = _parse_iso(act.get("snooze_until") or "")
+        if su and now < su:
+            return False
+        return True
+    return True
 
+
+# ---------------------------- Renderer -------------------------------
+def render_announcement_inbox(student_code: str, student_row: Dict[str, Any], extra_announcements: Optional[List[Dict[str, Any]]] = None):
+    """
+    Inbox with Dismiss + Snooze (1/3/7 days). Persists to Firestore per student.
+    """
+    # collect items
+    dyn = build_dynamic_announcements(student_row)
+    static = (extra_announcements or [])
+    items: List[Dict[str, Any]] = []
+    for a in (static + dyn):
+        a = dict(a)
+        ensure_ann_id(a)
+        a.setdefault("priority", 50)
+        items.append(a)
+
+    prefs = load_notice_prefs(student_code)
+    actions = (prefs or {}).get("actions", {})
+
+    visible = [a for a in items if _should_show(a, actions)]
+    visible.sort(key=lambda x: (int(x.get("priority",0)), x.get("generated_at","")), reverse=True)
+
+    # Styles
+    st.markdown(
+        """
+        <style>
+          .inbox-wrap{ margin:4px 0 8px 0; }
+          .msg-card{ border:1px solid rgba(148,163,184,.35); border-radius:14px; padding:12px 12px;
+                     background:#fff; margin:8px 0; }
+          .msg-head{ display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+          .msg-title{ font-weight:800; font-size:1.02rem; color:#0f172a; }
+          .msg-chip{ font-size:.74rem; font-weight:800; text-transform:uppercase; padding:3px 8px; border-radius:999px;
+                     border:1px solid rgba(148,163,184,.35); background:#eef4ff; color:#2541b2;}
+          .msg-body{ color:#475569; font-size:0.98rem; line-height:1.55; margin:0 0 8px 0; }
+          .msg-actions{ display:flex; flex-wrap:wrap; gap:8px; }
+          @media (max-width:640px){
+            .msg-card{ padding:11px; }
+            .msg-title{ font-size:1.00rem; }
+          }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.markdown("### 📥 Inbox")
+    st.caption("Newest & most important first. Dismiss to hide forever, or snooze to see later.")
+
+    if not visible:
+        st.success("All caught up! 🎉")
+        return
+
+    for m in visible:
+        ann_id = m["id"]
+        with st.container(border=True):
+            c1, c2 = st.columns([0.74, 0.26])
+            with c1:
+                st.markdown(
+                    f"""
+                    <div class="msg-card">
+                      <div class="msg-head">
+                        <span class="msg-chip">{m.get('tag','')}</span>
+                        <span class="msg-title">{m.get('title','')}</span>
+                      </div>
+                      <div class="msg-body">{m.get('body','')}</div>
+                      {f'<div><a href="{m.get("href")}" target="_blank">Open link</a></div>' if m.get("href") else ""}
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+            with c2:
+                st.write("") ; st.write("")  # top spacing
+                s1 = st.button("Snooze 1d", key=f"s1_{ann_id}")
+                s3 = st.button("Snooze 3d", key=f"s3_{ann_id}")
+                s7 = st.button("Snooze 7d", key=f"s7_{ann_id}")
+                d  = st.button("Dismiss",  key=f"dismiss_{ann_id}")
+
+                if s1 or s3 or s7 or d:
+                    if d:
+                        save_notice_action(student_code, ann_id, "dismissed", None)
+                    else:
+                        days = 1 if s1 else (3 if s3 else 7)
+                        save_notice_action(student_code, ann_id, "snoozed", datetime.utcnow() + timedelta(days=days))
+                    st.rerun()
+
+
+# ------------------------------- Footer -------------------------------
+FOOTER_LINKS = {
+    "Terms & Conditions": "https://yourdomain.com/terms",
+    "Privacy Policy": "https://yourdomain.com/privacy",
+    "Request Account Deletion": "https://yourdomain.com/delete-account",
+    "Contact Support": "mailto:support@yourdomain.com",
+}
+
+def render_app_footer(links: Dict[str, str]):
+    st.markdown(
+        """
+        <style>
+          .app-footer{ margin-top:18px; padding:16px 14px; border-top:1px solid rgba(148,163,184,.35); color:#475569; }
+          .app-footer a{ text-decoration:none; font-weight:700; }
+          .app-footer .row{ display:flex; flex-wrap:wrap; gap:14px; }
+          @media (max-width:640px){
+            .app-footer{ padding:14px 10px; }
+          }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    parts = []
+    for label, href in (links or {}).items():
+        parts.append(f'<a href="{href}" target="_blank">{label}</a>')
     st.markdown(
         f"""
-        <style>
-          .app-footer {{
-            margin: 16px 0 6px 0;
-            border-top: 1px solid rgba(148,163,184,.35);
-            padding-top: 12px;
-            color:#334155;
-          }}
-          .foot-links {{
-            display:flex; flex-wrap:wrap; gap:10px;
-            margin-bottom:8px;
-          }}
-          .foot-chip {{
-            display:inline-block; padding:7px 10px; border-radius:999px;
-            border:1px solid rgba(148,163,184,.35);
-            background:#ffffff; font-weight:700; font-size:.95rem;
-          }}
-          .foot-chip a {{ color:#1d4ed8; text-decoration:none; }}
-          .foot-small {{ font-size:.92rem; color:#64748b; }}
-          @media (max-width:640px){{
-            .foot-chip {{ padding:6px 9px; font-size:.94rem; }}
-            .foot-small {{ font-size:.94rem; }}
-          }}
-        </style>
         <div class="app-footer">
-          <div class="foot-links">
-            <span class="foot-chip"><a href="{TERMS}" target="_blank" rel="noopener">Terms &amp; Conditions</a></span>
-            <span class="foot-chip"><a href="{PRIVACY}" target="_blank" rel="noopener">Privacy Policy</a></span>
-            <span class="foot-chip"><a href="{DELETE}" target="_blank" rel="noopener">Request Account Deletion</a></span>
-            <span class="foot-chip"><a href="{SUPPORT}" target="_blank" rel="noopener">Contact Support</a></span>
+          <div class="row">
+            {" | ".join(parts)}
           </div>
-          <div class="foot-small">© {year} Falowen — All rights reserved.</div>
+          <div style="margin-top:6px;font-size:.9rem;">© {date.today().year} Your School</div>
         </div>
         """,
-        unsafe_allow_html=True,
+        unsafe_allow_html=True
     )
+
 
 
 # ---------- Call footer at the very end of the Dashboard ----------
