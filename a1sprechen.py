@@ -10885,11 +10885,14 @@ def get_schreiben_usage(student_code):
 def inc_schreiben_usage(student_code):
     today = str(date.today())
     doc_ref = db.collection("schreiben_usage").document(f"{student_code}_{today}")
-    doc = doc_ref.get()
-    if doc.exists:
-        doc_ref.update({"count": firestore.Increment(1)})
-    else:
-        doc_ref.set({"student_code": student_code, "date": today, "count": 1})
+    try:
+        doc = doc_ref.get()
+        if doc.exists:
+            doc_ref.update({"count": firestore.Increment(1)})
+        else:
+            doc_ref.set({"student_code": student_code, "date": today, "count": 1})
+    except Exception as exc:
+        st.error(f"Failed to increment Schreiben usage: {exc}")
 
 # -- Firestore-only: Submission + Full letter (Saves for feedback & stats) --
 def save_submission(student_code: str, score: int, passed: bool, timestamp, level: str, letter: str):
@@ -10902,7 +10905,10 @@ def save_submission(student_code: str, score: int, passed: bool, timestamp, leve
         "assignment": "Schreiben Trainer",
         "letter": letter,
     }
-    db.collection("schreiben_submissions").add(payload)
+    try:
+        db.collection("schreiben_submissions").add(payload)
+    except Exception as exc:
+        st.error(f"Failed to save submission: {exc}")
 
 # -- Firestore-only: Recalculate All Schreiben Stats (called after every submission) --
 def update_schreiben_stats(student_code: str):
@@ -10934,16 +10940,19 @@ def update_schreiben_stats(student_code: str):
     average_score = sum(scores) / total if scores else 0
 
     stats_ref = db.collection("schreiben_stats").document(student_code)
-    stats_ref.set({
-        "total": total,
-        "passed": passed,
-        "pass_rate": pass_rate,
-        "best_score": best_score,
-        "average_score": average_score,
-        "last_attempt": last_attempt,
-        "last_letter": last_letter,
-        "attempts": scores
-    }, merge=True)
+    try:
+        stats_ref.set({
+            "total": total,
+            "passed": passed,
+            "pass_rate": pass_rate,
+            "best_score": best_score,
+            "average_score": average_score,
+            "last_attempt": last_attempt,
+            "last_letter": last_letter,
+            "attempts": scores
+        }, merge=True)
+    except Exception as exc:
+        st.error(f"Failed to update Schreiben stats: {exc}")
 
 # -- Firestore-only: Fetch stats for display (for status panel etc) --
 def get_schreiben_stats(student_code: str):
@@ -10957,6 +10966,28 @@ def get_schreiben_stats(student_code: str):
             "pass_rate": 0, "last_attempt": None, "attempts": [], "last_letter": ""
         }
 
+# -- Firestore: Save/load latest Schreiben feedback --
+def save_schreiben_feedback(student_code: str, feedback: str) -> None:
+    """Persist the most recent AI feedback for a student's letter."""
+    doc_ref = db.collection("schreiben_feedback").document(student_code)
+    doc_ref.set(
+        {
+            "student_code": student_code,
+            "feedback": feedback,
+            "date": firestore.SERVER_TIMESTAMP,
+        }
+    )
+
+
+def load_schreiben_feedback(student_code: str) -> str:
+    """Retrieve any saved AI feedback for the student's last submission."""
+    doc = db.collection("schreiben_feedback").document(student_code).get()
+    if doc.exists:
+        data = doc.to_dict() or {}
+        return data.get("feedback", "")
+    return ""
+
+
 # -- Firestore-only: Usage Limit (Daily Letter Coach) --
 def get_letter_coach_usage(student_code):
     today = str(date.today())
@@ -10966,22 +10997,28 @@ def get_letter_coach_usage(student_code):
 def inc_letter_coach_usage(student_code):
     today = str(date.today())
     doc_ref = db.collection("letter_coach_usage").document(f"{student_code}_{today}")
-    doc = doc_ref.get()
-    if doc.exists:
-        doc_ref.update({"count": firestore.Increment(1)})
-    else:
-        doc_ref.set({"student_code": student_code, "date": today, "count": 1})
+    try:
+        doc = doc_ref.get()
+        if doc.exists:
+            doc_ref.update({"count": firestore.Increment(1)})
+        else:
+            doc_ref.set({"student_code": student_code, "date": today, "count": 1})
+    except Exception as exc:
+        st.error(f"Failed to increment Letter Coach usage: {exc}")
 
 # -- Firestore: Save/load Letter Coach progress --
 def save_letter_coach_progress(student_code, level, prompt, chat):
-    doc_ref = db.collection("letter_coach_progress").document(student_code)
-    doc_ref.set({
-        "student_code": student_code,
-        "level": level,
-        "prompt": prompt,
-        "chat": chat,
-        "date": firestore.SERVER_TIMESTAMP
-    })
+    try:
+        doc_ref = db.collection("letter_coach_progress").document(student_code)
+        doc_ref.set({
+            "student_code": student_code,
+            "level": level,
+            "prompt": prompt,
+            "chat": chat,
+            "date": firestore.SERVER_TIMESTAMP
+        })
+    except Exception as exc:
+        st.error(f"Failed to save Letter Coach progress: {exc}")
 
 def load_letter_coach_progress(student_code):
     doc = db.collection("letter_coach_progress").document(student_code).get()
@@ -11155,6 +11192,9 @@ if tab == "Schreiben Trainer":
 
         draft_key = _wkey("schreiben_letter")
         existing_draft = load_draft_from_db(student_code, draft_key)
+        existing_feedback = load_schreiben_feedback(student_code)
+        if existing_feedback:
+            st.session_state[f"{student_code}_last_feedback"] = existing_feedback
 
         user_letter = st.text_area(
             "Paste or type your German letter/essay here.",
@@ -11290,6 +11330,8 @@ if tab == "Schreiben Trainer":
                 st.markdown(highlight_feedback(feedback), unsafe_allow_html=True)
                 st.session_state[f"{student_code}_awaiting_correction"] = True
 
+                save_schreiben_feedback(student_code, feedback)
+
                 # --- Save to Firestore ---
                 score_match = re.search(r"Score[: ]+(\d+)", feedback)
                 score = int(score_match.group(1)) if score_match else 0
@@ -11306,7 +11348,14 @@ if tab == "Schreiben Trainer":
                 save_draft_to_db(student_code, draft_key, "")
                 st.session_state.pop(draft_key, None)
 
-
+        elif st.session_state.get(f"{student_code}_last_feedback"):
+            st.markdown("---")
+            st.markdown("#### 📝 Feedback from Herr Felix")
+            st.markdown(
+                highlight_feedback(st.session_state[f"{student_code}_last_feedback"]),
+                unsafe_allow_html=True,
+            )
+            
         # --- Improvement section: Compare, download, WhatsApp ---
         if st.session_state.get(f"{student_code}_last_feedback") and st.session_state.get(f"{student_code}_last_user_letter"):
             st.markdown("---")
