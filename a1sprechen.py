@@ -3200,8 +3200,8 @@ def get_a1_schedule():
             "instruction": "Review the workbook and do the practicals in it. Answers are attached",
             "grammar_topic": "Erlaubt and Verboten",
             "schreiben_sprechen": {
-                "video": "https://youtu.be/n9Y0kt_XRZY",
-                "youtube_link": "https://youtu.be/n9Y0kt_XRZY",
+                "video": "",
+                "youtube_link": "",
                 "assignment": False,
                 "workbook_link": "https://drive.google.com/file/d/1CkoYa_qeqsGju0kTS6ElurCAlEW6pVFL/view?usp=sharing"
             }
@@ -10957,6 +10957,11 @@ def update_schreiben_stats(student_code: str):
     """
     Recalculates stats for a student after every submission.
     """
+
+    if not student_code:
+        st.warning("No student code provided; skipping stats update.")
+        return
+
     submissions = db.collection("schreiben_submissions").where(
         filter=FieldFilter("student_code", "==", student_code)
     ).stream()
@@ -10998,6 +11003,18 @@ def update_schreiben_stats(student_code: str):
 
 # -- Firestore-only: Fetch stats for display (for status panel etc) --
 def get_schreiben_stats(student_code: str):
+    if not student_code:
+        st.warning("No student code provided; returning empty stats.")
+        return {
+            "total": 0,
+            "passed": 0,
+            "average_score": 0,
+            "best_score": 0,
+            "pass_rate": 0,
+            "last_attempt": None,
+            "attempts": [],
+            "last_letter": "",
+        }
     stats_ref = db.collection("schreiben_stats").document(student_code)
     doc = stats_ref.get()
     if doc.exists:
@@ -11011,6 +11028,9 @@ def get_schreiben_stats(student_code: str):
 # -- Firestore: Save/load latest Schreiben feedback --
 def save_schreiben_feedback(student_code: str, feedback: str) -> None:
     """Persist the most recent AI feedback for a student's letter."""
+    if not student_code:
+        st.warning("No student code provided; feedback not saved.")
+        return
     doc_ref = db.collection("schreiben_feedback").document(student_code)
     doc_ref.set(
         {
@@ -11037,6 +11057,10 @@ def get_letter_coach_usage(student_code):
     return doc.to_dict().get("count", 0) if doc.exists else 0
 
 def inc_letter_coach_usage(student_code):
+    if not student_code:
+        st.warning("No student code provided; usage assumed 0.")
+        return 0
+        
     today = str(date.today())
     doc_ref = db.collection("letter_coach_usage").document(f"{student_code}_{today}")
     try:
@@ -12031,11 +12055,6 @@ if tab == "Schreiben Trainer":
                 st.session_state[ns("prompt")] = ""
                 st.session_state[ns("selected_letter_lines")] = []
                 st.rerun()
-
-
-
-
-
 
 
 
