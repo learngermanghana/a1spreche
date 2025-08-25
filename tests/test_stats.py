@@ -98,3 +98,25 @@ def test_load_student_levels_uses_secrets(monkeypatch):
     stats.load_student_levels.clear()
     stats.load_student_levels()
     assert "SECRET456" in captured["url"]
+
+def test_save_vocab_attempt_sanitizes_negative_inputs(monkeypatch):
+    stats.db = DummyDB()
+    warnings = []
+    monkeypatch.setattr(stats.st, "warning", lambda msg: warnings.append(msg))
+    stats.save_vocab_attempt("stud", "A1", -5, -2, [])
+    attempt = stats.get_vocab_stats("stud")["history"][-1]
+    assert attempt["total"] == 0
+    assert attempt["correct"] == 0
+    assert any("Total" in w for w in warnings)
+    assert any("Correct" in w for w in warnings)
+
+
+def test_save_vocab_attempt_limits_correct_to_total(monkeypatch):
+    stats.db = DummyDB()
+    warnings = []
+    monkeypatch.setattr(stats.st, "warning", lambda msg: warnings.append(msg))
+    stats.save_vocab_attempt("stud", "A1", 3, 5, [])
+    attempt = stats.get_vocab_stats("stud")["history"][-1]
+    assert attempt["total"] == 3
+    assert attempt["correct"] == 3
+    assert any("exceeds total" in w for w in warnings)
