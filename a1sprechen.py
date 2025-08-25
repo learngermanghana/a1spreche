@@ -11028,8 +11028,8 @@ if tab == "Schreiben Trainer":
 
         if st.session_state.get(f"{student_code}_last_feedback"):
             st.info(
-                "💾 Auto-save is paused while feedback is shown. "
-                "Use 'Clear feedback' below to start a new letter."
+                "Draft auto-save is paused while feedback is visible. "
+                "Clear feedback to resume saving."
             )
 
         # --- Word count and Goethe exam rules ---
@@ -11288,12 +11288,8 @@ if tab == "Schreiben Trainer":
                 )
                 st.markdown(
                     f"[📲 Send Improved Letter & Feedback to Tutor on WhatsApp]({wa_url})",
-                    unsafe_allow_html=True
+                    unsafe_allow_html=True,
                 )
-                            clear_feedback = st.button(
-                "🗑️ Clear feedback and start a new letter",
-                key=f"clear_feedback_{student_code}",
-            )
                 clear_feedback = st.button(
                     "🗑️ Clear feedback and start a new letter",
                     key=f"clear_feedback_{student_code}",
@@ -11301,7 +11297,22 @@ if tab == "Schreiben Trainer":
                 if clear_feedback:
                     clear_feedback_and_start_new()
 
-
+                            if clear_feedback:
+                for k in [
+                    "last_feedback",
+                    "last_user_letter",
+                    "delta_compare_feedback",
+                    "improved_letter",
+                    "final_improved_letter",
+                ]:
+                    st.session_state.pop(f"{student_code}_{k}", None)
+                st.session_state[f"{student_code}_awaiting_correction"] = False
+                st.session_state[draft_key] = ""
+                save_now(draft_key, student_code)
+                lv, lt, sf, sa = _draft_state_keys(draft_key)
+                for key in (lv, lt, sf, sa):
+                    st.session_state.pop(key, None)
+                st.rerun()
 
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
