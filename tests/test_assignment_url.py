@@ -3,6 +3,7 @@ from pathlib import Path
 import html
 
 import pandas as pd
+import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from src.assignment import linkify_html, _clean_link, _is_http_url
