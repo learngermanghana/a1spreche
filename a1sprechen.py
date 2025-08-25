@@ -315,18 +315,25 @@ _bootstrap_state()
 # Compatibility alias
 html = st_html
 
+# --- OpenAI setup (Cloud Run friendly) ---
+import os
+from openai import OpenAI
 
-
-# Prefer env on Cloud Run; fall back to st.secrets for local dev
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
-OPENAI_PROJECT = os.getenv("OPENAI_PROJECT") or st.secrets.get("OPENAI_PROJECT")
+# Read from environment (Cloud Run) or st.secrets (local dev)
+OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY") or "").strip()
+OPENAI_PROJECT = (os.getenv("OPENAI_PROJECT") or st.secrets.get("OPENAI_PROJECT") or "").strip()
 
 if not OPENAI_API_KEY:
-    st.error("Missing OpenAI API key. Set OPENAI_API_KEY in env/Secret Manager.")
+    st.error("Missing OPENAI_API_KEY. Add it via Secret Manager / env.")
     raise RuntimeError("Missing OPENAI_API_KEY")
 
-# Use project if your key starts with sk-proj- (recommended)
-client = OpenAI(api_key=OPENAI_API_KEY, project=OPENAI_PROJECT) if OPENAI_PROJECT else OpenAI(api_key=OPENAI_API_KEY)
+# If you use a project-scoped key (sk-proj-...), you must also set OPENAI_PROJECT
+if OPENAI_API_KEY.startswith("sk-proj-") and not OPENAI_PROJECT:
+    st.error("Your key is project-scoped. Set OPENAI_PROJECT in env.")
+    raise RuntimeError("Missing OPENAI_PROJECT for project-scoped key")
+
+client = OpenAI(api_key=OPENAI_API_KEY, project=(OPENAI_PROJECT or None))
+
 
 
 
