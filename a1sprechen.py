@@ -3801,9 +3801,10 @@ def get_b1_schedule():
             "goal": "Fast Food und Hausmannskost vergleichen.",
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
+            "grammar_topic": "Der Genitiv",
             "video": "",
             "youtube_link": "",
-            "grammarbook_link": "",
+            "grammarbook_link": "https://drive.google.com/file/d/1DMyTdt1cxhDxYJZQPHe3pAqE30TNwThU/view?usp=sharing",
             "workbook_link": ""
         },
         # TAG 8
@@ -3814,9 +3815,10 @@ def get_b1_schedule():
             "goal": "Tipps für Gesundheit geben und Arztbesuche besprechen.",
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
+            "grammar_topic": "Moadalverben",
             "video": "",
             "youtube_link": "",
-            "grammarbook_link": "",
+            "grammarbook_link": "https://drive.google.com/file/d/1s6TcUzjADzicOKRx3adxW4UdqEXQmz_L/view?usp=sharing",
             "workbook_link": ""
         },
         # TAG 9
