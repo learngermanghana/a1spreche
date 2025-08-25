@@ -315,17 +315,15 @@ _bootstrap_state()
 # Compatibility alias
 html = st_html
 
-# OpenAI setup
-import os
-from openai import OpenAI
-
-OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY") or "").strip()
+# ------------------------------------------------------------------------------
+# OpenAI (used elsewhere in app)
+# ------------------------------------------------------------------------------
+OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
-    raise RuntimeError("Missing OPENAI_API_KEY")
-
-client = OpenAI(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)  # <- no project arg
-
-
+    st.error("Missing OpenAI API key. Please add OPENAI_API_KEY in Streamlit secrets.")
+    raise RuntimeError("Missing OpenAI API key")
+os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+client = OpenAI(api_key=OPENAI_API_KEY)
     
 # ------------------------------------------------------------------------------
 # Student sheet loading
