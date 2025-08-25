@@ -11122,10 +11122,7 @@ if tab == "Schreiben Trainer":
                     feedback = None
 
             if feedback:
-                inc_schreiben_usage(student_code)
-                st.markdown("---")
-                st.markdown("#### 📝 Feedback from Herr Felix")
-                st.markdown(highlight_feedback(feedback), unsafe_allow_html=True)
+                st.markdown("[⬇️ Jump to feedback](#feedback-reference)")
                 st.session_state[f"{student_code}_awaiting_correction"] = True
 
                 save_schreiben_feedback(student_code, feedback, user_letter)
@@ -11146,17 +11143,16 @@ if tab == "Schreiben Trainer":
                 save_draft_to_db(student_code, draft_key, "")
                 st.session_state.pop(draft_key, None)
 
-        elif st.session_state.get(f"{student_code}_last_feedback"):
-            st.markdown("---")
-            st.markdown("#### 📝 Feedback from Herr Felix")
-            st.markdown(
-                highlight_feedback(st.session_state[f"{student_code}_last_feedback"]),
-                unsafe_allow_html=True,
-            )
+        elif (
+            st.session_state.get(f"{student_code}_last_feedback")
+            and st.session_state.get(f"{student_code}_last_user_letter")
+        ):
+            st.markdown("[⬇️ Jump to feedback](#feedback-reference)")
             
         # --- Improvement section: Compare, download, WhatsApp ---
         if st.session_state.get(f"{student_code}_last_feedback") and st.session_state.get(f"{student_code}_last_user_letter"):
             st.markdown("---")
+            st.markdown('<div id="feedback-reference"></div>', unsafe_allow_html=True)
             st.markdown("#### 📝 Feedback from Herr Felix (Reference)")
             st.markdown(
                 highlight_feedback(st.session_state[f"{student_code}_last_feedback"]),
@@ -11164,7 +11160,7 @@ if tab == "Schreiben Trainer":
             )
             st.markdown(
                 """
-                <div style="background:#e3f7da; border-left:7px solid #44c767; 
+                <div style="background:#e3f7da; border-left:7px solid #44c767;
                 color:#295327; padding:1.15em; margin-top:1em; border-radius:10px; font-size:1.09em;">
                     🔁 <b>Try to improve your letter!</b><br>
                     Paste your improved version below and click <b>Compare My Improvement</b>.<br>
