@@ -87,6 +87,16 @@ from src.stats import (
     vocab_attempt_exists,
 )
 
+from src.schreiben import (
+    update_schreiben_stats,
+    get_schreiben_stats,
+    save_schreiben_feedback,
+    load_schreiben_feedback,
+    delete_schreiben_feedback,
+    get_letter_coach_usage,
+    inc_letter_coach_usage,
+)
+
 DEFAULT_PLAYLIST_LEVEL = "A1"
 
 
@@ -10652,160 +10662,6 @@ def inc_schreiben_usage(student_code):
             doc_ref.set({"student_code": student_code, "date": today, "count": 1})
     except Exception as exc:
         st.error(f"Failed to increment Schreiben usage: {exc}")
-
-# -- Firestore-only: Submission + Full letter (Saves for feedback & stats) --
-def save_submission(student_code: str, score: int, passed: bool, timestamp, level: str, letter: str):
-    payload = {
-        "student_code": student_code,
-        "score": score,
-        "passed": passed,
-        "date": firestore.SERVER_TIMESTAMP,  # Always use server time
-        "level": level,
-        "assignment": "Schreiben Trainer",
-        "letter": letter,
-    }
-    try:
-        db.collection("schreiben_submissions").add(payload)
-    except Exception as exc:
-        st.error(f"Failed to save submission: {exc}")
-
-# -- Firestore-only: Recalculate All Schreiben Stats (called after every submission) --
-def update_schreiben_stats(student_code: str):
-    """
-    Recalculates stats for a student after every submission.
-    """
-
-    if not student_code:
-        st.warning("No student code provided; skipping stats update.")
-        return
-
-    submissions = db.collection("schreiben_submissions").where(
-        filter=FieldFilter("student_code", "==", student_code)
-    ).stream()
-
-    total = 0
-    passed = 0
-    scores = []
-    last_letter = ""
-    last_attempt = None
-
-    for doc in submissions:
-        data = doc.to_dict()
-        total += 1
-        score = data.get("score", 0)
-        scores.append(score)
-        if data.get("passed"):
-            passed += 1
-        last_letter = data.get("letter", "") or last_letter
-        last_attempt = data.get("date", last_attempt)
-
-    pass_rate = (passed / total * 100) if total > 0 else 0
-    best_score = max(scores) if scores else 0
-    average_score = sum(scores) / total if scores else 0
-
-    stats_ref = db.collection("schreiben_stats").document(student_code)
-    try:
-        stats_ref.set({
-            "total": total,
-            "passed": passed,
-            "pass_rate": pass_rate,
-            "best_score": best_score,
-            "average_score": average_score,
-            "last_attempt": last_attempt,
-            "last_letter": last_letter,
-            "attempts": scores
-        }, merge=True)
-    except Exception as exc:
-        st.error(f"Failed to update Schreiben stats: {exc}")
-
-# -- Firestore-only: Fetch stats for display (for status panel etc) --
-def get_schreiben_stats(student_code: str):
-    default_stats = {
-        "total": 0,
-        "passed": 0,
-        "average_score": 0,
-        "best_score": 0,
-        "pass_rate": 0,
-        "last_attempt": None,
-        "attempts": [],
-        "last_letter": "",
-    }
-    if not student_code:
-        st.warning("No student code provided; cannot load stats.")
-        return default_stats
-        
-    stats_ref = db.collection("schreiben_stats").document(student_code)
-    
-    try:
-        doc = stats_ref.get()
-    except GoogleAPICallError as exc:  # pragma: no cover - network failure
-        logging.error("Failed to fetch schreiben stats: %s", exc)
-        return default_stats
-        
-    if doc.exists:
-        return doc.to_dict()
-    else:
-        return default_stats
-
-# -- Firestore: Save/load latest Schreiben feedback --
-def save_schreiben_feedback(student_code: str, feedback: str, letter: str) -> None:
-    """Persist the most recent AI feedback and original letter."""
-    if not student_code:
-        st.warning("No student code provided; feedback not saved.")
-        return
-    doc_ref = db.collection("schreiben_feedback").document(student_code)
-    doc_ref.set(
-        {
-            "student_code": student_code,
-            "feedback": feedback,
-            "letter": letter,
-            "date": firestore.SERVER_TIMESTAMP,
-        }
-    )
-
-
-def load_schreiben_feedback(student_code: str) -> tuple[str, str]:
-    """Retrieve any saved AI feedback and the corresponding letter."""
-    if not student_code:
-        st.warning("No student code provided; feedback not loaded.")
-        return "", ""
-        
-    doc = db.collection("schreiben_feedback").document(student_code).get()
-    if doc.exists:
-        data = doc.to_dict() or {}
-        return data.get("feedback", ""), data.get("letter", "")
-    return "", ""
-
-def delete_schreiben_feedback(student_code: str) -> None:
-    if not student_code:
-        st.warning("No student code provided; feedback not cleared.")
-        return
-    db.collection("schreiben_feedback").document(student_code).delete()
-
-# -- Firestore-only: Usage Limit (Daily Letter Coach) --
-def get_letter_coach_usage(student_code):
-    if not student_code:
-        st.warning("No student code provided; usage assumed 0.")
-        return 0
-    today = str(date.today())
-    doc = db.collection("letter_coach_usage").document(f"{student_code}_{today}").get()
-    return doc.to_dict().get("count", 0) if doc.exists else 0
-
-def inc_letter_coach_usage(student_code):
-    if not student_code:
-        st.warning("No student code provided; usage assumed 0.")
-        return 0
-        
-    today = str(date.today())
-    doc_ref = db.collection("letter_coach_usage").document(f"{student_code}_{today}")
-    try:
-        doc = doc_ref.get()
-        if doc.exists:
-            doc_ref.update({"count": firestore.Increment(1)})
-        else:
-            doc_ref.set({"student_code": student_code, "date": today, "count": 1})
-    except Exception as exc:
-        st.error(f"Failed to increment Letter Coach usage: {exc}")
 
 # -- Firestore: Save/load Letter Coach progress --
 def save_letter_coach_progress(student_code, level, prompt, chat):
