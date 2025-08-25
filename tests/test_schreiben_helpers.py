@@ -13,6 +13,7 @@ TARGETS = {
     "get_schreiben_stats",
     "save_schreiben_feedback",
     "load_schreiben_feedback",
+    "delete_schreiben_feedback",
     "get_letter_coach_usage",
 }
 
@@ -73,6 +74,21 @@ def test_load_schreiben_feedback_empty(helpers):
     result = helpers.load_schreiben_feedback("")
     helpers.db.collection.assert_not_called()
     helpers.st.warning.assert_called_once()
+    assert result == ("", "")
+
+def test_delete_schreiben_feedback_empty(helpers):
+    helpers.delete_schreiben_feedback("")
+    helpers.db.collection.assert_not_called()
+    helpers.st.warning.assert_called_once()
+
+
+def test_delete_schreiben_feedback_clears_record(helpers):
+    doc = helpers.db.collection.return_value.document.return_value
+    doc.get.return_value.exists = False
+    helpers.delete_schreiben_feedback("abc")
+    result = helpers.load_schreiben_feedback("abc")
+    doc.delete.assert_called_once_with()
+    helpers.st.warning.assert_not_called()
     assert result == ("", "")
 
 def test_get_letter_coach_usage_empty(helpers):
