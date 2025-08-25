@@ -12,7 +12,63 @@ def test_get_vocab_stats_without_db():
     assert result["history"] == []
     assert result["total_sessions"] == 0
 
+class DummyDoc:
+    def __init__(self, store, key):
+        self.store = store
+        self.key = key
 
+    def get(self):
+        data = self.store.get(self.key)
+        class Result:
+            def __init__(self, exists, data):
+                self.exists = exists
+                self._data = data or {}
+
+            def to_dict(self):
+                return self._data
+
+        if data is None:
+            return Result(False, {})
+        return Result(True, data)
+
+    def set(self, data, merge=False):
+        if merge and self.key in self.store:
+            self.store[self.key].update(data)
+        else:
+            self.store[self.key] = data
+
+
+class DummyCollection:
+    def __init__(self, storage):
+        self.storage = storage
+
+    def document(self, key):
+        return DummyDoc(self.storage, key)
+
+
+class DummyDB:
+    def __init__(self):
+        self.data = {}
+
+    def collection(self, name):
+        coll = self.data.setdefault(name, {})
+        return DummyCollection(coll)
+
+
+def test_save_vocab_attempt_truncates_history():
+    stats.db = DummyDB()
+    extra = 5
+    total = stats.MAX_HISTORY + extra
+    for i in range(total):
+        stats.save_vocab_attempt(
+            "stud", "A1", 10, 5, [], session_id=f"s{i}"
+        )
+
+    result = stats.get_vocab_stats("stud")
+    assert len(result["history"]) == stats.MAX_HISTORY
+    assert result["total_sessions"] == total
+    assert result["history"][0]["session_id"] == f"s{extra}"
+    assert result["history"][-1]["session_id"] == f"s{total - 1}"
 
 def test_load_student_levels_uses_env_var(monkeypatch):
     captured = {}
