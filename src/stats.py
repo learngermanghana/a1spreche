@@ -143,10 +143,26 @@ def save_vocab_attempt(
     history = data.get("history", [])
     total_sessions = data.get("total_sessions", len(history))
 
+    
+    raw_total = int(total) if total is not None else 0
+    if raw_total < 0:
+        st.warning(f"Total {raw_total} is negative; clamping to 0.")
+    total_int = max(raw_total, 0)
+
+    raw_correct = int(correct) if correct is not None else 0
+    if raw_correct < 0:
+        st.warning(f"Correct {raw_correct} is negative; clamping to 0.")
+    correct_int = max(raw_correct, 0)
+    if correct_int > total_int:
+        st.warning(
+            f"Correct {correct_int} exceeds total {total_int}; clamping to total."
+        )
+        correct_int = total_int
+
     attempt = {
         "level": level,
-        "total": int(total) if total is not None else 0,
-        "correct": int(correct) if correct is not None else 0,
+        "total": total_int,
+        "correct": correct_int,
         "practiced_words": list(practiced_words or []),
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "session_id": session_id,
