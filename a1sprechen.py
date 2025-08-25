@@ -3805,7 +3805,7 @@ def get_b1_schedule():
             "video": "",
             "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1DMyTdt1cxhDxYJZQPHe3pAqE30TNwThU/view?usp=sharing",
-            "workbook_link": ""
+            "workbook_link": "https://drive.google.com/file/d/1XXVhFMJdFI_j3pZXw3UkuHCoKqYR8dkj/view?usp=sharing"
         },
         # TAG 8
         {
