@@ -15,6 +15,7 @@ def linkify_html(text):
         r'<a href="\1" target="_blank" rel="noopener">\1</a>',
         s,
     )
+    return s
 
 def _clean_link(val) -> str:
     """Return a clean string or '' if empty/NaN/common placeholders."""
