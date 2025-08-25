@@ -3829,10 +3829,11 @@ def get_b1_schedule():
             "goal": "Über Work-Life-Balance und Stress sprechen.",
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
+            "grammar_topic": "Reflexive Verben",
             "video": "",
             "youtube_link": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1Mp6i2pbaTd3r5fLZGqh6NLFZE6txCZpJ/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1giWw3qYhTmm3VO9and2ZuS7ARUFkq7vO/view?usp=sharing"
         },
         # TAG 10
         {
@@ -10779,6 +10780,11 @@ def load_schreiben_feedback(student_code: str) -> tuple[str, str]:
         return data.get("feedback", ""), data.get("letter", "")
     return "", ""
 
+def delete_schreiben_feedback(student_code: str) -> None:
+    if not student_code:
+        st.warning("No student code provided; feedback not cleared.")
+        return
+    db.collection("schreiben_feedback").document(student_code).delete()
 
 # -- Firestore-only: Usage Limit (Daily Letter Coach) --
 def get_letter_coach_usage(student_code):
@@ -11024,6 +11030,7 @@ if tab == "Schreiben Trainer":
             lv, lt, sf, sa = _draft_state_keys(draft_key)
             for key in (lv, lt, sf, sa):
                 st.session_state.pop(key, None)
+            delete_schreiben_feedback(student_code)
             st.rerun()
 
         if st.session_state.get(f"{student_code}_last_feedback"):
