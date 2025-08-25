@@ -11298,21 +11298,21 @@ if tab == "Schreiben Trainer":
                     clear_feedback_and_start_new()
 
                 if clear_feedback:
-                for k in [
-                    "last_feedback",
-                    "last_user_letter",
-                    "delta_compare_feedback",
-                    "improved_letter",
-                    "final_improved_letter",
-                ]:
-                    st.session_state.pop(f"{student_code}_{k}", None)
-                st.session_state[f"{student_code}_awaiting_correction"] = False
-                st.session_state[draft_key] = ""
-                save_now(draft_key, student_code)
-                lv, lt, sf, sa = _draft_state_keys(draft_key)
-                for key in (lv, lt, sf, sa):
-                    st.session_state.pop(key, None)
-                st.rerun()
+                    for k in [
+                        "last_feedback",
+                        "last_user_letter",
+                        "delta_compare_feedback",
+                        "improved_letter",
+                        "final_improved_letter",
+                    ]:
+                        st.session_state.pop(f"{student_code}_{k}", None)
+                    st.session_state[f"{student_code}_awaiting_correction"] = False
+                    st.session_state[draft_key] = ""
+                    save_now(draft_key, student_code)
+                    lv, lt, sf, sa = _draft_state_keys(draft_key)
+                    for key in (lv, lt, sf, sa):
+                        st.session_state.pop(key, None)
+                    st.rerun()
 
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
