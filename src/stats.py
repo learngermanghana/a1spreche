@@ -141,6 +141,7 @@ def save_vocab_attempt(
     doc = doc_ref.get()
     data = doc.to_dict() if doc.exists else {}
     history = data.get("history", [])
+    total_sessions = data.get("total_sessions", len(history))
 
     attempt = {
         "level": level,
@@ -152,6 +153,8 @@ def save_vocab_attempt(
     }
 
     history.append(attempt)
+    total_sessions += 1
+    history = history[-MAX_HISTORY:]
     completed = {w for a in history for w in a.get("practiced_words", [])}
 
     doc_ref.set(
@@ -159,7 +162,7 @@ def save_vocab_attempt(
             "history": history,
             "last_practiced": attempt["timestamp"],
             "completed_words": sorted(completed),
-            "total_sessions": len(history),
+            "total_sessions": total_sessions,
         },
         merge=True,
     )
@@ -181,11 +184,16 @@ def get_vocab_stats(student_code: str):
     doc = doc_ref.get()
     if doc.exists:
         data = doc.to_dict() or {}
+        history = data.get("history", [])
+        total_sessions = data.get("total_sessions")
+        if total_sessions is None:
+            total_sessions = len(history)
+        data = doc.to_dict() or {}
         return {
-            "history": data.get("history", []),
+            "history": history,
             "last_practiced": data.get("last_practiced"),
             "completed_words": data.get("completed_words", []),
-            "total_sessions": data.get("total_sessions", 0),
+            "total_sessions": total_sessions,
         }
 
     return {
