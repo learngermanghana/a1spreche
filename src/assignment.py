@@ -10,9 +10,11 @@ def linkify_html(text):
     """Escape HTML and convert URLs in plain text to anchor tags."""
     s = "" if text is None or (isinstance(text, float) and pd.isna(text)) else str(text)
     s = html.escape(s)
-    s = re.sub(r'(https?://[^\s<]+)', r'<a href="\1" target="_blank" rel="noopener">\1</a>', s)
-    return s
-
+    s = re.sub(
+        r'(https?://[^\s<]+[^\s<.,!?;:])',
+        r'<a href="\1" target="_blank" rel="noopener">\1</a>',
+        s,
+    )
 
 def _clean_link(val) -> str:
     """Return a clean string or '' if empty/NaN/common placeholders."""
