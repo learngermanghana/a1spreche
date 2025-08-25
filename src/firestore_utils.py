@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Tuple
 
+import logging
 from firebase_admin import firestore
 
 try:  # Firestore client is optional in test environments
@@ -63,9 +64,13 @@ def save_draft_to_db(code: str, field_key: str, text: str) -> None:
         "lesson_key": lesson_key,
         "student_code": code,
     }
-    ref.set(payload, merge=True)
 
-
+    try:
+        ref.set(payload, merge=True)
+    except Exception as exc:  # pragma: no cover - runtime depends on Firestore
+        logging.warning("Failed to save draft for %s/%s: %s", code, field_key, exc)
+        return
+        
 def load_draft_from_db(code: str, field_key: str) -> str:
     """Return the draft text stored for ``code`` and ``field_key``."""
 
@@ -79,10 +84,14 @@ def save_chat_draft_to_db(code: str, conv_key: str, text: str) -> None:
     if db is None:
         return
     ref = db.collection("falowen_chats").document(code)
-    if text:
-        ref.set({"drafts": {conv_key: text}}, merge=True)
-    else:
-        ref.set({"drafts": {conv_key: firestore.DELETE_FIELD}}, merge=True)
+    try:
+        if text:
+            ref.set({"drafts": {conv_key: text}}, merge=True)
+        else:
+            ref.set({"drafts": {conv_key: firestore.DELETE_FIELD}}, merge=True)
+    except Exception as exc:  # pragma: no cover - runtime depends on Firestore
+        logging.warning("Failed to save chat draft for %s/%s: %s", code, conv_key, exc)
+        return
 
 
 def load_chat_draft_from_db(code: str, conv_key: str) -> str:
