@@ -11019,7 +11019,7 @@ if tab == "Schreiben Trainer":
             ]:
                 st.session_state.pop(f"{student_code}_{k}", None)
             st.session_state[f"{student_code}_awaiting_correction"] = False
-            st.session_state[draft_key] = ""
+            st.session_state.pop(draft_key, None)
             save_now(draft_key, student_code)
             lv, lt, sf, sa = _draft_state_keys(draft_key)
             for key in (lv, lt, sf, sa):
@@ -11304,7 +11304,7 @@ if tab == "Schreiben Trainer":
                     ]:
                         st.session_state.pop(f"{student_code}_{k}", None)
                     st.session_state[f"{student_code}_awaiting_correction"] = False
-                    st.session_state[draft_key] = ""
+                    st.session_state.pop(draft_key, None)
                     save_now(draft_key, student_code)
                     lv, lt, sf, sa = _draft_state_keys(draft_key)
                     for key in (lv, lt, sf, sa):
