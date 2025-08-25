@@ -315,26 +315,15 @@ _bootstrap_state()
 # Compatibility alias
 html = st_html
 
-# --- OpenAI setup (Cloud Run friendly) ---
+# OpenAI setup
 import os
 from openai import OpenAI
 
-# Read from environment (Cloud Run) or st.secrets (local dev)
 OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY") or "").strip()
-OPENAI_PROJECT = (os.getenv("OPENAI_PROJECT") or st.secrets.get("OPENAI_PROJECT") or "").strip()
-
 if not OPENAI_API_KEY:
-    st.error("Missing OPENAI_API_KEY. Add it via Secret Manager / env.")
     raise RuntimeError("Missing OPENAI_API_KEY")
 
-# If you use a project-scoped key (sk-proj-...), you must also set OPENAI_PROJECT
-if OPENAI_API_KEY.startswith("sk-proj-") and not OPENAI_PROJECT:
-    st.error("Your key is project-scoped. Set OPENAI_PROJECT in env.")
-    raise RuntimeError("Missing OPENAI_PROJECT for project-scoped key")
-
-client = OpenAI(api_key=OPENAI_API_KEY, project=(OPENAI_PROJECT or None))
-
-
+client = OpenAI(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)  # <- no project arg
 
 
     
