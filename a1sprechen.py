@@ -3819,7 +3819,7 @@ def get_b1_schedule():
             "video": "",
             "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1s6TcUzjADzicOKRx3adxW4UdqEXQmz_L/view?usp=sharing",
-            "workbook_link": ""
+            "workbook_link": "https://drive.google.com/file/d/1PgsULeo11OhzpICZ77RSlVEuuyrSdxSe/view?usp=sharing"
         },
         # TAG 9
         {
@@ -11008,6 +11008,24 @@ if tab == "Schreiben Trainer":
         
         autosave_maybe(student_code, draft_key, user_letter, min_secs=2.0, min_delta=20)
 
+        
+        def clear_feedback_and_start_new():
+            for k in [
+                "last_feedback",
+                "last_user_letter",
+                "delta_compare_feedback",
+                "improved_letter",
+                "final_improved_letter",
+            ]:
+                st.session_state.pop(f"{student_code}_{k}", None)
+            st.session_state[f"{student_code}_awaiting_correction"] = False
+            st.session_state[draft_key] = ""
+            save_now(draft_key, student_code)
+            lv, lt, sf, sa = _draft_state_keys(draft_key)
+            for key in (lv, lt, sf, sa):
+                st.session_state.pop(key, None)
+            st.rerun()
+
         if st.session_state.get(f"{student_code}_last_feedback"):
             st.info(
                 "💾 Auto-save is paused while feedback is shown. "
@@ -11166,6 +11184,12 @@ if tab == "Schreiben Trainer":
                 highlight_feedback(st.session_state[f"{student_code}_last_feedback"]),
                 unsafe_allow_html=True
             )
+            clear_feedback_reference = st.button(
+                "🗑️ Clear feedback and start a new letter",
+                key=f"clear_feedback_{student_code}_reference",
+            )
+            if clear_feedback_reference:
+                clear_feedback_and_start_new()
             st.markdown(
                 """
                 <div style="background:#e3f7da; border-left:7px solid #44c767;
@@ -11270,23 +11294,12 @@ if tab == "Schreiben Trainer":
                 "🗑️ Clear feedback and start a new letter",
                 key=f"clear_feedback_{student_code}",
             )
-            if clear_feedback:
-                for k in [
-                    "last_feedback",
-                    "last_user_letter",
-                    "delta_compare_feedback",
-                    "improved_letter",
-                    "final_improved_letter",
-                ]:
-                    st.session_state.pop(f"{student_code}_{k}", None)
-                st.session_state[f"{student_code}_awaiting_correction"] = False
-                st.session_state[draft_key] = ""
-                save_now(draft_key, student_code)
-                lv, lt, sf, sa = _draft_state_keys(draft_key)
-                for key in (lv, lt, sf, sa):
-                    st.session_state.pop(key, None)
-                st.rerun()
-
+                clear_feedback = st.button(
+                    "🗑️ Clear feedback and start a new letter",
+                    key=f"clear_feedback_{student_code}",
+                )
+                if clear_feedback:
+                    clear_feedback_and_start_new()
 
 
 
