@@ -1,43 +1,21 @@
 """Tests for schreiben helper functions with empty student code."""
 
-import ast
-import types
-from pathlib import Path
+import importlib
 from unittest.mock import MagicMock
 
 import pytest
 
-
-TARGETS = {
-    "update_schreiben_stats",
-    "get_schreiben_stats",
-    "save_schreiben_feedback",
-    "load_schreiben_feedback",
-    "delete_schreiben_feedback",
-    "get_letter_coach_usage",
-}
-
-
-def _load_helpers():
-    source = Path(__file__).resolve().parents[1] / "a1sprechen.py"
-    tree = ast.parse(source.read_text(), filename=str(source))
-    mod = types.ModuleType("helpers")
-    for node in tree.body:
-        if isinstance(node, ast.FunctionDef) and node.name in TARGETS:
-            func_mod = ast.Module(body=[node], type_ignores=[])
-            code = compile(func_mod, filename=str(source), mode="exec")
-            exec(code, mod.__dict__)
-    return mod
-
+import src.schreiben as schreiben
 
 @pytest.fixture
-def helpers():
-    mod = _load_helpers()
-    mod.st = MagicMock()
-    mod.db = MagicMock()
-    mod.FieldFilter = MagicMock()
-    mod.firestore = MagicMock()
-    mod.date = MagicMock()
+def helpers(monkeypatch):
+    mod = importlib.reload(schreiben)
+    monkeypatch.setattr(mod, "st", MagicMock())
+    monkeypatch.setattr(mod, "db", MagicMock())
+    monkeypatch.setattr(mod, "FieldFilter", MagicMock())
+    monkeypatch.setattr(mod, "firestore", MagicMock())
+    monkeypatch.setattr(mod, "date", MagicMock())
+
     mod.date.today = MagicMock()
     return mod
 
@@ -76,6 +54,7 @@ def test_load_schreiben_feedback_empty(helpers):
     helpers.st.warning.assert_called_once()
     assert result == ("", "")
 
+
 def test_delete_schreiben_feedback_empty(helpers):
     helpers.delete_schreiben_feedback("")
     helpers.db.collection.assert_not_called()
@@ -90,6 +69,7 @@ def test_delete_schreiben_feedback_clears_record(helpers):
     doc.delete.assert_called_once_with()
     helpers.st.warning.assert_not_called()
     assert result == ("", "")
+
 
 def test_get_letter_coach_usage_empty(helpers):
     count = helpers.get_letter_coach_usage("")
