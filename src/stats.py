@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Iterable
 
+import os
 import pandas as pd
 import streamlit as st
 
@@ -34,11 +35,19 @@ def _get_db():
 # ---------------------------------------------------------------------------
 
 
+DEFAULT_ROSTER_SHEET_ID = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
+
+
+
 @st.cache_data
 def load_student_levels():
     """Load the roster with a ``Level`` column from a Google Sheet."""
-
-    sheet_id = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
+    
+    sheet_id = (
+        st.secrets.get("ROSTER_SHEET_ID")
+        or os.getenv("ROSTER_SHEET_ID")
+        or DEFAULT_ROSTER_SHEET_ID
+    )
     csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
     df = pd.read_csv(csv_url)
     df.columns = [c.strip().lower() for c in df.columns]
