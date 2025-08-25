@@ -1,37 +1,21 @@
-import ast
+import importlib
 import logging
 from pathlib import Path
+from unittest.mock import MagicMock
 
+import pytest
 from google.api_core.exceptions import GoogleAPICallError
 
+import src.schreiben as schreiben
 
-def _load_function():
-    source = Path(__file__).resolve().parents[1] / "a1sprechen.py"
-    mod = ast.parse(source.read_text())
-    func = next(
-        node for node in mod.body if isinstance(node, ast.FunctionDef) and node.name == "get_schreiben_stats"
-    )
-    namespace = {}
-    class DummyDoc:
-        def get(self):
-            raise GoogleAPICallError("boom")
-    class DummyCollection:
-        def document(self, *args, **kwargs):
-            return DummyDoc()
-    class DummyDB:
-        def collection(self, *args, **kwargs):
-            return DummyCollection()
-    namespace["db"] = DummyDB()
-    namespace["GoogleAPICallError"] = GoogleAPICallError
-    namespace["logging"] = logging
-    exec(ast.unparse(func), namespace)
-    return namespace["get_schreiben_stats"]
-
-
-def test_get_schreiben_stats_returns_default_on_error(caplog):
-    get_stats = _load_function()
+def test_get_schreiben_stats_returns_default_on_error(monkeypatch, caplog):
+    mod = importlib.reload(schreiben)
+    mock_db = MagicMock()
+    mock_doc = mock_db.collection.return_value.document.return_value
+    mock_doc.get.side_effect = GoogleAPICallError("boom")
+    monkeypatch.setattr(mod, "db", mock_db)
     with caplog.at_level(logging.ERROR):
-        result = get_stats("abc")
+        result = mod.get_schreiben_stats("abc")
     assert result == {
         "total": 0,
         "passed": 0,
