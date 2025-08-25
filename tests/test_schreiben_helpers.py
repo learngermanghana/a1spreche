@@ -64,7 +64,7 @@ def test_get_schreiben_stats_empty(helpers):
 
 
 def test_save_schreiben_feedback_empty(helpers):
-    helpers.save_schreiben_feedback("", "fb")
+    helpers.save_schreiben_feedback("", "fb", "letter")
     helpers.db.collection.assert_not_called()
     helpers.st.warning.assert_called_once()
 
@@ -73,8 +73,7 @@ def test_load_schreiben_feedback_empty(helpers):
     result = helpers.load_schreiben_feedback("")
     helpers.db.collection.assert_not_called()
     helpers.st.warning.assert_called_once()
-    assert result == ""
-
+    assert result == ("", "")
 
 def test_get_letter_coach_usage_empty(helpers):
     count = helpers.get_letter_coach_usage("")
