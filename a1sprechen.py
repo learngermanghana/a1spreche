@@ -10731,6 +10731,10 @@ def get_schreiben_stats(student_code: str):
         "attempts": [],
         "last_letter": "",
     }
+    if not student_code:
+        st.warning("No student code provided; cannot load stats.")
+        return default_stats
+        
     stats_ref = db.collection("schreiben_stats").document(student_code)
     
     try:
@@ -10745,8 +10749,8 @@ def get_schreiben_stats(student_code: str):
         return default_stats
 
 # -- Firestore: Save/load latest Schreiben feedback --
-def save_schreiben_feedback(student_code: str, feedback: str) -> None:
-    """Persist the most recent AI feedback for a student's letter."""
+def save_schreiben_feedback(student_code: str, feedback: str, letter: str) -> None:
+    """Persist the most recent AI feedback and original letter."""
     if not student_code:
         st.warning("No student code provided; feedback not saved.")
         return
@@ -10755,22 +10759,30 @@ def save_schreiben_feedback(student_code: str, feedback: str) -> None:
         {
             "student_code": student_code,
             "feedback": feedback,
+            "letter": letter,
             "date": firestore.SERVER_TIMESTAMP,
         }
     )
 
 
-def load_schreiben_feedback(student_code: str) -> str:
-    """Retrieve any saved AI feedback for the student's last submission."""
+def load_schreiben_feedback(student_code: str) -> tuple[str, str]:
+    """Retrieve any saved AI feedback and the corresponding letter."""
+    if not student_code:
+        st.warning("No student code provided; feedback not loaded.")
+        return "", ""
+        
     doc = db.collection("schreiben_feedback").document(student_code).get()
     if doc.exists:
         data = doc.to_dict() or {}
-        return data.get("feedback", "")
-    return ""
+        return data.get("feedback", ""), data.get("letter", "")
+    return "", ""
 
 
 # -- Firestore-only: Usage Limit (Daily Letter Coach) --
 def get_letter_coach_usage(student_code):
+    if not student_code:
+        st.warning("No student code provided; usage assumed 0.")
+        return 0
     today = str(date.today())
     doc = db.collection("letter_coach_usage").document(f"{student_code}_{today}").get()
     return doc.to_dict().get("count", 0) if doc.exists else 0
@@ -10977,9 +10989,10 @@ if tab == "Schreiben Trainer":
 
         draft_key = _wkey("schreiben_letter")
         existing_draft = load_draft_from_db(student_code, draft_key)
-        existing_feedback = load_schreiben_feedback(student_code)
-        if existing_feedback:
+        existing_feedback, existing_letter = load_schreiben_feedback(student_code)
+        if existing_feedback or existing_letter:
             st.session_state[f"{student_code}_last_feedback"] = existing_feedback
+            st.session_state[f"{student_code}_last_user_letter"] = existing_letter
 
         user_letter = st.text_area(
             "Paste or type your German letter/essay here.",
@@ -11115,7 +11128,7 @@ if tab == "Schreiben Trainer":
                 st.markdown(highlight_feedback(feedback), unsafe_allow_html=True)
                 st.session_state[f"{student_code}_awaiting_correction"] = True
 
-                save_schreiben_feedback(student_code, feedback)
+                save_schreiben_feedback(student_code, feedback, user_letter)
 
                 # --- Save to Firestore ---
                 score_match = re.search(r"Score[: ]+(\d+)", feedback)
