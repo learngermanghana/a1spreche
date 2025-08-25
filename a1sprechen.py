@@ -8461,7 +8461,7 @@ def build_custom_chat_prompt(level):
             f"IMPORTANT: If a student asks 3 grammar questions in a row without trying to answer your conversation questions, respond warmly but firmly: remind them to check their course book using the search button for grammar explanations. Explain that reading their book will help them become more independent and confident as a learner. Kindly pause grammar explanations until they have checked the book and tried the conversation questions. Stay positive, but firm about using the resources. If they still have a specific question after reading, gladly help. "
             f"After keyword questions, continue with other random follow-up questions that reflect student selected level about the topic in German (until you reach 6 questions in total). "
             f"Never ask more than 2 questions about the same keyword. "
-            f"After the student answers 6 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
+            f"After the student answers 6 questions, give final feedback on their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
             f"Tell them to visit this link to record their audio: [Record your audio here]({rec_url}). "
             f"Also give them 60 words from their own words in a presentation form that they can use in class.  Wish them luck in their next class and tell them to apply everything they have learnt. "
             f"All feedback and corrections should be {correction_lang}. "
@@ -8471,7 +8471,7 @@ def build_custom_chat_prompt(level):
 
 # ================= SESSION DEFAULTS (reuse your falowen_* keys) =================
 default_state = {
-    "falowen_stage": 1,                  # 1: mode, 2: level, 3: part, 4: chat, 5: summary, 99: pron checker
+    "falowen_stage": 1,                  # 1: mode, 2: level, 3: part, 4: chat, 99: pron checker
     "falowen_mode": None,                # **RENAMED choices in UI below**
     "falowen_level": None,
     "falowen_teil": None,
@@ -8947,11 +8947,6 @@ if tab == "Exams Mode & Custom Chat":
                 back_step()
 
         st.divider()
-        if st.button("✅ End Session & Show Summary", key=_wkey("btn_end_session")):
-            st.session_state["falowen_stage"] = 5
-            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-#
-
 
     # ——— Stage 99: Pronunciation & Speaking Checker (unchanged)
     if st.session_state.get("falowen_stage") == 99:
