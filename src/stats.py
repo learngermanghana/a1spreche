@@ -18,6 +18,9 @@ try:  # Firestore access is optional in tests
 except Exception:  # pragma: no cover - Firestore may be unavailable
     db = None  # type: ignore
 
+# Maximum number of vocab practice attempts to retain per student
+MAX_HISTORY = 100
+
 
 # ---------------------------------------------------------------------------
 # Firestore helpers
