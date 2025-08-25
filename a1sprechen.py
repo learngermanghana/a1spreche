@@ -11297,7 +11297,7 @@ if tab == "Schreiben Trainer":
                 if clear_feedback:
                     clear_feedback_and_start_new()
 
-                            if clear_feedback:
+                    if clear_feedback:
                 for k in [
                     "last_feedback",
                     "last_user_letter",
