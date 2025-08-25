@@ -1,11 +1,10 @@
-[server]
-# Allow your public front-ends to host the app
-allowedOrigins = [
-  "https://falowenappnew.netlify.app",
-  "https://www.falowen.app",
-  "https://falowen.app"
-]
+[theme]
+base = "light"       
+primaryColor = "#25317e"
+backgroundColor = "#f3f7fb"
+secondaryBackgroundColor = "#eef3fc"
+textColor = "#1a2340"
+font = "sans serif"
 
-# These two make proxies simpler while we test. You can re-enable later.
-enableCORS = false
-enableXsrfProtection = false
+[ui]
+customTheme = false   # enables the user theme switcher
