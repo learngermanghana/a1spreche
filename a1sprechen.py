@@ -11295,16 +11295,13 @@ if tab == "Schreiben Trainer":
                     key=f"clear_feedback_{student_code}",
                 )
                 if clear_feedback:
-                    clear_feedback_and_start_new()
-
-                if clear_feedback:
                     for k in [
                         "last_feedback",
                         "last_user_letter",
                         "delta_compare_feedback",
                         "improved_letter",
                         "final_improved_letter",
-                   ]:
+                    ]:
                         st.session_state.pop(f"{student_code}_{k}", None)
                     st.session_state[f"{student_code}_awaiting_correction"] = False
                     st.session_state[draft_key] = ""
@@ -11313,7 +11310,6 @@ if tab == "Schreiben Trainer":
                     for key in (lv, lt, sf, sa):
                         st.session_state.pop(key, None)
                     st.rerun()
-#
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
 
