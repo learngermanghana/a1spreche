@@ -16,6 +16,14 @@ def test_linkify_html_converts_urls():
     assert html.escape("<b>bold</b>") in linkify_html("<b>bold</b>")
 
 
+@pytest.mark.parametrize("punct", [".", ",", "!", "?", ";", ":"])
+def test_linkify_html_excludes_trailing_punctuation(punct):
+    text = f"Visit http://example.com{punct}"
+    result = linkify_html(text)
+    assert '<a href="http://example.com"' in result
+    assert f'href="http://example.com{punct}"' not in result
+    assert result.endswith(f'</a>{punct}')
+
 def test_clean_link_and_is_http_url():
     assert _clean_link(None) == ""
     assert _clean_link(" nan ") == ""
