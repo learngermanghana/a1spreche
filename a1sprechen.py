@@ -3843,10 +3843,11 @@ def get_b1_schedule():
             "goal": "Über digitale Auszeiten und Selbstfürsorge sprechen.",
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
+            "grammar_topic": "Vergleiche & Superlative",
             "video": "",
             "youtube_link": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1zuzkGBkX-NeL6v_lLkOf8dWmc2dJ1n71/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1Rh6SS45s3UCyX5mnU-RTby4K15a0Z_al/view?usp=sharing"
         },
         # TAG 11
         {
@@ -11013,7 +11014,11 @@ if tab == "Schreiben Trainer":
         )
         
         autosave_maybe(student_code, draft_key, user_letter, min_secs=2.0, min_delta=20)
-
+   
+        if st.button("\U0001f4be Save Draft", key=f"save_draft_btn_{student_code}"):
+            save_now(draft_key, student_code)
+            st.toast("Draft saved!", icon="\U0001f4be")
+        st.caption("Auto-saves every few seconds or click 'Save Draft' to save now.")
         
         def clear_feedback_and_start_new():
             for k in [
