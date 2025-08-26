@@ -5368,7 +5368,7 @@ if tab == "My Course":
                         st.video(video['url'])
                     else:
                         st.info("No videos found for your level’s playlist. Check back soon!")
-            else:
+                else:
                     st.info("No playlist found for your level yet. Stay tuned!")
 
         # SUBMIT
