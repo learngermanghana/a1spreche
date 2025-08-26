@@ -75,9 +75,12 @@ def render_vocab_lookup(key: str) -> None:
     df = _load_vocab_sheet()
     if df is None:
         st.info("Vocabulary lookup currently unavailable.")
-        st.caption(
-            "For longer phrases, try [DeepL](https://www.deepl.com/translator) or [Google Translate](https://translate.google.com)."
-        )
+    st.caption(
+        'Need to translate a longer phrase? Try '
+        '<a href="https://www.deepl.com/translator" target="_blank">DeepL</a> '
+        'or <a href="https://translate.google.com" target="_blank">Google Translate</a>.',
+        unsafe_allow_html=True,
+    )
 
     query = st.text_input("🔎 Search vocabulary", key=f"vocab-{key}")
     if not query:
