@@ -112,7 +112,11 @@ def vocab_attempt_exists(student_code: str, session_id: str) -> bool:
         return False
 
     doc_ref = _db.collection("vocab_stats").document(student_code)
-    doc = doc_ref.get()
+    try:
+        doc = doc_ref.get()
+    except Exception as e:  # pragma: no cover - firestore failure
+        st.warning(f"Could not check existing attempt ({e}).")
+        return False
     if not doc.exists:
         return False
     data = doc.to_dict() or {}
@@ -144,7 +148,11 @@ def save_vocab_attempt(
         return
 
     doc_ref = _db.collection("vocab_stats").document(student_code)
-    doc = doc_ref.get()
+    try:
+        doc = doc_ref.get()
+    except Exception as e:  # pragma: no cover - firestore failure
+        st.warning(f"Could not load existing stats ({e}); skipping save.")
+        return
     data = doc.to_dict() if doc.exists else {}
     history = data.get("history", [])
     total_sessions = data.get("total_sessions", len(history))
@@ -179,15 +187,18 @@ def save_vocab_attempt(
     history = history[-MAX_HISTORY:]
     completed = {w for a in history for w in a.get("practiced_words", [])}
 
-    doc_ref.set(
-        {
-            "history": history,
-            "last_practiced": attempt["timestamp"],
-            "completed_words": sorted(completed),
-            "total_sessions": total_sessions,
-        },
-        merge=True,
-    )
+    try:
+        doc_ref.set(
+            {
+                "history": history,
+                "last_practiced": attempt["timestamp"],
+                "completed_words": sorted(completed),
+                "total_sessions": total_sessions,
+            },
+            merge=True,
+        )
+    except Exception as e:  # pragma: no cover - firestore failure
+        st.warning(f"Could not save stats ({e}).")
 
 
 def get_vocab_stats(student_code: str):
@@ -203,7 +214,16 @@ def get_vocab_stats(student_code: str):
         }
 
     doc_ref = _db.collection("vocab_stats").document(student_code)
-    doc = doc_ref.get()
+    try:
+        doc = doc_ref.get()
+    except Exception as e:  # pragma: no cover - firestore failure
+        st.warning(f"Could not load stats ({e}); returning defaults.")
+        return {
+            "history": [],
+            "last_practiced": None,
+            "completed_words": [],
+            "total_sessions": 0,
+        }
     if doc.exists:
         data = doc.to_dict() or {}
         history = data.get("history", [])
