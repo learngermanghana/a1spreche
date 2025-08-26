@@ -5278,7 +5278,7 @@ if tab == "My Course":
                     st.markdown(f"- [🔗 Extra]({ex})")
                     showed = True
 
-                                if not showed:
+                if not showed:
                     st.info(
                         "No activity sections or links found for this lesson. Check the lesson data for A2/B1 key names."
                     )
