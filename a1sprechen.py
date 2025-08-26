@@ -5278,16 +5278,17 @@ if tab == "My Course":
                     st.markdown(f"- [🔗 Extra]({ex})")
                     showed = True
 
+                                if not showed:
+                    st.info(
+                        "No activity sections or links found for this lesson. Check the lesson data for A2/B1 key names."
+                    )
+
             # --- quick access to translators ---
             st.markdown(
                 "[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; "
                 "[🌐 Google Translate](https://translate.google.com)",
                 unsafe_allow_html=True,
             )
-
-
-                if not showed:
-                    st.info("No activity sections or links found for this lesson. Check the lesson data for A2/B1 key names.")
 
             # ---------- Build a clean downloadable bundle of links (no on-page repetition) ----------
             st.divider()
@@ -5384,6 +5385,7 @@ if tab == "My Course":
             if _is_url(info.get("workbook_link")):
                 render_link("📒 Workbook (Assignment)", info["workbook_link"])
             render_assignment_reminder()
+            st.markdown("**The End**")
 
 
         # SUBMIT
@@ -5721,6 +5723,7 @@ if tab == "My Course":
                             st.warning("Submission not saved. Please fix the issue and try again.")
                     finally:
                         st.session_state[submit_in_progress_key] = False
+                        st.markdown("**The End**")
 
 
 
