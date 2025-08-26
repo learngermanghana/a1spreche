@@ -5242,8 +5242,8 @@ if tab == "My Course":
                         st.markdown('<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.', unsafe_allow_html=True)
                     if part.get('workbook_link'):
                         st.markdown(f"- [📒 Workbook (Assignment)]({part['workbook_link']})")
-                        render_assignment_reminder()
                         render_vocab_lookup(f"{key}-{idx_part}")
+                        render_assignment_reminder()
                     extras = part.get('extra_resources')
                     if extras:
                         for ex in _as_list(extras):
@@ -5270,9 +5270,9 @@ if tab == "My Course":
                     st.markdown(f"- [📘 Grammar Book (Notes)]({info['grammarbook_link']})")
                     showed = True
                 if info.get("workbook_link"):
-                    st.markdown(f"- [📒 Workbook (Assignment)]({info['workbook_link']})")
-                    render_assignment_reminder()
+                    st.markdown(f"- [📒 Workbook (Assignment)]({info['workbook_link']})")              
                     render_vocab_lookup(f"fallback-{info.get('day', '')}")
+                    render_assignment_reminder()
                     showed = True
                 for ex in _as_list(info.get("extra_resources")):
                     st.markdown(f"- [🔗 Extra]({ex})")
