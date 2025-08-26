@@ -5243,6 +5243,7 @@ if tab == "My Course":
                     if part.get('workbook_link'):
                         st.markdown(f"- [📒 Workbook (Assignment)]({part['workbook_link']})")
                         render_assignment_reminder()
+                        render_vocab_lookup(f"{key}-{idx_part}")
                     extras = part.get('extra_resources')
                     if extras:
                         for ex in _as_list(extras):
