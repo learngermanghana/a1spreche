@@ -2634,7 +2634,7 @@ if tab == "Dashboard":
 
     # ---------- Class schedules ----------
     with st.expander("🗓️ Class Schedule & Upcoming Sessions", expanded=False):
-       GROUP_SCHEDULES = load_group_schedules()
+        GROUP_SCHEDULES = load_group_schedules()
 
         from datetime import datetime as _dt_local, timedelta as _td_local
         class_name = str(safe_get(student_row, "ClassName", "")).strip()
