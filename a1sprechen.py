@@ -10098,6 +10098,28 @@ def get_audio_url(level: str, german_word: str) -> str:
     lvl = str(level).upper()
     return (urls.get("slow") if (lvl == "A1" and urls.get("slow")) else urls.get("normal")) or urls.get("slow") or ""
 
+@st.cache_data
+def build_dict_df(levels):
+    rows = []
+    for lvl in levels:
+        for de, en in VOCAB_LISTS.get(lvl, []):
+            rows.append({"Level": lvl, "German": de, "English": en, "Pronunciation": ""})
+    df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=["Level", "German", "English", "Pronunciation"])
+
+    extra = []
+    for lvl in levels:
+        for item in SENTENCE_BANK.get(lvl, []):
+            for tok in item.get("tokens", []):
+                t = str(tok).strip()
+                if not t or t in [",", ".", "!", "?", ":", ";"]:
+                    continue
+                if not ((df["German"] == t) & (df["Level"] == lvl)).any():
+                    extra.append({"Level": lvl, "German": t, "English": "", "Pronunciation": ""})
+    if extra:
+        df = pd.concat([df, pd.DataFrame(extra)], ignore_index=True)
+        df = df.drop_duplicates(subset=["Level", "German"]).reset_index(drop=True)
+    return df
+
 # ================================
 # TAB: Vocab Trainer (locked by Level)
 # ================================
@@ -10441,32 +10463,9 @@ if tab == "Vocab Trainer":
             for k,v in _map.items(): s = s.replace(k, v)
             return "".join(ch for ch in s if ch.isalnum() or ch.isspace())
 
-        def _fallback_df(levels):
-            rows = []
-            for lvl in levels:
-                for de, en in VOCAB_LISTS.get(lvl, []):
-                    rows.append({"Level": lvl, "German": de, "English": en, "Pronunciation": ""})
-            return pd.DataFrame(rows) if rows else pd.DataFrame(columns=["Level","German","English","Pronunciation"])
-
-        def _merge_sentence_bank(df, levels):
-            extra = []
-            for lvl in levels:
-                for item in SENTENCE_BANK.get(lvl, []):
-                    for tok in item.get("tokens", []):
-                        t = str(tok).strip()
-                        if not t or t in [",", ".", "!", "?", ":", ";"]:
-                            continue
-                        if not ((df["German"] == t) & (df["Level"] == lvl)).any():
-                            extra.append({"Level": lvl, "German": t, "English": "", "Pronunciation": ""})
-            if extra:
-                df = pd.concat([df, pd.DataFrame(extra)], ignore_index=True)
-                df = df.drop_duplicates(subset=["Level","German"]).reset_index(drop=True)
-            return df
-
         # Build data (for the locked level)
         levels = [student_level_locked]
-        df_dict = _fallback_df(levels)
-        df_dict = _merge_sentence_bank(df_dict, levels)
+        df_dict = build_dict_df(levels)
         for c in ["Level","German","English","Pronunciation"]:
             if c not in df_dict.columns: df_dict[c] = ""
         df_dict["g_norm"] = df_dict["German"].astype(str).map(_norm)
