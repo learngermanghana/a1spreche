@@ -6,7 +6,7 @@ been extracted so they can be imported independently and tested.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Iterable
 
 import os
@@ -178,7 +178,7 @@ def save_vocab_attempt(
         "total": total_int,
         "correct": correct_int,
         "practiced_words": list(practiced_words or []),
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "timestamp": datetime.now(tz=UTC).isoformat(timespec="minutes"),
         "session_id": session_id,
     }
 
