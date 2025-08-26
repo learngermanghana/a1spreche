@@ -5381,10 +5381,6 @@ if tab == "My Course":
                     st.info("No videos found for your level’s playlist. Check back soon!")
             else:
                 st.info("No playlist found for your level yet. Stay tuned!")
-
-            if _is_url(info.get("workbook_link")):
-                render_link("📒 Workbook (Assignment)", info["workbook_link"])
-            render_assignment_reminder()
             st.markdown("**The End**")
 
 
