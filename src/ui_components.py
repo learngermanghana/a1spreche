@@ -5,6 +5,11 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+try:  # pragma: no cover - dependency might be missing in some environments
+    from rapidfuzz import process
+except Exception:  # pragma: no cover
+    process = None
+
 # Google Sheet ID for vocabulary lookup
 VOCAB_SHEET_ID = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
 
@@ -80,8 +85,27 @@ def render_vocab_lookup(key: str) -> None:
         lambda row: row.astype(str).str.contains(query, case=False, na=False).any(),
         axis=1,
     )
-    results = df[mask]
+    search_col = next(
+        (col for col in ["German", "Word"] if col in df.columns), df.columns[0]
+    )
+    translation_col = next(
+        (
+            col
+            for col in ["English", "Translation", "Meaning"]
+            if col in df.columns and col != search_col
+        ),
+        df.columns[1] if len(df.columns) > 1 else search_col,
+    )
+
+    results = df.loc[mask, [search_col, translation_col]]
+    if results.empty and process is not None:
+        choices = df[search_col].dropna().astype(str).tolist()
+        fuzzy_matches = process.extract(query, choices, limit=5)
+        matched_values = [match[0] for match in fuzzy_matches]
+        results = df[df[search_col].isin(matched_values)][[search_col, translation_col]]
+        
     if results.empty:
         st.write("No matches found.")
     else:
-        st.dataframe(results, use_container_width=True, height=200)
+        for _, row in results.iterrows():
+            st.markdown(f"- **{row[search_col]}** – {row[translation_col]}")
