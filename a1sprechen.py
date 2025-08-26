@@ -10145,9 +10145,14 @@ if tab == "Vocab Trainer":
     if subtab == "Sentence Builder":
         student_level = student_level_locked
         st.info(f"✍️ You are practicing **Sentence Builder** at **{student_level}** (locked from your profile).")
+        
+        # --- Guide ---
+        with st.expander("✍️ Sentence Builder — Guide", expanded=False):
+            st.caption("Click words in order; use Check/Next.")
 
-        # --- Guide & Progress ---
-        with st.expander("✍️ Sentence Builder — Guide & Progress", expanded=False):
+        # --- Progress ---
+        with st.expander("Progress", expanded=False):
+        
             try:
                 done_unique, total_items = get_sentence_progress(student_code, student_level)
             except Exception:
@@ -10155,17 +10160,9 @@ if tab == "Vocab Trainer":
                 done_unique = 0
             pct = int((done_unique / total_items) * 100) if total_items else 0
             st.progress(pct)
-            st.caption(f"**Overall Progress:** {done_unique} / {total_items} unique sentences correct ({pct}%).")
-            st.markdown(
-                """
-                <div style="padding:10px 14px; background:#7b2ff2; color:#fff; border-radius:8px; text-align:center;">
-                  ✍️ <b>Sentence Builder</b> — Click the words in the correct order!
-                </div>
-                """,
-                unsafe_allow_html=True
+            st.caption(
+                f"Overall Progress: {done_unique} / {total_items} unique sentences correct ({pct}%)."
             )
-            st.caption("Tip: Click words to build the sentence. Clear to reset, Check to submit, Next for a new one.")
-            st.markdown("**Score** = correct this session. **Progress bar** = unique lifetime correct for this level.")
 
         # ---- Session state defaults ----
         init_defaults = {
