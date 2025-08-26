@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import src.stats as stats
 
 
@@ -208,3 +210,11 @@ def test_get_vocab_stats_handles_get_failure(monkeypatch):
     assert result["history"] == []
     assert result["total_sessions"] == 0
     assert warnings
+
+
+def test_save_vocab_attempt_uses_utc_timestamp():
+    stats.db = DummyDB()
+    stats.save_vocab_attempt("stud", "A1", 1, 1, [])
+    attempt = stats.get_vocab_stats("stud")["history"][-1]
+    dt = datetime.fromisoformat(attempt["timestamp"])
+    assert dt.tzinfo == UTC
