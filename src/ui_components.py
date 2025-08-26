@@ -100,15 +100,37 @@ def render_vocab_lookup(key: str) -> None:
         df.columns[1] if len(df.columns) > 1 else search_col,
     )
 
-    results = df.loc[mask, [search_col, translation_col]]
+    columns = [search_col, translation_col]
+    for col in ["Audio", "Audio Link"]:
+        if col in df.columns and col not in columns:
+            columns.append(col)
+
+    results = df.loc[mask, columns]
+
     if results.empty and process is not None:
         choices = df[search_col].dropna().astype(str).tolist()
         fuzzy_matches = process.extract(query, choices, limit=5)
         matched_values = [match[0] for match in fuzzy_matches]
-        results = df[df[search_col].isin(matched_values)][[search_col, translation_col]]
+        results = df[df[search_col].isin(matched_values)][columns]
         
     if results.empty:
         st.write("No matches found.")
     else:
         for _, row in results.iterrows():
-            st.markdown(f"- **{row[search_col]}** – {row[translation_col]}")
+            word = row[search_col]
+            meaning = row[translation_col]
+            audio_url = row.get("Audio")
+            if not audio_url or pd.isna(audio_url):
+                audio_url = row.get("Audio Link")
+            if not audio_url or pd.isna(audio_url):
+                audio_url = None
+
+            line = f"- **{word}** – {meaning}"
+            if audio_url:
+                line += f" [▶️]({audio_url}) [⬇️]({audio_url})"
+            st.markdown(line)
+            if audio_url:
+                try:  # pragma: no cover - best effort on mobile browsers
+                    st.audio(audio_url)
+                except Exception:
+                    pass
