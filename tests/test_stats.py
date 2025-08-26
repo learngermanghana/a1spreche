@@ -12,6 +12,25 @@ def test_get_vocab_stats_without_db():
     assert result["history"] == []
     assert result["total_sessions"] == 0
 
+def test_vocab_attempt_exists_handles_get_failure(monkeypatch):
+    class BoomDoc:
+        def get(self):
+            raise Exception("boom")
+
+    class BoomCollection:
+        def document(self, key):
+            return BoomDoc()
+
+    class BoomDB:
+        def collection(self, name):
+            return BoomCollection()
+
+    warnings = []
+    stats.db = BoomDB()
+    monkeypatch.setattr(stats.st, "warning", lambda msg: warnings.append(msg))
+    assert stats.vocab_attempt_exists("stud", "sess") is False
+    assert warnings
+
 class DummyDoc:
     def __init__(self, store, key):
         self.store = store
@@ -135,3 +154,57 @@ def test_save_vocab_attempt_limits_correct_to_total(monkeypatch):
     assert attempt["total"] == 3
     assert attempt["correct"] == 3
     assert any("exceeds total" in w for w in warnings)
+
+
+def test_save_vocab_attempt_handles_set_failure(monkeypatch):
+    class BoomDoc:
+        def __init__(self):
+            self.exists = False
+
+        def get(self):
+            class Result:
+                exists = False
+
+                def to_dict(self):
+                    return {}
+
+            return Result()
+
+        def set(self, *args, **kwargs):
+            raise Exception("boom")
+
+    class BoomCollection:
+        def document(self, key):
+            return BoomDoc()
+
+    class BoomDB:
+        def collection(self, name):
+            return BoomCollection()
+
+    warnings = []
+    stats.db = BoomDB()
+    monkeypatch.setattr(stats.st, "warning", lambda msg: warnings.append(msg))
+    stats.save_vocab_attempt("stud", "A1", 1, 1, [])
+    assert warnings
+
+
+def test_get_vocab_stats_handles_get_failure(monkeypatch):
+    class BoomDoc:
+        def get(self):
+            raise Exception("boom")
+
+    class BoomCollection:
+        def document(self, key):
+            return BoomDoc()
+
+    class BoomDB:
+        def collection(self, name):
+            return BoomCollection()
+
+    warnings = []
+    stats.db = BoomDB()
+    monkeypatch.setattr(stats.st, "warning", lambda msg: warnings.append(msg))
+    result = stats.get_vocab_stats("stud")
+    assert result["history"] == []
+    assert result["total_sessions"] == 0
+    assert warnings
