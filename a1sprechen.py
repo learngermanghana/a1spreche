@@ -79,7 +79,11 @@ from src.firestore_utils import (
     save_chat_draft_to_db,
     save_draft_to_db,
 )
-from src.ui_components import render_assignment_reminder, render_link
+from src.ui_components import (
+    render_assignment_reminder,
+    render_link,
+    render_vocab_lookup,
+)
 from src.stats import (
     get_student_level,
     get_vocab_stats,
@@ -5266,7 +5270,9 @@ if tab == "My Course":
                     showed = True
                 if info.get("workbook_link"):
                     st.markdown(f"- [📒 Workbook (Assignment)]({info['workbook_link']})")
-                    render_assignment_reminder(); showed = True
+                    render_assignment_reminder()
+                    render_vocab_lookup(f"fallback-{info.get('day', '')}")
+                    showed = True
                 for ex in _as_list(info.get("extra_resources")):
                     st.markdown(f"- [🔗 Extra]({ex})")
                     showed = True
