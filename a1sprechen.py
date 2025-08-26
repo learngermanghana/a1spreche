@@ -3253,8 +3253,8 @@ def get_a1_schedule():
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
             "grammar_topic": "Weather and Past Tense. How to form Perfekt statement in German",
             "lesen_hören": {
-                "video": "https://youtu.be/6cBs3Qfvdk4",
-                "youtube_link": "https://youtu.be/6cBs3Qfvdk4",
+                "video": "https://youtu.be/oz1asSrG8d0",
+                "youtube_link": "https://youtu.be/oz1asSrG8d0",
                 "assignment": True,
                 "grammarbook_link": "https://drive.google.com/file/d/1PCXsTIg9iNlaAUkwH8BYekw_3v1HJjGq/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1GZeUi5p6ayDGnPcebFVFfaNavmoWyoVM/view?usp=sharing"
