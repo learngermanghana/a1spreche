@@ -10124,16 +10124,6 @@ if tab == "Vocab Trainer":
     st.caption("Your level is loaded automatically from the school list. Ask your tutor if this looks wrong.")
     st.divider()
 
-    # Small toolbar
-    tcol1, tcol2 = st.columns([1, 1])
-    with tcol1:
-        if st.button("🔄 Refresh vocab from sheet", use_container_width=True):
-            refresh_vocab_from_sheet()
-            st.success("Refreshed vocab + audio from sheet.")
-            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-    with tcol2:
-        st.caption("Uses 'Audio (slow)' for A1 by default; 'Audio (normal)' for others.")
-
     subtab = st.radio(
         "Choose practice:",
         ["Sentence Builder", "Vocab Practice", "Dictionary"],
