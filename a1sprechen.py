@@ -99,6 +99,8 @@ from src.schreiben import (
 
 DEFAULT_PLAYLIST_LEVEL = "A1"
 
+# Default number of sentences per session in Sentence Builder.
+SB_SESSION_TARGET = int(os.environ.get("SB_SESSION_TARGET", 5))
 
 def _validate_youtube_playlists() -> None:
     """Warn if any playlist level lacks video IDs."""
@@ -10209,14 +10211,11 @@ if tab == "Vocab Trainer":
             new_sentence()
 
         # ---- Top metrics ----
-        cols = st.columns([3, 2, 2])
+        target = SB_SESSION_TARGET
+        cols = st.columns(2)
         with cols[0]:
-            st.session_state.setdefault("sb_target", 5)
-            _ = st.number_input("Number of sentences this session", 1, 20, key="sb_target")
-        target = int(st.session_state.sb_target)
-        with cols[1]:
             st.metric("Score (this session)", f"{st.session_state.sb_score}")
-        with cols[2]:
+        with cols[1]:
             st.metric("Progress (this session)", f"{st.session_state.sb_total}/{target}")
 
         st.divider()
@@ -10294,7 +10293,7 @@ if tab == "Vocab Trainer":
         with c:
             next_disabled = (st.session_state.sb_correct is None)
             if st.button("➡️ Next", disabled=next_disabled):
-                if st.session_state.sb_total >= st.session_state.sb_target:
+                if st.session_state.sb_total >= target:
                     st.success(f"Session complete! Score: {st.session_state.sb_score}/{st.session_state.sb_total}")
                 new_sentence()
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
