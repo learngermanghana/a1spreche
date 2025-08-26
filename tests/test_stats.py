@@ -99,6 +99,21 @@ def test_load_student_levels_uses_secrets(monkeypatch):
     stats.load_student_levels()
     assert "SECRET456" in captured["url"]
 
+
+def test_load_student_levels_handles_failure(monkeypatch):
+    def fail_read_csv(url):
+        raise OSError("fail")
+
+    warnings = []
+    monkeypatch.setattr(stats.pd, "read_csv", fail_read_csv)
+    monkeypatch.setattr(stats.st, "warning", lambda msg: warnings.append(msg))
+    stats.load_student_levels.clear()
+    df = stats.load_student_levels()
+    assert warnings  # warning was emitted
+    assert list(df.columns) == ["student_code", "level"]
+    assert df.empty
+
+
 def test_save_vocab_attempt_sanitizes_negative_inputs(monkeypatch):
     stats.db = DummyDB()
     warnings = []
