@@ -5278,6 +5278,14 @@ if tab == "My Course":
                     st.markdown(f"- [🔗 Extra]({ex})")
                     showed = True
 
+            # --- quick access to translators ---
+            st.markdown(
+                "[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; "
+                "[🌐 Google Translate](https://translate.google.com)",
+                unsafe_allow_html=True,
+            )
+
+
                 if not showed:
                     st.info("No activity sections or links found for this lesson. Check the lesson data for A2/B1 key names.")
 
@@ -5340,36 +5348,43 @@ if tab == "My Course":
                         key="dl_links_txt",
                     )
 
-            with st.expander("🌐 Translator & 🎬 Video of the Day"):
-                st.markdown(
-                    "[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; "
-                    "[🌐 Google Translate](https://translate.google.com)",
-                    unsafe_allow_html=True
-                )
-                st.caption("Copy any text from the course book and paste it into your translator.")
+            with st.expander("📚 Study Resources"):
+                if _is_url(info.get("video")):
+                    st.video(info["video"])
+                elif info.get("video"):
+                    st.markdown(f"[▶️ Watch on YouTube]({info['video']})")
+                    
+                if _is_url(info.get("grammarbook_link")):
+                    render_link("📘 Grammar Book (Notes)", info["grammarbook_link"])
 
-                st.divider()
-                st.markdown("#### 🎬 Video of the Day for Your Level")
-                playlist_ids = get_playlist_ids_for_level(level_key)
-                fetch_videos = globals().get("fetch_youtube_playlist_videos")
-                api_key = globals().get("YOUTUBE_API_KEY")
-                playlist_id = random.choice(playlist_ids) if playlist_ids else None
+                render_link("📗 Dictionary", "https://dict.leo.org/german-english")
 
 
-                if playlist_id and fetch_videos and api_key:
-                    try:
-                        video_list = fetch_videos(playlist_id, api_key)
-                    except Exception:
-                        video_list = []
-                    if video_list:
-                        today_idx = date.today().toordinal() % len(video_list)
-                        video = video_list[today_idx]
-                        st.markdown(f"**{video['title']}**")
-                        st.video(video['url'])
-                    else:
-                        st.info("No videos found for your level’s playlist. Check back soon!")
+            st.markdown("#### 🎬 Video of the Day for Your Level")
+            playlist_ids = get_playlist_ids_for_level(level_key)
+            fetch_videos = globals().get("fetch_youtube_playlist_videos")
+            api_key = globals().get("YOUTUBE_API_KEY")
+            playlist_id = random.choice(playlist_ids) if playlist_ids else None
+
+            if playlist_id and fetch_videos and api_key:
+                try:
+                    video_list = fetch_videos(playlist_id, api_key)
+                except Exception:
+                    video_list = []
+                if video_list:
+                    today_idx = date.today().toordinal() % len(video_list)
+                    video = video_list[today_idx]
+                    st.markdown(f"**{video['title']}**")
+                    st.video(video['url'])
                 else:
-                    st.info("No playlist found for your level yet. Stay tuned!")
+                    st.info("No videos found for your level’s playlist. Check back soon!")
+            else:
+                st.info("No playlist found for your level yet. Stay tuned!")
+
+            if _is_url(info.get("workbook_link")):
+                render_link("📒 Workbook (Assignment)", info["workbook_link"])
+            render_assignment_reminder()
+
 
         # SUBMIT
         elif coursebook_section == "Submit":
