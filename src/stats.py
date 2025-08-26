@@ -52,7 +52,13 @@ def load_student_levels():
         or DEFAULT_ROSTER_SHEET_ID
     )
     csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
-    df = pd.read_csv(csv_url)
+    try:
+        df = pd.read_csv(csv_url)
+    except Exception as e:  # pragma: no cover - network/streamlit issues
+        st.warning(
+            f"Could not load roster from {csv_url} ({e}). Using empty roster."
+        )
+        return pd.DataFrame({"student_code": [], "level": []})
     df.columns = [c.strip().lower() for c in df.columns]
 
     code_col_candidates = ["student_code", "studentcode", "code", "student id", "id"]
