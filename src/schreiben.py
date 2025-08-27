@@ -207,3 +207,15 @@ def inc_letter_coach_usage(student_code: str) -> None:
             doc_ref.set({"student_code": student_code, "date": today, "count": 1})
     except Exception as exc:  # pragma: no cover - network failure
         st.error(f"Failed to increment Letter Coach usage: {exc}")
+
+
+__all__ = [
+    "update_schreiben_stats",
+    "get_schreiben_stats",
+    "save_submission",
+    "save_schreiben_feedback",
+    "load_schreiben_feedback",
+    "delete_schreiben_feedback",
+    "get_letter_coach_usage",
+    "inc_letter_coach_usage",
+]
