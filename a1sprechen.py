@@ -562,9 +562,9 @@ def _handle_google_oauth(code: str, state: str) -> None:
             st.error("Google login failed: no access token."); return
         st.session_state["_oauth_code_redeemed"] = code
         try:
-            save_token(access_token, KeychainKey.accessToken)
+            save_token(KeychainKey.accessToken, access_token)
             if refresh_token:
-                save_token(refresh_token, KeychainKey.refreshToken)
+                save_token(KeychainKey.refreshToken, refresh_token)
         except Exception:
             pass
         userinfo = requests.get(
