@@ -134,6 +134,24 @@ def test_load_student_levels_handles_failure(monkeypatch):
     assert list(df.columns) == ["student_code", "level"]
     assert df.empty
 
+def test_get_student_level_returns_none_when_missing(monkeypatch):
+    df = stats.pd.DataFrame({"student_code": ["x"], "level": ["B1"]})
+    monkeypatch.setattr(stats, "load_student_levels", lambda: df)
+    level = stats.get_student_level("unknown", default=None)
+    assert level is None
+
+
+def test_get_student_level_handles_load_failure(monkeypatch):
+    def boom():
+        raise OSError("fail")
+
+    warnings = []
+    monkeypatch.setattr(stats, "load_student_levels", boom)
+    monkeypatch.setattr(stats.st, "warning", lambda msg: warnings.append(msg))
+    level = stats.get_student_level("abc", default=None)
+    assert level is None
+    assert warnings
+
 
 def test_save_vocab_attempt_sanitizes_negative_inputs(monkeypatch):
     stats.db = DummyDB()
