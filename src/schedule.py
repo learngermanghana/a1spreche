@@ -1604,31 +1604,3 @@ def get_level_schedules():
         "B2": _safe(get_b2_schedule),
         "C1": _safe(get_c1_schedule),
     }
-tests/test_auth_module.py
-New
-+25-0
-import sys
-from pathlib import Path
-
-sys.path.append(str(Path(__file__).resolve().parents[1]))
-
-from src import auth
-
-
-def test_auth_exports_expected_helpers():
-    for name in [
-        'cookie_manager',
-        'set_student_code_cookie',
-        'set_session_token_cookie',
-        'persist_session_client',
-        'bootstrap_cookies',
-        'restore_session_from_cookie',
-        'reset_password_page',
-    ]:
-        assert hasattr(auth, name), f"auth module missing {name}"
-    assert callable(auth.set_student_code_cookie)
-    assert callable(auth.set_session_token_cookie)
-    assert callable(auth.persist_session_client)
-    assert callable(auth.bootstrap_cookies)
-    assert callable(auth.restore_session_from_cookie)
-    assert callable(auth.reset_password_page)
