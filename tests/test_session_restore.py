@@ -10,7 +10,7 @@ from src.auth import (
     set_session_token_cookie,
     clear_session,
     restore_session_from_cookie,
-
+)
 
 def test_cookies_keep_user_logged_in_after_reload():
     """User with valid cookies should remain logged in after a reload."""
