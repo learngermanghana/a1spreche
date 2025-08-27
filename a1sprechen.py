@@ -2949,7 +2949,8 @@ if tab == "My Course":
         )
         st.divider()
 
-        # ---- Load schedule (normalized) ----
+        # ---- Load schedule (normalized) ----       
+        student_level = st.session_state.get("student_level", "A1")
         level_key = (student_level or "A1").strip().upper()
         schedules = load_level_schedules()
         schedule = schedules.get(level_key, schedules.get("A1", []))
