@@ -110,7 +110,6 @@ from src.ui_helpers import (
     filter_matches,
 )
 from src.auth import (
-    cookie_manager,
     set_student_code_cookie,
     set_session_token_cookie,
     clear_session,
@@ -133,6 +132,13 @@ def _validate_youtube_playlists() -> None:
         if not ids:
             st.warning(f"No YouTube playlist IDs configured for level {lvl}.")
 
+# Each client receives its own cookie manager so login state does not leak
+# between users.  ``bootstrap_cookies`` returns ``None`` on the first run while
+# the manager initialises itself, in which case we halt execution until the
+# next reload.
+cookie_manager = bootstrap_cookies()
+if cookie_manager is None:
+    st.stop()
 
 def get_playlist_ids_for_level(level: str) -> list[str]:
     """Return playlist IDs for a CEFR level with a fallback.
@@ -440,9 +446,6 @@ def _ensure_student_level() -> str:
     return level
 
 seed_falowen_state_from_qp()
-
-if bootstrap_cookies(cookie_manager) is None:
-    st.rerun()
 
 restored = restore_session_from_cookie(cookie_manager, load_student_data)
 
