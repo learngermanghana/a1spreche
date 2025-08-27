@@ -70,6 +70,26 @@ def test_delete_schreiben_feedback_clears_record(helpers):
     helpers.st.warning.assert_not_called()
     assert result == ("", "")
 
+def test_save_submission_empty(helpers):
+    helpers.save_submission("", 50, True, None, "A1", "L")
+    helpers.db.collection.assert_not_called()
+    helpers.st.warning.assert_called_once()
+
+
+def test_save_submission_valid(helpers):
+    helpers.save_submission("abc", 75, False, None, "A1", "text")
+    helpers.db.collection.assert_called_once_with("schreiben_submissions")
+    helpers.db.collection.return_value.add.assert_called_once_with(
+        {
+            "student_code": "abc",
+            "score": 75,
+            "passed": False,
+            "date": helpers.firestore.SERVER_TIMESTAMP,
+            "level": "A1",
+            "letter": "text",
+        }
+    )
+    helpers.st.warning.assert_not_called()
 
 def test_get_letter_coach_usage_empty(helpers):
     count = helpers.get_letter_coach_usage("")
