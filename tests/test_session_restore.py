@@ -50,6 +50,13 @@ def test_cookies_keep_user_logged_in_after_reload():
         if roster is not None and "StudentCode" in roster.columns
         else {}
     )
+    # Stub ``get_student_level`` to avoid network calls
+    orig_stats = sys.modules.get("src.stats")
+    stub_stats = types.SimpleNamespace(get_student_level=lambda sc: "B2")
+    sys.modules["src.stats"] = stub_stats
+    from src.stats import get_student_level
+
+    level = row.get("Level") or get_student_level(sc)
     st.session_state.update(
         {
             "logged_in": True,
@@ -57,13 +64,19 @@ def test_cookies_keep_user_logged_in_after_reload():
             "student_name": row.get("Name", ""),
             "student_row": dict(row) if isinstance(row, pd.Series) else {},
             "session_token": token,
+            "student_level": level,
         }
     )
+    if orig_stats is not None:
+        sys.modules["src.stats"] = orig_stats
+    else:
+        sys.modules.pop("src.stats")
 
     assert st.session_state.get("logged_in") is True
     assert st.session_state.get("student_code") == "abc"
     assert st.session_state.get("student_name") == "Alice"
     assert st.session_state.get("session_token") == "tok123"
+    assert st.session_state.get("student_level") == "B2"
 
 def test_session_not_restored_when_student_code_mismatch():
     """User is not logged in if token validation returns a different code."""
