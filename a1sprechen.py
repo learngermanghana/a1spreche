@@ -120,8 +120,6 @@ from src.auth import (
     reset_password_page,
 )
 
-from src.keychain import save_token, delete_token, KeychainKey
-
 DEFAULT_PLAYLIST_LEVEL = "A1"
 
 from src.sentence_bank import SENTENCE_BANK
@@ -561,12 +559,9 @@ def _handle_google_oauth(code: str, state: str) -> None:
         if not access_token:
             st.error("Google login failed: no access token."); return
         st.session_state["_oauth_code_redeemed"] = code
-        try:
-            save_token(KeychainKey.accessToken, access_token)
-            if refresh_token:
-                save_token(KeychainKey.refreshToken, refresh_token)
-        except Exception:
-            pass
+        st.session_state["access_token"] = access_token
+        if refresh_token:
+            st.session_state["refresh_token"] = refresh_token
         userinfo = requests.get(
             "https://www.googleapis.com/oauth2/v2/userinfo",
             headers={"Authorization": f"Bearer {access_token}"},
@@ -1395,11 +1390,8 @@ if _logout_clicked:
     except Exception as e:
         st.warning(f"Logout warning (expire cookies): {e}")
 
-    try:
-        delete_token(KeychainKey.accessToken)
-        delete_token(KeychainKey.refreshToken)
-    except Exception as e:
-        st.warning(f"Logout warning (keychain): {e}")
+    st.session_state.pop("access_token", None)
+    st.session_state.pop("refresh_token", None)
 
     qp_clear_keys("code", "state", "token")
 
