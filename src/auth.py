@@ -42,13 +42,21 @@ cookie_manager = SimpleCookieManager()
 
 
 def set_student_code_cookie(cm: SimpleCookieManager, code: str, **kwargs: Any) -> None:
-    """Store the student code in a cookie."""
+    """Store the student code in a cookie and persist the change."""
     cm.set("student_code", code, **kwargs)
+    try:  # pragma: no cover - save rarely fails but we defend against it
+        cm.save()
+    except Exception:
+        pass
 
 
 def set_session_token_cookie(cm: SimpleCookieManager, token: str, **kwargs: Any) -> None:
-    """Store the session token in a cookie."""
+    """Store the session token in a cookie and persist the change."""
     cm.set("session_token", token, **kwargs)
+    try:  # pragma: no cover - save rarely fails but we defend against it
+        cm.save()
+    except Exception:
+        pass
 
 def clear_session(cm: SimpleCookieManager) -> None:
     """Remove session related cookies.
