@@ -91,6 +91,7 @@ from src.stats import (
 from src.schreiben import (
     update_schreiben_stats,
     get_schreiben_stats,
+    save_submission,
     save_schreiben_feedback,
     load_schreiben_feedback,
     delete_schreiben_feedback,
@@ -336,6 +337,7 @@ def _bootstrap_state():
         "student_row": {},
         "student_code": "",
         "student_name": "",
+        "student_level": "",
         "session_token": "",
         "cookie_synced": False,
         "__last_refresh": 0.0,
@@ -413,6 +415,29 @@ def load_student_data():
     """Load student roster, or return None if unavailable."""
     return _load_student_data_cached()
 
+def _determine_level(sc: str, row) -> str:
+    """Resolve a student's level from a row or fallback helper."""
+    level = ""
+    if isinstance(row, (dict, pd.Series)):
+        level = row.get("Level", "")
+    if not level and sc:
+        try:
+            level = get_student_level(sc) or ""
+        except Exception:
+            level = ""
+    return str(level or "").strip()
+
+
+def _ensure_student_level() -> str:
+    """Ensure ``st.session_state['student_level']`` is populated."""
+    if st.session_state.get("student_level"):
+        return st.session_state["student_level"]
+    sc = st.session_state.get("student_code", "")
+    row = st.session_state.get("student_row", {})
+    level = _determine_level(sc, row)
+    st.session_state["student_level"] = level
+    return level
+
 seed_falowen_state_from_qp()
 
 if bootstrap_cookies(cookie_manager) is None:
@@ -445,6 +470,7 @@ if restored is not None and not st.session_state.get("logged_in", False):
             if roster is not None and "StudentCode" in roster.columns
             else {}
         )
+        level = _determine_level(sc, row)
         st.session_state.update(
             {
                 "logged_in": True,
@@ -452,6 +478,7 @@ if restored is not None and not st.session_state.get("logged_in", False):
                 "student_name": row.get("Name", ""),
                 "student_row": dict(row) if isinstance(row, pd.Series) else {},
                 "session_token": token,
+                "student_level": level,
             }
         )
     
@@ -541,12 +568,14 @@ def _handle_google_oauth(code: str, state: str) -> None:
             st.error("Your contract has expired. Contact the office."); return
         ua_hash = st.session_state.get("__ua_hash", "")
         sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
+        level = _determine_level(student_row["StudentCode"], student_row)
         st.session_state.update({
             "logged_in": True,
             "student_row": student_row.to_dict(),
             "student_code": student_row["StudentCode"],
             "student_name": student_row["Name"],
             "session_token": sess_token,
+            "student_level": level,
         })
         set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
         persist_session_client(sess_token, student_row["StudentCode"])
@@ -887,12 +916,14 @@ def render_login_form():
 
         ua_hash = st.session_state.get("__ua_hash", "")
         sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
+        level = _determine_level(student_row["StudentCode"], student_row)
         st.session_state.update({
             "logged_in": True,
             "student_row": dict(student_row),
             "student_code": student_row["StudentCode"],
             "student_name": student_row["Name"],
             "session_token": sess_token,
+            "student_level": level,
         })
         set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
         persist_session_client(sess_token, student_row["StudentCode"])
@@ -2289,6 +2320,8 @@ if tab == "Dashboard":
 
     # ---------- Class schedules ----------
     with st.expander("🗓️ Class Schedule & Upcoming Sessions", expanded=False):
+            if not st.session_state.get("student_level"):
+            _ensure_student_level()
         GROUP_SCHEDULES = load_group_schedules()
 
         from datetime import datetime as _dt_local, timedelta as _td_local
@@ -2987,7 +3020,9 @@ if tab == "My Course":
         )
         st.divider()
 
-        # ---- Load schedule (normalized) ----       
+        # ---- Load schedule (normalized) ----
+        if not st.session_state.get("student_level"):
+            _ensure_student_level()  
         student_level = st.session_state.get("student_level", "A1")
         level_key = (student_level or "A1").strip().upper()
         schedules = load_level_schedules()
@@ -3849,6 +3884,8 @@ if tab == "My Course":
 
             # -------- group schedule config (global/secrets/firestore/fallback) --------
             def _load_group_schedules():
+                if not st.session_state.get("student_level"):
+                    _ensure_student_level()
                 # 1) global
                 cfg = globals().get("GROUP_SCHEDULES")
                 if isinstance(cfg, dict) and cfg:
