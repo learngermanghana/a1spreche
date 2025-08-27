@@ -6004,13 +6004,20 @@ def save_exam_progress(student_code, progress_items):
 
 # Simple back-step that returns to Stage 1 (used in buttons)
 def back_step():
+    draft_key = st.session_state.get("falowen_chat_draft_key")
     for key in [
         "falowen_mode", "falowen_level", "falowen_teil",
         "falowen_exam_topic", "falowen_exam_keyword",
         "remaining_topics", "used_topics", "falowen_messages",
-        "falowen_loaded_key"
+        "falowen_loaded_key", "falowen_conv_key",
+        "falowen_chat_draft_key", "custom_topic_intro_done",
+        "falowen_turn_count",
     ]:
         st.session_state.pop(key, None)
+    if draft_key:
+        st.session_state.pop(draft_key, None)
+        for extra in _draft_state_keys(draft_key):
+            st.session_state.pop(extra, None)
     st.session_state["_falowen_loaded"] = False
     st.session_state["falowen_stage"] = 1
     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
@@ -6316,8 +6323,10 @@ def build_exam_system_prompt(level: str, teil: str, student_code: str = "felixa1
     return ""
     # (Your B2/C1 fallbacks left as in your working version)
 
-def build_custom_chat_prompt(level):
+def build_custom_chat_prompt(level, student_code=None):
     # (kept exactly as your working version—no recorder line added here to respect your request)
+    if student_code is None:
+        student_code = st.session_state.get("student_code", "")
     if level == "C1":
         return (
             "You are supportive German C1 Teacher. Speak both english and German "
@@ -6331,8 +6340,10 @@ def build_custom_chat_prompt(level):
         )
     if level in ["A1", "A2", "B1", "B2"]:
         correction_lang = "in English" if level in ["A1", "A2"] else "half in English and half in German"
-        rec_url = f"https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec?code={student_code}"
-        return (
+        rec_url = (
+            "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec"
+            f"?code={student_code}"
+        )
             f"You are Herr Felix, a supportive and innovative German teacher. "
             f"1. Congratulate the student in English for the topic and give interesting tips on the topic. Always let the student know how the session is going to go in English. It shouldnt just be questions but teach them also. The total number of questios,what they should expect,what they would achieve at the end of the session. Let them know they can ask questions or ask for translation if they dont understand anything. You are ready to always help "
             f"2. If student input looks like a letter question instead of a topic for discussion, then prompt them that you are trained to only help them with their speaking so they should rather paste their letter question in the ideas generator in the schreiben tab. "
@@ -6654,7 +6665,7 @@ if tab == "Exams Mode & Custom Chat":
             else:
                 system_prompt = base_prompt
         else:
-            system_prompt = build_custom_chat_prompt(level)
+            system_prompt = build_custom_chat_prompt(level, student_code)
 
         # Always-visible recorder button
         RECORDER_BASE = "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec"
