@@ -80,23 +80,29 @@ def load_student_levels():
     return df
 
 
-def get_student_level(student_code: str, default: str = "A1") -> str:
-    """Return the student's level from the roster."""
+def get_student_level(student_code: str, default: str | None = None) -> str | None:
+    """Return the student's level from the roster.
+
+    If the ``student_code`` cannot be found or the roster fails to load, this
+    function returns ``default`` (which defaults to ``None``).
+    """
 
     try:
         df = load_student_levels()
-        if "student_code" not in df.columns or "level" not in df.columns:
-            return default
-        sc = str(student_code).strip().lower()
-        row = df[df["student_code"].astype(str).str.strip().str.lower() == sc]
-        if not row.empty:
-            return str(row.iloc[0]["level"]).upper().strip()
-        return default
     except Exception as e:  # pragma: no cover - network/streamlit issues
         st.warning(f"Could not load level from roster ({e}). Using default {default}.")
         return default
 
+    if "student_code" not in df.columns or "level" not in df.columns:
+        return default
 
+    sc = str(student_code).strip().lower()
+    row = df[df["student_code"].astype(str).str.strip().str.lower() == sc]
+    if not row.empty:
+        return str(row.iloc[0]["level"]).upper().strip()
+
+    return default
+    
 # ---------------------------------------------------------------------------
 # Vocabulary practice statistics
 # ---------------------------------------------------------------------------
