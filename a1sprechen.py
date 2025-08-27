@@ -1375,6 +1375,12 @@ if _logout_clicked:
     except Exception as e:
         st.warning(f"Logout warning (expire cookies): {e}")
 
+    try:
+        deleteToken(KeychainKey.accessToken)
+        deleteToken(KeychainKey.refreshToken)
+    except Exception as e:
+        st.warning(f"Logout warning (keychain): {e}")
+
     qp_clear_keys("code", "state", "token")
 
     st.session_state.update({
