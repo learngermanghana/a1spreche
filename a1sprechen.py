@@ -883,7 +883,7 @@ def render_login_form():
 
     # ---- LOGIN ----
     if login_btn:
-            prev_token = st.session_state.get("session_token", "")
+        prev_token = st.session_state.get("session_token", "")
         clear_session(cookie_manager)
         st.session_state.update(
             {
