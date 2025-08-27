@@ -454,17 +454,19 @@ if restored is not None and not st.session_state.get("logged_in", False):
     roster = restored.get("data")  # DataFrame
 
     # Optionally validate the session token against the persistent store. Any
-    # import/validation failure is treated as a pass to avoid crashes in test
-    # environments where the backing services may be unavailable.
+    # import/validation failure invalidates the session to avoid resuming
+    # potentially compromised sessions.
     session_data = None
     try:  # pragma: no cover - network/Firestore interactions
         from falowen.sessions import validate_session_token
 
         session_data = validate_session_token(token)
-    except Exception:
-        session_data = {"student_code": sc_cookie}
-
-    if session_data and session_data.get("student_code") == sc_cookie:
+        if not session_data or session_data.get("student_code") != sc_cookie:
+            raise ValueError("session token failed validation")
+    except Exception as exc:
+        logging.warning("Session restoration failed: %s", exc)
+        clear_session(cookie_manager)
+    else:
         sc = session_data.get("student_code", sc_cookie)
         row = (
             roster[roster["StudentCode"].str.lower() == sc].iloc[0]
