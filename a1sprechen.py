@@ -113,6 +113,7 @@ from src.auth import (
     cookie_manager,
     set_student_code_cookie,
     set_session_token_cookie,
+    clear_session,
     persist_session_client,
     bootstrap_cookies,
     restore_session_from_cookie,
@@ -567,6 +568,13 @@ def _handle_google_oauth(code: str, state: str) -> None:
         if is_contract_expired(student_row):
             st.error("Your contract has expired. Contact the office."); return
         ua_hash = st.session_state.get("__ua_hash", "")
+        prev_token = st.session_state.get("session_token", "")
+        if prev_token and "destroy_session_token" in globals():
+            try:
+                destroy_session_token(prev_token)
+            except Exception as e:
+                st.warning(f"Logout warning (revoke): {e}")
+        clear_session(cookie_manager)
         sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
         level = _determine_level(student_row["StudentCode"], student_row)
         st.session_state.update({
@@ -915,6 +923,13 @@ def render_login_form():
             return
 
         ua_hash = st.session_state.get("__ua_hash", "")
+        prev_token = st.session_state.get("session_token", "")
+        if prev_token and "destroy_session_token" in globals():
+            try:
+                destroy_session_token(prev_token)
+            except Exception as e:
+                st.warning(f"Logout warning (revoke): {e}")
+        clear_session(cookie_manager)
         sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
         level = _determine_level(student_row["StudentCode"], student_row)
         st.session_state.update({
@@ -1322,20 +1337,10 @@ if _logout_clicked:
         st.warning(f"Logout warning (revoke): {e}")
 
     try:
-        expires_past = datetime.now(UTC) - timedelta(seconds=1)
-        if "set_student_code_cookie" in globals():
-            set_student_code_cookie(cookie_manager, "", expires=expires_past)
-        if "set_session_token_cookie" in globals():
-            set_session_token_cookie(cookie_manager, "", expires=expires_past)
+        clear_session(cookie_manager)
+
     except Exception as e:
         st.warning(f"Logout warning (expire cookies): {e}")
-
-    try:
-        cookie_manager.delete("student_code")
-        cookie_manager.delete("session_token")
-        cookie_manager.save()
-    except Exception:
-        pass
 
     qp_clear_keys("code", "state", "token")
 
