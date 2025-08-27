@@ -6406,11 +6406,18 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("Next ➡️", key="falowen_next_mode"):
             st.session_state["falowen_mode"] = mode
             st.session_state["falowen_stage"] = 99 if mode == "Pronunciation & Speaking Checker" else 2
-            st.session_state["falowen_level"] = None
-            st.session_state["falowen_teil"] = None
-            st.session_state["falowen_messages"] = []
-            st.session_state["custom_topic_intro_done"] = False
-            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+            if mode == "Pronunciation & Speaking Checker":
+                st.session_state["falowen_stage"] = 99
+                st.session_state["falowen_level"] = None
+            else:
+                level = get_student_level(st.session_state["student_code"])
+                if level:
+                    st.session_state["falowen_level"] = level
+                    st.session_state["falowen_stage"] = 3 if mode == "Exams Mode" else 4
+                else:
+                    st.session_state["falowen_level"] = None
+                    st.session_state["falowen_stage"] = 2
+
 
 
     # ——— Step 2: Level ———
