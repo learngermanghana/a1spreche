@@ -883,6 +883,18 @@ def render_login_form():
 
     # ---- LOGIN ----
     if login_btn:
+            prev_token = st.session_state.get("session_token", "")
+        clear_session(cookie_manager)
+        st.session_state.update(
+            {
+                "logged_in": False,
+                "student_row": {},
+                "student_code": "",
+                "student_name": "",
+                "session_token": "",
+                "student_level": "",
+            }
+        )
         df = load_student_data()
         if df is None:
             st.error("Student roster unavailable. Please try again later.")
@@ -915,7 +927,8 @@ def render_login_form():
         try:
             ok = (
                 bcrypt.checkpw(login_pass.encode("utf-8"), stored_pw.encode("utf-8"))
-                if is_hash else stored_pw == login_pass
+                if is_hash
+                else stored_pw == login_pass
             )
             if ok and not is_hash:
                 new_hash = bcrypt.hashpw(login_pass.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
@@ -934,20 +947,32 @@ def render_login_form():
                 destroy_session_token(prev_token)
             except Exception as e:
                 st.warning(f"Logout warning (revoke): {e}")
-        clear_session(cookie_manager)
-        sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
+        sess_token = create_session_token(
+            student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash
+        )
         level = _determine_level(student_row["StudentCode"], student_row)
-        st.session_state.update({
-            "logged_in": True,
-            "student_row": dict(student_row),
-            "student_code": student_row["StudentCode"],
-            "student_name": student_row["Name"],
-            "session_token": sess_token,
-            "student_level": level,
-        })
-        set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
+
+        st.session_state.update(
+            {
+                "logged_in": True,
+                "student_row": dict(student_row),
+                "student_code": student_row["StudentCode"],
+                "student_name": student_row["Name"],
+                "session_token": sess_token,
+                "student_level": level,
+            }
+        )
+        set_student_code_cookie(
+            cookie_manager,
+            student_row["StudentCode"],
+            expires=datetime.now(UTC) + timedelta(days=180),
+        )
         persist_session_client(sess_token, student_row["StudentCode"])
-        set_session_token_cookie(cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
+        set_session_token_cookie(
+            cookie_manager,
+            sess_token,
+            expires=datetime.now(UTC) + timedelta(days=30),
+        )
         st.success(f"Welcome, {student_row['Name']}!")
         st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
         return True
