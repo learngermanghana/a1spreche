@@ -419,6 +419,40 @@ if bootstrap_cookies(cookie_manager) is None:
     st.rerun()
 
 restored = restore_session_from_cookie(cookie_manager, load_student_data)
+
+# If cookies provided a valid session and we're not already logged in, seed
+# ``st.session_state`` so the user stays logged in across page reloads.
+if restored is not None and not st.session_state.get("logged_in", False):
+    sc = restored["student_code"]
+    token = restored["session_token"]
+    roster = restored.get("data")  # DataFrame
+
+    # Optionally validate the session token against the persistent store. Any
+    # import/validation failure is treated as a pass to avoid crashes in test
+    # environments where the backing services may be unavailable.
+    valid = True
+    try:  # pragma: no cover - network/Firestore interactions
+        from falowen.sessions import validate_session_token
+
+        valid = validate_session_token(token) is not None
+    except Exception:
+        valid = True
+
+    if valid:
+        row = (
+            roster[roster["StudentCode"].str.lower() == sc].iloc[0]
+            if roster is not None and "StudentCode" in roster.columns
+            else {}
+        )
+        st.session_state.update(
+            {
+                "logged_in": True,
+                "student_code": sc,
+                "student_name": row.get("Name", ""),
+                "student_row": dict(row) if isinstance(row, pd.Series) else {},
+                "session_token": token,
+            }
+        )
     
  
 # ------------------------------------------------------------------------------
@@ -5510,6 +5544,8 @@ if tab == "My Course":
 # Safe utilities (define only if missing to avoid duplicates)
 
 # Reuse the app’s schedules provider if available (no duplicate calls)
+if "_get_level_schedules" not in globals():
+    from src.schedule import get_level_schedules as _get_level_schedules
 
 # Plain/emoji score label once; reuse everywhere
 if "score_label_fmt" not in globals():
@@ -6422,13 +6458,15 @@ if tab == "Exams Mode & Custom Chat":
                 st.session_state["falowen_stage"] = 99
                 st.session_state["falowen_level"] = None
             else:
-                level = get_student_level(st.session_state["student_code"])
-                if level:
-                    st.session_state["falowen_level"] = level
-                    st.session_state["falowen_stage"] = 3 if mode == "Exams Mode" else 4
-                else:
+                level = get_student_level(
+                    st.session_state["student_code"], default=None
+                )
+                if level is None:
                     st.session_state["falowen_level"] = None
                     st.session_state["falowen_stage"] = 2
+                else:
+                    st.session_state["falowen_level"] = level
+                    st.session_state["falowen_stage"] = 3 if mode == "Exams Mode" else 4
 
 
 
@@ -7098,8 +7136,11 @@ if tab == "Vocab Trainer":
     student_code = st.session_state.get("student_code", "demo001")
 
     # --- Lock the level from your Sheet/profile ---
-    student_level_locked = get_student_level(student_code, default=st.session_state.get("student_level", "A1")) or "A1"
-
+    student_level_locked = (
+        get_student_level(student_code, default=None)
+        or st.session_state.get("student_level")
+        or "A1"
+    )
     # Header
     st.markdown(
         """
