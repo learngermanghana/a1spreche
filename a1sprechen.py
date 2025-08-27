@@ -593,6 +593,7 @@ def _handle_google_oauth(code: str, state: str) -> None:
         qp_clear()
         st.success(f"Welcome, {student_row['Name']}!")
         st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+        st.rerun()
     except Exception as e:
         st.error(f"Google OAuth error: {e}")
 
