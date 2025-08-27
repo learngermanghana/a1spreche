@@ -10,6 +10,7 @@ from src.auth import (
     set_session_token_cookie,
     clear_session,
     restore_session_from_cookie,
+    SimpleCookieManager,
 )
 
 def test_cookies_keep_user_logged_in_after_reload():
@@ -173,3 +174,23 @@ def test_relogin_replaces_session_and_clears_old_token():
     assert destroyed == ["tok_old"]
     assert cookie_manager.get("student_code") == "new"
     assert cookie_manager.get("session_token") == "tok_new"
+
+def test_clear_session_persists_cookie_deletion():
+    """clear_session should persist deletions so cookies do not linger."""
+
+    class TrackingCookieManager(SimpleCookieManager):
+        def __init__(self):  # pragma: no cover - trivial
+            super().__init__()
+            self.saved = False
+
+        def save(self):  # pragma: no cover - trivial
+            self.saved = True
+
+    cm = TrackingCookieManager()
+    set_student_code_cookie(cm, "abc")
+    set_session_token_cookie(cm, "tok123")
+    clear_session(cm)
+
+    assert cm.get("student_code") is None
+    assert cm.get("session_token") is None
+    assert cm.saved is True
