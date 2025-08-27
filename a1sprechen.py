@@ -597,9 +597,21 @@ def _handle_google_oauth(code: str, state: str) -> None:
             "session_token": sess_token,
             "student_level": level,
         })
-        set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
+        set_student_code_cookie(
+            cookie_manager,
+            student_row["StudentCode"],
+            expires=datetime.now(UTC) + timedelta(days=180),
+        )
         persist_session_client(sess_token, student_row["StudentCode"])
-        set_session_token_cookie(cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
+        set_session_token_cookie(
+            cookie_manager,
+            sess_token,
+            expires=datetime.now(UTC) + timedelta(days=30),
+        )
+        try:
+            cookie_manager.save()
+        except Exception:  # pragma: no cover - defensive
+            pass
         qp_clear()
         st.success(f"Welcome, {student_row['Name']}!")
         st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
