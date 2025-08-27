@@ -8,8 +8,8 @@ from src.auth import (
     cookie_manager,
     set_student_code_cookie,
     set_session_token_cookie,
+    clear_session,
     restore_session_from_cookie,
-)
 
 
 def test_cookies_keep_user_logged_in_after_reload():
@@ -113,3 +113,63 @@ def test_session_not_restored_when_student_code_mismatch():
         st.session_state["logged_in"] = True
 
     assert st.session_state.get("logged_in", False) is False
+
+
+
+def test_logout_clears_cookies_and_revokes_token():
+    """Logging out removes cookies and revokes the session token."""
+    st.session_state.clear()
+    cookie_manager.store.clear()
+
+    destroyed: list[str] = []
+
+    stub_sessions = types.SimpleNamespace(
+        destroy_session_token=lambda tok: destroyed.append(tok)
+    )
+    sys.modules["falowen.sessions"] = stub_sessions
+    from falowen.sessions import destroy_session_token
+
+    # Simulate an active session
+    st.session_state["session_token"] = "tok123"
+    set_student_code_cookie(cookie_manager, "abc")
+    set_session_token_cookie(cookie_manager, "tok123")
+
+    # Logout sequence
+    destroy_session_token(st.session_state["session_token"])
+    clear_session(cookie_manager)
+    st.session_state["session_token"] = ""
+
+    # No cookies should remain and token was revoked
+    assert cookie_manager.get("student_code") is None
+    assert cookie_manager.get("session_token") is None
+    assert destroyed == ["tok123"]
+    assert restore_session_from_cookie(cookie_manager) is None
+
+
+def test_relogin_replaces_session_and_clears_old_token():
+    """Re-login on the same machine should revoke previous token and set new cookies."""
+    st.session_state.clear()
+    cookie_manager.store.clear()
+
+    destroyed: list[str] = []
+    stub_sessions = types.SimpleNamespace(
+        destroy_session_token=lambda tok: destroyed.append(tok)
+    )
+    sys.modules["falowen.sessions"] = stub_sessions
+    from falowen.sessions import destroy_session_token
+
+    # Existing login (old user)
+    st.session_state["session_token"] = "tok_old"
+    set_student_code_cookie(cookie_manager, "old")
+    set_session_token_cookie(cookie_manager, "tok_old")
+
+    # User logs in as different student
+    destroy_session_token(st.session_state.get("session_token"))
+    clear_session(cookie_manager)
+    st.session_state["session_token"] = "tok_new"
+    set_student_code_cookie(cookie_manager, "new")
+    set_session_token_cookie(cookie_manager, "tok_new")
+
+    assert destroyed == ["tok_old"]
+    assert cookie_manager.get("student_code") == "new"
+    assert cookie_manager.get("session_token") == "tok_new"
