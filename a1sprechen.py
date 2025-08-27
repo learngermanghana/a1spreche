@@ -423,22 +423,23 @@ restored = restore_session_from_cookie(cookie_manager, load_student_data)
 # If cookies provided a valid session and we're not already logged in, seed
 # ``st.session_state`` so the user stays logged in across page reloads.
 if restored is not None and not st.session_state.get("logged_in", False):
-    sc = restored["student_code"]
+    sc_cookie = restored["student_code"]
     token = restored["session_token"]
     roster = restored.get("data")  # DataFrame
 
     # Optionally validate the session token against the persistent store. Any
     # import/validation failure is treated as a pass to avoid crashes in test
     # environments where the backing services may be unavailable.
-    valid = True
+    session_data = None
     try:  # pragma: no cover - network/Firestore interactions
         from falowen.sessions import validate_session_token
 
-        valid = validate_session_token(token) is not None
+        session_data = validate_session_token(token)
     except Exception:
-        valid = True
+        session_data = {"student_code": sc_cookie}
 
-    if valid:
+    if session_data and session_data.get("student_code") == sc_cookie:
+        sc = session_data.get("student_code", sc_cookie)
         row = (
             roster[roster["StudentCode"].str.lower() == sc].iloc[0]
             if roster is not None and "StudentCode" in roster.columns
@@ -1782,7 +1783,7 @@ if "inject_notice_css" not in globals():
               .cta-btn {display:block;text-align:center;padding:12px 16px;border-radius:10px;
                         background:#2563eb;color:#fff;text-decoration:none;font-weight:700;}
               /* Sticky nav container for mobile */
-              .nav-sticky {position: sticky; top: 0; z-index: 50; background: white; padding-top: 6px;}
+              .nav-sticky {position: sticky; top: 0; z-index: 50; background: white; padding: 6px 0 10px 0;}
             </style>
             """,
             unsafe_allow_html=True,
@@ -1812,7 +1813,7 @@ def render_dropdown_nav():
         """
         <div class="nav-sticky">
           <div style="padding:12px 14px;background:#ecfeff;border:1px solid #67e8f9;border-radius:12px;
-                      margin:4px 0 10px 0;display:flex;align-items:center;gap:10px;justify-content:space-between;">
+                      margin:4px 0 0 0;display:flex;align-items:center;gap:10px;justify-content:space-between;">
             <div style="font-weight:800;color:#0f172a;font-size:1.05rem;">🧭 Main Menu</div>
             <div style="color:#0c4a6e;font-size:0.95rem;">Use the selector <b>below</b> to switch sections</div>
           </div>
