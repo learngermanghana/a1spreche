@@ -194,3 +194,22 @@ def test_clear_session_persists_cookie_deletion():
     assert cm.get("student_code") is None
     assert cm.get("session_token") is None
     assert cm.saved is True
+
+def test_set_cookie_functions_persist_changes():
+    """Setting cookies should call save so values persist across reloads."""
+
+    class TrackingCookieManager(SimpleCookieManager):
+        def __init__(self):  # pragma: no cover - trivial
+            super().__init__()
+            self.save_calls: int = 0
+
+        def save(self):  # pragma: no cover - trivial
+            self.save_calls += 1
+
+    cm = TrackingCookieManager()
+    set_student_code_cookie(cm, "abc")
+    set_session_token_cookie(cm, "tok123")
+
+    assert cm.get("student_code") == "abc"
+    assert cm.get("session_token") == "tok123"
+    assert cm.save_calls >= 2
