@@ -893,6 +893,9 @@ def render_login_form():
         if lookup.empty:
             st.error("No matching student code or email found.")
             return
+        if lookup.shape[0] > 1:
+            st.error("Multiple matching accounts found. Please contact the office.")
+            return
 
         student_row = lookup.iloc[0]
         if is_contract_expired(student_row):
