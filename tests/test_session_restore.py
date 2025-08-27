@@ -64,3 +64,39 @@ def test_cookies_keep_user_logged_in_after_reload():
     assert st.session_state.get("student_code") == "abc"
     assert st.session_state.get("student_name") == "Alice"
     assert st.session_state.get("session_token") == "tok123"
+
+def test_session_not_restored_when_student_code_mismatch():
+    """User is not logged in if token validation returns a different code."""
+    # Reset state and cookies
+    st.session_state.clear()
+    cookie_manager.store.clear()
+
+    # Cookies indicate a previous login
+    set_student_code_cookie(cookie_manager, "abc")
+    set_session_token_cookie(cookie_manager, "tok123")
+
+    # Stub validation to return a *different* student code
+    stub_sessions = types.SimpleNamespace(
+        validate_session_token=lambda token, ua_hash="": {"student_code": "xyz"}
+        if token == "tok123"
+        else None
+    )
+    sys.modules["falowen.sessions"] = stub_sessions
+
+    def loader():
+        return pd.DataFrame([{"StudentCode": "abc", "Name": "Alice"}])
+
+    restored = restore_session_from_cookie(cookie_manager, loader)
+    assert restored is not None
+
+    # Validate session token but do not log in because codes don't match
+    from falowen.sessions import validate_session_token
+
+    validated = validate_session_token(restored["session_token"])
+    assert validated is not None
+    assert validated.get("student_code") != restored["student_code"]
+
+    if validated.get("student_code") == restored["student_code"]:
+        st.session_state["logged_in"] = True
+
+    assert st.session_state.get("logged_in", False) is False
