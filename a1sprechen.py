@@ -1830,6 +1830,12 @@ def render_dropdown_nav():
     def _fmt(x: str) -> str:
         return f"{icons.get(x,'•')}  {x}"
 
+    def _on_nav_change() -> None:
+        sel_val = st.session_state["nav_dd"]
+        st.session_state["main_tab_select"] = sel_val
+        st.session_state["nav_sel"] = sel_val
+        _qp_set(tab=sel_val)
+
     sel = st.selectbox(
         "🧭 Main menu (tap ▾)",
         tabs,
@@ -1837,13 +1843,10 @@ def render_dropdown_nav():
         key="nav_dd",
         format_func=_fmt,
         help="This is the main selector. Tap ▾ to view all sections.",
+        on_change=_on_nav_change,
     )
 
-    # Persist to URL + session (no rerun storm)
-    if sel != default:
-        _qp_set(tab=sel)
-    st.session_state["main_tab_select"] = sel
-    st.session_state["nav_sel"] = sel  # stable name used later
+
 
     # “You’re here” chip
     st.markdown(
