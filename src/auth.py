@@ -5,24 +5,37 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Optional
 
+
+@dataclass
+class SimpleCookieManager:
+    """Minimal in-memory cookie store used for tests.
+
     The real application uses the ``streamlit_cookies_manager`` package to
     persist cookies in the browser.  For unit tests we only need a tiny subset
-    of the interface, so this class stores cookie values in-memory.
+    of the interface, so this class stores cookie values in memory.
     """
 
     store: dict[str, Any] = field(default_factory=dict)
 
     def set(self, key: str, value: Any, **_: Any) -> None:  # pragma: no cover -
+        """Store ``value`` under ``key``."""
         self.store[key] = value
 
     def get(self, key: str, default: Any | None = None) -> Any | None:  # pragma: no cover -
+        """Return the value for ``key`` or ``default`` if missing."""
         return self.store.get(key, default)
 
     def delete(self, key: str) -> None:  # pragma: no cover -
+        """Remove ``key`` from the store if present."""
         self.store.pop(key, None)
 
     def save(self) -> None:  # pragma: no cover -
         """Persist cookies.
+
+        The test implementation keeps cookies in memory so there is nothing to
+        do here.
+        """
+        return None
 
 # A module level instance used by the application
 cookie_manager = SimpleCookieManager()
@@ -78,7 +91,7 @@ def restore_session_from_cookie(
         return None
 
     data = loader() if loader else None
-        return {
+    return {
         "student_code": student_code,
         "session_token": session_token,
         "data": data,
