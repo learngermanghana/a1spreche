@@ -30,3 +30,11 @@ func loadToken(key: KeychainKey) -> String? {
     else { return nil }
     return token
 }
+
+func deleteToken(for key: KeychainKey) {
+    let query: [String: Any] = [
+        kSecClass as String       : kSecClassGenericPassword,
+        kSecAttrAccount as String : key.rawValue
+    ]
+    SecItemDelete(query as CFDictionary)
+}
