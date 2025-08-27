@@ -99,7 +99,6 @@ from src.schreiben import (
 )
 
 from src.group_schedules import load_group_schedules
-
 from src.schedule import load_level_schedules, get_level_schedules
 from src.ui_helpers import (
     qp_get,
