@@ -6412,9 +6412,6 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["custom_topic_intro_done"] = False
             st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
-    if st.session_state["falowen_stage"] == 2 and level:
-        st.session_state["falowen_level"] = level.upper().strip()
-        st.session_state["falowen_stage"] = 3 if st.session_state["falowen_mode"] == "Exams Mode" else 4
 
     # ——— Step 2: Level ———
     if st.session_state["falowen_stage"] == 2 and not st.session_state.get("falowen_level"):
@@ -6430,12 +6427,12 @@ if tab == "Exams Mode & Custom Chat":
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
         with col2:
             if st.button("Next ➡️", key="falowen_next_level"):
-                st.session_state["falowen_level"] = level
-                st.session_state["falowen_stage"] = 3 if st.session_state["falowen_mode"] == "Exams Mode" else 4
-                st.session_state["falowen_teil"] = None
-                st.session_state["falowen_messages"] = []
-                st.session_state["custom_topic_intro_done"] = False
-                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                if st.session_state.get("falowen_level"):
+                    st.session_state["falowen_stage"] = 3 if st.session_state["falowen_mode"] == "Exams Mode" else 4
+                    st.session_state["falowen_teil"] = None
+                    st.session_state["falowen_messages"] = []
+                    st.session_state["custom_topic_intro_done"] = False
+                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
         st.stop()
 
     # ——— Step 3: Exam Part or Lesen/Hören links ———
