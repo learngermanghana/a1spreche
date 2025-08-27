@@ -3398,15 +3398,31 @@ if tab == "My Course":
                         parts_txt.append("")
                 bundle_txt = "\n".join(parts_txt).strip() + "\n"
 
+                temp_path = st.session_state.get("links_temp_path")
+                if not temp_path or not os.path.exists(temp_path):
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as tmp:
+                        tmp.write(bundle_txt.encode("utf-8"))
+                        temp_path = tmp.name
+                    st.session_state["links_temp_path"] = temp_path
+
                 cdl1, cdl2 = st.columns([1, 1])
                 with cdl1:
-                    st.download_button(
+                    file_obj = open(temp_path, "rb")
+                    clicked = st.download_button(
                         "⬇️ Download lesson links (TXT)",
-                        data=bundle_txt.encode("utf-8"),
+                        data=file_obj,
                         file_name=f"lesson_links_{level_key}_day{info.get('day','')}.txt",
                         mime="text/plain",
                         key="dl_links_txt",
                     )
+                    file_obj.close()
+                    if clicked:
+                        try:
+                            os.remove(temp_path)
+                        finally:
+                            st.session_state.pop("links_temp_path", None)
+
+                
 
             with st.expander("📚 Study Resources"):
                 if _is_url(info.get("video")):
