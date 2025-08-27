@@ -2320,7 +2320,7 @@ if tab == "Dashboard":
 
     # ---------- Class schedules ----------
     with st.expander("🗓️ Class Schedule & Upcoming Sessions", expanded=False):
-            if not st.session_state.get("student_level"):
+        if not st.session_state.get("student_level"):
             _ensure_student_level()
         GROUP_SCHEDULES = load_group_schedules()
 
