@@ -3035,7 +3035,7 @@ if tab == "My Course":
                         save_now(draft_key, code)
             st.session_state["coursebook_prev_page"] = curr
 
-
+        student_row = st.session_state.get("student_row", {})
         
         coursebook_section = st.radio(
             "Section",
