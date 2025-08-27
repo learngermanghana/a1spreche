@@ -7,7 +7,7 @@ extracted into their own module for easier reuse and testing.
 from __future__ import annotations
 
 import logging
-from datetime import date
+from datetime import date, datetime
 from typing import Tuple
 
 import streamlit as st
@@ -110,6 +110,51 @@ def get_schreiben_stats(student_code: str):
     if doc.exists:
         return doc.to_dict()
     return default_stats
+
+def save_submission(
+    student_code: str,
+    score: int,
+    passed: bool,
+    timestamp: datetime | None,
+    level: str,
+    letter: str,
+) -> None:
+    """Persist a Schreiben submission in Firestore.
+
+    Parameters
+    ----------
+    student_code:
+        Unique identifier for the student making the submission.
+    score:
+        Score awarded for the submission.
+    passed:
+        Whether the submission is marked as passed.
+    timestamp:
+        Optional ``datetime`` of the submission. If ``None`` the Firestore
+        server timestamp is used instead.
+    level:
+        CEFR level of the student at the time of submission.
+    letter:
+        The submitted letter text.
+    """
+
+    if not student_code:
+        st.warning("No student code provided; submission not saved.")
+        return
+    if db is None:
+        st.warning("Firestore not initialized; submission not saved.")
+        return
+
+    db.collection("schreiben_submissions").add(
+        {
+            "student_code": student_code,
+            "score": score,
+            "passed": passed,
+            "date": timestamp or firestore.SERVER_TIMESTAMP,
+            "level": level,
+            "letter": letter,
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
