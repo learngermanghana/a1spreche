@@ -91,6 +91,16 @@ def test_save_submission_valid(helpers):
     )
     helpers.st.warning.assert_not_called()
 
+def test_save_submission_no_db(monkeypatch):
+    mod = importlib.reload(schreiben)
+    monkeypatch.setattr(mod, "st", MagicMock())
+    # Simulate Firestore being unavailable
+    monkeypatch.setattr(mod, "db", None)
+
+    mod.save_submission("abc", 80, True, None, "A1", "text")
+    mod.st.warning.assert_called_once()
+
+
 def test_get_letter_coach_usage_empty(helpers):
     count = helpers.get_letter_coach_usage("")
     helpers.db.collection.assert_not_called()
