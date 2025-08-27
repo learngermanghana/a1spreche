@@ -414,7 +414,7 @@ def load_student_data():
 
 seed_falowen_state_from_qp()
 
-f bootstrap_cookies(cookie_manager) is None:
+if bootstrap_cookies(cookie_manager) is None:
     st.rerun()
 
 restored = restore_session_from_cookie(cookie_manager, load_student_data)
