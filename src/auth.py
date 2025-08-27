@@ -50,6 +50,24 @@ def set_session_token_cookie(cm: SimpleCookieManager, token: str, **kwargs: Any)
     """Store the session token in a cookie."""
     cm.set("session_token", token, **kwargs)
 
+def clear_session(cm: SimpleCookieManager) -> None:
+    """Remove session related cookies.
+
+    Both ``student_code`` and ``session_token`` cookies are deleted from the
+    provided cookie manager.  The ``save`` method is invoked to mimic the
+    behaviour of the real cookie manager which persists changes to the
+    browser.  The function is intentionally tiny so it can be reused by both
+    the login and logout flows to avoid token leakage between accounts.
+    """
+
+    cm.delete("student_code")
+    cm.delete("session_token")
+    try:
+        cm.save()
+    except Exception:  # pragma: no cover - defensive: SimpleCookieManager.save doesn't raise
+        pass
+
+
 
 # In the real application ``persist_session_client`` would write to a database
 # or external cache.  For tests we simply store the mapping in-memory.
@@ -113,6 +131,7 @@ __all__ = [
     "cookie_manager",
     "set_student_code_cookie",
     "set_session_token_cookie",
+    "clear_session",
     "persist_session_client",
     "bootstrap_cookies",
     "restore_session_from_cookie",
