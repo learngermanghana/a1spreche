@@ -120,6 +120,8 @@ from src.auth import (
     reset_password_page,
 )
 
+from src.keychain import deleteToken, KeychainKey
+
 DEFAULT_PLAYLIST_LEVEL = "A1"
 
 from src.sentence_bank import SENTENCE_BANK
