@@ -3052,7 +3052,8 @@ if tab == "My Course":
                 rec_time = LEVEL_TIME.get(level_key, 20)
                 st.info(f"⏱️ **Recommended:** Invest about {rec_time} minutes to complete this lesson fully.")
 
-                start_str = student_row.get("ContractStart", "")
+                student_row = st.session_state.get("student_row", {})
+                start_str   = student_row.get("ContractStart", "")
                 parse_start = (
                     globals().get("parse_contract_start_fn")
                     or globals().get("parse_contract_start")
