@@ -28,7 +28,7 @@ import requests
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
 import streamlit.components.v1 as components
-from streamlit_cookies_manager import EncryptedCookieManager
+from streamlit_cookies_manager.encrypted_cookie_manager import EncryptedCookieManager
 from docx import Document
 from google.cloud.firestore_v1 import FieldFilter
 from google.api_core.exceptions import GoogleAPICallError
