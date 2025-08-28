@@ -82,6 +82,12 @@ def test_cookies_keep_user_logged_in_after_reload():
     assert st.session_state.get("session_token") == "tok123"
     assert st.session_state.get("student_level") == "B2"
 
+def test_persist_session_client_roundtrip():
+    """persist_session_client should store and retrieve mappings thread safely."""
+    clear_session_clients()
+    persist_session_client("tok1", "stu1")
+    assert get_session_client("tok1") == "stu1"
+
 def test_session_not_restored_when_student_code_mismatch():
     """User is not logged in if token validation returns a different code."""
     # Reset state and cookies
