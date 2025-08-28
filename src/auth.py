@@ -33,6 +33,23 @@ class SimpleCookieManager:
         """Remove ``key`` from the store if present."""
         self.store.pop(key, None)
 
+    # The helpers may fall back to dict-style access when ``set`` is missing
+    # on the cookie manager. Implement the mapping protocol so that our
+    # lightweight test double behaves like a ``dict`` and still records the
+    # same metadata for later inspection.
+
+    def __getitem__(self, key: str) -> Any:  # pragma: no cover - trivial
+        item = self.store[key]
+        return item.get("value")
+
+    def __setitem__(self, key: str, value: Any) -> None:  # pragma: no cover - trivial
+        # ``set`` stores the value along with any cookie kwargs, which we don't
+        # receive via the mapping API. Calling ``set`` centralises the logic.
+        self.set(key, value)
+
+    def __delitem__(self, key: str) -> None:  # pragma: no cover - trivial
+        self.delete(key)
+
     def save(self) -> None:  # pragma: no cover -
         """Persist cookies (no-op for tests)."""
         return None
@@ -43,26 +60,34 @@ def create_cookie_manager() -> SimpleCookieManager:
     return SimpleCookieManager()
 
 
-def set_student_code_cookie(cm: SimpleCookieManager, code: str, **kwargs: Any) -> None:
+def set_student_code_cookie(cm: Any, code: str, **kwargs: Any) -> None:
     """Store the student code in a cookie and persist the change."""
     cookie_args = {"httponly": True, "secure": True, "samesite": "Strict"}
     cookie_args.update(kwargs)
-    cm.set("student_code", code, **cookie_args)
-    try:  # pragma: no cover - save rarely fails but we defend against it
-        cm.save()
-    except Exception:
-        logging.error("Failed to save student code cookie", exc_info=True)
+    if hasattr(cm, "set"):
+        cm.set("student_code", code, **cookie_args)
+    else:
+        cm["student_code"] = code
+    if hasattr(cm, "save"):
+        try:  # pragma: no cover - save rarely fails but we defend against it
+            cm.save()
+        except Exception:
+            logging.error("Failed to save student code cookie", exc_info=True)
 
 
-def set_session_token_cookie(cm: SimpleCookieManager, token: str, **kwargs: Any) -> None:
+def set_session_token_cookie(cm: Any, token: str, **kwargs: Any) -> None:
     """Store the session token in a cookie and persist the change."""
     cookie_args = {"httponly": True, "secure": True, "samesite": "Strict"}
     cookie_args.update(kwargs)
-    cm.set("session_token", token, **cookie_args)
-    try:  # pragma: no cover - save rarely fails but we defend against it
-        cm.save()
-    except Exception:
-        logging.exception("Failed to save session token cookie")
+    if hasattr(cm, "set"):
+        cm.set("session_token", token, **cookie_args)
+    else:
+        cm["session_token"] = token
+    if hasattr(cm, "save"):
+        try:  # pragma: no cover - save rarely fails but we defend against it
+            cm.save()
+        except Exception:
+            logging.exception("Failed to save session token cookie")
 
 
 def clear_session(cm: SimpleCookieManager) -> None:
