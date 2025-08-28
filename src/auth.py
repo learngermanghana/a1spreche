@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from threading import Lock
 from typing import Any, Callable, Optional
 
+import importlib
+
 @dataclass
 class SimpleCookieManager:
     """Minimal in-memory cookie store used for tests.
@@ -115,18 +117,34 @@ class _SessionStore:
     may read and write concurrently from different threads without corrupting
     the underlying dictionary.
     """
-
-    def __init__(self) -> None:  # pragma: no cover - trivial
-        self._store: dict[str, str] = {}
+    
+    
+    def __init__(self, ttl: int = 3600) -> None:  # pragma: no cover - trivial
+        self._store: dict[str, tuple[str, datetime]] = {}
         self._lock = Lock()
+            self._ttl = ttl
+
+    def _prune_locked(self) -> None:
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=self._ttl)
+        expired = [tok for tok, (_, ts) in self._store.items() if ts < cutoff]
+        for tok in expired:
+            self._store.pop(tok, None)
+
+    def prune(self) -> None:
+        """Remove entries older than the configured TTL."""
+        with self._lock:
+            self._prune_locked()
 
     def set(self, token: str, student_code: str) -> None:
         with self._lock:
-            self._store[token] = student_code
+            self._store[token] = (student_code, datetime.now(timezone.utc))
+            self._prune_locked()
 
     def get(self, token: str) -> str | None:
         with self._lock:
-            return self._store.get(token)
+            self._prune_locked()
+            data = self._store.get(token)
+            return data[0] if data else None
 
     def clear(self) -> None:
         """Remove all stored mappings."""
@@ -180,9 +198,8 @@ def restore_session_from_cookie(
     session_token = cm.get("session_token")
     if not student_code or not session_token:
         return None
-    from falowen.sessions import validate_session_token
-    
-    session_data = validate_session_token(session_token)
+    sessions = importlib.import_module("falowen.sessions")
+    session_data = sessions.validate_session_token(session_token)
     if not session_data:    
         return None
     
