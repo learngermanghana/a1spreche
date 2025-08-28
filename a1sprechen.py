@@ -19,7 +19,7 @@ from datetime import datetime
 from datetime import datetime as _dt
 from uuid import uuid4
 
-from typing import Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 # ==== Third-Party Packages ====
 import bcrypt
@@ -140,7 +140,7 @@ cookie_manager = bootstrap_cookies()
 if cookie_manager is None:
     st.stop()
 
-def get_playlist_ids_for_level(level: str) -> list[str]:
+def get_playlist_ids_for_level(level: str) -> List[str]:
     """Return playlist IDs for a CEFR level with a fallback.
 
     The lookup is case-sensitive after normalizing the level to uppercase.
@@ -190,7 +190,7 @@ YOUTUBE_PLAYLIST_IDS = {
 @st.cache_data(ttl=43200)
 def fetch_youtube_playlist_videos(
     playlist_id: str, api_key: str = YOUTUBE_API_KEY
-) -> list[dict]:
+) -> List[Dict[str, Any]]:
     """Fetch videos for a given YouTube playlist."""
     base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
     params = {
@@ -2580,7 +2580,7 @@ if tab == "Dashboard":
 # UI helpers
 # -------------------------
 
-def _draft_state_keys(draft_key: str) -> tuple[str, str, str, str]:
+def _draft_state_keys(draft_key: str) -> Tuple[str, str, str, str]:
     """Return the session-state keys used to track last save info for a draft."""
     return (
         f"{draft_key}__last_val",
@@ -2698,7 +2698,7 @@ def get_slack_webhook() -> str:
     """Back-compat alias to _slack_url()."""
     return _slack_url()
 
-def notify_slack(text: str) -> tuple[bool, str]:
+def notify_slack(text: str) -> Tuple[bool, str]:
     """
     Post a plain text message to the Slack webhook.
     Returns (ok, info). If SLACK_DEBUG=1, more verbose info is printed in logs.
@@ -2845,7 +2845,7 @@ def resolve_current_content(level: str, code: str, lesson_key: str, draft_key: s
         "source": "empty",
     }
 
-def fetch_latest(level: str, code: str, lesson_key: str) -> dict | None:
+def fetch_latest(level: str, code: str, lesson_key: str) -> Optional[Dict[str, Any]]:
     """Fetch the most recent submission for this user/lesson (or None)."""
     posts_ref = db.collection("submissions").document(level).collection("posts")
     try:
@@ -2872,7 +2872,7 @@ def fetch_latest(level: str, code: str, lesson_key: str) -> dict | None:
 # -------------------------
 # Misc existing helper preserved
 # -------------------------
-def post_message(level: str, code: str, name: str, text: str, reply_to: str | None = None) -> None:
+def post_message(level: str, code: str, name: str, text: str, reply_to: Optional[str] = None) -> None:
     """Post a message to the class board."""
     posts_ref = db.collection("class_board").document(level).collection("posts")
     posts_ref.add({
@@ -4000,7 +4000,7 @@ if tab == "My Course":
                 globals()["GROUP_SCHEDULES"] = cfg
                 return cfg
 
-            def _gdrive_direct_download(url: str) -> bytes | None:
+            def _gdrive_direct_download(url: str) -> Optional[bytes]:
                 if not url:
                     return None
                 m = re.search(r"/file/d/([A-Za-z0-9_-]{20,})/", url) or re.search(r"[?&]id=([A-Za-z0-9_-]{20,})", url)
