@@ -236,7 +236,6 @@ def get_vocab_stats(student_code: str):
         total_sessions = data.get("total_sessions")
         if total_sessions is None:
             total_sessions = len(history)
-        data = doc.to_dict() or {}
         return {
             "history": history,
             "last_practiced": data.get("last_practiced"),
