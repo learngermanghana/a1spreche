@@ -27,7 +27,6 @@ import pandas as pd
 import requests
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
-st.cache = st.cache_data
 import streamlit.components.v1 as components
 from docx import Document
 from google.cloud.firestore_v1 import FieldFilter
