@@ -6681,13 +6681,24 @@ if tab == "Vocab Trainer":
                 st.session_state.vt_total = None
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
+        tot = st.session_state.vt_total
+        idx = st.session_state.vt_index
+        score = st.session_state.vt_score
+
         if st.session_state.vt_history:
+            if isinstance(tot, int) and tot:
+                remaining = tot - idx
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.metric("Words", f"{idx}/{tot}", f"{remaining} left")
+                    st.progress(idx / tot)
+                with c2:
+                    st.metric("Score", score)
+
             st.markdown("### 🗨️ Practice Chat")
             for who, msg in st.session_state.vt_history:
                 render_message(who, msg)
 
-        tot = st.session_state.vt_total
-        idx = st.session_state.vt_index
         if isinstance(tot, int) and idx < tot:
             word, answer = st.session_state.vt_list[idx]
 
