@@ -189,21 +189,11 @@ st.markdown("""
   padding-top: 0 !important;
 }
 
-/* First rendered block (often a head-inject) — collapse fully */
-[data-testid="stAppViewContainer"] .main .block-container > div:first-child {
+/* First two rendered blocks (often head injections) — collapse fully */
+[data-testid="stAppViewContainer"] .main .block-container > div:first-child,
+[data-testid="stAppViewContainer"] .main .block-container > div:first-child + div {
   margin: 0 !important;
   padding: 0 !important;
-}
-
-/* If that first block is an iframe, collapse it completely */
-[data-testid="stAppViewContainer"] .main .block-container > div:first-child [data-testid="stIFrame"] {
-  display: block;
-  height: 0 !important;
-  min-height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-  overflow: hidden !important;
 }
 
 /* Keep hero flush and compact */
@@ -240,21 +230,28 @@ def _inject_meta_tags():
     """Inject PWA meta + register the service worker once per session (light theme)."""
     if st.session_state.get("_pwa_head_done"):
         return
-    components.html(f"""
-      <link rel="manifest" href="{_manifest}">
-      <link rel="apple-touch-icon" href="{_icon180}">
-      <meta name="apple-mobile-web-app-capable" content="yes">
-      <meta name="apple-mobile-web-app-title" content="Falowen">
-      <meta name="apple-mobile-web-app-status-bar-style" content="default">
-      <meta name="color-scheme" content="light">
-      <meta name="theme-color" content="#f3f7fb">
-      <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-      <script>
+    st.markdown(
+        f"""
+        <script>
+        const head = document.getElementsByTagName('head')[0];
+        const tags = [
+          '<link rel="manifest" href="{_manifest}">',
+          '<link rel="apple-touch-icon" href="{_icon180}">',
+          '<meta name="apple-mobile-web-app-capable" content="yes">',
+          '<meta name="apple-mobile-web-app-title" content="Falowen">',
+          '<meta name="apple-mobile-web-app-status-bar-style" content="default">',
+          '<meta name="color-scheme" content="light">',
+          '<meta name="theme-color" content="#f3f7fb">',
+          '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
+        ];
+        tags.forEach(t => head.insertAdjacentHTML('beforeend', t));
         if ('serviceWorker' in navigator) {{
           navigator.serviceWorker.register('/sw.js', {{ scope: '/' }}).catch(()=>{{}});
         }}
-      </script>
-    """, height=0)
+        </script>
+        """,
+        unsafe_allow_html=True,
+    )
     st.session_state["_pwa_head_done"] = True
 
 # Inject early
