@@ -1494,7 +1494,7 @@ if "inject_notice_css" not in globals():
               .cta-btn {display:block;text-align:center;padding:12px 16px;border-radius:10px;
                         background:#2563eb;color:#fff;text-decoration:none;font-weight:700;}
               /* Sticky nav container for mobile */
-              .nav-sticky {position: sticky; top: 0; z-index: 50; background: white; padding: 6px 0 10px 0;}
+              .nav-sticky {position: sticky; top: 0; z-index: 100; background: white; margin: 0; padding: 0;}
             </style>
             """,
             unsafe_allow_html=True,
@@ -1523,8 +1523,8 @@ def render_dropdown_nav():
     st.markdown(
         """
         <div class="nav-sticky">
-          <div style="padding:12px 14px;background:#ecfeff;border:1px solid #67e8f9;border-radius:12px;
-                      margin:4px 0 0 0;display:flex;align-items:center;gap:10px;justify-content:space-between;">
+          <div style="padding:8px 14px;background:#ecfeff;border:1px solid #67e8f9;border-radius:12px;
+                      margin:0;display:flex;align-items:center;gap:10px;justify-content:space-between;">
             <div style="font-weight:800;color:#0f172a;font-size:1.05rem;">🧭 Main Menu</div>
             <div style="color:#0c4a6e;font-size:0.95rem;">Use the selector <b>below</b> to switch sections</div>
           </div>
