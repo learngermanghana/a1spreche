@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from threading import Lock
 from typing import Any, Callable, Optional
-import importlib
 
 
 @dataclass
@@ -14,10 +13,9 @@ class SimpleCookieManager:
     """Minimal in-memory cookie store used for tests.
 
     The real application uses the ``streamlit_cookies_manager`` package to
-    persist cookies in the browser.  For unit tests we only need a tiny subset
+    persist cookies in the browser. For unit tests we only need a tiny subset
     of the interface, so this class stores cookie values in memory.
     """
-
     store: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def set(self, key: str, value: Any, **kwargs: Any) -> None:  # pragma: no cover -
@@ -36,15 +34,10 @@ class SimpleCookieManager:
         self.store.pop(key, None)
 
     def save(self) -> None:  # pragma: no cover -
-        """Persist cookies.
-
-        The test implementation keeps cookies in memory so there is nothing to
-        do here.
-        """
+        """Persist cookies (no-op for tests)."""
         return None
 
 
-# Factory helper so each session receives its own cookie manager instance.
 def create_cookie_manager() -> SimpleCookieManager:
     """Return a fresh ``SimpleCookieManager``."""
     return SimpleCookieManager()
@@ -58,7 +51,7 @@ def set_student_code_cookie(cm: SimpleCookieManager, code: str, **kwargs: Any) -
     try:  # pragma: no cover - save rarely fails but we defend against it
         cm.save()
     except Exception:
-        logging.exception("Failed to save student code cookie")
+        logging.error("Failed to save student code cookie", exc_info=True)
 
 
 def set_session_token_cookie(cm: SimpleCookieManager, token: str, **kwargs: Any) -> None:
@@ -69,11 +62,12 @@ def set_session_token_cookie(cm: SimpleCookieManager, token: str, **kwargs: Any)
     try:  # pragma: no cover - save rarely fails but we defend against it
         cm.save()
     except Exception:
-        pass
+        # 🔧 Fix for tests: must log an error if saving the session cookie fails
+        logging.error("Failed to save session token cookie", exc_info=True)
 
 
 def clear_session(cm: SimpleCookieManager) -> None:
-    """Remove session related cookies."""
+    """Remove session-related cookies and persist the change."""
     cm.delete("student_code")
     cm.delete("session_token")
     try:
@@ -82,14 +76,13 @@ def clear_session(cm: SimpleCookieManager) -> None:
         logging.warning("Failed to persist cleared cookies: %s", exc)
 
 
-# In the real application ``persist_session_client`` would write to a database.
 class _SessionStore:
     """In-memory mapping of session token to student code."""
 
     def __init__(self, ttl: int = 3600) -> None:  # pragma: no cover - trivial
         self._store: dict[str, tuple[str, datetime]] = {}
         self._lock = Lock()
-        self._ttl = ttl   # <- fixed indent here
+        self._ttl = ttl
 
     def _prune_locked(self) -> None:
         cutoff = datetime.now(timezone.utc) - timedelta(seconds=self._ttl)
@@ -147,14 +140,17 @@ def restore_session_from_cookie(
     if not student_code or not session_token:
         return None
 
+    # Best-effort user-agent hash (safe in tests)
     ua_hash = ""
-    try:
+    try:  # pragma: no cover - environment dependent
         import streamlit as st  # type: ignore
+
         ua_hash = st.session_state.get("__ua_hash", "") or ""
         if not ua_hash:
             try:
                 from streamlit.runtime.scriptrunner import get_script_run_ctx  # type: ignore
                 import hashlib
+
                 ctx = get_script_run_ctx()
                 if ctx and getattr(ctx, "session_info", None):
                     client = getattr(ctx.session_info, "client", None)
@@ -166,15 +162,25 @@ def restore_session_from_cookie(
     except Exception:
         ua_hash = ""
 
+    # Validate the token (the tests may stub this function/module)
     from falowen.sessions import validate_session_token
+
     session_data = validate_session_token(session_token, ua_hash=ua_hash)
     if not session_data:
         return None
+
+    # 🔧 Test requirement: if validator returns a different student_code, do NOT restore
+    if isinstance(session_data, dict):
+        sc = session_data.get("student_code")
+        if sc and sc != student_code:
+            clear_session(cm)
+            return None
 
     data = loader() if loader else None
     if contract_validator and not contract_validator(student_code, data):
         clear_session(cm)
         return None
+
     return {
         "student_code": student_code,
         "session_token": session_token,
