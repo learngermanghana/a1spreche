@@ -43,8 +43,14 @@ cookie_manager = SimpleCookieManager()
 
 
 def set_student_code_cookie(cm: SimpleCookieManager, code: str, **kwargs: Any) -> None:
-    """Store the student code in a cookie and persist the change."""
-    cm.set("student_code", code, **kwargs)
+    """Store the student code in a cookie and persist the change.
+
+    The cookie is set with secure defaults which can be overridden by the
+    caller via ``kwargs``.
+    """
+    cookie_args = {"httponly": True, "secure": True, "samesite": "Strict"}
+    cookie_args.update(kwargs)
+    cm.set("student_code", code, **cookie_args)
     try:  # pragma: no cover - save rarely fails but we defend against it
         cm.save()
     except Exception:
@@ -52,8 +58,13 @@ def set_student_code_cookie(cm: SimpleCookieManager, code: str, **kwargs: Any) -
 
 
 def set_session_token_cookie(cm: SimpleCookieManager, token: str, **kwargs: Any) -> None:
-    """Store the session token in a cookie and persist the change."""
-    cm.set("session_token", token, **kwargs)
+    """Store the session token in a cookie and persist the change.
+
+    Secure defaults are applied but can be overridden by ``kwargs``.
+    """
+    cookie_args = {"httponly": True, "secure": True, "samesite": "Strict"}
+    cookie_args.update(kwargs)
+    cm.set("session_token", token, **cookie_args)
     try:  # pragma: no cover - save rarely fails but we defend against it
         cm.save()
     except Exception:
