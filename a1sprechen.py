@@ -983,6 +983,7 @@ if st.session_state.pop("_inject_logout_js", False):
       <script>
         try {
           localStorage.removeItem('student_code');
+          localStorage.removeItem('student_name');
           localStorage.removeItem('session_token');
           const u = new URL(window.location);
           ['code','state','token'].forEach(k => u.searchParams.delete(k));
