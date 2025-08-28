@@ -17,15 +17,18 @@ class SimpleCookieManager:
     of the interface, so this class stores cookie values in memory.
     """
 
-    store: dict[str, Any] = field(default_factory=dict)
+    store: dict[str, dict[str, Any]] = field(default_factory=dict))
 
-    def set(self, key: str, value: Any, **_: Any) -> None:  # pragma: no cover -
-        """Store ``value`` under ``key``."""
-        self.store[key] = value
+    def set(self, key: str, value: Any, **kwargs: Any) -> None:  # pragma: no cover -
+        """Store ``value`` and any options under ``key``."""
+        self.store[key] = {"value": value, "kwargs": kwargs}
 
     def get(self, key: str, default: Any | None = None) -> Any | None:  # pragma: no cover -
-        """Return the value for ``key`` or ``default`` if missing."""
-        return self.store.get(key, default)
+        """Return the stored value for ``key`` or ``default`` if missing."""
+        item = self.store.get(key)
+        if item is None:
+            return default
+        return item.get("value")
 
     def delete(self, key: str) -> None:  # pragma: no cover -
         """Remove ``key`` from the store if present."""
