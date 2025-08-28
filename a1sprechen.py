@@ -123,11 +123,6 @@ from src.auth import (
     reset_password_page,
 )
 
-from src.data_loading import (
-    fetch_youtube_playlist_videos,
-    get_playlist_ids_for_level,
-    load_student_data,
-)
 from src.assignment_ui import (
     load_assignment_scores,
     render_results_and_resources_tab,
