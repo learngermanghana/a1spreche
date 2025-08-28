@@ -160,6 +160,32 @@ def test_session_not_restored_when_student_code_mismatch():
     assert st.session_state.get("logged_in", False) is False
 
 
+def test_session_rejected_when_user_agent_hash_mismatch():
+    """Session restoration fails if the user-agent hash does not match."""
+
+    # Reset state and cookies
+    st.session_state.clear()
+    cookie_manager.store.clear()
+
+    # Cookies indicate a previous login
+    set_student_code_cookie(cookie_manager, "abc")
+    set_session_token_cookie(cookie_manager, "tok123")
+
+    # Stash an incorrect UA hash
+    st.session_state["__ua_hash"] = "wrong_hash"
+
+    # Stub validation to require a specific UA hash
+    stub_sessions = types.SimpleNamespace(
+        validate_session_token=lambda tok, ua_hash="": {"student_code": "abc"}
+        if tok == "tok123" and ua_hash == "correct_hash"
+        else None
+    )
+    sys.modules["falowen.sessions"] = stub_sessions
+
+    # Restoration should fail because ua_hash mismatch
+    assert restore_session_from_cookie(cookie_manager) is None
+
+
 
 def test_logout_clears_cookies_and_revokes_token():
     """Logging out removes cookies and revokes the session token."""

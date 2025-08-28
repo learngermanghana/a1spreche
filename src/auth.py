@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from threading import Lock
 from typing import Any, Callable, Optional
-
 import importlib
+
 
 @dataclass
 class SimpleCookieManager:
@@ -205,9 +205,37 @@ def restore_session_from_cookie(
     session_token = cm.get("session_token")
     if not student_code or not session_token:
         return None
+      
+    ua_hash = ""
+    try:  # pragma: no cover - best effort, environment dependent
+        import streamlit as st  # type: ignore
+
+        ua_hash = st.session_state.get("__ua_hash", "") or ""
+        if not ua_hash:
+            try:
+                from streamlit.runtime.scriptrunner import get_script_run_ctx  # type: ignore
+                import hashlib
+
+                ctx = get_script_run_ctx()
+                if ctx and getattr(ctx, "session_info", None):
+                    client = getattr(ctx.session_info, "client", None)
+                    ua = getattr(client, "user_agent", "") if client else ""
+                    if ua:
+                        ua_hash = hashlib.sha256(ua.encode("utf-8")).hexdigest()
+            except Exception:
+                ua_hash = ""
+    except Exception:
+        ua_hash = ""
+
+    from falowen.sessions import validate_session_token
+
+    session_data = validate_session_token(session_token, ua_hash=ua_hash)
+    if not session_data:
+=======
     sessions = importlib.import_module("falowen.sessions")
     session_data = sessions.validate_session_token(session_token)
     if not session_data:    
+
         return None
     
 
