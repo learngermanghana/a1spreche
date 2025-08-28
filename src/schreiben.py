@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date, datetime
-from typing import Tuple
+from typing import Optional, Tuple
 
 import streamlit as st
 from google.api_core.exceptions import GoogleAPICallError
@@ -115,7 +115,7 @@ def save_submission(
     student_code: str,
     score: int,
     passed: bool,
-    timestamp: datetime | None,
+    timestamp: Optional[datetime],
     level: str,
     letter: str,
 ) -> None:
