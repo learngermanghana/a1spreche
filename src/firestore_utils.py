@@ -7,7 +7,7 @@ re-used outside the monolithic :mod:`a1sprechen` module.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Tuple
+from typing import Optional, Tuple
 
 import logging
 from firebase_admin import firestore
@@ -110,7 +110,7 @@ def load_chat_draft_from_db(code: str, conv_key: str) -> str:
     return ""
 
 
-def load_draft_meta_from_db(code: str, field_key: str) -> tuple[str, datetime | None]:
+def load_draft_meta_from_db(code: str, field_key: str) -> Tuple[str, Optional[datetime]]:
     """Return ``(text, updated_at)`` for the requested draft."""
 
     if db is None:
