@@ -186,6 +186,15 @@ st.set_page_config(
 # Top spacing + chrome (tighter)
 st.markdown("""
 <style>
+@font-face {
+  font-family: 'DejaVu Sans';
+  src: url('/font/DejaVuSans.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+body {
+  font-family: 'DejaVu Sans', sans-serif;
+}
 /* Remove Streamlit's top padding */
 [data-testid="stAppViewContainer"] > .main .block-container {
   padding-top: 0 !important;
