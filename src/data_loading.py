@@ -1,4 +1,7 @@
-"""Data loading helpers for a1sprechen."""
+"""Data loading helpers for a1sprechen.
+
+Exports :func:`load_student_data` for retrieving the student roster.
+"""
 
 from __future__ import annotations
 
@@ -76,11 +79,6 @@ def load_student_data() -> Optional[pd.DataFrame]:
     return _load_student_data_cached()
 
 
-__all__ = [
-    "DEFAULT_PLAYLIST_LEVEL",
-    "YOUTUBE_API_KEY",
-    "YOUTUBE_PLAYLIST_IDS",
-    "fetch_youtube_playlist_videos",
-    "get_playlist_ids_for_level",
-    "load_student_data",
-]
+# Only ``load_student_data`` is part of the public API now that the
+# YouTube helpers live elsewhere.
+__all__ = ["load_student_data"]
