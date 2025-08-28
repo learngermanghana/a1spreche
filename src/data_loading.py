@@ -23,6 +23,22 @@ GOOGLE_SHEET_CSV = (
 
 @st.cache_data(ttl=300)
 def _load_student_data_cached() -> Optional[pd.DataFrame]:
+    """Fetch the student roster from the Google Sheet.
+
+    Returns
+    -------
+    Optional[pd.DataFrame]
+        Parsed student roster if rows are available, ``None`` if the sheet
+        contains no usable data.
+
+    Raises
+    ------
+    requests.RequestException | pd.errors.ParserError | ValueError
+        If the request fails or the response cannot be parsed.  These
+        exceptions are logged, displayed via Streamlit, and re-raised so
+        callers can distinguish data errors from missing data.
+    """
+
     try:
         resp = requests.get(GOOGLE_SHEET_CSV, timeout=12)
         resp.raise_for_status()
@@ -38,7 +54,7 @@ def _load_student_data_cached() -> Optional[pd.DataFrame]:
     except (requests.RequestException, pd.errors.ParserError, ValueError) as e:
         logging.exception("Could not load student data")
         st.error(f"❌ Could not load student data. {e}")
-        return None
+        raise
 
     df.columns = df.columns.str.strip().str.replace(" ", "")
     for col in df.columns:
@@ -68,11 +84,17 @@ def _load_student_data_cached() -> Optional[pd.DataFrame]:
         .drop_duplicates(subset=["StudentCode"], keep="first")
         .drop(columns=["ContractEnd_dt"])
     )
+    if df.empty:
+        return None
     return df
 
 
 def load_student_data() -> Optional[pd.DataFrame]:
-    """Load student roster, or return None if unavailable."""
+    """Load student roster.
+
+    Returns ``None`` if the roster contains no usable rows. Any errors during
+    loading are propagated to the caller.
+    """
     return _load_student_data_cached()
 
 
