@@ -4,6 +4,8 @@ import types
 import pandas as pd
 import streamlit as st
 
+from src.contracts import is_contract_expired
+
 # Stub ``falowen.sessions`` before importing ``src.auth`` to avoid network calls.
 stub_sessions = types.SimpleNamespace(validate_session_token=lambda *a, **k: None)
 sys.modules.setdefault("falowen.sessions", stub_sessions)
@@ -89,6 +91,35 @@ def test_cookies_keep_user_logged_in_after_reload():
     assert st.session_state.get("student_name") == "Alice"
     assert st.session_state.get("session_token") == "tok123"
     assert st.session_state.get("student_level") == "B2"
+
+def test_session_not_restored_if_contract_expired():
+    """Expired contracts should prevent session restoration."""
+    st.session_state.clear()
+    cookie_manager.store.clear()
+
+    set_student_code_cookie(cookie_manager, "abc")
+    set_session_token_cookie(cookie_manager, "tok123")
+
+    stub_sessions = types.SimpleNamespace(
+        validate_session_token=lambda token, ua_hash="": {"student_code": "abc"}
+        if token == "tok123"
+        else None
+    )
+    sys.modules["falowen.sessions"] = stub_sessions
+
+    def loader():
+        return pd.DataFrame([{"StudentCode": "abc", "ContractEnd": "2020-01-01"}])
+
+    def contract_checker(sc, df):
+        row = df[df["StudentCode"] == sc].iloc[0]
+        return not is_contract_expired(row)
+
+    restored = restore_session_from_cookie(
+        cookie_manager, loader, contract_checker
+    )
+    assert restored is None
+    assert cookie_manager.get("student_code") is None
+    assert cookie_manager.get("session_token") is None
 
 def test_persist_session_client_roundtrip():
     """persist_session_client should store and retrieve mappings thread safely."""
