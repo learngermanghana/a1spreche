@@ -67,8 +67,19 @@ def set_session_token_cookie(cm: SimpleCookieManager, token: str, **kwargs: Any)
 
 def clear_session(cm: SimpleCookieManager) -> None:
     """Remove session-related cookies and persist the change."""
-    cm.delete("student_code")
-    cm.delete("session_token")
+    for key in ("student_code", "session_token"):
+        delete_fn = getattr(cm, "delete", None)
+        if callable(delete_fn):
+            delete_fn(key)
+            continue
+        pop_fn = getattr(cm, "pop", None)
+        if callable(pop_fn):
+            pop_fn(key, None)
+        else:  # pragma: no cover - dict-like fallback
+            try:
+                del cm[key]  # type: ignore[index]
+            except Exception:
+                pass
     try:  # persist cookie deletions
         cm.save()
     except Exception as exc:  # pragma: no cover - defensive
