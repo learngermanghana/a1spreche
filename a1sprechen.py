@@ -20,6 +20,11 @@ from datetime import datetime as _dt
 from uuid import uuid4
 
 from typing import Any, Dict, List, Optional, Tuple
+from typing import Protocol
+
+
+class CookieLike(Protocol):
+    def ready(self) -> bool: ...
 
 # ==== Third-Party Packages ====
 import bcrypt
