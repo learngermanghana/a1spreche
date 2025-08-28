@@ -140,7 +140,13 @@ SB_SESSION_TARGET = int(os.environ.get("SB_SESSION_TARGET", 5))
 
 cookie_password = st.secrets.get("cookie_password")
 if cookie_password is None:
-    raise RuntimeError("Missing 'cookie_password' in Streamlit secrets.")
+    cookie_password = os.environ.get("COOKIE_PASSWORD")
+if cookie_password is None:
+    st.error(
+        "Missing cookie password. Set `cookie_password` in `.streamlit/secrets.toml` "
+        "or define the `COOKIE_PASSWORD` environment variable."
+    )
+    st.stop()
 
 cookie_manager = bootstrap_cookie_manager(
     EncryptedCookieManager(
