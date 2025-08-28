@@ -67,7 +67,7 @@ def set_student_code_cookie(cm: SimpleCookieManager, code: str, **kwargs: Any) -
     try:  # pragma: no cover - save rarely fails but we defend against it
         cm.save()
     except Exception:
-        pass
+        logging.exception("Failed to save student code cookie")
 
 
 def set_session_token_cookie(cm: SimpleCookieManager, token: str, **kwargs: Any) -> None:
