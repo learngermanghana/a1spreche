@@ -138,7 +138,7 @@ from src.sentence_bank import SENTENCE_BANK
 SB_SESSION_TARGET = int(os.environ.get("SB_SESSION_TARGET", 5))
 
 
-cookie_manager = bootstrap_cookies_ready(AUTH_COOKIE_MANAGER)
+cookie_manager = bootstrap_cookie_manager(AUTH_COOKIE_MANAGER)
 
 if os.environ.get("RENDER"):
     import fastapi
