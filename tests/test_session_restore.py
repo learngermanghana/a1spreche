@@ -213,3 +213,22 @@ def test_set_cookie_functions_persist_changes():
     assert cm.get("student_code") == "abc"
     assert cm.get("session_token") == "tok123"
     assert cm.save_calls >= 2
+
+def test_cookie_functions_apply_defaults_and_allow_override():
+    """Cookies should include secure defaults but allow overriding."""
+
+    class RecordingCookieManager(SimpleCookieManager):
+        def set(self, key: str, value: str, **kwargs):  # pragma: no cover - trivial
+            self.store[key] = {"value": value, "kwargs": kwargs}
+
+    cm = RecordingCookieManager()
+    set_student_code_cookie(cm, "abc")
+    set_session_token_cookie(cm, "tok123", secure=False, samesite="Lax")
+
+    student_kwargs = cm.store["student_code"]["kwargs"]
+    token_kwargs = cm.store["session_token"]["kwargs"]
+
+    assert student_kwargs == {"httponly": True, "secure": True, "samesite": "Strict"}
+    assert token_kwargs["httponly"] is True
+    assert token_kwargs["secure"] is False
+    assert token_kwargs["samesite"] == "Lax"
