@@ -139,7 +139,7 @@ def render_vocab_lookup(key: str) -> None:
             if audio_url:
                 try:  # pragma: no cover - best effort on mobile browsers
                     st.audio(audio_url)
-                 except Exception as exc:
+                except Exception as exc:
                     logging.exception("Failed to play audio")
 
 
