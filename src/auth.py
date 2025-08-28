@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
+from falowen.sessions import validate_session_token
 
 @dataclass
 class SimpleCookieManager:
@@ -114,6 +115,9 @@ def restore_session_from_cookie(
     student_code = cm.get("student_code")
     session_token = cm.get("session_token")
     if not student_code or not session_token:
+        return None
+    session_data = validate_session_token(session_token)
+    if not session_data or session_data.get("student_code") != student_code:
         return None
 
     data = loader() if loader else None
