@@ -153,7 +153,7 @@ def bootstrap_cookies(cm: CookieLike) -> CookieLike:
         st.stop()               # allow Streamlit to halt & auto-rerun
     return cm
 
-
+cookie_manager = bootstrap_cookies(AUTH_COOKIE_MANAGER)
 
 def get_playlist_ids_for_level(level: str) -> List[str]:
     """Return playlist IDs for a CEFR level with a fallback.
