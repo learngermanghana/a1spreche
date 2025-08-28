@@ -1306,7 +1306,9 @@ def inject_notice_css():
       .pill-purple { background:#efe9ff; color:#5b21b6; }
       .pill-amber { background:#fff7ed; color:#7c2d12; }
 
-      .nav-sticky { position: sticky; top: 0; z-index: 100; background: white; margin: 0; padding: 0; }
+
+      .nav-sticky { position: sticky; top:0; z-index:100; background: white; margin:0; padding:0; }
+
 
       @media (max-width: 640px){
         .chip{ padding:7px 10px; font-size:.95rem; }
@@ -1507,25 +1509,6 @@ if "_qp_set" not in globals():
         except Exception:
             # If browser doesn't allow URL changes, just skip
             pass
-
-# --- Minimal CSS injector fallback so NameError never happens ---
-if "inject_notice_css" not in globals():
-    def inject_notice_css():
-        st.markdown(
-            """
-            <style>
-              .mini-chip {display:inline-block;background:#eef2ff;color:#3730a3;
-                          padding:4px 10px;border-radius:999px;font-size:0.85rem;margin-right:6px;}
-              .mini-card {border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;margin:8px 0;}
-              .cta-btn {display:block;text-align:center;padding:12px 16px;border-radius:10px;
-                        background:#2563eb;color:#fff;text-decoration:none;font-weight:700;}
-              /* Sticky nav container for mobile */
-              .nav-sticky {position: sticky; top: 0; z-index: 100; background: white; margin: 0; padding: 0;}
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-
 # --- Nav dropdown (mobile-friendly, simple text) ---
 def render_dropdown_nav():
     tabs = [
