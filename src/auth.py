@@ -46,8 +46,7 @@ class SimpleCookieManager(MutableMapping[str, Any]):
 
     def set(self, key: str, value: Any, **kwargs: Any) -> None:  # pragma: no cover -
         """Backwards-compatible setter storing ``value`` and options."""
-        self[key] = value
-        self.store[key]["kwargs"] = kwargs
+        self.store[key] = {"value": value, "kwargs": kwargs}
 
     def get(self, key: str, default: Any | None = None) -> Any | None:  # pragma: no cover -
         """Return the stored value for ``key`` or ``default`` if missing."""
@@ -58,27 +57,10 @@ class SimpleCookieManager(MutableMapping[str, Any]):
 
     def delete(self, key: str) -> None:  # pragma: no cover -
         """Remove ``key`` from the store if present."""
-        self.pop(key, None)
+        self.store.pop(key, None)
 
     def clear(self) -> None:  # pragma: no cover - trivial
         self.store.clear()
-
-    # The helpers may fall back to dict-style access when ``set`` is missing
-    # on the cookie manager. Implement the mapping protocol so that our
-    # lightweight test double behaves like a ``dict`` and still records the
-    # same metadata for later inspection.
-
-    def __getitem__(self, key: str) -> Any:  # pragma: no cover - trivial
-        item = self.store[key]
-        return item.get("value")
-
-    def __setitem__(self, key: str, value: Any) -> None:  # pragma: no cover - trivial
-        # ``set`` stores the value along with any cookie kwargs, which we don't
-        # receive via the mapping API. Calling ``set`` centralises the logic.
-        self.set(key, value)
-
-    def __delitem__(self, key: str) -> None:  # pragma: no cover - trivial
-        self.delete(key)
 
     def save(self) -> None:  # pragma: no cover -
         """Persist cookies (no-op for tests)."""
@@ -120,8 +102,8 @@ def set_session_token_cookie(cm: MutableMapping[str, Any], token: str, **kwargs:
         logging.exception("Failed to save session token cookie")
 
 def clear_session(cm: MutableMapping[str, Any]) -> None:
-
     cm.pop("student_code", None)
+    cm.pop("session_token", None)
 
     try:  # persist cookie deletions
         cm.save()  # type: ignore[attr-defined]
