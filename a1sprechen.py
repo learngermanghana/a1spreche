@@ -332,7 +332,8 @@ if restored is not None and not st.session_state.get("logged_in", False):
         }
     )
     
- 
+
+
 # ------------------------------------------------------------------------------
 # 🔗 Handle ?token=... early (before showing login/tabs)
 # ------------------------------------------------------------------------------
@@ -530,7 +531,6 @@ def render_signup_form():
     doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
     st.success("Account created! Please log in on the Returning tab.")
 
-
 def render_login_form():
     st.session_state.setdefault("show_reset_panel", False)
 
@@ -688,7 +688,7 @@ def render_login_form():
                 # Firestore may store 'email' or 'Email'
                 user_query = db.collection("students").where(filter=FieldFilter("email", "==", e)).get()
                 if not user_query:
-                    user_query = db.collection("students").where(filter=FieldFilter("email", "==", e)).get()
+                    user_query = db.collection("students").where(filter=FieldFilter("Email", "==", e)).get()
 
                 if not user_query:
                     st.error("No account found with that email.")
@@ -731,7 +731,6 @@ def render_login_form():
                         st.error("We couldn’t send the email. Please try again later.")
 
         st.markdown('</div>', unsafe_allow_html=True)
-
 
 
 def login_page():
