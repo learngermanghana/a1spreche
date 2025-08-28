@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import streamlit as st
 
-from .stats import get_vocab_stats, get_schreiben_stats
+from .stats import get_vocab_stats
+from .schreiben import get_schreiben_stats
 
 
 def render_vocab_stats(student_code: str):
