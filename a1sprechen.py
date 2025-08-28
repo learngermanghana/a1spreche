@@ -304,37 +304,25 @@ if restored is not None and not st.session_state.get("logged_in", False):
     token = restored["session_token"]
     roster = restored.get("data")  # DataFrame
 
-    # Optionally validate the session token against the persistent store. Any
-    # import/validation failure invalidates the session to avoid resuming
-    # potentially compromised sessions.
-    session_data = None
-    try:  # pragma: no cover - network/Firestore interactions
-        from falowen.sessions import validate_session_token
-
-        session_data = validate_session_token(token)
-        if not session_data or session_data.get("student_code") != sc_cookie:
-            raise ValueError("session token failed validation")
-    except Exception as exc:
-        logging.exception("Session restoration failed")
-        clear_session(cookie_manager)
-    else:
-        sc = session_data.get("student_code", sc_cookie)
-        row = (
-            roster[roster["StudentCode"].str.lower() == sc].iloc[0]
-            if roster is not None and "StudentCode" in roster.columns
-            else {}
-        )
-        level = determine_level(sc, row)
-        st.session_state.update(
-            {
-                "logged_in": True,
-                "student_code": sc,
-                "student_name": row.get("Name", ""),
-                "student_row": dict(row) if isinstance(row, pd.Series) else {},
-                "session_token": token,
-                "student_level": level,
-            }
-        )
+    # ``restore_session_from_cookie`` already validated the session token,
+    # so simply seed ``st.session_state`` using the restored values.
+    sc = sc_cookie
+    row = (
+        roster[roster["StudentCode"].str.lower() == sc].iloc[0]
+        if roster is not None and "StudentCode" in roster.columns
+        else {}
+    )
+    level = determine_level(sc, row)
+    st.session_state.update(
+        {
+            "logged_in": True,
+            "student_code": sc,
+            "student_name": row.get("Name", ""),
+            "student_row": dict(row) if isinstance(row, pd.Series) else {},
+            "session_token": token,
+            "student_level": level,
+        }
+    )
     
  
 # ------------------------------------------------------------------------------

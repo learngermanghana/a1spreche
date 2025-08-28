@@ -69,7 +69,7 @@ def set_session_token_cookie(cm: SimpleCookieManager, token: str, **kwargs: Any)
     try:  # pragma: no cover - save rarely fails but we defend against it
         cm.save()
     except Exception:
-        pass
+        logging.exception("Failed to save session token cookie")
 
 
 def clear_session(cm: SimpleCookieManager) -> None:
@@ -168,7 +168,8 @@ def restore_session_from_cookie(
 
     from falowen.sessions import validate_session_token
     session_data = validate_session_token(session_token, ua_hash=ua_hash)
-    if not session_data:
+    if not session_data or session_data.get("student_code") != student_code:
+        clear_session(cm)
         return None
 
     data = loader() if loader else None
