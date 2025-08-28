@@ -134,12 +134,11 @@ def _validate_youtube_playlists() -> None:
             st.warning(f"No YouTube playlist IDs configured for level {lvl}.")
 
 # Each client receives its own cookie manager so login state does not leak
-# between users.  ``bootstrap_cookies`` returns ``None`` on the first run while
-# the manager initialises itself, in which case we halt execution until the
-# next reload.
-cookie_manager = bootstrap_cookies()
-if cookie_manager is None:
+# between users.
+cookie_manager = bootstrap_cookies(_cookie_manager)
+if cookie_manager is None:  # kept for backward compatibility; won't trigger now
     st.stop()
+
 
 def get_playlist_ids_for_level(level: str) -> List[str]:
     """Return playlist IDs for a CEFR level with a fallback.
