@@ -70,7 +70,7 @@ def clear_session(cm: SimpleCookieManager) -> None:
     """Remove session-related cookies and persist the change."""
     cm.delete("student_code")
     cm.delete("session_token")
-    try:
+    try:  # persist cookie deletions
         cm.save()
     except Exception as exc:  # pragma: no cover - defensive
         logging.warning("Failed to persist cleared cookies: %s", exc)
