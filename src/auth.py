@@ -46,8 +46,7 @@ class SimpleCookieManager(MutableMapping[str, Any]):
 
     def set(self, key: str, value: Any, **kwargs: Any) -> None:  # pragma: no cover -
         """Backwards-compatible setter storing ``value`` and options."""
-        self[key] = value
-        self.store[key]["kwargs"] = kwargs
+        self.store[key] = {"value": value, "kwargs": kwargs}
 
     def get(self, key: str, default: Any | None = None) -> Any | None:  # pragma: no cover -
         """Return the stored value for ``key`` or ``default`` if missing."""
@@ -122,6 +121,7 @@ def set_session_token_cookie(cm: MutableMapping[str, Any], token: str, **kwargs:
 def clear_session(cm: MutableMapping[str, Any]) -> None:
 
     cm.pop("student_code", None)
+    cm.pop("session_token", None)
 
     try:  # persist cookie deletions
         cm.save()  # type: ignore[attr-defined]
