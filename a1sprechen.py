@@ -20,11 +20,6 @@ from datetime import datetime as _dt
 from uuid import uuid4
 
 from typing import Any, Dict, List, Optional, Tuple
-from typing import Protocol
-
-
-class CookieLike(Protocol):
-    def ready(self) -> bool: ...
 
 # ==== Third-Party Packages ====
 import bcrypt
@@ -84,6 +79,7 @@ from src.ui_components import (
     render_assignment_reminder,
     render_link,
     render_vocab_lookup,
+    render_reviews,
 )
 
 from src.stats import (
@@ -125,111 +121,24 @@ from src.auth import (
     cookie_manager as AUTH_COOKIE_MANAGER,  # <-- import module cookie_manager with alias
 )
 
-DEFAULT_PLAYLIST_LEVEL = "A1"
-
+from src.data_loading import (
+    fetch_youtube_playlist_videos,
+    get_playlist_ids_for_level,
+    load_student_data,
+)
+from src.session_management import (
+    bootstrap_cookie_manager,
+    bootstrap_state,
+    determine_level,
+    ensure_student_level,
+)
 from src.sentence_bank import SENTENCE_BANK
 
 # Default number of sentences per session in Sentence Builder.
 SB_SESSION_TARGET = int(os.environ.get("SB_SESSION_TARGET", 5))
 
 
-def _validate_youtube_playlists() -> None:
-    """Warn if any playlist level lacks video IDs."""
-    for lvl, ids in YOUTUBE_PLAYLIST_IDS.items():
-        if not ids:
-            st.warning(f"No YouTube playlist IDs configured for level {lvl}.")
-
-def bootstrap_cookies_ready(cm: CookieLike) -> CookieLike:
-    """Return the cookie manager instance and gate on readiness if available.
-
-    Streamlit needs one render for the cookie component to mount. If the manager
-    isn't ready yet, we *must* call st.stop() and let it bubble so Streamlit
-    reruns automatically on the next render.
-    """
-    ready_fn = getattr(cm, "ready", None)
-    if callable(ready_fn) and not bool(ready_fn()):
-        import streamlit as st  # do not swallow this!
-        st.stop()               # allow Streamlit to halt & auto-rerun
-    return cm
-
 cookie_manager = bootstrap_cookies_ready(AUTH_COOKIE_MANAGER)
-
-def get_playlist_ids_for_level(level: str) -> List[str]:
-    """Return playlist IDs for a CEFR level with a fallback.
-
-    The lookup is case-sensitive after normalizing the level to uppercase.
-    If the level is missing, fall back to ``DEFAULT_PLAYLIST_LEVEL`` and show a
-    message. Returns an empty list if no playlists exist at all.
-    """
-    level_key = (level or "").strip().upper()
-    playlist_ids = YOUTUBE_PLAYLIST_IDS.get(level_key, [])
-    if playlist_ids:
-        return playlist_ids
-
-    fallback = YOUTUBE_PLAYLIST_IDS.get(DEFAULT_PLAYLIST_LEVEL, [])
-    if fallback:
-        st.info(
-            f"No playlist found for level {level_key}; using "
-            f"{DEFAULT_PLAYLIST_LEVEL} playlist instead."
-        )
-        return fallback
-
-    st.info(f"No playlist configured for level {level_key}.")
-    return []
-
-
-
-
-YOUTUBE_API_KEY = st.secrets.get(
-    "YOUTUBE_API_KEY", "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
-)
-
-YOUTUBE_PLAYLIST_IDS = {
-    "A1": ["PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b"],
-    "A2": [
-        "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
-        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc",
-        "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c",
-    ],
-    "B1": ["PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-", "PLB92CD6B288E5DB61"],
-    "B2": [
-        "PLs7zUO7VPyJ5XMfT7pLvweRx6kHVgP_9C",
-        "PLs7zUO7VPyJ6jZP-s6dlkINuEjFPvKMG0",
-        "PLs7zUO7VPyJ4SMosRdB-35Q07brhnVToY",
-    ],
-}
-
-
-@st.cache_data(ttl=3600)
-def fetch_youtube_playlist_videos(
-    playlist_id: str, api_key: str = YOUTUBE_API_KEY
-) -> List[Dict[str, Any]]:
-    """Fetch videos for a given YouTube playlist."""
-    base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
-    params = {
-        "part": "snippet",
-        "playlistId": playlist_id,
-        "maxResults": 50,
-        "key": api_key,
-    }
-    videos, next_page = [], ""
-    while True:
-        if next_page:
-            params["pageToken"] = next_page
-        response = requests.get(base_url, params=params, timeout=12)
-        data = response.json()
-        for item in data.get("items", []):
-            vid = item["snippet"]["resourceId"]["videoId"]
-            videos.append(
-                {
-                    "title": item["snippet"]["title"],
-                    "url": f"https://www.youtube.com/watch?v={vid}",
-                }
-            )
-        next_page = data.get("nextPageToken")
-        if not next_page:
-            break
-    return videos
 
 if os.environ.get("RENDER"):
     import fastapi
@@ -351,23 +260,7 @@ def _inject_meta_tags():
 _inject_meta_tags()
 
 # --- State bootstrap ---
-def _bootstrap_state():
-    defaults = {
-        "logged_in": False,
-        "student_row": {},
-        "student_code": "",
-        "student_name": "",
-        "student_level": "",
-        "session_token": "",
-        "cookie_synced": False,
-        "__last_refresh": 0.0,
-        "__ua_hash": "",
-        "_oauth_state": "",
-        "_oauth_code_redeemed": "",
-    }
-    for k, v in defaults.items():
-        st.session_state.setdefault(k, v)
-_bootstrap_state()
+bootstrap_state()
 
 # Compatibility alias
 html = st_html
@@ -385,78 +278,6 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 # ------------------------------------------------------------------------------
 # Student sheet loading
 # ------------------------------------------------------------------------------
-GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
-
-@st.cache_data(ttl=300)
-def _load_student_data_cached():
-    try:
-        resp = requests.get(GOOGLE_SHEET_CSV, timeout=12)
-        resp.raise_for_status()
-        txt = resp.text
-        if "<html" in txt[:512].lower():
-            raise RuntimeError("Expected CSV, got HTML (check sheet privacy).")
-        df = pd.read_csv(io.StringIO(txt), dtype=str, keep_default_na=True, na_values=["", " ", "nan", "NaN", "None"])
-    except Exception as e:
-        st.error(f"❌ Could not load student data. {e}")
-        return None
-
-    df.columns = df.columns.str.strip().str.replace(" ", "")
-    for col in df.columns:
-        s = df[col]
-        df[col] = s.where(s.isna(), s.astype(str).str.strip())
-
-    df = df[df["ContractEnd"].notna() & (df["ContractEnd"].str.len() > 0)]
-
-    def _parse_contract_end(s: str):
-        for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
-            try:
-                return pd.to_datetime(s, format=fmt, errors="raise")
-            except Exception:
-                continue
-        return pd.to_datetime(s, errors="coerce")
-
-    # create parsed date column and keep only valid dates
-    df["ContractEnd_dt"] = df["ContractEnd"].apply(_parse_contract_end)
-    df = df[df["ContractEnd_dt"].notna()]
-
-    if "StudentCode" in df.columns:
-        df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-    if "Email" in df.columns:
-        df["Email"] = df["Email"].str.lower().str.strip()
-
-    df = (
-        df.sort_values("ContractEnd_dt", ascending=False)
-          .drop_duplicates(subset=["StudentCode"], keep="first")
-          .drop(columns=["ContractEnd_dt"])
-    )
-    return df
-
-def load_student_data():
-    """Load student roster, or return None if unavailable."""
-    return _load_student_data_cached()
-
-def _determine_level(sc: str, row) -> str:
-    """Resolve a student's level from a row or fallback helper."""
-    level = ""
-    if isinstance(row, (dict, pd.Series)):
-        level = row.get("Level", "")
-    if not level and sc:
-        try:
-            level = get_student_level(sc) or ""
-        except Exception:
-            level = ""
-    return str(level or "").strip()
-
-
-def _ensure_student_level() -> str:
-    """Ensure ``st.session_state['student_level']`` is populated."""
-    if st.session_state.get("student_level"):
-        return st.session_state["student_level"]
-    sc = st.session_state.get("student_code", "")
-    row = st.session_state.get("student_row", {})
-    level = _determine_level(sc, row)
-    st.session_state["student_level"] = level
-    return level
 
 seed_falowen_state_from_qp()
 
@@ -480,7 +301,7 @@ if restored is not None and not st.session_state.get("logged_in", False):
         if not session_data or session_data.get("student_code") != sc_cookie:
             raise ValueError("session token failed validation")
     except Exception as exc:
-        logging.warning("Session restoration failed: %s", exc)
+        logging.exception("Session restoration failed")
         clear_session(cookie_manager)
     else:
         sc = session_data.get("student_code", sc_cookie)
@@ -489,7 +310,7 @@ if restored is not None and not st.session_state.get("logged_in", False):
             if roster is not None and "StudentCode" in roster.columns
             else {}
         )
-        level = _determine_level(sc, row)
+        level = determine_level(sc, row)
         st.session_state.update(
             {
                 "logged_in": True,
@@ -596,10 +417,10 @@ def _handle_google_oauth(code: str, state: str) -> None:
             try:
                 destroy_session_token(prev_token)
             except Exception as e:
-                st.warning(f"Logout warning (revoke): {e}")
+                logging.exception("Logout warning (revoke)")
         clear_session(cookie_manager)
         sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
-        level = _determine_level(student_row["StudentCode"], student_row)
+        level = determine_level(student_row["StudentCode"], student_row)
         st.session_state.update({
             "logged_in": True,
             "student_row": student_row.to_dict(),
@@ -621,13 +442,14 @@ def _handle_google_oauth(code: str, state: str) -> None:
         )
         try:
             cookie_manager.save()
-        except Exception:  # pragma: no cover - defensive
-            pass
+        except Exception as exc:  # pragma: no cover - defensive
+            logging.exception("Cookie save failed")
         qp_clear()
         st.success(f"Welcome, {student_row['Name']}!")
         st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
         st.rerun()
     except Exception as e:
+        logging.exception("Google OAuth error")
         st.error(f"Google OAuth error: {e}")
 
 def render_google_oauth():
@@ -698,206 +520,6 @@ def render_signup_form():
     doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
     st.success("Account created! Please log in on the Returning tab.")
 
-def render_reviews():
-    REVIEWS = [
-        {
-            "quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.",
-            "author": "Ama",
-            "location": "Accra, Ghana 🇬🇭",
-            "level": "A2",
-            "time": "20 weeks",
-            "used": ["Course Book", "Assignments", "Results emails"],
-            "outcome": "Passed Goethe A2"
-        },
-        {
-            "quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.",
-            "author": "Tunde",
-            "location": "Lagos, Nigeria 🇳🇬",
-            "level": "B1",
-            "time": "30 weeks",
-            "used": ["Vocab Trainer", "Results emails", "Course Book"],
-            "outcome": "Completed B1 modules"
-        },
-        {
-            "quote": "Clear lessons, easy submissions, and I get notified quickly when marked.",
-            "author": "Mariama",
-            "location": "Freetown, Sierra Leone 🇸🇱",
-            "level": "A1",
-            "time": "10 weeks",
-            "used": ["Assignments", "Course Book"],
-            "outcome": "A1 basics completed"
-        },
-        {
-            "quote": "I like the locked submissions and the clean Results tab.",
-            "author": "Kwaku",
-            "location": "Kumasi, Ghana 🇬🇭",
-            "level": "B2",
-            "time": "40 weeks",
-            "used": ["Results tab", "Assignments"],
-            "outcome": "B2 writing improved"
-        },
-    ]
-
-    _html = """
-    <div class="page-wrap" style="max-width:900px;margin-top:8px;">
-      <section id="reviews" aria-label="Student stories" class="rev-wrap" tabindex="-1">
-        <header class="rev-head">
-          <h3 class="rev-title">Student stories</h3>
-          <div class="rev-cta">
-            <button class="rev-btn" id="rev_prev" aria-label="Previous review" title="Previous">◀</button>
-            <button class="rev-btn" id="rev_next" aria-label="Next review" title="Next">▶</button>
-          </div>
-        </header>
-
-        <article class="rev-card" aria-live="polite" aria-atomic="true">
-          <blockquote id="rev_quote" class="rev-quote"></blockquote>
-          <div class="rev-meta">
-            <div class="rev-name" id="rev_author"></div>
-            <div class="rev-sub"  id="rev_location"></div>
-          </div>
-
-          <div class="rev-badges">
-            <span class="badge" id="rev_level"></span>
-            <span class="badge" id="rev_time"></span>
-            <span class="badge badge-ok" id="rev_outcome"></span>
-          </div>
-
-          <div class="rev-used" id="rev_used" aria-label="Features used"></div>
-        </article>
-
-        <nav class="rev-dots" aria-label="Slide indicators" id="rev_dots"></nav>
-      </section>
-    </div>
-
-    <style>
-      .rev-wrap{
-        background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:14px; 
-        box-shadow:0 4px 16px rgba(0,0,0,.05);
-      }
-      .rev-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
-      .rev-title{ margin:0; font-size:1.05rem; color:#25317e; }
-      .rev-cta{ display:flex; gap:6px; }
-      .rev-btn{
-        background:#eef3fc; border:1px solid #cbd5e1; border-radius:8px; padding:4px 10px; cursor:pointer; 
-        font-weight:700;
-      }
-      .rev-btn:hover{ background:#e2e8f0; }
-
-      .rev-card{ position:relative; min-height:190px; }
-      .rev-quote{ font-size:1.06rem; line-height:1.45; margin:4px 0 10px 0; color:#0f172a; }
-      .rev-meta{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
-      .rev-name{ font-weight:700; color:#1e293b; }
-      .rev-sub{ color:#475569; }
-
-      .rev-badges{ display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 8px; }
-      .badge{
-        display:inline-block; background:#f1f5f9; border:1px solid #e2e8f0; color:#0f172a;
-        padding:4px 8px; border-radius:999px; font-size:.86rem; font-weight:600;
-      }
-      .badge-ok{ background:#ecfdf5; border-color:#bbf7d0; color:#065f46; }
-
-      .rev-used{ display:flex; gap:6px; flex-wrap:wrap; }
-      .rev-used .chip{
-        background:#eef2ff; border:1px solid #c7d2fe; color:#3730a3; 
-        padding:3px 8px; border-radius:999px; font-size:.82rem; font-weight:600;
-      }
-
-      .rev-dots{ display:flex; gap:6px; justify-content:center; margin-top:10px; }
-      .rev-dot{
-        width:8px; height:8px; border-radius:999px; background:#cbd5e1; border:none; padding:0; cursor:pointer;
-      }
-      .rev-dot[aria-current="true"]{ background:#25317e; }
-      .fade{ opacity:0; transform:translateY(4px); transition:opacity .28s ease, transform .28s ease; }
-      .fade.show{ opacity:1; transform:none; }
-      @media (prefers-reduced-motion: reduce){ .fade{ transition:none; opacity:1; transform:none; } }
-    </style>
-
-    <script>
-      const DATA = __DATA__;
-      const q  = (id) => document.getElementById(id);
-      const qs = (sel) => document.querySelector(sel);
-      const wrap = qs("#reviews");
-      const quote = q("rev_quote");
-      const author = q("rev_author");
-      const locationEl = q("rev_location");
-      const level = q("rev_level");
-      const time  = q("rev_time");
-      const outcome = q("rev_outcome");
-      const used = q("rev_used");
-      const dots = q("rev_dots");
-      const prevBtn = q("rev_prev");
-      const nextBtn = q("rev_next");
-
-      let i = 0, timer = null, hovered = false;
-      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-      function setUsedChips(items){
-        used.innerHTML = "";
-        (items || []).forEach(t => {
-          const s = document.createElement("span");
-          s.className = "chip";
-          s.textContent = t;
-          used.appendChild(s);
-        });
-      }
-
-      function setDots(){
-        dots.innerHTML = "";
-        DATA.forEach((_, idx) => {
-          const b = document.createElement("button");
-          b.className = "rev-dot";
-          b.setAttribute("aria-label", "Go to review " + (idx+1));
-          if(idx === i) b.setAttribute("aria-current","true");
-          b.addEventListener("click", () => { i = idx; show(true); restart(); });
-          dots.appendChild(b);
-        });
-      }
-
-      function show(animate){
-        const c = DATA[i];
-        quote.textContent = '"' + (c.quote || '') + '"';
-        author.textContent = c.author ? c.author + ' — ' : '';
-        locationEl.textContent = c.location || '';
-        level.textContent = 'Level: ' + (c.level || '—');
-        time.textContent  = 'Time: ' + (c.time  || '—');
-        outcome.textContent = c.outcome || '';
-
-        setUsedChips(c.used);
-        setDots();
-
-        const card = wrap.querySelector(".rev-card");
-        if(animate && !reduced){
-          card.classList.remove("show");
-          card.classList.add("fade");
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => card.classList.add("show"));
-          });
-        }
-      }
-
-      function next(){ i = (i + 1) % DATA.length; show(true); }
-      function prev(){ i = (i - 1 + DATA.length) % DATA.length; show(true); }
-
-      function start(){ if(reduced) return; timer = setInterval(() => { if(!hovered) next(); }, 6000); }
-      function stop(){ if(timer){ clearInterval(timer); timer = null; } }
-      function restart(){ stop(); start(); }
-
-      nextBtn.addEventListener("click", () => { next(); restart(); });
-      prevBtn.addEventListener("click", () => { prev(); restart(); });
-      wrap.addEventListener("mouseenter", () => { hovered = true; });
-      wrap.addEventListener("mouseleave", () => { hovered = false; });
-
-      wrap.addEventListener("keydown", (e) => {
-        if(e.key === "ArrowRight"){ next(); restart(); }
-        if(e.key === "ArrowLeft"){  prev(); restart(); }
-      });
-
-      show(false);
-      start();
-    </script>
-    """
-    _json = json.dumps(REVIEWS)
-    components.html(_html.replace("__DATA__", _json), height=300, scrolling=False)
 
 def render_login_form():
     st.session_state.setdefault("show_reset_panel", False)
@@ -967,7 +589,8 @@ def render_login_form():
             if ok and not is_hash:
                 new_hash = bcrypt.hashpw(login_pass.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
                 doc_ref.update({"password": new_hash})
-        except Exception:
+        except Exception as exc:
+            logging.exception("Password hash upgrade failed")
             ok = False
 
         if not ok:
@@ -980,11 +603,11 @@ def render_login_form():
             try:
                 destroy_session_token(prev_token)
             except Exception as e:
-                st.warning(f"Logout warning (revoke): {e}")
+                logging.exception("Logout warning (revoke)")
         sess_token = create_session_token(
             student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash
         )
-        level = _determine_level(student_row["StudentCode"], student_row)
+        level = determine_level(student_row["StudentCode"], student_row)
 
         st.session_state.update(
             {
@@ -1076,7 +699,8 @@ def render_login_form():
                             else:
                                 base_url = (st.secrets.get("PUBLIC_BASE_URL", "https://falowen.app") or "").rstrip("/")
                                 reset_link = f"{base_url}/?token={_urllib.quote(token, safe='')}"
-                    except Exception:
+                    except Exception as exc:
+                        logging.exception("Failed to build reset link")
                         base_url = (st.secrets.get("PUBLIC_BASE_URL", "https://falowen.app") or "").rstrip("/")
                         reset_link = f"{base_url}/?token={_urllib.quote(token, safe='')}"
 
@@ -1312,8 +936,7 @@ def login_page():
     """, unsafe_allow_html=True)
 
     def render_reviews_inner():
-        _reviews_html = """<div style="text-align:center;opacity:.8;">(reviews carousel)</div>"""
-        components.html(_reviews_html, height=60, scrolling=False)
+        render_reviews()
 
     render_reviews_inner()
 
@@ -1398,13 +1021,13 @@ if _logout_clicked:
         if tok and "destroy_session_token" in globals():
             destroy_session_token(tok)
     except Exception as e:
-        st.warning(f"Logout warning (revoke): {e}")
+        logging.exception("Logout warning (revoke)")
 
     try:
         clear_session(cookie_manager)
 
     except Exception as e:
-        st.warning(f"Logout warning (expire cookies): {e}")
+        logging.exception("Logout warning (expire cookies)")
 
     st.session_state.pop("access_token", None)
     st.session_state.pop("refresh_token", None)
@@ -2393,7 +2016,7 @@ if tab == "Dashboard":
     # ---------- Class schedules ----------
     with st.expander("🗓️ Class Schedule & Upcoming Sessions", expanded=False):
         if not st.session_state.get("student_level"):
-            _ensure_student_level()
+            ensure_student_level()
         GROUP_SCHEDULES = load_group_schedules()
 
         from datetime import datetime as _dt_local, timedelta as _td_local
@@ -3101,7 +2724,7 @@ if tab == "My Course":
 
         # ---- Load schedule (normalized) ----
         if not st.session_state.get("student_level"):
-            _ensure_student_level()  
+            ensure_student_level()  
         student_level = st.session_state.get("student_level", "A1")
         level_key = (student_level or "A1").strip().upper()
         schedules = load_level_schedules()
@@ -3987,7 +3610,7 @@ if tab == "My Course":
             # -------- group schedule config (global/secrets/firestore/fallback) --------
             def _load_group_schedules():
                 if not st.session_state.get("student_level"):
-                    _ensure_student_level()
+                    ensure_student_level()
                 # 1) global
                 cfg = globals().get("GROUP_SCHEDULES")
                 if isinstance(cfg, dict) and cfg:
