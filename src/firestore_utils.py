@@ -105,8 +105,10 @@ def load_chat_draft_from_db(code: str, conv_key: str) -> str:
             data = snap.to_dict() or {}
             drafts = data.get("drafts", {}) or {}
             return drafts.get(conv_key, "") or ""
-    except Exception:
-        pass
+    except Exception as exc:  # pragma: no cover - runtime depends on Firestore
+        logging.exception(
+            "Failed to load chat draft for %s/%s: %s", code, conv_key, exc
+        )
     return ""
 
 
@@ -125,8 +127,10 @@ def load_draft_meta_from_db(code: str, field_key: str) -> Tuple[str, Optional[da
             if snap.exists:
                 data = snap.to_dict() or {}
                 return data.get("text", ""), data.get("updated_at")
-    except Exception:
-        pass
+   except Exception as exc:  # pragma: no cover - runtime depends on Firestore
+        logging.exception(
+            "Failed to load draft meta for %s/%s: %s", code, field_key, exc
+        )
 
     # 2) Compatibility: old level-rooted nested path
     try:
@@ -142,8 +146,10 @@ def load_draft_meta_from_db(code: str, field_key: str) -> Tuple[str, Optional[da
         if comp.exists:
             data = comp.to_dict() or {}
             return data.get("text", ""), data.get("updated_at")
-    except Exception:
-        pass
+    except Exception as exc:  # pragma: no cover - runtime depends on Firestore
+        logging.exception(
+            "Failed to load draft meta (compat) for %s/%s: %s", code, field_key, exc
+        )
 
     # 3) Legacy flat doc
     try:
