@@ -230,13 +230,15 @@ def test_set_cookie_functions_persist_changes():
 def test_cookie_functions_apply_defaults_and_allow_override():
     """Cookies should include secure defaults but allow overriding."""
 
-    class RecordingCookieManager(SimpleCookieManager):
-        def set(self, key: str, value: str, **kwargs):  # pragma: no cover - trivial
-            self.store[key] = {"value": value, "kwargs": kwargs}
-
-    cm = RecordingCookieManager()
+    cm = SimpleCookieManager()
     set_student_code_cookie(cm, "abc")
     set_session_token_cookie(cm, "tok123", secure=False, samesite="Lax")
+
+    
+    # ``get`` should return the stored values even though the manager keeps
+    # additional metadata about the cookie options.
+    assert cm.get("student_code") == "abc"
+    assert cm.get("session_token") == "tok123"
 
     student_kwargs = cm.store["student_code"]["kwargs"]
     token_kwargs = cm.store["session_token"]["kwargs"]
