@@ -75,7 +75,7 @@ def persist_falowen_state_to_qp() -> None:
             st.query_params[key] = str(val)
 
 
-@st.cache_data(ttl=86400)
+@st.cache_data(ttl=3600)
 def build_wa_message(name: str, code: str, level: str, day: int, chapter: str, answer: str) -> str:
     """Build a WhatsApp-friendly submission message."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
