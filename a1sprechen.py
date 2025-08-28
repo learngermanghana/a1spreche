@@ -40,7 +40,7 @@ from streamlit.components.v1 import html as st_html
 from streamlit_quill import st_quill
 
 # --- Falowen modules ---
-from falowen.email_utils import send_reset_email, build_gas_reset_link
+from falowen.email_utils import send_reset_email, build_gas_reset_link, GAS_RESET_URL
 from falowen.sessions import (
     db,
     create_session_token,
