@@ -736,7 +736,8 @@ def login_page():
           <b>Learn Language Education Academy</b>, with courses and vocabulary from
           <b>A1 to C1</b> levels and live tutor support.
         </p>
-        <ul style="max-width:700px; margin:8px auto; color:#444; font-size:1em; line-height:1.5;">
+        <ul class="feature-list">
+
           <li>📊 <b>Dashboard</b>: Track your learning streaks, assignment progress, active contracts, and more.</li>
           <li>📚 <b>Course Book</b>: Access lecture videos, grammar modules, and submit assignments for levels A1–C1 in one place.</li>
           <li>📝 <b>Exams & Quizzes</b>: Take practice tests and official exam prep right in the app.</li>
@@ -745,6 +746,27 @@ def login_page():
           <li>🔤 <b>Vocab Trainer</b>: Practice and master A1–C1 vocabulary with spaced-repetition quizzes.</li>
           <li>✍️ <b>Schreiben Trainer</b>: Improve your writing with guided exercises and instant corrections.</li>
         </ul>
+        <style>
+          .feature-list {
+            max-width:700px;
+            margin:16px auto;
+            color:#444;
+            font-size:1em;
+            line-height:1.5;
+            list-style:none;
+            padding-left:0;
+            display:flex;
+            flex-wrap:wrap;
+            gap:4px 16px;
+          }
+          .feature-list li {
+            flex:1 1 calc(50% - 16px);
+            margin-bottom:6px;
+          }
+          @media (max-width:560px) {
+            .feature-list li { flex-basis:100%; }
+          }
+        </style>
       </div>
     </div>
     """, unsafe_allow_html=True)
