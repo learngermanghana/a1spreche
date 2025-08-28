@@ -197,7 +197,7 @@ YOUTUBE_PLAYLIST_IDS = {
 }
 
 
-@st.cache_data(ttl=43200)
+@st.cache_data(ttl=3600)
 def fetch_youtube_playlist_videos(
     playlist_id: str, api_key: str = YOUTUBE_API_KEY
 ) -> List[Dict[str, Any]]:
@@ -2562,6 +2562,13 @@ if tab == "Dashboard":
             api_key = globals().get("YOUTUBE_API_KEY")
             playlist_id = random.choice(playlist_ids) if playlist_ids else None
             if playlist_id and fetch_videos and api_key:
+                if st.button("🔄 Refresh videos", key=f"refresh_vod_{level}"):
+                    st.cache_data.clear()
+                    st.rerun()
+                st.caption(
+                    "Click 'Refresh videos' to clear cached playlist data and reload"
+                    " from YouTube if results look out of date."
+                )
                 try:
                     video_list = fetch_videos(playlist_id, api_key)
                 except Exception:
@@ -3448,6 +3455,13 @@ if tab == "My Course":
             playlist_id = random.choice(playlist_ids) if playlist_ids else None
 
             if playlist_id and fetch_videos and api_key:
+                if st.button("🔄 Refresh videos", key=f"refresh_vod_{level_key}"):
+                    st.cache_data.clear()
+                    st.rerun()
+                st.caption(
+                    "Click 'Refresh videos' to clear cached playlist data and reload"
+                    " from YouTube if results look out of date."
+                )
                 try:
                     video_list = fetch_videos(playlist_id, api_key)
                 except Exception:
