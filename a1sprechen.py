@@ -738,35 +738,73 @@ def login_page():
           <b>Learn Language Education Academy</b>, with courses and vocabulary from
           <b>A1 to C1</b> levels and live tutor support.
         </p>
-        <ul class="feature-list">
+        <div class="feature-grid" role="list">
 
-          <li>📊 <b>Dashboard</b>: Track your learning streaks, assignment progress, active contracts, and more.</li>
-          <li>📚 <b>Course Book</b>: Access lecture videos, grammar modules, and submit assignments for levels A1–C1 in one place.</li>
-          <li>📝 <b>Exams & Quizzes</b>: Take practice tests and official exam prep right in the app.</li>
-          <li>💬 <b>Custom Chat</b>: Sprechen & expression trainer for live feedback on your speaking.</li>
-          <li>🏆 <b>Results Tab</b>: View your grades, feedback, and historical performance at a glance.</li>
-          <li>🔤 <b>Vocab Trainer</b>: Practice and master A1–C1 vocabulary with spaced-repetition quizzes.</li>
-          <li>✍️ <b>Schreiben Trainer</b>: Improve your writing with guided exercises and instant corrections.</li>
-        </ul>
+          <div class="feature-card" role="listitem">
+            <div class="feature-icon">📊</div>
+            <div><b>Dashboard</b>: Track your learning streaks, assignment progress, active contracts, and more.</div>
+          </div>
+          <div class="feature-card" role="listitem">
+            <div class="feature-icon">📚</div>
+            <div><b>Course Book</b>: Access lecture videos, grammar modules, and submit assignments for levels A1–C1 in one place.</div>
+          </div>
+          <div class="feature-card" role="listitem">
+            <div class="feature-icon">📝</div>
+            <div><b>Exams & Quizzes</b>: Take practice tests and official exam prep right in the app.</div>
+          </div>
+          <div class="feature-card" role="listitem">
+            <div class="feature-icon">💬</div>
+            <div><b>Custom Chat</b>: Sprechen & expression trainer for live feedback on your speaking.</div>
+          </div>
+          <div class="feature-card" role="listitem">
+            <div class="feature-icon">🏆</div>
+            <div><b>Results Tab</b>: View your grades, feedback, and historical performance at a glance.</div>
+          </div>
+          <div class="feature-card" role="listitem">
+            <div class="feature-icon">🔤</div>
+            <div><b>Vocab Trainer</b>: Practice and master A1–C1 vocabulary with spaced-repetition quizzes.</div>
+          </div>
+          <div class="feature-card" role="listitem">
+            <div class="feature-icon">✍️</div>
+            <div><b>Schreiben Trainer</b>: Improve your writing with guided exercises and instant corrections.</div>
+          </div>
+        </div>
         <style>
-          .feature-list {
+          .feature-grid {
             max-width:700px;
             margin:16px auto;
+            display:grid;
+            grid-template-columns:repeat(auto-fit, minmax(250px, 1fr));
+            gap:16px;
+          }
+          .feature-card {
+            background:#f9f9f9;
+            padding:16px;
+            border-radius:12px;
+            box-shadow:0 1px 4px rgba(0,0,0,0.08);
+            display:flex;
+            align-items:flex-start;
+            gap:12px;
             color:#444;
             font-size:1em;
             line-height:1.5;
-            list-style:none;
-            padding-left:0;
+            transition:transform .2s ease, box-shadow .2s ease;
+          }
+          .feature-card:hover {
+            transform:scale(1.02);
+            box-shadow:0 4px 12px rgba(0,0,0,0.15);
+          }
+          .feature-icon {
+            width:40px;
+            height:40px;
+            border-radius:50%;
+            background:#eef2ff;
             display:flex;
-            flex-wrap:wrap;
-            gap:4px 16px;
-          }
-          .feature-list li {
-            flex:1 1 calc(50% - 16px);
-            margin-bottom:6px;
-          }
-          @media (max-width:560px) {
-            .feature-list li { flex-basis:100%; }
+            align-items:center;
+            justify-content:center;
+            font-size:24px;
+            flex-shrink:0;
+            box-shadow:0 0 0 1px rgba(0,0,0,0.05) inset;
           }
         </style>
       </div>
