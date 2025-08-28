@@ -1,5 +1,5 @@
 """Authentication helpers for managing user cookies and sessions."""
-from __future__ import annotations
+
 
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -15,6 +15,7 @@ class SimpleCookieManager:
     The production application relies on ``EncryptedCookieManager`` to persist
     cookies in the user's browser.  For unit tests we only need a tiny subset of
     that interface, so this class stores values in memory.
+    """
 
     store: Dict[str, Any] = field(default_factory=dict)
 
