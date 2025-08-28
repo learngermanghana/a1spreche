@@ -6621,6 +6621,7 @@ if tab == "Vocab Trainer":
         defaults = {
             "vt_history": [], "vt_list": [], "vt_index": 0,
             "vt_score": 0, "vt_total": None, "vt_saved": False, "vt_session_id": None,
+            "vt_mode": "Only new words",
         }
         for k, v in defaults.items():
             st.session_state.setdefault(k, v)
@@ -6675,7 +6676,7 @@ if tab == "Vocab Trainer":
         else:
             st.markdown("### Daily Practice Setup")
             st.info(
-                f"{st.session_state.vt_total} words · {st.session_state.vt_mode}"
+                f"{st.session_state.vt_total} words · {st.session_state.get('vt_mode')}"
             )
             if st.button("Change goal", key="vt_change_goal"):
                 st.session_state.vt_total = None
