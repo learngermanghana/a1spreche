@@ -942,8 +942,8 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "grammar_topic": "Der Genitiv",
-            "video": "",
-            "youtube_link": "",
+            "video": "https://youtu.be/y5wqJv8_GMI",
+            "youtube_link": "https://youtu.be/y5wqJv8_GMI",
             "grammarbook_link": "https://drive.google.com/file/d/1DMyTdt1cxhDxYJZQPHe3pAqE30TNwThU/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1XXVhFMJdFI_j3pZXw3UkuHCoKqYR8dkj/view?usp=sharing"
         },
