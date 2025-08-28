@@ -1,10 +1,12 @@
 """Authentication helpers for managing user cookies and sessions."""
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from threading import Lock
 from typing import Any, Callable, Optional
+import importlib
 
 
 @dataclass
@@ -16,15 +18,18 @@ class SimpleCookieManager:
     of the interface, so this class stores cookie values in memory.
     """
 
-    store: dict[str, Any] = field(default_factory=dict)
+    store: dict[str, dict[str, Any]] = field(default_factory=dict))
 
-    def set(self, key: str, value: Any, **_: Any) -> None:  # pragma: no cover -
-        """Store ``value`` under ``key``."""
-        self.store[key] = value
+    def set(self, key: str, value: Any, **kwargs: Any) -> None:  # pragma: no cover -
+        """Store ``value`` and any options under ``key``."""
+        self.store[key] = {"value": value, "kwargs": kwargs}
 
     def get(self, key: str, default: Any | None = None) -> Any | None:  # pragma: no cover -
-        """Return the value for ``key`` or ``default`` if missing."""
-        return self.store.get(key, default)
+        """Return the stored value for ``key`` or ``default`` if missing."""
+        item = self.store.get(key)
+        if item is None:
+            return default
+        return item.get("value")
 
     def delete(self, key: str) -> None:  # pragma: no cover -
         """Remove ``key`` from the store if present."""
@@ -38,9 +43,19 @@ class SimpleCookieManager:
         """
         return None
 
-# A module level instance used by the application
-cookie_manager = SimpleCookieManager()
+# Factory helper so each session receives its own cookie manager instance.
 
+
+def create_cookie_manager() -> SimpleCookieManager:
+    """Return a fresh ``SimpleCookieManager``.
+
+    The real application uses ``EncryptedCookieManager`` from
+    ``streamlit_cookies_manager``.  Tests rely on a lightweight in-memory
+    implementation instead.  This factory keeps the interface consistent while
+    ensuring callers receive an isolated manager per session.
+    """
+
+    return SimpleCookieManager()
 
 def set_student_code_cookie(cm: SimpleCookieManager, code: str, **kwargs: Any) -> None:
     """Store the student code in a cookie and persist the change.
@@ -54,7 +69,7 @@ def set_student_code_cookie(cm: SimpleCookieManager, code: str, **kwargs: Any) -
     try:  # pragma: no cover - save rarely fails but we defend against it
         cm.save()
     except Exception:
-        pass
+        logging.exception("Failed to save student code cookie")
 
 
 def set_session_token_cookie(cm: SimpleCookieManager, token: str, **kwargs: Any) -> None:
@@ -83,9 +98,8 @@ def clear_session(cm: SimpleCookieManager) -> None:
     cm.delete("student_code")
     cm.delete("session_token")
     try:
-        cm.save()
-    except Exception:  # pragma: no cover - defensive: SimpleCookieManager.save doesn't raise
-        pass
+    except Exception as exc:  # pragma: no cover - defensive: SimpleCookieManager.save doesn't raise
+        logging.warning("Failed to persist cleared cookies: %s", exc)
 
 
 
@@ -103,18 +117,34 @@ class _SessionStore:
     may read and write concurrently from different threads without corrupting
     the underlying dictionary.
     """
-
-    def __init__(self) -> None:  # pragma: no cover - trivial
-        self._store: dict[str, str] = {}
+    
+    
+    def __init__(self, ttl: int = 3600) -> None:  # pragma: no cover - trivial
+        self._store: dict[str, tuple[str, datetime]] = {}
         self._lock = Lock()
+            self._ttl = ttl
+
+    def _prune_locked(self) -> None:
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=self._ttl)
+        expired = [tok for tok, (_, ts) in self._store.items() if ts < cutoff]
+        for tok in expired:
+            self._store.pop(tok, None)
+
+    def prune(self) -> None:
+        """Remove entries older than the configured TTL."""
+        with self._lock:
+            self._prune_locked()
 
     def set(self, token: str, student_code: str) -> None:
         with self._lock:
-            self._store[token] = student_code
+            self._store[token] = (student_code, datetime.now(timezone.utc))
+            self._prune_locked()
 
     def get(self, token: str) -> str | None:
         with self._lock:
-            return self._store.get(token)
+            self._prune_locked()
+            data = self._store.get(token)
+            return data[0] if data else None
 
     def clear(self) -> None:
         """Remove all stored mappings."""
@@ -151,7 +181,9 @@ def bootstrap_cookies(cm: SimpleCookieManager) -> SimpleCookieManager:
 
 
 def restore_session_from_cookie(
-    cm: SimpleCookieManager, loader: Callable[[], Any] | None = None
+    cm: SimpleCookieManager,
+    loader: Callable[[], Any] | None = None,
+    contract_validator: Callable[[str, Any], bool] | None = None,
 ) -> Optional[dict[str, Any]]:
     """Attempt to restore a user session from cookies.
 
@@ -162,12 +194,18 @@ def restore_session_from_cookie(
     loader:
         Optional callable used to load additional user data.  It is only
         executed when both cookies are present.
+    contract_validator:
+        Optional callable that checks whether a student's contract is still
+        valid.  It receives the student code and the data returned by
+        ``loader``.  When it returns ``False`` the cookies are cleared and no
+        session is restored.
     """
 
     student_code = cm.get("student_code")
     session_token = cm.get("session_token")
     if not student_code or not session_token:
         return None
+      
     ua_hash = ""
     try:  # pragma: no cover - best effort, environment dependent
         import streamlit as st  # type: ignore
@@ -193,9 +231,18 @@ def restore_session_from_cookie(
 
     session_data = validate_session_token(session_token, ua_hash=ua_hash)
     if not session_data:
+=======
+    sessions = importlib.import_module("falowen.sessions")
+    session_data = sessions.validate_session_token(session_token)
+    if not session_data:    
+
         return None
+    
 
     data = loader() if loader else None
+    if contract_validator and not contract_validator(student_code, data):
+        clear_session(cm)
+        return None
     return {
         "student_code": student_code,
         "session_token": session_token,
@@ -215,8 +262,8 @@ def reset_password_page(token: str) -> None:  # pragma: no cover -
 
 
 __all__ = [
-    "cookie_manager",
     "SimpleCookieManager",
+    "create_cookie_manager",
     "set_student_code_cookie",
     "set_session_token_cookie",
     "clear_session",

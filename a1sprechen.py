@@ -28,6 +28,7 @@ import requests
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
 import streamlit.components.v1 as components
+from streamlit_cookies_manager import EncryptedCookieManager
 from docx import Document
 from google.cloud.firestore_v1 import FieldFilter
 from google.api_core.exceptions import GoogleAPICallError
@@ -119,7 +120,6 @@ from src.auth import (
     persist_session_client,
     restore_session_from_cookie,
     reset_password_page,
-    cookie_manager as AUTH_COOKIE_MANAGER,  # <-- import module cookie_manager with alias
 )
 
 from src.data_loading import (
@@ -139,7 +139,9 @@ from src.sentence_bank import SENTENCE_BANK
 SB_SESSION_TARGET = int(os.environ.get("SB_SESSION_TARGET", 5))
 
 
-cookie_manager = bootstrap_cookie_manager(AUTH_COOKIE_MANAGER)
+cookie_manager = bootstrap_cookie_manager(
+    EncryptedCookieManager(prefix="falowen")
+)
 
 if os.environ.get("RENDER"):
     import fastapi
@@ -282,7 +284,18 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 seed_falowen_state_from_qp()
 
-restored = restore_session_from_cookie(cookie_manager, load_student_data)
+def _contract_active(sc: str, roster):
+    if roster is None or "StudentCode" not in roster.columns:
+        return True
+    match = roster[roster["StudentCode"].str.lower() == sc.lower()]
+    if match.empty:
+        return True
+    return not is_contract_expired(match.iloc[0])
+
+
+restored = restore_session_from_cookie(
+    cookie_manager, load_student_data, _contract_active
+)
 
 # If cookies provided a valid session and we're not already logged in, seed
 # ``st.session_state`` so the user stays logged in across page reloads.
@@ -981,6 +994,7 @@ if st.session_state.pop("_inject_logout_js", False):
       <script>
         try {
           localStorage.removeItem('student_code');
+          localStorage.removeItem('student_name');
           localStorage.removeItem('session_token');
           const u = new URL(window.location);
           ['code','state','token'].forEach(k => u.searchParams.delete(k));

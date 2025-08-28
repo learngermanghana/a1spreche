@@ -4,8 +4,14 @@ import types
 import pandas as pd
 import streamlit as st
 
+from src.contracts import is_contract_expired
+
+# Stub ``falowen.sessions`` before importing ``src.auth`` to avoid network calls.
+stub_sessions = types.SimpleNamespace(validate_session_token=lambda *a, **k: None)
+sys.modules.setdefault("falowen.sessions", stub_sessions)
+
 from src.auth import (
-    cookie_manager,
+    create_cookie_manager,
     set_student_code_cookie,
     set_session_token_cookie,
     clear_session,
@@ -15,6 +21,8 @@ from src.auth import (
     get_session_client,
     clear_session_clients,
 )
+
+cookie_manager = create_cookie_manager()
 
 def test_cookies_keep_user_logged_in_after_reload():
     """User with valid cookies should remain logged in after a reload."""
@@ -34,6 +42,8 @@ def test_cookies_keep_user_logged_in_after_reload():
         else None
     )
     sys.modules["falowen.sessions"] = stub_sessions
+    import src.auth as auth_module
+    auth_module.validate_session_token = stub_sessions.validate_session_token
 
     def loader():
         return pd.DataFrame([{"StudentCode": "abc", "Name": "Alice"}])
@@ -82,6 +92,35 @@ def test_cookies_keep_user_logged_in_after_reload():
     assert st.session_state.get("session_token") == "tok123"
     assert st.session_state.get("student_level") == "B2"
 
+def test_session_not_restored_if_contract_expired():
+    """Expired contracts should prevent session restoration."""
+    st.session_state.clear()
+    cookie_manager.store.clear()
+
+    set_student_code_cookie(cookie_manager, "abc")
+    set_session_token_cookie(cookie_manager, "tok123")
+
+    stub_sessions = types.SimpleNamespace(
+        validate_session_token=lambda token, ua_hash="": {"student_code": "abc"}
+        if token == "tok123"
+        else None
+    )
+    sys.modules["falowen.sessions"] = stub_sessions
+
+    def loader():
+        return pd.DataFrame([{"StudentCode": "abc", "ContractEnd": "2020-01-01"}])
+
+    def contract_checker(sc, df):
+        row = df[df["StudentCode"] == sc].iloc[0]
+        return not is_contract_expired(row)
+
+    restored = restore_session_from_cookie(
+        cookie_manager, loader, contract_checker
+    )
+    assert restored is None
+    assert cookie_manager.get("student_code") is None
+    assert cookie_manager.get("session_token") is None
+
 def test_persist_session_client_roundtrip():
     """persist_session_client should store and retrieve mappings thread safely."""
     clear_session_clients()
@@ -99,29 +138,25 @@ def test_session_not_restored_when_student_code_mismatch():
     set_session_token_cookie(cookie_manager, "tok123")
 
     # Stub validation to return a *different* student code
-    stub_sessions = types.SimpleNamespace(
-        validate_session_token=lambda token, ua_hash="": {"student_code": "xyz"}
-        if token == "tok123"
-        else None
-    )
+    called: list[str] = []
+
+    def _validate(token: str, ua_hash: str = ""):
+        called.append(token)
+        return {"student_code": "xyz"} if token == "tok123" else None
+
+    stub_sessions = types.SimpleNamespace(validate_session_token=_validate)
     sys.modules["falowen.sessions"] = stub_sessions
+    import src.auth as auth_module
+    auth_module.validate_session_token = stub_sessions.validate_session_token
 
     def loader():
         return pd.DataFrame([{"StudentCode": "abc", "Name": "Alice"}])
 
     restored = restore_session_from_cookie(cookie_manager, loader)
-    assert restored is not None
+    assert restored is None
 
-    # Validate session token but do not log in because codes don't match
-    from falowen.sessions import validate_session_token
-
-    validated = validate_session_token(restored["session_token"])
-    assert validated is not None
-    assert validated.get("student_code") != restored["student_code"]
-
-    if validated.get("student_code") == restored["student_code"]:
-        st.session_state["logged_in"] = True
-
+    # ``validate_session_token`` should still have been called
+    assert called == ["tok123"]
     assert st.session_state.get("logged_in", False) is False
 
 
@@ -252,13 +287,15 @@ def test_set_cookie_functions_persist_changes():
 def test_cookie_functions_apply_defaults_and_allow_override():
     """Cookies should include secure defaults but allow overriding."""
 
-    class RecordingCookieManager(SimpleCookieManager):
-        def set(self, key: str, value: str, **kwargs):  # pragma: no cover - trivial
-            self.store[key] = {"value": value, "kwargs": kwargs}
-
-    cm = RecordingCookieManager()
+    cm = SimpleCookieManager()
     set_student_code_cookie(cm, "abc")
     set_session_token_cookie(cm, "tok123", secure=False, samesite="Lax")
+
+    
+    # ``get`` should return the stored values even though the manager keeps
+    # additional metadata about the cookie options.
+    assert cm.get("student_code") == "abc"
+    assert cm.get("session_token") == "tok123"
 
     student_kwargs = cm.store["student_code"]["kwargs"]
     token_kwargs = cm.store["session_token"]["kwargs"]
@@ -267,3 +304,25 @@ def test_cookie_functions_apply_defaults_and_allow_override():
     assert token_kwargs["httponly"] is True
     assert token_kwargs["secure"] is False
     assert token_kwargs["samesite"] == "Lax"
+
+def test_multiple_cookie_managers_are_isolated():
+    """Cookies set on different managers should not leak between sessions."""
+
+    cm1 = create_cookie_manager()
+    cm2 = create_cookie_manager()
+
+    set_student_code_cookie(cm1, "stuA")
+    set_session_token_cookie(cm1, "tokA")
+
+    set_student_code_cookie(cm2, "stuB")
+    set_session_token_cookie(cm2, "tokB")
+
+    assert cm1.get("student_code") == "stuA"
+    assert cm1.get("session_token") == "tokA"
+    assert cm2.get("student_code") == "stuB"
+    assert cm2.get("session_token") == "tokB"
+
+    clear_session(cm1)
+
+    assert cm1.get("student_code") is None
+    assert cm2.get("student_code") == "stuB"
