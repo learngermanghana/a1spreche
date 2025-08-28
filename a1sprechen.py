@@ -284,7 +284,18 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 seed_falowen_state_from_qp()
 
-restored = restore_session_from_cookie(cookie_manager, load_student_data)
+def _contract_active(sc: str, roster):
+    if roster is None or "StudentCode" not in roster.columns:
+        return True
+    match = roster[roster["StudentCode"].str.lower() == sc.lower()]
+    if match.empty:
+        return True
+    return not is_contract_expired(match.iloc[0])
+
+
+restored = restore_session_from_cookie(
+    cookie_manager, load_student_data, _contract_active
+)
 
 # If cookies provided a valid session and we're not already logged in, seed
 # ``st.session_state`` so the user stays logged in across page reloads.
