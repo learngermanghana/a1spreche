@@ -194,6 +194,8 @@ st.markdown("""
 [data-testid="stAppViewContainer"] .main .block-container > div:first-child + div {
   margin: 0 !important;
   padding: 0 !important;
+  height: 0 !important;
+  overflow: hidden;
 }
 
 /* Keep hero flush and compact */
@@ -230,7 +232,7 @@ def _inject_meta_tags():
     """Inject PWA meta + register the service worker once per session (light theme)."""
     if st.session_state.get("_pwa_head_done"):
         return
-    st.markdown(
+    components.html(
         f"""
         <script>
         const head = document.getElementsByTagName('head')[0];
@@ -250,7 +252,7 @@ def _inject_meta_tags():
         }}
         </script>
         """,
-        unsafe_allow_html=True,
+        height=0,
     )
     st.session_state["_pwa_head_done"] = True
 
@@ -735,6 +737,7 @@ def login_page():
           <b>A1 to C1</b> levels and live tutor support.
         </p>
         <ul class="feature-list">
+
           <li>📊 <b>Dashboard</b>: Track your learning streaks, assignment progress, active contracts, and more.</li>
           <li>📚 <b>Course Book</b>: Access lecture videos, grammar modules, and submit assignments for levels A1–C1 in one place.</li>
           <li>📝 <b>Exams & Quizzes</b>: Take practice tests and official exam prep right in the app.</li>
@@ -771,7 +774,7 @@ def login_page():
     # Stats strip
     st.markdown("""
       <style>
-        .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:10px auto 4px auto; max-width:820px; }
+        .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:4px auto 4px auto; max-width:820px; }
         .stat { background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
                 box-shadow:0 2px 10px rgba(2,132,199,0.15); outline: none; }
         .stat:focus-visible { outline:3px solid #1f2937; outline-offset:2px; }
