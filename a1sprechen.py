@@ -139,13 +139,12 @@ from src.sentence_bank import SENTENCE_BANK
 SB_SESSION_TARGET = int(os.environ.get("SB_SESSION_TARGET", 5))
 
 # --- Cookie password with built-in fallback (no secrets needed) ---
-import hashlib
+import os, hashlib, logging
 
-# IMPORTANT: replace this with a long, random phrase (>= 32 chars).
-# If you change it later, existing cookies won't decrypt and users will need to log in again.
+# IMPORTANT: use a long, random phrase (>= 32 chars) in prod.
 _HARDCODED_COOKIE_PASSPHRASE = os.environ.get(
     "FALOWEN_COOKIE_FALLBACK",
-    "Felix029",
+    "Felix029",  # <-- replace with a much longer random string for production
 )
 
 # Hash the passphrase so the raw value isn't stored directly.
@@ -160,11 +159,10 @@ cookie_password = (
     or _FALLBACK_COOKIE_PASSWORD
 )
 
-# Optional: surface a gentle warning when running on the fallback.
-if cookie_password == _FALLBACK_COOKIE_PASSWORD:
-    st.warning(
-        "Using built-in fallback cookie password. "
-        "For production, set `cookie_password` in secrets or `COOKIE_PASSWORD` env."
+# 🔇 No UI warning. Optional: log in dev if using fallback.
+if cookie_password == _FALLBACK_COOKIE_PASSWORD and os.getenv("DEBUG", "0") == "1":
+    logging.warning(
+        "Using built-in fallback cookie password (set `cookie_password` or `COOKIE_PASSWORD` for production)."
     )
 
 cookie_manager = bootstrap_cookie_manager(
@@ -173,6 +171,7 @@ cookie_manager = bootstrap_cookie_manager(
         prefix="falowen",
     )
 )
+
 
 if os.environ.get("RENDER"):
     import fastapi
