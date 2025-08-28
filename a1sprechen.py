@@ -194,6 +194,8 @@ st.markdown("""
 [data-testid="stAppViewContainer"] .main .block-container > div:first-child + div {
   margin: 0 !important;
   padding: 0 !important;
+  height: 0 !important;
+  overflow: hidden;
 }
 
 /* Keep hero flush and compact */
@@ -230,7 +232,7 @@ def _inject_meta_tags():
     """Inject PWA meta + register the service worker once per session (light theme)."""
     if st.session_state.get("_pwa_head_done"):
         return
-    st.markdown(
+    components.html(
         f"""
         <script>
         const head = document.getElementsByTagName('head')[0];
@@ -250,7 +252,7 @@ def _inject_meta_tags():
         }}
         </script>
         """,
-        unsafe_allow_html=True,
+        height=0,
     )
     st.session_state["_pwa_head_done"] = True
 
