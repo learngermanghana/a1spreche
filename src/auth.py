@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from threading import Lock
 from typing import Any, Callable, Optional
 import importlib
@@ -89,7 +89,7 @@ class _SessionStore:
     def __init__(self, ttl: int = 3600) -> None:  # pragma: no cover - trivial
         self._store: dict[str, tuple[str, datetime]] = {}
         self._lock = Lock()
-        self._ttl = ttl   # <- fixed indent here
+        self._ttl = ttl
 
     def _prune_locked(self) -> None:
         cutoff = datetime.now(timezone.utc) - timedelta(seconds=self._ttl)
