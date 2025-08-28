@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
+from typing import Optional
 
 try:  # pragma: no cover - dependency might be missing in some environments
     from rapidfuzz import process
@@ -15,7 +16,7 @@ VOCAB_SHEET_ID = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
 
 
 @st.cache_data(show_spinner=False)
-def _load_vocab_sheet(sheet_id: str = VOCAB_SHEET_ID) -> pd.DataFrame | None:
+def _load_vocab_sheet(sheet_id: str = VOCAB_SHEET_ID) -> Optional[pd.DataFrame]:
     """Download the vocabulary sheet as a DataFrame.
 
     Returns ``None`` if the sheet cannot be loaded.
