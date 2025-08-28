@@ -181,7 +181,9 @@ def bootstrap_cookies(cm: SimpleCookieManager) -> SimpleCookieManager:
 
 
 def restore_session_from_cookie(
-    cm: SimpleCookieManager, loader: Callable[[], Any] | None = None
+    cm: SimpleCookieManager,
+    loader: Callable[[], Any] | None = None,
+    contract_validator: Callable[[str, Any], bool] | None = None,
 ) -> Optional[dict[str, Any]]:
     """Attempt to restore a user session from cookies.
 
@@ -192,6 +194,11 @@ def restore_session_from_cookie(
     loader:
         Optional callable used to load additional user data.  It is only
         executed when both cookies are present.
+    contract_validator:
+        Optional callable that checks whether a student's contract is still
+        valid.  It receives the student code and the data returned by
+        ``loader``.  When it returns ``False`` the cookies are cleared and no
+        session is restored.
     """
 
     student_code = cm.get("student_code")
@@ -205,6 +212,9 @@ def restore_session_from_cookie(
     
 
     data = loader() if loader else None
+    if contract_validator and not contract_validator(student_code, data):
+        clear_session(cm)
+        return None
     return {
         "student_code": student_code,
         "session_token": session_token,
