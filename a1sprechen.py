@@ -132,11 +132,12 @@ def _validate_youtube_playlists() -> None:
     for lvl, ids in YOUTUBE_PLAYLIST_IDS.items():
         if not ids:
             st.warning(f"No YouTube playlist IDs configured for level {lvl}.")
-            
-cookie_manager = bootstrap_cookies(auth_cookie_manager)  # ✅ use the imported alias
-if cookie_manager is None:  # kept for backward compatibility
-    st.stop()
 
+# Each client receives its own cookie manager so login state does not leak
+# between users.
+cookie_manager = bootstrap_cookies(AUTH_COOKIE_MANAGER)  # ← use the imported alias
+if cookie_manager is None:  # kept for backward compatibility; usually not needed
+    st.stop()
 
 
 def get_playlist_ids_for_level(level: str) -> List[str]:
