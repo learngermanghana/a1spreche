@@ -2581,7 +2581,7 @@ if tab == "Dashboard":
 # UI helpers
 # -------------------------
 
-def _draft_state_keys(draft_key: str) -> Tuple[str, str, str, str]:
+def _draft_state_keys(draft_key: str) -> "Tuple[str, str, str, str]":
     """Return the session-state keys used to track last save info for a draft."""
     return (
         f"{draft_key}__last_val",
