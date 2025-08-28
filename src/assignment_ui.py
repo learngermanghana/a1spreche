@@ -119,6 +119,99 @@ def _get_current_student() -> Tuple[str, str, str]:
     return code, name, level
 
 
+def get_assignment_summary(student_code: str, level: str) -> dict:
+    """Return missed assignments and next recommendation for a student.
+
+    Parameters
+    ----------
+    student_code: str
+        The student's unique code.
+    level: str
+        The level to check (e.g., "A1").
+
+    Returns
+    -------
+    dict
+        A dictionary with keys ``missed`` (list of str) and ``next`` (lesson dict
+        or ``None``).
+    """
+
+    try:
+        df = load_assignment_scores()
+    except Exception:
+        return {"missed": [], "next": None}
+
+    if df.empty or not {"studentcode", "assignment", "level"}.issubset(df.columns):
+        return {"missed": [], "next": None}
+
+    code_key = (student_code or "").lower().strip()
+    lvl = (level or "").upper().strip()
+
+    df = df[
+        (df["studentcode"].astype(str).str.lower().str.strip() == code_key)
+        & (df["level"].astype(str).str.upper().str.strip() == lvl)
+    ]
+
+    if df.empty:
+        return {"missed": [], "next": None}
+
+    schedule = _get_level_schedules().get(lvl, [])
+
+    def _extract_all_nums(chapter_str: str):
+        parts = re.split(r"[_\s,;]+", str(chapter_str))
+        nums = []
+        for part in parts:
+            m = re.search(r"\d+(?:\.\d+)?", part)
+            if m:
+                nums.append(float(m.group()))
+        return nums
+
+    completed_nums = set()
+    for _, row in df.iterrows():
+        for num in _extract_all_nums(row["assignment"]):
+            completed_nums.add(num)
+    last_num = max(completed_nums) if completed_nums else 0.0
+
+    skipped_assignments = []
+    for lesson in schedule:
+        chapter_field = lesson.get("chapter", "")
+        lesson_nums = _extract_all_nums(chapter_field)
+        day = lesson.get("day", "")
+        has_assignment = lesson.get("assignment", False)
+        for chap_num in lesson_nums:
+            if has_assignment and chap_num < last_num and chap_num not in completed_nums:
+                skipped_assignments.append(
+                    f"Day {day}: Chapter {chapter_field} – {lesson.get('topic','')}"
+                )
+                break
+
+    def _is_recommendable(lesson: dict) -> bool:
+        topic = str(lesson.get("topic", "")).lower()
+        return not ("schreiben" in topic and "sprechen" in topic)
+
+    def _extract_max_num(chapter: str):
+        nums = re.findall(r"\d+(?:\.\d+)?", str(chapter))
+        return max([float(n) for n in nums], default=None)
+
+    completed_chapters = []
+    for a in df["assignment"]:
+        n = _extract_max_num(a)
+        if n is not None:
+            completed_chapters.append(n)
+    last_num2 = max(completed_chapters) if completed_chapters else 0.0
+
+    next_assignment = None
+    for lesson in schedule:
+        chap_num = _extract_max_num(lesson.get("chapter", ""))
+        if not _is_recommendable(lesson):
+            continue
+        if chap_num and chap_num > last_num2:
+            next_assignment = lesson
+            break
+
+    return {"missed": skipped_assignments, "next": next_assignment}
+
+
 # ---------------------------------------------------------------------------
 # Main renderer
 # ---------------------------------------------------------------------------
@@ -310,33 +403,9 @@ def render_results_and_resources_tab() -> None:
     elif rr_page == "Missed & Next":
         st.subheader("Missed Assignments & Next Recommendation")
 
-        def _extract_all_nums(chapter_str: str):
-            parts = re.split(r"[_\s,;]+", str(chapter_str))
-            nums = []
-            for part in parts:
-                m = re.search(r"\d+(?:\.\d+)?", part)
-                if m:
-                    nums.append(float(m.group()))
-            return nums
-
-        completed_nums = set()
-        for _, row in df_lvl.iterrows():
-            for num in _extract_all_nums(row["assignment"]):
-                completed_nums.add(num)
-        last_num = max(completed_nums) if completed_nums else 0.0
-
-        skipped_assignments = []
-        for lesson in schedule:
-            chapter_field = lesson.get("chapter", "")
-            lesson_nums = _extract_all_nums(chapter_field)
-            day = lesson.get("day", "")
-            has_assignment = lesson.get("assignment", False)
-            for chap_num in lesson_nums:
-                if has_assignment and chap_num < last_num and chap_num not in completed_nums:
-                    skipped_assignments.append(
-                        f"Day {day}: Chapter {chapter_field} – {lesson.get('topic','')}"
-                    )
-                    break
+        summary = get_assignment_summary(code_key, level)
+        skipped_assignments = summary.get("missed", [])
+        next_assignment = summary.get("next")
 
         if skipped_assignments:
             st.markdown(
@@ -359,29 +428,6 @@ def render_results_and_resources_tab() -> None:
         else:
             st.success("No missed assignments detected. Great job!")
 
-        def _is_recommendable(lesson: dict) -> bool:
-            topic = str(lesson.get("topic", "")).lower()
-            return not ("schreiben" in topic and "sprechen" in topic)
-
-        def _extract_max_num(chapter: str):
-            nums = re.findall(r"\d+(?:\.\d+)?", str(chapter))
-            return max([float(n) for n in nums], default=None)
-
-        completed_chapters = []
-        for a in df_lvl["assignment"]:
-            n = _extract_max_num(a)
-            if n is not None:
-                completed_chapters.append(n)
-        last_num2 = max(completed_chapters) if completed_chapters else 0.0
-
-        next_assignment = None
-        for lesson in schedule:
-            chap_num = _extract_max_num(lesson.get("chapter", ""))
-            if not _is_recommendable(lesson):
-                continue
-            if chap_num and chap_num > last_num2:
-                next_assignment = lesson
-                break
         if next_assignment:
             st.info(
                 f"**Your next recommended assignment:**\n\n"
@@ -522,4 +568,8 @@ How to prepare for your B1 oral exam.
         )
 
 
-__all__ = ["load_assignment_scores", "render_results_and_resources_tab"]
+__all__ = [
+    "load_assignment_scores",
+    "render_results_and_resources_tab",
+    "get_assignment_summary",
+]

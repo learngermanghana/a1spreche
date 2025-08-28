@@ -128,7 +128,11 @@ from src.data_loading import (
     get_playlist_ids_for_level,
     load_student_data,
 )
-from src.assignment_ui import load_assignment_scores, render_results_and_resources_tab
+from src.assignment_ui import (
+    load_assignment_scores,
+    render_results_and_resources_tab,
+    get_assignment_summary,
+)
 from src.session_management import (
     bootstrap_state,
     determine_level,
@@ -1714,6 +1718,29 @@ if tab == "Dashboard":
         _rank_text = "Complete 3+ assignments to be ranked"
         _lead_chip = "<span class='pill pill-amber'>Not ranked yet</span>"
 
+    _summary = get_assignment_summary(_student_code, _level)
+    _missed_list = _summary.get("missed", [])
+    _next_lesson = _summary.get("next")
+
+    if _missed_list:
+        _missed_chip = f"<span class='pill pill-amber'>{len(_missed_list)} missed</span>"
+        _missed_preview = ", ".join(_missed_list[:2]) + ("…" if len(_missed_list) > 2 else "")
+    else:
+        _missed_chip = "<span class='pill pill-green'>None</span>"
+        _missed_preview = "You're on track"
+
+    if _next_lesson:
+        _next_title = (
+            f"Day {_next_lesson.get('day','?')}: {_next_lesson.get('chapter','?')} – {_next_lesson.get('topic','')}"
+        )
+        _next_chip = f"<span class='pill pill-purple'>{_next_title}</span>"
+        _next_sub = _next_lesson.get("goal", "")
+    else:
+        _next_chip = "<span class='pill pill-green'>All caught up</span>"
+        _next_sub = ""
+
+    _summary_link = "<a href='?#tab=My%20Results%20and%20Resources'>More details</a>"
+
     st.markdown(
         f"""
         <div class="minirow">
@@ -1731,6 +1758,18 @@ if tab == "Dashboard":
             <h4>🏆 Leaderboard</h4>
             <div>{_lead_chip}</div>
             <div class="sub">{_rank_text}</div>
+          </div>
+          <div class="minicard">
+            <h4>📚 Missed Assignments</h4>
+            <div>{_missed_chip}</div>
+            <div class="sub">{_missed_preview}</div>
+            <div class="sub">{_summary_link}</div>
+          </div>
+          <div class="minicard">
+            <h4>⏭️ Next Assignment</h4>
+            <div>{_next_chip}</div>
+            <div class="sub">{_next_sub}</div>
+            <div class="sub">{_summary_link}</div>
           </div>
         </div>
         """,
