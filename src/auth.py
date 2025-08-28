@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Dict, Optional
 
 from streamlit_cookies_manager import EncryptedCookieManager
 
@@ -16,13 +16,13 @@ class SimpleCookieManager:
     cookies in the user's browser.  For unit tests we only need a tiny subset of
     that interface, so this class stores values in memory.
 
-    store: dict[str, Any] = field(default_factory=dict)
+    store: Dict[str, Any] = field(default_factory=dict)
 
     def set(self, key: str, value: Any, **_: Any) -> None:  # pragma: no cover -
         """Store ``value`` under ``key``."""
         self.store[key] = value
 
-    def get(self, key: str, default: Any | None = None) -> Any | None:  # pragma: no cover -
+    def get(self, key: str, default: Optional[Any] = None) -> Optional[Any]:  # pragma: no cover -
         """Return the value for ``key`` or ``default`` if missing."""
         return self.store.get(key, default)
 
@@ -91,14 +91,14 @@ def clear_session(cm: Any) -> None:
 
 # In the real application ``persist_session_client`` would write to a database
 # or external cache.  For tests we simply store the mapping in-memory.
-_session_store: dict[str, str] = {}
+_session_store: Dict[str, str] = {}
 
 
 def persist_session_client(token: str, student_code: str) -> None:  # pragma: no cover -
     """Persist a token -> student code mapping for later lookup."""
     _session_store[token] = student_code
 
-def bootstrap_cookies(cm: Any | None = None) -> Any:
+def bootstrap_cookies(cm: Optional[Any] = None) -> Any:
     """Create or return a cookie manager for the current session.
 
     The Streamlit version performs additional initialisation.  The simplified
@@ -110,8 +110,8 @@ def bootstrap_cookies(cm: Any | None = None) -> Any:
 
 
 def restore_session_from_cookie(
-    cm: Any, loader: Callable[[], Any] | None = None
-) -> Optional[dict[str, Any]]:
+    cm: Any, loader: Optional[Callable[[], Any]] = None
+) -> Optional[Dict[str, Any]]:
     """Attempt to restore a user session from cookies.
 
     Parameters
