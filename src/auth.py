@@ -179,14 +179,13 @@ def reset_password_page(token: str) -> None:  # pragma: no cover
     return None
 
 
-__all__ = [
-    "cookie_manager",
-    "SimpleCookieManager",
-    "set_student_code_cookie",
-    "set_session_token_cookie",
-    "clear_session",
-    "persist_session_client",
-    "bootstrap_cookies",
-    "restore_session_from_cookie",
-    "reset_password_page",
-]
+from src.auth import (
+    set_student_code_cookie,
+    set_session_token_cookie,
+    clear_session,
+    persist_session_client,
+    bootstrap_cookies,
+    restore_session_from_cookie,
+    reset_password_page,
+    cookie_manager as auth_cookie_manager,  # ✅ import with alias
+)
