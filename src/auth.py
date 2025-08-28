@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from threading import Lock
 from typing import Any, Callable, Optional
 
 from falowen.sessions import validate_session_token
@@ -90,13 +91,54 @@ def clear_session(cm: SimpleCookieManager) -> None:
 
 
 # In the real application ``persist_session_client`` would write to a database
-# or external cache.  For tests we simply store the mapping in-memory.
-_session_store: dict[str, str] = {}
+# or external cache.  For tests we simply store the mapping in-memory.  The
+# store is accessed from multiple threads in some test scenarios so the mapping
+# is wrapped in a tiny helper that guards all access with a ``threading.Lock``
+# to keep operations thread safe.
+
+class _SessionStore:
+    """In-memory mapping of session token to student code.
+
+    The store is intentionally minimal – only the features required by the test
+    suite are implemented.  All access is protected by a ``Lock`` so callers
+    may read and write concurrently from different threads without corrupting
+    the underlying dictionary.
+    """
+
+    def __init__(self) -> None:  # pragma: no cover - trivial
+        self._store: dict[str, str] = {}
+        self._lock = Lock()
+
+    def set(self, token: str, student_code: str) -> None:
+        with self._lock:
+            self._store[token] = student_code
+
+    def get(self, token: str) -> str | None:
+        with self._lock:
+            return self._store.get(token)
+
+    def clear(self) -> None:
+        """Remove all stored mappings."""
+        with self._lock:
+            self._store.clear()
+
+
+_session_store = _SessionStore()
 
 
 def persist_session_client(token: str, student_code: str) -> None:  # pragma: no cover -
     """Persist a token -> student code mapping for later lookup."""
-    _session_store[token] = student_code
+    _session_store.set(token, student_code)
+
+
+def get_session_client(token: str) -> str | None:  # pragma: no cover - convenience
+    """Return the student code associated with ``token`` if known."""
+    return _session_store.get(token)
+
+
+def clear_session_clients() -> None:  # pragma: no cover - test helper
+    """Remove all persisted session mappings."""
+    _session_store.clear()
 
 def bootstrap_cookies(cm: SimpleCookieManager) -> SimpleCookieManager:
     """Return the cookie manager instance.
@@ -157,6 +199,8 @@ __all__ = [
     "set_session_token_cookie",
     "clear_session",
     "persist_session_client",
+    "get_session_client",
+    "clear_session_clients",
     "bootstrap_cookies",
     "restore_session_from_cookie",
     "reset_password_page",
