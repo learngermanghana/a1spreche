@@ -120,7 +120,6 @@ from src.auth import (
     set_session_token_cookie,
     clear_session,
     persist_session_client,
-    bootstrap_cookies,
     restore_session_from_cookie,
     reset_password_page,
     cookie_manager as AUTH_COOKIE_MANAGER,  # <-- import module cookie_manager with alias
@@ -140,7 +139,7 @@ def _validate_youtube_playlists() -> None:
         if not ids:
             st.warning(f"No YouTube playlist IDs configured for level {lvl}.")
 
-def bootstrap_cookies(cm: CookieLike) -> CookieLike:
+def bootstrap_cookies_ready(cm: CookieLike) -> CookieLike:
     """Return the cookie manager instance and gate on readiness if available.
 
     Streamlit needs one render for the cookie component to mount. If the manager
@@ -153,7 +152,7 @@ def bootstrap_cookies(cm: CookieLike) -> CookieLike:
         st.stop()               # allow Streamlit to halt & auto-rerun
     return cm
 
-cookie_manager = bootstrap_cookies(AUTH_COOKIE_MANAGER)
+cookie_manager = bootstrap_cookies_ready(AUTH_COOKIE_MANAGER)
 
 def get_playlist_ids_for_level(level: str) -> List[str]:
     """Return playlist IDs for a CEFR level with a fallback.
