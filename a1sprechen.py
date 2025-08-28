@@ -218,12 +218,10 @@ st.markdown("""
   padding-top: 0 !important;
 }
 
-/* First rendered block (often a head-inject) — keep a small gap only */
+/* First rendered block (often a head-inject) — collapse fully */
 [data-testid="stAppViewContainer"] .main .block-container > div:first-child {
-  margin-top: 0 !important;
-  margin-bottom: 8px !important;   /* was 24px */
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 /* If that first block is an iframe, collapse it completely */
