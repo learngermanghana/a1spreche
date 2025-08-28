@@ -39,7 +39,6 @@ from openai import OpenAI
 from streamlit.components.v1 import html as st_html
 from streamlit_quill import st_quill
 
-
 # --- Falowen modules ---
 from falowen.email_utils import send_reset_email, build_gas_reset_link
 from falowen.sessions import (
@@ -76,11 +75,13 @@ from src.firestore_utils import (
     save_chat_draft_to_db,
     save_draft_to_db,
 )
+
 from src.ui_components import (
     render_assignment_reminder,
     render_link,
     render_vocab_lookup,
 )
+
 from src.stats import (
     get_student_level,
     get_vocab_stats,
@@ -118,6 +119,7 @@ from src.auth import (
     bootstrap_cookies,
     restore_session_from_cookie,
     reset_password_page,
+    cookie_manager as AUTH_COOKIE_MANAGER,  # <-- import module cookie_manager with alias
 )
 
 DEFAULT_PLAYLIST_LEVEL = "A1"
@@ -127,15 +129,17 @@ from src.sentence_bank import SENTENCE_BANK
 # Default number of sentences per session in Sentence Builder.
 SB_SESSION_TARGET = int(os.environ.get("SB_SESSION_TARGET", 5))
 
+
 def _validate_youtube_playlists() -> None:
     """Warn if any playlist level lacks video IDs."""
     for lvl, ids in YOUTUBE_PLAYLIST_IDS.items():
         if not ids:
             st.warning(f"No YouTube playlist IDs configured for level {lvl}.")
 
+
 # Each client receives its own cookie manager so login state does not leak
 # between users.
-cookie_manager = bootstrap_cookies(AUTH_COOKIE_MANAGER)  # ← use the imported alias
+cookie_manager = bootstrap_cookies(AUTH_COOKIE_MANAGER)  # use the imported alias
 if cookie_manager is None:  # kept for backward compatibility; usually not needed
     st.stop()
 
@@ -147,7 +151,6 @@ def get_playlist_ids_for_level(level: str) -> List[str]:
     If the level is missing, fall back to ``DEFAULT_PLAYLIST_LEVEL`` and show a
     message. Returns an empty list if no playlists exist at all.
     """
-
     level_key = (level or "").strip().upper()
     playlist_ids = YOUTUBE_PLAYLIST_IDS.get(level_key, [])
     if playlist_ids:
