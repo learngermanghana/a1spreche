@@ -3,6 +3,7 @@ import types
 
 import pandas as pd
 import streamlit as st
+from typing import List
 
 from src.auth import (
     set_student_code_cookie,
@@ -125,7 +126,7 @@ def test_logout_clears_cookies_and_revokes_token():
     st.session_state.clear()
     cookie_manager.store.clear()
 
-    destroyed: list[str] = []
+    destroyed: List[str] = []
 
     stub_sessions = types.SimpleNamespace(
         destroy_session_token=lambda tok: destroyed.append(tok)
@@ -155,7 +156,7 @@ def test_relogin_replaces_session_and_clears_old_token():
     st.session_state.clear()
     cookie_manager.store.clear()
 
-    destroyed: list[str] = []
+    destroyed: List[str] = []
     stub_sessions = types.SimpleNamespace(
         destroy_session_token=lambda tok: destroyed.append(tok)
     )
