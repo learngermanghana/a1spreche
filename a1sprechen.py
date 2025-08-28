@@ -136,12 +136,19 @@ def _validate_youtube_playlists() -> None:
         if not ids:
             st.warning(f"No YouTube playlist IDs configured for level {lvl}.")
 
+def bootstrap_cookies(cm: CookieLike) -> CookieLike:
+    """Return the cookie manager instance and gate on readiness if available.
 
-# Each client receives its own cookie manager so login state does not leak
-# between users.
-cookie_manager = bootstrap_cookies(AUTH_COOKIE_MANAGER)  # use the imported alias
-if cookie_manager is None:  # kept for backward compatibility; usually not needed
-    st.stop()
+    Streamlit needs one render for the cookie component to mount. If the manager
+    isn't ready yet, we *must* call st.stop() and let it bubble so Streamlit
+    reruns automatically on the next render.
+    """
+    ready_fn = getattr(cm, "ready", None)
+    if callable(ready_fn) and not bool(ready_fn()):
+        import streamlit as st  # do not swallow this!
+        st.stop()               # allow Streamlit to halt & auto-rerun
+    return cm
+
 
 
 def get_playlist_ids_for_level(level: str) -> List[str]:
