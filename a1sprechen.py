@@ -138,15 +138,34 @@ from src.sentence_bank import SENTENCE_BANK
 # Default number of sentences per session in Sentence Builder.
 SB_SESSION_TARGET = int(os.environ.get("SB_SESSION_TARGET", 5))
 
-cookie_password = st.secrets.get("cookie_password")
-if cookie_password is None:
-    cookie_password = os.environ.get("COOKIE_PASSWORD")
-if cookie_password is None:
-    st.error(
-        "Missing cookie password. Set `cookie_password` in `.streamlit/secrets.toml` "
-        "or define the `COOKIE_PASSWORD` environment variable."
+# --- Cookie password with built-in fallback (no secrets needed) ---
+import hashlib
+
+# IMPORTANT: replace this with a long, random phrase (>= 32 chars).
+# If you change it later, existing cookies won't decrypt and users will need to log in again.
+_HARDCODED_COOKIE_PASSPHRASE = os.environ.get(
+    "FALOWEN_COOKIE_FALLBACK",
+    "Felix029",
+)
+
+# Hash the passphrase so the raw value isn't stored directly.
+_FALLBACK_COOKIE_PASSWORD = hashlib.sha256(
+    _HARDCODED_COOKIE_PASSPHRASE.encode("utf-8")
+).hexdigest()
+
+# Prefer secrets/env if present; otherwise fall back to our hardcoded key.
+cookie_password = (
+    st.secrets.get("cookie_password", None)
+    or os.environ.get("COOKIE_PASSWORD")
+    or _FALLBACK_COOKIE_PASSWORD
+)
+
+# Optional: surface a gentle warning when running on the fallback.
+if cookie_password == _FALLBACK_COOKIE_PASSWORD:
+    st.warning(
+        "Using built-in fallback cookie password. "
+        "For production, set `cookie_password` in secrets or `COOKIE_PASSWORD` env."
     )
-    st.stop()
 
 cookie_manager = bootstrap_cookie_manager(
     EncryptedCookieManager(
@@ -168,7 +187,6 @@ if os.environ.get("RENDER"):
     else:
          # Lightweight endpoint so Render gets 200 OK
          api = FastAPI()
-
 
          @api.get("/healthz")
          async def healthz():
