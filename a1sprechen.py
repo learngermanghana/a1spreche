@@ -140,7 +140,10 @@ SB_SESSION_TARGET = int(os.environ.get("SB_SESSION_TARGET", 5))
 
 
 cookie_manager = bootstrap_cookie_manager(
-    EncryptedCookieManager(prefix="falowen")
+    EncryptedCookieManager(
+        password=st.secrets["cookie_password"],
+        prefix="falowen",
+    )
 )
 
 if os.environ.get("RENDER"):
