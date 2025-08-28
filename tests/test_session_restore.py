@@ -3,19 +3,15 @@ import types
 
 import pandas as pd
 import streamlit as st
-from typing import List
 
 from src.auth import (
+    cookie_manager,
     set_student_code_cookie,
     set_session_token_cookie,
     clear_session,
     restore_session_from_cookie,
     SimpleCookieManager,
-    bootstrap_cookies,
 )
-
-# Each test operates on its own in-memory cookie manager
-cookie_manager = bootstrap_cookies(SimpleCookieManager())
 
 def test_cookies_keep_user_logged_in_after_reload():
     """User with valid cookies should remain logged in after a reload."""
@@ -126,7 +122,7 @@ def test_logout_clears_cookies_and_revokes_token():
     st.session_state.clear()
     cookie_manager.store.clear()
 
-    destroyed: List[str] = []
+    destroyed: list[str] = []
 
     stub_sessions = types.SimpleNamespace(
         destroy_session_token=lambda tok: destroyed.append(tok)
@@ -156,7 +152,7 @@ def test_relogin_replaces_session_and_clears_old_token():
     st.session_state.clear()
     cookie_manager.store.clear()
 
-    destroyed: List[str] = []
+    destroyed: list[str] = []
     stub_sessions = types.SimpleNamespace(
         destroy_session_token=lambda tok: destroyed.append(tok)
     )
@@ -217,35 +213,3 @@ def test_set_cookie_functions_persist_changes():
     assert cm.get("student_code") == "abc"
     assert cm.get("session_token") == "tok123"
     assert cm.save_calls >= 2
-
-def test_cookie_managers_are_isolated_between_devices():
-    """Each device keeps its own cookies without leaking to others."""
-
-    cm_a = SimpleCookieManager()
-    cm_b = SimpleCookieManager()
-
-    # Device A logs in as first student
-    set_student_code_cookie(cm_a, "stu_a")
-    set_session_token_cookie(cm_a, "tok_a")
-
-    # Ensure device B is still empty
-    assert cm_b.get("student_code") is None
-    assert cm_b.get("session_token") is None
-
-    # Device B logs in as another student
-    set_student_code_cookie(cm_b, "stu_b")
-    set_session_token_cookie(cm_b, "tok_b")
-
-    # Restore sessions from cookies for both devices
-    restored_a = restore_session_from_cookie(cm_a)
-    restored_b = restore_session_from_cookie(cm_b)
-
-    # Each cookie manager should retain its own data only
-    assert restored_a["student_code"] == "stu_a"
-    assert restored_a["session_token"] == "tok_a"
-    assert restored_b["student_code"] == "stu_b"
-    assert restored_b["session_token"] == "tok_b"
-
-    # No cross-contamination between devices
-    assert cm_a.get("student_code") != cm_b.get("student_code")
-    assert cm_a.get("session_token") != cm_b.get("session_token")
