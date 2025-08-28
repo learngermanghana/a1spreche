@@ -740,13 +740,34 @@ def login_page():
         </p>
         <ul class="feature-list">
 
-          <li>📊 <b>Dashboard</b>: Track your learning streaks, assignment progress, active contracts, and more.</li>
-          <li>📚 <b>Course Book</b>: Access lecture videos, grammar modules, and submit assignments for levels A1–C1 in one place.</li>
-          <li>📝 <b>Exams & Quizzes</b>: Take practice tests and official exam prep right in the app.</li>
-          <li>💬 <b>Custom Chat</b>: Sprechen & expression trainer for live feedback on your speaking.</li>
-          <li>🏆 <b>Results Tab</b>: View your grades, feedback, and historical performance at a glance.</li>
-          <li>🔤 <b>Vocab Trainer</b>: Practice and master A1–C1 vocabulary with spaced-repetition quizzes.</li>
-          <li>✍️ <b>Schreiben Trainer</b>: Improve your writing with guided exercises and instant corrections.</li>
+          <li>
+            <span class="feature-icon" role="img" aria-label="Dashboard">📊</span>
+            <span class="feature-title">Dashboard</span>: Track your learning streaks, assignment progress, active contracts, and more.
+          </li>
+          <li>
+            <span class="feature-icon" role="img" aria-label="Course Book">📚</span>
+            <span class="feature-title">Course Book</span>: Access lecture videos, grammar modules, and submit assignments for levels A1–C1 in one place.
+          </li>
+          <li>
+            <span class="feature-icon" role="img" aria-label="Exams and Quizzes">📝</span>
+            <span class="feature-title">Exams &amp; Quizzes</span>: Take practice tests and official exam prep right in the app.
+          </li>
+          <li>
+            <span class="feature-icon" role="img" aria-label="Custom Chat">💬</span>
+            <span class="feature-title">Custom Chat</span>: Sprechen &amp; expression trainer for live feedback on your speaking.
+          </li>
+          <li>
+            <span class="feature-icon" role="img" aria-label="Results Tab">🏆</span>
+            <span class="feature-title">Results Tab</span>: View your grades, feedback, and historical performance at a glance.
+          </li>
+          <li>
+            <span class="feature-icon" role="img" aria-label="Vocab Trainer">🔤</span>
+            <span class="feature-title">Vocab Trainer</span>: Practice and master A1–C1 vocabulary with spaced-repetition quizzes.
+          </li>
+          <li>
+            <span class="feature-icon" role="img" aria-label="Schreiben Trainer">✍️</span>
+            <span class="feature-title">Schreiben Trainer</span>: Improve your writing with guided exercises and instant corrections.
+          </li>
         </ul>
         <style>
           .feature-list {
@@ -764,6 +785,20 @@ def login_page():
           .feature-list li {
             flex:1 1 calc(50% - 16px);
             margin-bottom:6px;
+          }
+          .feature-icon {
+            font-size:1.2em;
+            display:inline-block;
+            width:1.4em;
+            text-align:center;
+            vertical-align:middle;
+            color:var(--feature-icon-color,#25317e);
+            margin-right:4px;
+          }
+          .feature-title {
+            font-weight:600;
+            color:var(--feature-title-color,#25317e);
+            margin-right:2px;
           }
           @media (max-width:560px) {
             .feature-list li { flex-basis:100%; }
