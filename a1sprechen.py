@@ -738,6 +738,7 @@ def login_page():
           <b>Learn Language Education Academy</b>, with courses and vocabulary from
           <b>A1 to C1</b> levels and live tutor support.
         </p>
+
         <ul class="feature-list">
 
           <li>
@@ -769,24 +770,34 @@ def login_page():
             <span class="feature-title">Schreiben Trainer</span>: Improve your writing with guided exercises and instant corrections.
           </li>
         </ul>
+
         <style>
-          .feature-list {
+          .feature-grid {
             max-width:700px;
             margin:16px auto;
+            display:grid;
+            grid-template-columns:repeat(auto-fit, minmax(250px, 1fr));
+            gap:16px;
+          }
+          .feature-card {
+            background:#f9f9f9;
+            padding:16px;
+            border-radius:12px;
+            box-shadow:0 1px 4px rgba(0,0,0,0.08);
+            display:flex;
+            align-items:flex-start;
+            gap:12px;
             color:#444;
             font-size:1em;
             line-height:1.5;
-            list-style:none;
-            padding-left:0;
-            display:flex;
-            flex-wrap:wrap;
-            gap:4px 16px;
+            transition:transform .2s ease, box-shadow .2s ease;
           }
-          .feature-list li {
-            flex:1 1 calc(50% - 16px);
-            margin-bottom:6px;
+          .feature-card:hover {
+            transform:scale(1.02);
+            box-shadow:0 4px 12px rgba(0,0,0,0.15);
           }
           .feature-icon {
+
             font-size:1.2em;
             display:inline-block;
             width:1.4em;
@@ -802,6 +813,7 @@ def login_page():
           }
           @media (max-width:560px) {
             .feature-list li { flex-basis:100%; }
+
           }
         </style>
       </div>
