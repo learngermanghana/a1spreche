@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
 
@@ -121,7 +121,7 @@ def restore_session_from_cookie(
         "student_code": student_code,
         "session_token": session_token,
         "data": data,
-        "restored_at": datetime.utcnow(),
+        "restored_at": datetime.now(timezone.utc),
     }
 
 def reset_password_page(token: str) -> None:  # pragma: no cover -
