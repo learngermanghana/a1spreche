@@ -39,9 +39,19 @@ class SimpleCookieManager:
         """
         return None
 
-# A module level instance used by the application
-cookie_manager = SimpleCookieManager()
+# Factory helper so each session receives its own cookie manager instance.
 
+
+def create_cookie_manager() -> SimpleCookieManager:
+    """Return a fresh ``SimpleCookieManager``.
+
+    The real application uses ``EncryptedCookieManager`` from
+    ``streamlit_cookies_manager``.  Tests rely on a lightweight in-memory
+    implementation instead.  This factory keeps the interface consistent while
+    ensuring callers receive an isolated manager per session.
+    """
+
+    return SimpleCookieManager()
 
 def set_student_code_cookie(cm: SimpleCookieManager, code: str, **kwargs: Any) -> None:
     """Store the student code in a cookie and persist the change.
@@ -193,8 +203,8 @@ def reset_password_page(token: str) -> None:  # pragma: no cover -
 
 
 __all__ = [
-    "cookie_manager",
     "SimpleCookieManager",
+    "create_cookie_manager",
     "set_student_code_cookie",
     "set_session_token_cookie",
     "clear_session",
