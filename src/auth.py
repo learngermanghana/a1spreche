@@ -96,9 +96,8 @@ def clear_session(cm: SimpleCookieManager) -> None:
     cm.delete("student_code")
     cm.delete("session_token")
     try:
-        cm.save()
-    except Exception:  # pragma: no cover - defensive: SimpleCookieManager.save doesn't raise
-        pass
+    except Exception as exc:  # pragma: no cover - defensive: SimpleCookieManager.save doesn't raise
+        logging.warning("Failed to persist cleared cookies: %s", exc)
 
 
 
@@ -181,9 +180,12 @@ def restore_session_from_cookie(
     session_token = cm.get("session_token")
     if not student_code or not session_token:
         return None
+    from falowen.sessions import validate_session_token
+    
     session_data = validate_session_token(session_token)
-    if not session_data or session_data.get("student_code") != student_code:
+    if not session_data:    
         return None
+    
 
     data = loader() if loader else None
     return {
