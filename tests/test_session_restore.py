@@ -31,8 +31,8 @@ def test_cookies_keep_user_logged_in_after_reload():
     cookie_manager.store.clear()
 
     # Pretend the user previously logged in and cookies were set
-    set_student_code_cookie(cookie_manager, "abc")
-    set_session_token_cookie(cookie_manager, "tok123")
+    cookie_manager["student_code"] = "abc"
+    cookie_manager["session_token"] = "tok123"
 
     # Stub ``validate_session_token`` to accept our token without needing
     # external services.
@@ -97,8 +97,8 @@ def test_session_not_restored_if_contract_expired():
     st.session_state.clear()
     cookie_manager.store.clear()
 
-    set_student_code_cookie(cookie_manager, "abc")
-    set_session_token_cookie(cookie_manager, "tok123")
+    cookie_manager["student_code"] = "abc"
+    cookie_manager["session_token"] = "tok123"
 
     stub_sessions = types.SimpleNamespace(
         validate_session_token=lambda token, ua_hash="": {"student_code": "abc"}
@@ -134,8 +134,8 @@ def test_session_not_restored_when_student_code_mismatch():
     cookie_manager.store.clear()
 
     # Cookies indicate a previous login
-    set_student_code_cookie(cookie_manager, "abc")
-    set_session_token_cookie(cookie_manager, "tok123")
+    cookie_manager["student_code"] = "abc"
+    cookie_manager["session_token"] = "tok123"
 
     # Stub validation to return a *different* student code
     called: list[str] = []
@@ -168,8 +168,8 @@ def test_session_rejected_when_user_agent_hash_mismatch():
     cookie_manager.store.clear()
 
     # Cookies indicate a previous login
-    set_student_code_cookie(cookie_manager, "abc")
-    set_session_token_cookie(cookie_manager, "tok123")
+    cookie_manager["student_code"] = "abc"
+    cookie_manager["session_token"] = "tok123"
 
     # Stash an incorrect UA hash
     st.session_state["__ua_hash"] = "wrong_hash"
@@ -202,8 +202,8 @@ def test_logout_clears_cookies_and_revokes_token():
 
     # Simulate an active session
     st.session_state["session_token"] = "tok123"
-    set_student_code_cookie(cookie_manager, "abc")
-    set_session_token_cookie(cookie_manager, "tok123")
+    cookie_manager["student_code"] = "abc"
+    cookie_manager["session_token"] = "tok123"
 
     # Logout sequence
     destroy_session_token(st.session_state["session_token"])
@@ -231,15 +231,15 @@ def test_relogin_replaces_session_and_clears_old_token():
 
     # Existing login (old user)
     st.session_state["session_token"] = "tok_old"
-    set_student_code_cookie(cookie_manager, "old")
-    set_session_token_cookie(cookie_manager, "tok_old")
+    cookie_manager["student_code"] = "old"
+    cookie_manager["session_token"] = "tok_old"
 
     # User logs in as different student
     destroy_session_token(st.session_state.get("session_token"))
     clear_session(cookie_manager)
     st.session_state["session_token"] = "tok_new"
-    set_student_code_cookie(cookie_manager, "new")
-    set_session_token_cookie(cookie_manager, "tok_new")
+    cookie_manager["student_code"] = "new"
+    cookie_manager["session_token"] = "tok_new"
 
     assert destroyed == ["tok_old"]
     assert cookie_manager.get("student_code") == "new"
@@ -257,8 +257,8 @@ def test_clear_session_persists_cookie_deletion():
             self.saved = True
 
     cm = TrackingCookieManager()
-    set_student_code_cookie(cm, "abc")
-    set_session_token_cookie(cm, "tok123")
+    cm["student_code"] = "abc"
+    cm["session_token"] = "tok123"
     clear_session(cm)
 
     assert cm.get("student_code") is None
@@ -311,11 +311,11 @@ def test_multiple_cookie_managers_are_isolated():
     cm1 = create_cookie_manager()
     cm2 = create_cookie_manager()
 
-    set_student_code_cookie(cm1, "stuA")
-    set_session_token_cookie(cm1, "tokA")
+    cm1["student_code"] = "stuA"
+    cm1["session_token"] = "tokA"
 
-    set_student_code_cookie(cm2, "stuB")
-    set_session_token_cookie(cm2, "tokB")
+    cm2["student_code"] = "stuB"
+    cm2["session_token"] = "tokB"
 
     assert cm1.get("student_code") == "stuA"
     assert cm1.get("session_token") == "tokA"
