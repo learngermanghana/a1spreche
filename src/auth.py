@@ -18,7 +18,7 @@ class SimpleCookieManager:
     of the interface, so this class stores cookie values in memory.
     """
 
-    store: dict[str, dict[str, Any]] = field(default_factory=dict))
+    store: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def set(self, key: str, value: Any, **kwargs: Any) -> None:  # pragma: no cover -
         """Store ``value`` and any options under ``key``."""
