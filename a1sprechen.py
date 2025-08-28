@@ -138,10 +138,13 @@ from src.sentence_bank import SENTENCE_BANK
 # Default number of sentences per session in Sentence Builder.
 SB_SESSION_TARGET = int(os.environ.get("SB_SESSION_TARGET", 5))
 
+cookie_password = st.secrets.get("cookie_password")
+if cookie_password is None:
+    raise RuntimeError("Missing 'cookie_password' in Streamlit secrets.")
 
 cookie_manager = bootstrap_cookie_manager(
     EncryptedCookieManager(
-        password=st.secrets["cookie_password"],
+        password=cookie_password,
         prefix="falowen",
     )
 )
