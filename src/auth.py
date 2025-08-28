@@ -63,6 +63,23 @@ class SimpleCookieManager(MutableMapping[str, Any]):
     def clear(self) -> None:  # pragma: no cover - trivial
         self.store.clear()
 
+    # The helpers may fall back to dict-style access when ``set`` is missing
+    # on the cookie manager. Implement the mapping protocol so that our
+    # lightweight test double behaves like a ``dict`` and still records the
+    # same metadata for later inspection.
+
+    def __getitem__(self, key: str) -> Any:  # pragma: no cover - trivial
+        item = self.store[key]
+        return item.get("value")
+
+    def __setitem__(self, key: str, value: Any) -> None:  # pragma: no cover - trivial
+        # ``set`` stores the value along with any cookie kwargs, which we don't
+        # receive via the mapping API. Calling ``set`` centralises the logic.
+        self.set(key, value)
+
+    def __delitem__(self, key: str) -> None:  # pragma: no cover - trivial
+        self.delete(key)
+
     def save(self) -> None:  # pragma: no cover -
         """Persist cookies (no-op for tests)."""
         return None
@@ -71,7 +88,6 @@ class SimpleCookieManager(MutableMapping[str, Any]):
 def create_cookie_manager() -> SimpleCookieManager:
     """Return a fresh ``SimpleCookieManager``."""
     return SimpleCookieManager()
-
 
 def set_student_code_cookie(cm: MutableMapping[str, Any], code: str, **kwargs: Any) -> None:
     """Store the student code in a cookie and persist the change."""
@@ -103,11 +119,10 @@ def set_session_token_cookie(cm: MutableMapping[str, Any], token: str, **kwargs:
     except Exception:
         logging.exception("Failed to save session token cookie")
 
-
 def clear_session(cm: MutableMapping[str, Any]) -> None:
-    """Remove session-related cookies and persist the change."""
+
     cm.pop("student_code", None)
-    cm.pop("session_token", None)
+
     try:  # persist cookie deletions
         cm.save()  # type: ignore[attr-defined]
     except Exception as exc:  # pragma: no cover - defensive
