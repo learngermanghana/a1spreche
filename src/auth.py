@@ -1,12 +1,11 @@
 """Authentication helpers for managing user cookies and sessions."""
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from threading import Lock
 from typing import Any, Callable, Optional
-
-from falowen.sessions import validate_session_token
 
 @dataclass
 class SimpleCookieManager:
