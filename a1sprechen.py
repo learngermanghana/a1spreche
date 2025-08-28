@@ -135,6 +135,11 @@ from src.session_management import (
 )
 from src.sentence_bank import SENTENCE_BANK
 from src.config import get_cookie_manager, SB_SESSION_TARGET
+from src.data_loading import (
+    fetch_youtube_playlist_videos,
+    get_playlist_ids_for_level,
+    load_student_data,
+)
 
 cookie_manager = get_cookie_manager()
 
@@ -165,94 +170,6 @@ if os.environ.get("RENDER"):
                   Server(cfg).run()
 
              threading.Thread(target=_start_health, daemon=True).start()
-
-DEFAULT_PLAYLIST_LEVEL = "A1"
-
-
-def _validate_youtube_playlists() -> None:
-    """Warn if any playlist level lacks video IDs."""
-    for lvl, ids in YOUTUBE_PLAYLIST_IDS.items():
-        if not ids:
-            st.warning(f"No YouTube playlist IDs configured for level {lvl}.")
-
-
-def get_playlist_ids_for_level(level: str) -> list[str]:
-    """Return playlist IDs for a CEFR level with a fallback.
-
-    The lookup is case-sensitive after normalizing the level to uppercase.
-    If the level is missing, fall back to ``DEFAULT_PLAYLIST_LEVEL`` and show a
-    message. Returns an empty list if no playlists exist at all.
-    """
-
-    level_key = (level or "").strip().upper()
-    playlist_ids = YOUTUBE_PLAYLIST_IDS.get(level_key, [])
-    if playlist_ids:
-        return playlist_ids
-
-    fallback = YOUTUBE_PLAYLIST_IDS.get(DEFAULT_PLAYLIST_LEVEL, [])
-    if fallback:
-        st.info(
-            f"No playlist found for level {level_key}; using "
-            f"{DEFAULT_PLAYLIST_LEVEL} playlist instead."
-        )
-        return fallback
-
-    st.info(f"No playlist configured for level {level_key}.")
-    return []
-
-
-
-
-YOUTUBE_API_KEY = st.secrets.get(
-    "YOUTUBE_API_KEY", "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
-)
-
-YOUTUBE_PLAYLIST_IDS = {
-    "A1": ["PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b"],
-    "A2": [
-        "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
-        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc",
-        "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c",
-    ],
-    "B1": ["PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-", "PLB92CD6B288E5DB61"],
-    "B2": [
-        "PLs7zUO7VPyJ5XMfT7pLvweRx6kHVgP_9C",
-        "PLs7zUO7VPyJ6jZP-s6dlkINuEjFPvKMG0",
-        "PLs7zUO7VPyJ4SMosRdB-35Q07brhnVToY",
-    ],
-}
-
-
-@st.cache_data(ttl=43200)
-def fetch_youtube_playlist_videos(
-    playlist_id: str, api_key: str = YOUTUBE_API_KEY
-) -> list[dict]:
-    """Fetch videos for a given YouTube playlist."""
-    base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
-    params = {
-        "part": "snippet",
-        "playlistId": playlist_id,
-        "maxResults": 50,
-        "key": api_key,
-    }
-    videos, next_page = [], ""
-    while True:
-        if next_page:
-            params["pageToken"] = next_page
-        response = requests.get(base_url, params=params, timeout=12)
-        data = response.json()
-        for item in data.get("items", []):
-            vid = item["snippet"]["resourceId"]["videoId"]
-            videos.append(
-                {
-                    "title": item["snippet"]["title"],
-                    "url": f"https://www.youtube.com/watch?v={vid}",
-                }
-            )
-        next_page = data.get("nextPageToken")
-        if not next_page:
-            break
-    return videos
 
 
 
@@ -2299,9 +2216,8 @@ if tab == "Dashboard":
 
             playlist_ids = get_playlist_ids_for_level(level)
             fetch_videos = globals().get("fetch_youtube_playlist_videos")
-            api_key = globals().get("YOUTUBE_API_KEY")
             playlist_id = random.choice(playlist_ids) if playlist_ids else None
-            if playlist_id and fetch_videos and api_key:
+            if playlist_id and fetch_videos:
                 if st.button("🔄 Refresh videos", key=f"refresh_vod_{level}"):
                     st.cache_data.clear()
                     st.rerun()
@@ -2310,7 +2226,7 @@ if tab == "Dashboard":
                     " from YouTube if results look out of date."
                 )
                 try:
-                    video_list = fetch_videos(playlist_id, api_key)
+                    video_list = fetch_videos(playlist_id)
                 except Exception:
                     video_list = []
                 if video_list:
@@ -3191,10 +3107,9 @@ if tab == "My Course":
             st.markdown("#### 🎬 Video of the Day for Your Level")
             playlist_ids = get_playlist_ids_for_level(level_key)
             fetch_videos = globals().get("fetch_youtube_playlist_videos")
-            api_key = globals().get("YOUTUBE_API_KEY")
             playlist_id = random.choice(playlist_ids) if playlist_ids else None
 
-            if playlist_id and fetch_videos and api_key:
+            if playlist_id and fetch_videos:
                 if st.button("🔄 Refresh videos", key=f"refresh_vod_{level_key}"):
                     st.cache_data.clear()
                     st.rerun()
@@ -3203,7 +3118,7 @@ if tab == "My Course":
                     " from YouTube if results look out of date."
                 )
                 try:
-                    video_list = fetch_videos(playlist_id, api_key)
+                    video_list = fetch_videos(playlist_id)
                 except Exception:
                     video_list = []
                 if video_list:
