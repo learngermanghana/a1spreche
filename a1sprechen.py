@@ -1306,7 +1306,9 @@ def inject_notice_css():
       .pill-purple { background:#efe9ff; color:#5b21b6; }
       .pill-amber { background:#fff7ed; color:#7c2d12; }
 
+
       .nav-sticky { position: sticky; top:0; z-index:100; background: white; margin:0; padding:0; }
+
 
       @media (max-width: 640px){
         .chip{ padding:7px 10px; font-size:.95rem; }
