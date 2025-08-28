@@ -6640,16 +6640,25 @@ if tab == "Vocab Trainer":
                 st.session_state[k] = defaults[k]
             st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
-        mode = st.radio("Select words:", ["Only new words", "All words"], horizontal=True, key="vt_mode")
-        session_vocab = (not_done if mode == "Only new words" else items).copy()
-
         if st.session_state.vt_total is None:
-            maxc = len(session_vocab)
-            if maxc == 0:
-                st.success("🎉 All done! Switch to 'All words' to repeat.")
-                st.stop()
-            count = st.number_input("How many today?", 1, maxc, min(7, maxc), key="vt_count")
-            if st.button("Start", key="vt_start"):
+            with st.form("vt_setup"):
+                st.subheader("Daily Practice Setup")
+                mode = st.radio(
+                    "Select words:",
+                    ["Only new words", "All words"],
+                    horizontal=True,
+                    key="vt_mode",
+                )
+                session_vocab = (not_done if mode == "Only new words" else items).copy()
+                maxc = len(session_vocab)
+                if maxc == 0:
+                    st.success("🎉 All done! Switch to 'All words' to repeat.")
+                    st.stop()
+                count = st.number_input(
+                    "How many today?", 1, maxc, min(7, maxc), key="vt_count"
+                )
+                submitted = st.form_submit_button("Start")
+            if submitted:
                 import random
                 from uuid import uuid4
                 random.shuffle(session_vocab)
@@ -6657,9 +6666,19 @@ if tab == "Vocab Trainer":
                 st.session_state.vt_total = count
                 st.session_state.vt_index = 0
                 st.session_state.vt_score = 0
-                st.session_state.vt_history = [("assistant", f"Hallo! Ich bin Herr Felix. Let's do {count} words!")]
+                st.session_state.vt_history = [
+                    ("assistant", f"Hallo! Ich bin Herr Felix. Let's do {count} words!")
+                ]
                 st.session_state.vt_saved = False
                 st.session_state.vt_session_id = str(uuid4())
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+        else:
+            st.markdown("### Daily Practice Setup")
+            st.info(
+                f"{st.session_state.vt_total} words · {st.session_state.vt_mode}"
+            )
+            if st.button("Change goal", key="vt_change_goal"):
+                st.session_state.vt_total = None
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
         if st.session_state.vt_history:
