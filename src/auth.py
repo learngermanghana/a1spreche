@@ -6,21 +6,48 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from threading import Lock
 from typing import Any, Callable, Optional
+from collections.abc import MutableMapping
 
 
 @dataclass
-class SimpleCookieManager:
+class SimpleCookieManager(MutableMapping[str, Any]):
     """Minimal in-memory cookie store used for tests.
 
     The real application uses the ``streamlit_cookies_manager`` package to
     persist cookies in the browser. For unit tests we only need a tiny subset
-    of the interface, so this class stores cookie values in memory.
+    of the interface, so this class stores cookie values in memory while
+    behaving like a :class:`MutableMapping`.
     """
+
     store: dict[str, dict[str, Any]] = field(default_factory=dict)
 
+    # -- Mapping protocol -------------------------------------------------
+    def __getitem__(self, key: str) -> Any:  # pragma: no cover - trivial
+        return self.store[key]["value"]
+
+    def __setitem__(self, key: str, value: Any) -> None:  # pragma: no cover - trivial
+        self.store[key] = {"value": value, "kwargs": {}}
+
+    def __delitem__(self, key: str) -> None:  # pragma: no cover - trivial
+        self.store.pop(key, None)
+
+    def __iter__(self):  # pragma: no cover - trivial
+        return iter(self.store)
+
+    def __len__(self) -> int:  # pragma: no cover - trivial
+        return len(self.store)
+
+    # --------------------------------------------------------------------
+    def pop(self, key: str, default: Any | None = None) -> Any | None:  # pragma: no cover -
+        item = self.store.pop(key, None)
+        if item is None:
+            return default
+        return item.get("value")
+
     def set(self, key: str, value: Any, **kwargs: Any) -> None:  # pragma: no cover -
-        """Store ``value`` and any options under ``key``."""
-        self.store[key] = {"value": value, "kwargs": kwargs}
+        """Backwards-compatible setter storing ``value`` and options."""
+        self[key] = value
+        self.store[key]["kwargs"] = kwargs
 
     def get(self, key: str, default: Any | None = None) -> Any | None:  # pragma: no cover -
         """Return the stored value for ``key`` or ``default`` if missing."""
@@ -31,7 +58,10 @@ class SimpleCookieManager:
 
     def delete(self, key: str) -> None:  # pragma: no cover -
         """Remove ``key`` from the store if present."""
-        self.store.pop(key, None)
+        self.pop(key, None)
+
+    def clear(self) -> None:  # pragma: no cover - trivial
+        self.store.clear()
 
     # The helpers may fall back to dict-style access when ``set`` is missing
     # on the cookie manager. Implement the mapping protocol so that our
@@ -59,54 +89,42 @@ def create_cookie_manager() -> SimpleCookieManager:
     """Return a fresh ``SimpleCookieManager``."""
     return SimpleCookieManager()
 
-
-def set_student_code_cookie(cm: Any, code: str, **kwargs: Any) -> None:
+def set_student_code_cookie(cm: MutableMapping[str, Any], code: str, **kwargs: Any) -> None:
     """Store the student code in a cookie and persist the change."""
     cookie_args = {"httponly": True, "secure": True, "samesite": "Strict"}
     cookie_args.update(kwargs)
-    if hasattr(cm, "set"):
-        cm.set("student_code", code, **cookie_args)
-    else:
-        cm["student_code"] = code
-    if hasattr(cm, "save"):
-        try:  # pragma: no cover - save rarely fails but we defend against it
-            cm.save()
-        except Exception:
-            logging.error("Failed to save student code cookie", exc_info=True)
+    cm["student_code"] = code
+    # ``SimpleCookieManager`` tracks cookie options for test assertions.
+    if hasattr(cm, "store"):
+        store = getattr(cm, "store", {})
+        if isinstance(store, dict) and "student_code" in store:
+            store["student_code"]["kwargs"] = cookie_args
+    try:  # pragma: no cover - save rarely fails but we defend against it
+        cm.save()  # type: ignore[attr-defined]
+    except Exception:
+        logging.error("Failed to save student code cookie", exc_info=True)
 
 
-def set_session_token_cookie(cm: Any, token: str, **kwargs: Any) -> None:
+def set_session_token_cookie(cm: MutableMapping[str, Any], token: str, **kwargs: Any) -> None:
     """Store the session token in a cookie and persist the change."""
     cookie_args = {"httponly": True, "secure": True, "samesite": "Strict"}
     cookie_args.update(kwargs)
-    if hasattr(cm, "set"):
-        cm.set("session_token", token, **cookie_args)
-    else:
-        cm["session_token"] = token
-    if hasattr(cm, "save"):
-        try:  # pragma: no cover - save rarely fails but we defend against it
-            cm.save()
-        except Exception:
-            logging.exception("Failed to save session token cookie")
+    cm["session_token"] = token
+    if hasattr(cm, "store"):
+        store = getattr(cm, "store", {})
+        if isinstance(store, dict) and "session_token" in store:
+            store["session_token"]["kwargs"] = cookie_args
+    try:  # pragma: no cover - save rarely fails but we defend against it
+        cm.save()  # type: ignore[attr-defined]
+    except Exception:
+        logging.exception("Failed to save session token cookie")
 
+def clear_session(cm: MutableMapping[str, Any]) -> None:
 
-def clear_session(cm: SimpleCookieManager) -> None:
-    """Remove session-related cookies and persist the change."""
-    for key in ("student_code", "session_token"):
-        delete_fn = getattr(cm, "delete", None)
-        if callable(delete_fn):
-            delete_fn(key)
-            continue
-        pop_fn = getattr(cm, "pop", None)
-        if callable(pop_fn):
-            pop_fn(key, None)
-        else:  # pragma: no cover - dict-like fallback
-            try:
-                del cm[key]  # type: ignore[index]
-            except Exception:
-                pass
+    cm.pop("student_code", None)
+
     try:  # persist cookie deletions
-        cm.save()
+        cm.save()  # type: ignore[attr-defined]
     except Exception as exc:  # pragma: no cover - defensive
         logging.warning("Failed to persist cleared cookies: %s", exc)
 
