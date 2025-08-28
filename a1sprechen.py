@@ -90,6 +90,7 @@ from src.stats import (
     save_vocab_attempt,
     vocab_attempt_exists,
 )
+from src.stats_ui import render_vocab_stats, render_schreiben_stats
 
 from src.schreiben import (
     update_schreiben_stats,
@@ -127,50 +128,16 @@ from src.data_loading import (
     get_playlist_ids_for_level,
     load_student_data,
 )
+from src.assignment_ui import load_assignment_scores, render_results_and_resources_tab
 from src.session_management import (
-    bootstrap_cookie_manager,
     bootstrap_state,
     determine_level,
     ensure_student_level,
 )
 from src.sentence_bank import SENTENCE_BANK
+from src.config import get_cookie_manager, SB_SESSION_TARGET
 
-# Default number of sentences per session in Sentence Builder.
-SB_SESSION_TARGET = int(os.environ.get("SB_SESSION_TARGET", 5))
-
-# --- Cookie password with built-in fallback (no secrets needed) ---
-import os, hashlib, logging
-
-# IMPORTANT: use a long, random phrase (>= 32 chars) in prod.
-_HARDCODED_COOKIE_PASSPHRASE = os.environ.get(
-    "FALOWEN_COOKIE_FALLBACK",
-    "Felix029",  # <-- replace with a much longer random string for production
-)
-
-# Hash the passphrase so the raw value isn't stored directly.
-_FALLBACK_COOKIE_PASSWORD = hashlib.sha256(
-    _HARDCODED_COOKIE_PASSPHRASE.encode("utf-8")
-).hexdigest()
-
-# Prefer secrets/env if present; otherwise fall back to our hardcoded key.
-cookie_password = (
-    st.secrets.get("cookie_password", None)
-    or os.environ.get("COOKIE_PASSWORD")
-    or _FALLBACK_COOKIE_PASSWORD
-)
-
-# 🔇 No UI warning. Optional: log in dev if using fallback.
-if cookie_password == _FALLBACK_COOKIE_PASSWORD and os.getenv("DEBUG", "0") == "1":
-    logging.warning(
-        "Using built-in fallback cookie password (set `cookie_password` or `COOKIE_PASSWORD` for production)."
-    )
-
-cookie_manager = bootstrap_cookie_manager(
-    EncryptedCookieManager(
-        password=cookie_password,
-        prefix="falowen",
-    )
-)
+cookie_manager = get_cookie_manager()
 
 
 if os.environ.get("RENDER"):
@@ -1354,23 +1321,6 @@ announcements = [
 # =========================================================
 # ============== Data loaders & helpers ===================
 # =========================================================
-@st.cache_data(ttl=600)
-def _load_assignment_scores_cached():
-    SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
-    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
-    df = pd.read_csv(url, dtype=str)
-    df.columns = df.columns.str.strip().str.lower()
-    for col in df.columns:
-        df[col] = df[col].astype(str).str.strip()
-    return df
-
-def load_assignment_scores():
-    """Return assignment scores DataFrame cached and stored in session state."""
-    if "assignment_scores_df" not in st.session_state:
-        st.session_state["assignment_scores_df"] = _load_assignment_scores_cached()
-    return st.session_state["assignment_scores_df"]
-
-
 @st.cache_data(ttl=43200)
 def _load_full_vocab_sheet_cached():
     SHEET_ID = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
@@ -5337,469 +5287,8 @@ if tab == "My Course":
 
 
 # =========================== MY RESULTS & RESOURCES ===========================
-# Safe utilities (define only if missing to avoid duplicates)
-
-# Reuse the app’s schedules provider if available (no duplicate calls)
-if "_get_level_schedules" not in globals():
-    from src.schedule import get_level_schedules as _get_level_schedules
-
-# Plain/emoji score label once; reuse everywhere
-if "score_label_fmt" not in globals():
-    def score_label_fmt(score, *, plain=False):
-        try:
-            s = float(score)
-        except Exception:
-            return "" if not plain else "Needs Improvement"
-        if s >= 90: return "Excellent 🌟" if not plain else "Excellent"
-        if s >= 75: return "Good 👍"      if not plain else "Good"
-        if s >= 60: return "Sufficient ✔️" if not plain else "Sufficient"
-        return "Needs Improvement ❗" if not plain else "Needs Improvement"
-
-# PDF text sanitizer defined up-front (header needs it)
-if "clean_for_pdf" not in globals():
-    import unicodedata as _ud
-    def clean_for_pdf(text):
-        if not isinstance(text, str):
-            text = str(text)
-        text = _ud.normalize('NFKD', text)
-        text = ''.join(c if 32 <= ord(c) <= 255 else '?' for c in text)
-        return text.replace('\n', ' ').replace('\r', ' ')
-
-# Prefer secrets/env for sheet; fallback to constant
-def _results_csv_url():
-    try:
-        u = (st.secrets.get("results", {}).get("csv_url", "") if hasattr(st, "secrets") else "").strip()
-        if u: return u
-    except Exception:
-        pass
-    return "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
-
-# Cached fetch of scores (robust columns)
-@st.cache_data(ttl=600)
-def fetch_scores(csv_url: str):
-    resp = requests.get(csv_url, timeout=8)
-    resp.raise_for_status()
-    df = pd.read_csv(io.StringIO(resp.text), engine='python')
-    # normalize columns
-    df.columns = [str(c).strip().lower().replace("studentcode", "student_code") for c in df.columns]
-    # a few friendly aliases
-    aliases = {
-        "assignment/chapter": "assignment",
-        "chapter": "assignment",
-        "score (%)": "score",
-    }
-    for src, dst in aliases.items():
-        if src in df.columns and dst not in df.columns:
-            df = df.rename(columns={src: dst})
-    required = ["student_code", "name", "assignment", "score", "date", "level"]
-    if not set(required).issubset(df.columns):
-        return pd.DataFrame(columns=required)
-    df = df.dropna(subset=["student_code", "assignment", "score", "date", "level"])
-    return df
-
-# Tiny helpers for current user
-def _get_current_student():
-    row = st.session_state.get("student_row") or {}
-    code = (row.get("StudentCode") or st.session_state.get("student_code", "") or "").strip()
-    name = (row.get("Name") or st.session_state.get("student_name", "") or "").strip()
-    level = (row.get("Level") or "").strip().upper()
-    return code, name, level
-
 if tab == "My Results and Resources":
-    # Header
-    st.markdown(
-        '''
-        <div style="
-            padding: 8px 12px;
-            background: #17a2b8;
-            color: #fff;
-            border-radius: 6px;
-            text-align: center;
-            margin-bottom: 8px;
-            font-size: 1.3rem;
-        ">
-            📊 My Results & Resources
-        </div>
-        ''',
-        unsafe_allow_html=True
-    )
-    st.divider()
-
-    # Live CSV URL (secrets/env-aware)
-    GOOGLE_SHEET_CSV = _results_csv_url()
-
-    # Refresh
-    top_cols = st.columns([1, 1, 2])
-    with top_cols[0]:
-        if st.button("🔄 Refresh"):
-            st.cache_data.clear()
-            st.success("Cache cleared! Reloading…")
-            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-
-    # Load data
-    df_scores = fetch_scores(GOOGLE_SHEET_CSV)
-    required_cols = {"student_code", "name", "assignment", "score", "date", "level"}
-    if not required_cols.issubset(df_scores.columns):
-        st.error("Data format error. Please contact support.")
-        st.write("Columns found:", df_scores.columns.tolist())
-        st.stop()
-
-    # Current student
-    student_code, student_name, _ = _get_current_student()
-    code_key = (student_code or "").lower().strip()
-
-    # Filter to user
-    df_user = df_scores[df_scores.student_code.astype(str).str.lower().str.strip() == code_key]
-    if df_user.empty:
-        st.info("No results yet. Complete an assignment to see your scores!")
-        st.stop()
-
-    # Level selector
-    df_user = df_user.copy()
-    df_user["level"] = df_user["level"].astype(str).str.upper().str.strip()
-    levels = sorted(df_user["level"].unique())
-    level = st.selectbox("Select level:", levels)
-    df_lvl = df_user[df_user.level == level].copy()
-    df_lvl["score"] = pd.to_numeric(df_lvl["score"], errors="coerce")
-
-    # Precompute metrics once
-    totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
-    total = int(totals.get(level, 0))
-    completed = int(df_lvl["assignment"].nunique())
-    avg_score = float(df_lvl["score"].mean() or 0)
-    best_score = float(df_lvl["score"].max() or 0)
-
-    # Prepare default display dataframe
-    df_display = (
-        df_lvl.sort_values(["assignment", "score"], ascending=[True, False])
-              .reset_index(drop=True)
-    )
-    if "comments" not in df_display.columns: df_display["comments"] = ""
-    if "link" not in df_display.columns: df_display["link"] = ""
-
-    # Pull schedule for missed/next tabs
-    schedules_map = _get_level_schedules()
-    schedule = schedules_map.get(level, [])
-
-    # ---------- SUB-SECTIONS (radio style) ----------
-    if "rr_page" not in st.session_state:
-        st.session_state["rr_page"] = "Overview"
-    if "rr_prev_page" not in st.session_state:
-        st.session_state["rr_prev_page"] = st.session_state["rr_page"]
-
-    def on_rr_page_change():
-        st.session_state["rr_prev_page"] = st.session_state.get("rr_page")
-
-    rr_page = st.radio(
-        "Results & Resources section",
-        ["Overview", "My Scores", "Badges", "Missed & Next", "PDF", "Resources"],
-        horizontal=True,
-        key="rr_page",
-        on_change=on_rr_page_change,
-    )
-
-    # ============ OVERVIEW ============
-    if rr_page == "Overview":
-        st.subheader("Quick Overview")
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Total Assignments", total)
-        c2.metric("Completed", completed)
-        c3.metric("Average Score", f"{avg_score:.1f}")
-        c4.metric("Best Score", f"{best_score:.0f}")
-
-        st.markdown("---")
-        st.markdown("**Latest 5 results**")
-        latest = df_display.head(5)
-        for _, row in latest.iterrows():
-            perf = score_label_fmt(row["score"])
-            st.markdown(
-                f"""
-                <div style="margin-bottom: 12px;">
-                    <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span><br>
-                    Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span>
-                    | Date: {row['date']}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-        if len(df_display) > 5:
-            st.caption("See the **Assignments** tab for the full list and feedback.")
-
-    # ============ ASSIGNMENTS ============
-    elif rr_page == "My Scores":
-        st.subheader("All Assignments & Feedback")
-        base_cols = ["assignment", "score", "date", "comments", "link"]
-        for _, row in df_display[base_cols].iterrows():
-            perf = score_label_fmt(row["score"])
-            comment_html = linkify_html(row["comments"])
-            ref_link = _clean_link(row.get("link"))
-            show_ref = bool(ref_link) and _is_http_url(ref_link) and pd.notna(pd.to_numeric(row["score"], errors="coerce"))
-
-            st.markdown(
-                f"""
-                <div style="margin-bottom: 18px;">
-                    <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span><br>
-                    Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span>
-                    | Date: {row['date']}<br>
-                    <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
-                        <b>Feedback:</b> {comment_html}
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-            if show_ref:
-                st.markdown(
-                    f'🔍 <a href="{ref_link}" target="_blank" rel="noopener">View answer reference (Lesen & Hören)</a>',
-                    unsafe_allow_html=True
-                )
-            st.divider()
-
-    # ============ BADGES ============
-    elif rr_page == "Badges":
-        st.subheader("Badges & Trophies")
-        with st.expander("What badges can you earn?", expanded=False):
-            st.markdown(
-                """
-                - 🏆 **Completion Trophy**: Finish all assignments for your level.
-                - 🥇 **Gold Badge**: Maintain an average score above 80.
-                - 🥈 **Silver Badge**: Average score above 70.
-                - 🥉 **Bronze Badge**: Average score above 60.
-                - 🌟 **Star Performer**: Score 85 or higher on any assignment.
-                """
-            )
-
-        badge_count = 0
-        if completed >= total and total > 0:
-            st.success("🏆 **Congratulations!** You have completed all assignments for this level!")
-            badge_count += 1
-        if avg_score >= 90:
-            st.info("🥇 **Gold Badge:** Average score above 90!")
-            badge_count += 1
-        elif avg_score >= 75:
-            st.info("🥈 **Silver Badge:** Average score above 75!")
-            badge_count += 1
-        elif avg_score >= 60:
-            st.info("🥉 **Bronze Badge:** Average score above 60!")
-            badge_count += 1
-        if best_score >= 95:
-            st.info("🌟 **Star Performer:** You scored 95 or above on an assignment!")
-            badge_count += 1
-        if badge_count == 0:
-            st.warning("No badges yet. Complete more assignments to earn badges!")
-
-    # ============ MISSED & NEXT ============
-    elif rr_page == "Missed & Next":
-        st.subheader("Missed Assignments & Next Recommendation")
-
-        def _extract_all_nums(chapter_str):
-            parts = re.split(r'[_\s,;]+', str(chapter_str))
-            nums = []
-            for part in parts:
-                m = re.search(r'\d+(?:\.\d+)?', part)
-                if m: nums.append(float(m.group()))
-            return nums
-
-        completed_nums = set()
-        for _, row in df_lvl.iterrows():
-            for num in _extract_all_nums(row["assignment"]):
-                completed_nums.add(num)
-        last_num = max(completed_nums) if completed_nums else 0.0
-
-        skipped_assignments = []
-        for lesson in schedule:
-            chapter_field = lesson.get("chapter", "")
-            lesson_nums = _extract_all_nums(chapter_field)
-            day = lesson.get("day", "")
-            has_assignment = lesson.get("assignment", False)
-            for chap_num in lesson_nums:
-                if has_assignment and chap_num < last_num and chap_num not in completed_nums:
-                    skipped_assignments.append(f"Day {day}: Chapter {chapter_field} – {lesson.get('topic','')}")
-                    break
-
-        if skipped_assignments:
-            st.markdown(
-                f"""
-                <div style="
-                    background-color: #fff3cd;
-                    border-left: 6px solid #ffecb5;
-                    color: #7a6001;
-                    padding: 16px 18px;
-                    border-radius: 8px;
-                    margin: 12px 0;
-                    font-size: 1.05em;">
-                    <b>⚠️ You have skipped the following assignments.<br>
-                    Please complete them for full progress:</b><br>
-                    {"<br>".join(skipped_assignments)}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-        else:
-            st.success("No missed assignments detected. Great job!")
-
-        # Next assignment recommendation (skip Schreiben & Sprechen-only)
-        def _is_recommendable(lesson):
-            topic = str(lesson.get("topic", "")).lower()
-            return not ("schreiben" in topic and "sprechen" in topic)
-        def _extract_max_num(chapter):
-            nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
-            return max([float(n) for n in nums], default=None)
-
-        completed_chapters = []
-        for a in df_lvl["assignment"]:
-            n = _extract_max_num(a)
-            if n is not None: completed_chapters.append(n)
-        last_num2 = max(completed_chapters) if completed_chapters else 0.0
-
-        next_assignment = None
-        for lesson in schedule:
-            chap_num = _extract_max_num(lesson.get("chapter", ""))
-            if not _is_recommendable(lesson):
-                continue
-            if chap_num and chap_num > last_num2:
-                next_assignment = lesson
-                break
-        if next_assignment:
-            st.info(
-                f"**Your next recommended assignment:**\n\n"
-                f"**Day {next_assignment.get('day','?')}: {next_assignment.get('chapter','?')} – {next_assignment.get('topic','')}**\n\n"
-                f"**Goal:** {next_assignment.get('goal','')}\n\n"
-                f"**Instruction:** {next_assignment.get('instruction','')}"
-            )
-        else:
-            st.success("🎉 You’re up to date!")
-
-    # ============ PDF ============
-    elif rr_page == "PDF":
-        st.subheader("Download PDF Summary")
-
-        COL_ASSN_W, COL_SCORE_W, COL_DATE_W = 45, 18, 30
-        PAGE_WIDTH, MARGIN = 210, 10
-        FEEDBACK_W = PAGE_WIDTH - 2 * MARGIN - (COL_ASSN_W + COL_SCORE_W + COL_DATE_W)
-        LOGO_URL = "https://i.imgur.com/iFiehrp.png"
-
-        @st.cache_data(ttl=3600)
-        def fetch_logo():
-            try:
-                r = requests.get(LOGO_URL, timeout=6)
-                r.raise_for_status()
-                import tempfile
-                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-                tmp.write(r.content); tmp.flush()
-                return tmp.name
-            except Exception:
-                return None
-
-        from fpdf import FPDF
-        class PDFReport(FPDF):
-            def header(self):
-                logo_path = fetch_logo()
-                if logo_path:
-                    try:
-                        self.image(logo_path, 10, 8, 30)
-                        self.ln(20)
-                    except Exception:
-                        self.ln(20)
-                else:
-                    self.ln(28)
-                self.set_font("Arial", 'B', 16)
-                self.cell(0, 12, clean_for_pdf("Learn Language Education Academy"), ln=1, align='C')
-                self.ln(3)
-            def footer(self):
-                self.set_y(-15)
-                self.set_font("Arial", 'I', 9)
-                self.set_text_color(120, 120, 120)
-                footer_text = clean_for_pdf("Learn Language Education Academy — Results generated on ") + pd.Timestamp.now().strftime("%d.%m.%Y")
-                self.cell(0, 8, footer_text, 0, 0, 'C')
-                self.set_text_color(0, 0, 0)
-                self.alias_nb_pages()
-
-        if st.button("⬇️ Create & Download PDF"):
-            pdf = PDFReport()
-            pdf.add_page()
-
-            # Student Info
-            pdf.set_font("Arial", '', 12)
-            try:
-                shown_name = df_user.name.iloc[0]
-            except Exception:
-                shown_name = student_name or "Student"
-            pdf.cell(0, 8, clean_for_pdf(f"Name: {shown_name}"), ln=1)
-            pdf.cell(0, 8, clean_for_pdf(f"Code: {code_key}     Level: {level}"), ln=1)
-            pdf.cell(0, 8, clean_for_pdf(f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"), ln=1)
-            pdf.ln(5)
-
-            # Summary Metrics
-            pdf.set_font("Arial", 'B', 13)
-            pdf.cell(0, 10, clean_for_pdf("Summary Metrics"), ln=1)
-            pdf.set_font("Arial", '', 11)
-            pdf.cell(0, 8, clean_for_pdf(f"Total: {total}   Completed: {completed}   Avg: {avg_score:.1f}   Best: {best_score:.0f}"), ln=1)
-            pdf.ln(6)
-
-            # Table header
-            pdf.set_font("Arial", 'B', 11)
-            pdf.set_fill_color(235, 235, 245)
-            pdf.cell(COL_ASSN_W, 9, "Assignment", 1, 0, 'C', True)
-            pdf.cell(COL_SCORE_W, 9, "Score", 1, 0, 'C', True)
-            pdf.cell(COL_DATE_W, 9, "Date", 1, 0, 'C', True)
-            pdf.cell(FEEDBACK_W, 9, "Feedback", 1, 1, 'C', True)
-
-            # Rows
-            pdf.set_font("Arial", '', 10)
-            pdf.set_fill_color(249, 249, 249)
-            row_fill = False
-
-            for _, row in df_display.iterrows():
-                assn = clean_for_pdf(str(row['assignment'])[:24])
-                score_txt = clean_for_pdf(str(row['score']))
-                date_txt = clean_for_pdf(str(row['date']))
-                label = clean_for_pdf(score_label_fmt(row['score'], plain=True))
-                pdf.cell(COL_ASSN_W, 8, assn, 1, 0, 'L', row_fill)
-                pdf.cell(COL_SCORE_W, 8, score_txt, 1, 0, 'C', row_fill)
-                pdf.cell(COL_DATE_W, 8, date_txt, 1, 0, 'C', row_fill)
-                pdf.multi_cell(FEEDBACK_W, 8, label, 1, 'C', row_fill)
-                row_fill = not row_fill
-
-            pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
-            st.download_button(
-                label="Download PDF",
-                data=pdf_bytes,
-                file_name=f"{code_key}_results_{level}.pdf",
-                mime="application/pdf"
-            )
-            # Manual link fallback
-            import base64 as _b64
-            b64 = _b64.b64encode(pdf_bytes).decode()
-            st.markdown(
-                f'<a href="data:application/pdf;base64,{b64}" download="{code_key}_results_{level}.pdf" '
-                f'style="font-size:1.1em;font-weight:600;color:#2563eb;">📥 Click here to download PDF (manual)</a>',
-                unsafe_allow_html=True
-            )
-            st.info("If the button does not work, right-click the blue link above and choose 'Save link as...'")
-
-    # ============ RESOURCES ============
-    elif rr_page == "Resources":
-        st.subheader("Useful Resources")
-        st.markdown(
-            """
-**1. [A1 Schreiben Practice Questions](https://drive.google.com/file/d/1X_PFF2AnBXSrGkqpfrArvAnEIhqdF6fv/view?usp=sharing)**
-Practice writing tasks and sample questions for A1.
-
-**2. [A1 Exams Sprechen Guide](https://drive.google.com/file/d/1UWvbCCCcrW3_j9x7pOuWug6_Odvzcvaa/view?usp=sharing)**  
-Step-by-step guide to the A1 speaking exam.
-
-**3. [German Writing Rules](https://drive.google.com/file/d/1o7_ez3WSNgpgxU_nEtp6EO1PXDyi3K3b/view?usp=sharing)**  
-Tips and grammar rules for better writing.
-
-**4. [A2 Sprechen Guide](https://drive.google.com/file/d/1TZecDTjNwRYtZXpEeshbWnN8gCftryhI/view?usp=sharing)**  
-A2-level speaking exam guide.
-
-**5. [B1 Sprechen Guide](https://drive.google.com/file/d/1snk4mL_Q9-xTBXSRfgiZL_gYRI9tya8F/view?usp=sharing)**  
-How to prepare for your B1 oral exam.
-            """
-        )
-
+    render_results_and_resources_tab()
 
 # ================================
 # 5. EXAMS MODE & CUSTOM CHAT — uses your prompts + bubble UI + highlighting
@@ -7133,26 +6622,11 @@ if tab == "Vocab Trainer":
             st.session_state.setdefault(k, v)
 
         # Stats
-        with st.expander("📝 Your Vocab Stats", expanded=False):
-            stats = get_vocab_stats(student_code)
-            st.markdown(f"- **Sessions:** {stats['total_sessions']}")
-            st.markdown(f"- **Last Practiced:** {stats['last_practiced']}")
-            st.markdown(f"- **Unique Words:** {len(stats['completed_words'])}")
-            if st.checkbox("Show Last 5 Sessions"):
-                for a in stats["history"][-5:][::-1]:
-                    st.markdown(
-                        f"- {a['timestamp']} | {a['correct']}/{a['total']} | {a['level']}<br>"
-                        f"<span style='font-size:0.9em;'>Words: {', '.join(a['practiced_words'])}</span>",
-                        unsafe_allow_html=True
-                    )
+        stats = render_vocab_stats(student_code)
 
         # Level lock
         level = student_level_locked
         items = VOCAB_LISTS.get(level, [])
-
-        # If stats not set above, fetch here too
-        if 'stats' not in locals():
-            stats = get_vocab_stats(student_code)
         completed = set(stats["completed_words"])
         not_done = [p for p in items if p[0] not in completed]
         st.info(f"{len(not_done)} words NOT yet done at {level}.")
@@ -7537,53 +7011,12 @@ if tab == "Schreiben Trainer":
 
     # --- Writing stats summary with Firestore ---
     student_code = st.session_state.get("student_code", "demo")
-    stats = get_schreiben_stats(student_code)
-    if stats:
-        total = stats.get("total", 0)
-        passed = stats.get("passed", 0)
-        pass_rate = stats.get("pass_rate", 0)
-
-        # Milestone and title logic
-        if total <= 2:
-            writer_title = "🟡 Beginner Writer"
-            milestone = "Write 3 letters to become a Rising Writer!"
-        elif total <= 5 or pass_rate < 60:
-            writer_title = "🟡 Rising Writer"
-            milestone = "Achieve 60% pass rate and 6 letters to become a Confident Writer!"
-        elif total <= 7 or (60 <= pass_rate < 80):
-            writer_title = "🔵 Confident Writer"
-            milestone = "Reach 8 attempts and 80% pass rate to become an Advanced Writer!"
-        elif total >= 8 and pass_rate >= 80 and not (total >= 10 and pass_rate >= 95):
-            writer_title = "🟢 Advanced Writer"
-            milestone = "Reach 10 attempts and 95% pass rate to become a Master Writer!"
-        elif total >= 10 and pass_rate >= 95:
-            writer_title = "🏅 Master Writer!"
-            milestone = "You've reached the highest milestone! Keep maintaining your skills 🎉"
-        else:
-            writer_title = "✏️ Active Writer"
-            milestone = "Keep going to unlock your next milestone!"
-
-        st.markdown(
-            f"""
-            <div style="background:#fff8e1;padding:18px 12px 14px 12px;border-radius:12px;margin-bottom:12px;
-                        box-shadow:0 1px 6px #00000010;">
-                <span style="font-weight:bold;font-size:1.25rem;color:#d63384;">{writer_title}</span><br>
-                <span style="font-weight:bold;font-size:1.09rem;color:#444;">📊 Your Writing Stats</span><br>
-                <span style="color:#202020;font-size:1.05rem;"><b>Total Attempts:</b> {total}</span><br>
-                <span style="color:#202020;font-size:1.05rem;"><b>Passed:</b> {passed}</span><br>
-                <span style="color:#202020;font-size:1.05rem;"><b>Pass Rate:</b> {pass_rate:.1f}%</span><br>
-                <span style="color:#e65100;font-weight:bold;font-size:1.03rem;">{milestone}</span>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-    else:
-        st.info("No writing stats found yet. Write your first letter to see progress!")
+    stats = render_schreiben_stats(student_code)
 
     # --- Update session states for new student (preserves drafts, etc) ---
     prev_student_code = st.session_state.get("prev_student_code", None)
     if student_code != prev_student_code:
-        stats = get_schreiben_stats(student_code)
+        stats = stats or get_schreiben_stats(student_code)
         st.session_state[f"{student_code}_last_feedback"] = None
         st.session_state[f"{student_code}_last_user_letter"] = None
         st.session_state[f"{student_code}_delta_compare_feedback"] = None
