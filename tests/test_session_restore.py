@@ -5,13 +5,16 @@ import pandas as pd
 import streamlit as st
 
 from src.auth import (
-    cookie_manager,
     set_student_code_cookie,
     set_session_token_cookie,
     clear_session,
     restore_session_from_cookie,
     SimpleCookieManager,
+    bootstrap_cookies,
 )
+
+# Each test operates on its own in-memory cookie manager
+cookie_manager = bootstrap_cookies(SimpleCookieManager())
 
 def test_cookies_keep_user_logged_in_after_reload():
     """User with valid cookies should remain logged in after a reload."""
