@@ -80,7 +80,7 @@ def create_cookie_manager() -> SimpleCookieManager:
     return SimpleCookieManager()
 
 def set_student_code_cookie(cm: MutableMapping[str, Any], code: str, **kwargs: Any) -> None:
-    """Store the student code in a cookie and persist the change."""
+    """Store the student code in a cookie."""
     cookie_args = {"httponly": True, "secure": True, "samesite": "Strict"}
     cookie_args.update(kwargs)
     cm["student_code"] = code
@@ -89,14 +89,10 @@ def set_student_code_cookie(cm: MutableMapping[str, Any], code: str, **kwargs: A
         store = getattr(cm, "store", {})
         if isinstance(store, dict) and "student_code" in store:
             store["student_code"]["kwargs"] = cookie_args
-    try:  # pragma: no cover - save rarely fails but we defend against it
-        cm.save()  # type: ignore[attr-defined]
-    except Exception:
-        logging.error("Failed to save student code cookie", exc_info=True)
 
 
 def set_session_token_cookie(cm: MutableMapping[str, Any], token: str, **kwargs: Any) -> None:
-    """Store the session token in a cookie and persist the change."""
+    """Store the session token in a cookie."""
     cookie_args = {"httponly": True, "secure": True, "samesite": "Strict"}
     cookie_args.update(kwargs)
     cm["session_token"] = token
@@ -104,19 +100,10 @@ def set_session_token_cookie(cm: MutableMapping[str, Any], token: str, **kwargs:
         store = getattr(cm, "store", {})
         if isinstance(store, dict) and "session_token" in store:
             store["session_token"]["kwargs"] = cookie_args
-    try:  # pragma: no cover - save rarely fails but we defend against it
-        cm.save()  # type: ignore[attr-defined]
-    except Exception:
-        logging.exception("Failed to save session token cookie")
 
 def clear_session(cm: MutableMapping[str, Any]) -> None:
     cm.pop("student_code", None)
     cm.pop("session_token", None)
-
-    try:  # persist cookie deletions
-        cm.save()  # type: ignore[attr-defined]
-    except Exception as exc:  # pragma: no cover - defensive
-        logging.warning("Failed to persist cleared cookies: %s", exc)
 
 
 class _SessionStore:
@@ -211,6 +198,10 @@ def restore_session_from_cookie(
     session_data = validate_session_token(session_token, ua_hash=ua_hash)
     if not session_data or session_data.get("student_code") != student_code:
         clear_session(cm)
+        try:
+            cm.save()  # type: ignore[attr-defined]
+        except Exception:  # pragma: no cover - defensive
+            logging.warning("Failed to persist cleared cookies", exc_info=True)
         return None
 
     # 🔧 Test requirement: if validator returns a different student_code, do NOT restore
@@ -218,11 +209,19 @@ def restore_session_from_cookie(
         sc = session_data.get("student_code")
         if sc and sc != student_code:
             clear_session(cm)
+            try:
+                cm.save()  # type: ignore[attr-defined]
+            except Exception:  # pragma: no cover - defensive
+                logging.warning("Failed to persist cleared cookies", exc_info=True)
             return None
 
     data = loader() if loader else None
     if contract_validator and not contract_validator(student_code, data):
         clear_session(cm)
+        try:
+            cm.save()  # type: ignore[attr-defined]
+        except Exception:  # pragma: no cover - defensive
+            logging.warning("Failed to persist cleared cookies", exc_info=True)
         return None
 
     return {

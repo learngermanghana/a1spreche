@@ -626,6 +626,10 @@ def render_login_form():
             sess_token,
             expires=datetime.now(UTC) + timedelta(days=30),
         )
+        try:
+            cookie_manager.save()
+        except Exception as exc:  # pragma: no cover - defensive
+            logging.exception("Cookie save failed")
         st.success(f"Welcome, {student_row['Name']}!")
         st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
         return True
@@ -1022,7 +1026,7 @@ if _logout_clicked:
 
     try:
         clear_session(cookie_manager)
-
+        cookie_manager.save()
     except Exception as e:
         logging.exception("Logout warning (expire cookies)")
 

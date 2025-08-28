@@ -245,8 +245,8 @@ def test_relogin_replaces_session_and_clears_old_token():
     assert cookie_manager.get("student_code") == "new"
     assert cookie_manager.get("session_token") == "tok_new"
 
-def test_clear_session_persists_cookie_deletion():
-    """clear_session should persist deletions so cookies do not linger."""
+def test_clear_session_requires_explicit_save():
+    """clear_session removes cookies but does not save automatically."""
 
     class TrackingCookieManager(SimpleCookieManager):
         def __init__(self):  # pragma: no cover - trivial
@@ -263,10 +263,14 @@ def test_clear_session_persists_cookie_deletion():
 
     assert cm.get("student_code") is None
     assert cm.get("session_token") is None
+    assert cm.saved is False
+
+    cm.save()
     assert cm.saved is True
 
-def test_set_cookie_functions_persist_changes():
-    """Setting cookies should call save so values persist across reloads."""
+
+def test_cookie_functions_require_manual_save():
+    """Setting cookies requires a single explicit save."""
 
     class TrackingCookieManager(SimpleCookieManager):
         def __init__(self):  # pragma: no cover - trivial
@@ -282,7 +286,10 @@ def test_set_cookie_functions_persist_changes():
 
     assert cm.get("student_code") == "abc"
     assert cm.get("session_token") == "tok123"
-    assert cm.save_calls >= 2
+    assert cm.save_calls == 0
+
+    cm.save()
+    assert cm.save_calls == 1
 
 def test_cookie_functions_apply_defaults_and_allow_override():
     """Cookies should include secure defaults but allow overriding."""
