@@ -1,0 +1,19 @@
+.feature-list {
+  max-width:700px;
+  margin:16px auto;
+  color: var(--color-text);
+  font-size:1em;
+  line-height:1.5;
+  list-style:none;
+  padding-left:0;
+  display:flex;
+  flex-wrap:wrap;
+  gap:4px 16px;
+}
+.feature-list li {
+  flex:1 1 calc(50% - 16px);
+  margin-bottom:6px;
+}
+@media (max-width:560px) {
+  .feature-list li { flex-basis:100%; }
+}

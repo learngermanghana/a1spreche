@@ -726,14 +726,18 @@ def render_login_form():
 
 
 def login_page():
+    for css_path in ("static/css/theme.css", "static/css/login.css"):
+        with open(css_path) as f:
+            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
     st.markdown('<style>.page-wrap{max-width:1100px;margin:0 auto;}</style>', unsafe_allow_html=True)
 
     # HERO FIRST
     st.markdown("""
     <div class="page-wrap">
       <div class="hero" aria-label="Falowen app introduction">
-        <h1 style="text-align:center; color:#25317e;">👋 Welcome to <strong>Falowen</strong></h1>
-        <p style="text-align:center; font-size:1.1em; color:#555;">
+        <h1 style="text-align:center;">👋 Welcome to <strong>Falowen</strong></h1>
+        <p style="text-align:center; font-size:1.1em;">
           Falowen is your all-in-one German learning platform, powered by
           <b>Learn Language Education Academy</b>, with courses and vocabulary from
           <b>A1 to C1</b> levels and live tutor support.
@@ -748,27 +752,6 @@ def login_page():
           <li>🔤 <b>Vocab Trainer</b>: Practice and master A1–C1 vocabulary with spaced-repetition quizzes.</li>
           <li>✍️ <b>Schreiben Trainer</b>: Improve your writing with guided exercises and instant corrections.</li>
         </ul>
-        <style>
-          .feature-list {
-            max-width:700px;
-            margin:16px auto;
-            color:#444;
-            font-size:1em;
-            line-height:1.5;
-            list-style:none;
-            padding-left:0;
-            display:flex;
-            flex-wrap:wrap;
-            gap:4px 16px;
-          }
-          .feature-list li {
-            flex:1 1 calc(50% - 16px);
-            margin-bottom:6px;
-          }
-          @media (max-width:560px) {
-            .feature-list li { flex-basis:100%; }
-          }
-        </style>
       </div>
     </div>
     """, unsafe_allow_html=True)
