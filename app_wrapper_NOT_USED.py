@@ -15,6 +15,7 @@ if not COOKIE_SECRET:
 
 BASE = os.path.dirname(__file__)
 PUBLIC = os.path.join(BASE, "public")
+FONT = os.path.join(BASE, "font")
 
 class AssetLinks(tornado.web.RequestHandler):
     def get(self):
@@ -41,6 +42,7 @@ def make_app():
         (r"/health", Health),
         (r"/\.well-known/assetlinks\.json", AssetLinks),
         (r"/manifest\.webmanifest", WebManifest),
+        (r"/font/(.*)", tornado.web.StaticFileHandler, {"path": FONT}),
         (r"/(.*)", tornado.web.StaticFileHandler, {
             "path": PUBLIC,
             "default_filename": "index.html"
