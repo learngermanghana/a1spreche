@@ -187,5 +187,6 @@ from src.auth import (
     bootstrap_cookies,
     restore_session_from_cookie,
     reset_password_page,
-    cookie_manager as auth_cookie_manager,  # ✅ import with alias
+    cookie_manager as AUTH_COOKIE_MANAGER,  # ← alias the module's cookie_manager
 )
+
