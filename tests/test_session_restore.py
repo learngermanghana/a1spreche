@@ -11,6 +11,9 @@ from src.auth import (
     clear_session,
     restore_session_from_cookie,
     SimpleCookieManager,
+    persist_session_client,
+    get_session_client,
+    clear_session_clients,
 )
 
 def test_cookies_keep_user_logged_in_after_reload():
