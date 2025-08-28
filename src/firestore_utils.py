@@ -127,7 +127,7 @@ def load_draft_meta_from_db(code: str, field_key: str) -> Tuple[str, Optional[da
             if snap.exists:
                 data = snap.to_dict() or {}
                 return data.get("text", ""), data.get("updated_at")
-    except Exception as exc:  # pragma: no cover - runtime depends on Firestore
+    except Exception as exc:  # pragma: no cover - runtime depends on Firestoreore
         logging.exception(
             "Failed to load draft meta for %s/%s: %s", code, field_key, exc
         )
