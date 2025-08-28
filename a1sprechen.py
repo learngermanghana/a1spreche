@@ -120,7 +120,6 @@ from src.auth import (
     persist_session_client,
     restore_session_from_cookie,
     reset_password_page,
-    cookie_manager as AUTH_COOKIE_MANAGER,  # <-- import module cookie_manager with alias
 )
 
 from src.data_loading import (
@@ -140,7 +139,9 @@ from src.sentence_bank import SENTENCE_BANK
 SB_SESSION_TARGET = int(os.environ.get("SB_SESSION_TARGET", 5))
 
 
-cookie_manager = bootstrap_cookie_manager(AUTH_COOKIE_MANAGER)
+cookie_manager = bootstrap_cookie_manager(
+    EncryptedCookieManager(prefix="falowen")
+)
 
 if os.environ.get("RENDER"):
     import fastapi
