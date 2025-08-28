@@ -7,7 +7,7 @@ been extracted so they can be imported independently and tested.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Iterable
+from typing import Iterable, Optional
 
 import os
 import pandas as pd
@@ -80,7 +80,7 @@ def load_student_levels():
     return df
 
 
-def get_student_level(student_code: str, default: str | None = None) -> str | None:
+def get_student_level(student_code: str, default: Optional[str] = None) -> Optional[str]:
     """Return the student's level from the roster.
 
     If the ``student_code`` cannot be found or the roster fails to load, this
@@ -136,7 +136,7 @@ def save_vocab_attempt(
     total: int,
     correct: int,
     practiced_words: Iterable[str],
-    session_id: str | None = None,
+    session_id: Optional[str] = None,
 ) -> None:
     """Persist one vocab practice attempt to Firestore."""
 
