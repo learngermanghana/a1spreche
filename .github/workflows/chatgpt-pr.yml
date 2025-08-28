@@ -39,3 +39,17 @@ jobs:
           title: "ChatGPT Auto Update"
           body: "This pull request was automatically created by ChatGPT."
           labels: auto-update
+
+       - name: Commit and push changes
+        run: |
+          git config --global user.name "chatgpt-bot"
+          git config --global user.email "chatgpt-bot@example.com"
+          git checkout ${{ github.head_ref }}
+          git add .
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "🤖 Auto-resolved merge conflicts with ChatGPT"
+            git push https://x-access-token:${{ secrets.PERSONAL_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.head_ref }}
+          fi
+
