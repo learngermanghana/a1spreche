@@ -204,9 +204,9 @@ st.markdown("""
 
 /* Keep hero flush and compact */
   .hero {
-    margin-top: 2px !important;      /* was 0/12 — pulls hero up */
+    margin-top: 0 !important;      /* was 0/12 — pulls hero up */
     margin-bottom: 4px !important;   /* tighter space before tabs */
-    padding-top: 6px !important;
+    padding-top: 0 !important;
     display: flow-root;
   }
 .hero h1:first-child { margin-top: 0 !important; }
