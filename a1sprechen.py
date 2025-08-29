@@ -251,212 +251,6 @@ if os.environ.get("RENDER"):
 
 
 
-# ------------------------------------------------------------------------------
-# Page config MUST be the first Streamlit call
-# ------------------------------------------------------------------------------
-st.set_page_config(
-    page_title="Falowen – Your German Conversation Partner",
-    page_icon="👋",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# Top spacing + chrome (tighter)
-st.markdown("""
-<style>
-@font-face {
-  font-family: 'DejaVu Sans';
-  src: url('/font/DejaVuSans.ttf') format('truetype');
-  font-weight: normal;
-  font-style: normal;
-}
-body {
-  font-family: 'DejaVu Sans', sans-serif;
-}
-/* Remove Streamlit's top padding */
-[data-testid="stAppViewContainer"] > .main .block-container {
-  padding-top: 0 !important;
-}
-
-/* First two rendered blocks (often head injections) — collapse fully */
-[data-testid="stAppViewContainer"] .main .block-container > div:first-child,
-[data-testid="stAppViewContainer"] .main .block-container > div:first-child + div {
-  margin: 0 !important;
-  padding: 0 !important;
-  height: 0 !important;
-  overflow: hidden;
-}
-
-/* Keep hero flush and compact */
-  .hero {
-    margin-top: 0 !important;      /* was 0/12 — pulls hero up */
-    margin-bottom: 4px !important;   /* tighter space before tabs */
-    padding-top: 0 !important;
-    display: flow-root;
-  }
-.hero h1:first-child { margin-top: 0 !important; }
-/* Trim default gap above Streamlit tabs */
-[data-testid="stTabs"] {
-  margin-top: 8px !important;
-}
-
-/* Hide default Streamlit chrome */
-#MainMenu { visibility: hidden; }
-footer { visibility: hidden; }
-</style>
-""", unsafe_allow_html=True)
-
-# Compatibility alias
-html = st_html
-
-
-# ------------------------------------------------------------------------------
-# PWA + head helper (define BEFORE you call it)
-# ------------------------------------------------------------------------------
-BASE = st.secrets.get("PUBLIC_BASE_URL", "")
-_manifest = f'{BASE}/manifest.webmanifest' if BASE else "/manifest.webmanifest"
-_icon180  = f'{BASE}/static/icons/falowen-180.png' if BASE else "/static/icons/falowen-180.png"
-
-def _inject_meta_tags():
-    """Inject PWA meta + register the service worker once per session (light theme)."""
-    if st.session_state.get("_pwa_head_done"):
-        return
-    components.html(
-        f"""
-        <script>
-        const head = document.getElementsByTagName('head')[0];
-        const tags = [
-          '<link rel="manifest" href="{_manifest}">',
-          '<link rel="apple-touch-icon" href="{_icon180}">',
-          '<meta name="apple-mobile-web-app-capable" content="yes">',
-          '<meta name="apple-mobile-web-app-title" content="Falowen">',
-          '<meta name="apple-mobile-web-app-status-bar-style" content="default">',
-          '<meta name="color-scheme" content="light">',
-          '<meta name="theme-color" content="#f3f7fb">',
-          '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
-        ];
-        tags.forEach(t => head.insertAdjacentHTML('beforeend', t));
-        if ('serviceWorker' in navigator) {{
-          navigator.serviceWorker.register('/sw.js', {{ scope: '/' }}).catch(()=>{{}});
-        }}
-        </script>
-        """,
-        height=0,
-    )
-    st.session_state["_pwa_head_done"] = True
-
-# Inject early
-_inject_meta_tags()
-
-# --- State bootstrap ---
-bootstrap_state()
-
-# Compatibility alias
-html = st_html
-
-# ------------------------------------------------------------------------------
-# OpenAI (used elsewhere in app)
-# ------------------------------------------------------------------------------
-OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
-if not OPENAI_API_KEY:
-    st.error("Missing OpenAI API key. Please add OPENAI_API_KEY in Streamlit secrets.")
-    raise RuntimeError("Missing OpenAI API key")
-os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
-client = OpenAI(api_key=OPENAI_API_KEY)
-    
-# ------------------------------------------------------------------------------
-# Student sheet loading
-# ------------------------------------------------------------------------------
-
-seed_falowen_state_from_qp()
-
-def _contract_active(sc: str, roster):
-    if roster is None or "StudentCode" not in roster.columns:
-        return True
-    match = roster[roster["StudentCode"].str.lower() == sc.lower()]
-    if match.empty:
-        return True
-    return not is_contract_expired(match.iloc[0])
-
-
-restored = restore_session_from_cookie(
-    cookie_manager, load_student_data, _contract_active
-)
-
-# If cookies provided a valid session and we're not already logged in, seed
-# ``st.session_state`` so the user stays logged in across page reloads.
-if restored is not None and not st.session_state.get("logged_in", False):
-    sc_cookie = restored["student_code"]
-    token = restored["session_token"]
-    roster = restored.get("data")  # DataFrame
-
-    # ``restore_session_from_cookie`` already validated the session token,
-    # so simply seed ``st.session_state`` using the restored values.
-    sc = sc_cookie
-    row = (
-        roster[roster["StudentCode"].str.lower() == sc].iloc[0]
-        if roster is not None and "StudentCode" in roster.columns
-        else {}
-    )
-    level = determine_level(sc, row)
-    st.session_state.update(
-        {
-            "logged_in": True,
-            "student_code": sc,
-            "student_name": row.get("Name", ""),
-            "student_row": dict(row) if isinstance(row, pd.Series) else {},
-            "session_token": token,
-            "student_level": level,
-        }
-    )
-    
-
-
-# ------------------------------------------------------------------------------
-# 🔗 Handle ?token=... early (before showing login/tabs)
-# ------------------------------------------------------------------------------
-if not st.session_state.get("logged_in", False):
-    tok = st.query_params.get("token")
-    if isinstance(tok, list):
-        tok = tok[0] if tok else None
-    if tok:
-        reset_password_page(tok)
-        st.stop()
-
-if not st.session_state.get("logged_in", False):
-    login_page()
-    st.stop()
-
-# ------------------------------------------------------------------------------
-# CSS + OAuth UI helpers, etc.
-# ------------------------------------------------------------------------------
-st.markdown("""
-<style>
-  .hero {
-    background: #fff; border-radius: 12px; padding: 24px; margin: 12px auto; max-width: 800px;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.05);
-  }
-  .help-contact-box {
-    background: #fff; border-radius: 14px; padding: 20px; margin: 8px auto; max-width: 500px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.04); border:1px solid #ebebf2; text-align:center;
-  }
-  .quick-links { display: flex; flex-wrap: wrap; gap:12px; justify-content:center; }
-  .quick-links a {
-    background: #e2e8f0; padding: 8px 16px; border-radius: 8px; font-weight:600; text-decoration:none;
-    color:#0f172a; border:1px solid #cbd5e1;
-  }
-  .quick-links a:hover { background:#cbd5e1; }
-  .stButton > button { background:#2563eb; color:#ffffff; font-weight:700; border-radius:8px; border:2px solid #1d4ed8; }
-  .stButton > button:hover { background:#1d4ed8; }
-  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, [role="button"]:focus-visible {
-    outline:3px solid #f59e0b; outline-offset:2px; box-shadow:none !important;
-  }
-  input, textarea { color:#0f172a !important; }
-  .page-wrap { max-width: 1100px; margin: 0 auto; }
-  @media (max-width:600px){ .hero, .help-contact-box { padding:16px 4vw; } }
-</style>
-""", unsafe_allow_html=True)
-
 GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
 GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
 REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowen.app/")
@@ -763,6 +557,213 @@ def login_page():
         action = result.get("action")
         if action == "login":
             render_login_form(result.get("email", ""), result.get("password", ""))
+
+
+# ------------------------------------------------------------------------------
+# Page config MUST be the first Streamlit call
+# ------------------------------------------------------------------------------
+st.set_page_config(
+    page_title="Falowen – Your German Conversation Partner",
+    page_icon="👋",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Top spacing + chrome (tighter)
+st.markdown("""
+<style>
+@font-face {
+  font-family: 'DejaVu Sans';
+  src: url('/font/DejaVuSans.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+body {
+  font-family: 'DejaVu Sans', sans-serif;
+}
+/* Remove Streamlit's top padding */
+[data-testid="stAppViewContainer"] > .main .block-container {
+  padding-top: 0 !important;
+}
+
+/* First two rendered blocks (often head injections) — collapse fully */
+[data-testid="stAppViewContainer"] .main .block-container > div:first-child,
+[data-testid="stAppViewContainer"] .main .block-container > div:first-child + div {
+  margin: 0 !important;
+  padding: 0 !important;
+  height: 0 !important;
+  overflow: hidden;
+}
+
+/* Keep hero flush and compact */
+  .hero {
+    margin-top: 0 !important;      /* was 0/12 — pulls hero up */
+    margin-bottom: 4px !important;   /* tighter space before tabs */
+    padding-top: 0 !important;
+    display: flow-root;
+  }
+.hero h1:first-child { margin-top: 0 !important; }
+/* Trim default gap above Streamlit tabs */
+[data-testid="stTabs"] {
+  margin-top: 8px !important;
+}
+
+/* Hide default Streamlit chrome */
+#MainMenu { visibility: hidden; }
+footer { visibility: hidden; }
+</style>
+""", unsafe_allow_html=True)
+
+# Compatibility alias
+html = st_html
+
+
+# ------------------------------------------------------------------------------
+# PWA + head helper (define BEFORE you call it)
+# ------------------------------------------------------------------------------
+BASE = st.secrets.get("PUBLIC_BASE_URL", "")
+_manifest = f'{BASE}/manifest.webmanifest' if BASE else "/manifest.webmanifest"
+_icon180  = f'{BASE}/static/icons/falowen-180.png' if BASE else "/static/icons/falowen-180.png"
+
+def _inject_meta_tags():
+    """Inject PWA meta + register the service worker once per session (light theme)."""
+    if st.session_state.get("_pwa_head_done"):
+        return
+    components.html(
+        f"""
+        <script>
+        const head = document.getElementsByTagName('head')[0];
+        const tags = [
+          '<link rel="manifest" href="{_manifest}">',
+          '<link rel="apple-touch-icon" href="{_icon180}">',
+          '<meta name="apple-mobile-web-app-capable" content="yes">',
+          '<meta name="apple-mobile-web-app-title" content="Falowen">',
+          '<meta name="apple-mobile-web-app-status-bar-style" content="default">',
+          '<meta name="color-scheme" content="light">',
+          '<meta name="theme-color" content="#f3f7fb">',
+          '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
+        ];
+        tags.forEach(t => head.insertAdjacentHTML('beforeend', t));
+        if ('serviceWorker' in navigator) {{
+          navigator.serviceWorker.register('/sw.js', {{ scope: '/' }}).catch(()=>{{}});
+        }}
+        </script>
+        """,
+        height=0,
+    )
+    st.session_state["_pwa_head_done"] = True
+
+# Inject early
+_inject_meta_tags()
+
+# --- State bootstrap ---
+bootstrap_state()
+
+# Compatibility alias
+html = st_html
+
+# ------------------------------------------------------------------------------
+# OpenAI (used elsewhere in app)
+# ------------------------------------------------------------------------------
+OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    st.error("Missing OpenAI API key. Please add OPENAI_API_KEY in Streamlit secrets.")
+    raise RuntimeError("Missing OpenAI API key")
+os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+client = OpenAI(api_key=OPENAI_API_KEY)
+    
+# ------------------------------------------------------------------------------
+# Student sheet loading
+# ------------------------------------------------------------------------------
+
+seed_falowen_state_from_qp()
+
+def _contract_active(sc: str, roster):
+    if roster is None or "StudentCode" not in roster.columns:
+        return True
+    match = roster[roster["StudentCode"].str.lower() == sc.lower()]
+    if match.empty:
+        return True
+    return not is_contract_expired(match.iloc[0])
+
+
+restored = restore_session_from_cookie(
+    cookie_manager, load_student_data, _contract_active
+)
+
+# If cookies provided a valid session and we're not already logged in, seed
+# ``st.session_state`` so the user stays logged in across page reloads.
+if restored is not None and not st.session_state.get("logged_in", False):
+    sc_cookie = restored["student_code"]
+    token = restored["session_token"]
+    roster = restored.get("data")  # DataFrame
+
+    # ``restore_session_from_cookie`` already validated the session token,
+    # so simply seed ``st.session_state`` using the restored values.
+    sc = sc_cookie
+    row = (
+        roster[roster["StudentCode"].str.lower() == sc].iloc[0]
+        if roster is not None and "StudentCode" in roster.columns
+        else {}
+    )
+    level = determine_level(sc, row)
+    st.session_state.update(
+        {
+            "logged_in": True,
+            "student_code": sc,
+            "student_name": row.get("Name", ""),
+            "student_row": dict(row) if isinstance(row, pd.Series) else {},
+            "session_token": token,
+            "student_level": level,
+        }
+    )
+    
+
+
+# ------------------------------------------------------------------------------
+# 🔗 Handle ?token=... early (before showing login/tabs)
+# ------------------------------------------------------------------------------
+if not st.session_state.get("logged_in", False):
+    tok = st.query_params.get("token")
+    if isinstance(tok, list):
+        tok = tok[0] if tok else None
+    if tok:
+        reset_password_page(tok)
+        st.stop()
+
+if not st.session_state.get("logged_in", False):
+    login_page()
+    st.stop()
+
+# ------------------------------------------------------------------------------
+# CSS + OAuth UI helpers, etc.
+# ------------------------------------------------------------------------------
+st.markdown("""
+<style>
+  .hero {
+    background: #fff; border-radius: 12px; padding: 24px; margin: 12px auto; max-width: 800px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+  }
+  .help-contact-box {
+    background: #fff; border-radius: 14px; padding: 20px; margin: 8px auto; max-width: 500px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.04); border:1px solid #ebebf2; text-align:center;
+  }
+  .quick-links { display: flex; flex-wrap: wrap; gap:12px; justify-content:center; }
+  .quick-links a {
+    background: #e2e8f0; padding: 8px 16px; border-radius: 8px; font-weight:600; text-decoration:none;
+    color:#0f172a; border:1px solid #cbd5e1;
+  }
+  .quick-links a:hover { background:#cbd5e1; }
+  .stButton > button { background:#2563eb; color:#ffffff; font-weight:700; border-radius:8px; border:2px solid #1d4ed8; }
+  .stButton > button:hover { background:#1d4ed8; }
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, [role="button"]:focus-visible {
+    outline:3px solid #f59e0b; outline-offset:2px; box-shadow:none !important;
+  }
+  input, textarea { color:#0f172a !important; }
+  .page-wrap { max-width: 1100px; margin: 0 auto; }
+  @media (max-width:600px){ .hero, .help-contact-box { padding:16px 4vw; } }
+</style>
+""", unsafe_allow_html=True)
 
 def render_announcements(ANNOUNCEMENTS: list):
     """Responsive rotating announcement board with mobile-first, light card on phones."""
