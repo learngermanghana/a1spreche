@@ -841,7 +841,56 @@ def render_google_brand_button_once(auth_url: str, center: bool = True):
     st.session_state["_google_cta_rendered"] = True
 
 
+# ------------------------------------------------------------------------------
+# Login page assembly (Hero + Google OAuth, Returning form, Sign-up, Request)
+# Shows exactly one Gmail button (in the hero template)
+# ------------------------------------------------------------------------------
+def login_page():
+    # Build/handle Google OAuth (also completes if ?code=... is present)
+    auth_url = render_google_oauth(return_url=True) or ""
 
+    # Branded hero (may or may not include its own Google link)
+    render_falowen_login(auth_url)
+
+    # Returning login (inline)
+    st.markdown("### Returning user login")
+    # --- Guaranteed one Google button here ---
+    render_google_brand_button_once(auth_url, center=True)
+
+    with st.form("returning_login_form_clean", clear_on_submit=False):
+        login_id = st.text_input("Email or Student Code", key="login_id")
+        login_pass = st.text_input("Password", type="password", key="login_pass")
+        submitted = st.form_submit_button("Log in")
+    if submitted and render_login_form(login_id, login_pass):
+        st.rerun()
+
+    # Toggle forgot
+    if st.button("Forgot password?", key="show_reset_panel_btn"):
+        st.session_state["show_reset_panel"] = True
+    if st.session_state.get("show_reset_panel"):
+        render_forgot_password_panel()
+
+    # Sign up + Request Access
+    tab2, tab3 = st.tabs(["🧾 Sign Up (Approved)", "📝 Request Access"])
+    with tab2:
+        render_signup_form()
+    with tab3:
+        st.markdown(
+            """
+            <div class="page-wrap" style="text-align:center; margin-top:20px;">
+              <p style="font-size:1.1em; color:#444;">
+                If you don't have an account yet, please request access by filling out this form.
+              </p>
+              <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header" 
+                 target="_blank" rel="noopener">
+                <button style="background:#25317e; color:white; padding:10px 20px; border:none; border-radius:6px; cursor:pointer;">
+                  📝 Open Request Access Form
+                </button>
+              </a>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
     # Help + quick contacts
     st.markdown("""
