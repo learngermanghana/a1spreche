@@ -397,98 +397,184 @@ def render_signup_form():
     doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
     st.success("Account created! Please log in on the Returning tab.")
 
-def render_login_form(login_id: str, login_pass: str) -> bool:
-    login_id = (login_id or "").strip().lower()
-    login_pass = login_pass or ""
-    if not (login_id and login_pass):
-        st.error("Please enter both email and password.")
-        return False
+def render_returning_login_area() -> bool:
+    """Returning login with a 'Forgot password?' panel.
+    Returns True if the user successfully logs in (so caller can st.rerun())."""
 
-    df = load_student_data()
-    if df is None:
-        st.error("Student roster unavailable. Please try again later.")
-        return False
-
-    df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-    df["Email"] = df["Email"].str.lower().str.strip()
-    lookup = df[(df["StudentCode"] == login_id) | (df["Email"] == login_id)]
-    if lookup.empty:
-        st.error("No matching student code or email found."); return False
-    if lookup.shape[0] > 1:
-        st.error("Multiple matching accounts found. Please contact the office."); return False
-
-    student_row = lookup.iloc[0]
-    if is_contract_expired(student_row):
-        st.error("Your contract has expired. Contact the office."); return False
-
-    doc_ref = db.collection("students").document(student_row["StudentCode"])
-    doc = doc_ref.get()
-    if not doc.exists:
-        st.error("Account not found. Please use 'Sign Up (Approved)' first."); return False
-
-    data = doc.to_dict() or {}
-    stored_pw = data.get("password", "")
-    is_hash = stored_pw.startswith(("$2a$", "$2b$", "$2y$")) and len(stored_pw) >= 60
-
-    try:
-        ok = bcrypt.checkpw(login_pass.encode("utf-8"), stored_pw.encode("utf-8")) if is_hash else stored_pw == login_pass
-        if ok and not is_hash:
-            new_hash = bcrypt.hashpw(login_pass.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-            doc_ref.update({"password": new_hash})
-    except Exception:
-        logging.exception("Password hash upgrade failed")
-        ok = False
-
-    if not ok:
-        st.error("Incorrect password."); return False
-
-    ua_hash = st.session_state.get("__ua_hash", "")
-    prev_token = st.session_state.get("session_token", "")
-    if prev_token:
-        try:
-            destroy_session_token(prev_token)
-        except Exception:
-            logging.exception("Logout warning (revoke)")
-
-    sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
-    level = determine_level(student_row["StudentCode"], student_row)
-
-    clear_session(cookie_manager)
-    st.session_state.update({
-        "logged_in": True,
-        "student_row": dict(student_row),
-        "student_code": student_row["StudentCode"],
-        "student_name": student_row["Name"],
-        "session_token": sess_token,
-        "student_level": level,
-    })
-    set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
-    persist_session_client(sess_token, student_row["StudentCode"])
-    set_session_token_cookie(cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
-    try:
-        cookie_manager.save()
-    except Exception:
-        logging.exception("Cookie save failed")
-
-    st.success(f"Welcome, {student_row['Name']}!")
-    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-    return True
-
-def login_page():
-    """Render the Falowen login page and process login submissions."""
-    auth_url = render_google_oauth(return_url=True) or ""
-
-    # Branded HTML landing (Google button works from the template)
-    render_falowen_login(auth_url)
-
-    # Native Streamlit login form (email/password)
-    with st.form("returning_login", clear_on_submit=False):
+    with st.form("returning_login_form", clear_on_submit=False):
         st.markdown("#### Returning user login")
         login_id = st.text_input("Email or Student Code")
         login_pass = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Log in")
+        c1, c2 = st.columns([0.6, 0.4])
+        with c1:
+            submitted = st.form_submit_button("Log in")
+        with c2:
+            forgot_toggle = st.form_submit_button("Forgot password?", help="Reset via email")
+
     if submitted and render_login_form(login_id, login_pass):
+        return True  # signal success; caller will rerun after rendering the rest
+
+    # Toggle the reset panel
+    if forgot_toggle:
+        st.session_state["show_reset_panel"] = True
+
+    if st.session_state.get("show_reset_panel"):
+        st.info("Enter the email registered on your account. We’ll send a 1-hour reset link.")
+        email_for_reset = st.text_input("Registered email", key="reset_email")
+        c3, c4 = st.columns([0.55, 0.45])
+        with c3:
+            send_btn = st.button("Send reset link", key="send_reset_btn", use_container_width=True)
+        with c4:
+            back_btn = st.button("Back to login", key="hide_reset_btn", use_container_width=True)
+
+        if back_btn:
+            st.session_state["show_reset_panel"] = False
+            st.rerun()
+
+        if send_btn:
+            if not email_for_reset:
+                st.error("Please enter your email.")
+            else:
+                e = email_for_reset.lower().strip()
+                # Look up student document by email (supports both 'email' and legacy 'Email')
+                user_query = db.collection("students").where("email", "==", e).get()
+                if not user_query:
+                    user_query = db.collection("students").where("Email", "==", e).get()
+
+                if not user_query:
+                    st.error("No account found with that email.")
+                else:
+                    # Create a reset token valid for 1 hour and email it
+                    token = uuid4().hex
+                    expires_at = datetime.now(UTC) + timedelta(hours=1)
+                    try:
+                        reset_link = build_gas_reset_link(token)
+                    except Exception:
+                        base_url = (st.secrets.get("PUBLIC_BASE_URL", "https://falowen.app") or "").rstrip("/")
+                        reset_link = f"{base_url}/?token={_urllib.quote(token, safe='')}"
+                    db.collection("password_resets").document(token).set({
+                        "email": e,
+                        "created": datetime.now(UTC).isoformat(),
+                        "expires_at": expires_at.isoformat(),
+                    })
+                    if send_reset_email(e, reset_link):
+                        st.success("Reset link sent! Check your inbox (and spam).")
+                    else:
+                        st.error("We couldn't send the email. Please try again later.")
+
+    return False
+
+
+def login_page():
+    """Render the Falowen landing + Google button (from template),
+    plus Returning login, Forgot Password, Sign Up, and helpful info."""
+    auth_url = render_google_oauth(return_url=True) or ""
+
+    # 1) Branded HTML landing (your template has the Google button via {{GOOGLE_AUTH_URL}})
+    render_falowen_login(auth_url)
+
+    # 2) Returning user login (with Forgot Password flow)
+    st.markdown("<div style='text-align:center; margin:10px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
+    login_success = render_returning_login_area()
+
+    # 3) Tabs: Sign Up + Request Access
+    tab2, tab3 = st.tabs(["🧾 Sign Up (Approved)", "📝 Request Access"])
+    with tab2:
+        render_signup_form()
+    with tab3:
+        st.markdown(
+            """
+            <div class="page-wrap" style="text-align:center; margin-top:20px;">
+                <p style="font-size:1.05em; color:#444;">
+                    If you don't have an account yet, please request access by filling out this form.
+                </p>
+                <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header" 
+                   target="_blank" rel="noopener">
+                    <button style="background:#25317e; color:white; padding:10px 20px; border:none; border-radius:6px; cursor:pointer;">
+                        📝 Open Request Access Form
+                    </button>
+                </a>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    # 4) Help / contact box
+    st.markdown("""
+    <div class="page-wrap" style="max-width:900px;margin:12px auto;">
+      <div class="help-contact-box" aria-label="Help and contact options"
+           style="border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;background:#fff;">
+        <b>❓ Need help or access?</b><br>
+        <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp us</a>
+        &nbsp;|&nbsp;
+        <a href="mailto:learngermanghana@gmail.com" target="_blank" rel="noopener">✉️ Email</a>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 5) Short FAQ
+    with st.expander("How do I log in?"):
+        st.write("Use your school email **or** Falowen code (e.g., `felixa2`). If you’re new, request access first.")
+    with st.expander("Where do I see my scores?"):
+        st.write("Scores are emailed to you and live in **Results & Resources** inside the app.")
+    with st.expander("How do assignments work?"):
+        st.write("Type your answer, confirm, and **submit**. The box locks. Your tutor is notified automatically.")
+    with st.expander("What if I open the wrong lesson?"):
+        st.write("Check the blue banner at the top (Level • Day • Chapter). Use the dropdown to switch to the correct page.")
+
+    # 6) Centered intro video
+    st.markdown("""
+    <div class="page-wrap">
+      <div style="display:flex; justify-content:center; align-items:center; margin:12px 0 24px;">
+        <div style="position:relative; border-radius:16px; padding:4px; background:linear-gradient(135deg,#e8eeff,#f6f9ff); box-shadow:0 8px 24px rgba(0,0,0,.08);">
+          <video
+            width="360"
+            autoplay
+            muted
+            loop
+            playsinline
+            tabindex="-1"
+            oncontextmenu="return false;"
+            draggable="false"
+            style="pointer-events:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; display:block; width:min(360px, 92vw); border-radius:12px; margin:0;">
+            <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
+            Sorry, your browser doesn't support embedded videos.
+          </video>
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 7) Quick links
+    st.markdown("""
+    <div class="page-wrap" style="text-align:center; margin:8px 0 18px;">
+      <a href="https://www.learngermanghana.com/tutors"           target="_blank" rel="noopener">👩‍🏫 Tutors</a>
+      &nbsp;|&nbsp;
+      <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank" rel="noopener">🗓️ Upcoming Classes</a>
+      &nbsp;|&nbsp;
+      <a href="https://www.learngermanghana.com/accreditation"    target="_blank" rel="noopener">✅ Accreditation</a>
+      &nbsp;|&nbsp;
+      <a href="https://www.learngermanghana.com/privacy-policy"   target="_blank" rel="noopener">🔒 Privacy</a>
+      &nbsp;|&nbsp;
+      <a href="https://www.learngermanghana.com/terms-of-service" target="_blank" rel="noopener">📜 Terms</a>
+      &nbsp;|&nbsp;
+      <a href="https://www.learngermanghana.com/contact-us"       target="_blank" rel="noopener">✉️ Contact</a>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 8) Footer
+    st.markdown(f"""
+    <div class="page-wrap" style="text-align:center;color:#64748b; margin:8px 0 16px;">
+      © {datetime.utcnow().year} Learn Language Education Academy • Accra, Ghana<br>
+      Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> • 
+      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # If login succeeded above, *now* rerun so the app switches to the logged-in UI.
+    if login_success:
         st.rerun()
+
 
 # ------------------------------------------------------------------------------
 # Lightweight head/PWA injection (optional)
