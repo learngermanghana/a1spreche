@@ -506,6 +506,22 @@ def render_falowen_login(google_auth_url: str) -> None:
     import streamlit.components.v1 as components
     components.html(html, height=1100, scrolling=True)
 
+def login_page():
+    """Render the Falowen login page and process login submissions."""
+    auth_url = render_google_oauth(return_url=True) or ""
+
+    # Show your HTML landing (Google button works from the template)
+    render_falowen_login(auth_url)
+
+    # Provide a native Streamlit login form that actually logs in
+    with st.form("returning_login", clear_on_submit=False):
+        st.markdown("#### Returning user login")
+        login_id = st.text_input("Email or Student Code")
+        login_pass = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Log in")
+    if submitted and render_login_form(login_id, login_pass):
+        st.rerun()
+
 
 # ------------------------------------------------------------------------------
 # Lightweight head/PWA injection (optional)
