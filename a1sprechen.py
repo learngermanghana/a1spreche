@@ -873,8 +873,9 @@ if not st.session_state.get("logged_in", False):
     st.stop()
 
 # ------------------------------------------------------------------------------
-# Logged-in UI (with Logout + announcements)
+# Logged-in UI (with Logout + announcements)  — updated theme + sidebar helpers
 # ------------------------------------------------------------------------------
+
 def _do_logout():
     try:
         prev_token = st.session_state.get("session_token", "")
@@ -897,23 +898,99 @@ def _do_logout():
     st.success("You’ve been logged out.")
     st.rerun()
 
-# Top bar
+# ---- small helper to ensure announcements only render once per run
+def render_announcements_once(data):
+    if not st.session_state.get("_ann_rendered"):
+        render_announcements(data)
+        st.session_state["_ann_rendered"] = True
+
+# ---- light theme styling (matches previous look)
+st.markdown("""
+<style>
+  .topbar-card{
+    border:1px solid rgba(148,163,184,.35);
+    background:#ffffff;
+    border-radius:12px;
+    padding:10px 12px;
+  }
+  .topbar-name{ font-weight:800; font-size:1.12rem; color:#0f172a; margin:0; }
+  .topbar-sub { color:#475569; font-size:.95rem; margin-top:2px; }
+</style>
+""", unsafe_allow_html=True)
+
+# ---- Top bar
 top = st.container()
 with top:
-    c1, c2 = st.columns([1, 0.25])
+    c1, c2 = st.columns([1, 0.22])
     with c1:
-        st.markdown(f"### 👋 Welcome, **{st.session_state.get('student_name','')}**")
-        st.caption(f"Level: {st.session_state.get('student_level','—')} · Code: {st.session_state.get('student_code','—')}")
+        st.markdown(
+            f"<div class='topbar-card'>"
+            f"<div class='topbar-name'>👋 Welcome, {st.session_state.get('student_name','')}</div>"
+            f"<div class='topbar-sub'>Level: {st.session_state.get('student_level','—')} · "
+            f"Code: {st.session_state.get('student_code','—')}</div>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
     with c2:
-        st.write("")
+        st.write("")  # spacer
         st.button("Log out", key="logout_top", type="primary", on_click=_do_logout)
 
-# Sidebar logout
+# ---- Sidebar: Account + Help/Guides + Support + Resources
 st.sidebar.markdown("## Account")
 st.sidebar.button("Log out", key="logout_side", on_click=_do_logout)
 
+st.sidebar.markdown("## Help & Guides")
+with st.sidebar.expander("📚 How-to & FAQ", expanded=False):
+    st.markdown(
+        """
+- **FAQ** (fill link later)
+- **How-to (Getting Started)** (fill later)
+- **Troubleshooting** (fill later)
+- **Keyboard shortcuts / tips** (fill later)
+        """
+    )
+
+with st.sidebar.expander("🎥 Video Tutorials", expanded=False):
+    st.markdown(
+        """
+- Course Book walk-through (fill later)
+- Submitting assignments (fill later)
+- Sprechen tool demo (fill later)
+        """
+    )
+
+with st.sidebar.expander("📝 Policies & Exams", expanded=False):
+    st.markdown(
+        """
+- Submission policy (fill later)
+- Goethe exam info (fill later)
+- Payment & renewal info (fill later)
+        """
+    )
+
+st.sidebar.markdown("## Support")
+st.sidebar.markdown(
+    """
+- 📱 [WhatsApp](https://api.whatsapp.com/send?phone=233205706589)
+- ✉️ [Email](mailto:learngermanghana@gmail.com)
+"""
+)
+
+st.sidebar.markdown("## Resources")
+st.sidebar.markdown(
+    """
+- 👩‍🏫 [Tutors](https://www.learngermanghana.com/tutors)
+- 🗓️ [Upcoming Classes](https://www.learngermanghana.com/upcoming-classes)
+- 🔒 [Privacy](https://www.learngermanghana.com/privacy-policy)
+- 📜 [Terms](https://www.learngermanghana.com/terms-of-service)
+- ✉️ [Contact](https://www.learngermanghana.com/contact-us)
+"""
+)
+
+# ---- Keep chip styles from previous theme
 inject_notice_css()
 
+# ---- Announcements (light theme) — render once to avoid duplicates
 announcements = [
     {"title": "Download Draft (TXT) Backup", "body": "Use “⬇️ Download draft (TXT)” to save a clean backup with level/day/chapter + timestamp.", "tag": "New"},
     {"title": "Submit Flow & Locking", "body": "After **Confirm & Submit**, your box locks (read-only). Check Results & Resources for feedback.", "tag": "Action"},
@@ -921,10 +998,11 @@ announcements = [
     {"title": "Lesson Links — One Download", "body": "Grab all lesson resources as a single TXT under **Your Work & Links**.", "tag": "New"},
     {"title": "Sprechen", "body": "Record speaking and get instant, level-aware AI feedback in Tools → Sprechen.", "tag": "New"},
 ]
-render_announcements(announcements)
+render_announcements_once(announcements)
 
 st.markdown("---")
 st.markdown("**You’re logged in.** Continue to your lessons and tools from the navigation.")
+
 
 
 
