@@ -50,6 +50,21 @@ def test_render_calls_components_html(login_mod, monkeypatch):
     login_mod.components.html.assert_called_once_with(expected_html, height=720, scrolling=True, key="falowen_hero")
 
 
+def test_load_html_removes_multiple_scripts(login_mod, monkeypatch):
+    sample_html = """
+<!-- Right: Login -->
+<aside>legacy</aside>
+<script>one</script>
+<div style=\"grid-template-columns:1.2fr .8fr;\">X</div>
+<script>two</script></body>
+"""
+    monkeypatch.setattr(pathlib.Path, "read_text", lambda self, encoding='utf-8': sample_html)
+    login_mod._load_falowen_login_html.cache_clear()
+    cleaned = login_mod._load_falowen_login_html()
+    assert "<script" not in cleaned
+    assert cleaned.count("</body>") == 1
+
+
 def test_missing_template_shows_error(login_mod, monkeypatch):
     monkeypatch.setattr(pathlib.Path, "read_text", MagicMock(side_effect=FileNotFoundError))
     login_mod._load_falowen_login_html.cache_clear()
