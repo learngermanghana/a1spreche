@@ -362,66 +362,85 @@ def render_google_oauth(return_url: bool = False) -> Optional[str]:
 # Hero-only HTML (strip any legacy login aside if template still has it)
 # ------------------------------------------------------------------------------
 
-
 @lru_cache(maxsize=1)
 def _load_falowen_login_html() -> str:
-    """Load and sanitize the reusable login hero HTML.
+    """
+    Load and sanitize the landing hero HTML:
 
-    The template is loaded from ``templates/falowen_login.html`` relative to
-    this module.  We remove legacy login markup so only the hero section
-    remains:
-
-    * drop any ``<script>`` blocks;
-    * strip the ``<!-- Right: Login -->`` aside block and any paired script; and
-    * collapse a two-column grid into a single column.
-
-    Because the cleanup uses simple regular expressions, it assumes the
-    template’s structure matches expected patterns. Substantial changes to the
-    template may require updating these rules.
+    - Remove all <script> tags
+    - Hide any legacy login aside (.login.card) if present
+    - Collapse any 2-col grid to single column
+    - Return a SNIPPET (no <!DOCTYPE>, <html>, or <head>) safe for components.html
     """
     html_path = Path(__file__).parent / "templates" / "falowen_login.html"
-    try:
-        html = html_path.read_text(encoding="utf-8")
-    except UnicodeDecodeError as exc:
-        raise RuntimeError(
-            "Falowen login template is not valid UTF-8"
-        ) from exc
+    raw = html_path.read_text(encoding="utf-8")
 
-    # Drop all <script> blocks up front so closing </body> remains.
-    html = re.sub(r'<script[\s\S]*?</script>', '', html, flags=re.IGNORECASE)
+    # Parse
+    soup = BeautifulSoup(raw, "html.parser")
 
-    # Remove legacy "Right: Login" aside block if present
-    html = re.sub(
-        r'<!--\s*Right:\s*Login\s*-->[\s\S]*?</aside>',
-        '',
-        html,
-        flags=re.IGNORECASE,
-    )
-    html = re.sub(
-        r'grid-template-columns:\s*1\.2fr\s*\.8fr;',
-        'grid-template-columns: 1fr;',
-        html,
-    )  # make single column
+    # 1) Remove every <script>
+    for s in soup.find_all("script"):
+        s.decompose()
 
-    # After cleanup, no login markup or scripts should remain.
-    # Update the above regexes if new login patterns appear in the template.
-    return html
+    # 2) If there was a Right: Login aside, drop it defensively
+    #    (anything with class "login card" or an <aside> that contains login text)
+    for node in soup.select(".login.card"):
+        node.decompose()
+    for aside in soup.find_all("aside"):
+        if "login" in aside.get_text(strip=True).lower():
+            aside.decompose()
 
+    # 3) Gather <style> tags (keep visual style)
+    styles = []
+    for st_tag in soup.find_all("style"):
+        styles.append(st_tag.get_text())
+        st_tag.decompose()  # remove from DOM, we'll re-inject
+
+    # 4) Prefer the content under <div class="shell">; else fall back to <body>
+    container = soup.select_one("div.shell") or soup.body or soup
+
+    # 5) CSS overrides: single column + hide any leftover .login UI if the template ever re-adds it
+    css_overrides = """
+      /* Enforce hero-only view */
+      .login.card, aside.login { display: none !important; }
+      .grid { grid-template-columns: 1fr !important; }
+    """
+
+    # 6) Compose a safe snippet (no html/head/body/doctype)
+    snippet = f"""
+      <style>
+        {css_overrides}
+        {'\n'.join(styles)}
+      </style>
+      {str(container)}
+    """
+    # Streamlit wants a str
+    return str(snippet)
 
 def render_falowen_login() -> None:
-    """Render the Falowen hero section.
-
-    If the HTML template can't be loaded, display an error message instead of
-    raising an exception so the rest of the page can still render.
-    """
+    """Render the sanitized hero; never crash the page if HTML fails."""
     try:
-        html = _load_falowen_login_html()
-    except (OSError, UnicodeDecodeError) as e:
-        logging.exception("Failed to load Falowen hero template: %s", e)
-        st.error("Falowen hero template missing or unreadable.")
-        return
-
-    components.html(html, height=720, scrolling=True, key="falowen_hero")
+        snippet = _load_falowen_login_html()
+        # Use a fresh key to avoid rare key collisions after code reloads
+        components.html(snippet, height=640, scrolling=True, key="falowen_hero_v4")
+    except Exception:
+        # Graceful fallback, so the rest of your Streamlit UI (login/tabs) still renders
+        st.info("Showing simplified welcome banner (HTML hero unavailable).")
+        st.markdown(
+            """
+            <div style="max-width:1100px;margin:18px auto;padding:14px 16px;
+                        background:linear-gradient(120deg,#e0f2fe66,#c7d2fe55);
+                        border:1px solid rgba(148,163,184,.25); border-radius:14px;">
+              <h2 style="margin:.2rem 0;color:#0ea5e9;letter-spacing:-.02em;">
+                Welcome to Falowen
+              </h2>
+              <p style="margin:.2rem 0;color:#475569;">
+                A1–C1 course book, assignments, results, and tools in one place.
+              </p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
 
 # ------------------------------------------------------------------------------
