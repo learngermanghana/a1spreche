@@ -1,11 +1,17 @@
 """UI and query parameter helpers for the Falowen app."""
 from __future__ import annotations
 
+import html as html_stdlib
 import re
 from datetime import datetime
 from typing import List
 
 import streamlit as st
+
+
+def safe_html(text: str) -> str:
+    """Return HTML-escaped text."""
+    return html_stdlib.escape(text or "")
 
 
 def qp_get():
@@ -117,3 +123,4 @@ def filter_matches(lesson: dict, terms: List[str]) -> bool:
         + str(lesson.get("day", "")).lower()
     )
     return any(term in searchable for term in terms)
+

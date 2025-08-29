@@ -112,6 +112,7 @@ from src.ui_helpers import (
     seed_falowen_state_from_qp,
     highlight_terms,
     filter_matches,
+    safe_html,
 )
 
 from src.auth import (
@@ -136,10 +137,25 @@ from src.session_management import (
 from src.sentence_bank import SENTENCE_BANK
 from src.config import get_cookie_manager, SB_SESSION_TARGET
 from src.data_loading import (
-    fetch_youtube_playlist_videos,
-    get_playlist_ids_for_level,
+    fetch_youtube_playlist_videos as _fetch_youtube_playlist_videos,
+    get_playlist_ids_for_level as _get_playlist_ids_for_level,
     load_student_data,
+    DEFAULT_PLAYLIST_LEVEL as _DEFAULT_PLAYLIST_LEVEL,
+    YOUTUBE_PLAYLIST_IDS as _YOUTUBE_PLAYLIST_IDS,
+    YOUTUBE_API_KEY as _YOUTUBE_API_KEY,
 )
+
+DEFAULT_PLAYLIST_LEVEL = _DEFAULT_PLAYLIST_LEVEL
+YOUTUBE_PLAYLIST_IDS = _YOUTUBE_PLAYLIST_IDS
+YOUTUBE_API_KEY = _YOUTUBE_API_KEY
+
+
+def get_playlist_ids_for_level(level: str):
+    return _get_playlist_ids_for_level(level)
+
+
+def fetch_youtube_playlist_videos(playlist_id: str, api_key: str = YOUTUBE_API_KEY):
+    return _fetch_youtube_playlist_videos(playlist_id, api_key)
 
 cookie_manager = get_cookie_manager()
 
@@ -735,7 +751,7 @@ def render_login_form():
 
 
 
-   def login_page():
+def login_page():
     st.markdown('<style>.page-wrap{max-width:1100px;margin:0 auto;}</style>', unsafe_allow_html=True)
 
     # HERO FIRST
@@ -1786,9 +1802,9 @@ if tab == "Dashboard":
         f"<div style='display:flex;flex-wrap:wrap;gap:10px;align-items:center;"
         f"padding:8px 10px;border:1px solid rgba(148,163,184,.35);border-radius:10px;"
         f"background:#ffffff;'>"
-        f"<b>👤 {name}</b>"
-        f"<span style='background:#eef4ff;color:#2541b2;padding:2px 8px;border-radius:999px;'>Level: {level}</span>"
-        f"<span style='background:#f1f5f9;color:#334155;padding:2px 8px;border-radius:999px;'>Code: <code>{code}</code></span>"
+        f"<b>👤 {safe_html(name)}</b>"
+        f"<span style='background:#eef4ff;color:#2541b2;padding:2px 8px;border-radius:999px;'>Level: {safe_html(level)}</span>"
+        f"<span style='background:#f1f5f9;color:#334155;padding:2px 8px;border-radius:999px;'>Code: <code>{safe_html(code)}</code></span>"
         + (f"<span style='background:#fff7ed;color:#7c2d12;padding:2px 8px;border-radius:999px;'>Balance: ₵{bal_val:,.2f}</span>"
            if bal_val > 0 else
            "<span style='background:#ecfdf5;color:#065f46;padding:2px 8px;border-radius:999px;'>Balance: ₵0.00</span>")
@@ -1810,21 +1826,21 @@ if tab == "Dashboard":
             font-family:"Segoe UI","Arial",sans-serif;
             letter-spacing:.01em;'>
             <div style="font-weight:700;font-size:1.12em;margin-bottom:6px;">
-                👤 {name}
+                👤 {safe_html(name)}
             </div>
             <div style="font-size:1em; margin-bottom:4px;">
-                <b>Level:</b> {safe_get(student_row, 'Level', '')} &nbsp;|&nbsp; 
-                <b>Code:</b> <code>{safe_get(student_row, 'StudentCode', '')}</code> &nbsp;|&nbsp;
-                <b>Status:</b> {safe_get(student_row, 'Status', '')}
+                <b>Level:</b> {safe_html(safe_get(student_row, 'Level', ''))} &nbsp;|&nbsp;
+                <b>Code:</b> <code>{safe_html(safe_get(student_row, 'StudentCode', ''))}</code> &nbsp;|&nbsp;
+                <b>Status:</b> {safe_html(safe_get(student_row, 'Status', ''))}
             </div>
             <div style="font-size:1em; margin-bottom:4px;">
-                <b>Email:</b> {safe_get(student_row, 'Email', '')} &nbsp;|&nbsp;
-                <b>Phone:</b> {safe_get(student_row, 'Phone', '')} &nbsp;|&nbsp;
-                <b>Location:</b> {safe_get(student_row, 'Location', '')}
+                <b>Email:</b> {safe_html(safe_get(student_row, 'Email', ''))} &nbsp;|&nbsp;
+                <b>Phone:</b> {safe_html(safe_get(student_row, 'Phone', ''))} &nbsp;|&nbsp;
+                <b>Location:</b> {safe_html(safe_get(student_row, 'Location', ''))}
             </div>
             <div style="font-size:1em;">
-                <b>Contract:</b> {safe_get(student_row, 'ContractStart', '')} ➔ {safe_get(student_row, 'ContractEnd', '')} &nbsp;|&nbsp;
-                <b>Enroll Date:</b> {safe_get(student_row, 'EnrollDate', '')}
+                <b>Contract:</b> {safe_html(safe_get(student_row, 'ContractStart', ''))} ➔ {safe_html(safe_get(student_row, 'ContractEnd', ''))} &nbsp;|&nbsp;
+                <b>Enroll Date:</b> {safe_html(safe_get(student_row, 'EnrollDate', ''))}
             </div>
         </div>
         """
@@ -7630,6 +7646,7 @@ if tab == "Schreiben Trainer":
             st.session_state["letter_coach_uploaded"] = False
 
         def bubble(role, text):
+            text = safe_html(text)
             if role == "assistant":
                 return f"""<div style='background: #f4eafd; color: #7b2ff2; border-radius: 16px 16px 16px 3px; margin-bottom: 8px; margin-right: 80px; box-shadow: 0 2px 8px rgba(123,47,242,0.08); padding: 13px 18px; text-align: left; max-width: 88vw; font-size: 1.12rem;'><b>👨‍🏫 Herr Felix:</b><br>{text}</div>"""
             return f"""<div style='background: #eaf4ff; color: #1a237e; border-radius: 16px 16px 3px 16px; margin-bottom: 8px; margin-left: 80px; box-shadow: 0 2px 8px rgba(26,35,126,0.07); padding: 13px 18px; text-align: right; max-width: 88vw; font-size: 1.12rem;'><b>🙋 You:</b><br>{text}</div>"""
