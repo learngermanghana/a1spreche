@@ -362,7 +362,7 @@ def render_falowen_login(google_auth_url: str) -> None:
     Keeps only the welcome/hero content.
     """
     html_path = Path(__file__).parent / "templates" / "falowen_login.html"
-    html = html_path.read_text(encoding="utf-8").replace("{{GOOGLE_AUTH_URL}}", google_auth_url)
+    html = html_path.read_text(encoding="utf-8")
 
     # Remove legacy "Right: Login" aside block and its script if present
     html = re.sub(r'<!--\s*Right:\s*Login\s*-->[\s\S]*?</aside>', '', html, flags=re.IGNORECASE)
