@@ -579,7 +579,6 @@ def inject_notice_css():
 
 _inject_meta_tags()
 
-# ---------- Announcements widget (define BEFORE use) ----------
 def render_announcements(ANNOUNCEMENTS: list):
     """Responsive rotating announcement board with mobile-first, light card on phones."""
     import json
@@ -718,7 +717,7 @@ def render_announcements(ANNOUNCEMENTS: list):
     """
     data_json = json.dumps(ANNOUNCEMENTS, ensure_ascii=False)
     components.html(_html.replace("__DATA__", data_json),
-                    height=220, scrolling=False, key="announcements_widget")
+                    height=220, scrolling=False)
 
 # ------------------------------------------------------------------------------
 # OpenAI (used elsewhere in app)
