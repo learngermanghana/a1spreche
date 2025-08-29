@@ -1189,6 +1189,64 @@ render_announcements_once(announcements)
 st.markdown("---")
 st.markdown("**You’re logged in.** Continue to your lessons and tools from the navigation.")
 
+# =========================
+# Dashboard topbar (screenshot style)
+# =========================
+def render_dashboard_topbar():
+    name  = st.session_state.get("student_name", "")
+    level = st.session_state.get("student_level", "—")
+    code  = st.session_state.get("student_code", "—")
+
+    st.markdown(
+        """
+        <style>
+          .dash-topwrap{
+            background:#f5f9ff;
+            border:1px solid rgba(30,64,175,.12);
+            border-radius:14px;
+            padding:14px 16px;
+            margin:4px 0 10px 0;
+            box-shadow:0 6px 14px rgba(2,6,23,.06);
+          }
+          .dash-title{
+            font-size:1.55rem; font-weight:900; color:#19213a;
+            margin:0 0 4px 0; letter-spacing:.2px;
+          }
+          .dash-sub{
+            color:#475569; font-size:.95rem;
+          }
+          /* make the primary button look like your blue pill */
+          div[data-testid="stButton"] > button[kind="primary"]{
+            background:#1f2d7a; border:1px solid #1b2a6e;
+            border-radius:10px; font-weight:700;
+            box-shadow:0 4px 10px rgba(31,45,122,.18);
+          }
+          div[data-testid="stButton"] > button[kind="primary"]:hover{
+            filter:brightness(1.05);
+          }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+    with st.container():
+        c1, c2 = st.columns([1, 0.18], vertical_alignment="center")
+        with c1:
+            st.markdown(
+                f"""
+                <div class="dash-topwrap">
+                  <div class="dash-title">👋 Welcome, {name}</div>
+                  <div class="dash-sub">Level: {level} · Code: {code}</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        with c2:
+            st.button("Log out", key="logout_dashboard",
+                      type="primary", use_container_width=True,
+                      on_click=_do_logout)
+
+
 
 # =========================================================
 # ============== Data loaders & helpers ===================
@@ -1436,6 +1494,7 @@ except Exception as e:
 # ===================== Dashboard =========================
 # =========================================================
 if tab == "Dashboard":
+    render_dashboard_topbar() 
     # ---------- Helpers ----------
     def safe_get(row, key, default=""):
         try: return row.get(key, default)
