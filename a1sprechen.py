@@ -497,22 +497,14 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     st.success(f"Welcome, {student_row['Name']}!")
     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
     return True
-def login_page():
-    """Render the Falowen login page and process login submissions."""
-    auth_url = render_google_oauth(return_url=True) or ""
 
-    # 1) Show your branded HTML landing (Google button comes from the template)
-    render_falowen_login(auth_url)   # no return value
-
-    # 2) Native Streamlit login form (works reliably)
-    with st.form("returning_login", clear_on_submit=False):
-        st.markdown("#### Returning user login")
-        login_id = st.text_input("Email or Student Code")
-        login_pass = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Log in")
-    if submitted:
-        if render_login_form(login_id, login_pass):
-            st.rerun()
+def render_falowen_login(google_auth_url: str) -> None:
+    """Render the branded HTML login page (visual only)."""
+    html_path = Path(__file__).parent / "templates" / "falowen_login.html"
+    html = html_path.read_text(encoding="utf-8").replace("{{GOOGLE_AUTH_URL}}", google_auth_url)
+    # ❌ no key=, ❌ no return value
+    import streamlit.components.v1 as components
+    components.html(html, height=1100, scrolling=True)
 
 
 # ------------------------------------------------------------------------------
