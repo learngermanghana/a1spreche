@@ -396,12 +396,9 @@ def _load_falowen_login_html() -> str:
     return html
 
 
-def render_falowen_login(auth_url: str) -> None:
+def render_falowen_login() -> None:
     """Render the Falowen hero section.
 
-
-
-    The `auth_url` parameter is kept for compatibility but isn't used yet.
     If the HTML template can't be loaded, display an error message instead of
     raising an exception so the rest of the page can still render.
     """
@@ -641,8 +638,8 @@ def render_reviews_landing():
 # Login page (Hero only + returning form; tabs for Sign Up / Request Access)
 # ------------------------------------------------------------------------------
 def login_page():
-    auth_url = render_google_oauth(return_url=True) or ""
-    render_falowen_login(auth_url)  # hero only (no login inside HTML)
+    render_falowen_login()  # hero only (no login inside HTML)
+    render_google_oauth()  # Google sign-in button near the hero
 
     st.markdown("<div style='text-align:center; margin:10px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
     login_success = render_returning_login_form()
