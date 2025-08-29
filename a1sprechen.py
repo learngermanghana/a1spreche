@@ -66,6 +66,7 @@ from falowen.db import (
     inc_sprechen_usage,
     has_sprechen_quota,
 )
+
 from src.assignment import linkify_html, _clean_link, _is_http_url
 from src.contracts import (
     parse_contract_end,
@@ -73,6 +74,7 @@ from src.contracts import (
     months_between,
     is_contract_expired,
 )
+
 from src.firestore_utils import (
     _draft_doc_ref,
     load_chat_draft_from_db,
@@ -81,12 +83,14 @@ from src.firestore_utils import (
     save_chat_draft_to_db,
     save_draft_to_db,
 )
+
 from src.ui_components import (
     render_assignment_reminder,
     render_link,
     render_vocab_lookup,
-    render_reviews,  # (landing uses a separate name below to avoid clash)
+    render_reviews,  # we also define a separate landing widget below
 )
+
 from src.stats import (
     get_student_level,
     get_vocab_stats,
@@ -94,6 +98,7 @@ from src.stats import (
     vocab_attempt_exists,
 )
 from src.stats_ui import render_vocab_stats, render_schreiben_stats
+
 from src.schreiben import (
     update_schreiben_stats,
     get_schreiben_stats,
@@ -104,6 +109,7 @@ from src.schreiben import (
     get_letter_coach_usage,
     inc_letter_coach_usage,
 )
+
 from src.group_schedules import load_group_schedules
 from src.schedule import load_level_schedules, get_level_schedules
 from src.ui_helpers import (
@@ -114,6 +120,7 @@ from src.ui_helpers import (
     highlight_terms,
     filter_matches,
 )
+
 from src.auth import (
     set_student_code_cookie,
     set_session_token_cookie,
@@ -122,6 +129,7 @@ from src.auth import (
     restore_session_from_cookie,
     reset_password_page,
 )
+
 from src.assignment_ui import (
     load_assignment_scores,
     render_results_and_resources_tab,
@@ -196,7 +204,7 @@ def fetch_youtube_playlist_videos(playlist_id: str, api_key: str = YOUTUBE_API_K
 cookie_manager = get_cookie_manager()
 
 # ------------------------------------------------------------------------------
-# Optional: tiny FastAPI health probe (fixed indentation)
+# Optional: tiny FastAPI health probe
 # ------------------------------------------------------------------------------
 if os.environ.get("RENDER"):
     try:
@@ -215,7 +223,6 @@ if os.environ.get("RENDER"):
 
         threading.Thread(target=_start_health, daemon=True).start()
     except Exception:
-        # Health endpoint is optional; continue silently in Streamlit-only deploys
         pass
 
 # ------------------------------------------------------------------------------
@@ -347,29 +354,58 @@ def render_google_oauth(return_url: bool = False) -> Optional[str]:
     if return_url:
         return auth_url
 
+    # Fallback simple button (we usually use the HTML template below)
     st.markdown(
-        """<div class="page-wrap" style='text-align:center;margin:12px 0;'>
-             <a href="{url}">
+        f"""<div style='text-align:center;margin:12px 0;'>
+             <a href="{auth_url}">
                <button aria-label="Sign in with Google"
                        style="background:#4285f4;color:white;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;">
                  Sign in with Google
                </button>
              </a>
-           </div>""".replace("{url}", auth_url),
+           </div>""",
         unsafe_allow_html=True,
     )
     return None
 
 # ------------------------------------------------------------------------------
-# Landing template (not used in this flow, kept for reference)
+# Landing HTML (template-first with safe fallback)
 # ------------------------------------------------------------------------------
 def render_falowen_login(google_auth_url: str) -> None:
-    html_path = Path(__file__).parent / "templates" / "falowen_login.html"
-    html = html_path.read_text(encoding="utf-8").replace("{{GOOGLE_AUTH_URL}}", google_auth_url)
-    components.html(html, height=1100, scrolling=True)
+    """
+    Render templates/falowen_login.html if present; otherwise render a minimal inline
+    hero with a Google sign-in button using the provided google_auth_url.
+    The template should include {{GOOGLE_AUTH_URL}}.
+    """
+    try:
+        html_path = Path(__file__).parent / "templates" / "falowen_login.html"
+        html = html_path.read_text(encoding="utf-8")
+        html = html.replace("{{GOOGLE_AUTH_URL}}", google_auth_url)
+    except Exception:
+        # Minimal, styled fallback
+        html = f"""
+        <style>
+          .hero-wrap{{max-width:900px;margin:0 auto;padding:12px 10px}}
+          .hero-card{{border-radius:16px;padding:16px;border:1px solid rgba(148,163,184,.25);
+                      background:linear-gradient(135deg,#eef2ff,#f8fafc);box-shadow:0 10px 30px rgba(2,6,23,.08)}}
+          .hero-title{{font-weight:800;font-size:1.4rem;margin:0 0 8px 0;color:#0b1220}}
+          .hero-sub{{color:#475569;margin:0 0 12px 0}}
+          .gbtn{{background:#4285f4;color:white;padding:10px 22px;border:none;border-radius:8px;cursor:pointer;font-weight:700}}
+        </style>
+        <div class="hero-wrap">
+          <div class="hero-card">
+            <div class="hero-title">Falowen — Your German Conversation Partner</div>
+            <p class="hero-sub">Sign in with Google to continue.</p>
+            <a href="{google_auth_url}" target="_self" rel="noopener">
+              <button class="gbtn" aria-label="Sign in with Google">Sign in with Google</button>
+            </a>
+          </div>
+        </div>
+        """
+    components.html(html, height=560, scrolling=True)
 
 # ------------------------------------------------------------------------------
-# Sign up / Login helpers (email+password path)
+# Email+password path
 # ------------------------------------------------------------------------------
 def render_signup_form():
     with st.form("signup_form", clear_on_submit=False):
@@ -405,7 +441,7 @@ def render_signup_form():
 
     hashed_pw = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
     doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
-    st.success("Account created! Please log in on the Returning tab.")
+    st.success("Account created! Please log in on the Returning form above.")
 
 def render_login_form(login_id: str, login_pass: str) -> bool:
     login_id = (login_id or "").strip().lower()
@@ -493,7 +529,7 @@ def render_returning_login_form():
     if submitted and render_login_form(login_id, login_pass):
         st.rerun()
 
-# ---------- reviews widget (landing version) ----------
+# ---------- Reviews widget (landing) ----------
 def render_reviews_landing():
     REVIEWS = [
         {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.", "author": "Ama — Accra, Ghana 🇬🇭", "level": "A2"},
@@ -545,21 +581,26 @@ def render_reviews_landing():
       function render(idx){ const c=data[idx]; q.textContent=c.quote; a.textContent=c.author; l.textContent="Level "+c.level; setActiveDot(idx); }
       function next(){ i=(i+1)%data.length; render(i); }
       data.forEach((_, idx)=>{ const dot=document.createElement('button'); dot.className='rev-dot'; dot.type='button';
-                               dot.addEventListener('click', ()=>{ i=idx; render(i); }); dotsWrap.appendChild(dot); });
+                               addEventListener('click', ()=>{ i=idx; render(i); }); dotsWrap.appendChild(dot); });
       setInterval(next, 6000); render(i);
     </script>
     """
     components.html(_reviews_html.replace("__DATA__", json.dumps(REVIEWS, ensure_ascii=False)),
                     height=300, scrolling=False)
 
-# ---------- Login page (sign-in up top; tabs for Sign Up + Request Access) ----------
+# ---------- Login page (HTML hero + native returning form; tabs for Sign Up / Request Access) ----------
 def login_page():
-    # Sign-in (Google + returning) up top
-    render_google_oauth()
-    st.markdown("<div class='page-wrap' style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
+    # Build Google auth URL (and also complete OAuth if ?code present)
+    auth_url = render_google_oauth(return_url=True) or ""
+
+    # 1) Branded HTML landing (template-based) with Google button
+    render_falowen_login(auth_url)
+
+    # 2) Returning user form (email/password)
+    st.markdown("<div style='text-align:center; margin:10px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
     render_returning_login_form()
 
-    # Tabs for Sign Up and Request Access only
+    # 3) Tabs for Sign Up and Request Access only
     tab2, tab3 = st.tabs(["🧾 Sign Up (Approved)", "📝 Request Access"])
     with tab2:
         render_signup_form()
@@ -963,7 +1004,7 @@ if not st.session_state.get("logged_in", False):
         reset_password_page(tok)
         st.stop()
 
-# Not logged in? -> show the login and stop
+# Not logged in? -> show login and stop
 if not st.session_state.get("logged_in", False):
     login_page()
     st.stop()
@@ -972,7 +1013,6 @@ if not st.session_state.get("logged_in", False):
 # ==== Resume helpers (Firestore) ====
 # ------------------------------------------------------------------------------
 def _progress_doc_ref(student_code: str):
-    # students/{code}/state/progress
     return db.collection("students").document(student_code).collection("state").document("progress")
 
 def save_last_position(
@@ -984,7 +1024,6 @@ def save_last_position(
     teil: str | None = None,
     mode: str | None = None,
 ) -> None:
-    """Persist the user's last visited learning context."""
     if not student_code:
         return
     try:
@@ -1002,7 +1041,6 @@ def save_last_position(
         logging.exception("save_last_position failed")
 
 def load_last_position(student_code: str) -> dict:
-    """Fetch the last saved learning context for the user."""
     if not student_code:
         return {}
     try:
@@ -1055,7 +1093,7 @@ def render_resume_banner():
                 st.query_params["falowen_level"] = lvl
             if teil:
                 st.query_params["falowen_teil"] = str(teil)
-            st.query_params["falowen_stage"] = "3"  # adjust if your app routes differently
+            st.query_params["falowen_stage"] = "3"
             st.query_params["falowen_mode"] = mode
         except Exception:
             st.session_state["falowen_level"] = lvl or st.session_state.get("falowen_level", "")
@@ -1066,7 +1104,6 @@ def render_resume_banner():
         st.rerun()
 
 def _maybe_track_position_from_state():
-    """Optional: call each run to save if we have concrete context."""
     lvl = st.session_state.get("falowen_level") or st.session_state.get("student_level")
     day = st.session_state.get("current_day")
     chap = st.session_state.get("current_chapter")
@@ -1079,7 +1116,7 @@ def _maybe_track_position_from_state():
         )
 
 # ------------------------------------------------------------------------------
-# Logged-in UI (with Logout + Resume + Announcements)
+# Logged-in UI (Logout + Resume + Announcements)
 # ------------------------------------------------------------------------------
 announcements = [
     {
@@ -1110,7 +1147,6 @@ announcements = [
 ]
 
 def _do_logout():
-    """Clear tokens, cookies, and session; then refresh."""
     try:
         prev_token = st.session_state.get("session_token", "")
         if prev_token:
@@ -1159,6 +1195,12 @@ _maybe_track_position_from_state()
 
 st.markdown("---")
 st.markdown("**You’re logged in.** Continue to your lessons and tools from the navigation.")
+
+# Bottom logout (per your earlier ask)
+st.markdown("<div style='text-align:center; margin:16px 0;'>", unsafe_allow_html=True)
+st.button("Log out", key="logout_bottom", on_click=_do_logout)
+st.markdown("</div>", unsafe_allow_html=True)
+
 
 
 
