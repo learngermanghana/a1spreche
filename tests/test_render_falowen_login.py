@@ -22,6 +22,7 @@ def load_login_module():
     mod.st = MagicMock()
     mod.st.error = MagicMock()
     mod.components = MagicMock()
+    mod.logging = MagicMock()
     code = compile(ast.Module(body=nodes, type_ignores=[]), "login_module", "exec")
     exec(code, mod.__dict__)
     return mod
@@ -54,4 +55,13 @@ def test_missing_template_shows_error(login_mod, monkeypatch):
     login_mod._load_falowen_login_html.cache_clear()
     login_mod.render_falowen_login()
     login_mod.st.error.assert_called_once()
+    login_mod.logging.exception.assert_called_once()
     assert not login_mod.components.html.called
+
+
+def test_unexpected_error_propagates(login_mod, monkeypatch):
+    monkeypatch.setattr(pathlib.Path, "read_text", MagicMock(side_effect=ValueError("boom")))
+    login_mod._load_falowen_login_html.cache_clear()
+    with pytest.raises(ValueError):
+        login_mod.render_falowen_login()
+    assert not login_mod.st.error.called

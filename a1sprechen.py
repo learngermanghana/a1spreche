@@ -404,7 +404,8 @@ def render_falowen_login() -> None:
     """
     try:
         html = _load_falowen_login_html()
-    except Exception:
+    except (OSError, UnicodeDecodeError) as e:
+        logging.exception("Failed to load Falowen hero template: %s", e)
         st.error("Falowen hero template missing or unreadable.")
         return
 
