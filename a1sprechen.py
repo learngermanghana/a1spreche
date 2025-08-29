@@ -376,22 +376,10 @@ def _load_falowen_login_html() -> str:
     return html
 
 
-    for aside in soup.find_all("aside"):
-        aside.decompose()
-
-    for script in soup.find_all("script"):
-        script.decompose()
-
-    style_tag = soup.find("style")
-    if style_tag and style_tag.string:
-        style_tag.string = style_tag.string.replace(
-            "grid-template-columns:1.2fr .8fr;", "grid-template-columns:1fr;"
-        )
-        style_tag.string = style_tag.string.replace(
-            "grid-template-columns: 1.2fr .8fr;", "grid-template-columns: 1fr;"
-        )
-
-    components.html(str(soup), height=720, scrolling=True, key="falowen_hero")
+def render_falowen_login() -> None:
+    """Render the preprocessed Falowen hero HTML once."""
+    html = _load_falowen_login_html()
+    components.html(html, height=720, scrolling=True, key="falowen_hero")
 
 
 # ------------------------------------------------------------------------------
@@ -622,7 +610,7 @@ def render_reviews_landing():
 # ------------------------------------------------------------------------------
 def login_page():
     auth_url = render_google_oauth(return_url=True) or ""
-    render_falowen_login(auth_url)  # hero only (no login inside HTML)
+    render_falowen_login()  # hero only (no login inside HTML)
 
     st.markdown("<div style='text-align:center; margin:10px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
     login_success = render_returning_login_form()
