@@ -365,9 +365,6 @@ def _load_falowen_login_html() -> str:
     html_path = Path(__file__).parent / "templates" / "falowen_login.html"
     html = html_path.read_text(encoding="utf-8")
 
-
-    soup = BeautifulSoup(html, "html.parser")
-
     # Remove legacy "Right: Login" aside block and its script if present
     html = re.sub(r'<!--\s*Right:\s*Login\s*-->[\s\S]*?</aside>', '', html, flags=re.IGNORECASE)
     html = re.sub(
