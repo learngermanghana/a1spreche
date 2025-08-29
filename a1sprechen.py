@@ -473,18 +473,14 @@ def render_returning_login_area(login_fn=None) -> bool:
 
 
 def login_page():
-    """Render the Falowen landing + Google button (from template),
-    plus Returning login, Forgot Password, Sign Up, and helpful info."""
     auth_url = render_google_oauth(return_url=True) or ""
-
-    # 1) Branded HTML landing (your template has the Google button via {{GOOGLE_AUTH_URL}})
     render_falowen_login(auth_url)
 
-    # 2) Returning user login (with Forgot Password flow)
     st.markdown("<div style='text-align:center; margin:10px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
-    login_success = render_returning_login_area()
 
-    # 3) Tabs: Sign Up + Request Access
+    # pass the callback so there’s no NameError
+    login_success = render_returning_login_area(render_login_form)
+
     tab2, tab3 = st.tabs(["🧾 Sign Up (Approved)", "📝 Request Access"])
     with tab2:
         render_signup_form()
