@@ -20,6 +20,7 @@ from datetime import datetime as _dt
 from uuid import uuid4
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from functools import lru_cache
 
 # ==== Third-Party Packages ====
 import bcrypt
@@ -28,6 +29,7 @@ import requests
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
 import streamlit.components.v1 as components
+from streamlit_cookies_manager import EncryptedCookieManager
 from docx import Document
 from google.cloud.firestore_v1 import FieldFilter
 from google.api_core.exceptions import GoogleAPICallError
@@ -38,22 +40,15 @@ from openai import OpenAI
 from streamlit.components.v1 import html as st_html
 from streamlit_quill import st_quill
 
-# Optional cookie manager (fallback handled by get_cookie_manager())
-try:
-    from streamlit_cookies_manager import EncryptedCookieManager  # not strictly needed here
-except ImportError:
-    EncryptedCookieManager = None  # we'll rely on src.config.get_cookie_manager()
-
-
 # --- Streamlit page config (do this early) ---
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
     page_icon="👋",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-# --- Falowen modules (present in your repo) ---
+# --- Falowen modules ---
 from falowen.email_utils import send_reset_email, build_gas_reset_link, GAS_RESET_URL
 from falowen.sessions import (
     db,
@@ -72,7 +67,6 @@ from falowen.db import (
     inc_sprechen_usage,
     has_sprechen_quota,
 )
-
 from src.assignment import linkify_html, _clean_link, _is_http_url
 from src.contracts import (
     parse_contract_end,
@@ -80,7 +74,6 @@ from src.contracts import (
     months_between,
     is_contract_expired,
 )
-
 from src.firestore_utils import (
     _draft_doc_ref,
     load_chat_draft_from_db,
@@ -89,14 +82,11 @@ from src.firestore_utils import (
     save_chat_draft_to_db,
     save_draft_to_db,
 )
-
 from src.ui_components import (
     render_assignment_reminder,
     render_link,
     render_vocab_lookup,
-    render_reviews,  # (unused here; we have a landing variant below)
 )
-
 from src.stats import (
     get_student_level,
     get_vocab_stats,
@@ -104,7 +94,6 @@ from src.stats import (
     vocab_attempt_exists,
 )
 from src.stats_ui import render_vocab_stats, render_schreiben_stats
-
 from src.schreiben import (
     update_schreiben_stats,
     get_schreiben_stats,
@@ -115,7 +104,6 @@ from src.schreiben import (
     get_letter_coach_usage,
     inc_letter_coach_usage,
 )
-
 from src.group_schedules import load_group_schedules
 from src.schedule import load_level_schedules, get_level_schedules
 from src.ui_helpers import (
@@ -126,7 +114,6 @@ from src.ui_helpers import (
     highlight_terms,
     filter_matches,
 )
-
 from src.auth import (
     set_student_code_cookie,
     set_session_token_cookie,
@@ -135,7 +122,6 @@ from src.auth import (
     restore_session_from_cookie,
     reset_password_page,
 )
-
 from src.assignment_ui import (
     load_assignment_scores,
     render_results_and_resources_tab,
@@ -151,12 +137,10 @@ from src.config import get_cookie_manager, SB_SESSION_TARGET
 from src.data_loading import load_student_data
 
 # ------------------------------------------------------------------------------
-# Constants / YouTube helpers (kept available for later use)
+# Constants / YouTube helpers (optional)
 # ------------------------------------------------------------------------------
 DEFAULT_PLAYLIST_LEVEL = "A1"
-
 YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY", "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4")
-
 YOUTUBE_PLAYLIST_IDS = {
     "A1": ["PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b"],
     "A2": [
@@ -202,15 +186,13 @@ def fetch_youtube_playlist_videos(playlist_id: str, api_key: str = YOUTUBE_API_K
             break
     return videos
 
-
-
 # ------------------------------------------------------------------------------
 # Cookie manager
 # ------------------------------------------------------------------------------
 cookie_manager = get_cookie_manager()
 
 # ------------------------------------------------------------------------------
-# Google OAuth (“Gmail login”)
+# Google OAuth
 # ------------------------------------------------------------------------------
 GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
 GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
@@ -227,7 +209,7 @@ def _handle_google_oauth(code: str, state: str) -> None:
             st.error("OAuth state mismatch. Please try again.")
             return
         if st.session_state.get("_oauth_code_redeemed") == code:
-            return  # prevent double-redeem on rerun
+            return
 
         token_url = "https://oauth2.googleapis.com/token"
         data = {
@@ -242,9 +224,9 @@ def _handle_google_oauth(code: str, state: str) -> None:
             st.error(f"Google login failed: {resp.status_code} {resp.text}")
             return
 
-        token_data   = resp.json()
-        access_token = token_data.get("access_token")
-        refresh_token= token_data.get("refresh_token")
+        token_data    = resp.json()
+        access_token  = token_data.get("access_token")
+        refresh_token = token_data.get("refresh_token")
         if not access_token:
             st.error("Google login failed: no access token.")
             return
@@ -338,7 +320,7 @@ def render_google_oauth(return_url: bool = False) -> Optional[str]:
     if return_url:
         return auth_url
 
-    # Optional: small button if you want it outside the hero
+    # (spare Google button if you want it outside the template as well)
     st.markdown(
         """<div class="page-wrap" style='text-align:center;margin:12px 0;'>
              <a href="{url}">
@@ -353,114 +335,87 @@ def render_google_oauth(return_url: bool = False) -> Optional[str]:
     return None
 
 # ------------------------------------------------------------------------------
-# Hero (inline HTML with Google button placeholder)
+# Robust Head / PWA injection (avoid height=0 TypeError)
 # ------------------------------------------------------------------------------
-HERO_HTML = """<!DOCTYPE html>
-<html lang="en"><head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Falowen</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg:#0b1220; --bg2:#0e172a; --card:rgba(255,255,255,0.08); --card-opaque:#ffffff;
-    --text:#0f172a; --muted:#6b7280; --border:rgba(255,255,255,0.14);
-    --primary:#0ea5e9; --accent:#6366f1; --shadow:0 10px 30px rgba(2,132,199,0.18), 0 2px 10px rgba(0,0,0,0.2);
-  }
-  @media (prefers-color-scheme: light) {
-    :root { --bg:#f6f8fb; --bg2:#eef2ff; --card:#ffffff; --card-opaque:#ffffff; --text:#0f172a; --muted:#64748b; --border:rgba(15,23,42,0.08); --shadow:0 12px 30px rgba(2,132,199,0.10), 0 2px 8px rgba(2,6,23,0.06); }
-  }
-  *{box-sizing:border-box}
-  html,body{height:100%}
-  body{
-    margin:0;font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";
-    color:var(--text);
-    background:
-      radial-gradient(1200px 1200px at -10% -10%, var(--bg2) 0%, transparent 40%),
-      radial-gradient(1000px 1000px at 110% 10%, rgba(99,102,241,0.25) 0%, transparent 40%),
-      linear-gradient(180deg, var(--bg) 0%, #0b1324 100%);
-    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
-  }
-  .decorations::before,.decorations::after{
-    content:"";position:fixed;inset:auto auto 10% -120px;width:380px;height:380px;
-    background:radial-gradient(circle at 30% 30%, rgba(14,165,233,0.45), transparent 60%),
-               radial-gradient(circle at 70% 70%, rgba(99,102,241,0.45), transparent 60%);
-    filter:blur(60px);transform:rotate(12deg);z-index:0;pointer-events:none;
-  }
-  .decorations::after{
-    inset:8% -120px auto auto;transform:rotate(-8deg);
-    background:radial-gradient(circle at 30% 30%, rgba(99,102,241,0.35), transparent 60%),
-               radial-gradient(circle at 70% 70%, rgba(14,165,233,0.35), transparent 60%);
-  }
-  .shell{position:relative;max-width:1120px;margin:48px auto;padding:0 24px;z-index:1}
-  .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px}
-  .brand{display:flex;align-items:center;gap:12px}
-  .badge{width:36px;height:36px;display:grid;place-items:center;background:conic-gradient(from 90deg,var(--primary),var(--accent));color:white;border-radius:10px;box-shadow:var(--shadow);font-weight:800;letter-spacing:.5px}
-  .brand h1{margin:0;font-size:1.45rem;font-weight:800;background:linear-gradient(90deg,var(--primary),var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent}
-  .grid{display:grid;grid-template-columns:1fr;gap:28px}
-  .card{background:var(--card);backdrop-filter:saturate(140%) blur(10px);-webkit-backdrop-filter:saturate(140%) blur(10px);border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow)}
-  .hero.card{padding:28px}
-  .hero h2{margin:0 0 8px;font-size:2rem;color:#0ea5e9;letter-spacing:-.02em}
-  .hero p{margin:0;color:var(--muted);line-height:1.65}
-  .cta{margin-top:14px;color:var(--muted);font-weight:600}
-  .features{margin-top:24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
-  .feature{padding:16px;background:var(--card-opaque);border:1px solid var(--border);border-radius:14px;transition:transform .2s ease,box-shadow .2s ease}
-  .feature:hover{transform:translateY(-3px);box-shadow:0 10px 20px rgba(2,6,23,0.08)}
-  .feature h3{margin:6px 0 6px;font-size:1rem}
-  .feature p{margin:0;color:var(--muted);font-size:.95rem;line-height:1.55}
-  .icon{width:28px;height:28px;display:grid;place-items:center;border-radius:8px;background:linear-gradient(135deg,var(--primary),var(--accent));color:white;box-shadow:0 6px 14px rgba(14,165,233,0.32)}
-  .stats{margin-top:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
-  .stat{background:var(--card-opaque);border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center}
-  .stat strong{display:block;font-size:1.35rem;letter-spacing:-.02em}
-  .stat span{color:var(--muted);font-size:.92rem}
-  .google-wrap{margin-top:16px}
-  .google-wrap a button{background:#4285f4;color:white;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-weight:700}
-</style>
-</head>
-<body>
-  <div class="decorations" aria-hidden="true"></div>
-  <div class="shell">
-    <header class="header">
-      <div class="brand"><div class="badge">F</div><h1>Falowen</h1></div>
-      <div style="font-weight:600; color: var(--muted);">Learn Language Education Academy</div>
-    </header>
-    <div class="grid">
-      <section class="hero card">
-        <h2>Welcome to Falowen</h2>
-        <p>Falowen is an all-in-one German learning platform with courses from A1 to C1, live tutor support, and tools that keep you on track.</p>
-        <p class="cta">👇 Scroll to sign in or create your account.</p>
-        <div class="features">
-          <div class="feature"><div class="icon">📊</div><h3>Dashboard</h3><p>Track streaks, assignment progress, and active contracts at a glance.</p></div>
-          <div class="feature"><div class="icon">📘</div><h3>Course Book</h3><p>Lecture videos, grammar modules, and assignment submissions A1–C1.</p></div>
-          <div class="feature"><div class="icon">📝</div><h3>Exams & Quizzes</h3><p>Practice tests and official exam prep—right in the app.</p></div>
-          <div class="feature"><div class="icon">📓</div><h3>Journal</h3><p>Submit A1–C1 writing for free feedback from your tutors.</p></div>
-          <div class="feature"><div class="icon">🏅</div><h3>Results Tab</h3><p>See your performance history and celebrate improvements.</p></div>
-          <div class="feature"><div class="icon">🔤</div><h3>Vocabulary Trainer</h3><p>Spaced repetition quizzes and custom lists that grow with you.</p></div>
-        </div>
-        <div class="stats">
-          <div class="stat"><strong>300+</strong><span>Active learners</span></div>
-          <div class="stat"><strong>1,200+</strong><span>Assignments submitted</span></div>
-          <div class="stat"><strong>4.5★</strong><span>Avg. tutor feedback</span></div>
-          <div class="stat"><strong>100%</strong><span>Course coverage</span></div>
-        </div>
-        <div class="google-wrap">
-          <a href="{{GOOGLE_AUTH_URL}}" target="_self" rel="noopener">
-            <button aria-label="Sign in with Google">Sign in with Google</button>
-          </a>
-        </div>
-      </section>
-    </div>
-  </div>
-</body></html>
-"""
+BASE = st.secrets.get("PUBLIC_BASE_URL", "")
+_manifest = f'{BASE}/manifest.webmanifest' if BASE else "/manifest.webmanifest"
+_icon180  = f'{BASE}/static/icons/falowen-180.png' if BASE else "/static/icons/falowen-180.png"
+
+def _inject_meta_tags():
+    if st.session_state.get("_pwa_head_done"):
+        return
+    snippet = f"""
+    <script>
+      (function(){{
+        try {{
+          var head = document.getElementsByTagName('head')[0];
+          var tags = [
+            '<link rel="manifest" href="{_manifest}">',
+            '<link rel="apple-touch-icon" href="{_icon180}">',
+            '<meta name="apple-mobile-web-app-capable" content="yes">',
+            '<meta name="apple-mobile-web-app-title" content="Falowen">',
+            '<meta name="apple-mobile-web-app-status-bar-style" content="default">',
+            '<meta name="color-scheme" content="light">',
+            '<meta name="theme-color" content="#f3f7fb">',
+            '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
+          ];
+          tags.forEach(function(t){{ head.insertAdjacentHTML('beforeend', t); }});
+          if ('serviceWorker' in navigator) {{
+            navigator.serviceWorker.register('/sw.js', {{ scope: '/' }}).catch(function(){{}});
+          }}
+        }} catch(e) {{}}
+      }})();
+    </script>
+    """
+    try:
+        components.html(snippet, height=1, scrolling=False)
+    except Exception:
+        pass
+    st.session_state["_pwa_head_done"] = True
+
+def inject_notice_css():
+    st.markdown("""
+    <style>
+      :root{ --chip-border: rgba(148,163,184,.35); }
+      @media (prefers-color-scheme: dark){
+        :root{ --chip-border: rgba(148,163,184,.28); }
+      }
+      .statusbar { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 6px 0; }
+      .chip { display:inline-flex; align-items:center; gap:8px;
+              padding:8px 12px; border-radius:999px; font-weight:700; font-size:.98rem;
+              border:1px solid var(--chip-border); }
+      .chip-red   { background:#fef2f2; color:#991b1b; border-color:#fecaca; }
+      .chip-amber { background:#fff7ed; color:#7c2d12; border-color:#fed7aa; }
+      .chip-blue  { background:#eef4ff; color:#2541b2; border-color:#c7d2fe; }
+      .chip-gray  { background:#f1f5f9; color:#334155; border-color:#cbd5e1; }
+    </style>
+    """, unsafe_allow_html=True)
+
+_inject_meta_tags()
+
+# ------------------------------------------------------------------------------
+# Hero (HTML template) with safe fallback
+# ------------------------------------------------------------------------------
+@lru_cache(maxsize=1)
+def _read_hero_template() -> str:
+    html_path = Path(__file__).parent / "templates" / "falowen_login.html"
+    return html_path.read_text(encoding="utf-8")
 
 def render_falowen_login(google_auth_url: str) -> None:
-    html = HERO_HTML.replace("{{GOOGLE_AUTH_URL}}", google_auth_url or "#")
-    components.html(html, height=700, scrolling=True, key="falowen_hero")
+    try:
+        html = _read_hero_template().replace("{{GOOGLE_AUTH_URL}}", google_auth_url or "#")
+    except Exception as e:
+        st.error("Falowen hero template missing or unreadable.")
+        return
+    try:
+        components.html(html, height=720, scrolling=True)  # no key to avoid rare TypeError
+    except TypeError:
+        # Fallback: strip scripts and render as markdown
+        safe = re.sub(r'<script[\s\S]*?</script>', '', html, flags=re.IGNORECASE)
+        st.markdown(safe, unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
-# Sign up / Login helpers (email+password) + Forgot Password
+# Sign up / Login / Forgot password
 # ------------------------------------------------------------------------------
 def render_signup_form():
     with st.form("signup_form", clear_on_submit=False):
@@ -485,7 +440,7 @@ def render_signup_form():
     if df is None:
         st.error("Student roster unavailable. Please try again later."); return
     df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-    df["Email"] = df["Email"].str.lower().str.strip()
+    df["Email"]       = df["Email"].str.lower().str.strip()
     valid = df[(df["StudentCode"] == new_code) & (df["Email"] == new_email)]
     if valid.empty:
         st.error("Your code/email aren’t registered. Use 'Request Access' first."); return
@@ -511,7 +466,7 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
         return False
 
     df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-    df["Email"] = df["Email"].str.lower().str.strip()
+    df["Email"]       = df["Email"].str.lower().str.strip()
     lookup = df[(df["StudentCode"] == login_id) | (df["Email"] == login_id)]
     if lookup.empty:
         st.error("No matching student code or email found."); return False
@@ -575,11 +530,48 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
     return True
 
-def render_returning_login_area(login_fn=None) -> bool:
-    """Returning login + Forgot Password panel. Returns True on successful login."""
-    if login_fn is None:
-        login_fn = globals().get("render_login_form")
+def render_forgot_password_panel():
+    st.markdown("##### Forgot password")
+    email_for_reset = st.text_input("Registered email", key="reset_email")
+    c3, c4 = st.columns([0.55, 0.45])
+    with c3:
+        send_btn = st.button("Send reset link", key="send_reset_btn", use_container_width=True)
+    with c4:
+        back_btn = st.button("Back to login", key="hide_reset_btn", use_container_width=True)
 
+    if back_btn:
+        st.session_state["show_reset_panel"] = False
+        st.rerun()
+
+    if send_btn:
+        if not email_for_reset:
+            st.error("Please enter your email.")
+        else:
+            e = email_for_reset.lower().strip()
+            user_query = db.collection("students").where("email", "==", e).get()
+            if not user_query:
+                user_query = db.collection("students").where("Email", "==", e).get()
+            if not user_query:
+                st.error("No account found with that email.")
+            else:
+                token = uuid4().hex
+                expires_at = datetime.now(UTC) + timedelta(hours=1)
+                try:
+                    reset_link = build_gas_reset_link(token)
+                except Exception:
+                    base_url = (st.secrets.get("PUBLIC_BASE_URL", "https://falowen.app") or "").rstrip("/")
+                    reset_link = f"{base_url}/?token={_urllib.quote(token, safe='')}"
+                db.collection("password_resets").document(token).set({
+                    "email": e,
+                    "created": datetime.now(UTC).isoformat(),
+                    "expires_at": expires_at.isoformat(),
+                })
+                if send_reset_email(e, reset_link):
+                    st.success("Reset link sent! Check your inbox (and spam).")
+                else:
+                    st.error("We couldn't send the email. Please try again later.")
+
+def render_returning_login_area() -> bool:
     with st.form("returning_login_form", clear_on_submit=False):
         st.markdown("#### Returning user login")
         login_id = st.text_input("Email or Student Code")
@@ -590,145 +582,92 @@ def render_returning_login_area(login_fn=None) -> bool:
         with c2:
             forgot_toggle = st.form_submit_button("Forgot password?", help="Reset via email")
 
-    if submitted and callable(login_fn):
-        if login_fn(login_id, login_pass):
-            return True
+    if submitted and render_login_form(login_id, login_pass):
+        return True
 
     if forgot_toggle:
         st.session_state["show_reset_panel"] = True
 
     if st.session_state.get("show_reset_panel"):
-        st.info("Enter the email registered on your account. We’ll send a 1-hour reset link.")
-        email_for_reset = st.text_input("Registered email", key="reset_email")
-        c3, c4 = st.columns([0.55, 0.45])
-        with c3:
-            send_btn = st.button("Send reset link", key="send_reset_btn", use_container_width=True)
-        with c4:
-            back_btn = st.button("Back to login", key="hide_reset_btn", use_container_width=True)
+        render_forgot_password_panel()
 
-        if back_btn:
-            st.session_state["show_reset_panel"] = False
-            st.rerun()
-
-        if send_btn:
-            if not email_for_reset:
-                st.error("Please enter your email.")
-            else:
-                e = email_for_reset.lower().strip()
-                user_query = db.collection("students").where("email", "==", e).get()
-                if not user_query:
-                    user_query = db.collection("students").where("Email", "==", e).get()
-                if not user_query:
-                    st.error("No account found with that email.")
-                else:
-                    token = uuid4().hex
-                    expires_at = datetime.now(UTC) + timedelta(hours=1)
-                    try:
-                        reset_link = build_gas_reset_link(token)
-                    except Exception:
-                        base_url = (st.secrets.get("PUBLIC_BASE_URL", "https://falowen.app") or "").rstrip("/")
-                        reset_link = f"{base_url}/?token={_urllib.quote(token, safe='')}"
-                    db.collection("password_resets").document(token).set({
-                        "email": e,
-                        "created": datetime.now(UTC).isoformat(),
-                        "expires_at": expires_at.isoformat(),
-                    })
-                    if send_reset_email(e, reset_link):
-                        st.success("Reset link sent! Check your inbox (and spam).")
-                    else:
-                        st.error("We couldn't send the email. Please try again later.")
     return False
 
 # ------------------------------------------------------------------------------
-# Reviews widget (landing)
+# Announcements (robust)
 # ------------------------------------------------------------------------------
-def render_reviews_landing():
-    REVIEWS = [
-        {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.", "author": "Ama — Accra, Ghana 🇬🇭", "level": "A2"},
-        {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.", "author": "Tunde — Lagos, Nigeria 🇳🇬", "level": "B1"},
-        {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.", "author": "Mariama — Freetown, Sierra Leone 🇸🇱", "level": "A1"},
-        {"quote": "I like the locked submissions and the clean Results tab.", "author": "Kwaku — Kumasi, Ghana 🇬🇭", "level": "B2"},
-    ]
-    _reviews_html = """
+def render_announcements(ANNOUNCEMENTS: list):
+    if not ANNOUNCEMENTS:
+        st.info("📣 No announcements to show.")
+        return
+    _html = """
     <style>
-      :root{ --bg:#0b1220; --card:#ffffffcc; --text:#0f172a; --muted:#475569; --brand:#2563eb; --chip:#e0f2fe; --chip-text:#0369a1; --ring:#93c5fd; }
+      :root{ --brand:#1d4ed8; --ring:#93c5fd; --text:#0b1220; --muted:#475569; --card:#ffffff;
+             --chip-bg:#eaf2ff; --chip-fg:#1e3a8a; --link:#1d4ed8; --shell-border: rgba(2,6,23,.08); }
       @media (prefers-color-scheme: dark){
-        :root{ --card:#0b1220cc; --text:#e2e8f0; --muted:#94a3b8; --chip:#1e293b; --chip-text:#e2e8f0; --ring:#334155; }
+        :root{ --text:#e5e7eb; --muted:#cbd5e1; --card:#111827; --chip-bg:#1f2937; --chip-fg:#e5e7eb; --link:#93c5fd; --shell-border: rgba(148,163,184,.25); }
       }
-      .page-wrap{max-width:900px;margin:8px auto;}
-      .rev-shell{position:relative;isolation:isolate;border-radius:16px;padding:18px 16px 20px;background:
-                  radial-gradient(1200px 300px at 10% -10%, #e0f2fe55, transparent),
-                  radial-gradient(1200px 300px at 90% 110%, #c7d2fe44, transparent);
-                 border:1px solid rgba(148,163,184,.25); box-shadow:0 10px 30px rgba(2,6,23,.08); overflow:hidden;}
-      .rev-card{background:var(--card); backdrop-filter:blur(8px); border:1px solid rgba(148,163,184,.25);
-                border-radius:16px; padding:20px 18px; min-height:170px;}
-      .rev-quote{font-size:1.06rem; line-height:1.55; color:var(--text); margin:0;}
-      .rev-meta{display:flex; align-items:center; gap:10px; margin-top:14px; color:var(--muted);}
-      .rev-chip{font-size:.78rem; font-weight:700; background:var(--chip); color:var(--chip-text); border-radius:999px; padding:6px 10px;}
-      .rev-author{ font-weight:700; color:var(--text); }
-      .rev-dots{display:flex; gap:6px; justify-content:center; margin-top:14px;}
-      .rev-dot{width:8px; height:8px; border-radius:999px; background:#cbd5e1; opacity:.8; transform:scale(.9); transition:all .25s ease;}
-      .rev-dot[aria-current="true"]{ background:var(--brand); opacity:1; transform:scale(1.15); box-shadow:0 0 0 4px var(--ring); }
+      .page-wrap{max-width:1100px;margin:0 auto;padding:0 10px;}
+      .ann-title{font-weight:800;font-size:1.05rem;line-height:1.2; padding-left:12px;border-left:5px solid var(--brand);margin:0 0 6px 0;color:var(--text);}
+      .ann-shell{border-radius:14px;border:1px solid var(--shell-border);background:var(--card);box-shadow:0 6px 18px rgba(2,6,23,.12);padding:12px 14px;overflow:hidden;}
+      .ann-heading{display:flex;align-items:center;gap:10px;margin:0 0 6px 0;font-weight:800;color:var(--text);}
+      .ann-chip{font-size:.78rem;font-weight:800;text-transform:uppercase;background:var(--chip-bg);color:var(--chip-fg);padding:4px 9px;border-radius:999px;border:1px solid var(--shell-border);}
+      .ann-body{color:var(--muted);margin:0;line-height:1.55;font-size:1rem}
+      .ann-actions{margin-top:8px}
+      .ann-actions a{color:var(--link);text-decoration:none;font-weight:700}
+      .ann-dots{display:flex;gap:12px;justify-content:center;margin-top:12px}
+      .ann-dot{width:11px;height:11px;border-radius:999px;background:#9ca3af;opacity:.9;transform:scale(.95);border:none;cursor:pointer;}
+      .ann-dot[aria-current="true"]{background:var(--brand);opacity:1;transform:scale(1.22);box-shadow:0 0 0 4px var(--ring)}
     </style>
     <div class="page-wrap">
-      <div id="reviews" class="rev-shell" role="region" aria-label="Student stories">
-        <div class="rev-card" id="rev_card">
-          <p id="rev_quote" class="rev-quote"></p>
-          <div class="rev-meta">
-            <span id="rev_level" class="rev-chip"></span>
-            <span id="rev_author" class="rev-author"></span>
-          </div>
-          <div class="rev-dots" id="rev_dots" role="tablist" aria-label="Choose review"></div>
+      <div class="ann-title">📣 Announcements</div>
+      <div class="ann-shell" id="ann_shell" aria-live="polite">
+        <div id="ann_card">
+          <div class="ann-heading"><span class="ann-chip" id="ann_tag" style="display:none;"></span><span id="ann_title"></span></div>
+          <p class="ann-body" id="ann_body">loading…</p>
+          <div class="ann-actions" id="ann_action" style="display:none;"></div>
         </div>
+        <div class="ann-dots" id="ann_dots" role="tablist" aria-label="Announcement selector"></div>
       </div>
     </div>
     <script>
       const data = __DATA__;
-      const q = document.getElementById('rev_quote');
-      const a = document.getElementById('rev_author');
-      const l = document.getElementById('rev_level');
-      const dotsWrap = document.getElementById('rev_dots');
+      const titleEl = document.getElementById('ann_title');
+      const bodyEl  = document.getElementById('ann_body');
+      const tagEl   = document.getElementById('ann_tag');
+      const actionEl= document.getElementById('ann_action');
+      const dotsWrap= document.getElementById('ann_dots');
       let i = 0;
-
-      function setActiveDot(idx){
-        [...dotsWrap.children].forEach((d, j)=> d.setAttribute('aria-current', j===idx ? 'true' : 'false'));
-      }
+      function setActiveDot(idx){ [...dotsWrap.children].forEach((d,j)=> d.setAttribute('aria-current', j===idx ? 'true':'false')); }
       function render(idx){
-        const c = data[idx];
-        q.textContent = c.quote;
-        a.textContent = c.author;
-        l.textContent = "Level " + c.level;
+        const c = data[idx] || {};
+        titleEl.textContent = c.title || '';
+        bodyEl.textContent  = c.body  || '';
+        if (c.tag){ tagEl.textContent = c.tag; tagEl.style.display=''; } else { tagEl.style.display='none'; }
+        if (c.href){ const link = document.createElement('a'); link.href = c.href; link.target = '_blank'; link.rel='noopener'; link.textContent='Open';
+          actionEl.textContent=''; actionEl.appendChild(link); actionEl.style.display=''; } else { actionEl.textContent=''; actionEl.style.display='none'; }
         setActiveDot(idx);
       }
-      function next(){ i = (i+1) % data.length; render(i); }
-
-      data.forEach((_, idx)=>{
-        const dot = document.createElement('button');
-        dot.className = 'rev-dot';
-        dot.type = 'button';
-        dot.setAttribute('role', 'tab');
-        dot.setAttribute('aria-label', 'Show review ' + (idx+1));
-        dot.addEventListener('click', ()=>{ i = idx; render(i); });
-        dotsWrap.appendChild(dot);
-      });
-
-      setInterval(next, 6000);
+      data.forEach((_, idx)=>{ const b=document.createElement('button'); b.className='ann-dot'; b.type='button'; b.setAttribute('role','tab');
+        b.setAttribute('aria-label','Show announcement '+(idx+1)); b.addEventListener('click', ()=>{ i=idx; render(i); }); dotsWrap.appendChild(b); });
       render(i);
     </script>
     """
-    components.html(
-        _reviews_html.replace("__DATA__", json.dumps(REVIEWS, ensure_ascii=False)),
-        height=300, scrolling=False, key="reviews_widget"
-    )
+    try:
+        components.html(_html.replace("__DATA__", json.dumps(ANNOUNCEMENTS, ensure_ascii=False)),
+                        height=220, scrolling=False)
+    except TypeError:
+        # Graceful fallback
+        for a in ANNOUNCEMENTS:
+            st.markdown(f"**{a.get('title','')}** — {a.get('body','')}")
 
 # ------------------------------------------------------------------------------
-# Login page (Hero + Google + returning + tabs + help/video/links/steps/stories)
+# Login page assembly (Hero + Google + Returning + Sign-up + Request + Media)
 # ------------------------------------------------------------------------------
 def login_page():
     auth_url = render_google_oauth(return_url=True) or ""
     render_falowen_login(auth_url)
 
-    # Google button already in hero. Add native login and extras below.
     st.markdown("<div style='text-align:center; margin:10px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
     login_success = render_returning_login_area()
 
@@ -753,10 +692,10 @@ def login_page():
             unsafe_allow_html=True
         )
 
-    # Help box
+    # Help + links
     st.markdown("""
     <div class="page-wrap">
-      <div class="help-contact-box" aria-label="Help and contact options">
+      <div class="help-contact-box" aria-label="Help and contact options" style="text-align:center;">
         <b>❓ Need help or access?</b><br>
         <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp us</a>
         &nbsp;|&nbsp;
@@ -765,54 +704,24 @@ def login_page():
     </div>
     """, unsafe_allow_html=True)
 
-    # Centered video
+    # Video
     st.markdown("""
     <div class="page-wrap">
-      <div class="video-wrap">
-        <div class="video-shell style-gradient">
-          <video
-            width="360"
-            autoplay
-            muted
-            loop
-            playsinline
-            tabindex="-1"
-            oncontextmenu="return false;"
-            draggable="false"
-            style="pointer-events:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;">
-            <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
-            Sorry, your browser doesn't support embedded videos.
-          </video>
-        </div>
-      </div>
-    </div>
-
-    <style>
-      .video-wrap{ display:flex; justify-content:center; align-items:center; margin:12px 0 24px; }
-      .video-shell{ position:relative; border-radius:16px; padding:4px; }
-      .video-shell > video{ display:block; width:min(360px, 92vw); border-radius:12px; margin:0; box-shadow:0 4px 12px rgba(0,0,0,.08); }
-      .video-shell.style-gradient{ background:linear-gradient(135deg,#e8eeff,#f6f9ff); box-shadow:0 8px 24px rgba(0,0,0,.08); }
-      @media (max-width:600px){ .video-wrap{ margin:8px 0 16px; } }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # Quick links
-    st.markdown("""
-    <div class="page-wrap">
-      <div class="quick-links" aria-label="Useful links" style="display:flex;gap:12px;flex-wrap:wrap;">
-        <a href="https://www.learngermanghana.com/tutors"           target="_blank" rel="noopener">👩‍🏫 Tutors</a>
-        <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank" rel="noopener">🗓️ Upcoming Classes</a>
-        <a href="https://www.learngermanghana.com/accreditation"    target="_blank" rel="noopener">✅ Accreditation</a>
-        <a href="https://www.learngermanghana.com/privacy-policy"   target="_blank" rel="noopener">🔒 Privacy</a>
-        <a href="https://www.learngermanghana.com/terms-of-service" target="_blank" rel="noopener">📜 Terms</a>
-        <a href="https://www.learngermanghana.com/contact-us"       target="_blank" rel="noopener">✉️ Contact</a>
+      <div style="display:flex; justify-content:center; align-items:center; margin:12px 0 24px;">
+        <video
+          width="360"
+          autoplay muted loop playsinline
+          oncontextmenu="return false;"
+          style="pointer-events:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,.08);">
+          <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
+          Sorry, your browser doesn't support embedded videos.
+        </video>
       </div>
     </div>
     """, unsafe_allow_html=True)
 
+    # Steps (1-2-3)
     st.markdown("---")
-
-    # 1-2-3 Steps cards with images
     LOGIN_IMG_URL      = "https://i.imgur.com/pFQ5BIn.png"
     COURSEBOOK_IMG_URL = "https://i.imgur.com/pqXoqSC.png"
     RESULTS_IMG_URL    = "https://i.imgur.com/uiIPKUT.png"
@@ -842,32 +751,18 @@ def login_page():
         <p style="margin:0;">You’ll get an <b>email when marked</b>. Check <b>Results & Resources</b> for feedback.</p>
         """, unsafe_allow_html=True)
 
-    # Student stories
+    # Quick links
     st.markdown("""
-    <style>
-      .section-title { font-weight:700; font-size:1.15rem; padding-left:12px; border-left:5px solid #2563eb; margin:12px 0 12px; }
-      @media (prefers-color-scheme: dark){ .section-title { border-left-color:#3b82f6; color:#f1f5f9; } }
-    </style>
-    <div class="page-wrap"><div class="section-title">💬 Student Stories</div></div>
-    """, unsafe_allow_html=True)
-    render_reviews_landing()
-
-    st.markdown("---")
-
-    with st.expander("How do I log in?"):
-        st.write("Use your school email **or** Falowen code (e.g., `felixa2`). If you’re new, request access first.")
-    with st.expander("Where do I see my scores?"):
-        st.write("Scores are emailed to you and live in **Results & Resources** inside the app.")
-    with st.expander("How do assignments work?"):
-        st.write("Type your answer, confirm, and **submit**. The box locks. Your tutor is notified automatically.")
-    with st.expander("What if I open the wrong lesson?"):
-        st.write("Check the blue banner at the top (Level • Day • Chapter). Use the dropdown to switch to the correct page.")
-
-    st.markdown("""
-    <div class="page-wrap" style="text-align:center; margin:24px 0;">
-      <a href="https://www.youtube.com/YourChannel" target="_blank" rel="noopener">📺 YouTube</a>
+    <div class="page-wrap" style="text-align:center; margin:12px 0;">
+      <a href="https://www.learngermanghana.com/tutors"           target="_blank" rel="noopener">👩‍🏫 Tutors</a>
       &nbsp;|&nbsp;
-      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp</a>
+      <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank" rel="noopener">🗓️ Upcoming Classes</a>
+      &nbsp;|&nbsp;
+      <a href="https://www.learngermanghana.com/privacy-policy"   target="_blank" rel="noopener">🔒 Privacy</a>
+      &nbsp;|&nbsp;
+      <a href="https://www.learngermanghana.com/terms-of-service" target="_blank" rel="noopener">📜 Terms</a>
+      &nbsp;|&nbsp;
+      <a href="https://www.learngermanghana.com/contact-us"       target="_blank" rel="noopener">✉️ Contact</a>
     </div>
     """, unsafe_allow_html=True)
 
@@ -881,173 +776,6 @@ def login_page():
 
     if login_success:
         st.rerun()
-
-# ------------------------------------------------------------------------------
-# Lightweight head/PWA injection (robust)
-# ------------------------------------------------------------------------------
-BASE = st.secrets.get("PUBLIC_BASE_URL", "")
-_manifest = f'{BASE}/manifest.webmanifest' if BASE else "/manifest.webmanifest"
-_icon180  = f'{BASE}/static/icons/falowen-180.png' if BASE else "/static/icons/falowen-180.png"
-
-def _inject_meta_tags():
-    """Injects meta/link tags into <head>. Uses a tiny visible height to avoid
-    Streamlit component TypeError on some builds when height=0."""
-    if st.session_state.get("_pwa_head_done"):
-        return
-
-    html_snippet = f"""
-    <script>
-      (function() {{
-        try {{
-          var head = document.getElementsByTagName('head')[0];
-          var tags = [
-            '<link rel="manifest" href="{_manifest}">',
-            '<link rel="apple-touch-icon" href="{_icon180}">',
-            '<meta name="apple-mobile-web-app-capable" content="yes">',
-            '<meta name="apple-mobile-web-app-title" content="Falowen">',
-            '<meta name="apple-mobile-web-app-status-bar-style" content="default">',
-            '<meta name="color-scheme" content="light">',
-            '<meta name="theme-color" content="#f3f7fb">',
-            '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
-          ];
-          tags.forEach(function(t) {{ head.insertAdjacentHTML('beforeend', t); }});
-          if ('serviceWorker' in navigator) {{
-            navigator.serviceWorker.register('/sw.js', {{ scope: '/' }}).catch(function(){{}});
-          }}
-        }} catch (e) {{
-          // swallow – this block is best-effort
-        }}
-      }})();
-    </script>
-    """
-
-    try:
-        # IMPORTANT: use a small positive height, not 0
-        components.html(html_snippet, height=1, scrolling=False)
-    except TypeError:
-        # Fallback: render a minimal, non-script meta tag (harmless if sanitized)
-        st.markdown(
-            f'<meta name="theme-color" content="#f3f7fb">', unsafe_allow_html=True
-        )
-    except Exception:
-        # Last-resort no-op; we don't want this to block the app
-        pass
-
-    st.session_state["_pwa_head_done"] = True
-
-
-# ------------------------------------------------------------------------------
-# Announcements widget
-# ------------------------------------------------------------------------------
-def render_announcements(ANNOUNCEMENTS: list):
-    if not ANNOUNCEMENTS:
-        st.info("📣 No announcements to show.")
-        return
-    _html = """
-    <style>
-      :root{
-        --brand:#1d4ed8; --ring:#93c5fd;
-        --text:#0b1220; --muted:#475569; --card:#ffffff;
-        --chip-bg:#eaf2ff; --chip-fg:#1e3a8a; --link:#1d4ed8;
-        --shell-border: rgba(2,6,23,.08);
-      }
-      @media (prefers-color-scheme: dark){
-        :root{
-          --text:#e5e7eb; --muted:#cbd5e1; --card:#111827;
-          --chip-bg:#1f2937; --chip-fg:#e5e7eb; --link:#93c5fd;
-          --shell-border: rgba(148,163,184,.25);
-        }
-      }
-      .page-wrap{max-width:1100px;margin:0 auto;padding:0 10px;}
-      .ann-title{font-weight:800;font-size:1.05rem;line-height:1.2;
-        padding-left:12px;border-left:5px solid var(--brand);margin:0 0 6px 0;color:var(--text);}
-      .ann-shell{border-radius:14px;border:1px solid var(--shell-border);background:var(--card);
-        box-shadow:0 6px 18px rgba(2,6,23,.12);padding:12px 14px;isolation:isolate;overflow:hidden;}
-      .ann-heading{display:flex;align-items:center;gap:10px;margin:0 0 6px 0;font-weight:800;color:var(--text);}
-      .ann-chip{font-size:.78rem;font-weight:800;text-transform:uppercase;background:var(--chip-bg);color:var(--chip-fg);
-        padding:4px 9px;border-radius:999px;border:1px solid var(--shell-border);}
-      .ann-body{color:var(--muted);margin:0;line-height:1.55;font-size:1rem}
-      .ann-actions{margin-top:8px}
-      .ann-actions a{color:var(--link);text-decoration:none;font-weight:700}
-      .ann-dots{display:flex;gap:12px;justify-content:center;margin-top:12px}
-      .ann-dot{width:11px;height:11px;border-radius:999px;background:#9ca3af;opacity:.9;transform:scale(.95);
-        transition:transform .2s, background .2s, opacity .2s;border:none;cursor:pointer;}
-      .ann-dot[aria-current="true"]{background:var(--brand);opacity:1;transform:scale(1.22);box-shadow:0 0 0 4px var(--ring)}
-      @keyframes fadeInUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-      .ann-anim{animation:fadeInUp .25s ease both}
-      @media (prefers-reduced-motion: reduce){ .ann-anim{animation:none} .ann-dot{transition:none} }
-    </style>
-
-    <div class="page-wrap">
-      <div class="ann-title">📣 Announcements</div>
-      <div class="ann-shell" id="ann_shell" aria-live="polite">
-        <div class="ann-anim" id="ann_card">
-          <div class="ann-heading">
-            <span class="ann-chip" id="ann_tag" style="display:none;"></span>
-            <span id="ann_title"></span>
-          </div>
-          <p class="ann-body" id="ann_body">loading…</p>
-          <div class="ann-actions" id="ann_action" style="display:none;"></div>
-        </div>
-        <div class="ann-dots" id="ann_dots" role="tablist" aria-label="Announcement selector"></div>
-      </div>
-    </div>
-
-    <script>
-      const data = __DATA__;
-      const titleEl = document.getElementById('ann_title');
-      const bodyEl  = document.getElementById('ann_body');
-      const tagEl   = document.getElementById('ann_tag');
-      const actionEl= document.getElementById('ann_action');
-      const dotsWrap= document.getElementById('ann_dots');
-      const card    = document.getElementById('ann_card');
-
-      let i = 0, timer = null;
-      const INTERVAL = 6500;
-
-      function setActiveDot(idx){
-        [...dotsWrap.children].forEach((d, j)=> d.setAttribute('aria-current', j===idx ? 'true' : 'false'));
-      }
-      function render(idx){
-        const c = data[idx] || {};
-        card.classList.remove('ann-anim'); void card.offsetWidth; card.classList.add('ann-anim');
-
-        titleEl.textContent = c.title || '';
-        bodyEl.textContent  = c.body  || '';
-
-        if (c.tag){ tagEl.textContent = c.tag; tagEl.style.display=''; }
-        else { tagEl.style.display='none'; }
-
-        if (c.href){
-          const link = document.createElement('a');
-          link.href = c.href; link.target = '_blank'; link.rel = 'noopener';
-          link.textContent = 'Open';
-          actionEl.textContent = '';
-          actionEl.appendChild(link);
-          actionEl.style.display='';
-        } else {
-          actionEl.style.display='none';
-          actionEl.textContent = '';
-        }
-        setActiveDot(idx);
-      }
-      function next(){ i = (i+1) % data.length; render(i); }
-      function start(){ if (data.length > 1) timer = setInterval(next, INTERVAL); }
-      function stop(){ if (timer) clearInterval(timer); timer = null; }
-
-      data.forEach((_, idx)=>{
-        const dot = document.createElement('button');
-        dot.className='ann-dot'; dot.type='button'; dot.setAttribute('role','tab');
-        dot.setAttribute('aria-label','Show announcement '+(idx+1));
-        dot.addEventListener('click', ()=>{ i=idx; render(i); stop(); start(); });
-        dotsWrap.appendChild(dot);
-      });
-
-      render(i); start();
-    </script>
-    """
-    data_json = json.dumps(ANNOUNCEMENTS, ensure_ascii=False)
-    components.html(_html.replace("__DATA__", data_json), height=220, scrolling=False, key="announcements_widget")
 
 # ------------------------------------------------------------------------------
 # OpenAI (used elsewhere in app)
@@ -1093,7 +821,7 @@ if restored is not None and not st.session_state.get("logged_in", False):
         "student_level": level,
     })
 
-# Handle password reset deep link first
+# Handle reset token deep link first
 if not st.session_state.get("logged_in", False):
     tok = st.query_params.get("token")
     if isinstance(tok, list):
@@ -1102,44 +830,15 @@ if not st.session_state.get("logged_in", False):
         reset_password_page(tok)
         st.stop()
 
-# Not logged in? -> show the login page and stop
+# Not logged in? -> show the HTML login page and stop
 if not st.session_state.get("logged_in", False):
     login_page()
     st.stop()
 
 # ------------------------------------------------------------------------------
-# Logged-in UI (top bar + logout + announcements)
+# Logged-in UI (with Logout + announcements)
 # ------------------------------------------------------------------------------
-announcements = [
-    {
-        "title": "Download Draft (TXT) Backup",
-        "body":  "In Submit, use “⬇️ Download draft (TXT)” to save a clean backup with level, day, chapter, and timestamp.",
-        "tag":   "New"
-    },
-    {
-        "title": "Submit Flow & Locking",
-        "body":  "After you click **Confirm & Submit**, your box locks (read-only). You can still view status and feedback later in Results & Resources.",
-        "tag":   "Action"
-    },
-    {
-        "title": "Quick Jumps: Classroom Q&A + Learning Notes",
-        "body":  "Buttons in the Submit area take you straight to Q&A or your personal Notes—no hunting around.",
-        "tag":   "Tip"
-    },
-    {
-        "title": "Lesson Links — One Download",
-        "body":  "Grab all lesson resources as a single TXT file under **Your Work & Links**. Videos are embedded once; no duplicates.",
-        "tag":   "New"
-    },
-    {
-        "title": "Sprechen: Instant Pronunciation Feedback",
-        "body":  "Record your speaking and get immediate AI feedback (highlights, suggestions, level-aware tips) and shadowing playback. Find it in Falowen → Tools → Sprechen.",
-        "tag":   "New"
-    }
-]
-
 def _do_logout():
-    """Clear tokens, cookies, and session; then refresh."""
     try:
         prev_token = st.session_state.get("session_token", "")
         if prev_token:
@@ -1164,12 +863,12 @@ def _do_logout():
 # Top bar
 top = st.container()
 with top:
-    c1, c2 = st.columns([1, 0.35])
+    c1, c2 = st.columns([1, 0.25])
     with c1:
         st.markdown(f"### 👋 Welcome, **{st.session_state.get('student_name','')}**")
         st.caption(f"Level: {st.session_state.get('student_level','—')} · Code: {st.session_state.get('student_code','—')}")
     with c2:
-        st.write("")  # spacer
+        st.write("")
         st.button("Log out", key="logout_top", type="primary", on_click=_do_logout)
 
 # Sidebar logout
@@ -1177,6 +876,14 @@ st.sidebar.markdown("## Account")
 st.sidebar.button("Log out", key="logout_side", on_click=_do_logout)
 
 inject_notice_css()
+
+announcements = [
+    {"title": "Download Draft (TXT) Backup", "body": "Use “⬇️ Download draft (TXT)” to save a clean backup with level/day/chapter + timestamp.", "tag": "New"},
+    {"title": "Submit Flow & Locking", "body": "After **Confirm & Submit**, your box locks (read-only). Check Results & Resources for feedback.", "tag": "Action"},
+    {"title": "Quick Jumps", "body": "Buttons in Submit go straight to Classroom Q&A and your Notes.", "tag": "Tip"},
+    {"title": "Lesson Links — One Download", "body": "Grab all lesson resources as a single TXT under **Your Work & Links**.", "tag": "New"},
+    {"title": "Sprechen", "body": "Record speaking and get instant, level-aware AI feedback in Tools → Sprechen.", "tag": "New"},
+]
 render_announcements(announcements)
 
 st.markdown("---")
