@@ -192,7 +192,7 @@ def fetch_youtube_playlist_videos(playlist_id: str, api_key: str = YOUTUBE_API_K
 cookie_manager = get_cookie_manager()
 
 # ------------------------------------------------------------------------------
-# Google OAuth
+# Google OAuth (Gmail sign-in)
 # ------------------------------------------------------------------------------
 GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
 GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
@@ -320,7 +320,7 @@ def render_google_oauth(return_url: bool = False) -> Optional[str]:
     if return_url:
         return auth_url
 
-    # (spare Google button if you want it outside the template as well)
+    # Optional extra Google button outside the template
     st.markdown(
         """<div class="page-wrap" style='text-align:center;margin:12px 0;'>
              <a href="{url}">
@@ -333,6 +333,28 @@ def render_google_oauth(return_url: bool = False) -> Optional[str]:
         unsafe_allow_html=True,
     )
     return None
+
+# Reusable Google CTA block (Streamlit-native button w/ fallback)
+def render_google_cta_buttons(auth_url: str, center: bool = True, compact: bool = False):
+    """Renders a 'Continue with Google' (Gmail) button using st.link_button when available, else HTML."""
+    label = "🔑 Continue with Google"
+    wrap_style = "text-align:center; margin:10px 0;" if center else "margin:8px 0;"
+    try:
+        # New Streamlit API – renders a native link button
+        st.link_button(label, auth_url)
+    except Exception:
+        size = "padding:8px 22px;" if not compact else "padding:7px 16px;font-size:.95rem;"
+        st.markdown(
+            f"""<div style="{wrap_style}">
+                  <a href="{auth_url}">
+                    <button aria-label="Continue with Google"
+                      style="background:#4285f4;color:white;{size}border:none;border-radius:6px;cursor:pointer;">
+                      {label}
+                    </button>
+                  </a>
+                </div>""",
+            unsafe_allow_html=True,
+        )
 
 # ------------------------------------------------------------------------------
 # Robust Head / PWA injection (avoid height=0 TypeError)
@@ -591,6 +613,11 @@ def render_returning_login_area() -> bool:
     if st.session_state.get("show_reset_panel"):
         render_forgot_password_panel()
 
+    # Compact Google (Gmail) button under the form
+    st.caption("or")
+    auth_url = render_google_oauth(return_url=True) or ""
+    render_google_cta_buttons(auth_url, center=False, compact=True)
+
     return False
 
 # ------------------------------------------------------------------------------
@@ -657,7 +684,6 @@ def render_announcements(ANNOUNCEMENTS: list):
         components.html(_html.replace("__DATA__", json.dumps(ANNOUNCEMENTS, ensure_ascii=False)),
                         height=220, scrolling=False)
     except TypeError:
-        # Graceful fallback
         for a in ANNOUNCEMENTS:
             st.markdown(f"**{a.get('title','')}** — {a.get('body','')}")
 
@@ -665,15 +691,26 @@ def render_announcements(ANNOUNCEMENTS: list):
 # Login page assembly (Hero + Google + Returning + Sign-up + Request + Media)
 # ------------------------------------------------------------------------------
 def login_page():
+    # Build/handle Google OAuth, get the auth URL for buttons
     auth_url = render_google_oauth(return_url=True) or ""
+
+    # Branded hero (template can also include a {{GOOGLE_AUTH_URL}} button)
     render_falowen_login(auth_url)
 
-    st.markdown("<div style='text-align:center; margin:10px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
+    # Primary Gmail button (big, visible)
+    st.markdown("<div style='text-align:center; margin:10px 0;'>or</div>", unsafe_allow_html=True)
+    render_google_cta_buttons(auth_url, center=True, compact=False)
+
+    # Native email/password login
     login_success = render_returning_login_area()
 
+    # Sign up + Request Access tabs
     tab2, tab3 = st.tabs(["🧾 Sign Up (Approved)", "📝 Request Access"])
     with tab2:
         render_signup_form()
+        # Extra Gmail button here too (optional)
+        st.caption("Prefer using your Google (Gmail) account?")
+        render_google_cta_buttons(auth_url, center=False, compact=True)
     with tab3:
         st.markdown(
             """
@@ -732,7 +769,7 @@ def login_page():
              style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
         <div style="height:8px;"></div>
         <h3 style="margin:0 0 4px 0;">1️⃣ Sign in</h3>
-        <p style="margin:0;">Use your <b>student code or email</b> and start your level (A1–C1).</p>
+        <p style="margin:0;">Use your <b>student code or email</b> — or sign in with <b>Google</b> (Gmail).</p>
         """, unsafe_allow_html=True)
     with c2:
         st.markdown(f"""
