@@ -423,6 +423,10 @@ if not st.session_state.get("logged_in", False):
         reset_password_page(tok)
         st.stop()
 
+if not st.session_state.get("logged_in", False):
+    login_page()
+    st.stop()
+
 # ------------------------------------------------------------------------------
 # CSS + OAuth UI helpers, etc.
 # ------------------------------------------------------------------------------
