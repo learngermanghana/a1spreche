@@ -192,11 +192,21 @@ def fetch_youtube_playlist_videos(playlist_id: str, api_key: str = YOUTUBE_API_K
 cookie_manager = get_cookie_manager()
 
 # ------------------------------------------------------------------------------
-# Google OAuth (Gmail sign-in)
+# Google OAuth (Gmail sign-in) — single-source, no duplicate buttons
 # ------------------------------------------------------------------------------
 GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
 GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
 REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowen.app/")
+
+def _get_qp():
+    try:
+        return qp_get()
+    except Exception:
+        return getattr(st, "query_params", {})  # fallback
+
+def _qp_first(v):
+    if isinstance(v, list): return v[0] if v else None
+    return v
 
 def _handle_google_oauth(code: str, state: str) -> None:
     df = load_student_data()
@@ -205,12 +215,14 @@ def _handle_google_oauth(code: str, state: str) -> None:
         return
     df["Email"] = df["Email"].str.lower().str.strip()
     try:
+        # CSRF/state + re-use guard
         if st.session_state.get("_oauth_state") and state != st.session_state["_oauth_state"]:
             st.error("OAuth state mismatch. Please try again.")
             return
         if st.session_state.get("_oauth_code_redeemed") == code:
             return
 
+        # Exchange code
         token_url = "https://oauth2.googleapis.com/token"
         data = {
             "code": code,
@@ -236,6 +248,7 @@ def _handle_google_oauth(code: str, state: str) -> None:
         if refresh_token:
             st.session_state["refresh_token"] = refresh_token
 
+        # Fetch profile
         userinfo = requests.get(
             "https://www.googleapis.com/oauth2/v2/userinfo",
             headers={"Authorization": f"Bearer {access_token}"},
@@ -253,7 +266,8 @@ def _handle_google_oauth(code: str, state: str) -> None:
             st.error("Your contract has expired. Contact the office.")
             return
 
-        ua_hash = st.session_state.get("__ua_hash", "")
+        # End any old token, clear cookie/session, create new session
+        ua_hash    = st.session_state.get("__ua_hash", "")
         prev_token = st.session_state.get("session_token", "")
         if prev_token:
             try:
@@ -293,21 +307,20 @@ def _handle_google_oauth(code: str, state: str) -> None:
 
 def render_google_oauth(return_url: bool = False) -> Optional[str]:
     """
-    Handles ?code callback; otherwise returns the Google auth URL when return_url=True.
-    (No UI rendering here to avoid duplicate buttons.)
+    If ?code is present, complete OAuth. Returns the Google auth URL when return_url=True.
+    IMPORTANT: This does not render any button UI (prevents duplicates).
     """
     import secrets, urllib.parse
-
-    def _qp_first(val):
-        return val[0] if isinstance(val, list) else val
-
-    qp = qp_get()
-    code  = _qp_first(qp.get("code")) if hasattr(qp, "get") else None
-    state = _qp_first(qp.get("state")) if hasattr(qp, "get") else None
+    # Handle callback if present
+    qp = _get_qp()
+    code  = _qp_first(getattr(qp, "get", lambda *_: None)("code")) if hasattr(qp, "get") else _qp_first(qp.get("code"))
+    state = _qp_first(getattr(qp, "get", lambda *_: None)("state")) if hasattr(qp, "get") else _qp_first(qp.get("state"))
     if code:
         _handle_google_oauth(code, state)
-        return None
+        # If we return here, caller may still want an auth URL for rendering a button after rerun
+        # so we continue to compute it below as well.
 
+    # Always prepare a fresh auth URL (no rendering here)
     st.session_state["_oauth_state"] = secrets.token_urlsafe(24)
     params = {
         "client_id": GOOGLE_CLIENT_ID,
@@ -321,6 +334,46 @@ def render_google_oauth(return_url: bool = False) -> Optional[str]:
     }
     auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
     return auth_url if return_url else None
+
+def render_google_button_once(auth_url: str, key: str = "primary"):
+    """
+    Render a single branded 'Continue with Google' button once per 'key'.
+    Call this exactly where you want the Gmail sign-in to appear.
+    """
+    ss_key = f"__google_btn_rendered::{key}"
+    if st.session_state.get(ss_key):
+        return
+    st.session_state[ss_key] = True
+
+    # Branded blue button with Google 'G' SVG
+    btn_html = f"""
+    <div style="display:flex;justify-content:center;margin:12px 0;">
+      <a href="{auth_url}" style="text-decoration:none;">
+        <button aria-label="Continue with Google"
+          style="
+            display:inline-flex;align-items:center;gap:10px;
+            background:#1a73e8;color:#fff;border:none;border-radius:8px;
+            padding:10px 18px;cursor:pointer;font-weight:700;font-size:15px;
+            box-shadow:0 2px 8px rgba(26,115,232,.25);">
+          <span style="display:inline-flex;width:18px;height:18px;">
+            <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' width='18' height='18'>
+              <path fill='#FFC107' d='M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12
+              s5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24
+              s8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z'/>
+              <path fill='#FF3D00' d='M6.306,14.691l6.571,4.819C14.655,16.108,18.961,13,24,13c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657
+              C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z'/>
+              <path fill='#4CAF50' d='M24,44c5.185,0,9.93-1.986,13.49-5.221l-6.232-5.268C29.218,35.091,26.715,36,24,36
+              c-5.202,0-9.619-3.317-11.273-7.953l-6.5,5.012C9.545,39.556,16.227,44,24,44z'/>
+              <path fill='#1976D2' d='M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.115,5.512c0.001-0.001,0.002-0.001,0.003-0.002
+              l6.232,5.268C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z'/>
+            </svg>
+          </span>
+          Continue with Google
+        </button>
+      </a>
+    </div>
+    """
+    st.markdown(btn_html, unsafe_allow_html=True)
 
 # -------------------------------------------------------
 # Single, branded Google Sign-In button (renders ONCE)
@@ -938,61 +991,106 @@ if not st.session_state.get("logged_in", False):
 if not st.session_state.get("logged_in", False):
     login_page()
     st.stop()
-# ---------- Reliable logout handler via query param (fallback) ----------
-def _handle_logout_qp():
-    q = st.query_params.get("logout")
-    if isinstance(q, list):
-        q = q[0]
-    if q == "1":
-        _do_logout()
 
-# Run the qp handler as soon as we enter the logged-in UI
-_handle_logout_qp()
+# ------------------------------------------------------------------------------
+# Logged-in UI (with announcements, level video, and publish-ready sidebar)
+# Light theme + single-render announcements
+# ------------------------------------------------------------------------------
 
-# ---------- Top bar with robust Log out ----------
-top = st.container()
-with top:
-    c1, c2 = st.columns([1, 0.20])
-    with c1:
-        st.markdown(
-            f"<div class='topbar-card'>"
-            f"<div class='topbar-name'>👋 Welcome, {st.session_state.get('student_name','')}</div>"
-            f"<div class='topbar-sub'>Level: {st.session_state.get('student_level','—')} · "
-            f"Code: {st.session_state.get('student_code','—')}</div>"
-            f"</div>",
-            unsafe_allow_html=True
-        )
-    with c2:
-        st.write("")  # spacer
-        # Try primary style if your Streamlit supports it, else fall back gracefully
-        try:
-            st.button("Log out", key="logout_top", type="primary",
-                      on_click=_do_logout, use_container_width=True)
-        except TypeError:
-            st.button("Log out", key="logout_top",
-                      on_click=_do_logout, use_container_width=True)
+def _do_logout():
+    try:
+        prev_token = st.session_state.get("session_token", "")
+        if prev_token:
+            try:
+                destroy_session_token(prev_token)
+            except Exception:
+                logging.exception("Token revoke failed on logout")
+        clear_session(cookie_manager)
+    except Exception:
+        logging.exception("Cookie/session clear failed")
+    st.session_state.update({
+        "logged_in": False,
+        "student_row": {},
+        "student_code": "",
+        "student_name": "",
+        "session_token": "",
+        "student_level": "",
+    })
+    st.success("You’ve been logged out.")
+    st.rerun()
 
-        # Tiny fallback link in case the widget doesn't render/receive clicks
-        st.markdown(
-            "<div style='text-align:center; margin-top:4px;'>"
-            "<a href='?logout=1' style='font-size:.9rem; text-decoration:underline;'>"
-            "Having trouble? Click here to log out</a></div>",
-            unsafe_allow_html=True
-        )
+# ---- Render announcements only once per rerun
+def render_announcements_once(data: list):
+    if not st.session_state.get("_ann_rendered"):
+        render_announcements(data)  # uses your existing HTML carousel
+        st.session_state["_ann_rendered"] = True
 
+# ---- Light theme accents
+st.markdown("""
+<style>
+  .topbar-card{
+    border:1px solid rgba(148,163,184,.35);
+    background:#ffffff;
+    border-radius:12px;
+    padding:10px 12px;
+  }
+  .topbar-name{ font-weight:800; font-size:1.12rem; color:#0f172a; margin:0; }
+  .topbar-sub { color:#475569; font-size:.95rem; margin-top:2px; }
+</style>
+""", unsafe_allow_html=True)
 
-# =========================
+# ------------------------------------------------------------------------------
+# Level-aware welcome video (YouTube) – template with safe defaults
+# ------------------------------------------------------------------------------
+def render_level_welcome_video(level: str | None):
+    """Embed a level-specific YouTube welcome/explainer video.
+       - If no video is configured for the level, shows a helpful st.info.
+       - You can paste real video IDs later without changing callers.
+    """
+    level = (level or "").strip().upper() or "A1"
+    # TODO: replace placeholders with your real YouTube video IDs
+    YT_WELCOME = {
+        "A1": "",  # e.g., "dQw4w9WgXcQ"
+        "A2": "",
+        "B1": "",
+        "B2": "",
+        "C1": "",
+        "C2": "",
+    }
+    vid = YT_WELCOME.get(level) or ""
+    if not vid:
+        st.info(f"No welcome video added yet for {level}. Check back soon!")
+        return
+    # Embedded player
+    st.components.v1.html(
+        f"""
+        <div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:12px;
+                    box-shadow:0 4px 12px rgba(0,0,0,.08);">
+          <iframe
+            src="https://www.youtube.com/embed/{vid}"
+            title="Welcome • {level}"
+            frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowfullscreen
+            style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;border-radius:12px;">
+          </iframe>
+        </div>
+        """,
+        height=320,
+        scrolling=False,
+    )
+
+# ------------------------------------------------------------------------------
 # Sidebar (Publish-ready)
-# =========================
+# ------------------------------------------------------------------------------
 def render_sidebar_published():
-    # --- Safe query-param setter (uses your existing helper if present)
+    # --- Safe query-param setter (uses your helper if present)
     def _qp_set_safe(**kwargs):
         if "_qp_set" in globals():
             try:
                 _qp_set(**kwargs); return
             except Exception:
                 pass
-        # Fallback: set st.query_params directly
         try:
             for k, v in kwargs.items():
                 st.query_params[k] = "" if v is None else str(v)
@@ -1006,31 +1104,20 @@ def render_sidebar_published():
         _qp_set_safe(tab=tab_name)
         st.rerun()
 
-    # --- Link dictionaries (live pages only)
-    RESOURCES_LINKS = {
-        "👩‍🏫 Tutors": "https://www.learngermanghana.com/tutors",
-        "🗓️ Upcoming Classes": "https://www.learngermanghana.com/upcoming-classes",
-        "🔒 Privacy": "https://www.learngermanghana.com/privacy-policy",
-        "📜 Terms": "https://www.learngermanghana.com/terms-of-service",
-        "✉️ Contact": "https://www.learngermanghana.com/contact-us",
-    }
-
     # --- Quick Access
     st.sidebar.markdown("## Quick access")
-    qa_cols = st.sidebar.columns(1)
-    with qa_cols[0]:
-        st.button("🏠 Dashboard", use_container_width=True, on_click=_go, args=("Dashboard",))
-        st.button("📈 My Course", use_container_width=True, on_click=_go, args=("My Course",))
-        st.button("📊 Results & Resources", use_container_width=True, on_click=_go, args=("My Results and Resources",))
-        st.button("🗣️ Exams Mode & Custom Chat", use_container_width=True, on_click=_go, args=("Exams Mode & Custom Chat",))
-        st.button("📚 Vocab Trainer", use_container_width=True, on_click=_go, args=("Vocab Trainer",))
-        st.button("✍️ Schreiben Trainer", use_container_width=True, on_click=_go, args=("Schreiben Trainer",))
+    st.sidebar.button("🏠 Dashboard",                use_container_width=True, on_click=_go, args=("Dashboard",))
+    st.sidebar.button("📈 My Course",                use_container_width=True, on_click=_go, args=("My Course",))
+    st.sidebar.button("📊 Results & Resources",      use_container_width=True, on_click=_go, args=("My Results and Resources",))
+    st.sidebar.button("🗣️ Exams Mode & Custom Chat", use_container_width=True, on_click=_go, args=("Exams Mode & Custom Chat",))
+    st.sidebar.button("📚 Vocab Trainer",            use_container_width=True, on_click=_go, args=("Vocab Trainer",))
+    st.sidebar.button("✍️ Schreiben Trainer",        use_container_width=True, on_click=_go, args=("Schreiben Trainer",))
 
-    st.sidebar.markdown("---")
+    st.sidebar.divider()
 
     # --- How-to & Tips (concise)
     st.sidebar.markdown("## How-to & tips")
-    with st.sidebar.expander("📚 Getting things done (short guide)", expanded=False):
+    with st.sidebar.expander("📚 Quick guide", expanded=False):
         st.markdown(
             """
 - **Submit work:** Go to **My Course → Submit**, then **Confirm & Submit** (box locks after submission).
@@ -1054,13 +1141,12 @@ def render_sidebar_published():
             """
         )
 
-    # --- Video tutorials (level-aware welcome video if configured)
-    if "render_level_welcome_video" in globals():
-        with st.sidebar.expander("🎥 Welcome / video tutorials", expanded=False):
-            render_level_welcome_video(st.session_state.get("student_level"))
-            st.caption("More tutorials will appear here as they’re published.")
+    # --- Video tutorials (level-aware welcome video)
+    with st.sidebar.expander("🎥 Welcome / video tutorials", expanded=False):
+        render_level_welcome_video(st.session_state.get("student_level"))
+        st.caption("More tutorials will appear here as they’re published.")
 
-    st.sidebar.markdown("---")
+    st.sidebar.divider()
 
     # --- Support
     st.sidebar.markdown("## Support")
@@ -1072,16 +1158,23 @@ def render_sidebar_published():
         """
     )
 
-    # --- Resources
+    # --- Resources (live)
     st.sidebar.markdown("## Resources")
-    st.sidebar.markdown("\n".join(f"- [{label}]({href})" for label, href in RESOURCES_LINKS.items()))
+    st.sidebar.markdown(
+        """
+- 👩‍🏫 [Tutors](https://www.learngermanghana.com/tutors)
+- 🗓️ [Upcoming Classes](https://www.learngermanghana.com/upcoming-classes)
+- 🔒 [Privacy](https://www.learngermanghana.com/privacy-policy)
+- 📜 [Terms](https://www.learngermanghana.com/terms-of-service)
+- ✉️ [Contact](https://www.learngermanghana.com/contact-us)
+        """
+    )
 
-# Call once after rendering your top bar
-render_sidebar_published()
-
-
-# ---- Keep chip styles from previous theme
+# ---- Keep chip styles from previous theme (your helper)
 inject_notice_css()
+
+# ---- Sidebar: call once after your top bar (no logout here; it’s on Dashboard)
+render_sidebar_published()
 
 # ---- Announcements (light theme) — render once to avoid duplicates
 announcements = [
@@ -1095,10 +1188,6 @@ render_announcements_once(announcements)
 
 st.markdown("---")
 st.markdown("**You’re logged in.** Continue to your lessons and tools from the navigation.")
-
-
-
-
 
 
 # =========================================================
