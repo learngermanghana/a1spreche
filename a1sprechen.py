@@ -541,14 +541,26 @@ def _handle_google_oauth(code: str, state: str) -> None:
         logging.exception("Google OAuth error")
         st.error(f"Google OAuth error: {e}")
 
-def render_google_oauth():
+def render_google_oauth(return_url: bool = False) -> Optional[str]:
+    """Handle Google OAuth callback or return the auth URL.
+
+    When ``return_url`` is ``True`` the function returns the Google
+    authorization URL instead of rendering any UI. The OAuth callback is still
+    processed if a ``code`` query parameter is present.
+    """
+
     import secrets, urllib.parse
-    def _qp_first(val): return val[0] if isinstance(val, list) else val
+
+    def _qp_first(val):
+        return val[0] if isinstance(val, list) else val
+
     qp = qp_get()
     code = _qp_first(qp.get("code")) if hasattr(qp, "get") else None
     state = _qp_first(qp.get("state")) if hasattr(qp, "get") else None
     if code:
-        _handle_google_oauth(code, state); return
+        _handle_google_oauth(code, state)
+        return None
+
     st.session_state["_oauth_state"] = secrets.token_urlsafe(24)
     params = {
         "client_id": GOOGLE_CLIENT_ID,
@@ -561,6 +573,10 @@ def render_google_oauth():
         "access_type": "online",
     }
     auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
+
+    if return_url:
+        return auth_url
+
     st.markdown(
         """<div class="page-wrap" style='text-align:center;margin:12px 0;'>
                 <a href="{url}">
@@ -572,6 +588,7 @@ def render_google_oauth():
            </div>""".replace("{url}", auth_url),
         unsafe_allow_html=True,
     )
+    return None
 
 
 
@@ -580,9 +597,12 @@ def render_google_oauth():
 # ------------------------------------------------------------------------------
 # Landing Page HTML
 # ------------------------------------------------------------------------------
-def render_falowen_login():
-    html_path = Path(__file__).parent / 'templates' / 'falowen_login.html'
-    st_html(html_path.read_text(), height=900, scrolling=True)
+def render_falowen_login(google_auth_url: str):
+    """Render the HTML login page and return any submitted credentials."""
+
+    html_path = Path(__file__).parent / "templates" / "falowen_login.html"
+    html = html_path.read_text().replace("{{GOOGLE_AUTH_URL}}", google_auth_url)
+    return st_html(html, height=900, scrolling=True)
 
 # ------------------------------------------------------------------------------
 # RESET LINK BUILDER will now use root "/?token="
@@ -620,527 +640,127 @@ def render_signup_form():
     doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
     st.success("Account created! Please log in on the Returning tab.")
 
-def render_login_form():
-    st.session_state.setdefault("show_reset_panel", False)
 
-    with st.form("login_form", clear_on_submit=False):
-        login_id = st.text_input(
-            "Student Code or Email",
-            help="Use your school email or Falowen code (e.g., felixa2)."
-        ).strip().lower()
-        login_pass = st.text_input("Password", type="password")
+def render_login_form(login_id: str, login_pass: str) -> bool:
+    """Authenticate a user and update ``st.session_state``."""
 
-        c1, c2 = st.columns([0.6, 0.4])
-        with c1:
-            login_btn = st.form_submit_button("Log In", use_container_width=True)
-        with c2:
-            forgot_toggle = st.form_submit_button("Forgot password?", help="Reset via email")
+    login_id = (login_id or "").strip().lower()
+    login_pass = login_pass or ""
+    if not (login_id and login_pass):
+        st.error("Please enter both email and password.")
+        return False
 
-    # ---- LOGIN ----
-    if login_btn:
-        prev_token = st.session_state.get("session_token", "")
-        clear_session(cookie_manager)
-        st.session_state.update(
-            {
-                "logged_in": False,
-                "student_row": {},
-                "student_code": "",
-                "student_name": "",
-                "session_token": "",
-                "student_level": "",
-            }
-        )
-        df = load_student_data()
-        if df is None:
-            st.error("Student roster unavailable. Please try again later.")
-            return
-        df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-        df["Email"] = df["Email"].str.lower().str.strip()
-        lookup = df[(df["StudentCode"] == login_id) | (df["Email"] == login_id)]
-        if lookup.empty:
-            st.error("No matching student code or email found.")
-            return
-        if lookup.shape[0] > 1:
-            st.error("Multiple matching accounts found. Please contact the office.")
-            return
-
-        student_row = lookup.iloc[0]
-        if is_contract_expired(student_row):
-            st.error("Your contract has expired. Contact the office.")
-            return
-
-        doc_ref = db.collection("students").document(student_row["StudentCode"])
-        doc = doc_ref.get()
-        if not doc.exists:
-            st.error("Account not found. Please use 'Sign Up (Approved)' first.")
-            return
-
-        data = doc.to_dict() or {}
-        stored_pw = data.get("password", "")
-        is_hash = stored_pw.startswith(("$2a$", "$2b$", "$2y$")) and len(stored_pw) >= 60
-
-        try:
-            ok = (
-                bcrypt.checkpw(login_pass.encode("utf-8"), stored_pw.encode("utf-8"))
-                if is_hash
-                else stored_pw == login_pass
-            )
-            if ok and not is_hash:
-                new_hash = bcrypt.hashpw(login_pass.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-                doc_ref.update({"password": new_hash})
-        except Exception as exc:
-            logging.exception("Password hash upgrade failed")
-            ok = False
-
-        if not ok:
-            st.error("Incorrect password.")
-            return
-
-        ua_hash = st.session_state.get("__ua_hash", "")
-        prev_token = st.session_state.get("session_token", "")
-        if prev_token and "destroy_session_token" in globals():
-            try:
-                destroy_session_token(prev_token)
-            except Exception as e:
-                logging.exception("Logout warning (revoke)")
-        sess_token = create_session_token(
-            student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash
-        )
-        level = determine_level(student_row["StudentCode"], student_row)
-
-        st.session_state.update(
-            {
-                "logged_in": True,
-                "student_row": dict(student_row),
-                "student_code": student_row["StudentCode"],
-                "student_name": student_row["Name"],
-                "session_token": sess_token,
-                "student_level": level,
-            }
-        )
-        set_student_code_cookie(
-            cookie_manager,
-            student_row["StudentCode"],
-            expires=datetime.now(UTC) + timedelta(days=180),
-        )
-        persist_session_client(sess_token, student_row["StudentCode"])
-        set_session_token_cookie(
-            cookie_manager,
-            sess_token,
-            expires=datetime.now(UTC) + timedelta(days=30),
-        )
-        try:
-            cookie_manager.save()
-        except Exception as exc:  # pragma: no cover - defensive
-            logging.exception("Cookie save failed")
-        st.success(f"Welcome, {student_row['Name']}!")
-        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-        return True
-
-    # ---- FORGOT PASSWORD (inline) ----
-    if forgot_toggle:
-        st.session_state["show_reset_panel"] = True
-
-    if st.session_state.get("show_reset_panel"):
-        st.markdown("""
-        <style>
-          .reset-card{
-            margin-top:6px; border:1px solid #e5e7eb; border-radius:10px; padding:12px;
-            background:linear-gradient(180deg,#f8fafc 0%, #ffffff 100%);
-          }
-          .reset-head{ font-weight:700; color:#25317e; margin:0 0 6px 0; }
-          .reset-sub{ color:#475569; margin-top:-2px; margin-bottom:8px; }
-        </style>
-        """, unsafe_allow_html=True)
-
-        st.markdown('<div class="reset-card">', unsafe_allow_html=True)
-        st.markdown('<div class="reset-head">Reset your password</div>', unsafe_allow_html=True)
-        st.markdown('<div class="reset-sub">We\'ll email you a secure link (valid for 1 hour).</div>', unsafe_allow_html=True)
-
-        email_for_reset = st.text_input("Registered email", key="reset_email_inline")
-        c3, c4 = st.columns([0.55, 0.45])
-        with c3:
-            send_btn = st.button("Send reset link", key="send_reset_btn", use_container_width=True)
-        with c4:
-            back_btn = st.button("Back to login", key="hide_reset_btn", use_container_width=True)
-
-        if back_btn:
-            st.session_state["show_reset_panel"] = False
-            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-
-        if send_btn:
-            if not email_for_reset:
-                st.error("Please enter your email.")
-            else:
-                e = email_for_reset.lower().strip()
-
-                # Firestore may store 'email' or 'Email'
-                user_query = db.collection("students").where(filter=FieldFilter("email", "==", e)).get()
-                if not user_query:
-                    user_query = db.collection("students").where(filter=FieldFilter("Email", "==", e)).get()
-
-                if not user_query:
-                    st.error("No account found with that email.")
-                else:
-                    token = uuid4().hex
-                    expires_at = datetime.now(UTC) + timedelta(hours=1)
-
-                    # Build reset link (prefer Apps Script page)
-                    gas_url = (st.secrets.get("GAS_RESET_URL", GAS_RESET_URL) or "").strip()
-                    try:
-                        if "build_gas_reset_link" in globals():
-                            reset_link = build_gas_reset_link(token)
-                        else:
-                            if "<THE_TOKEN>" in gas_url:
-                                reset_link = gas_url.replace("<THE_TOKEN>", _urllib.quote(token, safe=""))
-                            elif gas_url:
-                                parts = _urllib.urlparse(gas_url)
-                                qs = dict(_urllib.parse_qsl(parts.query, keep_blank_values=True))
-                                qs["token"] = token
-                                new_qs = _urllib.urlencode(qs, doseq=True)
-                                reset_link = _urllib.urlunparse(parts._replace(query=new_qs))
-                            else:
-                                base_url = (st.secrets.get("PUBLIC_BASE_URL", "https://falowen.app") or "").rstrip("/")
-                                reset_link = f"{base_url}/?token={_urllib.quote(token, safe='')}"
-                    except Exception as exc:
-                        logging.exception("Failed to build reset link")
-                        base_url = (st.secrets.get("PUBLIC_BASE_URL", "https://falowen.app") or "").rstrip("/")
-                        reset_link = f"{base_url}/?token={_urllib.quote(token, safe='')}"
-
-                    # Store token for GAS/Streamlit reset pages to read
-                    db.collection("password_resets").document(token).set({
-                        "email": e,
-                        "created": datetime.now(UTC).isoformat(),
-                        "expires_at": expires_at.isoformat()
-                    })
-
-                    if send_reset_email(e, reset_link):
-                        st.success("Reset link sent! Check your inbox (and spam).")
-                    else:
-                        st.error("We couldn’t send the email. Please try again later.")
-
-        st.markdown('</div>', unsafe_allow_html=True)
-
-def login_page():
-    st.markdown('<style>.page-wrap{max-width:1100px;margin:0 auto;}</style>', unsafe_allow_html=True)
-
-    # HERO FIRST
-    html_path = Path(__file__).parent / "public" / "index.html"
-    components.html(
-        html_path.read_text(encoding="utf-8"),
-        height=500,
-        scrolling=False,
+    prev_token = st.session_state.get("session_token", "")
+    clear_session(cookie_manager)
+    st.session_state.update(
+        {
+            "logged_in": False,
+            "student_row": {},
+            "student_code": "",
+            "student_name": "",
+            "session_token": "",
+            "student_level": "",
+        }
     )
 
-    # Stats strip
-    st.markdown("""
-      <style>
-        .stats-strip { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin:6px auto; max-width:820px; }
-        .stat { background:linear-gradient(135deg,#1e3a8a,#3b82f6); color:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:10px 12px; min-width:150px; text-align:center;                box-shadow:0 2px 10px rgba(2,132,199,0.15); outline: none; }
-        .stat:focus-visible { outline:3px solid #1f2937; outline-offset:2px; }
-        .stat .num { font-size:1.2rem; font-weight:800; line-height:1; }
-        .stat .label { font-size:.9rem; color:#f0f9ff; }
-        @media (max-width:560px){ .stat { min-width:46%; } }
-      </style>
-      <div class="stats-strip" role="list" aria-label="Falowen highlights">
-        <div class="stat" role="listitem" tabindex="0" aria-label="Active learners: over 300">
-          <div class="num">300+</div>
-          <div class="label">Active learners</div>
-        </div>
-        <div class="stat" role="listitem" tabindex="0" aria-label="Assignments submitted">
-          <div class="num">1,200+</div>
-          <div class="label">Assignments submitted</div>
-        </div>
-        <div class="stat" role="listitem" tabindex="0" aria-label="Levels covered: A1 to C1">
-          <div class="num">A1–C1</div>
-          <div class="label">Full course coverage</div>
-        </div>
-        <div class="stat" role="listitem" tabindex="0" aria-label="Average student feedback">
-          <div class="num">4.8/5</div>
-          <div class="label">Avg. feedback</div>
-        </div>
-      </div>
-    """, unsafe_allow_html=True)
+    df = load_student_data()
+    if df is None:
+        st.error("Student roster unavailable. Please try again later.")
+        return False
+    df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+    df["Email"] = df["Email"].str.lower().str.strip()
+    lookup = df[(df["StudentCode"] == login_id) | (df["Email"] == login_id)]
+    if lookup.empty:
+        st.error("No matching student code or email found.")
+        return False
+    if lookup.shape[0] > 1:
+        st.error("Multiple matching accounts found. Please contact the office.")
+        return False
 
-    with st.expander("📌 Which option should I choose?", expanded=True):
-        st.markdown("""
-        <div class="option-box">
-          <div class="option-item">
-            <div class="option-icon">👋</div>
-            <div><b>Returning Student</b>: You already created a password — simply log in to continue your learning.</div>
-          </div>
-          <div class="option-item">
-            <div class="option-icon">🧾</div>
-            <div><b>Sign Up (Approved)</b>: You’ve paid and your email + code are already on our roster, but you don’t have an account yet — create one here.</div>
-          </div>
-          <div class="option-item">
-            <div class="option-icon">📝</div>
-            <div><b>Request Access</b>: New to Falowen? Fill out our form and we’ll get in touch to guide you through the next steps.</div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
+    student_row = lookup.iloc[0]
+    if is_contract_expired(student_row):
+        st.error("Your contract has expired. Contact the office.")
+        return False
 
-    tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
+    doc_ref = db.collection("students").document(student_row["StudentCode"])
+    doc = doc_ref.get()
+    if not doc.exists:
+        st.error("Account not found. Please use 'Sign Up (Approved)' first.")
+        return False
 
-    login_result = None
+    data = doc.to_dict() or {}
+    stored_pw = data.get("password", "")
+    is_hash = stored_pw.startswith(("$2a$", "$2b$", "$2y$")) and len(stored_pw) >= 60
 
-    with tab1:
-        render_google_oauth()
-        st.markdown("<div class='page-wrap' style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
-        login_result = render_login_form()
-
-    with tab2:
-        render_signup_form()
-
-    with tab3:
-        st.markdown(
-            """
-            <div class="page-wrap" style="text-align:center; margin-top:20px;">
-                <p style="font-size:1.1em; color:#444;">
-                    If you don't have an account yet, please request access by filling out this form.
-                </p>
-                <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header" 
-                   target="_blank" rel="noopener">
-                    <button style="background:#25317e; color:white; padding:10px 20px; border:none; border-radius:6px; cursor:pointer;">
-                        📝 Open Request Access Form
-                    </button>
-                </a>
-            </div>
-            """,
-            unsafe_allow_html=True
+    try:
+        ok = (
+            bcrypt.checkpw(login_pass.encode("utf-8"), stored_pw.encode("utf-8"))
+            if is_hash
+            else stored_pw == login_pass
         )
+        if ok and not is_hash:
+            new_hash = bcrypt.hashpw(login_pass.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            doc_ref.update({"password": new_hash})
+    except Exception:
+        logging.exception("Password hash upgrade failed")
+        ok = False
 
-    st.markdown("""
-    <div class="page-wrap">
-      <div class="help-contact-box" aria-label="Help and contact options">
-        <b>❓ Need help or access?</b><br>
-        <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp us</a>
-        &nbsp;|&nbsp;
-        <a href="mailto:learngermanghana@gmail.com" target="_blank" rel="noopener">✉️ Email</a>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+    if not ok:
+        st.error("Incorrect password.")
+        return False
 
-    # Centered Video
-    st.markdown("""
-    <div class="page-wrap">
-      <div class="video-wrap">
-        <div class="video-shell style-gradient">
-          <video
-            width="360"
-            autoplay
-            muted
-            loop
-            playsinline
-            tabindex="-1"
-            oncontextmenu="return false;"
-            draggable="false"
-            style="pointer-events:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;">
-            <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
-            Sorry, your browser doesn't support embedded videos.
-          </video>
-        </div>
-      </div>
-    </div>
-    <style>
-      .video-wrap{ display:flex; justify-content:center; align-items:center; margin: 12px 0 24px; }
-      .video-shell{ position:relative; border-radius:16px; padding:4px; }
-      .video-shell > video{
-        display:block; width:min(360px, 92vw); border-radius:12px; margin:0;
-        box-shadow: 0 4px 12px rgba(0,0,0,.08);
-      }
-      .video-shell.style-gradient{
-        background: linear-gradient(135deg,#e8eeff,#f6f9ff);
-        box-shadow: 0 8px 24px rgba(0,0,0,.08);
-      }
-    </style>
-    """, unsafe_allow_html=True)
+    ua_hash = st.session_state.get("__ua_hash", "")
+    prev_token = st.session_state.get("session_token", "")
+    if prev_token and "destroy_session_token" in globals():
+        try:
+            destroy_session_token(prev_token)
+        except Exception:
+            logging.exception("Logout warning (revoke)")
 
-    # Quick Links
-    st.markdown("""
-    <div class="page-wrap">
-      <div class="quick-links" aria-label="Useful links">
-        <a href="https://www.learngermanghana.com/tutors"           target="_blank" rel="noopener">👩‍🏫 Tutors</a>
-        <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank" rel="noopener">🗓️ Upcoming Classes</a>
-        <a href="https://www.learngermanghana.com/accreditation"    target="_blank" rel="noopener">✅ Accreditation</a>
-        <a href="https://www.learngermanghana.com/privacy-policy"   target="_blank" rel="noopener">🔒 Privacy</a>
-        <a href="https://www.learngermanghana.com/terms-of-service" target="_blank" rel="noopener">📜 Terms</a>
-        <a href="https://www.learngermanghana.com/contact-us"       target="_blank" rel="noopener">✉️ Contact</a>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+    sess_token = create_session_token(
+        student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash
+    )
+    level = determine_level(student_row["StudentCode"], student_row)
 
-    st.markdown("---")
-
-    LOGIN_IMG_URL      = "https://i.imgur.com/pFQ5BIn.png"
-    COURSEBOOK_IMG_URL = "https://i.imgur.com/pqXoqSC.png"
-    RESULTS_IMG_URL    = "https://i.imgur.com/uiIPKUT.png"
-
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.markdown(f"""
-        <img src="{LOGIN_IMG_URL}" alt="Login screenshot"
-             style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
-        <div style="height:8px;"></div>
-        <h3 style="margin:0 0 4px 0;">1️⃣ Sign in</h3>
-        <p style="margin:0;">Use your <b>student code or email</b> and start your level (A1–C1).</p>
-        """, unsafe_allow_html=True)
-    with c2:
-        st.markdown(f"""
-        <img src="{COURSEBOOK_IMG_URL}" alt="Course Book screenshot"
-             style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
-        <div style="height:8px;"></div>
-        <h3 style="margin:0 0 4px 0;">2️⃣ Learn & submit</h3>
-        <p style="margin:0;">Watch lessons, practice vocab, and <b>submit assignments</b> in the Course Book.</p>
-        """, unsafe_allow_html=True)
-    with c3:
-        st.markdown(f"""
-        <img src="{RESULTS_IMG_URL}" alt="Results screenshot"
-             style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
-        <div style="height:8px;"></div>
-        <h3 style="margin:0 0 4px 0;">3️⃣ Get results</h3>
-        <p style="margin:0;">You’ll get an <b>email when marked</b>. Check <b>Results & Resources</b> for feedback.</p>
-        """, unsafe_allow_html=True)
-
-    st.markdown("""
-    <style>
-      .section-title {
-        font-weight:700;
-        font-size:1.15rem;
-        padding-left:12px;
-        border-left:5px solid #2563eb;
-        margin: 12px 0 12px 0;
-      }
-      @media (prefers-color-scheme: dark){
-        .section-title { border-left-color:#3b82f6; color:#f1f5f9; }
-      }
-    </style>
-    <div class="page-wrap">
-      <div class="section-title">💬 Student Stories</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    def render_reviews_inner():
-        render_reviews()
-
-    render_reviews_inner()
-
-    st.markdown("---")
-
-    with st.expander("How do I log in?"):
-        st.write("Use your school email **or** Falowen code (e.g., `felixa2`). If you’re new, request access first.")
-    with st.expander("Where do I see my scores?"):
-        st.write("Scores are emailed to you and live in **Results & Resources** inside the app.")
-    with st.expander("How do assignments work?"):
-        st.write("Type your answer, confirm, and **submit**. The box locks. Your tutor is notified automatically.")
-    with st.expander("What if I open the wrong lesson?"):
-        st.write("Check the blue banner at the top (Level • Day • Chapter). Use the dropdown to switch to the correct page.")
-  
-    st.markdown(f"""
-    <div class="page-wrap" style="text-align:center;color:#64748b; margin-bottom:16px;">␊
-      © {datetime.now(UTC).year} Learn Language Education Academy • Accra, Ghana<br>␊
-      Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> •
-      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>␊
-    </div>␊
-    """, unsafe_allow_html=True)
-
-    if login_result:
-        if hasattr(st, "rerun"):
-            st.rerun()
-        else:  # pragma: no cover
-            st.rerun()
-    return login_result
-
-
-
-# ------------------------------------------------------------------------------
-# =========================
-# Logged-in header + Logout
-# =========================
-# ------------------------------------------------------------------------------
-
-# --- run once right after a logout to clean client storage & URL ---
-if st.session_state.pop("_inject_logout_js", False):
-    components.html("""
-      <script>
-        try {
-          localStorage.removeItem('student_code');
-          localStorage.removeItem('student_name');
-          localStorage.removeItem('session_token');
-          const u = new URL(window.location);
-          ['code','state','token'].forEach(k => u.searchParams.delete(k));
-          window.history.replaceState({}, '', u);
-        } catch(e) {}
-      </script>
-    """, height=0)
-
-# ===== AUTH GUARD =====
-if not st.session_state.get("logged_in", False):
-    page_result = login_page()
-    if page_result is None:
-        st.stop()
-
-# ===== Header + plain button (no on_click) =====
-st.markdown("""
-<style>
-  .post-login-header { margin-top:0; margin-bottom:4px; }
-  .block-container { padding-top: 0.6rem !important; }
-  div[data-testid="stExpander"] { margin-top: 6px !important; margin-bottom: 6px !important; }
-  .your-notifs { margin: 4px 0 !important; }
-</style>
-""", unsafe_allow_html=True)
-
-st.markdown("<div class='post-login-header'>", unsafe_allow_html=True)
-col1, col2 = st.columns([0.85, 0.15])
-with col1:
-    st.write(f"👋 Welcome, **{st.session_state.get('student_name','Student')}**")
-with col2:
-    st.markdown("<div style='display:flex;justify-content:flex-end;align-items:center;'>", unsafe_allow_html=True)
-    _logout_clicked = st.button("Log out", key="logout_btn")
-    st.markdown("</div>", unsafe_allow_html=True)
-st.markdown("</div>", unsafe_allow_html=True)
-
-# ===== Logout handling =====
-if _logout_clicked:
+    st.session_state.update(
+        {
+            "logged_in": True,
+            "student_row": dict(student_row),
+            "student_code": student_row["StudentCode"],
+            "student_name": student_row["Name"],
+            "session_token": sess_token,
+            "student_level": level,
+        }
+    )
+    set_student_code_cookie(
+        cookie_manager,
+        student_row["StudentCode"],
+        expires=datetime.now(UTC) + timedelta(days=180),
+    )
+    persist_session_client(sess_token, student_row["StudentCode"])
+    set_session_token_cookie(
+        cookie_manager,
+        sess_token,
+        expires=datetime.now(UTC) + timedelta(days=30),
+    )
     try:
-        tok = st.session_state.get("session_token", "")
-        if tok and "destroy_session_token" in globals():
-            destroy_session_token(tok)
-    except Exception as e:
-        logging.exception("Logout warning (revoke)")
-
-    try:
-        clear_session(cookie_manager)
         cookie_manager.save()
-    except Exception as e:
-        logging.exception("Logout warning (expire cookies)")
-
-    st.session_state.pop("access_token", None)
-    st.session_state.pop("refresh_token", None)
-
-    qp_clear_keys("code", "state", "token")
-
-    st.session_state.update({
-        "logged_in": False,
-        "student_row": {},
-        "student_code": "",
-        "student_name": "",
-        "session_token": "",
-        "cookie_synced": False,
-        "__last_refresh": 0.0,
-        "__ua_hash": "",
-        "_oauth_state": "",
-        "_oauth_code_redeemed": "",
-    })
-
-    st.session_state["_inject_logout_js"] = True
+    except Exception:  # pragma: no cover - defensive
+        logging.exception("Cookie save failed")
+    st.success(f"Welcome, {student_row['Name']}!")
     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+    return True
 
+def login_page():
+    """Render the Falowen login page and process login submissions."""
 
+    auth_url = render_google_oauth(return_url=True) or ""
+    result = render_falowen_login(auth_url)
+    if result and isinstance(result, dict):
+        action = result.get("action")
+        if action == "login":
+            render_login_form(result.get("email", ""), result.get("password", ""))
 
-# =========================================================
-# ============= Announcements (mobile-friendly) ===========
-# =========================================================
 def render_announcements(ANNOUNCEMENTS: list):
     """Responsive rotating announcement board with mobile-first, light card on phones."""
     if not ANNOUNCEMENTS:
