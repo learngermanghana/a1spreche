@@ -361,7 +361,20 @@ def render_google_oauth(return_url: bool = False) -> Optional[str]:
 
 @lru_cache(maxsize=1)
 def _load_falowen_login_html() -> str:
-    """Load and preprocess the falowen login template once."""
+    """Load and sanitize the reusable login hero HTML.
+
+    The template is loaded from ``templates/falowen_login.html`` relative to
+    this module.  We remove legacy login markup so only the hero section
+    remains:
+
+    * strip the ``<!-- Right: Login -->`` aside block and any paired script;
+    * collapse a two-column grid into a single column; and
+    * drop remaining ``<script>`` tags.
+
+    Because the cleanup uses simple regular expressions, it assumes the
+    template’s structure matches expected patterns. Substantial changes to the
+    template may require updating these rules.
+    """
     html_path = Path(__file__).parent / "templates" / "falowen_login.html"
     html = html_path.read_text(encoding="utf-8")
 
@@ -373,6 +386,9 @@ def _load_falowen_login_html() -> str:
         html,
     )  # make single column
     html = re.sub(r'<script>[\s\S]*?</script>\s*</body>', '</body>', html)
+
+    # After cleanup, no login markup or scripts should remain.
+    # Update the above regexes if new login patterns appear in the template.
     return html
 
 
