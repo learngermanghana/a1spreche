@@ -845,12 +845,11 @@ def login_page():
     # Stats strip
     st.markdown("""
       <style>
-        .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:10px auto 4px auto; max-width:820px; }
-        .stat { background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
-                box-shadow:0 2px 10px rgba(2,132,199,0.15); outline: none; }
+        .stats-strip { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin:6px auto; max-width:820px; }
+        .stat { background:linear-gradient(135deg,#1e3a8a,#3b82f6); color:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:10px 12px; min-width:150px; text-align:center;                box-shadow:0 2px 10px rgba(2,132,199,0.15); outline: none; }
         .stat:focus-visible { outline:3px solid #1f2937; outline-offset:2px; }
-        .stat .num { font-size:1.25rem; font-weight:800; line-height:1; }
-        .stat .label { font-size:.92rem; opacity:.98; }
+        .stat .num { font-size:1.2rem; font-weight:800; line-height:1; }
+        .stat .label { font-size:.9rem; color:#f0f9ff; }
         @media (max-width:560px){ .stat { min-width:46%; } }
       </style>
       <div class="stats-strip" role="list" aria-label="Falowen highlights">
