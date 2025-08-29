@@ -88,7 +88,7 @@ from src.ui_components import (
     render_assignment_reminder,
     render_link,
     render_vocab_lookup,
-    render_reviews,
+    render_reviews,  # not used here; kept for compatibility
 )
 
 from src.stats import (
@@ -144,8 +144,9 @@ from src.sentence_bank import SENTENCE_BANK
 from src.config import get_cookie_manager, SB_SESSION_TARGET
 from src.data_loading import load_student_data
 
+
 # ------------------------------------------------------------------------------
-# Constants / YouTube helpers
+# Constants / YouTube helpers (kept for later use)
 # ------------------------------------------------------------------------------
 DEFAULT_PLAYLIST_LEVEL = "A1"
 
@@ -201,6 +202,10 @@ def fetch_youtube_playlist_videos(playlist_id: str, api_key: str = YOUTUBE_API_K
             break
     return videos
 
+
+# ------------------------------------------------------------------------------
+# Cookie manager
+# ------------------------------------------------------------------------------
 cookie_manager = get_cookie_manager()
 
 
@@ -222,6 +227,7 @@ def _handle_google_oauth(code: str, state: str) -> None:
             st.error("OAuth state mismatch. Please try again.")
             return
         if st.session_state.get("_oauth_code_redeemed") == code:
+            # prevent double-redeem on rerun
             return
 
         token_url = "https://oauth2.googleapis.com/token"
@@ -333,6 +339,7 @@ def render_google_oauth(return_url: bool = False) -> Optional[str]:
     if return_url:
         return auth_url
 
+    # Optional: show a Google button near the hero
     st.markdown(
         """<div class="page-wrap" style='text-align:center;margin:12px 0;'>
              <a href="{url}">
@@ -346,20 +353,22 @@ def render_google_oauth(return_url: bool = False) -> Optional[str]:
     )
     return None
 
+
 # ------------------------------------------------------------------------------
 # Landing Page HTML (template-based)
 # ------------------------------------------------------------------------------
 def render_falowen_login(google_auth_url: str) -> None:
     """
-    Render the HTML login page from templates/falowen_login.html.
-    The template should contain a Google button pointing to {{GOOGLE_AUTH_URL}}.
+    Render the HTML landing page from templates/falowen_login.html.
+    The template should contain a Google button pointing to {{GOOGLE_AUTH_URL}} (optional).
     """
     html_path = Path(__file__).parent / "templates" / "falowen_login.html"
     html = html_path.read_text(encoding="utf-8").replace("{{GOOGLE_AUTH_URL}}", google_auth_url)
     components.html(html, height=1100, scrolling=True)
 
+
 # ------------------------------------------------------------------------------
-# Sign up / Login helpers (email+password path)
+# Sign up / Login helpers (email+password) + Forgot Password
 # ------------------------------------------------------------------------------
 def render_signup_form():
     with st.form("signup_form", clear_on_submit=False):
@@ -397,13 +406,89 @@ def render_signup_form():
     doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
     st.success("Account created! Please log in on the Returning tab.")
 
-def render_returning_login_area(login_fn=None) -> bool:
-    """Returning login with a 'Forgot password?' panel.
-    Returns True if the user successfully logs in (so caller can st.rerun())."""
 
-    # Resolve the login function if not provided
+def render_login_form(login_id: str, login_pass: str) -> bool:
+    login_id = (login_id or "").strip().lower()
+    login_pass = login_pass or ""
+    if not (login_id and login_pass):
+        st.error("Please enter both email and password.")
+        return False
+
+    df = load_student_data()
+    if df is None:
+        st.error("Student roster unavailable. Please try again later.")
+        return False
+
+    df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+    df["Email"] = df["Email"].str.lower().str.strip()
+    lookup = df[(df["StudentCode"] == login_id) | (df["Email"] == login_id)]
+    if lookup.empty:
+        st.error("No matching student code or email found."); return False
+    if lookup.shape[0] > 1:
+        st.error("Multiple matching accounts found. Please contact the office."); return False
+
+    student_row = lookup.iloc[0]
+    if is_contract_expired(student_row):
+        st.error("Your contract has expired. Contact the office."); return False
+
+    doc_ref = db.collection("students").document(student_row["StudentCode"])
+    doc = doc_ref.get()
+    if not doc.exists:
+        st.error("Account not found. Please use 'Sign Up (Approved)' first."); return False
+
+    data = doc.to_dict() or {}
+    stored_pw = data.get("password", "")
+    is_hash = stored_pw.startswith(("$2a$", "$2b$", "$2y$")) and len(stored_pw) >= 60
+
+    try:
+        ok = bcrypt.checkpw(login_pass.encode("utf-8"), stored_pw.encode("utf-8")) if is_hash else stored_pw == login_pass
+        if ok and not is_hash:
+            new_hash = bcrypt.hashpw(login_pass.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            doc_ref.update({"password": new_hash})
+    except Exception:
+        logging.exception("Password hash upgrade failed")
+        ok = False
+
+    if not ok:
+        st.error("Incorrect password."); return False
+
+    ua_hash = st.session_state.get("__ua_hash", "")
+    prev_token = st.session_state.get("session_token", "")
+    if prev_token:
+        try:
+            destroy_session_token(prev_token)
+        except Exception:
+            logging.exception("Logout warning (revoke)")
+
+    sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
+    level = determine_level(student_row["StudentCode"], student_row)
+
+    clear_session(cookie_manager)
+    st.session_state.update({
+        "logged_in": True,
+        "student_row": dict(student_row),
+        "student_code": student_row["StudentCode"],
+        "student_name": student_row["Name"],
+        "session_token": sess_token,
+        "student_level": level,
+    })
+    set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
+    persist_session_client(sess_token, student_row["StudentCode"])
+    set_session_token_cookie(cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
+    try:
+        cookie_manager.save()
+    except Exception:
+        logging.exception("Cookie save failed")
+
+    st.success(f"Welcome, {student_row['Name']}!")
+    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+    return True
+
+
+def render_returning_login_area(login_fn=None) -> bool:
+    """Returning login + Forgot Password panel. Returns True on successful login."""
     if login_fn is None:
-        login_fn = globals().get("render_login_form")
+        login_fn = globals().get("render_login_form")  # lazy lookup so order is safe
 
     with st.form("returning_login_form", clear_on_submit=False):
         st.markdown("#### Returning user login")
@@ -416,13 +501,9 @@ def render_returning_login_area(login_fn=None) -> bool:
             forgot_toggle = st.form_submit_button("Forgot password?", help="Reset via email")
 
     if submitted:
-        if callable(login_fn):
-            if login_fn(login_id, login_pass):
-                return True  # signal success
-        else:
-            st.error("Login function not available. (render_login_form missing)")
+        if callable(login_fn) and login_fn(login_id, login_pass):
+            return True
 
-    # Toggle the reset panel
     if forgot_toggle:
         st.session_state["show_reset_panel"] = True
 
@@ -444,11 +525,9 @@ def render_returning_login_area(login_fn=None) -> bool:
                 st.error("Please enter your email.")
             else:
                 e = email_for_reset.lower().strip()
-                # Look up student document by email (supports both 'email' and legacy 'Email')
                 user_query = db.collection("students").where("email", "==", e).get()
                 if not user_query:
                     user_query = db.collection("students").where("Email", "==", e).get()
-
                 if not user_query:
                     st.error("No account found with that email.")
                 else:
@@ -471,15 +550,15 @@ def render_returning_login_area(login_fn=None) -> bool:
     return False
 
 
-
+# ------------------------------------------------------------------------------
+# Login page (HTML hero + forms/tabs)
+# ------------------------------------------------------------------------------
 def login_page():
     auth_url = render_google_oauth(return_url=True) or ""
     render_falowen_login(auth_url)
 
     st.markdown("<div style='text-align:center; margin:10px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
-
-    # pass the callback so there’s no NameError
-    login_success = render_returning_login_area(render_login_form)
+    login_success = render_returning_login_area()
 
     tab2, tab3 = st.tabs(["🧾 Sign Up (Approved)", "📝 Request Access"])
     with tab2:
@@ -497,85 +576,18 @@ def login_page():
                         📝 Open Request Access Form
                     </button>
                 </a>
+                <div style="margin-top:10px;">
+                  <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp</a>
+                  &nbsp;|&nbsp;
+                  <a href="mailto:learngermanghana@gmail.com" target="_blank" rel="noopener">✉️ Email</a>
+                </div>
             </div>
             """,
             unsafe_allow_html=True
         )
 
-    # 4) Help / contact box
-    st.markdown("""
-    <div class="page-wrap" style="max-width:900px;margin:12px auto;">
-      <div class="help-contact-box" aria-label="Help and contact options"
-           style="border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;background:#fff;">
-        <b>❓ Need help or access?</b><br>
-        <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp us</a>
-        &nbsp;|&nbsp;
-        <a href="mailto:learngermanghana@gmail.com" target="_blank" rel="noopener">✉️ Email</a>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # 5) Short FAQ
-    with st.expander("How do I log in?"):
-        st.write("Use your school email **or** Falowen code (e.g., `felixa2`). If you’re new, request access first.")
-    with st.expander("Where do I see my scores?"):
-        st.write("Scores are emailed to you and live in **Results & Resources** inside the app.")
-    with st.expander("How do assignments work?"):
-        st.write("Type your answer, confirm, and **submit**. The box locks. Your tutor is notified automatically.")
-    with st.expander("What if I open the wrong lesson?"):
-        st.write("Check the blue banner at the top (Level • Day • Chapter). Use the dropdown to switch to the correct page.")
-
-    # 6) Centered intro video
-    st.markdown("""
-    <div class="page-wrap">
-      <div style="display:flex; justify-content:center; align-items:center; margin:12px 0 24px;">
-        <div style="position:relative; border-radius:16px; padding:4px; background:linear-gradient(135deg,#e8eeff,#f6f9ff); box-shadow:0 8px 24px rgba(0,0,0,.08);">
-          <video
-            width="360"
-            autoplay
-            muted
-            loop
-            playsinline
-            tabindex="-1"
-            oncontextmenu="return false;"
-            draggable="false"
-            style="pointer-events:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; display:block; width:min(360px, 92vw); border-radius:12px; margin:0;">
-            <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
-            Sorry, your browser doesn't support embedded videos.
-          </video>
-        </div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # 7) Quick links
-    st.markdown("""
-    <div class="page-wrap" style="text-align:center; margin:8px 0 18px;">
-      <a href="https://www.learngermanghana.com/tutors"           target="_blank" rel="noopener">👩‍🏫 Tutors</a>
-      &nbsp;|&nbsp;
-      <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank" rel="noopener">🗓️ Upcoming Classes</a>
-      &nbsp;|&nbsp;
-      <a href="https://www.learngermanghana.com/accreditation"    target="_blank" rel="noopener">✅ Accreditation</a>
-      &nbsp;|&nbsp;
-      <a href="https://www.learngermanghana.com/privacy-policy"   target="_blank" rel="noopener">🔒 Privacy</a>
-      &nbsp;|&nbsp;
-      <a href="https://www.learngermanghana.com/terms-of-service" target="_blank" rel="noopener">📜 Terms</a>
-      &nbsp;|&nbsp;
-      <a href="https://www.learngermanghana.com/contact-us"       target="_blank" rel="noopener">✉️ Contact</a>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # 8) Footer
-    st.markdown(f"""
-    <div class="page-wrap" style="text-align:center;color:#64748b; margin:8px 0 16px;">
-      © {datetime.utcnow().year} Learn Language Education Academy • Accra, Ghana<br>
-      Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> • 
-      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # If login succeeded above, *now* rerun so the app switches to the logged-in UI.
     if login_success:
+        # defer rerun until the page is fully constructed
         st.rerun()
 
 
@@ -648,11 +660,7 @@ _inject_meta_tags()
 
 
 def render_announcements(ANNOUNCEMENTS: list):
-    """Responsive rotating announcement board with mobile-first, light card on phones."""
-    import json
-    import streamlit as st
-    import streamlit.components.v1 as components
-
+    """Responsive rotating announcement board."""
     if not ANNOUNCEMENTS:
         st.info("📣 No announcements to show.")
         return
@@ -690,20 +698,9 @@ def render_announcements(ANNOUNCEMENTS: list):
       @keyframes fadeInUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
       .ann-anim{animation:fadeInUp .25s ease both}
       @media (prefers-reduced-motion: reduce){ .ann-anim{animation:none} .ann-dot{transition:none} }
-      @media (max-width: 640px){
-        :root{ --card:#ffffff !important; --text:#0b1220 !important; --muted:#334155 !important;
-               --link:#1d4ed8 !important; --chip-bg:#eaf2ff !important; --chip-fg:#1e3a8a !important;
-               --shell-border: rgba(2,6,23,.10) !important; }
-        .page-wrap{ padding:0 8px; } .ann-shell{ padding:10px 12px; border-radius:12px; }
-        .ann-title{ font-size:1rem; margin:0 0 4px 0; } .ann-heading{ gap:8px; }
-        .ann-chip{ font-size:.72rem; padding:3px 8px; }
-        .ann-body{ font-size:1.02rem; line-height:1.6; }
-        .ann-dots{ gap:10px; margin-top:10px; } .ann-dot{ width:12px; height:12px; }
-      }
-      .tight-section{ margin:6px 0 !important; }
     </style>
 
-    <div class="page-wrap tight-section">
+    <div class="page-wrap">
       <div class="ann-title">📣 Announcements</div>
       <div class="ann-shell" id="ann_shell" aria-live="polite">
         <div class="ann-anim" id="ann_card">
@@ -727,7 +724,6 @@ def render_announcements(ANNOUNCEMENTS: list):
       const dotsWrap= document.getElementById('ann_dots');
       const card    = document.getElementById('ann_card');
       const shell   = document.getElementById('ann_shell');
-      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
       let i = 0, timer = null;
       const INTERVAL = 6500;
@@ -763,22 +759,16 @@ def render_announcements(ANNOUNCEMENTS: list):
         setActiveDot(idx);
       }
       function next(){ i = (i+1) % data.length; render(i); }
-      function start(){ if (!reduced && data.length > 1) timer = setInterval(next, INTERVAL); }
+      function start(){ if (data.length > 1) timer = setInterval(next, INTERVAL); }
       function stop(){ if (timer) clearInterval(timer); timer = null; }
-      function restart(){ stop(); start(); }
 
       data.forEach((_, idx)=>{
         const dot = document.createElement('button');
         dot.className='ann-dot'; dot.type='button'; dot.setAttribute('role','tab');
         dot.setAttribute('aria-label','Show announcement '+(idx+1));
-        dot.addEventListener('click', ()=>{ i=idx; render(i); restart(); });
+        dot.addEventListener('click', ()=>{ i=idx; render(i); stop(); start(); });
         dotsWrap.appendChild(dot);
       });
-
-      shell.addEventListener('mouseenter', stop);
-      shell.addEventListener('mouseleave', start);
-      shell.addEventListener('focusin', stop);
-      shell.addEventListener('focusout', start);
 
       render(i); start();
     </script>
@@ -797,6 +787,7 @@ if not OPENAI_API_KEY:
     raise RuntimeError("Missing OpenAI API key")
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
+
 
 # ------------------------------------------------------------------------------
 # Seed state from query params / restore session / reset-link path / go to login
@@ -841,10 +832,11 @@ if not st.session_state.get("logged_in", False):
         reset_password_page(tok)
         st.stop()
 
-# Not logged in? -> show the HTML login page and stop
+# Not logged in? -> show the login page and stop
 if not st.session_state.get("logged_in", False):
     login_page()
     st.stop()
+
 
 # ------------------------------------------------------------------------------
 # Logged-in UI (with Logout button)
