@@ -938,52 +938,48 @@ if not st.session_state.get("logged_in", False):
 if not st.session_state.get("logged_in", False):
     login_page()
     st.stop()
+# ---------- Reliable logout handler via query param (fallback) ----------
+def _handle_logout_qp():
+    q = st.query_params.get("logout")
+    if isinstance(q, list):
+        q = q[0]
+    if q == "1":
+        _do_logout()
 
-# ------------------------------------------------------------------------------
-# Logged-in UI (with Logout + announcements)  — updated theme + sidebar helpers
-# ------------------------------------------------------------------------------
+# Run the qp handler as soon as we enter the logged-in UI
+_handle_logout_qp()
 
-def _do_logout():
-    try:
-        prev_token = st.session_state.get("session_token", "")
-        if prev_token:
-            try:
-                destroy_session_token(prev_token)
-            except Exception:
-                logging.exception("Token revoke failed on logout")
-        clear_session(cookie_manager)
-    except Exception:
-        logging.exception("Cookie/session clear failed")
-    st.session_state.update({
-        "logged_in": False,
-        "student_row": {},
-        "student_code": "",
-        "student_name": "",
-        "session_token": "",
-        "student_level": "",
-    })
-    st.success("You’ve been logged out.")
-    st.rerun()
+# ---------- Top bar with robust Log out ----------
+top = st.container()
+with top:
+    c1, c2 = st.columns([1, 0.20])
+    with c1:
+        st.markdown(
+            f"<div class='topbar-card'>"
+            f"<div class='topbar-name'>👋 Welcome, {st.session_state.get('student_name','')}</div>"
+            f"<div class='topbar-sub'>Level: {st.session_state.get('student_level','—')} · "
+            f"Code: {st.session_state.get('student_code','—')}</div>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+    with c2:
+        st.write("")  # spacer
+        # Try primary style if your Streamlit supports it, else fall back gracefully
+        try:
+            st.button("Log out", key="logout_top", type="primary",
+                      on_click=_do_logout, use_container_width=True)
+        except TypeError:
+            st.button("Log out", key="logout_top",
+                      on_click=_do_logout, use_container_width=True)
 
-# ---- small helper to ensure announcements only render once per run
-def render_announcements_once(data):
-    if not st.session_state.get("_ann_rendered"):
-        render_announcements(data)
-        st.session_state["_ann_rendered"] = True
+        # Tiny fallback link in case the widget doesn't render/receive clicks
+        st.markdown(
+            "<div style='text-align:center; margin-top:4px;'>"
+            "<a href='?logout=1' style='font-size:.9rem; text-decoration:underline;'>"
+            "Having trouble? Click here to log out</a></div>",
+            unsafe_allow_html=True
+        )
 
-# ---- light theme styling (matches previous look)
-st.markdown("""
-<style>
-  .topbar-card{
-    border:1px solid rgba(148,163,184,.35);
-    background:#ffffff;
-    border-radius:12px;
-    padding:10px 12px;
-  }
-  .topbar-name{ font-weight:800; font-size:1.12rem; color:#0f172a; margin:0; }
-  .topbar-sub { color:#475569; font-size:.95rem; margin-top:2px; }
-</style>
-""", unsafe_allow_html=True)
 
 # =========================
 # Sidebar (Publish-ready)
