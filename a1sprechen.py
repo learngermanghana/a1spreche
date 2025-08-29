@@ -36,6 +36,7 @@ from google.api_core.exceptions import GoogleAPICallError
 from firebase_admin import firestore
 from fpdf import FPDF
 from gtts import gTTS
+from bs4 import BeautifulSoup
 from openai import OpenAI
 from streamlit_quill import st_quill
 
@@ -364,6 +365,9 @@ def _load_falowen_login_html() -> str:
     html_path = Path(__file__).parent / "templates" / "falowen_login.html"
     html = html_path.read_text(encoding="utf-8")
 
+
+    soup = BeautifulSoup(html, "html.parser")
+
     # Remove legacy "Right: Login" aside block and its script if present
     html = re.sub(r'<!--\s*Right:\s*Login\s*-->[\s\S]*?</aside>', '', html, flags=re.IGNORECASE)
     html = re.sub(
@@ -375,14 +379,22 @@ def _load_falowen_login_html() -> str:
     return html
 
 
-def render_falowen_login(google_auth_url: str) -> None:
-    """
-    Render the HTML hero from templates/falowen_login.html, stripping any legacy login markup.
-    Keeps only the welcome/hero content.
-    """
-    html = _load_falowen_login_html().replace("{{GOOGLE_AUTH_URL}}", google_auth_url)
+    for aside in soup.find_all("aside"):
+        aside.decompose()
 
-    components.html(html, height=720, scrolling=True, key="falowen_hero")
+    for script in soup.find_all("script"):
+        script.decompose()
+
+    style_tag = soup.find("style")
+    if style_tag and style_tag.string:
+        style_tag.string = style_tag.string.replace(
+            "grid-template-columns:1.2fr .8fr;", "grid-template-columns:1fr;"
+        )
+        style_tag.string = style_tag.string.replace(
+            "grid-template-columns: 1.2fr .8fr;", "grid-template-columns: 1fr;"
+        )
+
+    components.html(str(soup), height=720, scrolling=True, key="falowen_hero")
 
 
 # ------------------------------------------------------------------------------
