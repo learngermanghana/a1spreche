@@ -20,7 +20,6 @@ from datetime import datetime as _dt
 from uuid import uuid4
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from functools import lru_cache
 
 # ==== Third-Party Packages ====
 import bcrypt
@@ -36,10 +35,9 @@ from google.api_core.exceptions import GoogleAPICallError
 from firebase_admin import firestore
 from fpdf import FPDF
 from gtts import gTTS
-from bs4 import BeautifulSoup
 from openai import OpenAI
+from streamlit.components.v1 import html as st_html
 from streamlit_quill import st_quill
-from src.cache_utils import clear_cache_if_dev
 
 # --- Streamlit page config (do this first) ---
 st.set_page_config(
@@ -48,9 +46,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-# Clear Streamlit caches when running locally in development.
-clear_cache_if_dev()
 
 # --- Falowen modules ---
 from falowen.email_utils import send_reset_email, build_gas_reset_link, GAS_RESET_URL
@@ -213,6 +208,31 @@ def fetch_youtube_playlist_videos(playlist_id: str, api_key: str = YOUTUBE_API_K
 # ------------------------------------------------------------------------------
 cookie_manager = get_cookie_manager()
 
+
+# ------------------------------------------------------------------------------
+# Optional: tiny FastAPI health probe (safe in Streamlit)
+# ------------------------------------------------------------------------------
+if os.environ.get("RENDER"):
+    try:
+        from fastapi import FastAPI
+        from uvicorn import Config, Server
+
+        api = FastAPI()
+
+        @api.get("/healthz")
+        async def healthz():
+            return {"status": "ok"}
+
+        import threading
+        def _start_health():
+            cfg = Config(api, host="0.0.0.0", port=8000, log_level="warning")
+            Server(cfg).run()
+
+        threading.Thread(target=_start_health, daemon=True).start()
+    except Exception:
+        pass
+
+
 # ------------------------------------------------------------------------------
 # OAuth (Google)
 # ------------------------------------------------------------------------------
@@ -361,86 +381,20 @@ def render_google_oauth(return_url: bool = False) -> Optional[str]:
 # ------------------------------------------------------------------------------
 # Hero-only HTML (strip any legacy login aside if template still has it)
 # ------------------------------------------------------------------------------
-
-@lru_cache(maxsize=1)
-def _load_falowen_login_html() -> str:
+def render_falowen_login(google_auth_url: str) -> None:
     """
-    Load and sanitize the landing hero HTML:
-
-    - Remove all <script> tags
-    - Hide any legacy login aside (.login.card) if present
-    - Collapse any 2-col grid to single column
-    - Return a SNIPPET (no <!DOCTYPE>, <html>, or <head>) safe for components.html
+    Render the HTML hero from templates/falowen_login.html, stripping any legacy login markup.
+    Keeps only the welcome/hero content.
     """
     html_path = Path(__file__).parent / "templates" / "falowen_login.html"
-    raw = html_path.read_text(encoding="utf-8")
+    html = html_path.read_text(encoding="utf-8").replace("{{GOOGLE_AUTH_URL}}", google_auth_url)
 
-    # Parse
-    soup = BeautifulSoup(raw, "html.parser")
+    # Remove legacy "Right: Login" aside block and its script if present
+    html = re.sub(r'<!--\s*Right:\s*Login\s*-->[\s\S]*?</aside>', '', html, flags=re.IGNORECASE)
+    html = re.sub(r'grid-template-columns:\s*1\.2fr\s*\.8fr;', 'grid-template-columns: 1fr;', html)  # make single column
+    html = re.sub(r'<script>[\s\S]*?</script>\s*</body>', '</body>', html)
 
-    # 1) Remove every <script>
-    for s in soup.find_all("script"):
-        s.decompose()
-
-    # 2) If there was a Right: Login aside, drop it defensively
-    #    (anything with class "login card" or an <aside> that contains login text)
-    for node in soup.select(".login.card"):
-        node.decompose()
-    for aside in soup.find_all("aside"):
-        if "login" in aside.get_text(strip=True).lower():
-            aside.decompose()
-
-    # 3) Gather <style> tags (keep visual style)
-    styles = []
-    for st_tag in soup.find_all("style"):
-        styles.append(st_tag.get_text())
-        st_tag.decompose()  # remove from DOM, we'll re-inject
-
-    # 4) Prefer the content under <div class="shell">; else fall back to <body>
-    container = soup.select_one("div.shell") or soup.body or soup
-
-    # 5) CSS overrides: single column + hide any leftover .login UI if the template ever re-adds it
-    css_overrides = """
-      /* Enforce hero-only view */
-      .login.card, aside.login { display: none !important; }
-      .grid { grid-template-columns: 1fr !important; }
-    """
-
-    # 6) Compose a safe snippet (no html/head/body/doctype)
-    snippet = f"""
-      <style>
-        {css_overrides}
-        {'\n'.join(styles)}
-      </style>
-      {str(container)}
-    """
-    # Streamlit wants a str
-    return str(snippet)
-
-def render_falowen_login() -> None:
-    """Render the sanitized hero; never crash the page if HTML fails."""
-    try:
-        snippet = _load_falowen_login_html()
-        # Use a fresh key to avoid rare key collisions after code reloads
-        components.html(snippet, height=640, scrolling=True, key="falowen_hero_v4")
-    except Exception:
-        # Graceful fallback, so the rest of your Streamlit UI (login/tabs) still renders
-        st.info("Showing simplified welcome banner (HTML hero unavailable).")
-        st.markdown(
-            """
-            <div style="max-width:1100px;margin:18px auto;padding:14px 16px;
-                        background:linear-gradient(120deg,#e0f2fe66,#c7d2fe55);
-                        border:1px solid rgba(148,163,184,.25); border-radius:14px;">
-              <h2 style="margin:.2rem 0;color:#0ea5e9;letter-spacing:-.02em;">
-                Welcome to Falowen
-              </h2>
-              <p style="margin:.2rem 0;color:#475569;">
-                A1–C1 course book, assignments, results, and tools in one place.
-              </p>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    components.html(html, height=720, scrolling=True, key="falowen_hero")
 
 
 # ------------------------------------------------------------------------------
@@ -561,73 +515,14 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     return True
 
 
-def render_returning_login_form() -> bool:
-    """Render the login form for existing users.
-
-    Returns True when the user successfully logs in.  The caller can then
-    decide whether to rerun or take other actions after all UI elements have
-    been rendered.
-    """
-
+def render_returning_login_form():
     with st.form("returning_login_form", clear_on_submit=False):
         st.markdown("#### Returning user login")
         login_id = st.text_input("Email or Student Code")
         login_pass = st.text_input("Password", type="password")
-        c1, c2 = st.columns([0.6, 0.4])
-        with c1:
-            submitted = st.form_submit_button("Log in")
-        with c2:
-            forgot_toggle = st.form_submit_button("Forgot password?", help="Reset via email")
-
+        submitted = st.form_submit_button("Log in")
     if submitted and render_login_form(login_id, login_pass):
-        # Signal to the caller that a rerun is needed instead of performing it
-        # here which would prevent the rest of the page from rendering.
-        return True
-
-    if forgot_toggle:
-        st.session_state["show_reset_panel"] = True
-
-    if st.session_state.get("show_reset_panel"):
-        email_for_reset = st.text_input("Registered email", key="reset_email")
-        c3, c4 = st.columns([0.55, 0.45])
-        with c3:
-            send_btn = st.button("Send reset link", key="send_reset_btn", use_container_width=True)
-        with c4:
-            back_btn = st.button("Back to login", key="hide_reset_btn", use_container_width=True)
-
-        if back_btn:
-            st.session_state["show_reset_panel"] = False
-            st.rerun()
-
-        if send_btn:
-            if not email_for_reset:
-                st.error("Please enter your email.")
-            else:
-                e = email_for_reset.lower().strip()
-                user_query = db.collection("students").where("email", "==", e).get()
-                if not user_query:
-                    user_query = db.collection("students").where("Email", "==", e).get()
-                if not user_query:
-                    st.error("No account found with that email.")
-                else:
-                    token = uuid4().hex
-                    expires_at = datetime.now(UTC) + timedelta(hours=1)
-                    try:
-                        reset_link = build_gas_reset_link(token)
-                    except Exception:
-                        base_url = (st.secrets.get("PUBLIC_BASE_URL", "https://falowen.app") or "").rstrip("/")
-                        reset_link = f"{base_url}/?token={_urllib.quote(token, safe='')}"
-                    db.collection("password_resets").document(token).set({
-                        "email": e,
-                        "created": datetime.now(UTC).isoformat(),
-                        "expires_at": expires_at.isoformat(),
-                    })
-                    if send_reset_email(e, reset_link):
-                        st.success("Reset link sent! Check your inbox (and spam).")
-                    else:
-                        st.error("We couldn't send the email. Please try again later.")
-
-    return False
+        st.rerun()
 
 
 # ------------------------------------------------------------------------------
@@ -717,11 +612,11 @@ def render_reviews_landing():
 # Login page (Hero only + returning form; tabs for Sign Up / Request Access)
 # ------------------------------------------------------------------------------
 def login_page():
-    render_falowen_login()  # hero only (no login inside HTML)
-    render_google_oauth()  # Google sign-in button near the hero
+    auth_url = render_google_oauth(return_url=True) or ""
+    render_falowen_login(auth_url)  # hero only (no login inside HTML)
 
     st.markdown("<div style='text-align:center; margin:10px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
-    login_success = render_returning_login_form()
+    render_returning_login_form()
 
     tab2, tab3 = st.tabs(["🧾 Sign Up (Approved)", "📝 Request Access"])
     with tab2:
@@ -865,15 +760,10 @@ def login_page():
     st.markdown(f"""
     <div class="page-wrap" style="text-align:center;color:#64748b; margin-bottom:16px;">
       © {datetime.utcnow().year} Learn Language Education Academy • Accra, Ghana<br>
-      Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> •
+      Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> • 
       <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>
     </div>
     """, unsafe_allow_html=True)
-
-    if login_success:
-        # Defer rerun until after the full login page is rendered so that
-        # elements like the help box and video are not skipped.
-        st.rerun()
 
 
 # ------------------------------------------------------------------------------
@@ -1141,22 +1031,6 @@ if not st.session_state.get("logged_in", False):
     st.stop()
 
 
-# After a successful login, load any stored progress and display a banner
-from src.resume import load_last_position, render_resume_banner
-from src.progress_utils import save_last_position
-
-student_code = st.session_state.get("student_code", "")
-if student_code:
-    st.session_state["__last_progress"] = load_last_position(student_code) or 0
-
-render_resume_banner()
-
-_current = int(st.session_state.get("falowen_stage", 0) or 0)
-_last = int(st.session_state.get("__last_progress", 0) or 0)
-if student_code and _current > _last:
-    save_last_position(student_code, _current)
-    st.session_state["__last_progress"] = _current
-
 # ------------------------------------------------------------------------------
 # Resume helpers (Firestore) – optional label support
 # ------------------------------------------------------------------------------
@@ -1268,55 +1142,10 @@ with top:
     with c2:
         st.write("")  # spacer
         st.button("Log out", key="logout_top", type="primary", on_click=_do_logout)
-# ---------- Sidebar renderer ----------
-def render_sidebar():
-    name  = st.session_state.get("student_name", "Student")
-    code  = st.session_state.get("student_code", "—")
-    level = st.session_state.get("student_level", "—")
 
-    st.sidebar.markdown("### 👤 Account")
-    st.sidebar.markdown(f"**{name}**  \nLevel **{level}** · Code **{code}**")
-
-    # Resume (if we have one)
-    _route, _label = _get_resume_info(code)
-    if _route:
-        label_txt = _label or _route.replace("/", " • ")
-        st.sidebar.button(f"▶️ Resume: {label_txt}", key="resume_btn_side", on_click=_resume_click, args=(_route,))
-
-    # Logout
-    st.sidebar.button("Log out", key="logout_side", on_click=_do_logout)
-
-    # Getting started / Tutorial
-    with st.sidebar.expander("📘 Getting started", expanded=False):
-        st.write("1) Open **Course Book** for your level")
-        st.write("2) Watch the lesson & read the notes")
-        st.write("3) **Submit** your assignment (box locks)")
-        st.write("4) Check **Results & Resources** for feedback")
-        st.link_button("🎥 2-min overview video", "https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4")
-
-    # FAQ (keep answers crisp)
-    with st.sidebar.expander("❓ FAQ", expanded=False):
-        st.markdown("**How do I log in?**  \nUse your school email **or** Falowen code (e.g., `felixa2`).")
-        st.markdown("**Where do I see scores?**  \nIn **Results & Resources**; you also get an email.")
-        st.markdown("**Why is my text box locked?**  \nAfter **Confirm & Submit**, it’s read-only by design.")
-        st.markdown("**Opened the wrong lesson?**  \nUse the blue banner dropdown to switch level/day.")
-        st.markdown("**Can I download my work?**  \nYes — use **Download draft (TXT)** before submitting.")
-
-    # Resources / Links
-    with st.sidebar.expander("🔗 Resources", expanded=False):
-        st.markdown("[👩‍🏫 Tutors](https://www.learngermanghana.com/tutors)")
-        st.markdown("[🗓️ Upcoming Classes](https://www.learngermanghana.com/upcoming-classes)")
-        st.markdown("[🔒 Privacy](https://www.learngermanghana.com/privacy-policy)")
-        st.markdown("[📜 Terms](https://www.learngermanghana.com/terms-of-service)")
-        st.markdown("[✉️ Contact](https://www.learngermanghana.com/contact-us)")
-
-    # Support
-    with st.sidebar.expander("🆘 Support", expanded=False):
-        st.markdown("[📱 WhatsApp](https://api.whatsapp.com/send?phone=233205706589)")
-        st.markdown("[✉️ Email](mailto:learngermanghana@gmail.com)")
-
-    # Optional: a simple tips toggle the rest of your app can read
-    st.sidebar.checkbox("Show helpful tips", key="_show_tips", value=st.session_state.get("_show_tips", True))
+# Sidebar logout
+st.sidebar.markdown("## Account")
+st.sidebar.button("Log out", key="logout_side", on_click=_do_logout)
 
 inject_notice_css()
 render_announcements(announcements)
@@ -1327,9 +1156,6 @@ st.markdown("**You’re logged in.** Continue to your lessons and tools from the
 # ===== OPTIONAL: Example usage to update last_route somewhere in your app =====
 # Call this when you navigate the user to a new screen (route + human-friendly label)
 # set_last_route(st.session_state.get("student_code", ""), "A2/Day 6", "A2 • Day 6")
-
-
-
 
 
 # =========================================================
