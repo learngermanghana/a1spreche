@@ -248,6 +248,8 @@
 
     .btn-ghost { width: 100%; background: transparent; color: var(--text); border: 1px dashed var(--border); }
 
+    .error { margin-top: 12px; color: var(--accent); min-height: 1.2em; }
+
     .legal { margin-top: 12px; color: var(--muted); font-size: .85rem; line-height: 1.5; }
 
     /* Animations */
@@ -355,6 +357,7 @@
           </button>
           <button class="btn btn-ghost" type="button" id="googleBtn">Sign in with Google</button>
         </form>
+        <div class="error" role="alert" aria-live="polite"></div>
         <p class="legal">By continuing, you agree to our <a href="#" style="color:var(--accent); text-decoration:none; font-weight:600">Terms</a> and <a href="#" style="color:var(--accent); text-decoration:none; font-weight:600">Privacy Policy</a>.</p>
       </aside>
     </div>
@@ -375,11 +378,23 @@
       eyeClosed.style.display = isHidden ? '' : 'none';
     });
 
-    function handleLogin(e) {
+    async function handleLogin(e) {
       e.preventDefault();
       const email = document.getElementById('email').value;
       const password = document.getElementById('password').value;
-      window.parent.postMessage({type: 'streamlit:setComponentValue', value: {action: 'login', email, password}}, '*');
+      const errBox = document.querySelector('.error');
+      errBox.textContent = '';
+      try {
+        const resp = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        if (!resp.ok) throw new Error('Login failed');
+        window.parent.postMessage({type: 'streamlit:setComponentValue', value: {action: 'login', email, password}}, '*');
+      } catch (err) {
+        errBox.textContent = 'Sorry, login failed. Please check your details and try again.';
+      }
     }
 
     document.getElementById('googleBtn')?.addEventListener('click', () => {
