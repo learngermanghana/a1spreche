@@ -35,6 +35,7 @@ from google.api_core.exceptions import GoogleAPICallError
 from firebase_admin import firestore
 from fpdf import FPDF
 from gtts import gTTS
+from bs4 import BeautifulSoup
 from openai import OpenAI
 from streamlit.components.v1 import html as st_html
 from streamlit_quill import st_quill
@@ -364,12 +365,24 @@ def render_falowen_login(google_auth_url: str) -> None:
     html_path = Path(__file__).parent / "templates" / "falowen_login.html"
     html = html_path.read_text(encoding="utf-8").replace("{{GOOGLE_AUTH_URL}}", google_auth_url)
 
-    # Remove legacy "Right: Login" aside block and its script if present
-    html = re.sub(r'<!--\s*Right:\s*Login\s*-->[\s\S]*?</aside>', '', html, flags=re.IGNORECASE)
-    html = re.sub(r'grid-template-columns:\s*1\.2fr\s*\.8fr;', 'grid-template-columns: 1fr;', html)  # make single column
-    html = re.sub(r'<script>[\s\S]*?</script>\s*</body>', '</body>', html)
+    soup = BeautifulSoup(html, "html.parser")
 
-    components.html(html, height=720, scrolling=True, key="falowen_hero")
+    for aside in soup.find_all("aside"):
+        aside.decompose()
+
+    for script in soup.find_all("script"):
+        script.decompose()
+
+    style_tag = soup.find("style")
+    if style_tag and style_tag.string:
+        style_tag.string = style_tag.string.replace(
+            "grid-template-columns:1.2fr .8fr;", "grid-template-columns:1fr;"
+        )
+        style_tag.string = style_tag.string.replace(
+            "grid-template-columns: 1.2fr .8fr;", "grid-template-columns: 1fr;"
+        )
+
+    components.html(str(soup), height=720, scrolling=True, key="falowen_hero")
 
 
 # ------------------------------------------------------------------------------
