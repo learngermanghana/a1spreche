@@ -146,6 +146,10 @@ def _load_student_data_cached() -> Optional[pd.DataFrame]:
     for col in df.columns:
         s = df[col]
         df[col] = s.where(s.isna(), s.astype(str).str.strip())
+    if "ContractEnd" not in df.columns:
+        logging.warning("Student roster missing 'ContractEnd' column")
+        st.warning("The student roster is missing a 'ContractEnd' column.")
+        return None
 
     df = df[df["ContractEnd"].notna() & (df["ContractEnd"].str.len() > 0)]
 
