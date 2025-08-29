@@ -329,7 +329,7 @@
             <label for="email">Email</label>
             <div class="input">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M3 7l9 6 9-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><rect x="3" y="5" width="18" height="14" rx="2" ry="2" stroke="currentColor" stroke-width="1.6" fill="none"/></svg>
-              <input id="email" type="email" name="email" placeholder="you@example.com" required autocomplete="email" />
+              <input id="email" type="email" name="email" placeholder="you@example.com" required autocomplete="email" autofocus />
               <span></span>
             </div>
           </div>
@@ -339,7 +339,7 @@
             <div class="input">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="3" y="11" width="18" height="10" rx="2" ry="2" stroke="currentColor" stroke-width="1.6"/><path d="M7 11V8a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
               <input id="password" type="password" name="password" placeholder="••••••••" required autocomplete="current-password" />
-              <button class="icon-btn" type="button" id="togglePass" aria-label="Show password" title="Show/Hide password">
+              <button class="icon-btn" type="button" id="togglePass" aria-label="Show password" aria-pressed="false" title="Show/Hide password">
                 <svg id="eyeOpen" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/></svg>
                 <svg id="eyeClosed" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:none"><path d="M3 3l18 18" stroke="currentColor" stroke-width="1.6"/><path d="M10 5.3A11.8 11.8 0 0 1 12 5c6 0 10 7 10 7a18.8 18.8 0 0 1-4.1 4.86" stroke="currentColor" stroke-width="1.6"/><path d="M6.2 6.2A18.6 18.6 0 0 0 2 12s4 7 10 7c1.1 0 2.1-.18 3.1-.49" stroke="currentColor" stroke-width="1.6"/></svg>
               </button>
@@ -376,6 +376,8 @@
       pass.type = isHidden ? 'text' : 'password';
       eyeOpen.style.display = isHidden ? 'none' : '';
       eyeClosed.style.display = isHidden ? '' : 'none';
+      toggle.setAttribute('aria-pressed', isHidden ? 'true' : 'false');
+      toggle.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
     });
 
     async function handleLogin(e) {
