@@ -602,7 +602,7 @@ def render_falowen_login(google_auth_url: str):
 
     html_path = Path(__file__).parent / "templates" / "falowen_login.html"
     html = html_path.read_text().replace("{{GOOGLE_AUTH_URL}}", google_auth_url)
-    return st_html(html, height=900, scrolling=True)
+    return st_html(html, height=0, scrolling=True)
 
 # ------------------------------------------------------------------------------
 # RESET LINK BUILDER will now use root "/?token="
