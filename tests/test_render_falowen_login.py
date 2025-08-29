@@ -74,9 +74,11 @@ def test_missing_template_shows_error(login_mod, monkeypatch):
     assert not login_mod.components.html.called
 
 
-def test_unexpected_error_propagates(login_mod, monkeypatch):
-    monkeypatch.setattr(pathlib.Path, "read_text", MagicMock(side_effect=ValueError("boom")))
+
+def test_unicode_decode_error_raises_runtime_error(login_mod, monkeypatch):
+    err = UnicodeDecodeError("utf-8", b"", 0, 1, "bad data")
+    monkeypatch.setattr(pathlib.Path, "read_text", MagicMock(side_effect=err))
     login_mod._load_falowen_login_html.cache_clear()
-    with pytest.raises(ValueError):
-        login_mod.render_falowen_login()
-    assert not login_mod.st.error.called
+    with pytest.raises(RuntimeError, match="valid UTF-8"):
+        login_mod._load_falowen_login_html()
+
