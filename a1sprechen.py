@@ -39,6 +39,7 @@ from gtts import gTTS
 from bs4 import BeautifulSoup
 from openai import OpenAI
 from streamlit_quill import st_quill
+from src.cache_utils import clear_cache_if_dev
 
 # --- Streamlit page config (do this first) ---
 st.set_page_config(
@@ -47,6 +48,9 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Clear Streamlit caches when running locally in development.
+clear_cache_if_dev()
 
 # --- Falowen modules ---
 from falowen.email_utils import send_reset_email, build_gas_reset_link, GAS_RESET_URL
