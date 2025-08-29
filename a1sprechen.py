@@ -292,7 +292,10 @@ def _handle_google_oauth(code: str, state: str) -> None:
         st.error(f"Google OAuth error: {e}")
 
 def render_google_oauth(return_url: bool = False) -> Optional[str]:
-    """If ?code is present, complete OAuth. Otherwise, return the Google auth URL when return_url=True."""
+    """
+    Handles ?code callback; otherwise returns the Google auth URL when return_url=True.
+    (No UI rendering here to avoid duplicate buttons.)
+    """
     import secrets, urllib.parse
 
     def _qp_first(val):
@@ -317,44 +320,79 @@ def render_google_oauth(return_url: bool = False) -> Optional[str]:
         "access_type": "online",
     }
     auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
-    if return_url:
-        return auth_url
+    return auth_url if return_url else None
 
-    # Optional extra Google button outside the template
-    st.markdown(
-        """<div class="page-wrap" style='text-align:center;margin:12px 0;'>
-             <a href="{url}">
-               <button aria-label="Sign in with Google"
-                       style="background:#4285f4;color:white;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;">
-                 Sign in with Google
-               </button>
-             </a>
-           </div>""".replace("{url}", auth_url),
-        unsafe_allow_html=True,
-    )
-    return None
+# -------------------------------------------------------
+# Single, branded Google Sign-In button (renders ONCE)
+# -------------------------------------------------------
+def render_google_signin_once(auth_url: str, full_width: bool = True):
+    """
+    Renders a single Google Sign-In button with proper styling and a session guard.
+    Call exactly once on the login page (e.g., below the hero).
+    """
+    if not auth_url:
+        return
+    # Guard against duplicates in the same run
+    if st.session_state.get("_google_btn_rendered"):
+        return
 
-# Reusable Google CTA block (Streamlit-native button w/ fallback)
-def render_google_cta_buttons(auth_url: str, center: bool = True, compact: bool = False):
-    """Renders a 'Continue with Google' (Gmail) button using st.link_button when available, else HTML."""
-    label = "🔑 Continue with Google"
-    wrap_style = "text-align:center; margin:10px 0;" if center else "margin:8px 0;"
+    btn_html = f"""
+    <style>
+      .g-wrap {{
+        display:flex; justify-content:center; margin:8px 0 12px;
+      }}
+      .g-btn {{
+        appearance:none; -webkit-appearance:none;
+        display:inline-flex; align-items:center; gap:10px;
+        background:#ffffff; color:#1f2937;
+        border:1px solid rgba(2,6,23,.12);
+        border-radius:12px; padding:12px 18px;
+        font-weight:800; font-size:1.05rem; letter-spacing:.01em;
+        box-shadow:0 2px 8px rgba(2,6,23,.06);
+        cursor:pointer; text-decoration:none;
+        transition: box-shadow .18s ease, transform .02s ease, border-color .18s ease;
+        line-height:1;
+        {"width:100%; justify-content:center;" if full_width else ""}
+      }}
+      .g-btn:hover {{
+        border-color:#93c5fd;
+        box-shadow:0 6px 18px rgba(2,6,23,.12);
+      }}
+      .g-btn:active {{ transform: translateY(1px); }}
+      .g-logo {{ width:20px; height:20px; display:inline-block; }}
+      @media (prefers-color-scheme: dark) {{
+        .g-btn {{ background:#ffffff; color:#111827; }}
+      }}
+    </style>
+    <div class="g-wrap">
+      <a class="g-btn" href="{auth_url}">
+        <svg class="g-logo" viewBox="0 0 533.5 544.3" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path fill="#4285F4" d="M533.5 278.4a320 320 0 0 0-5.1-57.1H272.1v108.1h146.9a125.5 125.5 0 0 1-54.4 82.4v68.3h87.9c51.4-47.3 80.9-117.1 80.9-201.7z"/>
+          <path fill="#34A853" d="M272.1 544.3c73.4 0 135-24.2 180-65.6l-87.9-68.3c-24.4 16.4-55.8 26-92.1 26-70.7 0-130.6-47.7-152.1-111.7H29.2v70.2a272.1 272.1 0 0 0 242.9 149.4z"/>
+          <path fill="#FBBC05" d="M120 325.7a163.1 163.1 0 0 1 0-107.1V148.4H29.2a272.1 272.1 0 0 0 0 247.5l90.8-70.2z"/>
+          <path fill="#EA4335" d="M272.1 106.8c40 0 76 13.8 104.3 40.9l78.2-78.2C406.8 25.1 345.2 0 272.1 0 149.2 0 39.9 69.4 29.2 148.4l90.8 70.2C141.5 154.5 201.4 106.8 272.1 106.8z"/>
+        </svg>
+        Continue with Google
+      </a>
+    </div>
+    """
     try:
-        # New Streamlit API – renders a native link button
-        st.link_button(label, auth_url)
+        components.html(btn_html, height=72, scrolling=False)
     except Exception:
-        size = "padding:8px 22px;" if not compact else "padding:7px 16px;font-size:.95rem;"
-        st.markdown(
-            f"""<div style="{wrap_style}">
-                  <a href="{auth_url}">
-                    <button aria-label="Continue with Google"
-                      style="background:#4285f4;color:white;{size}border:none;border-radius:6px;cursor:pointer;">
-                      {label}
-                    </button>
-                  </a>
-                </div>""",
-            unsafe_allow_html=True,
-        )
+        # Streamlit-native fallback
+        st.link_button("Continue with Google", auth_url, use_container_width=full_width)
+
+    st.session_state["_google_btn_rendered"] = True
+
+# -------------------------------------------------------
+# Back-compat shim (old calls won’t duplicate anymore)
+# -------------------------------------------------------
+def render_google_cta_buttons(auth_url: str, center: bool = True, compact: bool = False):
+    """
+    Compatibility wrapper for existing code paths.
+    Internally calls the ‘once’ renderer, which is guarded.
+    """
+    render_google_signin_once(auth_url, full_width=True)
 
 # ------------------------------------------------------------------------------
 # Robust Head / PWA injection (avoid height=0 TypeError)
@@ -417,7 +455,7 @@ def inject_notice_css():
       .pill-purple { background:#efe9ff; color:#5b21b6; }
       .pill-amber  { background:#fff7ed; color:#7c2d12; }
 
-      /* ---- mini-card grid (this was missing) ---- */
+      /* ---- mini-card grid (ensure horizontal cards) ---- */
       .minirow{
         display:grid;
         grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -441,25 +479,29 @@ def inject_notice_css():
     </style>
     """, unsafe_allow_html=True)
 
-
 # ------------------------------------------------------------------------------
-# Hero (HTML template) with safe fallback
+# Hero (HTML template) with safe fallback — strips in-template Google by default
 # ------------------------------------------------------------------------------
 @lru_cache(maxsize=1)
 def _read_hero_template() -> str:
     html_path = Path(__file__).parent / "templates" / "falowen_login.html"
     return html_path.read_text(encoding="utf-8")
 
-def render_falowen_login(google_auth_url: str) -> None:
+def render_falowen_login(google_auth_url: str, show_google_in_hero: bool = False) -> None:
     try:
-        html = _read_hero_template().replace("{{GOOGLE_AUTH_URL}}", google_auth_url or "#")
-    except Exception as e:
+        html = _read_hero_template()
+        if show_google_in_hero:
+            html = html.replace("{{GOOGLE_AUTH_URL}}", google_auth_url or "#")
+        else:
+            # Strip any anchor using the placeholder to avoid duplicates
+            html = re.sub(r'<a[^>]+{{GOOGLE_AUTH_URL}}[^>]*>[\s\S]*?</a>', '', html, flags=re.IGNORECASE)
+            html = html.replace("{{GOOGLE_AUTH_URL}}", "#")
+    except Exception:
         st.error("Falowen hero template missing or unreadable.")
         return
     try:
-        components.html(html, height=720, scrolling=True)  # no key to avoid rare TypeError
+        components.html(html, height=720, scrolling=True)
     except TypeError:
-        # Fallback: strip scripts and render as markdown
         safe = re.sub(r'<script[\s\S]*?</script>', '', html, flags=re.IGNORECASE)
         st.markdown(safe, unsafe_allow_html=True)
 
@@ -621,6 +663,7 @@ def render_forgot_password_panel():
                     st.error("We couldn't send the email. Please try again later.")
 
 def render_returning_login_area() -> bool:
+    """Email/Password login + optional forgot-password panel. No Google button here."""
     with st.form("returning_login_form", clear_on_submit=False):
         st.markdown("#### Returning user login")
         login_id = st.text_input("Email or Student Code")
@@ -640,12 +683,9 @@ def render_returning_login_area() -> bool:
     if st.session_state.get("show_reset_panel"):
         render_forgot_password_panel()
 
-    # Compact Google (Gmail) button under the form
-    st.caption("or")
-    auth_url = render_google_oauth(return_url=True) or ""
-    render_google_cta_buttons(auth_url, center=False, compact=True)
-
+    # ❌ Do not render Google here (single button lives below the hero)
     return False
+
 
 # ------------------------------------------------------------------------------
 # Announcements (robust)
