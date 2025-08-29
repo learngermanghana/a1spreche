@@ -203,6 +203,60 @@ def fetch_youtube_playlist_videos(playlist_id: str, api_key: str = YOUTUBE_API_K
     return videos
 
 # ------------------------------------------------------------------------------
+# Lightweight head/PWA injection (robust)
+# ------------------------------------------------------------------------------
+BASE = st.secrets.get("PUBLIC_BASE_URL", "")
+_manifest = f'{BASE}/manifest.webmanifest' if BASE else "/manifest.webmanifest"
+_icon180  = f'{BASE}/static/icons/falowen-180.png' if BASE else "/static/icons/falowen-180.png"
+
+def _inject_meta_tags():
+    """Injects meta/link tags into <head>. Uses a tiny visible height to avoid
+    Streamlit component TypeError on some builds when height=0."""
+    if st.session_state.get("_pwa_head_done"):
+        return
+
+    html_snippet = f"""
+    <script>
+      (function() {{
+        try {{
+          var head = document.getElementsByTagName('head')[0];
+          var tags = [
+            '<link rel="manifest" href="{_manifest}">',
+            '<link rel="apple-touch-icon" href="{_icon180}">',
+            '<meta name="apple-mobile-web-app-capable" content="yes">',
+            '<meta name="apple-mobile-web-app-title" content="Falowen">',
+            '<meta name="apple-mobile-web-app-status-bar-style" content="default">',
+            '<meta name="color-scheme" content="light">',
+            '<meta name="theme-color" content="#f3f7fb">',
+            '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
+          ];
+          tags.forEach(function(t) {{ head.insertAdjacentHTML('beforeend', t); }});
+          if ('serviceWorker' in navigator) {{
+            navigator.serviceWorker.register('/sw.js', {{ scope: '/' }}).catch(function(){{}});
+          }}
+        }} catch (e) {{
+          // swallow – this block is best-effort
+        }}
+      }})();
+    </script>
+    """
+
+    try:
+        # IMPORTANT: use a small positive height, not 0
+        components.html(html_snippet, height=1, scrolling=False)
+    except TypeError:
+        # Fallback: render a minimal, non-script meta tag (harmless if sanitized)
+        st.markdown(
+            f'<meta name="theme-color" content="#f3f7fb">', unsafe_allow_html=True
+        )
+    except Exception:
+        # Last-resort no-op; we don't want this to block the app
+        pass
+
+    st.session_state["_pwa_head_done"] = True
+
+
+# ------------------------------------------------------------------------------
 # Cookie manager
 # ------------------------------------------------------------------------------
 cookie_manager = get_cookie_manager()
