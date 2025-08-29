@@ -208,31 +208,6 @@ def fetch_youtube_playlist_videos(playlist_id: str, api_key: str = YOUTUBE_API_K
 # ------------------------------------------------------------------------------
 cookie_manager = get_cookie_manager()
 
-
-# ------------------------------------------------------------------------------
-# Optional: tiny FastAPI health probe (safe in Streamlit)
-# ------------------------------------------------------------------------------
-if os.environ.get("RENDER"):
-    try:
-        from fastapi import FastAPI
-        from uvicorn import Config, Server
-
-        api = FastAPI()
-
-        @api.get("/healthz")
-        async def healthz():
-            return {"status": "ok"}
-
-        import threading
-        def _start_health():
-            cfg = Config(api, host="0.0.0.0", port=8000, log_level="warning")
-            Server(cfg).run()
-
-        threading.Thread(target=_start_health, daemon=True).start()
-    except Exception:
-        pass
-
-
 # ------------------------------------------------------------------------------
 # OAuth (Google)
 # ------------------------------------------------------------------------------
@@ -1142,10 +1117,55 @@ with top:
     with c2:
         st.write("")  # spacer
         st.button("Log out", key="logout_top", type="primary", on_click=_do_logout)
+# ---------- Sidebar renderer ----------
+def render_sidebar():
+    name  = st.session_state.get("student_name", "Student")
+    code  = st.session_state.get("student_code", "—")
+    level = st.session_state.get("student_level", "—")
 
-# Sidebar logout
-st.sidebar.markdown("## Account")
-st.sidebar.button("Log out", key="logout_side", on_click=_do_logout)
+    st.sidebar.markdown("### 👤 Account")
+    st.sidebar.markdown(f"**{name}**  \nLevel **{level}** · Code **{code}**")
+
+    # Resume (if we have one)
+    _route, _label = _get_resume_info(code)
+    if _route:
+        label_txt = _label or _route.replace("/", " • ")
+        st.sidebar.button(f"▶️ Resume: {label_txt}", key="resume_btn_side", on_click=_resume_click, args=(_route,))
+
+    # Logout
+    st.sidebar.button("Log out", key="logout_side", on_click=_do_logout)
+
+    # Getting started / Tutorial
+    with st.sidebar.expander("📘 Getting started", expanded=False):
+        st.write("1) Open **Course Book** for your level")
+        st.write("2) Watch the lesson & read the notes")
+        st.write("3) **Submit** your assignment (box locks)")
+        st.write("4) Check **Results & Resources** for feedback")
+        st.link_button("🎥 2-min overview video", "https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4")
+
+    # FAQ (keep answers crisp)
+    with st.sidebar.expander("❓ FAQ", expanded=False):
+        st.markdown("**How do I log in?**  \nUse your school email **or** Falowen code (e.g., `felixa2`).")
+        st.markdown("**Where do I see scores?**  \nIn **Results & Resources**; you also get an email.")
+        st.markdown("**Why is my text box locked?**  \nAfter **Confirm & Submit**, it’s read-only by design.")
+        st.markdown("**Opened the wrong lesson?**  \nUse the blue banner dropdown to switch level/day.")
+        st.markdown("**Can I download my work?**  \nYes — use **Download draft (TXT)** before submitting.")
+
+    # Resources / Links
+    with st.sidebar.expander("🔗 Resources", expanded=False):
+        st.markdown("[👩‍🏫 Tutors](https://www.learngermanghana.com/tutors)")
+        st.markdown("[🗓️ Upcoming Classes](https://www.learngermanghana.com/upcoming-classes)")
+        st.markdown("[🔒 Privacy](https://www.learngermanghana.com/privacy-policy)")
+        st.markdown("[📜 Terms](https://www.learngermanghana.com/terms-of-service)")
+        st.markdown("[✉️ Contact](https://www.learngermanghana.com/contact-us)")
+
+    # Support
+    with st.sidebar.expander("🆘 Support", expanded=False):
+        st.markdown("[📱 WhatsApp](https://api.whatsapp.com/send?phone=233205706589)")
+        st.markdown("[✉️ Email](mailto:learngermanghana@gmail.com)")
+
+    # Optional: a simple tips toggle the rest of your app can read
+    st.sidebar.checkbox("Show helpful tips", key="_show_tips", value=st.session_state.get("_show_tips", True))
 
 inject_notice_css()
 render_announcements(announcements)
