@@ -956,8 +956,8 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "grammar_topic": "Moadalverben",
-            "video": "",
-            "youtube_link": "",
+            "video": "https://youtu.be/_aFuOTSdMb8",
+            "youtube_link": "https://youtu.be/_aFuOTSdMb8",
             "grammarbook_link": "https://drive.google.com/file/d/1s6TcUzjADzicOKRx3adxW4UdqEXQmz_L/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1PgsULeo11OhzpICZ77RSlVEuuyrSdxSe/view?usp=sharing"
         },
