@@ -203,28 +203,6 @@ def fetch_youtube_playlist_videos(playlist_id: str, api_key: str = YOUTUBE_API_K
 
 cookie_manager = get_cookie_manager()
 
-# ------------------------------------------------------------------------------
-# Optional: tiny FastAPI health probe (fixed indentation)
-# ------------------------------------------------------------------------------
-if os.environ.get("RENDER"):
-    try:
-        from fastapi import FastAPI
-        from uvicorn import Config, Server
-        api = FastAPI()
-
-        @api.get("/healthz")
-        async def healthz():
-            return {"status": "ok"}
-
-        import threading
-        def _start_health():
-            cfg = Config(api, host="0.0.0.0", port=8000, log_level="warning")
-            Server(cfg).run()
-
-        threading.Thread(target=_start_health, daemon=True).start()
-    except Exception:
-        # Health endpoint is optional; continue silently in Streamlit-only deploys
-        pass
 
 # ------------------------------------------------------------------------------
 # Google OAuth
@@ -579,7 +557,7 @@ def inject_notice_css():
 
 _inject_meta_tags()
 
-# ---------- Announcements widget (define BEFORE use) ----------
+
 def render_announcements(ANNOUNCEMENTS: list):
     """Responsive rotating announcement board with mobile-first, light card on phones."""
     import json
@@ -718,7 +696,8 @@ def render_announcements(ANNOUNCEMENTS: list):
     """
     data_json = json.dumps(ANNOUNCEMENTS, ensure_ascii=False)
     components.html(_html.replace("__DATA__", data_json),
-                    height=220, scrolling=False, key="announcements_widget")
+                    height=220, scrolling=False)
+
 
 # ------------------------------------------------------------------------------
 # OpenAI (used elsewhere in app)
