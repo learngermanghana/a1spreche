@@ -808,48 +808,54 @@ def render_announcements(ANNOUNCEMENTS: list):
             st.markdown(f"**{a.get('title','')}** — {a.get('body','')}")
 
 # ------------------------------------------------------------------------------
-# Login page assembly (Hero + Google + Returning + Sign-up + Request + Media)
+# Login page assembly (Hero + Google OAuth, Returning form, Sign-up, Request)
+# Shows exactly one Gmail button (in the hero template)
 # ------------------------------------------------------------------------------
 def login_page():
-    # Build/handle Google OAuth, get the auth URL for buttons
+    # Build/handle Google OAuth, get the auth URL for the hero button
     auth_url = render_google_oauth(return_url=True) or ""
 
-    # Branded hero (template can also include a {{GOOGLE_AUTH_URL}} button)
+    # Branded hero (template should contain a single {{GOOGLE_AUTH_URL}} button)
     render_falowen_login(auth_url)
 
-    # Primary Gmail button (big, visible)
-    st.markdown("<div style='text-align:center; margin:10px 0;'>or</div>", unsafe_allow_html=True)
-    render_google_cta_buttons(auth_url, center=True, compact=False)
+    # ========== Returning user login (inline, no extra Google CTA) ==========
+    st.markdown("### Returning user login")
+    with st.form("returning_login_form_clean", clear_on_submit=False):
+        login_id = st.text_input("Email or Student Code", key="login_id")
+        login_pass = st.text_input("Password", type="password", key="login_pass")
+        submitted = st.form_submit_button("Log in")
+    if submitted and render_login_form(login_id, login_pass):
+        st.rerun()
 
-    # Native email/password login
-    login_success = render_returning_login_area()
+    # Forgot password (toggle a compact panel)
+    if st.button("Forgot password?", key="show_reset_panel_btn"):
+        st.session_state["show_reset_panel"] = True
+    if st.session_state.get("show_reset_panel"):
+        render_forgot_password_panel()
 
-    # Sign up + Request Access tabs
+    # ========== Sign up + Request Access ==========
     tab2, tab3 = st.tabs(["🧾 Sign Up (Approved)", "📝 Request Access"])
     with tab2:
-        render_signup_form()
-        # Extra Gmail button here too (optional)
-        st.caption("Prefer using your Google (Gmail) account?")
-        render_google_cta_buttons(auth_url, center=False, compact=True)
+        render_signup_form()  # no extra Gmail button here
     with tab3:
         st.markdown(
             """
             <div class="page-wrap" style="text-align:center; margin-top:20px;">
-                <p style="font-size:1.1em; color:#444;">
-                    If you don't have an account yet, please request access by filling out this form.
-                </p>
-                <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header" 
-                   target="_blank" rel="noopener">
-                    <button style="background:#25317e; color:white; padding:10px 20px; border:none; border-radius:6px; cursor:pointer;">
-                        📝 Open Request Access Form
-                    </button>
-                </a>
+              <p style="font-size:1.1em; color:#444;">
+                If you don't have an account yet, please request access by filling out this form.
+              </p>
+              <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header" 
+                 target="_blank" rel="noopener">
+                <button style="background:#25317e; color:white; padding:10px 20px; border:none; border-radius:6px; cursor:pointer;">
+                  📝 Open Request Access Form
+                </button>
+              </a>
             </div>
             """,
             unsafe_allow_html=True
         )
 
-    # Help + links
+    # Help + quick contacts
     st.markdown("""
     <div class="page-wrap">
       <div class="help-contact-box" aria-label="Help and contact options" style="text-align:center;">
@@ -857,22 +863,6 @@ def login_page():
         <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp us</a>
         &nbsp;|&nbsp;
         <a href="mailto:learngermanghana@gmail.com" target="_blank" rel="noopener">✉️ Email</a>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Video
-    st.markdown("""
-    <div class="page-wrap">
-      <div style="display:flex; justify-content:center; align-items:center; margin:12px 0 24px;">
-        <video
-          width="360"
-          autoplay muted loop playsinline
-          oncontextmenu="return false;"
-          style="pointer-events:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,.08);">
-          <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
-          Sorry, your browser doesn't support embedded videos.
-        </video>
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -889,7 +879,7 @@ def login_page():
              style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
         <div style="height:8px;"></div>
         <h3 style="margin:0 0 4px 0;">1️⃣ Sign in</h3>
-        <p style="margin:0;">Use your <b>student code or email</b> — or sign in with <b>Google</b> (Gmail).</p>
+        <p style="margin:0;">Use your <b>student code or email</b> — or the <b>Google</b> button above.</p>
         """, unsafe_allow_html=True)
     with c2:
         st.markdown(f"""
@@ -908,7 +898,7 @@ def login_page():
         <p style="margin:0;">You’ll get an <b>email when marked</b>. Check <b>Results & Resources</b> for feedback.</p>
         """, unsafe_allow_html=True)
 
-    # Quick links
+    # Footer links
     st.markdown("""
     <div class="page-wrap" style="text-align:center; margin:12px 0;">
       <a href="https://www.learngermanghana.com/tutors"           target="_blank" rel="noopener">👩‍🏫 Tutors</a>
@@ -923,16 +913,205 @@ def login_page():
     </div>
     """, unsafe_allow_html=True)
 
+    from datetime import datetime as _dt_now
     st.markdown(f"""
     <div class="page-wrap" style="text-align:center;color:#64748b; margin-bottom:16px;">
-      © {datetime.utcnow().year} Learn Language Education Academy • Accra, Ghana<br>
+      © {_dt_now.utcnow().year} Learn Language Education Academy • Accra, Ghana<br>
       Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> •
       <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>
     </div>
     """, unsafe_allow_html=True)
 
-    if login_success:
+
+# ------------------------------------------------------------------------------
+# Logged-in header (welcome + blue Log out) — shown immediately after login
+# ------------------------------------------------------------------------------
+def _do_logout():
+    try:
+        prev_token = st.session_state.get("session_token", "")
+        if prev_token:
+            try:
+                destroy_session_token(prev_token)
+            except Exception:
+                logging.exception("Token revoke failed on logout")
+        clear_session(cookie_manager)
+    except Exception:
+        logging.exception("Cookie/session clear failed")
+    st.session_state.update({
+        "logged_in": False,
+        "student_row": {},
+        "student_code": "",
+        "student_name": "",
+        "session_token": "",
+        "student_level": "",
+    })
+    st.success("You’ve been logged out.")
+    st.rerun()
+
+def render_logged_in_topbar():
+    name  = st.session_state.get("student_name", "")
+    level = st.session_state.get("student_level", "—")
+    code  = st.session_state.get("student_code", "—")
+
+    st.markdown(
+        """
+        <style>
+          .dash-topwrap{
+            background:#f5f9ff;
+            border:1px solid rgba(30,64,175,.12);
+            border-radius:14px;
+            padding:14px 16px;
+            margin:4px 0 10px 0;
+            box-shadow:0 6px 14px rgba(2,6,23,.06);
+          }
+          .dash-title{ font-size:1.55rem; font-weight:900; color:#19213a; margin:0 0 4px 0; }
+          .dash-sub{ color:#475569; font-size:.95rem; }
+          div[data-testid="stButton"] > button[kind="primary"]{
+            background:#1f2d7a; border:1px solid #1b2a6e; border-radius:10px; font-weight:700;
+            box-shadow:0 4px 10px rgba(31,45,122,.18);
+          }
+          div[data-testid="stButton"] > button[kind="primary"]:hover{ filter:brightness(1.05); }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    top = st.container()
+    with top:
+        c1, c2 = st.columns([1, 0.18])
+        with c1:
+            st.markdown(
+                f"""
+                <div class="dash-topwrap">
+                  <div class="dash-title">👋 Welcome, {name}</div>
+                  <div class="dash-sub">Level: {level} · Code: {code}</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        with c2:
+            st.button("Log out",
+                      key="logout_global",
+                      type="primary",
+                      use_container_width=True,
+                      on_click=_do_logout)
+
+
+# ------------------------------------------------------------------------------
+# Level-aware welcome video (YouTube) used in the sidebar (IDs can be added later)
+# ------------------------------------------------------------------------------
+def render_level_welcome_video(level: str | None):
+    level = (level or "").strip().upper() or "A1"
+    YT_WELCOME = {"A1":"", "A2":"", "B1":"", "B2":"", "C1":"", "C2":""}  # fill IDs later
+    vid = YT_WELCOME.get(level) or ""
+    if not vid:
+        st.info(f"No welcome video added yet for {level}. Check back soon!")
+        return
+    components.html(
+        f"""
+        <div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:12px;
+                    box-shadow:0 4px 12px rgba(0,0,0,.08);">
+          <iframe
+            src="https://www.youtube.com/embed/{vid}"
+            title="Welcome • {level}"
+            frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowfullscreen
+            style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;border-radius:12px;">
+          </iframe>
+        </div>
+        """, height=320, scrolling=False
+    )
+
+
+# ------------------------------------------------------------------------------
+# Sidebar (publish-ready)
+# ------------------------------------------------------------------------------
+def render_sidebar_published():
+    def _qp_set_safe(**kwargs):
+        if "_qp_set" in globals():
+            try: _qp_set(**kwargs); return
+            except Exception: pass
+        try:
+            for k, v in kwargs.items():
+                st.query_params[k] = "" if v is None else str(v)
+        except Exception:
+            pass
+
+    def _go(tab_name: str):
+        st.session_state["nav_sel"] = tab_name
+        st.session_state["main_tab_select"] = tab_name
+        _qp_set_safe(tab=tab_name)
         st.rerun()
+
+    st.sidebar.markdown("## Quick access")
+    st.sidebar.button("🏠 Dashboard",                use_container_width=True, on_click=_go, args=("Dashboard",))
+    st.sidebar.button("📈 My Course",                use_container_width=True, on_click=_go, args=("My Course",))
+    st.sidebar.button("📊 Results & Resources",      use_container_width=True, on_click=_go, args=("My Results and Resources",))
+    st.sidebar.button("🗣️ Exams Mode & Custom Chat", use_container_width=True, on_click=_go, args=("Exams Mode & Custom Chat",))
+    st.sidebar.button("📚 Vocab Trainer",            use_container_width=True, on_click=_go, args=("Vocab Trainer",))
+    st.sidebar.button("✍️ Schreiben Trainer",        use_container_width=True, on_click=_go, args=("Schreiben Trainer",))
+
+    st.sidebar.divider()
+
+    st.sidebar.markdown("## How-to & tips")
+    with st.sidebar.expander("📚 Quick guide", expanded=False):
+        st.markdown(
+            """
+- **Submit work:** My Course → Submit → **Confirm & Submit** (locks after submission).
+- **Check feedback:** **Results & Resources** shows marks, comments, downloads.
+- **Practice speaking:** **Tools → Sprechen** for instant pronunciation feedback.
+- **Build vocab:** **Vocab Trainer** for daily words & review cycles.
+- **Track progress:** **Dashboard** shows streaks, next lesson, and missed items.
+            """
+        )
+
+    with st.sidebar.expander("🧭 Dashboard tabs, explained", expanded=False):
+        st.markdown(
+            """
+- **Dashboard:** Overview (streak, next lesson, missed, leaderboard, announcements).
+- **My Course:** Lessons, materials, and submission flow.
+- **Results & Resources:** Marks, feedback, downloadable resources.
+- **Exams Mode & Custom Chat:** Exam-style drills + targeted AI practice.
+- **Vocab Trainer:** Daily picks, spaced review, stats.
+- **Schreiben Trainer:** Structured writing with iterative feedback.
+            """
+        )
+
+    with st.sidebar.expander("🎥 Welcome / video tutorials", expanded=False):
+        render_level_welcome_video(st.session_state.get("student_level"))
+        st.caption("More tutorials will appear here as they’re published.")
+
+    st.sidebar.divider()
+
+    st.sidebar.markdown("## Support")
+    st.sidebar.markdown(
+        """
+- 📱 [WhatsApp](https://api.whatsapp.com/send?phone=233205706589)
+- ✉️ [Email](mailto:learngermanghana@gmail.com)
+- 🐞 [Report an issue](mailto:learngermanghana@gmail.com?subject=Falowen%20Bug%20Report)
+        """
+    )
+
+    st.sidebar.markdown("## Resources")
+    st.sidebar.markdown(
+        """
+- 👩‍🏫 [Tutors](https://www.learngermanghana.com/tutors)
+- 🗓️ [Upcoming Classes](https://www.learngermanghana.com/upcoming-classes)
+- 🔒 [Privacy](https://www.learngermanghana.com/privacy-policy)
+- 📜 [Terms](https://www.learngermanghana.com/terms-of-service)
+- ✉️ [Contact](https://www.learngermanghana.com/contact-us)
+        """
+    )
+
+
+# ------------------------------------------------------------------------------
+# Small helper: render announcements once per rerun
+# ------------------------------------------------------------------------------
+def render_announcements_once(data: list):
+    if not st.session_state.get("_ann_rendered"):
+        render_announcements(data)
+        st.session_state["_ann_rendered"] = True
+
 
 # ------------------------------------------------------------------------------
 # OpenAI (used elsewhere in app)
@@ -943,6 +1122,7 @@ if not OPENAI_API_KEY:
     raise RuntimeError("Missing OpenAI API key")
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
+
 
 # ------------------------------------------------------------------------------
 # Seed state from query params / restore session / reset-link path / go to login
@@ -978,7 +1158,7 @@ if restored is not None and not st.session_state.get("logged_in", False):
         "student_level": level,
     })
 
-# Handle reset token deep link first
+# If visiting with password-reset token
 if not st.session_state.get("logged_in", False):
     tok = st.query_params.get("token")
     if isinstance(tok, list):
@@ -987,196 +1167,22 @@ if not st.session_state.get("logged_in", False):
         reset_password_page(tok)
         st.stop()
 
-# Not logged in? -> show the HTML login page and stop
+# Gate
 if not st.session_state.get("logged_in", False):
     login_page()
     st.stop()
 
-# ------------------------------------------------------------------------------
-# Logged-in UI (with announcements, level video, and publish-ready sidebar)
-# Light theme + single-render announcements
-# ------------------------------------------------------------------------------
+# ==================== LOGGED IN ====================
+# Show header immediately after login on every page
+render_logged_in_topbar()
 
-def _do_logout():
-    try:
-        prev_token = st.session_state.get("session_token", "")
-        if prev_token:
-            try:
-                destroy_session_token(prev_token)
-            except Exception:
-                logging.exception("Token revoke failed on logout")
-        clear_session(cookie_manager)
-    except Exception:
-        logging.exception("Cookie/session clear failed")
-    st.session_state.update({
-        "logged_in": False,
-        "student_row": {},
-        "student_code": "",
-        "student_name": "",
-        "session_token": "",
-        "student_level": "",
-    })
-    st.success("You’ve been logged out.")
-    st.rerun()
-
-# ---- Render announcements only once per rerun
-def render_announcements_once(data: list):
-    if not st.session_state.get("_ann_rendered"):
-        render_announcements(data)  # uses your existing HTML carousel
-        st.session_state["_ann_rendered"] = True
-
-# ---- Light theme accents
-st.markdown("""
-<style>
-  .topbar-card{
-    border:1px solid rgba(148,163,184,.35);
-    background:#ffffff;
-    border-radius:12px;
-    padding:10px 12px;
-  }
-  .topbar-name{ font-weight:800; font-size:1.12rem; color:#0f172a; margin:0; }
-  .topbar-sub { color:#475569; font-size:.95rem; margin-top:2px; }
-</style>
-""", unsafe_allow_html=True)
-
-# ------------------------------------------------------------------------------
-# Level-aware welcome video (YouTube) – template with safe defaults
-# ------------------------------------------------------------------------------
-def render_level_welcome_video(level: str | None):
-    """Embed a level-specific YouTube welcome/explainer video.
-       - If no video is configured for the level, shows a helpful st.info.
-       - You can paste real video IDs later without changing callers.
-    """
-    level = (level or "").strip().upper() or "A1"
-    # TODO: replace placeholders with your real YouTube video IDs
-    YT_WELCOME = {
-        "A1": "",  # e.g., "dQw4w9WgXcQ"
-        "A2": "",
-        "B1": "",
-        "B2": "",
-        "C1": "",
-        "C2": "",
-    }
-    vid = YT_WELCOME.get(level) or ""
-    if not vid:
-        st.info(f"No welcome video added yet for {level}. Check back soon!")
-        return
-    # Embedded player
-    st.components.v1.html(
-        f"""
-        <div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:12px;
-                    box-shadow:0 4px 12px rgba(0,0,0,.08);">
-          <iframe
-            src="https://www.youtube.com/embed/{vid}"
-            title="Welcome • {level}"
-            frameborder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowfullscreen
-            style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;border-radius:12px;">
-          </iframe>
-        </div>
-        """,
-        height=320,
-        scrolling=False,
-    )
-
-# ------------------------------------------------------------------------------
-# Sidebar (Publish-ready)
-# ------------------------------------------------------------------------------
-def render_sidebar_published():
-    # --- Safe query-param setter (uses your helper if present)
-    def _qp_set_safe(**kwargs):
-        if "_qp_set" in globals():
-            try:
-                _qp_set(**kwargs); return
-            except Exception:
-                pass
-        try:
-            for k, v in kwargs.items():
-                st.query_params[k] = "" if v is None else str(v)
-        except Exception:
-            pass
-
-    # --- Internal nav helper
-    def _go(tab_name: str):
-        st.session_state["nav_sel"] = tab_name
-        st.session_state["main_tab_select"] = tab_name
-        _qp_set_safe(tab=tab_name)
-        st.rerun()
-
-    # --- Quick Access
-    st.sidebar.markdown("## Quick access")
-    st.sidebar.button("🏠 Dashboard",                use_container_width=True, on_click=_go, args=("Dashboard",))
-    st.sidebar.button("📈 My Course",                use_container_width=True, on_click=_go, args=("My Course",))
-    st.sidebar.button("📊 Results & Resources",      use_container_width=True, on_click=_go, args=("My Results and Resources",))
-    st.sidebar.button("🗣️ Exams Mode & Custom Chat", use_container_width=True, on_click=_go, args=("Exams Mode & Custom Chat",))
-    st.sidebar.button("📚 Vocab Trainer",            use_container_width=True, on_click=_go, args=("Vocab Trainer",))
-    st.sidebar.button("✍️ Schreiben Trainer",        use_container_width=True, on_click=_go, args=("Schreiben Trainer",))
-
-    st.sidebar.divider()
-
-    # --- How-to & Tips (concise)
-    st.sidebar.markdown("## How-to & tips")
-    with st.sidebar.expander("📚 Quick guide", expanded=False):
-        st.markdown(
-            """
-- **Submit work:** Go to **My Course → Submit**, then **Confirm & Submit** (box locks after submission).
-- **Check feedback:** **Results & Resources** shows marks, comments, and downloadable files.
-- **Practice speaking:** Open **Tools → Sprechen** to record and get instant pronunciation feedback.
-- **Build vocab:** Use **Vocab Trainer** for daily words and spaced review.
-- **Track progress:** On **Dashboard**, see streaks, next lesson, and any missed items.
-            """
-        )
-
-    # --- Dashboard tabs explained (one-liners)
-    with st.sidebar.expander("🧭 Dashboard tabs, explained", expanded=False):
-        st.markdown(
-            """
-- **Dashboard:** Overview of streak, next lesson, missed items, leaderboard, and announcements.
-- **My Course:** Lessons, materials, and your assignment submission flow.
-- **Results & Resources:** Marks, teacher feedback, and all downloadable resources.
-- **Exams Mode & Custom Chat:** Exam-style drills plus targeted practice with AI.
-- **Vocab Trainer:** Daily word picks, review cycles, and stats.
-- **Schreiben Trainer:** Structured writing tasks with iterative feedback.
-            """
-        )
-
-    # --- Video tutorials (level-aware welcome video)
-    with st.sidebar.expander("🎥 Welcome / video tutorials", expanded=False):
-        render_level_welcome_video(st.session_state.get("student_level"))
-        st.caption("More tutorials will appear here as they’re published.")
-
-    st.sidebar.divider()
-
-    # --- Support
-    st.sidebar.markdown("## Support")
-    st.sidebar.markdown(
-        """
-- 📱 [WhatsApp](https://api.whatsapp.com/send?phone=233205706589)
-- ✉️ [Email](mailto:learngermanghana@gmail.com)
-- 🐞 [Report an issue](mailto:learngermanghana@gmail.com?subject=Falowen%20Bug%20Report)
-        """
-    )
-
-    # --- Resources (live)
-    st.sidebar.markdown("## Resources")
-    st.sidebar.markdown(
-        """
-- 👩‍🏫 [Tutors](https://www.learngermanghana.com/tutors)
-- 🗓️ [Upcoming Classes](https://www.learngermanghana.com/upcoming-classes)
-- 🔒 [Privacy](https://www.learngermanghana.com/privacy-policy)
-- 📜 [Terms](https://www.learngermanghana.com/terms-of-service)
-- ✉️ [Contact](https://www.learngermanghana.com/contact-us)
-        """
-    )
-
-# ---- Keep chip styles from previous theme (your helper)
+# Theme bits (chips etc.)
 inject_notice_css()
 
-# ---- Sidebar: call once after your top bar (no logout here; it’s on Dashboard)
+# Sidebar (no logout; logout lives in the header)
 render_sidebar_published()
 
-# ---- Announcements (light theme) — render once to avoid duplicates
+# Announcements (render once)
 announcements = [
     {"title": "Download Draft (TXT) Backup", "body": "Use “⬇️ Download draft (TXT)” to save a clean backup with level/day/chapter + timestamp.", "tag": "New"},
     {"title": "Submit Flow & Locking", "body": "After **Confirm & Submit**, your box locks (read-only). Check Results & Resources for feedback.", "tag": "Action"},
@@ -1189,66 +1195,6 @@ render_announcements_once(announcements)
 st.markdown("---")
 st.markdown("**You’re logged in.** Continue to your lessons and tools from the navigation.")
 
-# =========================
-# Logged-in header (shown right after successful login)
-# =========================
-def render_logged_in_topbar():
-    name  = st.session_state.get("student_name", "")
-    level = st.session_state.get("student_level", "—")
-    code  = st.session_state.get("student_code", "—")
-
-    # Styles to match your previous light theme + blue logout pill
-    st.markdown(
-        """
-        <style>
-          .dash-topwrap{
-            background:#f5f9ff;
-            border:1px solid rgba(30,64,175,.12);
-            border-radius:14px;
-            padding:14px 16px;
-            margin:4px 0 10px 0;
-            box-shadow:0 6px 14px rgba(2,6,23,.06);
-          }
-          .dash-title{
-            font-size:1.55rem; font-weight:900; color:#19213a;
-            margin:0 0 4px 0; letter-spacing:.2px;
-          }
-          .dash-sub{ color:#475569; font-size:.95rem; }
-
-          /* Blue primary button like your screenshot */
-          div[data-testid="stButton"] > button[kind="primary"]{
-            background:#1f2d7a; border:1px solid #1b2a6e;
-            border-radius:10px; font-weight:700;
-            box-shadow:0 4px 10px rgba(31,45,122,.18);
-          }
-          div[data-testid="stButton"] > button[kind="primary"]:hover{
-            filter:brightness(1.05);
-          }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-    top = st.container()
-    with top:
-        c1, c2 = st.columns([1, 0.18])
-        with c1:
-            st.markdown(
-                f"""
-                <div class="dash-topwrap">
-                  <div class="dash-title">👋 Welcome, {name}</div>
-                  <div class="dash-sub">Level: {level} · Code: {code}</div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-        with c2:
-            # Make sure _do_logout is defined above this function
-            st.button("Log out",
-                      key="logout_global",
-                      type="primary",
-                      use_container_width=True,
-                      on_click=_do_logout)
 
 
 # =========================================================
