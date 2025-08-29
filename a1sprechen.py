@@ -590,6 +590,147 @@ def inject_notice_css():
 
 _inject_meta_tags()
 
+# ---------- Announcements widget (define BEFORE use) ----------
+def render_announcements(ANNOUNCEMENTS: list):
+    """Responsive rotating announcement board with mobile-first, light card on phones."""
+    import json
+    import streamlit as st
+    import streamlit.components.v1 as components
+
+    if not ANNOUNCEMENTS:
+        st.info("📣 No announcements to show.")
+        return
+
+    _html = """
+    <style>
+      :root{
+        --brand:#1d4ed8; --ring:#93c5fd;
+        --text:#0b1220; --muted:#475569; --card:#ffffff;
+        --chip-bg:#eaf2ff; --chip-fg:#1e3a8a; --link:#1d4ed8;
+        --shell-border: rgba(2,6,23,.08);
+      }
+      @media (prefers-color-scheme: dark){
+        :root{
+          --text:#e5e7eb; --muted:#cbd5e1; --card:#111827;
+          --chip-bg:#1f2937; --chip-fg:#e5e7eb; --link:#93c5fd;
+          --shell-border: rgba(148,163,184,.25);
+        }
+      }
+      .page-wrap{max-width:1100px;margin:0 auto;padding:0 10px;}
+      .ann-title{font-weight:800;font-size:1.05rem;line-height:1.2;
+        padding-left:12px;border-left:5px solid var(--brand);margin:0 0 6px 0;color:var(--text);}
+      .ann-shell{border-radius:14px;border:1px solid var(--shell-border);background:var(--card);
+        box-shadow:0 6px 18px rgba(2,6,23,.12);padding:12px 14px;isolation:isolate;overflow:hidden;}
+      .ann-heading{display:flex;align-items:center;gap:10px;margin:0 0 6px 0;font-weight:800;color:var(--text);}
+      .ann-chip{font-size:.78rem;font-weight:800;text-transform:uppercase;background:var(--chip-bg);color:var(--chip-fg);
+        padding:4px 9px;border-radius:999px;border:1px solid var(--shell-border);}
+      .ann-body{color:var(--muted);margin:0;line-height:1.55;font-size:1rem}
+      .ann-actions{margin-top:8px}
+      .ann-actions a{color:var(--link);text-decoration:none;font-weight:700}
+      .ann-dots{display:flex;gap:12px;justify-content:center;margin-top:12px}
+      .ann-dot{width:11px;height:11px;border-radius:999px;background:#9ca3af;opacity:.9;transform:scale(.95);
+        transition:transform .2s, background .2s, opacity .2s;border:none;cursor:pointer;}
+      .ann-dot[aria-current="true"]{background:var(--brand);opacity:1;transform:scale(1.22);box-shadow:0 0 0 4px var(--ring)}
+      @keyframes fadeInUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+      .ann-anim{animation:fadeInUp .25s ease both}
+      @media (prefers-reduced-motion: reduce){ .ann-anim{animation:none} .ann-dot{transition:none} }
+      @media (max-width: 640px){
+        :root{ --card:#ffffff !important; --text:#0b1220 !important; --muted:#334155 !important;
+               --link:#1d4ed8 !important; --chip-bg:#eaf2ff !important; --chip-fg:#1e3a8a !important;
+               --shell-border: rgba(2,6,23,.10) !important; }
+        .page-wrap{ padding:0 8px; } .ann-shell{ padding:10px 12px; border-radius:12px; }
+        .ann-title{ font-size:1rem; margin:0 0 4px 0; } .ann-heading{ gap:8px; }
+        .ann-chip{ font-size:.72rem; padding:3px 8px; }
+        .ann-body{ font-size:1.02rem; line-height:1.6; }
+        .ann-dots{ gap:10px; margin-top:10px; } .ann-dot{ width:12px; height:12px; }
+      }
+      .tight-section{ margin:6px 0 !important; }
+    </style>
+
+    <div class="page-wrap tight-section">
+      <div class="ann-title">📣 Announcements</div>
+      <div class="ann-shell" id="ann_shell" aria-live="polite">
+        <div class="ann-anim" id="ann_card">
+          <div class="ann-heading">
+            <span class="ann-chip" id="ann_tag" style="display:none;"></span>
+            <span id="ann_title"></span>
+          </div>
+          <p class="ann-body" id="ann_body">loading…</p>
+          <div class="ann-actions" id="ann_action" style="display:none;"></div>
+        </div>
+        <div class="ann-dots" id="ann_dots" role="tablist" aria-label="Announcement selector"></div>
+      </div>
+    </div>
+
+    <script>
+      const data = __DATA__;
+      const titleEl = document.getElementById('ann_title');
+      const bodyEl  = document.getElementById('ann_body');
+      const tagEl   = document.getElementById('ann_tag');
+      const actionEl= document.getElementById('ann_action');
+      const dotsWrap= document.getElementById('ann_dots');
+      const card    = document.getElementById('ann_card');
+      const shell   = document.getElementById('ann_shell');
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      let i = 0, timer = null;
+      const INTERVAL = 6500;
+
+      function setActiveDot(idx){
+        [...dotsWrap.children].forEach((d, j)=> d.setAttribute('aria-current', j===idx ? 'true' : 'false'));
+      }
+      function render(idx){
+        const c = data[idx] || {};
+        card.classList.remove('ann-anim'); void card.offsetWidth; card.classList.add('ann-anim');
+
+        titleEl.textContent = c.title || '';
+        bodyEl.textContent  = c.body  || '';
+
+        if (c.tag){
+          tagEl.textContent = c.tag;
+          tagEl.style.display='';
+        } else {
+          tagEl.style.display='none';
+        }
+
+        if (c.href){
+          const link = document.createElement('a');
+          link.href = c.href; link.target = '_blank'; link.rel = 'noopener';
+          link.textContent = 'Open';
+          actionEl.textContent = '';
+          actionEl.appendChild(link);
+          actionEl.style.display='';
+        } else {
+          actionEl.style.display='none';
+          actionEl.textContent = '';
+        }
+        setActiveDot(idx);
+      }
+      function next(){ i = (i+1) % data.length; render(i); }
+      function start(){ if (!reduced && data.length > 1) timer = setInterval(next, INTERVAL); }
+      function stop(){ if (timer) clearInterval(timer); timer = null; }
+      function restart(){ stop(); start(); }
+
+      data.forEach((_, idx)=>{
+        const dot = document.createElement('button');
+        dot.className='ann-dot'; dot.type='button'; dot.setAttribute('role','tab');
+        dot.setAttribute('aria-label','Show announcement '+(idx+1));
+        dot.addEventListener('click', ()=>{ i=idx; render(i); restart(); });
+        dotsWrap.appendChild(dot);
+      });
+
+      shell.addEventListener('mouseenter', stop);
+      shell.addEventListener('mouseleave', start);
+      shell.addEventListener('focusin', stop);
+      shell.addEventListener('focusout', start);
+
+      render(i); start();
+    </script>
+    """
+    data_json = json.dumps(ANNOUNCEMENTS, ensure_ascii=False)
+    components.html(_html.replace("__DATA__", data_json),
+                    height=220, scrolling=False, key="announcements_widget")
+
 # ------------------------------------------------------------------------------
 # OpenAI (used elsewhere in app)
 # ------------------------------------------------------------------------------
@@ -647,221 +788,6 @@ if not st.session_state.get("logged_in", False):
 if not st.session_state.get("logged_in", False):
     login_page()
     st.stop()
-
-
-
-def render_reviews():
-    # Richer, clearer data: goal, time, features used, outcome
-    REVIEWS = [
-        {
-            "quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.",
-            "author": "Ama",
-            "location": "Accra, Ghana 🇬🇭",
-            "level": "A2",
-            "time": "20 weeks",
-            "used": ["Course Book", "Assignments", "Results emails"],
-            "outcome": "Passed Goethe A2"
-        },
-        {
-            "quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.",
-            "author": "Tunde",
-            "location": "Lagos, Nigeria 🇳🇬",
-            "level": "B1",
-            "time": "30 weeks",
-            "used": ["Vocab Trainer", "Results emails", "Course Book"],
-            "outcome": "Completed B1 modules"
-        },
-        {
-            "quote": "Clear lessons, easy submissions, and I get notified quickly when marked.",
-            "author": "Mariama",
-            "location": "Freetown, Sierra Leone 🇸🇱",
-            "level": "A1",
-            "time": "10 weeks",
-            "used": ["Assignments", "Course Book"],
-            "outcome": "A1 basics completed"
-        },
-        {
-            "quote": "I like the locked submissions and the clean Results tab.",
-            "author": "Kwaku",
-            "location": "Kumasi, Ghana 🇬🇭",
-            "level": "B2",
-            "time": "40 weeks",
-            "used": ["Results tab", "Assignments"],
-            "outcome": "B2 writing improved"
-        },
-    ]
-
-    _html = """
-    <div class="page-wrap" style="max-width:900px;margin-top:8px;">
-      <section id="reviews" aria-label="Student stories" class="rev-wrap" tabindex="-1">
-        <header class="rev-head">
-          <h3 class="rev-title">Student stories</h3>
-          <div class="rev-cta">
-            <button class="rev-btn" id="rev_prev" aria-label="Previous review" title="Previous">◀</button>
-            <button class="rev-btn" id="rev_next" aria-label="Next review" title="Next">▶</button>
-          </div>
-        </header>
-
-        <article class="rev-card" aria-live="polite" aria-atomic="true">
-          <blockquote id="rev_quote" class="rev-quote"></blockquote>
-          <div class="rev-meta">
-            <div class="rev-name" id="rev_author"></div>
-            <div class="rev-sub"  id="rev_location"></div>
-          </div>
-
-          <div class="rev-badges">
-            <span class="badge" id="rev_level"></span>
-            <span class="badge" id="rev_time"></span>
-            <span class="badge badge-ok" id="rev_outcome"></span>
-          </div>
-
-          <div class="rev-used" id="rev_used" aria-label="Features used"></div>
-        </article>
-
-        <nav class="rev-dots" aria-label="Slide indicators" id="rev_dots"></nav>
-      </section>
-    </div>
-
-    <style>
-      .rev-wrap{
-        background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:14px; 
-        box-shadow:0 4px 16px rgba(0,0,0,.05);
-      }
-      .rev-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
-      .rev-title{ margin:0; font-size:1.05rem; color:#25317e; }
-      .rev-cta{ display:flex; gap:6px; }
-      .rev-btn{
-        background:#eef3fc; border:1px solid #cbd5e1; border-radius:8px; padding:4px 10px; cursor:pointer; 
-        font-weight:700;
-      }
-      .rev-btn:hover{ background:#e2e8f0; }
-
-      .rev-card{ position:relative; min-height:190px; }
-      .rev-quote{ font-size:1.06rem; line-height:1.45; margin:4px 0 10px 0; color:#0f172a; }
-      .rev-meta{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
-      .rev-name{ font-weight:700; color:#1e293b; }
-      .rev-sub{ color:#475569; }
-
-      .rev-badges{ display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 8px; }
-      .badge{
-        display:inline-block; background:#f1f5f9; border:1px solid #e2e8f0; color:#0f172a;
-        padding:4px 8px; border-radius:999px; font-size:.86rem; font-weight:600;
-      }
-      .badge-ok{ background:#ecfdf5; border-color:#bbf7d0; color:#065f46; }
-
-      .rev-used{ display:flex; gap:6px; flex-wrap:wrap; }
-      .rev-used .chip{
-        background:#eef2ff; border:1px solid #c7d2fe; color:#3730a3; 
-        padding:3px 8px; border-radius:999px; font-size:.82rem; font-weight:600;
-      }
-
-      .rev-dots{ display:flex; gap:6px; justify-content:center; margin-top:10px; }
-      .rev-dot{
-        width:8px; height:8px; border-radius:999px; background:#cbd5e1; border:none; padding:0; cursor:pointer;
-      }
-      .rev-dot[aria-current="true"]{ background:#25317e; }
-
-      /* Motion awareness */
-      .fade{ opacity:0; transform:translateY(4px); transition:opacity .28s ease, transform .28s ease; }
-      .fade.show{ opacity:1; transform:none; }
-      @media (prefers-reduced-motion: reduce){
-        .fade{ transition:none; opacity:1; transform:none; }
-      }
-    </style>
-
-    <script>
-      const DATA = __DATA__;
-      const q  = (id) => document.getElementById(id);
-      const qs = (sel) => document.querySelector(sel);
-      const wrap = qs("#reviews");
-      const quote = q("rev_quote");
-      const author = q("rev_author");
-      const locationEl = q("rev_location");
-      const level = q("rev_level");
-      const time  = q("rev_time");
-      const outcome = q("rev_outcome");
-      const used = q("rev_used");
-      const dots = q("rev_dots");
-      const prevBtn = q("rev_prev");
-      const nextBtn = q("rev_next");
-
-      let i = 0, timer = null, hovered = false;
-      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-      function setUsedChips(items){
-        used.innerHTML = "";
-        (items || []).forEach(t => {
-          const s = document.createElement("span");
-          s.className = "chip";
-          s.textContent = t;
-          used.appendChild(s);
-        });
-      }
-
-      function setDots(){
-        dots.innerHTML = "";
-        DATA.forEach((_, idx) => {
-          const b = document.createElement("button");
-          b.className = "rev-dot";
-          b.setAttribute("aria-label", "Go to review " + (idx+1));
-          if(idx === i) b.setAttribute("aria-current","true");
-          b.addEventListener("click", () => { i = idx; show(true); restart(); });
-          dots.appendChild(b);
-        });
-      }
-
-      function show(animate){
-        const c = DATA[i];
-        quote.textContent = '"' + (c.quote || '') + '"';
-        author.textContent = c.author ? c.author + ' — ' : '';
-        locationEl.textContent = c.location || '';
-        level.textContent = 'Level: ' + (c.level || '—');
-        time.textContent  = 'Time: ' + (c.time  || '—');
-        outcome.textContent = c.outcome || '';
-
-        setUsedChips(c.used);
-        setDots();
-
-        const card = wrap.querySelector(".rev-card");
-        if(animate && !reduced){
-          card.classList.remove("show");
-          card.classList.add("fade");
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => card.classList.add("show"));
-          });
-        }
-      }
-
-      function next(){ i = (i + 1) % DATA.length; show(true); }
-      function prev(){ i = (i - 1 + DATA.length) % DATA.length; show(true); }
-
-      function start(){
-        if(reduced) return;
-        timer = setInterval(() => { if(!hovered) next(); }, 6000);
-      }
-      function stop(){ if(timer){ clearInterval(timer); timer = null; } }
-      function restart(){ stop(); start(); }
-
-      // Events
-      nextBtn.addEventListener("click", () => { next(); restart(); });
-      prevBtn.addEventListener("click", () => { prev(); restart(); });
-      wrap.addEventListener("mouseenter", () => { hovered = true; });
-      wrap.addEventListener("mouseleave", () => { hovered = false; });
-
-      // Keyboard nav
-      wrap.addEventListener("keydown", (e) => {
-        if(e.key === "ArrowRight"){ next(); restart(); }
-        if(e.key === "ArrowLeft"){  prev(); restart(); }
-      });
-
-      // Init
-      show(false);
-      start();
-    </script>
-    """
-    # NOTE: height tuned; no scrollbars; fixed a padding typo from previous HTML
-    _json = json.dumps(REVIEWS)
-    components.html(_html.replace("__DATA__", _json), height=300, scrolling=False)
 
 
 
