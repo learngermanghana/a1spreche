@@ -515,14 +515,26 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     return True
 
 
-def render_returning_login_form():
+def render_returning_login_form() -> bool:
+    """Render the login form for existing users.
+
+    Returns True when the user successfully logs in.  The caller can then
+    decide whether to rerun or take other actions after all UI elements have
+    been rendered.
+    """
+
     with st.form("returning_login_form", clear_on_submit=False):
         st.markdown("#### Returning user login")
         login_id = st.text_input("Email or Student Code")
         login_pass = st.text_input("Password", type="password")
         submitted = st.form_submit_button("Log in")
+
     if submitted and render_login_form(login_id, login_pass):
-        st.rerun()
+        # Signal to the caller that a rerun is needed instead of performing it
+        # here which would prevent the rest of the page from rendering.
+        return True
+
+    return False
 
 
 # ------------------------------------------------------------------------------
@@ -616,7 +628,7 @@ def login_page():
     render_falowen_login(auth_url)  # hero only (no login inside HTML)
 
     st.markdown("<div style='text-align:center; margin:10px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
-    render_returning_login_form()
+    login_success = render_returning_login_form()
 
     tab2, tab3 = st.tabs(["🧾 Sign Up (Approved)", "📝 Request Access"])
     with tab2:
@@ -760,10 +772,15 @@ def login_page():
     st.markdown(f"""
     <div class="page-wrap" style="text-align:center;color:#64748b; margin-bottom:16px;">
       © {datetime.utcnow().year} Learn Language Education Academy • Accra, Ghana<br>
-      Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> • 
+      Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> •
       <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>
     </div>
     """, unsafe_allow_html=True)
+
+    if login_success:
+        # Defer rerun until after the full login page is rendered so that
+        # elements like the help box and video are not skipped.
+        st.rerun()
 
 
 # ------------------------------------------------------------------------------
