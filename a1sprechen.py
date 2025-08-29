@@ -945,16 +945,35 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ---- Top bar
+# ===================== Top bar =====================
 top = st.container()
 with top:
     c1, c2 = st.columns([1, 0.22])
     with c1:
+        # simple styles for this card (matches your light/blue theme)
+        st.markdown("""
+        <style>
+          .topbar-card{
+            border:1px solid rgba(148,163,184,.35);
+            border-radius:12px;
+            padding:12px 14px;
+            background:#ffffff;
+          }
+          .topbar-name{ font-size:1.15rem; font-weight:800; color:#0f172a; }
+          .topbar-sub{ color:#475569; font-size:.95rem; }
+          .sb-chip{ display:inline-block; padding:3px 9px; border-radius:999px; font-weight:700; font-size:.9rem; }
+          .sb-chip-blue{ background:#eef4ff; color:#2541b2; border:1px solid #c7d2fe; }
+          .sb-chip-gray{ background:#f1f5f9; color:#334155; border:1px solid #cbd5e1; }
+        </style>
+        """, unsafe_allow_html=True)
+
         st.markdown(
             f"<div class='topbar-card'>"
             f"<div class='topbar-name'>👋 Welcome, {st.session_state.get('student_name','')}</div>"
-            f"<div class='topbar-sub'>Level: {st.session_state.get('student_level','—')} · "
-            f"Code: {st.session_state.get('student_code','—')}</div>"
+            f"<div class='topbar-sub'>"
+            f"<span class='sb-chip sb-chip-blue'>Level: {st.session_state.get('student_level','—')}</span> "
+            f"<span class='sb-chip sb-chip-gray'>Code: {st.session_state.get('student_code','—')}</span>"
+            f"</div>"
             f"</div>",
             unsafe_allow_html=True
         )
@@ -962,47 +981,110 @@ with top:
         st.write("")  # spacer
         st.button("Log out", key="logout_top", type="primary", on_click=_do_logout)
 
-# ---- Sidebar: Account + Help/Guides + Support + Resources
-st.sidebar.markdown("## Account")
-st.sidebar.button("Log out", key="logout_side", on_click=_do_logout)
+# ===================== Sidebar =====================
 
+# Small helper to jump tabs using your state + query-param helpers
+def _goto(tab_name: str):
+    st.session_state["nav_sel"] = tab_name
+    st.session_state["main_tab_select"] = tab_name
+    try:
+        _qp_set(tab=tab_name)
+    except Exception:
+        pass
+
+st.sidebar.markdown("## Account")
+# compact identity row
+st.sidebar.markdown(
+    f"""
+    <div style="margin:4px 0 8px 0;">
+      <div style="font-weight:800;">{st.session_state.get('student_name','')}</div>
+      <div style="color:#475569;">
+        Level: <b>{st.session_state.get('student_level','—')}</b> •
+        Code: <code>{st.session_state.get('student_code','—')}</code>
+      </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+st.sidebar.button("Log out", key="logout_side", on_click=_do_logout, use_container_width=True)
+
+# Quick actions (tab jumpers)
+st.sidebar.markdown("## Quick actions")
+qa1, qa2 = st.sidebar.columns(2)
+with qa1:
+    st.button("📘 Course Book", use_container_width=True,
+              on_click=_goto, args=("My Course",), key="qa_course")
+with qa2:
+    st.button("📊 Results", use_container_width=True,
+              on_click=_goto, args=("My Results and Resources",), key="qa_results")
+
+qa3, qa4 = st.sidebar.columns(2)
+with qa3:
+    st.button("📚 Vocab", use_container_width=True,
+              on_click=_goto, args=("Vocab Trainer",), key="qa_vocab")
+with qa4:
+    st.button("✍️ Schreiben", use_container_width=True,
+              on_click=_goto, args=("Schreiben Trainer",), key="qa_schreiben")
+
+# Help & Guides
 st.sidebar.markdown("## Help & Guides")
 with st.sidebar.expander("📚 How-to & FAQ", expanded=False):
     st.markdown(
         """
-- **FAQ** (fill link later)
-- **How-to (Getting Started)** (fill later)
-- **Troubleshooting** (fill later)
-- **Keyboard shortcuts / tips** (fill later)
-        """
+**Login options**
+- Use your **email or student code** with password.
+- Or click **Continue with Google (Gmail)** on the login page.
+
+**Can’t log in?**
+- If you forgot your password, log out and use **Forgot password** on the login screen.  
+- If your email/code isn’t recognized, use **Request Access** and we’ll enable your account.
+
+**Where to submit work**
+- Go to **📘 Course Book** → choose the day → complete tasks → **Confirm & Submit**.
+
+**Where to find feedback**
+- Open **📊 Results & Resources**. You’ll also get an email when marking is done.
+
+**Speaking practice (Sprechen)**
+- Open **Tools → Sprechen** inside the app to record and get instant feedback.
+
+**Contract or payments**
+- Dashboard shows alerts if a payment is due or a contract is ending. For billing help, WhatsApp us.
+"""
     )
 
-with st.sidebar.expander("🎥 Video Tutorials", expanded=False):
+with st.sidebar.expander("🎥 Video tutorials", expanded=False):
     st.markdown(
         """
-- Course Book walk-through (fill later)
-- Submitting assignments (fill later)
-- Sprechen tool demo (fill later)
-        """
+- **Welcome / Getting started** – short overview video  
+  <small>(also shown on the login page)</small>  
+  [Watch](https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4)
+- **Submitting assignments** – open a day in Course Book → write → **Confirm & Submit**.
+- **Reading results & feedback** – go to **Results & Resources**; look for your latest entry.
+"""
     )
 
 with st.sidebar.expander("📝 Policies & Exams", expanded=False):
     st.markdown(
         """
-- Submission policy (fill later)
-- Goethe exam info (fill later)
-- Payment & renewal info (fill later)
-        """
+- **Submission policy:** After **Confirm & Submit** the box becomes read-only.
+- **Lesson links download:** Use **Your Work & Links → Download all (TXT)** for a clean backup.
+- **Goethe exams:** Dates & fees are shown on Dashboard (level-aware).  
+  Official info: <https://www.goethe.de/ins/gh/en/spr/prf.html>
+"""
     )
 
+# Support
 st.sidebar.markdown("## Support")
 st.sidebar.markdown(
     """
 - 📱 [WhatsApp](https://api.whatsapp.com/send?phone=233205706589)
 - ✉️ [Email](mailto:learngermanghana@gmail.com)
+- 🧾 [Request Access form](https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header)
 """
 )
 
+# Resources
 st.sidebar.markdown("## Resources")
 st.sidebar.markdown(
     """
@@ -1013,6 +1095,7 @@ st.sidebar.markdown(
 - ✉️ [Contact](https://www.learngermanghana.com/contact-us)
 """
 )
+
 
 # ---- Keep chip styles from previous theme
 inject_notice_css()
