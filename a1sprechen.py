@@ -376,22 +376,20 @@ def _load_falowen_login_html() -> str:
     return html
 
 
-    for aside in soup.find_all("aside"):
-        aside.decompose()
+def render_falowen_login(auth_url: str) -> None:
+    """Render the Falowen hero section.
 
-    for script in soup.find_all("script"):
-        script.decompose()
+    The `auth_url` parameter is kept for compatibility but isn't used yet.
+    If the HTML template can't be loaded, display an error message instead of
+    raising an exception so the rest of the page can still render.
+    """
+    try:
+        html = _load_falowen_login_html()
+    except Exception:
+        st.error("Falowen hero template missing or unreadable.")
+        return
 
-    style_tag = soup.find("style")
-    if style_tag and style_tag.string:
-        style_tag.string = style_tag.string.replace(
-            "grid-template-columns:1.2fr .8fr;", "grid-template-columns:1fr;"
-        )
-        style_tag.string = style_tag.string.replace(
-            "grid-template-columns: 1.2fr .8fr;", "grid-template-columns: 1fr;"
-        )
-
-    components.html(str(soup), height=720, scrolling=True, key="falowen_hero")
+    components.html(html, height=720, scrolling=True, key="falowen_hero")
 
 
 # ------------------------------------------------------------------------------
