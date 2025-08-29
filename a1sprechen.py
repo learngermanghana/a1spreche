@@ -945,156 +945,103 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ===================== Top bar =====================
-top = st.container()
-with top:
-    c1, c2 = st.columns([1, 0.22])
-    with c1:
-        # simple styles for this card (matches your light/blue theme)
-        st.markdown("""
-        <style>
-          .topbar-card{
-            border:1px solid rgba(148,163,184,.35);
-            border-radius:12px;
-            padding:12px 14px;
-            background:#ffffff;
-          }
-          .topbar-name{ font-size:1.15rem; font-weight:800; color:#0f172a; }
-          .topbar-sub{ color:#475569; font-size:.95rem; }
-          .sb-chip{ display:inline-block; padding:3px 9px; border-radius:999px; font-weight:700; font-size:.9rem; }
-          .sb-chip-blue{ background:#eef4ff; color:#2541b2; border:1px solid #c7d2fe; }
-          .sb-chip-gray{ background:#f1f5f9; color:#334155; border:1px solid #cbd5e1; }
-        </style>
-        """, unsafe_allow_html=True)
+# =========================
+# Sidebar (Publish-ready)
+# =========================
+def render_sidebar_published():
+    # --- Safe query-param setter (uses your existing helper if present)
+    def _qp_set_safe(**kwargs):
+        if "_qp_set" in globals():
+            try:
+                _qp_set(**kwargs); return
+            except Exception:
+                pass
+        # Fallback: set st.query_params directly
+        try:
+            for k, v in kwargs.items():
+                st.query_params[k] = "" if v is None else str(v)
+        except Exception:
+            pass
 
+    # --- Internal nav helper
+    def _go(tab_name: str):
+        st.session_state["nav_sel"] = tab_name
+        st.session_state["main_tab_select"] = tab_name
+        _qp_set_safe(tab=tab_name)
+        st.rerun()
+
+    # --- Link dictionaries (live pages only)
+    RESOURCES_LINKS = {
+        "👩‍🏫 Tutors": "https://www.learngermanghana.com/tutors",
+        "🗓️ Upcoming Classes": "https://www.learngermanghana.com/upcoming-classes",
+        "🔒 Privacy": "https://www.learngermanghana.com/privacy-policy",
+        "📜 Terms": "https://www.learngermanghana.com/terms-of-service",
+        "✉️ Contact": "https://www.learngermanghana.com/contact-us",
+    }
+
+    # --- Quick Access
+    st.sidebar.markdown("## Quick access")
+    qa_cols = st.sidebar.columns(1)
+    with qa_cols[0]:
+        st.button("🏠 Dashboard", use_container_width=True, on_click=_go, args=("Dashboard",))
+        st.button("📈 My Course", use_container_width=True, on_click=_go, args=("My Course",))
+        st.button("📊 Results & Resources", use_container_width=True, on_click=_go, args=("My Results and Resources",))
+        st.button("🗣️ Exams Mode & Custom Chat", use_container_width=True, on_click=_go, args=("Exams Mode & Custom Chat",))
+        st.button("📚 Vocab Trainer", use_container_width=True, on_click=_go, args=("Vocab Trainer",))
+        st.button("✍️ Schreiben Trainer", use_container_width=True, on_click=_go, args=("Schreiben Trainer",))
+
+    st.sidebar.markdown("---")
+
+    # --- How-to & Tips (concise)
+    st.sidebar.markdown("## How-to & tips")
+    with st.sidebar.expander("📚 Getting things done (short guide)", expanded=False):
         st.markdown(
-            f"<div class='topbar-card'>"
-            f"<div class='topbar-name'>👋 Welcome, {st.session_state.get('student_name','')}</div>"
-            f"<div class='topbar-sub'>"
-            f"<span class='sb-chip sb-chip-blue'>Level: {st.session_state.get('student_level','—')}</span> "
-            f"<span class='sb-chip sb-chip-gray'>Code: {st.session_state.get('student_code','—')}</span>"
-            f"</div>"
-            f"</div>",
-            unsafe_allow_html=True
+            """
+- **Submit work:** Go to **My Course → Submit**, then **Confirm & Submit** (box locks after submission).
+- **Check feedback:** **Results & Resources** shows marks, comments, and downloadable files.
+- **Practice speaking:** Open **Tools → Sprechen** to record and get instant pronunciation feedback.
+- **Build vocab:** Use **Vocab Trainer** for daily words and spaced review.
+- **Track progress:** On **Dashboard**, see streaks, next lesson, and any missed items.
+            """
         )
-    with c2:
-        st.write("")  # spacer
-        st.button("Log out", key="logout_top", type="primary", on_click=_do_logout)
 
-# ===================== Sidebar =====================
+    # --- Dashboard tabs explained (one-liners)
+    with st.sidebar.expander("🧭 Dashboard tabs, explained", expanded=False):
+        st.markdown(
+            """
+- **Dashboard:** Overview of streak, next lesson, missed items, leaderboard, and announcements.
+- **My Course:** Lessons, materials, and your assignment submission flow.
+- **Results & Resources:** Marks, teacher feedback, and all downloadable resources.
+- **Exams Mode & Custom Chat:** Exam-style drills plus targeted practice with AI.
+- **Vocab Trainer:** Daily word picks, review cycles, and stats.
+- **Schreiben Trainer:** Structured writing tasks with iterative feedback.
+            """
+        )
 
-# Small helper to jump tabs using your state + query-param helpers
-def _goto(tab_name: str):
-    st.session_state["nav_sel"] = tab_name
-    st.session_state["main_tab_select"] = tab_name
-    try:
-        _qp_set(tab=tab_name)
-    except Exception:
-        pass
+    # --- Video tutorials (level-aware welcome video if configured)
+    if "render_level_welcome_video" in globals():
+        with st.sidebar.expander("🎥 Welcome / video tutorials", expanded=False):
+            render_level_welcome_video(st.session_state.get("student_level"))
+            st.caption("More tutorials will appear here as they’re published.")
 
-st.sidebar.markdown("## Account")
-# compact identity row
-st.sidebar.markdown(
-    f"""
-    <div style="margin:4px 0 8px 0;">
-      <div style="font-weight:800;">{st.session_state.get('student_name','')}</div>
-      <div style="color:#475569;">
-        Level: <b>{st.session_state.get('student_level','—')}</b> •
-        Code: <code>{st.session_state.get('student_code','—')}</code>
-      </div>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-st.sidebar.button("Log out", key="logout_side", on_click=_do_logout, use_container_width=True)
+    st.sidebar.markdown("---")
 
-# Quick actions (tab jumpers)
-st.sidebar.markdown("## Quick actions")
-qa1, qa2 = st.sidebar.columns(2)
-with qa1:
-    st.button("📘 Course Book", use_container_width=True,
-              on_click=_goto, args=("My Course",), key="qa_course")
-with qa2:
-    st.button("📊 Results", use_container_width=True,
-              on_click=_goto, args=("My Results and Resources",), key="qa_results")
-
-qa3, qa4 = st.sidebar.columns(2)
-with qa3:
-    st.button("📚 Vocab", use_container_width=True,
-              on_click=_goto, args=("Vocab Trainer",), key="qa_vocab")
-with qa4:
-    st.button("✍️ Schreiben", use_container_width=True,
-              on_click=_goto, args=("Schreiben Trainer",), key="qa_schreiben")
-
-# Help & Guides
-st.sidebar.markdown("## Help & Guides")
-with st.sidebar.expander("📚 How-to & FAQ", expanded=False):
-    st.markdown(
+    # --- Support
+    st.sidebar.markdown("## Support")
+    st.sidebar.markdown(
         """
-**Login options**
-- Use your **email or student code** with password.
-- Or click **Continue with Google (Gmail)** on the login page.
-
-**Can’t log in?**
-- If you forgot your password, log out and use **Forgot password** on the login screen.  
-- If your email/code isn’t recognized, use **Request Access** and we’ll enable your account.
-
-**Where to submit work**
-- Go to **📘 Course Book** → choose the day → complete tasks → **Confirm & Submit**.
-
-**Where to find feedback**
-- Open **📊 Results & Resources**. You’ll also get an email when marking is done.
-
-**Speaking practice (Sprechen)**
-- Open **Tools → Sprechen** inside the app to record and get instant feedback.
-
-**Contract or payments**
-- Dashboard shows alerts if a payment is due or a contract is ending. For billing help, WhatsApp us.
-"""
-    )
-
-with st.sidebar.expander("🎥 Video tutorials", expanded=False):
-    st.markdown(
-        """
-- **Welcome / Getting started** – short overview video  
-  <small>(also shown on the login page)</small>  
-  [Watch](https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4)
-- **Submitting assignments** – open a day in Course Book → write → **Confirm & Submit**.
-- **Reading results & feedback** – go to **Results & Resources**; look for your latest entry.
-"""
-    )
-
-with st.sidebar.expander("📝 Policies & Exams", expanded=False):
-    st.markdown(
-        """
-- **Submission policy:** After **Confirm & Submit** the box becomes read-only.
-- **Lesson links download:** Use **Your Work & Links → Download all (TXT)** for a clean backup.
-- **Goethe exams:** Dates & fees are shown on Dashboard (level-aware).  
-  Official info: <https://www.goethe.de/ins/gh/en/spr/prf.html>
-"""
-    )
-
-# Support
-st.sidebar.markdown("## Support")
-st.sidebar.markdown(
-    """
 - 📱 [WhatsApp](https://api.whatsapp.com/send?phone=233205706589)
 - ✉️ [Email](mailto:learngermanghana@gmail.com)
-- 🧾 [Request Access form](https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header)
-"""
-)
+- 🐞 [Report an issue](mailto:learngermanghana@gmail.com?subject=Falowen%20Bug%20Report)
+        """
+    )
 
-# Resources
-st.sidebar.markdown("## Resources")
-st.sidebar.markdown(
-    """
-- 👩‍🏫 [Tutors](https://www.learngermanghana.com/tutors)
-- 🗓️ [Upcoming Classes](https://www.learngermanghana.com/upcoming-classes)
-- 🔒 [Privacy](https://www.learngermanghana.com/privacy-policy)
-- 📜 [Terms](https://www.learngermanghana.com/terms-of-service)
-- ✉️ [Contact](https://www.learngermanghana.com/contact-us)
-"""
-)
+    # --- Resources
+    st.sidebar.markdown("## Resources")
+    st.sidebar.markdown("\n".join(f"- [{label}]({href})" for label, href in RESOURCES_LINKS.items()))
+
+# Call once after rendering your top bar
+render_sidebar_published()
 
 
 # ---- Keep chip styles from previous theme
