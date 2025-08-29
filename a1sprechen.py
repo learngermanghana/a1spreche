@@ -841,56 +841,124 @@ def render_google_brand_button_once(auth_url: str, center: bool = True):
     st.session_state["_google_cta_rendered"] = True
 
 
-# ------------------------------------------------------------------------------
-# Login page assembly (Hero + Google OAuth, Returning form, Sign-up, Request)
-# Shows exactly one Gmail button (in the hero template)
-# ------------------------------------------------------------------------------
+# --- One-time branded Google button (kept exactly once on the page)
+def render_google_brand_button_once(auth_url: str, center: bool = True):
+    if not auth_url:
+        return
+    if st.session_state.get("_google_cta_rendered"):
+        return
+    align = "text-align:center;" if center else ""
+    st.markdown(
+        f"""
+        <div style="{align} margin:12px 0;">
+          <a href="{auth_url}" style="text-decoration:none;">
+            <div role="button"
+                 style="display:inline-flex;align-items:center;gap:10px;
+                        background:#fff;border:1px solid #dadce0;border-radius:8px;
+                        padding:10px 18px;font-weight:700;color:#3c4043;
+                        box-shadow:0 1px 2px rgba(0,0,0,.05);">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"
+                   width="22" height="22" aria-hidden="true">
+                <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.6 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.9 6 29.7 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c10 0 18.6-7.3 19.9-16.8.1-.8.2-1.7.2-2.7 0-1-.1-1.9-.5-3z"/>
+                <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.3 16.5 18.8 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.9 6 29.7 4 24 4 16.1 4 9.2 8.6 6.3 14.7z"/>
+                <path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.5-5.3l-6.2-5.1C29.3 36 26.8 37 24 37c-5.3 0-9.7-3.1-11.6-7.5l-6.6 5.1C9.1 40.3 16.1 44 24 44z"/>
+                <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-1.3 3.4-4.5 6-8.3 6-2.8 0-5.3-1-7.1-2.9l-6.6 5.1C15.1 40.9 19.3 43 24 43c10 0 18.6-7.3 19.9-16.8.1-.8.2-1.7.2-2.7 0-1-.1-1.9-.5-3z"/>
+              </svg>
+              Continue with Google
+            </div>
+          </a>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.session_state["_google_cta_rendered"] = True
+
+
+# --- Small explanatory banner shown above the tabs
+def render_signup_request_banner():
+    if not st.session_state.get("_signup_banner_css_done"):
+        st.markdown(
+            """
+            <style>
+              .inline-banner{
+                background:#f5f9ff; border:1px solid rgba(30,64,175,.15);
+                border-radius:12px; padding:12px 14px; margin:12px 0;
+                box-shadow:0 4px 10px rgba(2,6,23,.04);
+              }
+              .inline-banner b{ color:#0f172a; }
+              .inline-banner .note{ color:#475569; font-size:.95rem; margin-top:6px; }
+              .inline-banner ul{ margin:6px 0 0 1.1rem; }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.session_state["_signup_banner_css_done"] = True
+
+    st.markdown(
+        """
+        <div class="inline-banner">
+          <div><b>Which option should I use?</b></div>
+          <ul>
+            <li><b>Sign Up (Approved):</b> For students already added by your tutor/office. Use your <b>Student Code</b> and <b>registered email</b> to create a password.</li>
+            <li><b>Request Access:</b> New learner or not on the roster yet. Fill the form and we’ll set you up and email next steps.</li>
+          </ul>
+          <div class="note">Not sure? Choose <b>Request Access</b> — we’ll route you correctly.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# --- Login page with single Google CTA + banner above tabs
 def login_page():
-    # Build/handle Google OAuth (also completes if ?code=... is present)
+    # Build/handle Google OAuth (also completes if ?code=... present)
     auth_url = render_google_oauth(return_url=True) or ""
 
-    # Branded hero (may or may not include its own Google link)
+    # Branded hero (can include {{GOOGLE_AUTH_URL}} internally)
     render_falowen_login(auth_url)
 
-    # Returning login (inline)
+    # Returning user login
     st.markdown("### Returning user login")
-    # --- Guaranteed one Google button here ---
     render_google_brand_button_once(auth_url, center=True)
 
     with st.form("returning_login_form_clean", clear_on_submit=False):
-        login_id = st.text_input("Email or Student Code", key="login_id")
-        login_pass = st.text_input("Password", type="password", key="login_pass")
+        login_id  = st.text_input("Email or Student Code", key="login_id")
+        login_pass= st.text_input("Password", type="password", key="login_pass")
         submitted = st.form_submit_button("Log in")
     if submitted and render_login_form(login_id, login_pass):
         st.rerun()
 
-    # Toggle forgot
+    # Forgot password (toggle)
     if st.button("Forgot password?", key="show_reset_panel_btn"):
         st.session_state["show_reset_panel"] = True
     if st.session_state.get("show_reset_panel"):
         render_forgot_password_panel()
 
-    # Sign up + Request Access
+    # Small banner explaining the two tabs
+    render_signup_request_banner()
+
+    # Tabs: Sign Up + Request Access
     tab2, tab3 = st.tabs(["🧾 Sign Up (Approved)", "📝 Request Access"])
     with tab2:
         render_signup_form()
     with tab3:
         st.markdown(
             """
-            <div class="page-wrap" style="text-align:center; margin-top:20px;">
-              <p style="font-size:1.1em; color:#444;">
-                If you don't have an account yet, please request access by filling out this form.
-              </p>
+            <div class="page-wrap" style="text-align:center; margin-top:8px;">
               <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header" 
                  target="_blank" rel="noopener">
-                <button style="background:#25317e; color:white; padding:10px 20px; border:none; border-radius:6px; cursor:pointer;">
+                <button style="background:#1f2d7a; color:white; padding:10px 20px; border:none; border-radius:8px; cursor:pointer;">
                   📝 Open Request Access Form
                 </button>
               </a>
+              <div style="color:#64748b; font-size:.95rem; margin-top:6px;">
+                We’ll email you once your account is ready.
+              </div>
             </div>
             """,
             unsafe_allow_html=True
         )
+
 
     # Help + quick contacts
     st.markdown("""
