@@ -402,7 +402,8 @@ def inject_notice_css():
       @media (prefers-color-scheme: dark){
         :root{ --chip-border: rgba(148,163,184,.28); }
       }
-      .statusbar { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 6px 0; }
+
+      /* ---- chips (unchanged) ---- */
       .chip { display:inline-flex; align-items:center; gap:8px;
               padding:8px 12px; border-radius:999px; font-weight:700; font-size:.98rem;
               border:1px solid var(--chip-border); }
@@ -410,10 +411,36 @@ def inject_notice_css():
       .chip-amber { background:#fff7ed; color:#7c2d12; border-color:#fed7aa; }
       .chip-blue  { background:#eef4ff; color:#2541b2; border-color:#c7d2fe; }
       .chip-gray  { background:#f1f5f9; color:#334155; border-color:#cbd5e1; }
+
+      .pill { display:inline-block; padding:3px 9px; border-radius:999px; font-weight:700; font-size:.92rem; }
+      .pill-green  { background:#e6ffed; color:#0a7f33; }
+      .pill-purple { background:#efe9ff; color:#5b21b6; }
+      .pill-amber  { background:#fff7ed; color:#7c2d12; }
+
+      /* ---- mini-card grid (this was missing) ---- */
+      .minirow{
+        display:grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap:14px;
+        margin:10px 0 6px 0;
+        align-items:stretch;
+      }
+      .minicard{
+        border:1px solid var(--chip-border);
+        border-radius:12px;
+        padding:12px;
+        background:#fff;
+        box-shadow:0 1px 4px rgba(2,6,23,.04);
+      }
+      .minicard h4 { margin:0 0 6px 0; font-size:1.02rem; color:#0f172a; }
+      .minicard .sub { color:#475569; font-size:.92rem; }
+
+      @media (max-width:640px){
+        .minicard{ padding:11px; }
+      }
     </style>
     """, unsafe_allow_html=True)
 
-_inject_meta_tags()
 
 # ------------------------------------------------------------------------------
 # Hero (HTML template) with safe fallback
