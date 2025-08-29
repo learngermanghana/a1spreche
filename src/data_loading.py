@@ -81,7 +81,13 @@ def fetch_youtube_playlist_videos(
     while True:
         if next_page:
             params["pageToken"] = next_page
-        response = requests.get(base_url, params=params, timeout=12)
+        try:
+            response = requests.get(base_url, params=params, timeout=12)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            logging.exception("Could not fetch YouTube playlist")
+            st.error(f"❌ Could not fetch YouTube playlist. {e}")
+            raise
         data = response.json()
         for item in data.get("items", []):
             vid = item["snippet"]["resourceId"]["videoId"]
