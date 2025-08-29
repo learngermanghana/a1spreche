@@ -650,19 +650,6 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
         st.error("Please enter both email and password.")
         return False
 
-    prev_token = st.session_state.get("session_token", "")
-    clear_session(cookie_manager)
-    st.session_state.update(
-        {
-            "logged_in": False,
-            "student_row": {},
-            "student_code": "",
-            "student_name": "",
-            "session_token": "",
-            "student_level": "",
-        }
-    )
-
     df = load_student_data()
     if df is None:
         st.error("Student roster unavailable. Please try again later.")
@@ -721,6 +708,18 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
         student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash
     )
     level = determine_level(student_row["StudentCode"], student_row)
+
+    clear_session(cookie_manager)
+    st.session_state.update(
+        {
+            "logged_in": False,
+            "student_row": {},
+            "student_code": "",
+            "student_name": "",
+            "session_token": "",
+            "student_level": "",
+        }
+    )
 
     st.session_state.update(
         {
