@@ -397,9 +397,13 @@ def render_signup_form():
     doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
     st.success("Account created! Please log in on the Returning tab.")
 
-def render_returning_login_area() -> bool:
+def render_returning_login_area(login_fn=None) -> bool:
     """Returning login with a 'Forgot password?' panel.
     Returns True if the user successfully logs in (so caller can st.rerun())."""
+
+    # Resolve the login function if not provided
+    if login_fn is None:
+        login_fn = globals().get("render_login_form")
 
     with st.form("returning_login_form", clear_on_submit=False):
         st.markdown("#### Returning user login")
@@ -411,8 +415,12 @@ def render_returning_login_area() -> bool:
         with c2:
             forgot_toggle = st.form_submit_button("Forgot password?", help="Reset via email")
 
-    if submitted and render_login_form(login_id, login_pass):
-        return True  # signal success; caller will rerun after rendering the rest
+    if submitted:
+        if callable(login_fn):
+            if login_fn(login_id, login_pass):
+                return True  # signal success
+        else:
+            st.error("Login function not available. (render_login_form missing)")
 
     # Toggle the reset panel
     if forgot_toggle:
@@ -444,7 +452,6 @@ def render_returning_login_area() -> bool:
                 if not user_query:
                     st.error("No account found with that email.")
                 else:
-                    # Create a reset token valid for 1 hour and email it
                     token = uuid4().hex
                     expires_at = datetime.now(UTC) + timedelta(hours=1)
                     try:
@@ -461,8 +468,8 @@ def render_returning_login_area() -> bool:
                         st.success("Reset link sent! Check your inbox (and spam).")
                     else:
                         st.error("We couldn't send the email. Please try again later.")
-
     return False
+
 
 
 def login_page():
