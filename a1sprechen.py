@@ -554,12 +554,59 @@ def render_returning_login_form() -> bool:
         st.markdown("#### Returning user login")
         login_id = st.text_input("Email or Student Code")
         login_pass = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Log in")
+        c1, c2 = st.columns([0.6, 0.4])
+        with c1:
+            submitted = st.form_submit_button("Log in")
+        with c2:
+            forgot_toggle = st.form_submit_button("Forgot password?", help="Reset via email")
 
     if submitted and render_login_form(login_id, login_pass):
         # Signal to the caller that a rerun is needed instead of performing it
         # here which would prevent the rest of the page from rendering.
         return True
+
+    if forgot_toggle:
+        st.session_state["show_reset_panel"] = True
+
+    if st.session_state.get("show_reset_panel"):
+        email_for_reset = st.text_input("Registered email", key="reset_email")
+        c3, c4 = st.columns([0.55, 0.45])
+        with c3:
+            send_btn = st.button("Send reset link", key="send_reset_btn", use_container_width=True)
+        with c4:
+            back_btn = st.button("Back to login", key="hide_reset_btn", use_container_width=True)
+
+        if back_btn:
+            st.session_state["show_reset_panel"] = False
+            st.rerun()
+
+        if send_btn:
+            if not email_for_reset:
+                st.error("Please enter your email.")
+            else:
+                e = email_for_reset.lower().strip()
+                user_query = db.collection("students").where("email", "==", e).get()
+                if not user_query:
+                    user_query = db.collection("students").where("Email", "==", e).get()
+                if not user_query:
+                    st.error("No account found with that email.")
+                else:
+                    token = uuid4().hex
+                    expires_at = datetime.now(UTC) + timedelta(hours=1)
+                    try:
+                        reset_link = build_gas_reset_link(token)
+                    except Exception:
+                        base_url = (st.secrets.get("PUBLIC_BASE_URL", "https://falowen.app") or "").rstrip("/")
+                        reset_link = f"{base_url}/?token={_urllib.quote(token, safe='')}"
+                    db.collection("password_resets").document(token).set({
+                        "email": e,
+                        "created": datetime.now(UTC).isoformat(),
+                        "expires_at": expires_at.isoformat(),
+                    })
+                    if send_reset_email(e, reset_link):
+                        st.success("Reset link sent! Check your inbox (and spam).")
+                    else:
+                        st.error("We couldn't send the email. Please try again later.")
 
     return False
 
