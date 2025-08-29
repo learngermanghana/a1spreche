@@ -1190,13 +1190,14 @@ st.markdown("---")
 st.markdown("**You’re logged in.** Continue to your lessons and tools from the navigation.")
 
 # =========================
-# Dashboard topbar (screenshot style)
+# Logged-in header (shown right after successful login)
 # =========================
-def render_dashboard_topbar():
+def render_logged_in_topbar():
     name  = st.session_state.get("student_name", "")
     level = st.session_state.get("student_level", "—")
     code  = st.session_state.get("student_code", "—")
 
+    # Styles to match your previous light theme + blue logout pill
     st.markdown(
         """
         <style>
@@ -1212,10 +1213,9 @@ def render_dashboard_topbar():
             font-size:1.55rem; font-weight:900; color:#19213a;
             margin:0 0 4px 0; letter-spacing:.2px;
           }
-          .dash-sub{
-            color:#475569; font-size:.95rem;
-          }
-          /* make the primary button look like your blue pill */
+          .dash-sub{ color:#475569; font-size:.95rem; }
+
+          /* Blue primary button like your screenshot */
           div[data-testid="stButton"] > button[kind="primary"]{
             background:#1f2d7a; border:1px solid #1b2a6e;
             border-radius:10px; font-weight:700;
@@ -1229,8 +1229,9 @@ def render_dashboard_topbar():
         unsafe_allow_html=True
     )
 
-    with st.container():
-        c1, c2 = st.columns([1, 0.18], vertical_alignment="center")
+    top = st.container()
+    with top:
+        c1, c2 = st.columns([1, 0.18])
         with c1:
             st.markdown(
                 f"""
@@ -1242,10 +1243,12 @@ def render_dashboard_topbar():
                 unsafe_allow_html=True
             )
         with c2:
-            st.button("Log out", key="logout_dashboard",
-                      type="primary", use_container_width=True,
+            # Make sure _do_logout is defined above this function
+            st.button("Log out",
+                      key="logout_global",
+                      type="primary",
+                      use_container_width=True,
                       on_click=_do_logout)
-
 
 
 # =========================================================
@@ -1494,7 +1497,6 @@ except Exception as e:
 # ===================== Dashboard =========================
 # =========================================================
 if tab == "Dashboard":
-    render_dashboard_topbar() 
     # ---------- Helpers ----------
     def safe_get(row, key, default=""):
         try: return row.get(key, default)
