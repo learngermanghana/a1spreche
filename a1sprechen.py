@@ -143,6 +143,7 @@ from src.session_management import (
 from src.sentence_bank import SENTENCE_BANK
 from src.config import get_cookie_manager, SB_SESSION_TARGET
 from src.data_loading import load_student_data
+from src.resume import load_last_position, render_resume_banner
 
 # ------------------------------------------------------------------------------
 # Constants / YouTube helpers
@@ -308,6 +309,8 @@ def _handle_google_oauth(code: str, state: str) -> None:
             "session_token": sess_token,
             "student_level": level,
         })
+        st.session_state["__last_progress"] = load_last_position(student_row["StudentCode"])
+        render_resume_banner()
         set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
         persist_session_client(sess_token, student_row["StudentCode"])
         set_session_token_cookie(cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
@@ -490,12 +493,14 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     clear_session(cookie_manager)
     st.session_state.update({
         "logged_in": True,
-        "student_row": dict(student_row),
-        "student_code": student_row["StudentCode"],
-        "student_name": student_row["Name"],
-        "session_token": sess_token,
-        "student_level": level,
+       "student_row": dict(student_row),
+       "student_code": student_row["StudentCode"],
+       "student_name": student_row["Name"],
+       "session_token": sess_token,
+       "student_level": level,
     })
+    st.session_state["__last_progress"] = load_last_position(student_row["StudentCode"])
+    render_resume_banner()
     set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
     persist_session_client(sess_token, student_row["StudentCode"])
     set_session_token_cookie(cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
@@ -808,6 +813,8 @@ if restored is not None and not st.session_state.get("logged_in", False):
         "session_token": token,
         "student_level": level,
     })
+    st.session_state["__last_progress"] = load_last_position(sc_cookie)
+    render_resume_banner()
 
 # Handle reset token deep link first
 if not st.session_state.get("logged_in", False):
