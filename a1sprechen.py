@@ -807,13 +807,12 @@ def render_announcements(ANNOUNCEMENTS: list):
         for a in ANNOUNCEMENTS:
             st.markdown(f"**{a.get('title','')}** — {a.get('body','')}")
 
+# --- One-time branded Google button (kept exactly once on the page)
 def render_google_brand_button_once(auth_url: str, center: bool = True):
-    """Render a single, branded 'Continue with Google' button (once per rerun)."""
     if not auth_url:
         return
     if st.session_state.get("_google_cta_rendered"):
         return
-
     align = "text-align:center;" if center else ""
     st.markdown(
         f"""
@@ -841,53 +840,93 @@ def render_google_brand_button_once(auth_url: str, center: bool = True):
     st.session_state["_google_cta_rendered"] = True
 
 
-# ------------------------------------------------------------------------------
-# Login page assembly (Hero + Google OAuth, Returning form, Sign-up, Request)
-# Shows exactly one Gmail button (in the hero template)
-# ------------------------------------------------------------------------------
+# --- Small explanatory banner shown above the tabs
+def render_signup_request_banner():
+    if not st.session_state.get("_signup_banner_css_done"):
+        st.markdown(
+            """
+            <style>
+              .inline-banner{
+                background:#f5f9ff; border:1px solid rgba(30,64,175,.15);
+                border-radius:12px; padding:12px 14px; margin:12px 0;
+                box-shadow:0 4px 10px rgba(2,6,23,.04);
+              }
+              .inline-banner b{ color:#0f172a; }
+              .inline-banner .note{ color:#475569; font-size:.95rem; margin-top:6px; }
+              .inline-banner ul{ margin:6px 0 0 1.1rem; }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.session_state["_signup_banner_css_done"] = True
+
+    st.markdown(
+        """
+        <div class="inline-banner">
+          <div><b>Which option should I use?</b></div>
+          <ul>
+            <li><b>Sign Up (Approved):</b> For students already added by your tutor/office. Use your <b>Student Code</b> and <b>registered email</b> to create a password.</li>
+            <li><b>Request Access:</b> New learner or not on the roster yet. Fill the form and we’ll set you up and email next steps.</li>
+          </ul>
+          <div class="note">Not sure? Choose <b>Request Access</b> — we’ll route you correctly.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# --- Login page with single Google CTA + banner above tabs
 def login_page():
-    # Build/handle Google OAuth, get the auth URL for the hero button
+    # Build/handle Google OAuth (also completes if ?code=... present)
     auth_url = render_google_oauth(return_url=True) or ""
 
-    # Branded hero (template should contain a single {{GOOGLE_AUTH_URL}} button)
+    # Branded hero (can include {{GOOGLE_AUTH_URL}} internally)
     render_falowen_login(auth_url)
 
-    # ========== Returning user login (inline, no extra Google CTA) ==========
+    # Returning user login
     st.markdown("### Returning user login")
+    render_google_brand_button_once(auth_url, center=True)
+
     with st.form("returning_login_form_clean", clear_on_submit=False):
-        login_id = st.text_input("Email or Student Code", key="login_id")
-        login_pass = st.text_input("Password", type="password", key="login_pass")
+        login_id  = st.text_input("Email or Student Code", key="login_id")
+        login_pass= st.text_input("Password", type="password", key="login_pass")
         submitted = st.form_submit_button("Log in")
     if submitted and render_login_form(login_id, login_pass):
         st.rerun()
 
-    # Forgot password (toggle a compact panel)
+    # Forgot password (toggle)
     if st.button("Forgot password?", key="show_reset_panel_btn"):
         st.session_state["show_reset_panel"] = True
     if st.session_state.get("show_reset_panel"):
         render_forgot_password_panel()
 
-    # ========== Sign up + Request Access ==========
+    # Small banner explaining the two tabs
+    render_signup_request_banner()
+
+    # Tabs: Sign Up + Request Access
     tab2, tab3 = st.tabs(["🧾 Sign Up (Approved)", "📝 Request Access"])
     with tab2:
-        render_signup_form()  # no extra Gmail button here
+        render_signup_form()
     with tab3:
         st.markdown(
             """
-            <div class="page-wrap" style="text-align:center; margin-top:20px;">
-              <p style="font-size:1.1em; color:#444;">
-                If you don't have an account yet, please request access by filling out this form.
-              </p>
+            <div class="page-wrap" style="text-align:center; margin-top:8px;">
               <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header" 
                  target="_blank" rel="noopener">
-                <button style="background:#25317e; color:white; padding:10px 20px; border:none; border-radius:6px; cursor:pointer;">
+                <button style="background:#1f2d7a; color:white; padding:10px 20px; border:none; border-radius:8px; cursor:pointer;">
                   📝 Open Request Access Form
                 </button>
               </a>
+              <div style="color:#64748b; font-size:.95rem; margin-top:6px;">
+                We’ll email you once your account is ready.
+              </div>
             </div>
             """,
             unsafe_allow_html=True
         )
+
+    # (Optional) keep your help/links/steps/footer blocks below as before
+
 
     # Help + quick contacts
     st.markdown("""
