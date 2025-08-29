@@ -85,7 +85,7 @@ from src.ui_components import (
     render_assignment_reminder,
     render_link,
     render_vocab_lookup,
-    render_reviews,
+    render_reviews,  # (landing uses a separate name below to avoid clash)
 )
 from src.stats import (
     get_student_level,
@@ -140,9 +140,11 @@ from src.data_loading import load_student_data
 # Constants / YouTube helpers
 # ------------------------------------------------------------------------------
 DEFAULT_PLAYLIST_LEVEL = "A1"
+
 YOUTUBE_API_KEY = st.secrets.get(
     "YOUTUBE_API_KEY", "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
 )
+
 YOUTUBE_PLAYLIST_IDS = {
     "A1": ["PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b"],
     "A2": [
@@ -166,7 +168,8 @@ def get_playlist_ids_for_level(level: str) -> list[str]:
     fallback = YOUTUBE_PLAYLIST_IDS.get(DEFAULT_PLAYLIST_LEVEL, [])
     if fallback:
         st.info(
-            f"No playlist found for level {level_key}; using {DEFAULT_PLAYLIST_LEVEL} playlist instead."
+            f"No playlist found for level {level_key}; using "
+            f"{DEFAULT_PLAYLIST_LEVEL} playlist instead."
         )
         return fallback
     st.info(f"No playlist configured for level {level_key}.")
@@ -193,7 +196,7 @@ def fetch_youtube_playlist_videos(playlist_id: str, api_key: str = YOUTUBE_API_K
 cookie_manager = get_cookie_manager()
 
 # ------------------------------------------------------------------------------
-# Optional: tiny FastAPI health probe (for Render etc.)
+# Optional: tiny FastAPI health probe (fixed indentation)
 # ------------------------------------------------------------------------------
 if os.environ.get("RENDER"):
     try:
@@ -212,6 +215,7 @@ if os.environ.get("RENDER"):
 
         threading.Thread(target=_start_health, daemon=True).start()
     except Exception:
+        # Health endpoint is optional; continue silently in Streamlit-only deploys
         pass
 
 # ------------------------------------------------------------------------------
@@ -229,29 +233,30 @@ def _handle_google_oauth(code: str, state: str) -> None:
     df["Email"] = df["Email"].str.lower().str.strip()
     try:
         if st.session_state.get("_oauth_state") and state != st.session_state["_oauth_state"]:
-            st.error("OAuth state mismatch. Please try again."); return
+            st.error("OAuth state mismatch. Please try again.")
+            return
         if st.session_state.get("_oauth_code_redeemed") == code:
             return
 
-        resp = requests.post(
-            "https://oauth2.googleapis.com/token",
-            data={
-                "code": code,
-                "client_id": GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
-                "redirect_uri": REDIRECT_URI,
-                "grant_type": "authorization_code",
-            },
-            timeout=10,
-        )
+        token_url = "https://oauth2.googleapis.com/token"
+        data = {
+            "code": code,
+            "client_id": GOOGLE_CLIENT_ID,
+            "client_secret": GOOGLE_CLIENT_SECRET,
+            "redirect_uri": REDIRECT_URI,
+            "grant_type": "authorization_code",
+        }
+        resp = requests.post(token_url, data=data, timeout=10)
         if not resp.ok:
-            st.error(f"Google login failed: {resp.status_code} {resp.text}"); return
+            st.error(f"Google login failed: {resp.status_code} {resp.text}")
+            return
 
-        token_data = resp.json()
+        token_data   = resp.json()
         access_token = token_data.get("access_token")
         refresh_token= token_data.get("refresh_token")
         if not access_token:
-            st.error("Google login failed: no access token."); return
+            st.error("Google login failed: no access token.")
+            return
 
         st.session_state["_oauth_code_redeemed"] = code
         st.session_state["access_token"] = access_token
@@ -267,11 +272,13 @@ def _handle_google_oauth(code: str, state: str) -> None:
         email = (userinfo.get("email") or "").lower().strip()
         match = df[df["Email"] == email]
         if match.empty:
-            st.error("No student account found for that Google email."); return
+            st.error("No student account found for that Google email.")
+            return
 
         student_row = match.iloc[0]
         if is_contract_expired(student_row):
-            st.error("Your contract has expired. Contact the office."); return
+            st.error("Your contract has expired. Contact the office.")
+            return
 
         ua_hash = st.session_state.get("__ua_hash", "")
         prev_token = st.session_state.get("session_token", "")
@@ -312,7 +319,7 @@ def _handle_google_oauth(code: str, state: str) -> None:
         st.error(f"Google OAuth error: {e}")
 
 def render_google_oauth(return_url: bool = False) -> Optional[str]:
-    """If ?code is present, complete OAuth. Otherwise return auth URL when return_url=True; else render button."""
+    """If ?code is present, complete OAuth. Otherwise, return the Google auth URL when return_url=True."""
     import secrets, urllib.parse
 
     def _qp_first(val):
@@ -354,10 +361,9 @@ def render_google_oauth(return_url: bool = False) -> Optional[str]:
     return None
 
 # ------------------------------------------------------------------------------
-# Landing Page HTML (template-based sign-in hero)
+# Landing template (not used in this flow, kept for reference)
 # ------------------------------------------------------------------------------
 def render_falowen_login(google_auth_url: str) -> None:
-    """Renders templates/falowen_login.html with {{GOOGLE_AUTH_URL}}."""
     html_path = Path(__file__).parent / "templates" / "falowen_login.html"
     html = html_path.read_text(encoding="utf-8").replace("{{GOOGLE_AUTH_URL}}", google_auth_url)
     components.html(html, height=1100, scrolling=True)
@@ -478,9 +484,7 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
     return True
 
-# ---------- helper: returning-user form wrapper ----------
 def render_returning_login_form():
-    """Small native Streamlit form that calls render_login_form(login_id, login_pass)."""
     with st.form("returning_login_form", clear_on_submit=False):
         st.markdown("#### Returning user login")
         login_id = st.text_input("Email or Student Code")
@@ -489,7 +493,7 @@ def render_returning_login_form():
     if submitted and render_login_form(login_id, login_pass):
         st.rerun()
 
-# ---------- reviews widget (renamed to avoid clashing with src.ui_components.render_reviews) ----------
+# ---------- reviews widget (landing version) ----------
 def render_reviews_landing():
     REVIEWS = [
         {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.", "author": "Ama — Accra, Ghana 🇬🇭", "level": "A2"},
@@ -548,22 +552,18 @@ def render_reviews_landing():
     components.html(_reviews_html.replace("__DATA__", json.dumps(REVIEWS, ensure_ascii=False)),
                     height=300, scrolling=False)
 
-# ---------- LOGIN PAGE ----------
+# ---------- Login page (sign-in up top; tabs for Sign Up + Request Access) ----------
 def login_page():
-    """Sign-in hero above; tabs below for Sign Up + Request Access."""
-    # 1) Render sign-in hero (template) with Google button
-    auth_url = render_google_oauth(return_url=True) or ""
-    render_falowen_login(auth_url)
-
-    # Also provide a native Streamlit returning-login form (email/password)
+    # Sign-in (Google + returning) up top
+    render_google_oauth()
     st.markdown("<div class='page-wrap' style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
     render_returning_login_form()
 
-    # 2) Tabs ONLY for Sign Up + Request Access
-    tab_sign, tab_req = st.tabs(["🧾 Sign Up (Approved)", "📝 Request Access"])
-    with tab_sign:
+    # Tabs for Sign Up and Request Access only
+    tab2, tab3 = st.tabs(["🧾 Sign Up (Approved)", "📝 Request Access"])
+    with tab2:
         render_signup_form()
-    with tab_req:
+    with tab3:
         st.markdown(
             """
             <div class="page-wrap" style="text-align:center; margin-top:20px;">
@@ -581,7 +581,7 @@ def login_page():
             unsafe_allow_html=True
         )
 
-    # Helpful extras
+    # Help box
     st.markdown("""
     <div class="page-wrap">
       <div class="help-contact-box" aria-label="Help and contact options">
@@ -593,7 +593,7 @@ def login_page():
     </div>
     """, unsafe_allow_html=True)
 
-    # Centered video + quick links + steps + stories
+    # Centered video
     st.markdown("""
     <div class="page-wrap">
       <div class="video-wrap">
@@ -614,6 +614,7 @@ def login_page():
         </div>
       </div>
     </div>
+
     <style>
       .video-wrap{ display:flex; justify-content:center; align-items:center; margin:12px 0 24px; }
       .video-shell{ position:relative; border-radius:16px; padding:4px; }
@@ -623,6 +624,7 @@ def login_page():
     </style>
     """, unsafe_allow_html=True)
 
+    # Quick links
     st.markdown("""
     <div class="page-wrap">
       <div class="quick-links" aria-label="Useful links">
@@ -636,10 +638,12 @@ def login_page():
     </div>
     """, unsafe_allow_html=True)
 
+    st.markdown("---")
+
+    # Steps cards
     LOGIN_IMG_URL      = "https://i.imgur.com/pFQ5BIn.png"
     COURSEBOOK_IMG_URL = "https://i.imgur.com/pqXoqSC.png"
     RESULTS_IMG_URL    = "https://i.imgur.com/uiIPKUT.png"
-    st.markdown("---")
     c1, c2, c3 = st.columns(3)
     with c1:
         st.markdown(f"""
@@ -666,6 +670,7 @@ def login_page():
         <p style="margin:0;">You’ll get an <b>email when marked</b>. Check <b>Results & Resources</b> for feedback.</p>
         """, unsafe_allow_html=True)
 
+    # Student stories
     st.markdown("""
     <style>
       .section-title { font-weight:700; font-size:1.15rem; padding-left:12px; border-left:5px solid #2563eb; margin:12px 0 12px; }
@@ -676,6 +681,7 @@ def login_page():
     render_reviews_landing()
 
     st.markdown("---")
+
     with st.expander("How do I log in?"):
         st.write("Use your school email **or** Falowen code (e.g., `felixa2`). If you’re new, request access first.")
     with st.expander("Where do I see my scores?"):
@@ -702,7 +708,7 @@ def login_page():
     """, unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
-# Lightweight head/PWA injection (optional)
+# Lightweight head/PWA injection
 # ------------------------------------------------------------------------------
 BASE = st.secrets.get("PUBLIC_BASE_URL", "")
 _manifest = f'{BASE}/manifest.webmanifest' if BASE else "/manifest.webmanifest"
@@ -739,7 +745,9 @@ def inject_notice_css():
     st.markdown("""
     <style>
       :root{ --chip-border: rgba(148,163,184,.35); }
-      @media (prefers-color-scheme: dark){ :root{ --chip-border: rgba(148,163,184,.28); } }
+      @media (prefers-color-scheme: dark){
+        :root{ --chip-border: rgba(148,163,184,.28); }
+      }
       .statusbar { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 6px 0; }
       .chip { display:inline-flex; align-items:center; gap:8px;
               padding:8px 12px; border-radius:999px; font-weight:700; font-size:.98rem;
@@ -757,7 +765,10 @@ def inject_notice_css():
       .pill-purple { background:#efe9ff; color:#5b21b6; }
       .pill-amber { background:#fff7ed; color:#7c2d12; }
       .nav-sticky { position: sticky; top:0; z-index:100; background:white; margin:0; padding:0; }
-      @media (max-width: 640px){ .chip{ padding:7px 10px; font-size:.95rem; } .minicard{ padding:11px; } }
+      @media (max-width: 640px){
+        .chip{ padding:7px 10px; font-size:.95rem; }
+        .minicard{ padding:11px; }
+      }
     </style>
     """, unsafe_allow_html=True)
 
@@ -766,7 +777,8 @@ _inject_meta_tags()
 def render_announcements(ANNOUNCEMENTS: list):
     """Responsive rotating announcement board with mobile-first, light card on phones."""
     if not ANNOUNCEMENTS:
-        st.info("📣 No announcements to show."); return
+        st.info("📣 No announcements to show.")
+        return
 
     _html = """
     <style>
@@ -942,7 +954,7 @@ if restored is not None and not st.session_state.get("logged_in", False):
         "student_level": level,
     })
 
-# Handle reset-token deep link first
+# Handle reset token deep link first
 if not st.session_state.get("logged_in", False):
     tok = st.query_params.get("token")
     if isinstance(tok, list):
@@ -951,30 +963,150 @@ if not st.session_state.get("logged_in", False):
         reset_password_page(tok)
         st.stop()
 
-# Not logged in? -> show the login page and stop
+# Not logged in? -> show the login and stop
 if not st.session_state.get("logged_in", False):
     login_page()
     st.stop()
 
 # ------------------------------------------------------------------------------
-# Logged-in UI (with Logout button)
+# ==== Resume helpers (Firestore) ====
+# ------------------------------------------------------------------------------
+def _progress_doc_ref(student_code: str):
+    # students/{code}/state/progress
+    return db.collection("students").document(student_code).collection("state").document("progress")
+
+def save_last_position(
+    student_code: str,
+    *,
+    level: str | None = None,
+    day: int | None = None,
+    chapter: str | None = None,
+    teil: str | None = None,
+    mode: str | None = None,
+) -> None:
+    """Persist the user's last visited learning context."""
+    if not student_code:
+        return
+    try:
+        payload = {
+            "level": (level or "").strip(),
+            "day": int(day) if day is not None and str(day).isdigit() else None,
+            "chapter": (chapter or "").strip(),
+            "teil": (teil or "").strip(),
+            "mode": (mode or "").strip(),
+            "updated_at": datetime.now(UTC),
+        }
+        payload = {k: v for k, v in payload.items() if v not in (None, "", [])}
+        _progress_doc_ref(student_code).set(payload, merge=True)
+    except Exception:
+        logging.exception("save_last_position failed")
+
+def load_last_position(student_code: str) -> dict:
+    """Fetch the last saved learning context for the user."""
+    if not student_code:
+        return {}
+    try:
+        snap = _progress_doc_ref(student_code).get()
+        return snap.to_dict() or {}
+    except Exception:
+        logging.exception("load_last_position failed")
+        return {}
+
+def track_position_for_current_view(
+    level: str | None = None,
+    day: int | None = None,
+    chapter: str | None = None,
+    teil: str | None = None,
+    mode: str | None = None,
+):
+    sc = st.session_state.get("student_code", "")
+    if not sc:
+        return
+    save_last_position(
+        sc,
+        level=level or st.session_state.get("falowen_level") or st.session_state.get("student_level"),
+        day=day,
+        chapter=chapter,
+        teil=teil,
+        mode=mode or st.session_state.get("falowen_mode") or "coursebook",
+    )
+
+def render_resume_banner():
+    p = st.session_state.get("__last_progress") or {}
+    lvl = p.get("level")
+    day = p.get("day")
+    chapter = p.get("chapter")
+    teil = p.get("teil")
+    mode = p.get("mode") or "coursebook"
+
+    if not any([lvl, day, chapter, teil]):
+        return
+
+    bits = []
+    if lvl: bits.append(lvl)
+    if day: bits.append(f"Day {day}")
+    if chapter: bits.append(chapter)
+    label = " • ".join(bits) if bits else "Continue"
+
+    st.info(f"▶ Resume: **{label}**")
+    if st.button("Resume now", key="resume_btn"):
+        try:
+            if lvl:
+                st.query_params["falowen_level"] = lvl
+            if teil:
+                st.query_params["falowen_teil"] = str(teil)
+            st.query_params["falowen_stage"] = "3"  # adjust if your app routes differently
+            st.query_params["falowen_mode"] = mode
+        except Exception:
+            st.session_state["falowen_level"] = lvl or st.session_state.get("falowen_level", "")
+            if teil:
+                st.session_state["falowen_teil"] = str(teil)
+            st.session_state["falowen_stage"] = 3
+            st.session_state["falowen_mode"] = mode
+        st.rerun()
+
+def _maybe_track_position_from_state():
+    """Optional: call each run to save if we have concrete context."""
+    lvl = st.session_state.get("falowen_level") or st.session_state.get("student_level")
+    day = st.session_state.get("current_day")
+    chap = st.session_state.get("current_chapter")
+    teil = st.session_state.get("falowen_teil")
+    mode = st.session_state.get("falowen_mode")
+    if any([day, chap, teil]):
+        save_last_position(
+            st.session_state.get("student_code",""),
+            level=lvl, day=day, chapter=chap, teil=teil, mode=mode
+        )
+
+# ------------------------------------------------------------------------------
+# Logged-in UI (with Logout + Resume + Announcements)
 # ------------------------------------------------------------------------------
 announcements = [
-    { "title": "Download Draft (TXT) Backup",
-      "body":  "In Submit, use “⬇️ Download draft (TXT)” to save a clean backup with level, day, chapter, and timestamp.",
-      "tag":   "New" },
-    { "title": "Submit Flow & Locking",
-      "body":  "After you click **Confirm & Submit**, your box locks (read-only). You can still view status and feedback later in Results & Resources.",
-      "tag":   "Action" },
-    { "title": "Quick Jumps: Classroom Q&A + Learning Notes",
-      "body":  "Buttons in the Submit area take you straight to Q&A or your personal Notes—no hunting around.",
-      "tag":   "Tip" },
-    { "title": "Lesson Links — One Download",
-      "body":  "Grab all lesson resources as a single TXT file under **Your Work & Links**. Videos are embedded once; no duplicates.",
-      "tag":   "New" },
-    { "title": "Sprechen: Instant Pronunciation Feedback",
-      "body":  "Record your speaking and get immediate AI feedback (highlights, suggestions, level-aware tips) and shadowing playback. Find it in Falowen → Tools → Sprechen.",
-      "tag":   "New" },
+    {
+        "title": "Download Draft (TXT) Backup",
+        "body":  "In Submit, use “⬇️ Download draft (TXT)” to save a clean backup with level, day, chapter, and timestamp.",
+        "tag":   "New"
+    },
+    {
+        "title": "Submit Flow & Locking",
+        "body":  "After you click **Confirm & Submit**, your box locks (read-only). You can still view status and feedback later in Results & Resources.",
+        "tag":   "Action"
+    },
+    {
+        "title": "Quick Jumps: Classroom Q&A + Learning Notes",
+        "body":  "Buttons in the Submit area take you straight to Q&A or your personal Notes—no hunting around.",
+        "tag":   "Tip"
+    },
+    {
+        "title": "Lesson Links — One Download",
+        "body":  "Grab all lesson resources as a single TXT file under **Your Work & Links**. Videos are embedded once; no duplicates.",
+        "tag":   "New"
+    },
+    {
+        "title": "Sprechen: Instant Pronunciation Feedback",
+        "body":  "Record your speaking and get immediate AI feedback (highlights, suggestions, level-aware tips) and shadowing playback. Find it in Falowen → Tools → Sprechen.",
+        "tag":   "New"
+    }
 ]
 
 def _do_logout():
@@ -1015,12 +1147,19 @@ with top:
 st.sidebar.markdown("## Account")
 st.sidebar.button("Log out", key="logout_side", on_click=_do_logout)
 
+# Load last position and show Resume banner
+st.session_state["__last_progress"] = load_last_position(st.session_state.get("student_code",""))
+render_resume_banner()
+
 inject_notice_css()
 render_announcements(announcements)
 
-# (Place the rest of your app here… tabs, tools, etc.)
+# Optional: persist last known position from current state (won't overwrite with blanks)
+_maybe_track_position_from_state()
+
 st.markdown("---")
 st.markdown("**You’re logged in.** Continue to your lessons and tools from the navigation.")
+
 
 
 
