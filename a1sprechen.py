@@ -88,7 +88,7 @@ from src.ui_components import (
     render_assignment_reminder,
     render_link,
     render_vocab_lookup,
-    render_reviews,  # we also define a separate landing widget below
+    render_reviews,
 )
 
 from src.stats import (
@@ -354,58 +354,46 @@ def render_google_oauth(return_url: bool = False) -> Optional[str]:
     if return_url:
         return auth_url
 
-    # Fallback simple button (we usually use the HTML template below)
+    # Render a Google button inline (Streamlit)
     st.markdown(
-        f"""<div style='text-align:center;margin:12px 0;'>
-             <a href="{auth_url}">
+        """<div class="page-wrap" style='text-align:center;margin:12px 0;'>
+             <a href="{url}">
                <button aria-label="Sign in with Google"
-                       style="background:#4285f4;color:white;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;">
+                       style="background:#4285f4;color:white;padding:8px 24px;border:none;border-radius:8px;cursor:pointer;font-weight:700;">
                  Sign in with Google
                </button>
              </a>
-           </div>""",
+           </div>""".replace("{url}", auth_url),
         unsafe_allow_html=True,
     )
     return None
 
 # ------------------------------------------------------------------------------
-# Landing HTML (template-first with safe fallback)
+# Landing banner (HTML template only — NO login inside)
 # ------------------------------------------------------------------------------
-def render_falowen_login(google_auth_url: str) -> None:
+def render_falowen_hero_banner() -> None:
     """
-    Render templates/falowen_login.html if present; otherwise render a minimal inline
-    hero with a Google sign-in button using the provided google_auth_url.
-    The template should include {{GOOGLE_AUTH_URL}}.
+    Render templates/falowen_login.html as a welcome/hero banner only.
+    The template should NOT include any login controls.
     """
     try:
         html_path = Path(__file__).parent / "templates" / "falowen_login.html"
-        html = html_path.read_text(encoding="utf-8")
-        html = html.replace("{{GOOGLE_AUTH_URL}}", google_auth_url)
+        html_text = html_path.read_text(encoding="utf-8")
     except Exception:
-        # Minimal, styled fallback
-        html = f"""
-        <style>
-          .hero-wrap{{max-width:900px;margin:0 auto;padding:12px 10px}}
-          .hero-card{{border-radius:16px;padding:16px;border:1px solid rgba(148,163,184,.25);
-                      background:linear-gradient(135deg,#eef2ff,#f8fafc);box-shadow:0 10px 30px rgba(2,6,23,.08)}}
-          .hero-title{{font-weight:800;font-size:1.4rem;margin:0 0 8px 0;color:#0b1220}}
-          .hero-sub{{color:#475569;margin:0 0 12px 0}}
-          .gbtn{{background:#4285f4;color:white;padding:10px 22px;border:none;border-radius:8px;cursor:pointer;font-weight:700}}
-        </style>
-        <div class="hero-wrap">
-          <div class="hero-card">
-            <div class="hero-title">Falowen — Your German Conversation Partner</div>
-            <p class="hero-sub">Sign in with Google to continue.</p>
-            <a href="{google_auth_url}" target="_self" rel="noopener">
-              <button class="gbtn" aria-label="Sign in with Google">Sign in with Google</button>
-            </a>
+        # Fallback banner if template missing
+        html_text = """
+        <div class="page-wrap" style="max-width:900px;margin:6px auto;">
+          <div style="border-radius:16px;padding:18px;border:1px solid rgba(148,163,184,.25);
+                      background:linear-gradient(135deg,#eef2ff,#f8fafc);box-shadow:0 10px 30px rgba(2,6,23,.08)">
+            <h1 style="margin:0 0 8px 0;font-size:1.5rem;">Falowen — Your German Conversation Partner</h1>
+            <p style="margin:0;color:#475569;">Practice speaking, submit assignments, and track feedback in one place.</p>
           </div>
         </div>
         """
-    components.html(html, height=560, scrolling=True)
+    components.html(html_text, height=560, scrolling=True)
 
 # ------------------------------------------------------------------------------
-# Email+password path
+# Signup / Login helpers (email+password path)
 # ------------------------------------------------------------------------------
 def render_signup_form():
     with st.form("signup_form", clear_on_submit=False):
@@ -441,7 +429,7 @@ def render_signup_form():
 
     hashed_pw = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
     doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
-    st.success("Account created! Please log in on the Returning form above.")
+    st.success("Account created! Please log in on the Returning tab.")
 
 def render_login_form(login_id: str, login_pass: str) -> bool:
     login_id = (login_id or "").strip().lower()
@@ -529,227 +517,8 @@ def render_returning_login_form():
     if submitted and render_login_form(login_id, login_pass):
         st.rerun()
 
-# ---------- Reviews widget (landing) ----------
-def render_reviews_landing():
-    REVIEWS = [
-        {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.", "author": "Ama — Accra, Ghana 🇬🇭", "level": "A2"},
-        {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.", "author": "Tunde — Lagos, Nigeria 🇳🇬", "level": "B1"},
-        {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.", "author": "Mariama — Freetown, Sierra Leone 🇸🇱", "level": "A1"},
-        {"quote": "I like the locked submissions and the clean Results tab.", "author": "Kwaku — Kumasi, Ghana 🇬🇭", "level": "B2"},
-    ]
-    _reviews_html = """
-    <style>
-      :root{ --bg:#0b1220; --card:#ffffffcc; --text:#0f172a; --muted:#475569; --brand:#2563eb; --chip:#e0f2fe; --chip-text:#0369a1; --ring:#93c5fd; }
-      @media (prefers-color-scheme: dark){
-        :root{ --card:#0b1220cc; --text:#e2e8f0; --muted:#94a3b8; --chip:#1e293b; --chip-text:#e2e8f0; --ring:#334155; }
-      }
-      .page-wrap{max-width:900px;margin:8px auto;}
-      .rev-shell{position:relative;isolation:isolate;border-radius:16px;padding:18px 16px 20px;background:
-                  radial-gradient(1200px 300px at 10% -10%, #e0f2fe55, transparent),
-                  radial-gradient(1200px 300px at 90% 110%, #c7d2fe44, transparent);
-                 border:1px solid rgba(148,163,184,.25); box-shadow:0 10px 30px rgba(2,6,23,.08); overflow:hidden;}
-      .rev-card{background:var(--card); backdrop-filter:blur(8px); border:1px solid rgba(148,163,184,.25);
-                border-radius:16px; padding:20px 18px; min-height:170px;}
-      .rev-quote{font-size:1.06rem; line-height:1.55; color:var(--text); margin:0;}
-      .rev-meta{display:flex; align-items:center; gap:10px; margin-top:14px; color:var(--muted);}
-      .rev-chip{font-size:.78rem; font-weight:700; background:var(--chip); color:var(--chip-text); border-radius:999px; padding:6px 10px;}
-      .rev-author{ font-weight:700; color:var(--text); }
-      .rev-dots{display:flex; gap:6px; justify-content:center; margin-top:14px;}
-      .rev-dot{width:8px; height:8px; border-radius:999px; background:#cbd5e1; opacity:.8; transform:scale(.9); transition:all .25s ease;}
-      .rev-dot[aria-current="true"]{ background:var(--brand); opacity:1; transform:scale(1.15); box-shadow:0 0 0 4px var(--ring); }
-    </style>
-    <div class="page-wrap">
-      <div id="reviews" class="rev-shell">
-        <div class="rev-card" id="rev_card">
-          <p id="rev_quote" class="rev-quote"></p>
-          <div class="rev-meta">
-            <span id="rev_level" class="rev-chip"></span>
-            <span id="rev_author" class="rev-author"></span>
-          </div>
-          <div class="rev-dots" id="rev_dots"></div>
-        </div>
-      </div>
-    </div>
-    <script>
-      const data = __DATA__;
-      const q = document.getElementById('rev_quote');
-      const a = document.getElementById('rev_author');
-      const l = document.getElementById('rev_level');
-      const dotsWrap = document.getElementById('rev_dots');
-      let i = 0;
-      function setActiveDot(idx){ [...dotsWrap.children].forEach((d, j)=> d.setAttribute('aria-current', j===idx ? 'true' : 'false')); }
-      function render(idx){ const c=data[idx]; q.textContent=c.quote; a.textContent=c.author; l.textContent="Level "+c.level; setActiveDot(idx); }
-      function next(){ i=(i+1)%data.length; render(i); }
-      data.forEach((_, idx)=>{ const dot=document.createElement('button'); dot.className='rev-dot'; dot.type='button';
-                               addEventListener('click', ()=>{ i=idx; render(i); }); dotsWrap.appendChild(dot); });
-      setInterval(next, 6000); render(i);
-    </script>
-    """
-    components.html(_reviews_html.replace("__DATA__", json.dumps(REVIEWS, ensure_ascii=False)),
-                    height=300, scrolling=False)
-
-# ---------- Login page (HTML hero + native returning form; tabs for Sign Up / Request Access) ----------
-def login_page():
-    # Build Google auth URL (and also complete OAuth if ?code present)
-    auth_url = render_google_oauth(return_url=True) or ""
-
-    # 1) Branded HTML landing (template-based) with Google button
-    render_falowen_login(auth_url)
-
-    # 2) Returning user form (email/password)
-    st.markdown("<div style='text-align:center; margin:10px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
-    render_returning_login_form()
-
-    # 3) Tabs for Sign Up and Request Access only
-    tab2, tab3 = st.tabs(["🧾 Sign Up (Approved)", "📝 Request Access"])
-    with tab2:
-        render_signup_form()
-    with tab3:
-        st.markdown(
-            """
-            <div class="page-wrap" style="text-align:center; margin-top:20px;">
-                <p style="font-size:1.1em; color:#444;">
-                    If you don't have an account yet, please request access by filling out this form.
-                </p>
-                <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header" 
-                   target="_blank" rel="noopener">
-                    <button style="background:#25317e; color:white; padding:10px 20px; border:none; border-radius:6px; cursor:pointer;">
-                        📝 Open Request Access Form
-                    </button>
-                </a>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    # Help box
-    st.markdown("""
-    <div class="page-wrap">
-      <div class="help-contact-box" aria-label="Help and contact options">
-        <b>❓ Need help or access?</b><br>
-        <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp us</a>
-        &nbsp;|&nbsp;
-        <a href="mailto:learngermanghana@gmail.com" target="_blank" rel="noopener">✉️ Email</a>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Centered video
-    st.markdown("""
-    <div class="page-wrap">
-      <div class="video-wrap">
-        <div class="video-shell style-gradient">
-          <video
-            width="360"
-            autoplay
-            muted
-            loop
-            playsinline
-            tabindex="-1"
-            oncontextmenu="return false;"
-            draggable="false"
-            style="pointer-events:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;">
-            <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
-            Sorry, your browser doesn't support embedded videos.
-          </video>
-        </div>
-      </div>
-    </div>
-
-    <style>
-      .video-wrap{ display:flex; justify-content:center; align-items:center; margin:12px 0 24px; }
-      .video-shell{ position:relative; border-radius:16px; padding:4px; }
-      .video-shell > video{ display:block; width:min(360px, 92vw); border-radius:12px; margin:0; box-shadow:0 4px 12px rgba(0,0,0,.08); }
-      .video-shell.style-gradient{ background:linear-gradient(135deg,#e8eeff,#f6f9ff); box-shadow:0 8px 24px rgba(0,0,0,.08); }
-      @media (max-width:600px){ .video-wrap{ margin:8px 0 16px; } }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # Quick links
-    st.markdown("""
-    <div class="page-wrap">
-      <div class="quick-links" aria-label="Useful links">
-        <a href="https://www.learngermanghana.com/tutors"           target="_blank" rel="noopener">👩‍🏫 Tutors</a>
-        <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank" rel="noopener">🗓️ Upcoming Classes</a>
-        <a href="https://www.learngermanghana.com/accreditation"    target="_blank" rel="noopener">✅ Accreditation</a>
-        <a href="https://www.learngermanghana.com/privacy-policy"   target="_blank" rel="noopener">🔒 Privacy</a>
-        <a href="https://www.learngermanghana.com/terms-of-service" target="_blank" rel="noopener">📜 Terms</a>
-        <a href="https://www.learngermanghana.com/contact-us"       target="_blank" rel="noopener">✉️ Contact</a>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("---")
-
-    # Steps cards
-    LOGIN_IMG_URL      = "https://i.imgur.com/pFQ5BIn.png"
-    COURSEBOOK_IMG_URL = "https://i.imgur.com/pqXoqSC.png"
-    RESULTS_IMG_URL    = "https://i.imgur.com/uiIPKUT.png"
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.markdown(f"""
-        <img src="{LOGIN_IMG_URL}" alt="Login screenshot"
-             style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
-        <div style="height:8px;"></div>
-        <h3 style="margin:0 0 4px 0;">1️⃣ Sign in</h3>
-        <p style="margin:0;">Use your <b>student code or email</b> and start your level (A1–C1).</p>
-        """, unsafe_allow_html=True)
-    with c2:
-        st.markdown(f"""
-        <img src="{COURSEBOOK_IMG_URL}" alt="Course Book screenshot"
-             style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
-        <div style="height:8px;"></div>
-        <h3 style="margin:0 0 4px 0;">2️⃣ Learn & submit</h3>
-        <p style="margin:0;">Watch lessons, practice vocab, and <b>submit assignments</b> in the Course Book.</p>
-        """, unsafe_allow_html=True)
-    with c3:
-        st.markdown(f"""
-        <img src="{RESULTS_IMG_URL}" alt="Results screenshot"
-             style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
-        <div style="height:8px;"></div>
-        <h3 style="margin:0 0 4px 0;">3️⃣ Get results</h3>
-        <p style="margin:0;">You’ll get an <b>email when marked</b>. Check <b>Results & Resources</b> for feedback.</p>
-        """, unsafe_allow_html=True)
-
-    # Student stories
-    st.markdown("""
-    <style>
-      .section-title { font-weight:700; font-size:1.15rem; padding-left:12px; border-left:5px solid #2563eb; margin:12px 0 12px; }
-      @media (prefers-color-scheme: dark){ .section-title { border-left-color:#3b82f6; color:#f1f5f9; } }
-    </style>
-    <div class="page-wrap"><div class="section-title">💬 Student Stories</div></div>
-    """, unsafe_allow_html=True)
-    render_reviews_landing()
-
-    st.markdown("---")
-
-    with st.expander("How do I log in?"):
-        st.write("Use your school email **or** Falowen code (e.g., `felixa2`). If you’re new, request access first.")
-    with st.expander("Where do I see my scores?"):
-        st.write("Scores are emailed to you and live in **Results & Resources** inside the app.")
-    with st.expander("How do assignments work?"):
-        st.write("Type your answer, confirm, and **submit**. The box locks. Your tutor is notified automatically.")
-    with st.expander("What if I open the wrong lesson?"):
-        st.write("Check the blue banner at the top (Level • Day • Chapter). Use the dropdown to switch to the correct page.")
-
-    st.markdown("""
-    <div class="page-wrap" style="text-align:center; margin:24px 0;">
-      <a href="https://www.youtube.com/YourChannel" target="_blank" rel="noopener">📺 YouTube</a>
-      &nbsp;|&nbsp;
-      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp</a>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown(f"""
-    <div class="page-wrap" style="text-align:center;color:#64748b; margin-bottom:16px;">
-      © {datetime.utcnow().year} Learn Language Education Academy • Accra, Ghana<br>
-      Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> • 
-      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>
-    </div>
-    """, unsafe_allow_html=True)
-
 # ------------------------------------------------------------------------------
-# Lightweight head/PWA injection
+# UX head/CSS + PWA
 # ------------------------------------------------------------------------------
 BASE = st.secrets.get("PUBLIC_BASE_URL", "")
 _manifest = f'{BASE}/manifest.webmanifest' if BASE else "/manifest.webmanifest"
@@ -810,13 +579,15 @@ def inject_notice_css():
         .chip{ padding:7px 10px; font-size:.95rem; }
         .minicard{ padding:11px; }
       }
+      /* keep Streamlit chrome tighter */
+      [data-testid="stAppViewContainer"] > .main .block-container { padding-top: 0.6rem !important; }
     </style>
     """, unsafe_allow_html=True)
 
 _inject_meta_tags()
 
+# ---------- Announcements widget ----------
 def render_announcements(ANNOUNCEMENTS: list):
-    """Responsive rotating announcement board with mobile-first, light card on phones."""
     if not ANNOUNCEMENTS:
         st.info("📣 No announcements to show.")
         return
@@ -948,8 +719,7 @@ def render_announcements(ANNOUNCEMENTS: list):
     </script>
     """
     data_json = json.dumps(ANNOUNCEMENTS, ensure_ascii=False)
-    components.html(_html.replace("__DATA__", data_json),
-                    height=220, scrolling=False)
+    components.html(_html.replace("__DATA__", data_json), height=220, scrolling=False)
 
 # ------------------------------------------------------------------------------
 # OpenAI (used elsewhere in app)
@@ -960,6 +730,50 @@ if not OPENAI_API_KEY:
     raise RuntimeError("Missing OpenAI API key")
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
+
+# ------------------------------------------------------------------------------
+# "Resume where you left off" helpers (optional)
+# ------------------------------------------------------------------------------
+def _resume_doc_ref(student_code: str):
+    return db.collection("resume_state").document(student_code)
+
+def get_resume_state(student_code: str) -> dict:
+    try:
+        doc = _resume_doc_ref(student_code).get()
+        return doc.to_dict() if doc.exists else {}
+    except Exception:
+        return {}
+
+def set_resume_state(student_code: str, label: str, qp: dict = None, session: dict = None):
+    try:
+        payload = {
+            "label": label,
+            "query": qp or {},
+            "session": session or {},
+            "updated_at": datetime.utcnow().isoformat() + "Z",
+        }
+        _resume_doc_ref(student_code).set(payload, merge=True)
+    except Exception:
+        logging.exception("Failed to save resume state")
+
+def render_resume_button():
+    sc = st.session_state.get("student_code")
+    if not sc:
+        return
+    state = get_resume_state(sc)
+    if not state:
+        return
+    label = state.get("label") or "Open last page"
+    if st.button(f"▶️ Resume: {label}", key="resume_btn"):
+        # Restore query params
+        qp = state.get("query") or {}
+        if qp:
+            for k, v in qp.items():
+                st.query_params[k] = v
+        # Restore session hints (best effort)
+        sess = state.get("session") or {}
+        st.session_state.update(sess)
+        st.rerun()
 
 # ------------------------------------------------------------------------------
 # Seed state from query params / restore session / reset-link path / go to login
@@ -1004,119 +818,63 @@ if not st.session_state.get("logged_in", False):
         reset_password_page(tok)
         st.stop()
 
+# ------------------------------------------------------------------------------
+# LOGIN PAGE (hero banner on top; all login options below)
+# ------------------------------------------------------------------------------
+def login_page():
+    # 1) Banner (no login controls inside HTML)
+    render_falowen_hero_banner()
+
+    # 2) Auth options below the banner
+    st.markdown("<div class='page-wrap'>", unsafe_allow_html=True)
+    render_google_oauth()  # Google button
+    st.markdown("<div style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
+    render_returning_login_form()
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # 3) Tabs for Sign Up + Request Access only
+    tab_signup, tab_request = st.tabs(["🧾 Sign Up (Approved)", "📝 Request Access"])
+    with tab_signup:
+        render_signup_form()
+    with tab_request:
+        st.markdown(
+            """
+            <div class="page-wrap" style="text-align:center; margin-top:20px;">
+                <p style="font-size:1.1em; color:#444;">
+                    If you don't have an account yet, please request access by filling out this form.
+                </p>
+                <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header" 
+                   target="_blank" rel="noopener">
+                    <button style="background:#25317e; color:white; padding:10px 20px; border:none; border-radius:6px; cursor:pointer;">
+                        📝 Open Request Access Form
+                    </button>
+                </a>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    # Helpful bits
+    st.markdown("""
+    <div class="page-wrap">
+      <div class="help-contact-box" aria-label="Help and contact options"
+           style="background:#fff; border-radius:14px; padding:20px; margin: 12px auto; max-width: 560px;
+                  box-shadow: 0 2px 10px rgba(0,0,0,0.04); border:1px solid #ebebf2; text-align:center;">
+        <b>❓ Need help or access?</b><br>
+        <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp us</a>
+        &nbsp;|&nbsp;
+        <a href="mailto:learngermanghana@gmail.com" target="_blank" rel="noopener">✉️ Email</a>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
 # Not logged in? -> show login and stop
 if not st.session_state.get("logged_in", False):
     login_page()
     st.stop()
 
 # ------------------------------------------------------------------------------
-# ==== Resume helpers (Firestore) ====
-# ------------------------------------------------------------------------------
-def _progress_doc_ref(student_code: str):
-    return db.collection("students").document(student_code).collection("state").document("progress")
-
-def save_last_position(
-    student_code: str,
-    *,
-    level: str | None = None,
-    day: int | None = None,
-    chapter: str | None = None,
-    teil: str | None = None,
-    mode: str | None = None,
-) -> None:
-    if not student_code:
-        return
-    try:
-        payload = {
-            "level": (level or "").strip(),
-            "day": int(day) if day is not None and str(day).isdigit() else None,
-            "chapter": (chapter or "").strip(),
-            "teil": (teil or "").strip(),
-            "mode": (mode or "").strip(),
-            "updated_at": datetime.now(UTC),
-        }
-        payload = {k: v for k, v in payload.items() if v not in (None, "", [])}
-        _progress_doc_ref(student_code).set(payload, merge=True)
-    except Exception:
-        logging.exception("save_last_position failed")
-
-def load_last_position(student_code: str) -> dict:
-    if not student_code:
-        return {}
-    try:
-        snap = _progress_doc_ref(student_code).get()
-        return snap.to_dict() or {}
-    except Exception:
-        logging.exception("load_last_position failed")
-        return {}
-
-def track_position_for_current_view(
-    level: str | None = None,
-    day: int | None = None,
-    chapter: str | None = None,
-    teil: str | None = None,
-    mode: str | None = None,
-):
-    sc = st.session_state.get("student_code", "")
-    if not sc:
-        return
-    save_last_position(
-        sc,
-        level=level or st.session_state.get("falowen_level") or st.session_state.get("student_level"),
-        day=day,
-        chapter=chapter,
-        teil=teil,
-        mode=mode or st.session_state.get("falowen_mode") or "coursebook",
-    )
-
-def render_resume_banner():
-    p = st.session_state.get("__last_progress") or {}
-    lvl = p.get("level")
-    day = p.get("day")
-    chapter = p.get("chapter")
-    teil = p.get("teil")
-    mode = p.get("mode") or "coursebook"
-
-    if not any([lvl, day, chapter, teil]):
-        return
-
-    bits = []
-    if lvl: bits.append(lvl)
-    if day: bits.append(f"Day {day}")
-    if chapter: bits.append(chapter)
-    label = " • ".join(bits) if bits else "Continue"
-
-    st.info(f"▶ Resume: **{label}**")
-    if st.button("Resume now", key="resume_btn"):
-        try:
-            if lvl:
-                st.query_params["falowen_level"] = lvl
-            if teil:
-                st.query_params["falowen_teil"] = str(teil)
-            st.query_params["falowen_stage"] = "3"
-            st.query_params["falowen_mode"] = mode
-        except Exception:
-            st.session_state["falowen_level"] = lvl or st.session_state.get("falowen_level", "")
-            if teil:
-                st.session_state["falowen_teil"] = str(teil)
-            st.session_state["falowen_stage"] = 3
-            st.session_state["falowen_mode"] = mode
-        st.rerun()
-
-def _maybe_track_position_from_state():
-    lvl = st.session_state.get("falowen_level") or st.session_state.get("student_level")
-    day = st.session_state.get("current_day")
-    chap = st.session_state.get("current_chapter")
-    teil = st.session_state.get("falowen_teil")
-    mode = st.session_state.get("falowen_mode")
-    if any([day, chap, teil]):
-        save_last_position(
-            st.session_state.get("student_code",""),
-            level=lvl, day=day, chapter=chap, teil=teil, mode=mode
-        )
-
-# ------------------------------------------------------------------------------
-# Logged-in UI (Logout + Resume + Announcements)
+# Logged-in UI (welcome + Resume + Logout + Announcements)
 # ------------------------------------------------------------------------------
 announcements = [
     {
@@ -1157,6 +915,21 @@ def _do_logout():
         clear_session(cookie_manager)
     except Exception:
         logging.exception("Cookie/session clear failed")
+
+    try:
+        # expire cookies
+        expires_past = datetime.utcnow() - timedelta(seconds=1)
+        set_student_code_cookie(cookie_manager, "", expires=expires_past)
+        set_session_token_cookie(cookie_manager, "", expires=expires_past)
+        cookie_manager.delete("student_code")
+        cookie_manager.delete("session_token")
+        cookie_manager.save()
+    except Exception:
+        pass
+
+    # Clean URL params on server
+    qp_clear_keys("code", "state", "token")
+
     st.session_state.update({
         "logged_in": False,
         "student_row": {},
@@ -1165,16 +938,16 @@ def _do_logout():
         "session_token": "",
         "student_level": "",
     })
-    st.success("You’ve been logged out.")
     st.rerun()
 
-# Top bar with welcome + logout
+# Top bar
 top = st.container()
 with top:
-    c1, c2 = st.columns([1, 0.22])
+    c1, c2 = st.columns([1, 0.26])
     with c1:
         st.markdown(f"### 👋 Welcome, **{st.session_state.get('student_name','')}**")
         st.caption(f"Level: {st.session_state.get('student_level','—')} · Code: {st.session_state.get('student_code','—')}")
+        render_resume_button()   # ← Resume CTA if saved elsewhere
     with c2:
         st.write("")  # spacer
         st.button("Log out", key="logout_top", type="primary", on_click=_do_logout)
@@ -1183,23 +956,11 @@ with top:
 st.sidebar.markdown("## Account")
 st.sidebar.button("Log out", key="logout_side", on_click=_do_logout)
 
-# Load last position and show Resume banner
-st.session_state["__last_progress"] = load_last_position(st.session_state.get("student_code",""))
-render_resume_banner()
-
 inject_notice_css()
 render_announcements(announcements)
 
-# Optional: persist last known position from current state (won't overwrite with blanks)
-_maybe_track_position_from_state()
-
 st.markdown("---")
 st.markdown("**You’re logged in.** Continue to your lessons and tools from the navigation.")
-
-# Bottom logout (per your earlier ask)
-st.markdown("<div style='text-align:center; margin:16px 0;'>", unsafe_allow_html=True)
-st.button("Log out", key="logout_bottom", on_click=_do_logout)
-st.markdown("</div>", unsafe_allow_html=True)
 
 
 
