@@ -375,25 +375,6 @@ def _load_falowen_login_html() -> str:
     html = re.sub(r'<script>[\s\S]*?</script>\s*</body>', '</body>', html)
     return html
 
-
-    for aside in soup.find_all("aside"):
-        aside.decompose()
-
-    for script in soup.find_all("script"):
-        script.decompose()
-
-    style_tag = soup.find("style")
-    if style_tag and style_tag.string:
-        style_tag.string = style_tag.string.replace(
-            "grid-template-columns:1.2fr .8fr;", "grid-template-columns:1fr;"
-        )
-        style_tag.string = style_tag.string.replace(
-            "grid-template-columns: 1.2fr .8fr;", "grid-template-columns: 1fr;"
-        )
-
-    components.html(str(soup), height=720, scrolling=True, key="falowen_hero")
-
-
 # ------------------------------------------------------------------------------
 # Email+password Sign Up / Login helpers
 # ------------------------------------------------------------------------------
