@@ -376,6 +376,17 @@ def _load_falowen_login_html() -> str:
     return html
 
 
+def render_falowen_login(google_auth_url: str) -> None:
+    """Render the Falowen landing hero without embedded login."""
+    html = _load_falowen_login_html()
+    soup = BeautifulSoup(html, "html.parser")
+
+    # Replace placeholder Google login link if present.
+    if google_auth_url:
+        link = soup.find("a", id="google-login")
+        if link is not None:
+            link["href"] = google_auth_url
+
     for aside in soup.find_all("aside"):
         aside.decompose()
 
