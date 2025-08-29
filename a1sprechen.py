@@ -28,7 +28,6 @@ import requests
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
 import streamlit.components.v1 as components
-from streamlit_cookies_manager import EncryptedCookieManager
 from docx import Document
 from google.cloud.firestore_v1 import FieldFilter
 from google.api_core.exceptions import GoogleAPICallError
@@ -38,6 +37,13 @@ from gtts import gTTS
 from openai import OpenAI
 from streamlit.components.v1 import html as st_html
 from streamlit_quill import st_quill
+
+# Optional cookie manager (fallback handled by get_cookie_manager())
+try:
+    from streamlit_cookies_manager import EncryptedCookieManager  # not strictly needed here
+except ImportError:
+    EncryptedCookieManager = None  # we'll rely on src.config.get_cookie_manager()
+
 
 # --- Streamlit page config (do this early) ---
 st.set_page_config(
