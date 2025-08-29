@@ -380,7 +380,12 @@ def _load_falowen_login_html() -> str:
     template may require updating these rules.
     """
     html_path = Path(__file__).parent / "templates" / "falowen_login.html"
-    html = html_path.read_text(encoding="utf-8")
+    try:
+        html = html_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise RuntimeError(
+            "Falowen login template is not valid UTF-8"
+        ) from exc
 
     # Remove legacy "Right: Login" aside block and its script if present
     html = re.sub(r'<!--\s*Right:\s*Login\s*-->[\s\S]*?</aside>', '', html, flags=re.IGNORECASE)
