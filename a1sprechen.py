@@ -26,8 +26,8 @@ import bcrypt
 import pandas as pd
 import requests
 import streamlit as st
-from streamlit.errors import StreamlitAPIException
-import streamlit.components.v1 as components
+# from streamlit.errors import StreamlitAPIException  # (unused here)
+# import streamlit.components.v1 as components        # <- we avoid components to stop TypeError
 from streamlit_cookies_manager import EncryptedCookieManager
 from docx import Document
 from google.cloud.firestore_v1 import FieldFilter
@@ -36,7 +36,7 @@ from firebase_admin import firestore
 from fpdf import FPDF
 from gtts import gTTS
 from openai import OpenAI
-from streamlit.components.v1 import html as st_html
+# from streamlit.components.v1 import html as st_html # <- not used now
 from streamlit_quill import st_quill
 
 # --- Streamlit page config (do this early) ---
@@ -66,7 +66,6 @@ from falowen.db import (
     inc_sprechen_usage,
     has_sprechen_quota,
 )
-
 from src.assignment import linkify_html, _clean_link, _is_http_url
 from src.contracts import (
     parse_contract_end,
@@ -74,7 +73,6 @@ from src.contracts import (
     months_between,
     is_contract_expired,
 )
-
 from src.firestore_utils import (
     _draft_doc_ref,
     load_chat_draft_from_db,
@@ -83,14 +81,12 @@ from src.firestore_utils import (
     save_chat_draft_to_db,
     save_draft_to_db,
 )
-
 from src.ui_components import (
     render_assignment_reminder,
     render_link,
     render_vocab_lookup,
-    render_reviews,
+    render_reviews,  # (used elsewhere in your app)
 )
-
 from src.stats import (
     get_student_level,
     get_vocab_stats,
@@ -98,7 +94,6 @@ from src.stats import (
     vocab_attempt_exists,
 )
 from src.stats_ui import render_vocab_stats, render_schreiben_stats
-
 from src.schreiben import (
     update_schreiben_stats,
     get_schreiben_stats,
@@ -109,7 +104,6 @@ from src.schreiben import (
     get_letter_coach_usage,
     inc_letter_coach_usage,
 )
-
 from src.group_schedules import load_group_schedules
 from src.schedule import load_level_schedules, get_level_schedules
 from src.ui_helpers import (
@@ -120,7 +114,6 @@ from src.ui_helpers import (
     highlight_terms,
     filter_matches,
 )
-
 from src.auth import (
     set_student_code_cookie,
     set_session_token_cookie,
@@ -129,7 +122,6 @@ from src.auth import (
     restore_session_from_cookie,
     reset_password_page,
 )
-
 from src.assignment_ui import (
     load_assignment_scores,
     render_results_and_resources_tab,
@@ -149,9 +141,7 @@ from src.data_loading import load_student_data
 # ------------------------------------------------------------------------------
 DEFAULT_PLAYLIST_LEVEL = "A1"
 
-YOUTUBE_API_KEY = st.secrets.get(
-    "YOUTUBE_API_KEY", "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
-)
+YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY", "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4")
 
 YOUTUBE_PLAYLIST_IDS = {
     "A1": ["PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b"],
@@ -176,8 +166,7 @@ def get_playlist_ids_for_level(level: str) -> list[str]:
     fallback = YOUTUBE_PLAYLIST_IDS.get(DEFAULT_PLAYLIST_LEVEL, [])
     if fallback:
         st.info(
-            f"No playlist found for level {level_key}; using "
-            f"{DEFAULT_PLAYLIST_LEVEL} playlist instead."
+            f"No playlist found for level {level_key}; using {DEFAULT_PLAYLIST_LEVEL} playlist instead."
         )
         return fallback
     st.info(f"No playlist configured for level {level_key}.")
@@ -204,7 +193,7 @@ def fetch_youtube_playlist_videos(playlist_id: str, api_key: str = YOUTUBE_API_K
 cookie_manager = get_cookie_manager()
 
 # ------------------------------------------------------------------------------
-# Optional: tiny FastAPI health probe (fixed indentation)
+# Optional: tiny FastAPI health probe (safe if available)
 # ------------------------------------------------------------------------------
 if os.environ.get("RENDER"):
     try:
@@ -223,11 +212,10 @@ if os.environ.get("RENDER"):
 
         threading.Thread(target=_start_health, daemon=True).start()
     except Exception:
-        # Health endpoint is optional; continue silently in Streamlit-only deploys
         pass
 
 # ------------------------------------------------------------------------------
-# Google OAuth
+# Google OAuth (process-only; no UI button)
 # ------------------------------------------------------------------------------
 GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
 GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
@@ -326,62 +314,18 @@ def _handle_google_oauth(code: str, state: str) -> None:
         logging.exception("Google OAuth error")
         st.error(f"Google OAuth error: {e}")
 
-def render_google_oauth(return_url: bool = False) -> Optional[str]:
-    """If ?code is present, complete OAuth. Otherwise, return the Google auth URL when return_url=True."""
-    import secrets, urllib.parse
-
-    def _qp_first(val):
-        return val[0] if isinstance(val, list) else val
-
+def _process_google_callback_if_present():
+    """Process ?code=...&state=... silently (no UI)."""
     qp = qp_get()
-    code  = _qp_first(qp.get("code")) if hasattr(qp, "get") else None
-    state = _qp_first(qp.get("state")) if hasattr(qp, "get") else None
+    code  = qp.get("code")
+    state = qp.get("state")
+    if isinstance(code, list):  code  = code[0] if code else None
+    if isinstance(state, list): state = state[0] if state else None
     if code:
         _handle_google_oauth(code, state)
-        return None
-
-    st.session_state["_oauth_state"] = secrets.token_urlsafe(24)
-    params = {
-        "client_id": GOOGLE_CLIENT_ID,
-        "redirect_uri": REDIRECT_URI,
-        "response_type": "code",
-        "scope": "openid email profile",
-        "prompt": "select_account",
-        "state": st.session_state["_oauth_state"],
-        "include_granted_scopes": "true",
-        "access_type": "online",
-    }
-    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
-    if return_url:
-        return auth_url
-
-    st.markdown(
-        """<div class="page-wrap" style='text-align:center;margin:12px 0;'>
-             <a href="{url}">
-               <button aria-label="Sign in with Google"
-                       style="background:#4285f4;color:white;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;">
-                 Sign in with Google
-               </button>
-             </a>
-           </div>""".replace("{url}", auth_url),
-        unsafe_allow_html=True,
-    )
-    return None
 
 # ------------------------------------------------------------------------------
-# Landing Page HTML (template-based)
-# ------------------------------------------------------------------------------
-def render_falowen_login(google_auth_url: str) -> None:
-    """
-    Render the HTML login page from templates/falowen_login.html.
-    The template should contain a Google button pointing to {{GOOGLE_AUTH_URL}}.
-    """
-    html_path = Path(__file__).parent / "templates" / "falowen_login.html"
-    html = html_path.read_text(encoding="utf-8").replace("{{GOOGLE_AUTH_URL}}", google_auth_url)
-    components.html(html, height=1100, scrolling=True)
-
-# ------------------------------------------------------------------------------
-# Sign up / Login helpers (email+password path)
+# Auth forms (email+password)
 # ------------------------------------------------------------------------------
 def render_signup_form():
     with st.form("signup_form", clear_on_submit=False):
@@ -496,9 +440,8 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
     return True
 
-# ---------- helper: returning-user form wrapper ----------
 def render_returning_login_form():
-    """Small native Streamlit form that calls your render_login_form(login_id, login_pass)."""
+    """Returning user login (email or student code + password)."""
     with st.form("returning_login_form", clear_on_submit=False):
         st.markdown("#### Returning user login")
         login_id = st.text_input("Email or Student Code")
@@ -507,77 +450,40 @@ def render_returning_login_form():
     if submitted and render_login_form(login_id, login_pass):
         st.rerun()
 
-
-# ---------- helper: reviews widget (rename to avoid clashing with src.ui_components.render_reviews) ----------
-def render_reviews_landing():
-    REVIEWS = [
-        {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.", "author": "Ama — Accra, Ghana 🇬🇭", "level": "A2"},
-        {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.", "author": "Tunde — Lagos, Nigeria 🇳🇬", "level": "B1"},
-        {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.", "author": "Mariama — Freetown, Sierra Leone 🇸🇱", "level": "A1"},
-        {"quote": "I like the locked submissions and the clean Results tab.", "author": "Kwaku — Kumasi, Ghana 🇬🇭", "level": "B2"},
-    ]
-
-    _reviews_html = """
+# ------------------------------------------------------------------------------
+# Simple banner (pure Streamlit HTML/CSS) — no Google button inside
+# ------------------------------------------------------------------------------
+def render_banner():
+    st.markdown("""
     <style>
-      :root{ --bg:#0b1220; --card:#ffffffcc; --text:#0f172a; --muted:#475569; --brand:#2563eb; --chip:#e0f2fe; --chip-text:#0369a1; --ring:#93c5fd; }
+      .hero { background:#fff; border-radius:14px; padding:18px 20px; margin:10px auto;
+              max-width:960px; box-shadow:0 6px 18px rgba(2,6,23,.06); border:1px solid #e5e7eb; }
+      .hero h1{ margin:0 0 6px; font-size:1.6rem; line-height:1.25 }
+      .hero p { margin:0; color:#475569; }
       @media (prefers-color-scheme: dark){
-        :root{ --card:#0b1220cc; --text:#e2e8f0; --muted:#94a3b8; --chip:#1e293b; --chip-text:#e2e8f0; --ring:#334155; }
+        .hero { background:#0b1220; border-color:#1f2937; box-shadow:0 6px 18px rgba(0,0,0,.4); }
+        .hero p{ color:#cbd5e1; }
       }
-      .page-wrap{max-width:900px;margin:8px auto;}
-      .rev-shell{position:relative;isolation:isolate;border-radius:16px;padding:18px 16px 20px;background:
-                  radial-gradient(1200px 300px at 10% -10%, #e0f2fe55, transparent),
-                  radial-gradient(1200px 300px at 90% 110%, #c7d2fe44, transparent);
-                 border:1px solid rgba(148,163,184,.25); box-shadow:0 10px 30px rgba(2,6,23,.08); overflow:hidden;}
-      .rev-card{background:var(--card); backdrop-filter:blur(8px); border:1px solid rgba(148,163,184,.25);
-                border-radius:16px; padding:20px 18px; min-height:170px;}
-      .rev-quote{font-size:1.06rem; line-height:1.55; color:var(--text); margin:0;}
-      .rev-meta{display:flex; align-items:center; gap:10px; margin-top:14px; color:var(--muted);}
-      .rev-chip{font-size:.78rem; font-weight:700; background:var(--chip); color:var(--chip-text); border-radius:999px; padding:6px 10px;}
-      .rev-author{ font-weight:700; color:var(--text); }
-      .rev-dots{display:flex; gap:6px; justify-content:center; margin-top:14px;}
-      .rev-dot{width:8px; height:8px; border-radius:999px; background:#cbd5e1; opacity:.8; transform:scale(.9); transition:all .25s ease;}
-      .rev-dot[aria-current="true"]{ background:var(--brand); opacity:1; transform:scale(1.15); box-shadow:0 0 0 4px var(--ring); }
     </style>
-    <div class="page-wrap">
-      <div id="reviews" class="rev-shell">
-        <div class="rev-card" id="rev_card">
-          <p id="rev_quote" class="rev-quote"></p>
-          <div class="rev-meta">
-            <span id="rev_level" class="rev-chip"></span>
-            <span id="rev_author" class="rev-author"></span>
-          </div>
-          <div class="rev-dots" id="rev_dots"></div>
-        </div>
-      </div>
+    <div class="hero">
+      <h1>Falowen — Your German Conversation Partner</h1>
+      <p>Practice lessons, submit assignments, and get results — all in one place.</p>
     </div>
-    <script>
-      const data = __DATA__;
-      const q = document.getElementById('rev_quote');
-      const a = document.getElementById('rev_author');
-      const l = document.getElementById('rev_level');
-      const dotsWrap = document.getElementById('rev_dots');
-      let i = 0;
-      function setActiveDot(idx){ [...dotsWrap.children].forEach((d, j)=> d.setAttribute('aria-current', j===idx ? 'true' : 'false')); }
-      function render(idx){ const c=data[idx]; q.textContent=c.quote; a.textContent=c.author; l.textContent="Level "+c.level; setActiveDot(idx); }
-      function next(){ i=(i+1)%data.length; render(i); }
-      data.forEach((_, idx)=>{ const dot=document.createElement('button'); dot.className='rev-dot'; dot.type='button';
-                               dot.addEventListener('click', ()=>{ i=idx; render(i); }); dotsWrap.appendChild(dot); });
-      setInterval(next, 6000); render(i);
-    </script>
-    """
-    components.html(_reviews_html.replace("__DATA__", json.dumps(REVIEWS, ensure_ascii=False)),
-                    height=300, scrolling=False)
+    """, unsafe_allow_html=True)
 
-
-# ---------- REPLACE your current login_page() with this ----------
+# ------------------------------------------------------------------------------
+# Tabbed login page (no components / no HTML sign-in)
+# ------------------------------------------------------------------------------
 def login_page():
-    """Tabbed landing: Returning / Sign Up / Request Access, plus hero sections."""
+    # Process Google callback silently if user arrived via OAuth redirect
+    _process_google_callback_if_present()
+
+    render_banner()
+
     tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
 
     # -- Returning
     with tab1:
-        render_google_oauth()  # renders the Google button
-        st.markdown("<div class='page-wrap' style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
         render_returning_login_form()
 
     # -- Sign up
@@ -603,10 +509,11 @@ def login_page():
             unsafe_allow_html=True
         )
 
-    # Help box
+    # Quick help box
     st.markdown("""
-    <div class="page-wrap">
-      <div class="help-contact-box" aria-label="Help and contact options">
+    <div class="page-wrap" style="max-width:960px;margin:0 auto;">
+      <div class="help-contact-box" aria-label="Help and contact options"
+           style="background:#fff;border-radius:14px;padding:16px;text-align:center;border:1px solid #e5e7eb;box-shadow:0 4px 12px rgba(2,6,23,.05);">
         <b>❓ Need help or access?</b><br>
         <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp us</a>
         &nbsp;|&nbsp;
@@ -614,328 +521,6 @@ def login_page():
       </div>
     </div>
     """, unsafe_allow_html=True)
-
-    # Centered video
-    st.markdown("""
-    <div class="page-wrap">
-      <div class="video-wrap">
-        <div class="video-shell style-gradient">
-          <video
-            width="360"
-            autoplay
-            muted
-            loop
-            playsinline
-            tabindex="-1"
-            oncontextmenu="return false;"
-            draggable="false"
-            style="pointer-events:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;">
-            <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
-            Sorry, your browser doesn't support embedded videos.
-          </video>
-        </div>
-      </div>
-    </div>
-
-    <style>
-      .video-wrap{ display:flex; justify-content:center; align-items:center; margin:12px 0 24px; }
-      .video-shell{ position:relative; border-radius:16px; padding:4px; }
-      .video-shell > video{ display:block; width:min(360px, 92vw); border-radius:12px; margin:0; box-shadow:0 4px 12px rgba(0,0,0,.08); }
-      .video-shell.style-gradient{ background:linear-gradient(135deg,#e8eeff,#f6f9ff); box-shadow:0 8px 24px rgba(0,0,0,.08); }
-      @media (max-width:600px){ .video-wrap{ margin:8px 0 16px; } }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # Quick links
-    st.markdown("""
-    <div class="page-wrap">
-      <div class="quick-links" aria-label="Useful links">
-        <a href="https://www.learngermanghana.com/tutors"           target="_blank" rel="noopener">👩‍🏫 Tutors</a>
-        <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank" rel="noopener">🗓️ Upcoming Classes</a>
-        <a href="https://www.learngermanghana.com/accreditation"    target="_blank" rel="noopener">✅ Accreditation</a>
-        <a href="https://www.learngermanghana.com/privacy-policy"   target="_blank" rel="noopener">🔒 Privacy</a>
-        <a href="https://www.learngermanghana.com/terms-of-service" target="_blank" rel="noopener">📜 Terms</a>
-        <a href="https://www.learngermanghana.com/contact-us"       target="_blank" rel="noopener">✉️ Contact</a>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("---")
-
-    # Steps cards
-    LOGIN_IMG_URL      = "https://i.imgur.com/pFQ5BIn.png"
-    COURSEBOOK_IMG_URL = "https://i.imgur.com/pqXoqSC.png"
-    RESULTS_IMG_URL    = "https://i.imgur.com/uiIPKUT.png"
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.markdown(f"""
-        <img src="{LOGIN_IMG_URL}" alt="Login screenshot"
-             style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
-        <div style="height:8px;"></div>
-        <h3 style="margin:0 0 4px 0;">1️⃣ Sign in</h3>
-        <p style="margin:0;">Use your <b>student code or email</b> and start your level (A1–C1).</p>
-        """, unsafe_allow_html=True)
-    with c2:
-        st.markdown(f"""
-        <img src="{COURSEBOOK_IMG_URL}" alt="Course Book screenshot"
-             style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
-        <div style="height:8px;"></div>
-        <h3 style="margin:0 0 4px 0;">2️⃣ Learn & submit</h3>
-        <p style="margin:0;">Watch lessons, practice vocab, and <b>submit assignments</b> in the Course Book.</p>
-        """, unsafe_allow_html=True)
-    with c3:
-        st.markdown(f"""
-        <img src="{RESULTS_IMG_URL}" alt="Results screenshot"
-             style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
-        <div style="height:8px;"></div>
-        <h3 style="margin:0 0 4px 0;">3️⃣ Get results</h3>
-        <p style="margin:0;">You’ll get an <b>email when marked</b>. Check <b>Results & Resources</b> for feedback.</p>
-        """, unsafe_allow_html=True)
-
-    # Student stories
-    st.markdown("""
-    <style>
-      .section-title { font-weight:700; font-size:1.15rem; padding-left:12px; border-left:5px solid #2563eb; margin:12px 0 12px; }
-      @media (prefers-color-scheme: dark){ .section-title { border-left-color:#3b82f6; color:#f1f5f9; } }
-    </style>
-    <div class="page-wrap"><div class="section-title">💬 Student Stories</div></div>
-    """, unsafe_allow_html=True)
-    render_reviews_landing()
-
-    st.markdown("---")
-
-    with st.expander("How do I log in?"):
-        st.write("Use your school email **or** Falowen code (e.g., `felixa2`). If you’re new, request access first.")
-    with st.expander("Where do I see my scores?"):
-        st.write("Scores are emailed to you and live in **Results & Resources** inside the app.")
-    with st.expander("How do assignments work?"):
-        st.write("Type your answer, confirm, and **submit**. The box locks. Your tutor is notified automatically.")
-    with st.expander("What if I open the wrong lesson?"):
-        st.write("Check the blue banner at the top (Level • Day • Chapter). Use the dropdown to switch to the correct page.")
-
-    st.markdown("""
-    <div class="page-wrap" style="text-align:center; margin:24px 0;">
-      <a href="https://www.youtube.com/YourChannel" target="_blank" rel="noopener">📺 YouTube</a>
-      &nbsp;|&nbsp;
-      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp</a>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown(f"""
-    <div class="page-wrap" style="text-align:center;color:#64748b; margin-bottom:16px;">
-      © {datetime.utcnow().year} Learn Language Education Academy • Accra, Ghana<br>
-      Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> • 
-      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>
-    </div>
-    """, unsafe_allow_html=True)
-
-
-# ------------------------------------------------------------------------------
-# Lightweight head/PWA injection (optional)
-# ------------------------------------------------------------------------------
-BASE = st.secrets.get("PUBLIC_BASE_URL", "")
-_manifest = f'{BASE}/manifest.webmanifest' if BASE else "/manifest.webmanifest"
-_icon180  = f'{BASE}/static/icons/falowen-180.png' if BASE else "/static/icons/falowen-180.png"
-
-def _inject_meta_tags():
-    if st.session_state.get("_pwa_head_done"):
-        return
-    components.html(
-        f"""
-        <script>
-          const head = document.getElementsByTagName('head')[0];
-          const tags = [
-            '<link rel="manifest" href="{_manifest}">',
-            '<link rel="apple-touch-icon" href="{_icon180}">',
-            '<meta name="apple-mobile-web-app-capable" content="yes">',
-            '<meta name="apple-mobile-web-app-title" content="Falowen">',
-            '<meta name="apple-mobile-web-app-status-bar-style" content="default">',
-            '<meta name="color-scheme" content="light">',
-            '<meta name="theme-color" content="#f3f7fb">',
-            '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
-          ];
-          tags.forEach(t => head.insertAdjacentHTML('beforeend', t));
-          if ('serviceWorker' in navigator) {{
-            navigator.serviceWorker.register('/sw.js', {{ scope: '/' }}).catch(()=>{{}});
-          }}
-        </script>
-        """,
-        height=0,
-    )
-    st.session_state["_pwa_head_done"] = True
-
-def inject_notice_css():
-    st.markdown("""
-    <style>
-      :root{ --chip-border: rgba(148,163,184,.35); }
-      @media (prefers-color-scheme: dark){
-        :root{ --chip-border: rgba(148,163,184,.28); }
-      }
-      .statusbar { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 6px 0; }
-      .chip { display:inline-flex; align-items:center; gap:8px;
-              padding:8px 12px; border-radius:999px; font-weight:700; font-size:.98rem;
-              border:1px solid var(--chip-border); }
-      .chip-red   { background:#fef2f2; color:#991b1b; border-color:#fecaca; }
-      .chip-amber { background:#fff7ed; color:#7c2d12; border-color:#fed7aa; }
-      .chip-blue  { background:#eef4ff; color:#2541b2; border-color:#c7d2fe; }
-      .chip-gray  { background:#f1f5f9; color:#334155; border-color:#cbd5e1; }
-      .minirow { display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 2px 0; }
-      .minicard { flex:1 1 280px; border:1px solid var(--chip-border); border-radius:12px; padding:12px; background:#fff; }
-      .minicard h4 { margin:0 0 6px 0; font-size:1.02rem; color:#0f172a; }
-      .minicard .sub { color:#475569; font-size:.92rem; }
-      .pill { display:inline-block; padding:3px 9px; border-radius:999px; font-weight:700; font-size:.92rem; }
-      .pill-green { background:#e6ffed; color:#0a7f33; }
-      .pill-purple { background:#efe9ff; color:#5b21b6; }
-      .pill-amber { background:#fff7ed; color:#7c2d12; }
-      .nav-sticky { position: sticky; top:0; z-index:100; background:white; margin:0; padding:0; }
-      @media (max-width: 640px){
-        .chip{ padding:7px 10px; font-size:.95rem; }
-        .minicard{ padding:11px; }
-      }
-    </style>
-    """, unsafe_allow_html=True)
-
-_inject_meta_tags()
-
-def render_announcements(ANNOUNCEMENTS: list):
-    """Responsive rotating announcement board with mobile-first, light card on phones."""
-    import json
-    import streamlit as st
-    import streamlit.components.v1 as components
-
-    if not ANNOUNCEMENTS:
-        st.info("📣 No announcements to show.")
-        return
-
-    _html = """
-    <style>
-      :root{
-        --brand:#1d4ed8; --ring:#93c5fd;
-        --text:#0b1220; --muted:#475569; --card:#ffffff;
-        --chip-bg:#eaf2ff; --chip-fg:#1e3a8a; --link:#1d4ed8;
-        --shell-border: rgba(2,6,23,.08);
-      }
-      @media (prefers-color-scheme: dark){
-        :root{
-          --text:#e5e7eb; --muted:#cbd5e1; --card:#111827;
-          --chip-bg:#1f2937; --chip-fg:#e5e7eb; --link:#93c5fd;
-          --shell-border: rgba(148,163,184,.25);
-        }
-      }
-      .page-wrap{max-width:1100px;margin:0 auto;padding:0 10px;}
-      .ann-title{font-weight:800;font-size:1.05rem;line-height:1.2;
-        padding-left:12px;border-left:5px solid var(--brand);margin:0 0 6px 0;color:var(--text);}
-      .ann-shell{border-radius:14px;border:1px solid var(--shell-border);background:var(--card);
-        box-shadow:0 6px 18px rgba(2,6,23,.12);padding:12px 14px;isolation:isolate;overflow:hidden;}
-      .ann-heading{display:flex;align-items:center;gap:10px;margin:0 0 6px 0;font-weight:800;color:var(--text);}
-      .ann-chip{font-size:.78rem;font-weight:800;text-transform:uppercase;background:var(--chip-bg);color:var(--chip-fg);
-        padding:4px 9px;border-radius:999px;border:1px solid var(--shell-border);}
-      .ann-body{color:var(--muted);margin:0;line-height:1.55;font-size:1rem}
-      .ann-actions{margin-top:8px}
-      .ann-actions a{color:var(--link);text-decoration:none;font-weight:700}
-      .ann-dots{display:flex;gap:12px;justify-content:center;margin-top:12px}
-      .ann-dot{width:11px;height:11px;border-radius:999px;background:#9ca3af;opacity:.9;transform:scale(.95);
-        transition:transform .2s, background .2s, opacity .2s;border:none;cursor:pointer;}
-      .ann-dot[aria-current="true"]{background:var(--brand);opacity:1;transform:scale(1.22);box-shadow:0 0 0 4px var(--ring)}
-      @keyframes fadeInUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-      .ann-anim{animation:fadeInUp .25s ease both}
-      @media (prefers-reduced-motion: reduce){ .ann-anim{animation:none} .ann-dot{transition:none} }
-      @media (max-width: 640px){
-        :root{ --card:#ffffff !important; --text:#0b1220 !important; --muted:#334155 !important;
-               --link:#1d4ed8 !important; --chip-bg:#eaf2ff !important; --chip-fg:#1e3a8a !important;
-               --shell-border: rgba(2,6,23,.10) !important; }
-        .page-wrap{ padding:0 8px; } .ann-shell{ padding:10px 12px; border-radius:12px; }
-        .ann-title{ font-size:1rem; margin:0 0 4px 0; } .ann-heading{ gap:8px; }
-        .ann-chip{ font-size:.72rem; padding:3px 8px; }
-        .ann-body{ font-size:1.02rem; line-height:1.6; }
-        .ann-dots{ gap:10px; margin-top:10px; } .ann-dot{ width:12px; height:12px; }
-      }
-      .tight-section{ margin:6px 0 !important; }
-    </style>
-
-    <div class="page-wrap tight-section">
-      <div class="ann-title">📣 Announcements</div>
-      <div class="ann-shell" id="ann_shell" aria-live="polite">
-        <div class="ann-anim" id="ann_card">
-          <div class="ann-heading">
-            <span class="ann-chip" id="ann_tag" style="display:none;"></span>
-            <span id="ann_title"></span>
-          </div>
-          <p class="ann-body" id="ann_body">loading…</p>
-          <div class="ann-actions" id="ann_action" style="display:none;"></div>
-        </div>
-        <div class="ann-dots" id="ann_dots" role="tablist" aria-label="Announcement selector"></div>
-      </div>
-    </div>
-
-    <script>
-      const data = __DATA__;
-      const titleEl = document.getElementById('ann_title');
-      const bodyEl  = document.getElementById('ann_body');
-      const tagEl   = document.getElementById('ann_tag');
-      const actionEl= document.getElementById('ann_action');
-      const dotsWrap= document.getElementById('ann_dots');
-      const card    = document.getElementById('ann_card');
-      const shell   = document.getElementById('ann_shell');
-      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-      let i = 0, timer = null;
-      const INTERVAL = 6500;
-
-      function setActiveDot(idx){
-        [...dotsWrap.children].forEach((d, j)=> d.setAttribute('aria-current', j===idx ? 'true' : 'false'));
-      }
-      function render(idx){
-        const c = data[idx] || {};
-        card.classList.remove('ann-anim'); void card.offsetWidth; card.classList.add('ann-anim');
-
-        titleEl.textContent = c.title || '';
-        bodyEl.textContent  = c.body  || '';
-
-        if (c.tag){
-          tagEl.textContent = c.tag;
-          tagEl.style.display='';
-        } else {
-          tagEl.style.display='none';
-        }
-
-        if (c.href){
-          const link = document.createElement('a');
-          link.href = c.href; link.target = '_blank'; link.rel = 'noopener';
-          link.textContent = 'Open';
-          actionEl.textContent = '';
-          actionEl.appendChild(link);
-          actionEl.style.display='';
-        } else {
-          actionEl.style.display='none';
-          actionEl.textContent = '';
-        }
-        setActiveDot(idx);
-      }
-      function next(){ i = (i+1) % data.length; render(i); }
-      function start(){ if (!reduced && data.length > 1) timer = setInterval(next, INTERVAL); }
-      function stop(){ if (timer) clearInterval(timer); timer = null; }
-      function restart(){ stop(); start(); }
-
-      data.forEach((_, idx)=>{
-        const dot = document.createElement('button');
-        dot.className='ann-dot'; dot.type='button'; dot.setAttribute('role','tab');
-        dot.setAttribute('aria-label','Show announcement '+(idx+1));
-        dot.addEventListener('click', ()=>{ i=idx; render(i); restart(); });
-        dotsWrap.appendChild(dot);
-      });
-
-      shell.addEventListener('mouseenter', stop);
-      shell.addEventListener('mouseleave', start);
-      shell.addEventListener('focusin', stop);
-      shell.addEventListener('focusout', start);
-
-      render(i); start();
-    </script>
-    """
-    data_json = json.dumps(ANNOUNCEMENTS, ensure_ascii=False)
-    components.html(_html.replace("__DATA__", data_json),
-                    height=220, scrolling=False)
 
 # ------------------------------------------------------------------------------
 # OpenAI (used elsewhere in app)
@@ -990,42 +575,14 @@ if not st.session_state.get("logged_in", False):
         reset_password_page(tok)
         st.stop()
 
-# Not logged in? -> show the HTML login page and stop
+# Not logged in? -> show the login page and stop
 if not st.session_state.get("logged_in", False):
     login_page()
     st.stop()
 
 # ------------------------------------------------------------------------------
-# Logged-in UI (with Logout button)
+# Logged-in UI (with Logout buttons)
 # ------------------------------------------------------------------------------
-announcements = [
-    {
-        "title": "Download Draft (TXT) Backup",
-        "body":  "In Submit, use “⬇️ Download draft (TXT)” to save a clean backup with level, day, chapter, and timestamp.",
-        "tag":   "New"
-    },
-    {
-        "title": "Submit Flow & Locking",
-        "body":  "After you click **Confirm & Submit**, your box locks (read-only). You can still view status and feedback later in Results & Resources.",
-        "tag":   "Action"
-    },
-    {
-        "title": "Quick Jumps: Classroom Q&A + Learning Notes",
-        "body":  "Buttons in the Submit area take you straight to Q&A or your personal Notes—no hunting around.",
-        "tag":   "Tip"
-    },
-    {
-        "title": "Lesson Links — One Download",
-        "body":  "Grab all lesson resources as a single TXT file under **Your Work & Links**. Videos are embedded once; no duplicates.",
-        "tag":   "New"
-    },
-    {
-        "title": "Sprechen: Instant Pronunciation Feedback",
-        "body":  "Record your speaking and get immediate AI feedback (highlights, suggestions, level-aware tips) and shadowing playback. Find it in Falowen → Tools → Sprechen.",
-        "tag":   "New"
-    }
-]
-
 def _do_logout():
     """Clear tokens, cookies, and session; then refresh."""
     try:
@@ -1051,26 +608,36 @@ def _do_logout():
     st.rerun()
 
 # Top bar with welcome + logout
-top = st.container()
-with top:
-    c1, c2 = st.columns([1, 0.22])
-    with c1:
-        st.markdown(f"### 👋 Welcome, **{st.session_state.get('student_name','')}**")
-        st.caption(f"Level: {st.session_state.get('student_level','—')} · Code: {st.session_state.get('student_code','—')}")
-    with c2:
-        st.write("")  # spacer
-        st.button("Log out", key="logout_top", type="primary", on_click=_do_logout)
+col1, col2 = st.columns([1, 0.22])
+with col1:
+    st.markdown(f"### 👋 Welcome, **{st.session_state.get('student_name','')}**")
+    st.caption(f"Level: {st.session_state.get('student_level','—')} · Code: {st.session_state.get('student_code','—')}")
+with col2:
+    st.write("")  # spacer
+    st.button("Log out", key="logout_top", type="primary", on_click=_do_logout)
 
-# Sidebar logout (secondary)
-st.sidebar.markdown("## Account")
-st.sidebar.button("Log out", key="logout_side", on_click=_do_logout)
-
-inject_notice_css()
-render_announcements(announcements)
-
-# (Place the rest of your app here… tabs, tools, etc.)
 st.markdown("---")
-st.markdown("**You’re logged in.** Continue to your lessons and tools from the navigation.")
+
+# Simple announcements (no JS, no components)
+st.subheader("📣 Announcements")
+ANNOUNCEMENTS = [
+    ("New",   "Download Draft (TXT) Backup",    "In Submit, use “⬇️ Download draft (TXT)” to save a clean backup with level, day, chapter, and timestamp."),
+    ("Action","Submit Flow & Locking",          "After you click **Confirm & Submit**, your box locks (read-only). You can still view status and feedback later in Results & Resources."),
+    ("Tip",   "Quick Jumps: Classroom Q&A + Learning Notes", "Buttons in the Submit area take you straight to Q&A or your personal Notes—no hunting around."),
+    ("New",   "Lesson Links — One Download",    "Grab all lesson resources as a single TXT file under **Your Work & Links**. Videos are embedded once; no duplicates."),
+    ("New",   "Sprechen: Instant Pronunciation Feedback", "Record your speaking and get immediate AI feedback and shadowing playback. Find it in Falowen → Tools → Sprechen."),
+]
+for tag, title, body in ANNOUNCEMENTS:
+    st.markdown(f"- **[{tag}] {title}** — {body}")
+
+st.markdown("---")
+st.write("**You’re logged in.** Continue to your lessons and tools from the navigation.")
+
+# Bottom logout button (as requested)
+st.button("Log out", key="logout_bottom", on_click=_do_logout)
+
+# (Place the rest of your app UI here… tabs, tools, coursebook, etc.)
+
 
 
 
