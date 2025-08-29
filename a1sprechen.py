@@ -19,7 +19,6 @@ from datetime import datetime
 from datetime import datetime as _dt
 from uuid import uuid4
 from pathlib import Path
-
 from typing import Any, Dict, List, Optional, Tuple
 
 # ==== Third-Party Packages ====
@@ -39,6 +38,14 @@ from gtts import gTTS
 from openai import OpenAI
 from streamlit.components.v1 import html as st_html
 from streamlit_quill import st_quill
+
+# --- Streamlit page config (do this early) ---
+st.set_page_config(
+    page_title="Falowen – Your German Conversation Partner",
+    page_icon="👋",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 # --- Falowen modules ---
 from falowen.email_utils import send_reset_email, build_gas_reset_link, GAS_RESET_URL
@@ -76,7 +83,6 @@ from src.firestore_utils import (
     save_chat_draft_to_db,
     save_draft_to_db,
 )
-
 
 from src.ui_components import (
     render_assignment_reminder,
@@ -136,10 +142,11 @@ from src.session_management import (
 )
 from src.sentence_bank import SENTENCE_BANK
 from src.config import get_cookie_manager, SB_SESSION_TARGET
-from src.data_loading import (
-    load_student_data,
-)
+from src.data_loading import load_student_data
 
+# ------------------------------------------------------------------------------
+# Constants / YouTube helpers
+# ------------------------------------------------------------------------------
 DEFAULT_PLAYLIST_LEVEL = "A1"
 
 YOUTUBE_API_KEY = st.secrets.get(
@@ -161,20 +168,11 @@ YOUTUBE_PLAYLIST_IDS = {
     ],
 }
 
-
 def get_playlist_ids_for_level(level: str) -> list[str]:
-    """Return playlist IDs for a CEFR level with a fallback.
-
-    The lookup is case-sensitive after normalizing the level to uppercase.
-    If the level is missing, fall back to ``DEFAULT_PLAYLIST_LEVEL`` and show a
-    message. Returns an empty list if no playlists exist at all.
-    """
-
     level_key = (level or "").strip().upper()
     playlist_ids = YOUTUBE_PLAYLIST_IDS.get(level_key, [])
     if playlist_ids:
         return playlist_ids
-
     fallback = YOUTUBE_PLAYLIST_IDS.get(DEFAULT_PLAYLIST_LEVEL, [])
     if fallback:
         st.info(
@@ -182,23 +180,13 @@ def get_playlist_ids_for_level(level: str) -> list[str]:
             f"{DEFAULT_PLAYLIST_LEVEL} playlist instead."
         )
         return fallback
-
     st.info(f"No playlist configured for level {level_key}.")
     return []
 
-
 @st.cache_data(ttl=43200)
-def fetch_youtube_playlist_videos(
-    playlist_id: str, api_key: str = YOUTUBE_API_KEY
-) -> list[dict]:
-    """Fetch videos for a given YouTube playlist."""
+def fetch_youtube_playlist_videos(playlist_id: str, api_key: str = YOUTUBE_API_KEY) -> list[dict]:
     base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
-    params = {
-        "part": "snippet",
-        "playlistId": playlist_id,
-        "maxResults": 50,
-        "key": api_key,
-    }
+    params = {"part": "snippet", "playlistId": playlist_id, "maxResults": 50, "key": api_key}
     videos, next_page = [], ""
     while True:
         if next_page:
@@ -207,50 +195,40 @@ def fetch_youtube_playlist_videos(
         data = response.json()
         for item in data.get("items", []):
             vid = item["snippet"]["resourceId"]["videoId"]
-            videos.append(
-                {
-                    "title": item["snippet"]["title"],
-                    "url": f"https://www.youtube.com/watch?v={vid}",
-                }
-            )
+            videos.append({"title": item["snippet"]["title"], "url": f"https://www.youtube.com/watch?v={vid}"})
         next_page = data.get("nextPageToken")
         if not next_page:
             break
-        
     return videos
 
 cookie_manager = get_cookie_manager()
 
-
+# ------------------------------------------------------------------------------
+# Optional: tiny FastAPI health probe (fixed indentation)
+# ------------------------------------------------------------------------------
 if os.environ.get("RENDER"):
-    import fastapi
-    from fastapi import FastAPI
-
     try:
+        from fastapi import FastAPI
         from uvicorn import Config, Server
-    except ImportError:
-        print(
-            "WARNING: uvicorn is not installed; health check endpoint will be skipped."
-        )
-    else:
-         # Lightweight endpoint so Render gets 200 OK
-         api = FastAPI()
+        api = FastAPI()
 
-         @api.get("/healthz")
-         async def healthz():
-             return {"status": "ok"}
+        @api.get("/healthz")
+        async def healthz():
+            return {"status": "ok"}
 
-             # Start the API on a background thread
-             import threading
+        import threading
+        def _start_health():
+            cfg = Config(api, host="0.0.0.0", port=8000, log_level="warning")
+            Server(cfg).run()
 
-             def _start_health():
-                  cfg = Config(api, host="0.0.0.0", port=8000, log_level="warning")
-                  Server(cfg).run()
+        threading.Thread(target=_start_health, daemon=True).start()
+    except Exception:
+        # Health endpoint is optional; continue silently in Streamlit-only deploys
+        pass
 
-             threading.Thread(target=_start_health, daemon=True).start()
-
-
-
+# ------------------------------------------------------------------------------
+# Google OAuth
+# ------------------------------------------------------------------------------
 GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
 GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
 REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowen.app/")
@@ -263,9 +241,11 @@ def _handle_google_oauth(code: str, state: str) -> None:
     df["Email"] = df["Email"].str.lower().str.strip()
     try:
         if st.session_state.get("_oauth_state") and state != st.session_state["_oauth_state"]:
-            st.error("OAuth state mismatch. Please try again."); return
+            st.error("OAuth state mismatch. Please try again.")
+            return
         if st.session_state.get("_oauth_code_redeemed") == code:
             return
+
         token_url = "https://oauth2.googleapis.com/token"
         data = {
             "code": code,
@@ -276,38 +256,51 @@ def _handle_google_oauth(code: str, state: str) -> None:
         }
         resp = requests.post(token_url, data=data, timeout=10)
         if not resp.ok:
-            st.error(f"Google login failed: {resp.status_code} {resp.text}"); return
-        token_data = resp.json()
+            st.error(f"Google login failed: {resp.status_code} {resp.text}")
+            return
+
+        token_data   = resp.json()
         access_token = token_data.get("access_token")
-        refresh_token = token_data.get("refresh_token")
+        refresh_token= token_data.get("refresh_token")
         if not access_token:
-            st.error("Google login failed: no access token."); return
+            st.error("Google login failed: no access token.")
+            return
+
         st.session_state["_oauth_code_redeemed"] = code
         st.session_state["access_token"] = access_token
         if refresh_token:
             st.session_state["refresh_token"] = refresh_token
+
         userinfo = requests.get(
             "https://www.googleapis.com/oauth2/v2/userinfo",
             headers={"Authorization": f"Bearer {access_token}"},
             timeout=10,
         ).json()
+
         email = (userinfo.get("email") or "").lower().strip()
         match = df[df["Email"] == email]
         if match.empty:
-            st.error("No student account found for that Google email."); return
+            st.error("No student account found for that Google email.")
+            return
+
         student_row = match.iloc[0]
         if is_contract_expired(student_row):
-            st.error("Your contract has expired. Contact the office."); return
+            st.error("Your contract has expired. Contact the office.")
+            return
+
         ua_hash = st.session_state.get("__ua_hash", "")
         prev_token = st.session_state.get("session_token", "")
-        if prev_token and "destroy_session_token" in globals():
+        if prev_token:
             try:
                 destroy_session_token(prev_token)
-            except Exception as e:
+            except Exception:
                 logging.exception("Logout warning (revoke)")
+
         clear_session(cookie_manager)
+
         sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
         level = determine_level(student_row["StudentCode"], student_row)
+
         st.session_state.update({
             "logged_in": True,
             "student_row": student_row.to_dict(),
@@ -316,44 +309,32 @@ def _handle_google_oauth(code: str, state: str) -> None:
             "session_token": sess_token,
             "student_level": level,
         })
-        set_student_code_cookie(
-            cookie_manager,
-            student_row["StudentCode"],
-            expires=datetime.now(UTC) + timedelta(days=180),
-        )
+        set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
         persist_session_client(sess_token, student_row["StudentCode"])
-        set_session_token_cookie(
-            cookie_manager,
-            sess_token,
-            expires=datetime.now(UTC) + timedelta(days=30),
-        )
+        set_session_token_cookie(cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
         try:
             cookie_manager.save()
-        except Exception as exc:  # pragma: no cover - defensive
+        except Exception:
             logging.exception("Cookie save failed")
+
         qp_clear()
         st.success(f"Welcome, {student_row['Name']}!")
         st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
         st.rerun()
+
     except Exception as e:
         logging.exception("Google OAuth error")
         st.error(f"Google OAuth error: {e}")
 
 def render_google_oauth(return_url: bool = False) -> Optional[str]:
-    """Handle Google OAuth callback or return the auth URL.
-
-    When ``return_url`` is ``True`` the function returns the Google
-    authorization URL instead of rendering any UI. The OAuth callback is still
-    processed if a ``code`` query parameter is present.
-    """
-
+    """If ?code is present, complete OAuth. Otherwise, return the Google auth URL when return_url=True."""
     import secrets, urllib.parse
 
     def _qp_first(val):
         return val[0] if isinstance(val, list) else val
 
     qp = qp_get()
-    code = _qp_first(qp.get("code")) if hasattr(qp, "get") else None
+    code  = _qp_first(qp.get("code")) if hasattr(qp, "get") else None
     state = _qp_first(qp.get("state")) if hasattr(qp, "get") else None
     if code:
         _handle_google_oauth(code, state)
@@ -371,39 +352,38 @@ def render_google_oauth(return_url: bool = False) -> Optional[str]:
         "access_type": "online",
     }
     auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
-
     if return_url:
         return auth_url
 
     st.markdown(
         """<div class="page-wrap" style='text-align:center;margin:12px 0;'>
-                <a href="{url}">
-                    <button aria-label="Sign in with Google"
-                            style="background:#4285f4;color:white;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;">
-                        Sign in with Google
-                    </button>
-                </a>
+             <a href="{url}">
+               <button aria-label="Sign in with Google"
+                       style="background:#4285f4;color:white;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;">
+                 Sign in with Google
+               </button>
+             </a>
            </div>""".replace("{url}", auth_url),
         unsafe_allow_html=True,
     )
     return None
 
-
-
-
-
 # ------------------------------------------------------------------------------
-# Landing Page HTML
+# Landing Page HTML (template-based)
 # ------------------------------------------------------------------------------
 def render_falowen_login(google_auth_url: str):
-    """Render the HTML login page and return any submitted credentials."""
-
+    """
+    Render the HTML login page from templates/falowen_login.html.
+    The template must call window.parent.postMessage({type:'streamlit:setComponentValue', value:{...}}, '*')
+    when the user submits.
+    """
     html_path = Path(__file__).parent / "templates" / "falowen_login.html"
-    html = html_path.read_text().replace("{{GOOGLE_AUTH_URL}}", google_auth_url)
-    return st_html(html, height=0, scrolling=True)
+    html = html_path.read_text(encoding="utf-8").replace("{{GOOGLE_AUTH_URL}}", google_auth_url)
+    # Give the component height and a key so it can return a value
+    return components.html(html, height=1100, scrolling=True, key="falowen_login")
 
 # ------------------------------------------------------------------------------
-# RESET LINK BUILDER will now use root "/?token="
+# Sign up / Login helpers (email+password path)
 # ------------------------------------------------------------------------------
 def render_signup_form():
     with st.form("signup_form", clear_on_submit=False):
@@ -416,32 +396,32 @@ def render_signup_form():
         new_code = st.text_input("Student Code (from teacher)", help="Example: felixa2", key="ca_code").strip().lower()
         new_password = st.text_input("Choose a Password", type="password", key="ca_pass")
         signup_btn = st.form_submit_button("Create Account")
+
     if not signup_btn:
         return
     if not (new_name and new_email and new_code and new_password):
         st.error("Please fill in all fields."); return
     if len(new_password) < 8:
         st.error("Password must be at least 8 characters."); return
+
     df = load_student_data()
     if df is None:
-        st.error("Student roster unavailable. Please try again later.")
-        return
+        st.error("Student roster unavailable. Please try again later."); return
     df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
     df["Email"] = df["Email"].str.lower().str.strip()
     valid = df[(df["StudentCode"] == new_code) & (df["Email"] == new_email)]
     if valid.empty:
         st.error("Your code/email aren’t registered. Use 'Request Access' first."); return
+
     doc_ref = db.collection("students").document(new_code)
     if doc_ref.get().exists:
         st.error("An account with this student code already exists. Please log in instead."); return
+
     hashed_pw = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
     doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
     st.success("Account created! Please log in on the Returning tab.")
 
-
 def render_login_form(login_id: str, login_pass: str) -> bool:
-    """Authenticate a user and update ``st.session_state``."""
-
     login_id = (login_id or "").strip().lower()
     login_pass = login_pass or ""
     if not (login_id and login_pass):
@@ -452,37 +432,30 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     if df is None:
         st.error("Student roster unavailable. Please try again later.")
         return False
+
     df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
     df["Email"] = df["Email"].str.lower().str.strip()
     lookup = df[(df["StudentCode"] == login_id) | (df["Email"] == login_id)]
     if lookup.empty:
-        st.error("No matching student code or email found.")
-        return False
+        st.error("No matching student code or email found."); return False
     if lookup.shape[0] > 1:
-        st.error("Multiple matching accounts found. Please contact the office.")
-        return False
+        st.error("Multiple matching accounts found. Please contact the office."); return False
 
     student_row = lookup.iloc[0]
     if is_contract_expired(student_row):
-        st.error("Your contract has expired. Contact the office.")
-        return False
+        st.error("Your contract has expired. Contact the office."); return False
 
     doc_ref = db.collection("students").document(student_row["StudentCode"])
     doc = doc_ref.get()
     if not doc.exists:
-        st.error("Account not found. Please use 'Sign Up (Approved)' first.")
-        return False
+        st.error("Account not found. Please use 'Sign Up (Approved)' first."); return False
 
     data = doc.to_dict() or {}
     stored_pw = data.get("password", "")
     is_hash = stored_pw.startswith(("$2a$", "$2b$", "$2y$")) and len(stored_pw) >= 60
 
     try:
-        ok = (
-            bcrypt.checkpw(login_pass.encode("utf-8"), stored_pw.encode("utf-8"))
-            if is_hash
-            else stored_pw == login_pass
-        )
+        ok = bcrypt.checkpw(login_pass.encode("utf-8"), stored_pw.encode("utf-8")) if is_hash else stored_pw == login_pass
         if ok and not is_hash:
             new_hash = bcrypt.hashpw(login_pass.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
             doc_ref.update({"password": new_hash})
@@ -491,176 +464,84 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
         ok = False
 
     if not ok:
-        st.error("Incorrect password.")
-        return False
+        st.error("Incorrect password."); return False
 
     ua_hash = st.session_state.get("__ua_hash", "")
     prev_token = st.session_state.get("session_token", "")
-    if prev_token and "destroy_session_token" in globals():
+    if prev_token:
         try:
             destroy_session_token(prev_token)
         except Exception:
             logging.exception("Logout warning (revoke)")
 
-    sess_token = create_session_token(
-        student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash
-    )
+    sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
     level = determine_level(student_row["StudentCode"], student_row)
 
     clear_session(cookie_manager)
-    st.session_state.update(
-        {
-            "logged_in": False,
-            "student_row": {},
-            "student_code": "",
-            "student_name": "",
-            "session_token": "",
-            "student_level": "",
-        }
-    )
-
-    st.session_state.update(
-        {
-            "logged_in": True,
-            "student_row": dict(student_row),
-            "student_code": student_row["StudentCode"],
-            "student_name": student_row["Name"],
-            "session_token": sess_token,
-            "student_level": level,
-        }
-    )
-    set_student_code_cookie(
-        cookie_manager,
-        student_row["StudentCode"],
-        expires=datetime.now(UTC) + timedelta(days=180),
-    )
+    st.session_state.update({
+        "logged_in": True,
+        "student_row": dict(student_row),
+        "student_code": student_row["StudentCode"],
+        "student_name": student_row["Name"],
+        "session_token": sess_token,
+        "student_level": level,
+    })
+    set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
     persist_session_client(sess_token, student_row["StudentCode"])
-    set_session_token_cookie(
-        cookie_manager,
-        sess_token,
-        expires=datetime.now(UTC) + timedelta(days=30),
-    )
+    set_session_token_cookie(cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
     try:
         cookie_manager.save()
-    except Exception:  # pragma: no cover - defensive
+    except Exception:
         logging.exception("Cookie save failed")
+
     st.success(f"Welcome, {student_row['Name']}!")
     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
     return True
 
 def login_page():
     """Render the Falowen login page and process login submissions."""
-
     auth_url = render_google_oauth(return_url=True) or ""
-    result = render_falowen_login(auth_url)
+    result = render_falowen_login(auth_url)  # returns dict from postMessage
     if result and isinstance(result, dict):
-        action = result.get("action")
-        if action == "login":
-            render_login_form(result.get("email", ""), result.get("password", ""))
-
-
-# ------------------------------------------------------------------------------
-# Page config MUST be the first Streamlit call
-# ------------------------------------------------------------------------------
-st.set_page_config(
-    page_title="Falowen – Your German Conversation Partner",
-    page_icon="👋",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# Top spacing + chrome (tighter)
-st.markdown("""
-<style>
-@font-face {
-  font-family: 'DejaVu Sans';
-  src: url('/font/DejaVuSans.ttf') format('truetype');
-  font-weight: normal;
-  font-style: normal;
-}
-body {
-  font-family: 'DejaVu Sans', sans-serif;
-}
-/* Remove Streamlit's top padding */
-[data-testid="stAppViewContainer"] > .main .block-container {
-  padding-top: 0 !important;
-}
-
-/* First two rendered blocks (often head injections) — collapse fully */
-[data-testid="stAppViewContainer"] .main .block-container > div:first-child,
-[data-testid="stAppViewContainer"] .main .block-container > div:first-child + div {
-  margin: 0 !important;
-  padding: 0 !important;
-  height: 0 !important;
-  overflow: hidden;
-}
-
-/* Keep hero flush and compact */
-  .hero {
-    margin-top: 0 !important;      /* was 0/12 — pulls hero up */
-    margin-bottom: 4px !important;   /* tighter space before tabs */
-    padding-top: 0 !important;
-    display: flow-root;
-  }
-.hero h1:first-child { margin-top: 0 !important; }
-/* Trim default gap above Streamlit tabs */
-[data-testid="stTabs"] {
-  margin-top: 8px !important;
-}
-
-/* Hide default Streamlit chrome */
-#MainMenu { visibility: hidden; }
-footer { visibility: hidden; }
-</style>
-""", unsafe_allow_html=True)
-
-# Compatibility alias
-html = st_html
-
+        if result.get("action") == "login":
+            if render_login_form(result.get("email", ""), result.get("password", "")):
+                st.rerun()
 
 # ------------------------------------------------------------------------------
-# PWA + head helper (define BEFORE you call it)
+# Lightweight head/PWA injection (optional)
 # ------------------------------------------------------------------------------
 BASE = st.secrets.get("PUBLIC_BASE_URL", "")
 _manifest = f'{BASE}/manifest.webmanifest' if BASE else "/manifest.webmanifest"
 _icon180  = f'{BASE}/static/icons/falowen-180.png' if BASE else "/static/icons/falowen-180.png"
 
 def _inject_meta_tags():
-    """Inject PWA meta + register the service worker once per session (light theme)."""
     if st.session_state.get("_pwa_head_done"):
         return
     components.html(
         f"""
         <script>
-        const head = document.getElementsByTagName('head')[0];
-        const tags = [
-          '<link rel="manifest" href="{_manifest}">',
-          '<link rel="apple-touch-icon" href="{_icon180}">',
-          '<meta name="apple-mobile-web-app-capable" content="yes">',
-          '<meta name="apple-mobile-web-app-title" content="Falowen">',
-          '<meta name="apple-mobile-web-app-status-bar-style" content="default">',
-          '<meta name="color-scheme" content="light">',
-          '<meta name="theme-color" content="#f3f7fb">',
-          '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
-        ];
-        tags.forEach(t => head.insertAdjacentHTML('beforeend', t));
-        if ('serviceWorker' in navigator) {{
-          navigator.serviceWorker.register('/sw.js', {{ scope: '/' }}).catch(()=>{{}});
-        }}
+          const head = document.getElementsByTagName('head')[0];
+          const tags = [
+            '<link rel="manifest" href="{_manifest}">',
+            '<link rel="apple-touch-icon" href="{_icon180}">',
+            '<meta name="apple-mobile-web-app-capable" content="yes">',
+            '<meta name="apple-mobile-web-app-title" content="Falowen">',
+            '<meta name="apple-mobile-web-app-status-bar-style" content="default">',
+            '<meta name="color-scheme" content="light">',
+            '<meta name="theme-color" content="#f3f7fb">',
+            '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
+          ];
+          tags.forEach(t => head.insertAdjacentHTML('beforeend', t));
+          if ('serviceWorker' in navigator) {{
+            navigator.serviceWorker.register('/sw.js', {{ scope: '/' }}).catch(()=>{{}});
+          }}
         </script>
         """,
         height=0,
     )
     st.session_state["_pwa_head_done"] = True
 
-# Inject early
 _inject_meta_tags()
-
-# --- State bootstrap ---
-bootstrap_state()
-
-# Compatibility alias
-html = st_html
 
 # ------------------------------------------------------------------------------
 # OpenAI (used elsewhere in app)
@@ -671,11 +552,11 @@ if not OPENAI_API_KEY:
     raise RuntimeError("Missing OpenAI API key")
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
-    
-# ------------------------------------------------------------------------------
-# Student sheet loading
-# ------------------------------------------------------------------------------
 
+# ------------------------------------------------------------------------------
+# Seed state from query params / restore session / reset-link path / go to login
+# ------------------------------------------------------------------------------
+bootstrap_state()
 seed_falowen_state_from_qp()
 
 def _contract_active(sc: str, roster):
@@ -686,43 +567,27 @@ def _contract_active(sc: str, roster):
         return True
     return not is_contract_expired(match.iloc[0])
 
-
-restored = restore_session_from_cookie(
-    cookie_manager, load_student_data, _contract_active
-)
-
-# If cookies provided a valid session and we're not already logged in, seed
-# ``st.session_state`` so the user stays logged in across page reloads.
+restored = restore_session_from_cookie(cookie_manager, load_student_data, _contract_active)
 if restored is not None and not st.session_state.get("logged_in", False):
     sc_cookie = restored["student_code"]
     token = restored["session_token"]
-    roster = restored.get("data")  # DataFrame
-
-    # ``restore_session_from_cookie`` already validated the session token,
-    # so simply seed ``st.session_state`` using the restored values.
-    sc = sc_cookie
+    roster = restored.get("data")
     row = (
-        roster[roster["StudentCode"].str.lower() == sc].iloc[0]
+        roster[roster["StudentCode"].str.lower() == sc_cookie].iloc[0]
         if roster is not None and "StudentCode" in roster.columns
         else {}
     )
-    level = determine_level(sc, row)
-    st.session_state.update(
-        {
-            "logged_in": True,
-            "student_code": sc,
-            "student_name": row.get("Name", ""),
-            "student_row": dict(row) if isinstance(row, pd.Series) else {},
-            "session_token": token,
-            "student_level": level,
-        }
-    )
-    
+    level = determine_level(sc_cookie, row)
+    st.session_state.update({
+        "logged_in": True,
+        "student_code": sc_cookie,
+        "student_name": row.get("Name", ""),
+        "student_row": dict(row) if isinstance(row, pd.Series) else {},
+        "session_token": token,
+        "student_level": level,
+    })
 
-
-# ------------------------------------------------------------------------------
-# 🔗 Handle ?token=... early (before showing login/tabs)
-# ------------------------------------------------------------------------------
+# Handle reset token deep link first
 if not st.session_state.get("logged_in", False):
     tok = st.query_params.get("token")
     if isinstance(tok, list):
@@ -731,307 +596,13 @@ if not st.session_state.get("logged_in", False):
         reset_password_page(tok)
         st.stop()
 
+# Not logged in? -> show the HTML login page and stop
 if not st.session_state.get("logged_in", False):
     login_page()
     st.stop()
 
-# ------------------------------------------------------------------------------
-# CSS + OAuth UI helpers, etc.
-# ------------------------------------------------------------------------------
-st.markdown("""
-<style>
-  .hero {
-    background: #fff; border-radius: 12px; padding: 24px; margin: 12px auto; max-width: 800px;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.05);
-  }
-  .help-contact-box {
-    background: #fff; border-radius: 14px; padding: 20px; margin: 8px auto; max-width: 500px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.04); border:1px solid #ebebf2; text-align:center;
-  }
-  .quick-links { display: flex; flex-wrap: wrap; gap:12px; justify-content:center; }
-  .quick-links a {
-    background: #e2e8f0; padding: 8px 16px; border-radius: 8px; font-weight:600; text-decoration:none;
-    color:#0f172a; border:1px solid #cbd5e1;
-  }
-  .quick-links a:hover { background:#cbd5e1; }
-  .stButton > button { background:#2563eb; color:#ffffff; font-weight:700; border-radius:8px; border:2px solid #1d4ed8; }
-  .stButton > button:hover { background:#1d4ed8; }
-  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, [role="button"]:focus-visible {
-    outline:3px solid #f59e0b; outline-offset:2px; box-shadow:none !important;
-  }
-  input, textarea { color:#0f172a !important; }
-  .page-wrap { max-width: 1100px; margin: 0 auto; }
-  @media (max-width:600px){ .hero, .help-contact-box { padding:16px 4vw; } }
-</style>
-""", unsafe_allow_html=True)
-
-def render_announcements(ANNOUNCEMENTS: list):
-    """Responsive rotating announcement board with mobile-first, light card on phones."""
-    if not ANNOUNCEMENTS:
-        st.info("📣 No announcements to show.")
-        return
-
-    _html = """
-    <style>
-      /* ---------- THEME TOKENS ---------- */
-      :root{
-        /* brand */
-        --brand:#1d4ed8;      /* primary */
-        --ring:#93c5fd;
-
-        /* light defaults */
-        --text:#0b1220;
-        --muted:#475569;
-        --card:#ffffff;       /* <- light card by default */
-        --chip-bg:#eaf2ff;
-        --chip-fg:#1e3a8a;
-        --link:#1d4ed8;
-        --shell-border: rgba(2,6,23,.08);
-      }
-
-      /* Dark scheme (desktop/tablet). We will still force light card on phones below. */
-      @media (prefers-color-scheme: dark){
-        :root{
-          --text:#e5e7eb;
-          --muted:#cbd5e1;
-          --card:#111827;
-          --chip-bg:#1f2937;
-          --chip-fg:#e5e7eb;
-          --link:#93c5fd;
-          --shell-border: rgba(148,163,184,.25);
-        }
-      }
-
-      /* ---------- LAYOUT ---------- */
-      .page-wrap{max-width:1100px;margin:0 auto;padding:0 10px;}
-      .ann-title{
-        font-weight:800; font-size:1.05rem; line-height:1.2;
-        padding-left:12px; border-left:5px solid var(--brand);
-        margin: 0 0 6px 0; color: var(--text);
-        letter-spacing: .2px;
-      }
-      .ann-shell{
-        border-radius:14px;
-        border:1px solid var(--shell-border);
-        background:var(--card);
-        box-shadow:0 6px 18px rgba(2,6,23,.12);
-        padding:12px 14px; isolation:isolate; overflow:hidden;
-      }
-      .ann-heading{
-        display:flex; align-items:center; gap:10px; margin:0 0 6px 0;
-        font-weight:800; color:var(--text); letter-spacing:.2px;
-      }
-      .ann-chip{
-        font-size:.78rem; font-weight:800; text-transform:uppercase;
-        background:var(--chip-bg); color:var(--chip-fg);
-        padding:4px 9px; border-radius:999px; border:1px solid var(--shell-border);
-      }
-      .ann-body{ color:var(--muted); margin:0; line-height:1.55; font-size:1rem }
-      .ann-actions{ margin-top:8px }
-      .ann-actions a{ color:var(--link); text-decoration:none; font-weight:700 }
-
-      .ann-dots{
-        display:flex; gap:12px; justify-content:center; margin-top:12px
-      }
-      .ann-dot{
-        width:11px; height:11px; border-radius:999px; background:#9ca3af;
-        opacity:.9; transform:scale(.95);
-        transition:transform .2s, background .2s, opacity .2s;
-        border:none; cursor:pointer;
-      }
-      .ann-dot[aria-current="true"]{
-        background:var(--brand); opacity:1; transform:scale(1.22);
-        box-shadow:0 0 0 4px var(--ring)
-      }
-
-      @keyframes fadeInUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-      .ann-anim{animation:fadeInUp .25s ease both}
-      @media (prefers-reduced-motion: reduce){ .ann-anim{animation:none} .ann-dot{transition:none} }
-
-      /* ---------- MOBILE OVERRIDES ---------- */
-      @media (max-width: 640px){
-        /* Force a light look on phones, regardless of system dark mode */
-        :root{
-          --card:#ffffff !important;
-          --text:#0b1220 !important;
-          --muted:#334155 !important;
-          --link:#1d4ed8 !important;
-          --chip-bg:#eaf2ff !important;
-          --chip-fg:#1e3a8a !important;
-          --shell-border: rgba(2,6,23,.10) !important;
-        }
-        .page-wrap{ padding:0 8px; }
-        .ann-shell{ padding:10px 12px; border-radius:12px; }
-        .ann-title{ font-size:1rem; margin:0 0 4px 0; }
-        .ann-heading{ gap:8px; }
-        .ann-chip{ font-size:.72rem; padding:3px 8px; }
-        .ann-body{ font-size:1.02rem; line-height:1.6; }
-        .ann-dots{ gap:10px; margin-top:10px; }
-        .ann-dot{ width:12px; height:12px; }
-      }
-
-      /* Tight spacer utility for Streamlit blocks around this widget */
-      .tight-section{ margin:6px 0 !important; }
-    </style>
-
-    <div class="page-wrap tight-section">
-      <div class="ann-title">📣 Announcements</div>
-      <div class="ann-shell" id="ann_shell" aria-live="polite">
-        <div class="ann-anim" id="ann_card">
-          <div class="ann-heading">
-            <span class="ann-chip" id="ann_tag" style="display:none;"></span>
-            <span id="ann_title"></span>
-          </div>
-          <p class="ann-body" id="ann_body">loading…</p>
-          <div class="ann-actions" id="ann_action" style="display:none;"></div>
-        </div>
-        <div class="ann-dots" id="ann_dots" role="tablist" aria-label="Announcement selector"></div>
-      </div>
-    </div>
-
-    <script>
-      const data = __DATA__;
-      const titleEl = document.getElementById('ann_title');
-      const bodyEl  = document.getElementById('ann_body');
-      const tagEl   = document.getElementById('ann_tag');
-      const actionEl= document.getElementById('ann_action');
-      const dotsWrap= document.getElementById('ann_dots');
-      const card    = document.getElementById('ann_card');
-      const shell   = document.getElementById('ann_shell');
-      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-      let i = 0, timer = null;
-      const INTERVAL = 6500;
-
-      function setActiveDot(idx){
-        [...dotsWrap.children].forEach((d, j)=> d.setAttribute('aria-current', j===idx ? 'true' : 'false'));
-      }
-      function render(idx){
-        const c = data[idx] || {};
-        card.classList.remove('ann-anim'); void card.offsetWidth; card.classList.add('ann-anim');
-
-        titleEl.textContent = c.title || '';
-        bodyEl.textContent  = c.body  || '';
-
-        if (c.tag){
-          tagEl.textContent = c.tag;
-          tagEl.style.display='';
-        } else {
-          tagEl.style.display='none';
-        }
-
-        if (c.href){
-          const link = document.createElement('a');
-          link.href = c.href; link.target = '_blank'; link.rel = 'noopener';
-          link.textContent = 'Open';
-          actionEl.textContent = '';
-          actionEl.appendChild(link);
-          actionEl.style.display='';
-        } else {
-          actionEl.style.display='none';
-          actionEl.textContent = '';
-        }
-        setActiveDot(idx);
-      }
-      function next(){ i = (i+1) % data.length; render(i); }
-      function start(){ if (!reduced && data.length > 1) timer = setInterval(next, INTERVAL); }
-      function stop(){ if (timer) clearInterval(timer); timer = null; }
-      function restart(){ stop(); start(); }
-
-      data.forEach((_, idx)=>{
-        const dot = document.createElement('button');
-        dot.className='ann-dot'; dot.type='button'; dot.setAttribute('role','tab');
-        dot.setAttribute('aria-label','Show announcement '+(idx+1));
-        dot.addEventListener('click', ()=>{ i=idx; render(i); restart(); });
-        dotsWrap.appendChild(dot);
-      });
-
-      shell.addEventListener('mouseenter', stop);
-      shell.addEventListener('mouseleave', start);
-      shell.addEventListener('focusin', stop);
-      shell.addEventListener('focusout', start);
-
-      render(i); start();
-    </script>
-    """
-    data_json = json.dumps(ANNOUNCEMENTS, ensure_ascii=False)
-    components.html(_html.replace("__DATA__", data_json), height=220, scrolling=False)
 
 
-# Optional: extra style injector for status chips & mini-cards if you want to reuse elsewhere
-def inject_notice_css():
-    st.markdown("""
-    <style>
-      :root{
-        --chip-border: rgba(148,163,184,.35);
-      }
-      @media (prefers-color-scheme: dark){
-        :root{
-          --chip-border: rgba(148,163,184,.28);
-        }
-      }
-      .statusbar { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 6px 0; }
-      .chip { display:inline-flex; align-items:center; gap:8px;
-              padding:8px 12px; border-radius:999px; font-weight:700; font-size:.98rem;
-              border:1px solid var(--chip-border); mix-blend-mode: normal; }
-      .chip-red   { background:#fef2f2; color:#991b1b; border-color:#fecaca; }
-      .chip-amber { background:#fff7ed; color:#7c2d12; border-color:#fed7aa; }
-      .chip-blue  { background:#eef4ff; color:#2541b2; border-color:#c7d2fe; }
-      .chip-gray  { background:#f1f5f9; color:#334155; border-color:#cbd5e1; }
-
-      .minirow { display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 2px 0; }
-      .minicard { flex:1 1 280px; border:1px solid var(--chip-border); border-radius:12px; padding:12px;
-                  background: #ffffff; isolation:isolate; mix-blend-mode: normal; }
-      .minicard h4 { margin:0 0 6px 0; font-size:1.02rem; color:#0f172a; }
-      .minicard .sub { color:#475569; font-size:.92rem; }
-
-      .pill { display:inline-block; padding:3px 9px; border-radius:999px; font-weight:700; font-size:.92rem; }
-      .pill-green { background:#e6ffed; color:#0a7f33; }
-      .pill-purple { background:#efe9ff; color:#5b21b6; }
-      .pill-amber { background:#fff7ed; color:#7c2d12; }
-
-
-      .nav-sticky { position: sticky; top:0; z-index:100; background: white; margin:0; padding:0; }
-
-
-      @media (max-width: 640px){
-        .chip{ padding:7px 10px; font-size:.95rem; }
-        .minicard{ padding:11px; }
-      }
-    </style>
-    """, unsafe_allow_html=True)
-
-
-# =========================================================
-# ================== App Announcements ====================
-# =========================================================
-announcements = [
-    {
-        "title": "Download Draft (TXT) Backup",
-        "body":  "In Submit, use “⬇️ Download draft (TXT)” to save a clean backup with level, day, chapter, and timestamp.",
-        "tag":   "New"
-    },
-    {
-        "title": "Submit Flow & Locking",
-        "body":  "After you click **Confirm & Submit**, your box locks (read-only). You can still view status and feedback later in Results & Resources.",
-        "tag":   "Action"
-    },
-    {
-        "title": "Quick Jumps: Classroom Q&A + Learning Notes",
-        "body":  "Buttons in the Submit area take you straight to Q&A or your personal Notes—no hunting around.",
-        "tag":   "Tip"
-    },
-    {
-        "title": "Lesson Links — One Download",
-        "body":  "Grab all lesson resources as a single TXT file under **Your Work & Links**. Videos are embedded once; no duplicates.",
-        "tag":   "New"
-    },
-    {
-        "title": "Sprechen: Instant Pronunciation Feedback",
-        "body":  "Record your speaking and get immediate AI feedback (highlights, suggestions, level-aware tips) and shadowing playback. Find it in Falowen → Tools → Sprechen.",
-        "tag":   "New"
-    }
-]
 
 
 
