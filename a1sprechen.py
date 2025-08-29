@@ -135,13 +135,85 @@ from src.session_management import (
 )
 from src.sentence_bank import SENTENCE_BANK
 from src.config import get_cookie_manager, SB_SESSION_TARGET
-from src.data_loading import (
-    fetch_youtube_playlist_videos,
-    get_playlist_ids_for_level,
-    load_student_data,
-)
+from src.data_loading import load_student_data
 
 cookie_manager = get_cookie_manager()
+
+
+# Constants mirrored for tests
+DEFAULT_PLAYLIST_LEVEL = "A1"
+YOUTUBE_API_KEY = st.secrets.get(
+    "YOUTUBE_API_KEY", "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
+)
+YOUTUBE_PLAYLIST_IDS = {
+    "A1": ["PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b"],
+    "A2": [
+        "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
+        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc",
+        "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c",
+    ],
+    "B1": ["PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-", "PLB92CD6B288E5DB61"],
+    "B2": [
+        "PLs7zUO7VPyJ5XMfT7pLvweRx6kHVgP_9C",
+        "PLs7zUO7VPyJ6jZP-s6dlkINuEjFPvKMG0",
+        "PLs7zUO7VPyJ4SMosRdB-35Q07brhnVToY",
+    ],
+}
+
+
+@st.cache_data(ttl=43200)
+def fetch_youtube_playlist_videos(
+    playlist_id: str, api_key: str = YOUTUBE_API_KEY
+) -> list[dict]:
+    """Fetch videos for a given YouTube playlist."""
+    base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
+    params = {
+        "part": "snippet",
+        "playlistId": playlist_id,
+        "maxResults": 50,
+        "key": api_key,
+    }
+    videos, next_page = [], ""
+    while True:
+        resp = requests.get(
+            base_url,
+            params={**params, "pageToken": next_page} if next_page else params,
+        )
+        data = resp.json()
+        for item in data.get("items", []):
+            snippet = item.get("snippet", {})
+            rid = snippet.get("resourceId", {})
+            vid = rid.get("videoId")
+            if vid:
+                videos.append(
+                    {
+                        "title": snippet.get("title"),
+                        "url": f"https://www.youtube.com/watch?v={vid}",
+                    }
+                )
+        next_page = data.get("nextPageToken")
+        if not next_page:
+            break
+    return videos
+
+
+def get_playlist_ids_for_level(level: str) -> list[str]:
+    """Return playlist IDs for a CEFR level with a fallback."""
+    level_key = (level or "").strip().upper()
+    playlist_ids = YOUTUBE_PLAYLIST_IDS.get(level_key, [])
+    if playlist_ids:
+        return playlist_ids
+
+    fallback = YOUTUBE_PLAYLIST_IDS.get(DEFAULT_PLAYLIST_LEVEL, [])
+    if fallback:
+        st.info(
+            f"No playlist found for level {level_key}; using "
+            f"{DEFAULT_PLAYLIST_LEVEL} playlist instead."
+        )
+        return fallback
+
+    st.info(f"No playlist configured for level {level_key}.")
+    return []
 
 
 if os.environ.get("RENDER"):
@@ -987,11 +1059,11 @@ def login_page():
       </div>
     </details>
   </div>
-</body>
-</html>
+  </body>
+  </html>
+""", unsafe_allow_html=True)
 
-
-    # Stats strip
+      # Stats strip
     st.markdown("""
       <style>
         .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:4px auto 4px auto; max-width:820px; }
@@ -5377,7 +5449,7 @@ if tab == "My Course":
                         self.cell(0, 12, "My Learning Notes", align="C", ln=1)
                         self.ln(5)
                 pdf = PDF()
-                pdf.add_font('DejaVu', '', './font/DejaVuSans.ttf', uni=True)
+                pdf.add_font('DejaVu', '', './public/font/DejaVuSans.ttf', uni=True)
                 pdf.add_page()
                 pdf.set_auto_page_break(auto=True, margin=15)
                 pdf.set_font("DejaVu", '', 13)
@@ -5483,7 +5555,7 @@ if tab == "My Course":
                                 self.cell(0, 10, note.get('title','Note'), ln=True, align='C')
                                 self.ln(2)
                         pdf_note = SingleNotePDF()
-                        pdf_note.add_font('DejaVu', '', './font/DejaVuSans.ttf', uni=True)
+                        pdf_note.add_font('DejaVu', '', './public/font/DejaVuSans.ttf', uni=True)
                         pdf_note.add_page()
                         pdf_note.set_font("DejaVu", '', 12)
                         if note.get("tag"):
