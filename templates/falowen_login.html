@@ -307,7 +307,7 @@
       <aside class="login card" data-animate>
         <h3>Sign in to your account</h3>
         <p class="sub">Welcome back! Enter your details to continue.</p>
-        <form class="form" action="#" method="post">
+        <form class="form" onsubmit="handleLogin(event)">
           <div class="field">
             <label for="email">Email</label>
             <div class="input">
@@ -338,8 +338,7 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             Sign In
           </button>
-
-          <button class="btn btn-ghost" type="button" onclick="alert('SSO coming soon')">Sign in with Google</button>
+          <button class="btn btn-ghost" type="button" id="googleBtn">Sign in with Google</button>
         </form>
         <p class="legal">By continuing, you agree to our <a href="#" style="color:var(--accent); text-decoration:none; font-weight:600">Terms</a> and <a href="#" style="color:var(--accent); text-decoration:none; font-weight:600">Privacy Policy</a>.</p>
       </aside>
@@ -347,6 +346,8 @@
   </div>
 
   <script>
+    const GOOGLE_AUTH_URL = "{{GOOGLE_AUTH_URL}}";
+
     // Password toggle
     const pass = document.getElementById('password');
     const toggle = document.getElementById('togglePass');
@@ -357,6 +358,19 @@
       pass.type = isHidden ? 'text' : 'password';
       eyeOpen.style.display = isHidden ? 'none' : '';
       eyeClosed.style.display = isHidden ? '' : 'none';
+    });
+
+    function handleLogin(e) {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      window.parent.postMessage({type: 'streamlit:setComponentValue', value: {action: 'login', email, password}}, '*');
+    }
+
+    document.getElementById('googleBtn')?.addEventListener('click', () => {
+      if (GOOGLE_AUTH_URL) {
+        window.location.href = GOOGLE_AUTH_URL;
+      }
     });
   </script>
 </body>
