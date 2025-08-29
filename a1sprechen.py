@@ -846,17 +846,14 @@ def render_google_brand_button_once(auth_url: str, center: bool = True):
 # Shows exactly one Gmail button (in the hero template)
 # ------------------------------------------------------------------------------
 def login_page():
-    # Build/handle Google OAuth (also completes if ?code=... is present)
+    # Build/handle Google OAuth, get the auth URL for the hero button
     auth_url = render_google_oauth(return_url=True) or ""
 
-    # Branded hero (may or may not include its own Google link)
+    # Branded hero (template should contain a single {{GOOGLE_AUTH_URL}} button)
     render_falowen_login(auth_url)
 
-    # Returning login (inline)
+    # ========== Returning user login (inline, no extra Google CTA) ==========
     st.markdown("### Returning user login")
-    # --- Guaranteed one Google button here ---
-    render_google_brand_button_once(auth_url, center=True)
-
     with st.form("returning_login_form_clean", clear_on_submit=False):
         login_id = st.text_input("Email or Student Code", key="login_id")
         login_pass = st.text_input("Password", type="password", key="login_pass")
@@ -864,16 +861,16 @@ def login_page():
     if submitted and render_login_form(login_id, login_pass):
         st.rerun()
 
-    # Toggle forgot
+    # Forgot password (toggle a compact panel)
     if st.button("Forgot password?", key="show_reset_panel_btn"):
         st.session_state["show_reset_panel"] = True
     if st.session_state.get("show_reset_panel"):
         render_forgot_password_panel()
 
-    # Sign up + Request Access
+    # ========== Sign up + Request Access ==========
     tab2, tab3 = st.tabs(["🧾 Sign Up (Approved)", "📝 Request Access"])
     with tab2:
-        render_signup_form()
+        render_signup_form()  # no extra Gmail button here
     with tab3:
         st.markdown(
             """
