@@ -820,20 +820,42 @@ def login_page():
         """
     <div class="page-wrap">
       <div class="hero" aria-label="Falowen app introduction">
-        <h1 style="text-align:center; color:#25317e;">👋 Welcome to <strong>Falowen</strong></h1>
-        <p style="text-align:center; font-size:1.1em; color:#555;">
+    <style>
+      .hero-intro {
+        text-align: center;
+        color: #25317e;
+      }
+      .hero-tagline {
+        text-align: center;
+        font-size: 1.1em;
+        color: #555;
+      }
+      .feature-list {
+        max-width: 700px;
+        margin: 16px auto;
+        color: #444;
+        font-size: 1em;
+        line-height: 1.5;
+      }
+      .feature-item {
+        margin: 4px 0;
+        color: #444;
+      }
+    </style>
+        <h1 class="hero-intro">👋 Welcome to <strong>Falowen</strong></h1>
+        <p class="hero-tagline">
           Falowen is your all-in-one German learning platform, powered by
           <b>Learn Language Education Academy</b>, with courses and vocabulary from
           <b>A1 to C1</b> levels and live tutor support.
         </p>
-        <ul style="max-width:700px; margin:16px auto; color:#444; font-size:1em; line-height:1.5;">
-          <li>📊 <b>Dashboard</b>: Track your learning streaks, assignment progress, active contracts, and more.</li>
-          <li>📚 <b>Course Book</b>: Access lecture videos, grammar modules, and submit assignments for levels A1–C1 in one place.</li>
-          <li>📝 <b>Exams & Quizzes</b>: Take practice tests and official exam prep right in the app.</li>
-          <li>💬 <b>Custom Chat</b>: Sprechen & expression trainer for live feedback on your speaking.</li>
-          <li>🏆 <b>Results Tab</b>: View your grades, feedback, and historical performance at a glance.</li>
-          <li>🔤 <b>Vocab Trainer</b>: Practice and master A1–C1 vocabulary with spaced-repetition quizzes.</li>
-          <li>✍️ <b>Schreiben Trainer</b>: Improve your writing with guided exercises and instant corrections.</li>
+        <ul class="feature-list">
+          <li class="feature-item">📊 <b>Dashboard</b>: Track your learning streaks, assignment progress, active contracts, and more.</li>
+          <li class="feature-item">📚 <b>Course Book</b>: Access lecture videos, grammar modules, and submit assignments for levels A1–C1 in one place.</li>
+          <li class="feature-item">📝 <b>Exams & Quizzes</b>: Take practice tests and official exam prep right in the app.</li>
+          <li class="feature-item">💬 <b>Custom Chat</b>: Sprechen & expression trainer for live feedback on your speaking.</li>
+          <li class="feature-item">🏆 <b>Results Tab</b>: View your grades, feedback, and historical performance at a glance.</li>
+          <li class="feature-item">🔤 <b>Vocab Trainer</b>: Practice and master A1–C1 vocabulary with spaced-repetition quizzes.</li>
+          <li class="feature-item">✍️ <b>Schreiben Trainer</b>: Improve your writing with guided exercises and instant corrections.</li>
         </ul>
       </div>
     </div>
