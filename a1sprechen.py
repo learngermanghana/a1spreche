@@ -361,7 +361,21 @@ def render_google_oauth(return_url: bool = False) -> Optional[str]:
 
 @lru_cache(maxsize=1)
 def _load_falowen_login_html() -> str:
-    """Load and preprocess the falowen login template once."""
+    """Return cleaned HTML for the Falowen login hero.
+
+    The original template ``templates/falowen_login.html`` contains the hero
+    section of the landing page along with a legacy login aside.  This helper
+    reads the file, strips the outdated aside and any accompanying scripts,
+    and rewrites the CSS grid from a two-column layout to a single column
+    hero.  Because the function is wrapped in ``functools.lru_cache`` the
+    processed HTML is cached and reused across reruns to avoid hitting the
+    filesystem repeatedly.
+
+    Returns
+    -------
+    str
+        Sanitised hero-only HTML ready for embedding.
+    """
     html_path = Path(__file__).parent / "templates" / "falowen_login.html"
     html = html_path.read_text(encoding="utf-8")
 
@@ -375,6 +389,19 @@ def _load_falowen_login_html() -> str:
     html = re.sub(r'<script>[\s\S]*?</script>\s*</body>', '</body>', html)
     return html
 
+
+def render_falowen_login(auth_url: str) -> None:
+    """Render the Falowen hero section inside Streamlit.
+
+    The cached HTML produced by :func:`_load_falowen_login_html` is parsed with
+    BeautifulSoup and further sanitized by removing any ``<aside>`` or
+    ``<script>`` tags.  The remaining ``<style>`` tag is adjusted to ensure a
+    single-column layout.  The resulting markup – expected to contain only the
+    hero content of the landing page – is then embedded via
+    ``streamlit.components.html``.  An ``auth_url`` parameter is accepted for
+    potential future use when the template includes login links.
+    """
+    soup = BeautifulSoup(_load_falowen_login_html(), "html.parser")
 
     for aside in soup.find_all("aside"):
         aside.decompose()
@@ -392,7 +419,6 @@ def _load_falowen_login_html() -> str:
         )
 
     components.html(str(soup), height=720, scrolling=True, key="falowen_hero")
-
 
 # ------------------------------------------------------------------------------
 # Email+password Sign Up / Login helpers
