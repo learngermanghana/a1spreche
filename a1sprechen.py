@@ -1023,6 +1023,22 @@ if not st.session_state.get("logged_in", False):
     st.stop()
 
 
+# After a successful login, load any stored progress and display a banner
+from src.resume import load_last_position, render_resume_banner
+from src.progress_utils import save_last_position
+
+student_code = st.session_state.get("student_code", "")
+if student_code:
+    st.session_state["__last_progress"] = load_last_position(student_code) or 0
+
+render_resume_banner()
+
+_current = int(st.session_state.get("falowen_stage", 0) or 0)
+_last = int(st.session_state.get("__last_progress", 0) or 0)
+if student_code and _current > _last:
+    save_last_position(student_code, _current)
+    st.session_state["__last_progress"] = _current
+
 # ------------------------------------------------------------------------------
 # Resume helpers (Firestore) – optional label support
 # ------------------------------------------------------------------------------
