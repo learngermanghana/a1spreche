@@ -36,7 +36,6 @@ from firebase_admin import firestore
 from fpdf import FPDF
 from gtts import gTTS
 from openai import OpenAI
-from streamlit.components.v1 import html as st_html
 from streamlit_quill import st_quill
 
 # --- Streamlit page config (do this first) ---
