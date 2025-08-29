@@ -371,9 +371,9 @@ def _load_falowen_login_html() -> str:
     this module.  We remove legacy login markup so only the hero section
     remains:
 
-    * strip the ``<!-- Right: Login -->`` aside block and any paired script;
-    * collapse a two-column grid into a single column; and
-    * drop remaining ``<script>`` tags.
+    * drop any ``<script>`` blocks;
+    * strip the ``<!-- Right: Login -->`` aside block and any paired script; and
+    * collapse a two-column grid into a single column.
 
     Because the cleanup uses simple regular expressions, it assumes the
     template’s structure matches expected patterns. Substantial changes to the
@@ -387,14 +387,21 @@ def _load_falowen_login_html() -> str:
             "Falowen login template is not valid UTF-8"
         ) from exc
 
-    # Remove legacy "Right: Login" aside block and its script if present
-    html = re.sub(r'<!--\s*Right:\s*Login\s*-->[\s\S]*?</aside>', '', html, flags=re.IGNORECASE)
+    # Drop all <script> blocks up front so closing </body> remains.
+    html = re.sub(r'<script[\s\S]*?</script>', '', html, flags=re.IGNORECASE)
+
+    # Remove legacy "Right: Login" aside block if present
+    html = re.sub(
+        r'<!--\s*Right:\s*Login\s*-->[\s\S]*?</aside>',
+        '',
+        html,
+        flags=re.IGNORECASE,
+    )
     html = re.sub(
         r'grid-template-columns:\s*1\.2fr\s*\.8fr;',
         'grid-template-columns: 1fr;',
         html,
     )  # make single column
-    html = re.sub(r'<script>[\s\S]*?</script>\s*</body>', '</body>', html)
 
     # After cleanup, no login markup or scripts should remain.
     # Update the above regexes if new login patterns appear in the template.
@@ -409,7 +416,8 @@ def render_falowen_login() -> None:
     """
     try:
         html = _load_falowen_login_html()
-    except Exception:
+    except (OSError, UnicodeDecodeError) as e:
+        logging.exception("Failed to load Falowen hero template: %s", e)
         st.error("Falowen hero template missing or unreadable.")
         return
 
