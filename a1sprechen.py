@@ -20,6 +20,7 @@ from datetime import datetime as _dt
 from uuid import uuid4
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from functools import lru_cache
 
 # ==== Third-Party Packages ====
 import bcrypt
@@ -355,18 +356,31 @@ def render_google_oauth(return_url: bool = False) -> Optional[str]:
 # ------------------------------------------------------------------------------
 # Hero-only HTML (strip any legacy login aside if template still has it)
 # ------------------------------------------------------------------------------
+
+
+@lru_cache(maxsize=1)
+def _load_falowen_login_html() -> str:
+    """Load and preprocess the falowen login template once."""
+    html_path = Path(__file__).parent / "templates" / "falowen_login.html"
+    html = html_path.read_text(encoding="utf-8")
+
+    # Remove legacy "Right: Login" aside block and its script if present
+    html = re.sub(r'<!--\s*Right:\s*Login\s*-->[\s\S]*?</aside>', '', html, flags=re.IGNORECASE)
+    html = re.sub(
+        r'grid-template-columns:\s*1\.2fr\s*\.8fr;',
+        'grid-template-columns: 1fr;',
+        html,
+    )  # make single column
+    html = re.sub(r'<script>[\s\S]*?</script>\s*</body>', '</body>', html)
+    return html
+
+
 def render_falowen_login(google_auth_url: str) -> None:
     """
     Render the HTML hero from templates/falowen_login.html, stripping any legacy login markup.
     Keeps only the welcome/hero content.
     """
-    html_path = Path(__file__).parent / "templates" / "falowen_login.html"
-    html = html_path.read_text(encoding="utf-8").replace("{{GOOGLE_AUTH_URL}}", google_auth_url)
-
-    # Remove legacy "Right: Login" aside block and its script if present
-    html = re.sub(r'<!--\s*Right:\s*Login\s*-->[\s\S]*?</aside>', '', html, flags=re.IGNORECASE)
-    html = re.sub(r'grid-template-columns:\s*1\.2fr\s*\.8fr;', 'grid-template-columns: 1fr;', html)  # make single column
-    html = re.sub(r'<script>[\s\S]*?</script>\s*</body>', '</body>', html)
+    html = _load_falowen_login_html().replace("{{GOOGLE_AUTH_URL}}", google_auth_url)
 
     components.html(html, height=720, scrolling=True, key="falowen_hero")
 
