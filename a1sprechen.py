@@ -732,260 +732,39 @@ def render_login_form():
 
         st.markdown('</div>', unsafe_allow_html=True)
 
-def login_page():
-    # keep your global container constraint
+
+
+
+   def login_page():
     st.markdown('<style>.page-wrap{max-width:1100px;margin:0 auto;}</style>', unsafe_allow_html=True)
 
-    # HERO + FEATURES + STATS (all inside a single plain triple-quoted string)
-    st.markdown(
-        r"""
-<style>
-  :root{
-    --brand:#25317e;
-    --muted:#555;
-    --bg:#f9f9f9;
-    --shadow:0 1px 4px rgba(0,0,0,.08);
-    --shadow-hover:0 4px 12px rgba(0,0,0,.15);
-    --sky:#0ea5e9;
-  }
-  *{ box-sizing:border-box }
-  body{
-    margin:0;
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
-    color:#222;
-    background:#fff;
-    line-height:1.55;
-  }
-  .page-wrap{ max-width:1100px; margin:0 auto; padding:24px 16px; }
-
-  /* HERO */
-  .hero h1{
-    text-align:center;
-    color:var(--brand);
-    margin:16px 0 8px;
-    font-size:clamp(1.6rem, 2.2vw + 1rem, 2.4rem);
-  }
-  .hero p{
-    text-align:center;
-    font-size:1.05rem;
-    color:var(--muted);
-    margin:0 auto 12px;
-    max-width:820px;
-  }
-
-  /* FEATURE LIST */
-  .feature-list{
-    list-style:none;
-    padding:0;
-    margin:24px auto;
-    max-width:820px;
-    display:flex;
-    flex-direction:column;
-    gap:10px;
-  }
-  .feature-list li{
-    background:var(--bg);
-    padding:14px 16px;
-    border-radius:12px;
-    box-shadow:var(--shadow);
-    display:flex;
-    align-items:flex-start;
-    gap:10px;
-    transition:transform .2s ease, box-shadow .2s ease;
-  }
-  .feature-list li:hover{
-    transform:translateY(-1px);
-    box-shadow:var(--shadow-hover);
-  }
-  .feature-icon{
-    font-size:1.2em;
-    width:1.4em;
-    min-width:1.4em;
-    text-align:center;
-    color:var(--brand);
-    margin-top:2px;
-  }
-  .feature-title{
-    font-weight:600;
-    color:var(--brand);
-    margin-right:2px;
-  }
-
-  /* STATS STRIP */
-  .stats-strip{
-    display:flex;
-    flex-wrap:wrap;
-    gap:10px;
-    justify-content:center;
-    margin:4px auto 4px;
-    max-width:820px;
-    padding:0 16px;
-  }
-  .stat{
-    background:var(--sky);
-    color:#fff;
-    border-radius:12px;
-    padding:12px 14px;
-    min-width:150px;
-    text-align:center;
-    box-shadow:0 2px 10px rgba(2,132,199,0.15);
-    outline:none;
-  }
-  .stat:focus-visible{ outline:3px solid #1f2937; outline-offset:2px; }
-  .stat .num{ font-size:1.25rem; font-weight:800; line-height:1; }
-  .stat .label{ font-size:.92rem; opacity:.98; }
-
-  /* EXPANDER */
-  details.expander{
-    max-width:860px;
-    margin:14px auto 24px;
-    border:1px solid #e5e7eb;
-    border-radius:12px;
-    padding:10px 14px 12px;
-    background:#fff;
-    box-shadow:var(--shadow);
-  }
-  details.expander[open]{ box-shadow:var(--shadow-hover); }
-  details.expander > summary{
-    list-style:none;
-    cursor:pointer;
-    font-weight:700;
-    font-size:1.05rem;
-    outline:none;
-  }
-  details.expander > summary::-webkit-details-marker{ display:none; }
-  .option-box{ margin-top:10px; display:grid; gap:12px; }
-  .option-item{
-    display:flex;
-    align-items:flex-start;
-    gap:12px;
-    background:var(--bg);
-    padding:12px 14px;
-    border-radius:12px;
-    box-shadow:var(--shadow);
-  }
-  .option-icon{
-    font-size:1.2em;
-    width:1.4em;
-    min-width:1.4em;
-    text-align:center;
-    margin-top:2px;
-  }
-
-  /* SMALL SCREENS */
-  @media (max-width:560px){
-    .stat{ min-width:46%; }
-  }
-</style>
-
-<div class="page-wrap">
-  <!-- HERO FIRST -->
-  <div class="hero" aria-label="Falowen app introduction">
-    <h1>👋 Welcome to <strong>Falowen</strong></h1>
-    <p>
-      Falowen is your all-in-one German learning platform, powered by
-      <b>Learn Language Education Academy</b>, with courses and vocabulary from
-      <b>A1 to C1</b> levels and live tutor support.
-    </p>
-
-    <ul class="feature-list" role="list" aria-label="Falowen features">
-      <li role="listitem">
-        <span class="feature-icon" role="img" aria-label="Dashboard">📊</span>
-        <div>
-          <span class="feature-title">Dashboard</span>: Track your learning streaks, assignment progress, active contracts, and more.
-        </div>
-      </li>
-      <li role="listitem">
-        <span class="feature-icon" role="img" aria-label="Course Book">📚</span>
-        <div>
-          <span class="feature-title">Course Book</span>: Access lecture videos, grammar modules, and submit assignments for levels A1–C1 in one place.
-        </div>
-      </li>
-      <li role="listitem">
-        <span class="feature-icon" role="img" aria-label="Exams and Quizzes">📝</span>
-        <div>
-          <span class="feature-title">Exams &amp; Quizzes</span>: Take practice tests and official exam prep right in the app.
-        </div>
-      </li>
-      <li role="listitem">
-        <span class="feature-icon" role="img" aria-label="Custom Chat">💬</span>
-        <div>
-          <span class="feature-title">Custom Chat</span>: Sprechen &amp; expression trainer for live feedback on your speaking.
-        </div>
-      </li>
-      <li role="listitem">
-        <span class="feature-icon" role="img" aria-label="Results Tab">🏆</span>
-        <div>
-          <span class="feature-title">Results Tab</span>: View your grades, feedback, and historical performance at a glance.
-        </div>
-      </li>
-      <li role="listitem">
-        <span class="feature-icon" role="img" aria-label="Vocab Trainer">🔤</span>
-        <div>
-          <span class="feature-title">Vocab Trainer</span>: Practice and master A1–C1 vocabulary with spaced-repetition quizzes.
-        </div>
-      </li>
-      <li role="listitem">
-        <span class="feature-icon" role="img" aria-label="Schreiben Trainer">✍️</span>
-        <div>
-          <span class="feature-title">Schreiben Trainer</span>: Improve your writing with guided exercises and instant corrections.
-        </div>
-      </li>
-    </ul>
-  </div>
-
-  <!-- STATS STRIP -->
-  <div class="stats-strip" role="list" aria-label="Falowen highlights">
-    <div class="stat" role="listitem" tabindex="0" aria-label="Active learners: over 300">
-      <div class="num">300+</div>
-      <div class="label">Active learners</div>
-    </div>
-    <div class="stat" role="listitem" tabindex="0" aria-label="Assignments submitted">
-      <div class="num">1,200+</div>
-      <div class="label">Assignments submitted</div>
-    </div>
-    <div class="stat" role="listitem" tabindex="0" aria-label="Levels covered: A1 to C1">
-      <div class="num">A1–C1</div>
-      <div class="label">Full course coverage</div>
-    </div>
-    <div class="stat" role="listitem" tabindex="0" aria-label="Average student feedback">
-      <div class="num">4.8/5</div>
-      <div class="label">Avg. feedback</div>
-    </div>
-  </div>
-</div>
-""",
-        unsafe_allow_html=True,
-    )
-
-
-    <!-- EXPANDER -->
-    <details class="expander" open>
-      <summary>📌 Which option should I choose?</summary>
-      <div class="option-box">
-        <div class="option-item">
-          <div class="option-icon">👋</div>
-          <div><b>Returning Student</b>: You already created a password — simply log in to continue your learning.</div>
-        </div>
-        <div class="option-item">
-          <div class="option-icon">🧾</div>
-          <div><b>Sign Up (Approved)</b>: You’ve paid and your email + code are already on our roster, but you don’t have an account yet — create one here.</div>
-        </div>
-        <div class="option-item">
-          <div class="option-icon">📝</div>
-          <div><b>Request Access</b>: New to Falowen? Fill out our form and we’ll get in touch to guide you through the next steps.</div>
-        </div>
+    # HERO FIRST
+    st.markdown("""
+    <div class="page-wrap">
+      <div class="hero" aria-label="Falowen app introduction">
+        <h1 style="text-align:center; color:#25317e;">👋 Welcome to <strong>Falowen</strong></h1>
+        <p style="text-align:center; font-size:1.1em; color:#555;">
+          Falowen is your all-in-one German learning platform, powered by
+          <b>Learn Language Education Academy</b>, with courses and vocabulary from
+          <b>A1 to C1</b> levels and live tutor support.
+        </p>
+        <ul style="max-width:700px; margin:16px auto; color:#444; font-size:1em; line-height:1.5;">
+          <li>📊 <b>Dashboard</b>: Track your learning streaks, assignment progress, active contracts, and more.</li>
+          <li>📚 <b>Course Book</b>: Access lecture videos, grammar modules, and submit assignments for levels A1–C1 in one place.</li>
+          <li>📝 <b>Exams & Quizzes</b>: Take practice tests and official exam prep right in the app.</li>
+          <li>💬 <b>Custom Chat</b>: Sprechen & expression trainer for live feedback on your speaking.</li>
+          <li>🏆 <b>Results Tab</b>: View your grades, feedback, and historical performance at a glance.</li>
+          <li>🔤 <b>Vocab Trainer</b>: Practice and master A1–C1 vocabulary with spaced-repetition quizzes.</li>
+          <li>✍️ <b>Schreiben Trainer</b>: Improve your writing with guided exercises and instant corrections.</li>
+        </ul>
       </div>
-    </details>
-  </div>
-</body>
-</html>
-
+    </div>
+    """, unsafe_allow_html=True)
 
     # Stats strip
     st.markdown("""
       <style>
-        .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:4px auto 4px auto; max-width:820px; }
+        .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:10px auto 4px auto; max-width:820px; }
         .stat { background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
                 box-shadow:0 2px 10px rgba(2,132,199,0.15); outline: none; }
         .stat:focus-visible { outline:3px solid #1f2937; outline-offset:2px; }
