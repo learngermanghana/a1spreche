@@ -371,16 +371,14 @@ def render_google_oauth(return_url: bool = False) -> Optional[str]:
 # ------------------------------------------------------------------------------
 # Landing Page HTML (template-based)
 # ------------------------------------------------------------------------------
-def render_falowen_login(google_auth_url: str):
+def render_falowen_login(google_auth_url: str) -> None:
     """
     Render the HTML login page from templates/falowen_login.html.
-    The template must call window.parent.postMessage({type:'streamlit:setComponentValue', value:{...}}, '*')
-    when the user submits.
+    The template should contain a Google button pointing to {{GOOGLE_AUTH_URL}}.
     """
     html_path = Path(__file__).parent / "templates" / "falowen_login.html"
     html = html_path.read_text(encoding="utf-8").replace("{{GOOGLE_AUTH_URL}}", google_auth_url)
-    # Give the component height and a key so it can return a value
-    return components.html(html, height=1100, scrolling=True, key="falowen_login")
+    components.html(html, height=1100, scrolling=True)
 
 # ------------------------------------------------------------------------------
 # Sign up / Login helpers (email+password path)
@@ -498,22 +496,14 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
     return True
 
-def render_falowen_login(google_auth_url: str) -> None:
-    """Render the branded HTML login page (visual only)."""
-    html_path = Path(__file__).parent / "templates" / "falowen_login.html"
-    html = html_path.read_text(encoding="utf-8").replace("{{GOOGLE_AUTH_URL}}", google_auth_url)
-    # ❌ no key=, ❌ no return value
-    import streamlit.components.v1 as components
-    components.html(html, height=1100, scrolling=True)
-
 def login_page():
     """Render the Falowen login page and process login submissions."""
     auth_url = render_google_oauth(return_url=True) or ""
 
-    # Show your HTML landing (Google button works from the template)
+    # Branded HTML landing (Google button works from the template)
     render_falowen_login(auth_url)
 
-    # Provide a native Streamlit login form that actually logs in
+    # Native Streamlit login form (email/password)
     with st.form("returning_login", clear_on_submit=False):
         st.markdown("#### Returning user login")
         login_id = st.text_input("Email or Student Code")
@@ -521,7 +511,6 @@ def login_page():
         submitted = st.form_submit_button("Log in")
     if submitted and render_login_form(login_id, login_pass):
         st.rerun()
-
 
 # ------------------------------------------------------------------------------
 # Lightweight head/PWA injection (optional)
@@ -788,6 +777,83 @@ if not st.session_state.get("logged_in", False):
 if not st.session_state.get("logged_in", False):
     login_page()
     st.stop()
+
+# ------------------------------------------------------------------------------
+# Logged-in UI (with Logout button)
+# ------------------------------------------------------------------------------
+announcements = [
+    {
+        "title": "Download Draft (TXT) Backup",
+        "body":  "In Submit, use “⬇️ Download draft (TXT)” to save a clean backup with level, day, chapter, and timestamp.",
+        "tag":   "New"
+    },
+    {
+        "title": "Submit Flow & Locking",
+        "body":  "After you click **Confirm & Submit**, your box locks (read-only). You can still view status and feedback later in Results & Resources.",
+        "tag":   "Action"
+    },
+    {
+        "title": "Quick Jumps: Classroom Q&A + Learning Notes",
+        "body":  "Buttons in the Submit area take you straight to Q&A or your personal Notes—no hunting around.",
+        "tag":   "Tip"
+    },
+    {
+        "title": "Lesson Links — One Download",
+        "body":  "Grab all lesson resources as a single TXT file under **Your Work & Links**. Videos are embedded once; no duplicates.",
+        "tag":   "New"
+    },
+    {
+        "title": "Sprechen: Instant Pronunciation Feedback",
+        "body":  "Record your speaking and get immediate AI feedback (highlights, suggestions, level-aware tips) and shadowing playback. Find it in Falowen → Tools → Sprechen.",
+        "tag":   "New"
+    }
+]
+
+def _do_logout():
+    """Clear tokens, cookies, and session; then refresh."""
+    try:
+        prev_token = st.session_state.get("session_token", "")
+        if prev_token:
+            try:
+                destroy_session_token(prev_token)
+            except Exception:
+                logging.exception("Token revoke failed on logout")
+        clear_session(cookie_manager)
+    except Exception:
+        logging.exception("Cookie/session clear failed")
+    # wipe session
+    st.session_state.update({
+        "logged_in": False,
+        "student_row": {},
+        "student_code": "",
+        "student_name": "",
+        "session_token": "",
+        "student_level": "",
+    })
+    st.success("You’ve been logged out.")
+    st.rerun()
+
+# Top bar with welcome + logout
+top = st.container()
+with top:
+    c1, c2 = st.columns([1, 0.22])
+    with c1:
+        st.markdown(f"### 👋 Welcome, **{st.session_state.get('student_name','')}**")
+        st.caption(f"Level: {st.session_state.get('student_level','—')} · Code: {st.session_state.get('student_code','—')}")
+    with c2:
+        st.write("")  # spacer
+        st.button("Log out", key="logout_top", type="primary", on_click=_do_logout)
+
+# Sidebar logout (secondary)
+st.sidebar.markdown("## Account")
+st.sidebar.button("Log out", key="logout_side", on_click=_do_logout)
+
+inject_notice_css()
+render_announcements(announcements)
+
+# (Place the rest of your app here… tabs, tools, etc.)
+st.markdown("---")
+st.markdown("**You’re logged in.** Continue to your lessons and tools from the navigation.")
 
 
 
