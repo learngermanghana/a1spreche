@@ -15,6 +15,7 @@ def load_login_module():
         if isinstance(node, ast.FunctionDef) and node.name in {"_load_falowen_login_html", "render_falowen_login"}:
             nodes.append(node)
     mod = types.ModuleType("login_module")
+    mod.__file__ = str(path)
     mod.Path = pathlib.Path
     mod.re = __import__("re")
     mod.lru_cache = __import__("functools").lru_cache
@@ -44,13 +45,13 @@ def test_render_calls_components_html(login_mod, monkeypatch):
     login_mod._load_falowen_login_html.cache_clear()
     expected_html = login_mod._load_falowen_login_html()
     login_mod.components.html.reset_mock()
-    login_mod.render_falowen_login("auth_url")
+    login_mod.render_falowen_login()
     login_mod.components.html.assert_called_once_with(expected_html, height=720, scrolling=True, key="falowen_hero")
 
 
 def test_missing_template_shows_error(login_mod, monkeypatch):
     monkeypatch.setattr(pathlib.Path, "read_text", MagicMock(side_effect=FileNotFoundError))
     login_mod._load_falowen_login_html.cache_clear()
-    login_mod.render_falowen_login("auth_url")
+    login_mod.render_falowen_login()
     login_mod.st.error.assert_called_once()
     assert not login_mod.components.html.called
