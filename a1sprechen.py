@@ -379,6 +379,8 @@ def _load_falowen_login_html() -> str:
 def render_falowen_login(auth_url: str) -> None:
     """Render the Falowen hero section.
 
+
+
     The `auth_url` parameter is kept for compatibility but isn't used yet.
     If the HTML template can't be loaded, display an error message instead of
     raising an exception so the rest of the page can still render.
