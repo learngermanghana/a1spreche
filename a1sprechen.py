@@ -874,6 +874,7 @@ def render_signup_request_banner():
         unsafe_allow_html=True,
     )
 
+
 # ------------------------------------------------------------------------------
 # Google OAuth (Gmail sign-in) — single-CTA setup
 # ------------------------------------------------------------------------------
@@ -1065,35 +1066,45 @@ def _read_hero_template() -> str:
     html_path = Path(__file__).parent / "templates" / "falowen_login.html"
     return html_path.read_text(encoding="utf-8")
 
-# --- Login page with single Google CTA + banner above tabs
+def render_falowen_login(google_auth_url: str, show_google_in_hero: bool = False) -> None:
+    try:
+        html = _read_hero_template()
+        # If your template contains a Google button using {{GOOGLE_AUTH_URL}},
+        # we can choose to inject it or suppress it to avoid duplicates.
+        if show_google_in_hero:
+            html = html.replace("{{GOOGLE_AUTH_URL}}", google_auth_url or "#")
+        else:
+            # Suppress: neutralize placeholder; optional: hide any element that references it.
+            html = html.replace("{{GOOGLE_AUTH_URL}}", "#") + \
+                   "<style>[data-google-cta]{display:none!important}</style>"
+    except Exception:
+        st.error("Falowen hero template missing or unreadable.")
+        return
+    try:
+        components.html(html, height=720, scrolling=True)
+    except TypeError:
+        safe = re.sub(r'<script[\s\S]*?</script>', '', html, flags=re.IGNORECASE)
+        st.markdown(safe, unsafe_allow_html=True)
+
+# ------------------------------------------------------------------------------
+# Login page (hero + single Google CTA under 'Returning user login' + tabs)
+# ------------------------------------------------------------------------------
 def login_page():
-    # Build/handle Google OAuth (also completes if ?code=... present)
+    # 1) Get Google auth URL (also completes flow if ?code=...)
     auth_url = render_google_oauth(return_url=True) or ""
 
-    # Branded hero (can include {{GOOGLE_AUTH_URL}} internally)
-    render_falowen_login(auth_url)
+    # 2) Branded hero (Google button suppressed inside the template)
+    render_falowen_login(auth_url, show_google_in_hero=False)
 
-    # Returning user login
+    # 3) Returning user section + the ONE Google CTA here
     st.markdown("### Returning user login")
     render_google_brand_button_once(auth_url, center=True)
-
-    with st.form("returning_login_form_clean", clear_on_submit=False):
-        login_id  = st.text_input("Email or Student Code", key="login_id")
-        login_pass= st.text_input("Password", type="password", key="login_pass")
-        submitted = st.form_submit_button("Log in")
-    if submitted and render_login_form(login_id, login_pass):
+    login_success = render_returning_login_area()
+    if login_success:
         st.rerun()
 
-    # Forgot password (toggle)
-    if st.button("Forgot password?", key="show_reset_panel_btn"):
-        st.session_state["show_reset_panel"] = True
-    if st.session_state.get("show_reset_panel"):
-        render_forgot_password_panel()
-
-    # Small banner explaining the two tabs
+    # 4) Explanation banner + tabs
     render_signup_request_banner()
-
-    # Tabs: Sign Up + Request Access
     tab2, tab3 = st.tabs(["🧾 Sign Up (Approved)", "📝 Request Access"])
     with tab2:
         render_signup_form()
@@ -1115,6 +1126,7 @@ def login_page():
             unsafe_allow_html=True
         )
 
+    # (Optional) help/links/steps/footer blocks can follow...
 
 
     # Help + quick contacts
