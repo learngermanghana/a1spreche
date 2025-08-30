@@ -1467,7 +1467,6 @@ announcements = [
     {"title": "Lesson Links — One Download", "body": "Grab all lesson resources as a single TXT under **Your Work & Links**.", "tag": "New"},
     {"title": "Sprechen", "body": "Record speaking and get instant, level-aware AI feedback in Tools → Sprechen.", "tag": "New"},
 ]
-render_announcements_once(announcements)
 
 st.markdown("---")
 st.markdown("**You’re logged in.** Continue to your lessons and tools from the navigation.")
@@ -1716,6 +1715,9 @@ except Exception as e:
     st.warning(f"Navigation init issue: {e}. Falling back to Dashboard.")
     tab = "Dashboard"
 
+if tab != "Dashboard":
+    render_announcements_once(announcements)
+
 # =========================================================
 # ===================== Dashboard =========================
 # =========================================================
@@ -1781,7 +1783,7 @@ if tab == "Dashboard":
         
     st.divider()
     # ---------- 1) Announcements (top) ----------
-    render_announcements(announcements)
+    render_announcements_once(announcements)
     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
     st.divider()
