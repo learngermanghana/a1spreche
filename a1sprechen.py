@@ -138,13 +138,6 @@ from src.sentence_bank import SENTENCE_BANK
 from src.config import get_cookie_manager, SB_SESSION_TARGET
 from src.data_loading import load_student_data
 
-import firebase_admin
-from firebase_admin import credentials, messaging
-
-# Initialize Firebase Admin SDK
-cred = credentials.Certificate('path/to/your/serviceAccountKey.json')
-firebase_admin.initialize_app(cred)
-
 
 # ------------------------------------------------------------------------------
 # Constants / YouTube helpers (optional)
