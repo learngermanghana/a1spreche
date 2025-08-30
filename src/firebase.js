@@ -13,32 +13,27 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-firebase.initializeApp(firebaseConfig);
+const app = initializeApp(firebaseConfig);
 
-// Retrieve Firebase messaging instance
-const messaging = firebase.messaging();
+// Initialize Firebase Messaging
+const messaging = getMessaging(app);
 
-// Request permission to send notifications
-export const requestPermission = async () => {
+// Request permission and get token
+async function requestPermissionAndGetToken() {
   try {
-    await Notification.requestPermission();
-    console.log("Notification permission granted.");
-    const token = await messaging.getToken({ vapidKey: "YOUR_VAPID_KEY" }); // Optional VAPID key for web push
-    console.log("FCM Token:", token);
-    // Save this token to your database to send notifications later
+    await requestPermission();
+    const token = await getToken(messaging);
+    if (token) {
+      console.log('FCM Token:', token);
+      // Save this token to send notifications later
+    } else {
+      console.error('No token available.');
+    }
   } catch (error) {
-    console.error("Permission denied", error);
+    console.error('Permission denied or error occurred:', error);
   }
-};
+}
 
-// Handle incoming messages
-messaging.onMessage((payload) => {
-  console.log("Message received:", payload);
-  // You can display the notification here
-  new Notification(payload.notification.title, {
-    body: payload.notification.body,
-    icon: payload.notification.icon,
-  });
-});
+requestPermissionAndGetToken();
 
-export default messaging;
+export { messaging };
