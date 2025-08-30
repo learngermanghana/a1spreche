@@ -7830,6 +7830,10 @@ if tab == "Schreiben Trainer":
                 min_delta=1,
             )
 
+            if st.button("\U0001f4be Save Draft", key=f"save_prompt_draft_btn_{student_code}"):
+                save_now(draft_key, student_code)
+                st.toast("Draft saved!", icon="\U0001f4be")
+
             
             saved_at = st.session_state.get(f"{draft_key}_saved_at")
             if saved_at:
@@ -8111,6 +8115,12 @@ if tab == "Schreiben Trainer":
                 letter_draft.encode("utf-8"),
                 file_name="my_letter.txt"
             )
+
+            letter_draft_key = ns("letter_draft_saved")
+            if st.button("\U0001f4be Save Draft", key=ns("save_letter_draft_btn")):
+                st.session_state[letter_draft_key] = letter_draft
+                save_now(letter_draft_key, student_code)
+                st.toast("Draft saved!", icon="\U0001f4be")
 
             if st.button("Start New Letter Coach"):
                 st.session_state[ns("clear_chat_draft")] = True
