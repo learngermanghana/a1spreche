@@ -190,48 +190,6 @@ def fetch_youtube_playlist_videos(playlist_id: str, api_key: str = YOUTUBE_API_K
             break
     return videos
 
-import streamlit as st
-import streamlit.components.v1 as components
-
-def load_firebase():
-    # Firebase JavaScript setup in components
-    with open("src/firebase.js", "r") as f:
-        firebase_js = f.read()
-
-    # Add the firebase.js script to Streamlit
-    components.html(firebase_js, height=0)
-
-    # Here is the JS to request permission and get the token
-    push_notification_js = """
-        <script>
-            const messaging = firebase.messaging();
-            
-            messaging.requestPermission()
-                .then(function() {
-                    console.log('Notification permission granted.');
-
-                    messaging.getToken()
-                        .then(function(currentToken) {
-                            if (currentToken) {
-                                console.log('FCM Token:', currentToken);
-                                // You can send this token to your backend
-                            } else {
-                                console.error('No token available.');
-                            }
-                        }).catch(function(error) {
-                            console.error('Error getting token: ', error);
-                        });
-                })
-                .catch(function(error) {
-                    console.error('Notification permission denied:', error);
-                });
-        </script>
-    """
-    components.html(push_notification_js, height=0)
-
-st.title("Falowen Push Notification Example")
-load_firebase()
-
 
 # ------------------------------------------------------------------------------
 # Cookie manager
