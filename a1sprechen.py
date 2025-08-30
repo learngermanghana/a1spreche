@@ -7951,12 +7951,20 @@ if tab == "Schreiben Trainer":
             if saved_at:
                 st.caption(f"Last saved at {saved_at.strftime('%H:%M:%S')}")
 
-            send = st.button("Send")
-             
+            letter_draft_key = ns("letter_draft_saved")
+            letter_draft = st.session_state.get(letter_draft_key, "")
+
+            col_send, col_save = st.columns([3,1])
+            send = col_send.button("Send")
+            if col_save.button("\U0001f4be Save Draft", key=ns("save_letter_draft_btn")):
+                st.session_state[letter_draft_key] = letter_draft
+                save_now(letter_draft_key, student_code)
+                st.toast("Draft saved!", icon="\U0001f4be")
+
             if send:
                 user_input = st.session_state[draft_key].strip()
                 save_now(draft_key, student_code)
-                
+
             else:
                 user_input = ""
 
@@ -8015,6 +8023,7 @@ if tab == "Schreiben Trainer":
                     selected_lines.append(line)
 
             letter_draft = "\n".join(selected_lines)
+            st.session_state[letter_draft_key] = letter_draft
 
             # --- Live word/character count for the letter draft ---
             draft_word_count = len(letter_draft.split())
@@ -8115,12 +8124,6 @@ if tab == "Schreiben Trainer":
                 letter_draft.encode("utf-8"),
                 file_name="my_letter.txt"
             )
-
-            letter_draft_key = ns("letter_draft_saved")
-            if st.button("\U0001f4be Save Draft", key=ns("save_letter_draft_btn")):
-                st.session_state[letter_draft_key] = letter_draft
-                save_now(letter_draft_key, student_code)
-                st.toast("Draft saved!", icon="\U0001f4be")
 
             if st.button("Start New Letter Coach"):
                 st.session_state[ns("clear_chat_draft")] = True
