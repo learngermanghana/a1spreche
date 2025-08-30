@@ -10,7 +10,7 @@ def get_a1_schedule():
             "day": 1,
             "topic": "Lesen & Hören 0.1",
             "chapter": "0.1",
-            "goal": "You will learn to introduce yourself, greet others in German, and ask about people's well-being.",
+            "goal": "You will learn to greet others in German, and ask about people's well-being.",
             "instruction": "Watch the video, review grammar, do the workbook, submit assignment.",
             "grammar_topic": "Formal and Informal Greetings",
             "assignment": True,
@@ -134,8 +134,8 @@ def get_a1_schedule():
             "grammar_topic": "Fragen nach dem Preis; gern/lieber/mögen (Talking about price and preferences)",
             "assignment": True,
             "lesen_hören": {
-                "video": "https://youtu.be/dGIj1GbK4sI",
-                "youtube_link": "https://youtu.be/dGIj1GbK4sI",
+                "video": "https://youtu.be/1KBamvsKWz8",
+                "youtube_link": "https://youtu.be/1KBamvsKWz8",
                 "grammarbook_link": "https://drive.google.com/file/d/1sCE5y8FVctySejSVNm9lrTG3slIucxqY/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1lL4yrZLMtKLnNuVTC2Sg_ayfkUZfIuak/view?usp=sharing"
             }
