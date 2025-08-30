@@ -33,12 +33,14 @@ from streamlit_cookies_manager import EncryptedCookieManager
 from docx import Document
 from google.cloud.firestore_v1 import FieldFilter
 from google.api_core.exceptions import GoogleAPICallError
-from firebase_admin import firestore
-from fpdf import FPDF
+from firebase_admin import credentials, firestore, messaging  # Firebase
+import fpdf
 from gtts import gTTS
 from openai import OpenAI
 from streamlit.components.v1 import html as st_html
 from streamlit_quill import st_quill
+
+
 
 # --- Streamlit page config (do this early) ---
 st.set_page_config(
