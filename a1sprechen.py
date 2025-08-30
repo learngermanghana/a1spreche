@@ -50,6 +50,19 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# main_app.py
+
+import streamlit as st
+from firebase_setup import initialize_firebase, send_push_notification
+
+# Initialize Firebase once at the start
+initialize_firebase()
+
+# Use the function to send a push notification when required
+# Example usage (you can call it based on some event like assignment submission):
+send_push_notification('<FCM_TOKEN>', 'New Assignment', 'You have a new assignment to submit!')
+
+
 # --- Falowen modules ---
 from falowen.email_utils import send_reset_email, build_gas_reset_link, GAS_RESET_URL
 from falowen.sessions import (
