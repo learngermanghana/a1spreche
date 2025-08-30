@@ -807,9 +807,138 @@ def render_announcements(ANNOUNCEMENTS: list):
         for a in ANNOUNCEMENTS:
             st.markdown(f"**{a.get('title','')}** — {a.get('body','')}")
 
-# --- One-time branded Google button (kept exactly once on the page)
+# ------------------------------------------------------------------------------
+# Google OAuth (Gmail sign-in) — single-CTA setup
+# ------------------------------------------------------------------------------
+GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
+GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
+REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowen.app/")
+
+def _handle_google_oauth(code: str, state: str) -> None:
+    df = load_student_data()
+    if df is None:
+        st.error("Student roster unavailable. Please try again later.")
+        return
+    df["Email"] = df["Email"].str.lower().str.strip()
+    try:
+        if st.session_state.get("_oauth_state") and state != st.session_state["_oauth_state"]:
+            st.error("OAuth state mismatch. Please try again.")
+            return
+        if st.session_state.get("_oauth_code_redeemed") == code:
+            return
+
+        token_url = "https://oauth2.googleapis.com/token"
+        data = {
+            "code": code,
+            "client_id": GOOGLE_CLIENT_ID,
+            "client_secret": GOOGLE_CLIENT_SECRET,
+            "redirect_uri": REDIRECT_URI,
+            "grant_type": "authorization_code",
+        }
+        resp = requests.post(token_url, data=data, timeout=10)
+        if not resp.ok:
+            st.error(f"Google login failed: {resp.status_code} {resp.text}")
+            return
+
+        token_data    = resp.json()
+        access_token  = token_data.get("access_token")
+        refresh_token = token_data.get("refresh_token")
+        if not access_token:
+            st.error("Google login failed: no access token.")
+            return
+
+        st.session_state["_oauth_code_redeemed"] = code
+        st.session_state["access_token"] = access_token
+        if refresh_token:
+            st.session_state["refresh_token"] = refresh_token
+
+        userinfo = requests.get(
+            "https://www.googleapis.com/oauth2/v2/userinfo",
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=10,
+        ).json()
+
+        email = (userinfo.get("email") or "").lower().strip()
+        match = df[df["Email"] == email]
+        if match.empty:
+            st.error("No student account found for that Google email.")
+            return
+
+        student_row = match.iloc[0]
+        if is_contract_expired(student_row):
+            st.error("Your contract has expired. Contact the office.")
+            return
+
+        ua_hash = st.session_state.get("__ua_hash", "")
+        prev_token = st.session_state.get("session_token", "")
+        if prev_token:
+            try:
+                destroy_session_token(prev_token)
+            except Exception:
+                logging.exception("Logout warning (revoke)")
+
+        clear_session(cookie_manager)
+
+        sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
+        level = determine_level(student_row["StudentCode"], student_row)
+
+        st.session_state.update({
+            "logged_in": True,
+            "student_row": student_row.to_dict(),
+            "student_code": student_row["StudentCode"],
+            "student_name": student_row["Name"],
+            "session_token": sess_token,
+            "student_level": level,
+        })
+        set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
+        persist_session_client(sess_token, student_row["StudentCode"])
+        set_session_token_cookie(cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
+        try:
+            cookie_manager.save()
+        except Exception:
+            logging.exception("Cookie save failed")
+
+        qp_clear()
+        st.success(f"Welcome, {student_row['Name']}!")
+        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+        st.rerun()
+
+    except Exception as e:
+        logging.exception("Google OAuth error")
+        st.error(f"Google OAuth error: {e}")
+
+def render_google_oauth(return_url: bool = True) -> Optional[str]:
+    """Complete OAuth if ?code=... else return the Google Authorization URL.
+       (Does not render any buttons — we control that elsewhere.)"""
+    import secrets, urllib.parse
+
+    def _qp_first(val):
+        return val[0] if isinstance(val, list) else val
+
+    qp = qp_get()
+    code  = _qp_first(qp.get("code")) if hasattr(qp, "get") else None
+    state = _qp_first(qp.get("state")) if hasattr(qp, "get") else None
+    if code:
+        _handle_google_oauth(code, state)
+        return None
+
+    st.session_state["_oauth_state"] = secrets.token_urlsafe(24)
+    params = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": REDIRECT_URI,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "prompt": "select_account",
+        "state": st.session_state["_oauth_state"],
+        "include_granted_scopes": "true",
+        "access_type": "online",
+    }
+    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
+    return auth_url
+
+# --- One-time branded Google button (shows ONCE under "Returning user login")
 def render_google_brand_button_once(auth_url: str, center: bool = True):
-    if not auth_url:
+    if not auth_url: 
         return
     if st.session_state.get("_google_cta_rendered"):
         return
@@ -839,71 +968,75 @@ def render_google_brand_button_once(auth_url: str, center: bool = True):
     )
     st.session_state["_google_cta_rendered"] = True
 
-
-# --- Small explanatory banner shown above the tabs
-def render_signup_request_banner():
-    if not st.session_state.get("_signup_banner_css_done"):
-        st.markdown(
-            """
-            <style>
-              .inline-banner{
-                background:#f5f9ff; border:1px solid rgba(30,64,175,.15);
-                border-radius:12px; padding:12px 14px; margin:12px 0;
-                box-shadow:0 4px 10px rgba(2,6,23,.04);
-              }
-              .inline-banner b{ color:#0f172a; }
-              .inline-banner .note{ color:#475569; font-size:.95rem; margin-top:6px; }
-              .inline-banner ul{ margin:6px 0 0 1.1rem; }
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.session_state["_signup_banner_css_done"] = True
-
-    st.markdown(
-        """
-        <div class="inline-banner">
-          <div><b>Which option should I use?</b></div>
-          <ul>
-            <li><b>Sign Up (Approved):</b> For students already added by your tutor/office. Use your <b>Student Code</b> and <b>registered email</b> to create a password.</li>
-            <li><b>Request Access:</b> New learner or not on the roster yet. Fill the form and we’ll set you up and email next steps.</li>
-          </ul>
-          <div class="note">Not sure? Choose <b>Request Access</b> — we’ll route you correctly.</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-# --- Login page with single Google CTA + banner above tabs
-def login_page():
-    # Build/handle Google OAuth (also completes if ?code=... present)
-    auth_url = render_google_oauth(return_url=True) or ""
-
-    # Branded hero (can include {{GOOGLE_AUTH_URL}} internally)
-    render_falowen_login(auth_url)
-
-    # Returning user login
-    st.markdown("### Returning user login")
-    render_google_brand_button_once(auth_url, center=True)
-
-    with st.form("returning_login_form_clean", clear_on_submit=False):
-        login_id  = st.text_input("Email or Student Code", key="login_id")
-        login_pass= st.text_input("Password", type="password", key="login_pass")
+# ------------------------------------------------------------------------------
+# Returning login (no extra Google button here anymore)
+# ------------------------------------------------------------------------------
+def render_returning_login_area() -> bool:
+    with st.form("returning_login_form", clear_on_submit=False):
+        login_id  = st.text_input("Email or Student Code")
+        login_pass= st.text_input("Password", type="password")
         submitted = st.form_submit_button("Log in")
-    if submitted and render_login_form(login_id, login_pass):
-        st.rerun()
 
-    # Forgot password (toggle)
-    if st.button("Forgot password?", key="show_reset_panel_btn"):
-        st.session_state["show_reset_panel"] = True
+    if submitted and render_login_form(login_id, login_pass):
+        return True
+
+    # Forgot password toggle below the form
+    col_a, col_b = st.columns([0.5, 0.5])
+    with col_a:
+        if st.button("Forgot password?"):
+            st.session_state["show_reset_panel"] = True
     if st.session_state.get("show_reset_panel"):
         render_forgot_password_panel()
 
-    # Small banner explaining the two tabs
-    render_signup_request_banner()
+    return False
 
-    # Tabs: Sign Up + Request Access
+# ------------------------------------------------------------------------------
+# Hero (optionally suppress Google button inside the template)
+# ------------------------------------------------------------------------------
+@lru_cache(maxsize=1)
+def _read_hero_template() -> str:
+    html_path = Path(__file__).parent / "templates" / "falowen_login.html"
+    return html_path.read_text(encoding="utf-8")
+
+def render_falowen_login(google_auth_url: str, show_google_in_hero: bool = False) -> None:
+    try:
+        html = _read_hero_template()
+        # If your template contains a Google button using {{GOOGLE_AUTH_URL}},
+        # we can choose to inject it or suppress it to avoid duplicates.
+        if show_google_in_hero:
+            html = html.replace("{{GOOGLE_AUTH_URL}}", google_auth_url or "#")
+        else:
+            # Suppress: neutralize placeholder; optional: hide any element that references it.
+            html = html.replace("{{GOOGLE_AUTH_URL}}", "#") + \
+                   "<style>[data-google-cta]{display:none!important}</style>"
+    except Exception:
+        st.error("Falowen hero template missing or unreadable.")
+        return
+    try:
+        components.html(html, height=720, scrolling=True)
+    except TypeError:
+        safe = re.sub(r'<script[\s\S]*?</script>', '', html, flags=re.IGNORECASE)
+        st.markdown(safe, unsafe_allow_html=True)
+
+# ------------------------------------------------------------------------------
+# Login page (hero + single Google CTA under 'Returning user login' + tabs)
+# ------------------------------------------------------------------------------
+def login_page():
+    # 1) Get Google auth URL (also completes flow if ?code=...)
+    auth_url = render_google_oauth(return_url=True) or ""
+
+    # 2) Branded hero (Google button suppressed inside the template)
+    render_falowen_login(auth_url, show_google_in_hero=False)
+
+    # 3) Returning user section + the ONE Google CTA here
+    st.markdown("### Returning user login")
+    render_google_brand_button_once(auth_url, center=True)
+    login_success = render_returning_login_area()
+    if login_success:
+        st.rerun()
+
+    # 4) Explanation banner + tabs
+    render_signup_request_banner()
     tab2, tab3 = st.tabs(["🧾 Sign Up (Approved)", "📝 Request Access"])
     with tab2:
         render_signup_form()
@@ -924,8 +1057,6 @@ def login_page():
             """,
             unsafe_allow_html=True
         )
-
-    # (Optional) keep your help/links/steps/footer blocks below as before
 
 
     # Help + quick contacts
