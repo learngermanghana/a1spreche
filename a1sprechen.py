@@ -1346,7 +1346,7 @@ def render_sidebar_published():
         st.session_state["nav_sel"] = tab_name
         st.session_state["main_tab_select"] = tab_name
         _qp_set_safe(tab=tab_name)
-        st.rerun()
+        st.session_state["needs_rerun"] = True
 
     st.sidebar.markdown("## Quick access")
     st.sidebar.button("🏠 Dashboard",                use_container_width=True, on_click=_go, args=("Dashboard",))
