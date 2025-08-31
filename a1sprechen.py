@@ -1228,6 +1228,11 @@ def _do_logout():
             except Exception:
                 logging.exception("Token revoke failed on logout")
         clear_session(cookie_manager)
+        if hasattr(cookie_manager, "save"):
+            try:
+                cookie_manager.save()
+            except Exception:
+                logging.exception("Failed to persist cleared cookies")
     except Exception:
         logging.exception("Cookie/session clear failed")
     st.session_state.update({
@@ -1476,6 +1481,15 @@ if restored is not None and not st.session_state.get("logged_in", False):
         "session_token": token,
         "student_level": level,
     })
+
+# Always load the roster for contract checks on rerun
+roster = restored.get("data") if restored and restored.get("data") is not None else load_student_data()
+if st.session_state.get("logged_in", False):
+    if not _contract_active(st.session_state.get("student_code", ""), roster):
+        _do_logout()
+        st.error(
+            "Your contract has expired or there is an outstanding balance. Please contact the administrator to continue.",
+        )
 
 # If visiting with password-reset token
 if not st.session_state.get("logged_in", False):
