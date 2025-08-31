@@ -10,7 +10,11 @@ def load_module():
     module_ast = ast.parse(source)
     nodes = []
     for node in module_ast.body:
-        if isinstance(node, ast.FunctionDef) and node.name in {"_do_logout", "render_google_signin_once"}:
+        if isinstance(node, ast.FunctionDef) and node.name in {
+            "_do_logout",
+            "render_google_signin_once",
+            "render_google_button_once",
+        }:
             nodes.append(node)
     mod = types.ModuleType("logout_module")
     mod.__file__ = str(path)
@@ -19,6 +23,7 @@ def load_module():
         success=MagicMock(),
         rerun=MagicMock(),
         link_button=MagicMock(),
+        markdown=MagicMock(),
     )
     mod.components = types.SimpleNamespace(html=MagicMock())
     mod.clear_session = MagicMock()
@@ -33,16 +38,28 @@ def load_module():
 def test_google_button_reappears_after_logout():
     mod = load_module()
 
-    # Initial render simulates login page showing the button
+    # Initial render simulates login page showing the buttons
     mod.render_google_signin_once("https://auth.example")
     assert mod.st.session_state.get("_google_btn_rendered") is True
     mod.components.html.assert_called_once()
 
+    mod.render_google_button_once("https://auth.example")
+    assert mod.st.session_state.get("__google_btn_rendered::primary") is True
+    mod.st.markdown.assert_called_once()
+
+    # simulate CTA being rendered
+    mod.st.session_state["_google_cta_rendered"] = True
+
     # After logout the flag should be cleared
     mod.components.html.reset_mock()
+    mod.st.markdown.reset_mock()
     mod._do_logout()
     assert "_google_btn_rendered" not in mod.st.session_state
+    assert "_google_cta_rendered" not in mod.st.session_state
+    assert not any(k.startswith("__google_btn_rendered::") for k in mod.st.session_state)
 
-    # Rendering login again should call html once more
+    # Rendering login again should call renderers once more
     mod.render_google_signin_once("https://auth.example")
     mod.components.html.assert_called_once()
+    mod.render_google_button_once("https://auth.example")
+    mod.st.markdown.assert_called_once()
