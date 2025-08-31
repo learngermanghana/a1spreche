@@ -36,19 +36,17 @@ def render_resume_banner() -> None:
     triggers a rerun so the main app can navigate to that section.
     """
     pos = st.session_state.get("__last_progress")
-    if not (isinstance(pos, int) and pos > 0):
-        return None
-
-    box = st.info(
-        f"You last stopped at section {pos} – pick up where you left off!"
-    )
-    if box.button("Continue", type="primary"):
-        st.session_state["section_index"] = pos
-        try:
+    
+    if isinstance(pos, int) and pos > 0:
+        def _jump() -> None:
             st.query_params["section"] = str(pos)
-        except Exception:
-            pass
-        st.rerun()
+            st.session_state["needs_rerun"] = True
+
+        st.info(
+            f"You last stopped at section {pos} – pick up where you left off!"
+        )
+        st.button("Resume", on_click=_jump)
+
 
     return None
 
