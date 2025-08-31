@@ -141,6 +141,7 @@ from src.session_management import (
 from src.sentence_bank import SENTENCE_BANK
 from src.config import get_cookie_manager, SB_SESSION_TARGET
 from src.data_loading import load_student_data
+from src import resume
 
 
 # ------------------------------------------------------------------------------
@@ -1512,8 +1513,15 @@ if not st.session_state.get("logged_in", False):
     st.stop()
 
 # ==================== LOGGED IN ====================
+# Load last saved section position once per session for resume banner
+if "__last_progress" not in st.session_state:
+    st.session_state["__last_progress"] = resume.load_last_position(
+        st.session_state.get("student_code", "")
+    )
+
 # Show header immediately after login on every page
 render_logged_in_topbar()
+resume.render_resume_banner()
 
 # Theme bits (chips etc.)
 inject_notice_css()
