@@ -1,4 +1,4 @@
-"""Assignment results and resources tab helpers."""
+"""Assignment My Results & Resources tab helpers."""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ def load_assignment_scores() -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# Helpers used by the Results & Resources tab
+# Helpers used by the My Results & Resources tab
 # ---------------------------------------------------------------------------
 
 # Score labels are reused in the PDF export; keep logic in one place.
@@ -304,7 +304,7 @@ def render_results_and_resources_tab() -> None:
         st.session_state["rr_prev_page"] = st.session_state.get("rr_page")
 
     rr_page = st.radio(
-        "Results & Resources section",
+        "My Results & Resources section",
         ["Overview", "My Scores", "Badges", "Missed & Next", "PDF", "Resources"],
         horizontal=True,
         key="rr_page",

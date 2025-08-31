@@ -1187,7 +1187,7 @@ def login_page():
              style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
         <div style="height:8px;"></div>
         <h3 style="margin:0 0 4px 0;">3️⃣ Get results</h3>
-        <p style="margin:0;">You’ll get an <b>email when marked</b>. Check <b>Results & Resources</b> for feedback.</p>
+        <p style="margin:0;">You’ll get an <b>email when marked</b>. Check <b>My Results & Resources</b> for feedback.</p>
         """, unsafe_allow_html=True)
 
     # Footer links
@@ -1350,7 +1350,7 @@ def render_sidebar_published():
     st.sidebar.markdown("## Quick access")
     st.sidebar.button("🏠 Dashboard",                use_container_width=True, on_click=_go, args=("Dashboard",))
     st.sidebar.button("📈 My Course",                use_container_width=True, on_click=_go, args=("My Course",))
-    st.sidebar.button("📊 Results & Resources",      use_container_width=True, on_click=_go, args=("My Results and Resources",))
+    st.sidebar.button("📊 My Results & Resources",   use_container_width=True, on_click=_go, args=("My Results & Resources",))
     st.sidebar.button("🗣️ Exams Mode & Custom Chat", use_container_width=True, on_click=_go, args=("Exams Mode & Custom Chat",))
     st.sidebar.button("📚 Vocab Trainer",            use_container_width=True, on_click=_go, args=("Vocab Trainer",))
     st.sidebar.button("✍️ Schreiben Trainer",        use_container_width=True, on_click=_go, args=("Schreiben Trainer",))
@@ -1361,11 +1361,11 @@ def render_sidebar_published():
     with st.sidebar.expander("📚 Quick guide", expanded=False):
         st.markdown(
             """
-- **Submit work:** My Course → Submit → **Confirm & Submit** (locks after submission).
-- **Check feedback:** **Results & Resources** shows marks, comments, downloads.
-- **Practice speaking:** **Tools → Sprechen** for instant pronunciation feedback.
-- **Build vocab:** **Vocab Trainer** for daily words & review cycles.
-- **Track progress:** **Dashboard** shows streaks, next lesson, and missed items.
+        - **Submit work:** My Course → Submit → **Confirm & Submit** (locks after submission).
+        - **Check feedback:** **My Results & Resources** shows marks, comments, downloads.
+        - **Practice speaking:** **Tools → Sprechen** for instant pronunciation feedback.
+        - **Build vocab:** **Vocab Trainer** for daily words & review cycles.
+        - **Track progress:** **Dashboard** shows streaks, next lesson, and missed items.
             """
         )
 
@@ -1374,7 +1374,7 @@ def render_sidebar_published():
             """
 - **Dashboard:** Overview (streak, next lesson, missed, leaderboard, announcements).
 - **My Course:** Lessons, materials, and submission flow.
-- **Results & Resources:** Marks, feedback, downloadable resources.
+- **My Results & Resources:** Marks, feedback, downloadable resources.
 - **Exams Mode & Custom Chat:** Exam-style drills + targeted AI practice.
 - **Vocab Trainer:** Daily picks, spaced review, stats.
 - **Schreiben Trainer:** Structured writing with iterative feedback.
@@ -1535,7 +1535,7 @@ render_sidebar_published()
 # Announcements (render once)
 announcements = [
     {"title": "Download Draft (TXT) Backup", "body": "Use “⬇️ Download draft (TXT)” to save a clean backup with level/day/chapter + timestamp.", "tag": "New"},
-    {"title": "Submit Flow & Locking", "body": "After **Confirm & Submit**, your box locks (read-only). Check Results & Resources for feedback.", "tag": "Action"},
+    {"title": "Submit Flow & Locking", "body": "After **Confirm & Submit**, your box locks (read-only). Check My Results & Resources for feedback.", "tag": "Action"},
     {"title": "Quick Jumps", "body": "Buttons in Submit go straight to Classroom Q&A and your Notes.", "tag": "Tip"},
     {"title": "Lesson Links — One Download", "body": "Grab all lesson resources as a single TXT under **Your Work & Links**.", "tag": "New"},
     {"title": "Sprechen", "body": "Record speaking and get instant, level-aware AI feedback in Tools → Sprechen.", "tag": "New"},
@@ -1709,7 +1709,7 @@ def render_dropdown_nav():
     tabs = [
         "Dashboard",
         "My Course",
-        "My Results and Resources",
+        "My Results & Resources",
         "Exams Mode & Custom Chat",
         "Vocab Trainer",
         "Schreiben Trainer",
@@ -1717,7 +1717,7 @@ def render_dropdown_nav():
     icons = {
         "Dashboard": "🏠",
         "My Course": "📈",
-        "My Results and Resources": "📊",
+        "My Results & Resources": "📊",
         "Exams Mode & Custom Chat": "🗣️",
         "Vocab Trainer": "📚",
         "Schreiben Trainer": "✍️",
@@ -3543,7 +3543,7 @@ if tab == "My Course":
                     2) Tick the two confirmations below.  
                     3) Click **Confirm & Submit**.  
                     4) Your box will lock (read-only).  
-                    _You’ll get an **email** when it’s marked. See **Results & Resources** for scores & feedback._
+                    _You’ll get an **email** when it’s marked. See **My Results & Resources** for scores & feedback._
                 """)
 
             col1, col2, col3 = st.columns(3)
@@ -3624,7 +3624,7 @@ if tab == "My Course":
                             st.success("Submitted! Your work has been sent to your tutor.")
                             st.caption(
                                 f"Receipt: `{short_ref}` • You’ll be emailed when it’s marked. "
-                                "See **Results & Resources** for scores & feedback."
+                                "See **My Results & Resources** for scores & feedback."
                             )
 
 
@@ -5529,7 +5529,7 @@ if tab == "My Course":
 
 
 # =========================== MY RESULTS & RESOURCES ===========================
-if tab == "My Results and Resources":
+if tab == "My Results & Resources":
     render_results_and_resources_tab()
 
 # ================================
