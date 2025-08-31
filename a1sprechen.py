@@ -1097,7 +1097,7 @@ def render_falowen_login(google_auth_url: str = "", show_google_in_hero: bool = 
         st.error("Falowen login template missing or unreadable.")
         logging.exception("Failed to load Falowen login HTML")
         return
-    components.html(html, height=720, scrolling=True, key="falowen_hero")
+    components.html(html, height=720, scrolling=True)
 
 # ------------------------------------------------------------------------------
 # Login page (hero + single Google CTA under 'Returning user login' + tabs)

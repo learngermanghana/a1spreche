@@ -47,7 +47,7 @@ def test_render_calls_components_html(login_mod, monkeypatch):
     expected_html = login_mod._load_falowen_login_html()
     login_mod.components.html.reset_mock()
     login_mod.render_falowen_login()
-    login_mod.components.html.assert_called_once_with(expected_html, height=720, scrolling=True, key="falowen_hero")
+    login_mod.components.html.assert_called_once_with(expected_html, height=720, scrolling=True)
 
 
 def test_load_html_removes_multiple_scripts(login_mod, monkeypatch):
