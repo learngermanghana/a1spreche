@@ -1412,8 +1412,13 @@ def render_sidebar_published():
 # ------------------------------------------------------------------------------
 def render_announcements_once(data: list):
     if not st.session_state.get("_ann_rendered"):
-        render_announcements(data)
-        st.session_state["_ann_rendered"] = True
+        try:
+            render_announcements(data)
+        except Exception:
+            logging.exception("Failed to render announcements")
+            st.warning("Announcements are temporarily unavailable.")
+        else:
+            st.session_state["_ann_rendered"] = True
 
 
 # ------------------------------------------------------------------------------
