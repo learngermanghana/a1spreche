@@ -1,5 +1,6 @@
 import ast, types, pathlib
 from unittest.mock import MagicMock
+import pytest
 
 def load_go_module():
     path = pathlib.Path(__file__).resolve().parents[1] / "a1sprechen.py"
@@ -21,9 +22,22 @@ def load_go_module():
     exec(code, mod.__dict__)
     return mod
 
-def test_go_sets_flag_and_triggers_rerun():
+@pytest.mark.parametrize(
+    "tab",
+    [
+        "Dashboard",
+        "My Course",
+        "My Results and Resources",
+        "Exams Mode & Custom Chat",
+        "Vocab Trainer",
+        "Schreiben Trainer",
+    ],
+)
+def test_go_updates_state_and_triggers_rerun(tab: str):
     mod = load_go_module()
-    mod._go("Dashboard")
+    mod._go(tab)
+    assert mod.st.session_state["nav_sel"] == tab
+    assert mod.st.session_state["main_tab_select"] == tab
     assert mod.st.session_state["needs_rerun"] is True
     if mod.st.session_state.pop("needs_rerun", False):
         mod.st.rerun()
