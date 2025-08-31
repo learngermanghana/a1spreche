@@ -1462,20 +1462,25 @@ if restored is not None and not st.session_state.get("logged_in", False):
     sc_cookie = restored["student_code"]
     token = restored["session_token"]
     roster = restored.get("data")
-    row = (
-        roster[roster["StudentCode"].str.lower() == sc_cookie].iloc[0]
+    match = (
+        roster[roster["StudentCode"].str.lower() == sc_cookie.lower()]
         if roster is not None and "StudentCode" in roster.columns
-        else {}
+        else pd.DataFrame()
     )
-    level = determine_level(sc_cookie, row)
-    st.session_state.update({
-        "logged_in": True,
-        "student_code": sc_cookie,
-        "student_name": row.get("Name", ""),
-        "student_row": dict(row) if isinstance(row, pd.Series) else {},
-        "session_token": token,
-        "student_level": level,
-    })
+    if match.empty:
+        clear_session(cookie_manager)
+        st.warning("Session expired. Please log in again.")
+    else:
+        row = match.iloc[0]
+        level = determine_level(sc_cookie, row)
+        st.session_state.update({
+            "logged_in": True,
+            "student_code": sc_cookie,
+            "student_name": row.get("Name", ""),
+            "student_row": dict(row) if isinstance(row, pd.Series) else {},
+            "session_token": token,
+            "student_level": level,
+        })
 
 # If visiting with password-reset token
 if not st.session_state.get("logged_in", False):
