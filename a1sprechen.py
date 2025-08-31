@@ -1761,9 +1761,7 @@ try:
 except Exception as e:
     st.warning(f"Navigation init issue: {e}. Falling back to Dashboard.")
     tab = "Dashboard"
-
-if tab != "Dashboard":
-    render_announcements_once(announcements)
+render_announcements_once(announcements)
 
 
 # =========================================================
