@@ -4695,7 +4695,7 @@ if tab == "My Course":
                         ts_label = ""
                     st.markdown(
                         f"<div style='padding:10px 12px; background:{'#fff7ed' if is_pinned else '#f8fafc'}; "
-                        f"border:1px solid #e5e7eb; border-radius:8px; margin:8px 0;'>"
+                        f"border:1px solid #e5e7eb; border-radius:8px; margin:4px 0;'>"
                         f"{'📌 <b>Pinned</b> • ' if is_pinned else ''}"
                         f"<b>Teacher</b> <span style='color:#888;'>{ts_label} GMT</span><br>"
                         f"{row.get('Announcement','')}"
