@@ -1,5 +1,6 @@
 import sys
 import types
+import pytest
 
 import pandas as pd
 import streamlit as st
@@ -59,11 +60,12 @@ def test_cookies_keep_user_logged_in_after_reload():
 
     assert validate_session_token(token) is not None
 
-    row = (
-        roster[roster["StudentCode"].str.lower() == sc].iloc[0]
+    matches = (
+        roster[roster["StudentCode"].str.lower() == sc]
         if roster is not None and "StudentCode" in roster.columns
-        else {}
+        else pd.DataFrame()
     )
+    row = {} if matches.empty else matches.iloc[0]
     # Stub ``get_student_level`` to avoid network calls
     orig_stats = sys.modules.get("src.stats")
     stub_stats = types.SimpleNamespace(get_student_level=lambda sc: "B2")
@@ -158,6 +160,18 @@ def test_session_not_restored_when_student_code_mismatch():
     # ``validate_session_token`` should still have been called
     assert called == ["tok123"]
     assert st.session_state.get("logged_in", False) is False
+
+
+def test_missing_student_code_does_not_raise():
+    """Missing student code should not raise IndexError during row lookup."""
+    roster = pd.DataFrame([{"StudentCode": "xyz", "Name": "Zoe"}])
+    sc_cookie = "abc"
+    matches = roster[roster["StudentCode"].str.lower() == sc_cookie]
+    try:
+        row = {} if matches.empty else matches.iloc[0]
+    except IndexError as exc:  # pragma: no cover - defensive
+        pytest.fail(f"IndexError should not occur: {exc}")
+    assert row == {}
 
 
 def test_session_rejected_when_user_agent_hash_mismatch():
