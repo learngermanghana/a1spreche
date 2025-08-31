@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import io
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 import pandas as pd
 import requests
@@ -148,15 +148,31 @@ def _load_student_data_cached() -> Optional[pd.DataFrame]:
         st.error(f"❌ Could not load student data. {e}")
         raise
 
-    df.columns = df.columns.str.strip().str.replace(" ", "")
+    df.columns = (
+        df.columns.str.strip().str.replace(r"[\s_]+", "", regex=True).str.lower()
+    )
     for col in df.columns:
         s = df[col]
         df[col] = s.where(s.isna(), s.astype(str).str.strip())
-    if "ContractEnd" not in df.columns:
-        logging.warning("Student roster missing 'ContractEnd' column")
-        st.warning("The student roster is missing a 'ContractEnd' column.")
+
+    required = {
+        "contractend": "ContractEnd",
+        "studentcode": "StudentCode",
+        "email": "Email",
+    }
+    missing = [col for col in required if col not in df.columns]
+    if missing:
+        missing_names = [required[m] for m in missing]
+        logging.warning(
+            "Student roster missing required columns %s", missing_names
+        )
+        st.warning(
+            "The student roster is missing required columns: "
+            + ", ".join(f"'{name}'" for name in missing_names)
+        )
         return None
 
+    df.rename(columns=required, inplace=True)
     df = df[df["ContractEnd"].notna() & (df["ContractEnd"].str.len() > 0)]
 
     def _parse_contract_end(s: str):
