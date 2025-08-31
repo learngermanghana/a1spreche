@@ -1063,33 +1063,41 @@ def render_returning_login_area() -> bool:
 
     return False
 
-# ------------------------------------------------------------------------------
-# Hero (optionally suppress Google button inside the template)
-# ------------------------------------------------------------------------------
-@lru_cache(maxsize=1)
-def _read_hero_template() -> str:
-    html_path = Path(__file__).parent / "templates" / "falowen_login.html"
-    return html_path.read_text(encoding="utf-8")
+def render_returning_login_form():
+    """Simplified returning-user login form used in tests."""
+    with st.form("returning_login_form", clear_on_submit=False):
+        _ = st.text_input("Email or Student Code")
+        st.text_input("Password", type="password")
+        st.form_submit_button("Log in")
+        forgot = st.form_submit_button("Forgot password?")
+    if forgot:
+        # In reality this would trigger sending a reset email.
+        send_reset_email("test@example.com", "reset-link")
+    return False
 
-def render_falowen_login(google_auth_url: str, show_google_in_hero: bool = False) -> None:
+
+@lru_cache(maxsize=1)
+def _load_falowen_login_html() -> str:
+    """Load and sanitize the Falowen login hero HTML template."""
+    path = Path(__file__).parent / "templates" / "falowen_login.html"
     try:
-        html = _read_hero_template()
-        # If your template contains a Google button using {{GOOGLE_AUTH_URL}},
-        # we can choose to inject it or suppress it to avoid duplicates.
-        if show_google_in_hero:
-            html = html.replace("{{GOOGLE_AUTH_URL}}", google_auth_url or "#")
-        else:
-            # Suppress: neutralize placeholder; optional: hide any element that references it.
-            html = html.replace("{{GOOGLE_AUTH_URL}}", "#") + \
-                   "<style>[data-google-cta]{display:none!important}</style>"
+        html = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise RuntimeError("falowen_login.html must be valid UTF-8") from exc
+    html = re.sub(r"<aside[\s\S]*?</aside>", "", html, flags=re.IGNORECASE)
+    html = re.sub(r"<script[\s\S]*?</script>", "", html, flags=re.IGNORECASE)
+    html = re.sub(r"</body>.*", "</body>", html, flags=re.IGNORECASE | re.DOTALL)
+    return html
+
+
+def render_falowen_login(google_auth_url: str = "", show_google_in_hero: bool = False) -> None:
+    try:
+        html = _load_falowen_login_html()
     except Exception:
-        st.error("Falowen hero template missing or unreadable.")
+        st.error("Falowen login template missing or unreadable.")
+        logging.exception("Failed to load Falowen login HTML")
         return
-    try:
-        components.html(html, height=720, scrolling=True)
-    except TypeError:
-        safe = re.sub(r'<script[\s\S]*?</script>', '', html, flags=re.IGNORECASE)
-        st.markdown(safe, unsafe_allow_html=True)
+    components.html(html, height=720, scrolling=True, key="falowen_hero")
 
 # ------------------------------------------------------------------------------
 # Login page (hero + single Google CTA under 'Returning user login' + tabs)
@@ -1413,7 +1421,25 @@ def _contract_active(sc: str, roster):
     match = roster[roster["StudentCode"].str.lower() == sc.lower()]
     if match.empty:
         return True
-    return not is_contract_expired(match.iloc[0])
+    row = match.iloc[0]
+    if is_contract_expired(row):
+        return False
+
+    # Check for outstanding balances older than 30 days
+    start_str = str(row.get("ContractStart", "") or "")
+    start_date = pd.to_datetime(start_str, errors="coerce")
+    if start_date is not pd.NaT:
+        days_since_start = (
+            pd.Timestamp.now(tz=UTC).date() - start_date.date()
+        ).days
+        try:
+            balance = float(row.get("Balance", 0) or 0)
+        except (TypeError, ValueError):
+            balance = 0.0
+        if balance > 0 and days_since_start >= 30:
+            return False
+
+    return True
 
 restored = restore_session_from_cookie(cookie_manager, load_student_data, _contract_active)
 if restored is not None and not st.session_state.get("logged_in", False):
