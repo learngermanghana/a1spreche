@@ -29,7 +29,14 @@ def render_resume_banner() -> None:
     """
     pos = st.session_state.get("__last_progress")
     if isinstance(pos, int) and pos > 0:
-        st.info(f"You last stopped at section {pos} – pick up where you left off!")
+        def _jump() -> None:
+            st.query_params["section"] = str(pos)
+            st.session_state["needs_rerun"] = True
+
+        st.info(
+            f"You last stopped at section {pos} – pick up where you left off!"
+        )
+        st.button("Resume", on_click=_jump)
 
     return None
 
