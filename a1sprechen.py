@@ -1468,11 +1468,15 @@ if restored is not None and not st.session_state.get("logged_in", False):
     sc_cookie = restored["student_code"]
     token = restored["session_token"]
     roster = restored.get("data")
-    row = (
-        roster[roster["StudentCode"].str.lower() == sc_cookie].iloc[0]
-        if roster is not None and "StudentCode" in roster.columns
-        else {}
-    )
+    if roster is not None and "StudentCode" in roster.columns:
+        filtered = roster[roster["StudentCode"].str.lower() == sc_cookie]
+        if filtered.empty:
+            st.warning("No roster entry found for your student code.")
+            row = {}
+        else:
+            row = filtered.iloc[0]
+    else:
+        row = {}
     level = determine_level(sc_cookie, row)
     st.session_state.update({
         "logged_in": True,
@@ -1611,7 +1615,8 @@ def _fetch_announcements_csv_cached():
 def fetch_announcements_csv():
     if "announcements_df" not in st.session_state:
         st.session_state["announcements_df"] = _fetch_announcements_csv_cached()
-    return st.session_state["announcements_df"].copy()
+    df = st.session_state["announcements_df"]
+    return df.copy() if hasattr(df, "copy") else df
 
 def parse_contract_start(date_str: str):
 
