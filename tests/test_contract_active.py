@@ -47,3 +47,20 @@ def test_contract_inactive_when_balance_over_30_days():
     )
     assert _contract_active("abc", df) is False
 
+
+def test_balance_string_with_comma_blocks_login():
+    _contract_active = _load_contract_active()
+    start = (pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=35)).strftime("%Y-%m-%d")
+    end = (pd.Timestamp.now(tz="UTC") + pd.Timedelta(days=10)).strftime("%Y-%m-%d")
+    df = pd.DataFrame(
+        [
+            {
+                "StudentCode": "abc",
+                "ContractStart": start,
+                "ContractEnd": end,
+                "Balance": "1,000",
+            }
+        ]
+    )
+    assert _contract_active("abc", df) is False
+
