@@ -4,5 +4,4 @@ __all__ = [
     "email_utils",
     "youtube",
     "sessions",
-    "db",
 ]

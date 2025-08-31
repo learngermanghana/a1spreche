@@ -63,16 +63,6 @@ from falowen.sessions import (
     api_get,
     api_post,
 )
-from falowen.db import (
-    FALOWEN_DAILY_LIMIT,
-    VOCAB_DAILY_LIMIT,
-    SCHREIBEN_DAILY_LIMIT,
-    get_connection,
-    init_db,
-    get_sprechen_usage,
-    inc_sprechen_usage,
-    has_sprechen_quota,
-)
 from src.assignment import linkify_html, _clean_link, _is_http_url
 from src.contracts import (
     parse_contract_end,
@@ -6286,11 +6276,6 @@ if tab == "Exams Mode & Custom Chat":
         user_input = st.session_state.get(draft_key, "").strip() if send_clicked else ""
         if user_input:
             st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
-            try:
-                if "inc_sprechen_usage" in globals():
-                    inc_sprechen_usage(student_code)
-            except Exception:
-                pass
 
             with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                 messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
