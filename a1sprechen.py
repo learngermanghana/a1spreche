@@ -1825,11 +1825,6 @@ if tab == "Dashboard":
         st.stop()
         
     st.divider()
-    # ---------- 1) Announcements (top) ----------
-    render_announcements_once(announcements)
-    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-
-    st.divider()
     # ---------- 3) Motivation mini-cards (streak / vocab / leaderboard) ----------
     _student_code = (st.session_state.get("student_code", "") or "").strip().lower()
     _df_assign = load_assignment_scores()
