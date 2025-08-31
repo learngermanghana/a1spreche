@@ -1,5 +1,7 @@
 import ast
+import importlib
 import pathlib
+import sys
 import types
 from unittest.mock import MagicMock
 
@@ -82,3 +84,48 @@ def test_get_playlist_ids_for_level_fallback(monkeypatch, playlist_module):
     expected = playlist_module.YOUTUBE_PLAYLIST_IDS[playlist_module.DEFAULT_PLAYLIST_LEVEL]
     assert result == expected
     playlist_module.st.info.assert_called_once()
+
+
+@pytest.fixture()
+def data_loading(monkeypatch):
+    import streamlit as st
+
+    monkeypatch.setattr(st, "secrets", {})
+
+    def cache_data(ttl=None):
+        def decorator(fn):
+            return fn
+
+        return decorator
+
+    monkeypatch.setattr(st, "cache_data", cache_data)
+    monkeypatch.setattr(st, "error", MagicMock())
+    monkeypatch.setattr(st, "warning", MagicMock())
+    monkeypatch.setattr(st, "info", MagicMock())
+
+    root = pathlib.Path(__file__).resolve().parents[1]
+    sys.path.insert(0, str(root))
+    import src.data_loading as dl
+
+    importlib.reload(dl)
+    return dl
+
+
+def test_load_student_data_handles_mixed_case_headers(monkeypatch, data_loading):
+    csv = (
+        " Contract_End , student_code ,EMAIL\n"
+        "12/31/2024, ABC123 ,Test@Example.com\n"
+    )
+    mock_resp = MagicMock()
+    mock_resp.text = csv
+    mock_resp.raise_for_status = lambda: None
+    monkeypatch.setattr(
+        data_loading.requests, "get", lambda *args, **kwargs: mock_resp
+    )
+
+    df = data_loading.load_student_data()
+
+    assert df is not None
+    assert list(df.columns) == ["ContractEnd", "StudentCode", "Email"]
+    assert df.loc[0, "StudentCode"] == "abc123"
+    assert df.loc[0, "Email"] == "test@example.com"
