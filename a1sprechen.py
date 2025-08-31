@@ -626,6 +626,9 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     if is_contract_expired(student_row):
         st.error("Your contract has expired. Contact the office."); return False
 
+    if not _contract_active(student_row["StudentCode"], df):
+        st.error("Outstanding balance past due. Contact the office."); return False
+
     doc_ref = db.collection("students").document(student_row["StudentCode"])
     doc = doc_ref.get()
     if not doc.exists:
