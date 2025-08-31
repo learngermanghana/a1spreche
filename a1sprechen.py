@@ -1434,11 +1434,18 @@ bootstrap_state()
 seed_falowen_state_from_qp()
 
 def _contract_active(sc: str, roster):
-    if roster is None or "StudentCode" not in roster.columns:
+    # Guard against missing roster/column or empty student code
+    if roster is None or "StudentCode" not in roster.columns or not sc:
         return True
-    match = roster[roster["StudentCode"].str.lower() == sc.lower()]
+
+    # Normalize both sides for robust matching
+    left  = roster["StudentCode"].astype(str).str.strip().str.lower()
+    right = str(sc).strip().lower()
+    match = roster.loc[left == right]
+
     if match.empty:
         return True
+
     row = match.iloc[0]
     if is_contract_expired(row):
         return False
@@ -1446,10 +1453,11 @@ def _contract_active(sc: str, roster):
     # Check for outstanding balances older than 30 days
     start_str = str(row.get("ContractStart", "") or "")
     start_date = pd.to_datetime(start_str, errors="coerce")
-    if start_date is not pd.NaT:
+    if pd.notna(start_date):
         days_since_start = (
             pd.Timestamp.now(tz=UTC).date() - start_date.date()
         ).days
+
         def _read_money(x):
             try:
                 s = str(x).replace(",", "").replace(" ", "").strip()
@@ -1465,24 +1473,32 @@ def _contract_active(sc: str, roster):
 
 restored = restore_session_from_cookie(cookie_manager, load_student_data, _contract_active)
 if restored is not None and not st.session_state.get("logged_in", False):
-    sc_cookie = restored["student_code"]
-    token = restored["session_token"]
+    sc_cookie = str(restored.get("student_code", "")).strip()
+    token = restored.get("session_token")
     roster = restored.get("data")
-    if roster is not None and "StudentCode" in roster.columns:
-        filtered = roster[roster["StudentCode"].str.lower() == sc_cookie]
+
+    # Default to empty row unless we find a match
+    row = {}
+
+    if roster is not None and "StudentCode" in roster.columns and sc_cookie:
+        left  = roster["StudentCode"].astype(str).str.strip().str.lower()
+        right = sc_cookie.lower()
+        filtered = roster.loc[left == right]
         if filtered.empty:
-            st.warning("No roster entry found for your student code.")
-            row = {}
+            st.warning("We couldn't match your student code to the roster. Please log in again.")
         else:
             row = filtered.iloc[0]
     else:
-        row = {}
+        # Optional: warn if roster is missing or malformed
+        # st.warning("Roster not available. Please log in again.")
+        pass
+
     level = determine_level(sc_cookie, row)
     st.session_state.update({
         "logged_in": True,
         "student_code": sc_cookie,
-        "student_name": row.get("Name", ""),
-        "student_row": dict(row) if isinstance(row, pd.Series) else {},
+        "student_name": row.get("Name", "") if isinstance(row, dict) else row.get("Name", ""),
+        "student_row": dict(row) if isinstance(row, pd.Series) else (row if isinstance(row, dict) else {}),
         "session_token": token,
         "student_level": level,
     })
@@ -1509,6 +1525,7 @@ if not st.session_state.get("logged_in", False):
 if not st.session_state.get("logged_in", False):
     login_page()
     st.stop()
+
 
 # ==================== LOGGED IN ====================
 # Show header immediately after login on every page
