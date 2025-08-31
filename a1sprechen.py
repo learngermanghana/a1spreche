@@ -107,8 +107,6 @@ from src.schreiben import (
     save_schreiben_feedback,
     load_schreiben_feedback,
     delete_schreiben_feedback,
-    get_letter_coach_usage,
-    inc_letter_coach_usage,
 )
 from src.group_schedules import load_group_schedules
 from src.schedule import load_level_schedules, get_level_schedules
@@ -7864,13 +7862,6 @@ if tab == "Schreiben Trainer":
             unsafe_allow_html=True
         )
 
-        IDEAS_LIMIT = 14
-        ideas_so_far = get_letter_coach_usage(student_code)
-        st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
-        if ideas_so_far >= IDEAS_LIMIT:
-            st.warning("You have reached today's letter coach limit. Please come back tomorrow.")
-            st.stop()
-
         # --- Stage 0: Prompt input ---
         if st.session_state[ns("stage")] == 0:
             if st.button("Start new write-up"):
@@ -7951,7 +7942,6 @@ if tab == "Schreiben Trainer":
 
                     st.session_state[ns("chat")] = chat_history
                     st.session_state[ns("stage")] = 1
-                    inc_letter_coach_usage(student_code)
                     save_letter_coach_progress(
                         student_code,
                         student_level,

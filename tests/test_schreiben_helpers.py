@@ -14,9 +14,7 @@ def helpers(monkeypatch):
     monkeypatch.setattr(mod, "db", MagicMock())
     monkeypatch.setattr(mod, "FieldFilter", MagicMock())
     monkeypatch.setattr(mod, "firestore", MagicMock())
-    monkeypatch.setattr(mod, "date", MagicMock())
 
-    mod.date.today = MagicMock()
     return mod
 
 
@@ -101,9 +99,3 @@ def test_save_submission_no_db(monkeypatch):
     mod.st.warning.assert_called_once()
 
 
-def test_get_letter_coach_usage_empty(helpers):
-    count = helpers.get_letter_coach_usage("")
-    helpers.db.collection.assert_not_called()
-    helpers.date.today.assert_not_called()
-    helpers.st.warning.assert_called_once()
-    assert count == 0
