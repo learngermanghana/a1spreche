@@ -1432,10 +1432,14 @@ def _contract_active(sc: str, roster):
         days_since_start = (
             pd.Timestamp.now(tz=UTC).date() - start_date.date()
         ).days
-        try:
-            balance = float(row.get("Balance", 0) or 0)
-        except (TypeError, ValueError):
-            balance = 0.0
+        def _read_money(x):
+            try:
+                s = str(x).replace(",", "").replace(" ", "").strip()
+                return float(s) if s not in ("", "nan", "None") else 0.0
+            except Exception:
+                return 0.0
+
+        balance = _read_money(row.get("Balance", 0))
         if balance > 0 and days_since_start >= 30:
             return False
 
