@@ -333,3 +333,135 @@ def test_multiple_cookie_managers_are_isolated():
 
     assert cm1.get("student_code") is None
     assert cm2.get("student_code") == "stuB"
+
+
+def test_obsolete_cookie_triggers_login_flow(monkeypatch):
+    """If cookie student code is missing from roster, session is cleared."""
+    import types, sys, importlib
+    import pandas as pd
+    import streamlit as st
+
+    st.session_state.clear()
+
+    # Prepare cookie with obsolete student code
+    cm = create_cookie_manager()
+    cm["student_code"] = "ghost"
+    cm["session_token"] = "tok123"
+
+    # Stub external dependencies required by a1sprechen import
+    monkeypatch.setitem(sys.modules, "docx", types.SimpleNamespace(Document=type("Doc", (), {})))
+    monkeypatch.setitem(
+        sys.modules,
+        "firebase_admin",
+        types.SimpleNamespace(credentials=types.SimpleNamespace(), firestore=types.SimpleNamespace, messaging=types.SimpleNamespace()),
+    )
+    firestore_v1 = types.SimpleNamespace(FieldFilter=type("FF", (), {}))
+    cloud = types.SimpleNamespace(firestore_v1=firestore_v1)
+    monkeypatch.setitem(sys.modules, "google", types.SimpleNamespace(cloud=cloud, api_core=None))
+    monkeypatch.setitem(sys.modules, "google.cloud", cloud)
+    monkeypatch.setitem(sys.modules, "google.cloud.firestore_v1", firestore_v1)
+    api_core_ex = types.SimpleNamespace(GoogleAPICallError=Exception)
+    monkeypatch.setitem(sys.modules, "google.api_core", types.SimpleNamespace(exceptions=api_core_ex))
+    monkeypatch.setitem(sys.modules, "google.api_core.exceptions", api_core_ex)
+    monkeypatch.setitem(sys.modules, "fpdf", types.SimpleNamespace(FPDF=type("PDF", (), {})))
+    monkeypatch.setitem(sys.modules, "gtts", types.SimpleNamespace(gTTS=type("gTTS", (), {})))
+
+    class DummyOpenAI:
+        def __init__(self, api_key=None, **kwargs):
+            pass
+
+    monkeypatch.setitem(sys.modules, "openai", types.SimpleNamespace(OpenAI=DummyOpenAI))
+    monkeypatch.setitem(sys.modules, "streamlit_quill", types.SimpleNamespace(st_quill=lambda *a, **k: None))
+
+    # Stub internal modules that might touch networks during import
+    sys.modules["src.session_management"] = types.SimpleNamespace(
+        bootstrap_state=lambda: None,
+        determine_level=lambda sc, row: "A1",
+        ensure_student_level=lambda: None,
+    )
+    sys.modules["src.stats"] = types.SimpleNamespace(
+        get_student_level=lambda sc: "A1",
+        get_vocab_stats=lambda sc: {},
+        save_vocab_attempt=lambda *a, **k: None,
+        vocab_attempt_exists=lambda *a, **k: False,
+    )
+    sys.modules["src.ui_components"] = types.SimpleNamespace(
+        render_assignment_reminder=lambda *a, **k: None,
+        render_link=lambda *a, **k: None,
+        render_vocab_lookup=lambda *a, **k: None,
+    )
+    sys.modules["src.assignment_ui"] = types.SimpleNamespace(
+        load_assignment_scores=lambda *a, **k: None,
+        render_results_and_resources_tab=lambda *a, **k: None,
+        get_assignment_summary=lambda *a, **k: None,
+    )
+    sys.modules["src.stats_ui"] = types.SimpleNamespace(
+        render_vocab_stats=lambda *a, **k: None,
+        render_schreiben_stats=lambda *a, **k: None,
+    )
+    sys.modules["src.schreiben"] = types.SimpleNamespace(
+        update_schreiben_stats=lambda *a, **k: None,
+        get_schreiben_stats=lambda *a, **k: None,
+        save_submission=lambda *a, **k: None,
+        save_schreiben_feedback=lambda *a, **k: None,
+        load_schreiben_feedback=lambda *a, **k: None,
+        delete_schreiben_feedback=lambda *a, **k: None,
+        get_letter_coach_usage=lambda *a, **k: None,
+        inc_letter_coach_usage=lambda *a, **k: None,
+    )
+    sys.modules["src.group_schedules"] = types.SimpleNamespace(
+        load_group_schedules=lambda *a, **k: None
+    )
+    sys.modules["src.schedule"] = types.SimpleNamespace(
+        load_level_schedules=lambda *a, **k: None,
+        get_level_schedules=lambda *a, **k: None,
+    )
+    sys.modules["src.ui_helpers"] = types.SimpleNamespace(
+        qp_get=lambda *a, **k: None,
+        qp_clear=lambda *a, **k: None,
+        qp_clear_keys=lambda *a, **k: None,
+        seed_falowen_state_from_qp=lambda: None,
+        highlight_terms=lambda *a, **k: None,
+        filter_matches=lambda *a, **k: None,
+    )
+
+    # Patch config and session helpers
+    sys.modules["src.config"] = types.SimpleNamespace(
+        get_cookie_manager=lambda: cm,
+        SB_SESSION_TARGET="",
+    )
+
+    sys.modules["falowen.sessions"] = types.SimpleNamespace(
+        db=None,
+        create_session_token=lambda *a, **k: None,
+        destroy_session_token=lambda *a, **k: None,
+        api_get=lambda *a, **k: None,
+        api_post=lambda *a, **k: None,
+        validate_session_token=lambda tok, ua_hash="": {"student_code": "ghost"},
+    )
+
+    import src.data_loading as data_loading
+
+    data_loading.load_student_data = lambda: pd.DataFrame([
+        {"StudentCode": "abc", "Name": "Alice"}
+    ])
+
+    import src.session_management as session_management
+
+    session_management.determine_level = lambda sc, row: "A1"
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+
+    # Ensure st.stop halts execution without running rest of app
+    import streamlit as st
+    monkeypatch.setattr(st, "stop", lambda: (_ for _ in ()).throw(SystemExit))
+
+    # Import app; it should clear cookies and raise SystemExit from st.stop
+    try:
+        import a1sprechen  # noqa: F401
+    except SystemExit:
+        pass
+
+    assert cm.get("student_code") is None
+    assert cm.get("session_token") is None
+    assert st.session_state.get("logged_in", False) is False
