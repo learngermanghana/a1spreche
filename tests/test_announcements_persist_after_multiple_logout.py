@@ -29,7 +29,9 @@ def load_module():
     mod.cookie_manager = object()
     mod.logging = types.SimpleNamespace(exception=MagicMock())
     mod.render_announcements = MagicMock()
-    mod._fetch_announcements_csv_cached = MagicMock(side_effect=["df1", "df2"])
+    data1 = types.SimpleNamespace(copy=MagicMock(return_value="df1"))
+    data2 = types.SimpleNamespace(copy=MagicMock(return_value="df2"))
+    mod._fetch_announcements_csv_cached = MagicMock(side_effect=[data1, data2])
     code = compile(ast.Module(body=nodes, type_ignores=[]), "logout_module", "exec")
     exec(code, mod.__dict__)
     return mod
