@@ -1241,6 +1241,7 @@ def _do_logout():
     for k in list(st.session_state.keys()):
         if k.startswith("__google_btn_rendered::"):
             st.session_state.pop(k, None)
+
     st.success("You’ve been logged out.")
     st.rerun()
 
