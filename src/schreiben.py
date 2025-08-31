@@ -7,7 +7,7 @@ extracted into their own module for easier reuse and testing.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional, Tuple
 
 import streamlit as st
@@ -212,6 +212,48 @@ def delete_schreiben_feedback(student_code: str) -> None:
     db.collection("schreiben_feedback").document(student_code).delete()
 
 
+# ---------------------------------------------------------------------------
+# Letter Coach usage tracking
+# ---------------------------------------------------------------------------
+
+
+def get_letter_coach_usage(student_code: str) -> int:
+    if not student_code:
+        st.warning("No student code provided; usage assumed 0.")
+        return 0
+    if db is None:
+        st.warning("Firestore not initialized; usage assumed 0.")
+        return 0
+
+    today = str(date.today())
+    doc = db.collection("letter_coach_usage").document(
+        f"{student_code}_{today}"
+    ).get()
+    return doc.to_dict().get("count", 0) if doc.exists else 0
+
+
+def inc_letter_coach_usage(student_code: str) -> None:
+    if not student_code:
+        st.warning("No student code provided; usage assumed 0.")
+        return
+    if db is None:
+        st.warning("Firestore not initialized; usage assumed 0.")
+        return
+
+    today = str(date.today())
+    doc_ref = db.collection("letter_coach_usage").document(
+        f"{student_code}_{today}"
+    )
+    try:
+        doc = doc_ref.get()
+        if doc.exists:
+            doc_ref.update({"count": firestore.Increment(1)})
+        else:
+            doc_ref.set({"student_code": student_code, "date": today, "count": 1})
+    except Exception as exc:  # pragma: no cover - network failure
+        st.error(f"Failed to increment Letter Coach usage: {exc}")
+
+
 __all__ = [
     "update_schreiben_stats",
     "get_schreiben_stats",
@@ -219,4 +261,6 @@ __all__ = [
     "save_schreiben_feedback",
     "load_schreiben_feedback",
     "delete_schreiben_feedback",
+    "get_letter_coach_usage",
+    "inc_letter_coach_usage",
 ]
