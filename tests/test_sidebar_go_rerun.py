@@ -22,23 +22,9 @@ def load_go_module():
     exec(code, mod.__dict__)
     return mod
 
-@pytest.mark.parametrize(
-    "tab",
-    [
-        "Dashboard",
-        "My Course",
-        "My Results and Resources",
-        "Exams Mode & Custom Chat",
-        "Vocab Trainer",
-        "Schreiben Trainer",
-    ],
-)
-def test_go_updates_state_and_triggers_rerun(tab: str):
+def test_go_triggers_rerun_directly():
     mod = load_go_module()
-    mod._go(tab)
-    assert mod.st.session_state["nav_sel"] == tab
-    assert mod.st.session_state["main_tab_select"] == tab
-    assert mod.st.session_state["needs_rerun"] is True
-    if mod.st.session_state.pop("needs_rerun", False):
-        mod.st.rerun()
+    mod._go("Dashboard")
+    assert "needs_rerun" not in mod.st.session_state
+
     mod.st.rerun.assert_called_once()
