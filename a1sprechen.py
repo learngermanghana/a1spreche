@@ -50,6 +50,9 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+if st.session_state.pop("needs_rerun", False):
+    st.rerun()
+
 
 # --- Falowen modules ---
 from falowen.email_utils import send_reset_email, build_gas_reset_link, GAS_RESET_URL
@@ -1241,9 +1244,8 @@ def _do_logout():
     for k in list(st.session_state.keys()):
         if k.startswith("__google_btn_rendered::"):
             st.session_state.pop(k, None)
-
+    st.session_state["needs_rerun"] = True
     st.success("You’ve been logged out.")
-    st.rerun()
 
 def render_logged_in_topbar():
     name  = st.session_state.get("student_name", "")
