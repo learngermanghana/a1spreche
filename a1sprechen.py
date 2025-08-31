@@ -1611,7 +1611,7 @@ def _fetch_announcements_csv_cached():
 def fetch_announcements_csv():
     if "announcements_df" not in st.session_state:
         st.session_state["announcements_df"] = _fetch_announcements_csv_cached()
-    return st.session_state["announcements_df"]
+    return st.session_state["announcements_df"].copy()
 
 def parse_contract_start(date_str: str):
 
