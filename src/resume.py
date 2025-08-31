@@ -40,7 +40,7 @@ def render_resume_banner() -> None:
     if isinstance(pos, int) and pos > 0:
         def _jump() -> None:
             st.query_params["section"] = str(pos)
-            st.session_state["needs_rerun"] = True
+            st.rerun()
 
         st.info(
             f"You last stopped at section {pos} – pick up where you left off!"

@@ -7,6 +7,7 @@ class DummyST:
         self.query_params = {}
         self.info_messages = []
         self.button_calls = []
+        self.rerun_called = False
 
     def info(self, msg):
         self.info_messages.append(msg)
@@ -14,6 +15,9 @@ class DummyST:
     def button(self, label, *, on_click=None):
         self.button_calls.append((label, on_click))
         return False
+
+    def rerun(self):
+        self.rerun_called = True
 
 @pytest.fixture
 def dummy_st(monkeypatch):
@@ -45,4 +49,5 @@ def test_resume_navigation_callback(dummy_st):
     assert cb is not None
     cb()
     assert dummy_st.query_params["section"] == "4"
-    assert dummy_st.session_state["needs_rerun"] is True
+    assert dummy_st.rerun_called is True
+    assert "needs_rerun" not in dummy_st.session_state

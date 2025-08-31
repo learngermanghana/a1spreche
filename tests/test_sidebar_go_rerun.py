@@ -21,10 +21,8 @@ def load_go_module():
     exec(code, mod.__dict__)
     return mod
 
-def test_go_sets_flag_and_triggers_rerun():
+def test_go_triggers_rerun_directly():
     mod = load_go_module()
     mod._go("Dashboard")
-    assert mod.st.session_state["needs_rerun"] is True
-    if mod.st.session_state.pop("needs_rerun", False):
-        mod.st.rerun()
+    assert "needs_rerun" not in mod.st.session_state
     mod.st.rerun.assert_called_once()

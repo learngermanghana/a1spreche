@@ -50,9 +50,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-if st.session_state.pop("needs_rerun", False):
-    st.rerun()
-
 
 # --- Falowen modules ---
 from falowen.email_utils import send_reset_email, build_gas_reset_link, GAS_RESET_URL
@@ -1249,8 +1246,8 @@ def _do_logout():
     for k in list(st.session_state.keys()):
         if k.startswith("__google_btn_rendered::"):
             st.session_state.pop(k, None)
-    st.session_state["needs_rerun"] = True
     st.success("You’ve been logged out.")
+    st.rerun()
 
 def render_logged_in_topbar():
     name  = st.session_state.get("student_name", "")
@@ -1345,7 +1342,7 @@ def render_sidebar_published():
         st.session_state["nav_sel"] = tab_name
         st.session_state["main_tab_select"] = tab_name
         _qp_set_safe(tab=tab_name)
-        st.session_state["needs_rerun"] = True
+        st.rerun()
 
     st.sidebar.markdown("## Quick access")
     st.sidebar.button("🏠 Dashboard",                use_container_width=True, on_click=_go, args=("Dashboard",))
