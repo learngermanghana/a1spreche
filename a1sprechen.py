@@ -1758,6 +1758,7 @@ except Exception as e:
     tab = "Dashboard"
 
 if tab != "Dashboard":
+    render_announcements_once(announcements)
 
 
 # =========================================================
