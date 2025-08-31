@@ -1472,11 +1472,16 @@ if restored is not None and not st.session_state.get("logged_in", False):
     sc_cookie = restored["student_code"]
     token = restored["session_token"]
     roster = restored.get("data")
-    row = (
-        roster[roster["StudentCode"].str.lower() == sc_cookie].iloc[0]
+    matches = (
+        roster[roster["StudentCode"].str.lower() == sc_cookie]
         if roster is not None and "StudentCode" in roster.columns
-        else {}
+        else pd.DataFrame()
     )
+    if matches.empty:
+        logging.warning("Student code %s not found in roster", sc_cookie)
+        row = {}
+    else:
+        row = matches.iloc[0]
     level = determine_level(sc_cookie, row)
     st.session_state.update({
         "logged_in": True,
