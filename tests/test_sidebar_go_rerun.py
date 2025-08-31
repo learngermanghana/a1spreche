@@ -1,5 +1,6 @@
 import ast, types, pathlib
 from unittest.mock import MagicMock
+import pytest
 
 def load_go_module():
     path = pathlib.Path(__file__).resolve().parents[1] / "a1sprechen.py"
@@ -25,4 +26,5 @@ def test_go_triggers_rerun_directly():
     mod = load_go_module()
     mod._go("Dashboard")
     assert "needs_rerun" not in mod.st.session_state
+
     mod.st.rerun.assert_called_once()
