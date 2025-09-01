@@ -17,7 +17,8 @@ from fpdf import FPDF
 
 from .assignment import linkify_html, _clean_link, _is_http_url
 from .schedule import get_level_schedules as _get_level_schedules
-from .pdf_utils import make_qr_code, load_school_logo
+# ``load_school_logo`` is defined below; only import QR helper here.
+from .pdf_utils import make_qr_code
 from .data_loading import load_student_data
 
 # URLs for letterhead and watermark images are configurable via environment
@@ -269,7 +270,7 @@ def generate_enrollment_letter_pdf(
     enrollment_start: str,
     enrollment_end: str,
 ) -> bytes:
-    """Generate a simple enrollment letter as PDF bytes."""
+    """Generate an enrollment letter as PDF bytes."""
 
     pdf = FPDF()
     pdf.add_page()
@@ -308,22 +309,36 @@ def generate_enrollment_letter_pdf(
     except Exception:
         pass
 
-    pdf.set_font("Arial", size=12)
     pdf.set_y(40)
-
-    text = (
-        f"This letter certifies that {student_name} is enrolled in the {student_level} "
-        f"course from {enrollment_start} to {enrollment_end}."
-    )
-    pdf.multi_cell(0, 10, clean_for_pdf(text))
-    pdf.ln(10)
-    pdf.multi_cell(
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, clean_for_pdf("Learn Language Education Academy"), ln=1, align="C")
+    pdf.set_font("Helvetica", size=10)
+    pdf.cell(
         0,
-        10,
-        clean_for_pdf(
-            "For verification, scan the QR code or contact our office."
-        ),
+        6,
+        clean_for_pdf("https://www.learngermanghana.com | 0205706589 | Accra, Ghana"),
+        ln=1,
+        align="C",
     )
+    pdf.cell(0, 6, clean_for_pdf("Business Reg No: BN173410224"), ln=1, align="C")
+    pdf.ln(10)
+
+    pdf.set_font("Helvetica", size=12)
+    body_lines = [
+        "To Whom It May Concern,",
+        f"{student_name} is officially enrolled in {student_level} at Learn Language Education Academy.",
+        f"Enrollment valid from {enrollment_start} to {enrollment_end}.",
+        "Business Reg No: BN173410224.",
+        "",
+        "Yours sincerely,",
+        "",
+        "Felix Asadu",
+        "Director",
+        "Learn Language Education Academy",
+    ]
+    for line in body_lines:
+        pdf.multi_cell(0, 8, clean_for_pdf(line))
+        pdf.ln(1)
 
     # QR code
     try:
@@ -351,7 +366,7 @@ def generate_receipt_pdf(
     balance: float,
     receipt_date: str,
 ) -> bytes:
-    """Generate a simple payment receipt as PDF bytes."""
+    """Generate a simple payment receipt as PDF bytes with improved fonts."""
 
     pdf = FPDF()
     pdf.add_page()
@@ -365,8 +380,27 @@ def generate_receipt_pdf(
         except Exception:
             pdf.ln(5)
 
-    pdf.set_font("Arial", size=12)
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, clean_for_pdf("Payment Receipt"), ln=1, align="C")
+    pdf.set_font("Helvetica", size=10)
+    pdf.cell(
+        0,
+        6,
+        clean_for_pdf("Learn Language Education Academy"),
+        ln=1,
+        align="C",
+    )
+    pdf.cell(
+        0,
+        6,
+        clean_for_pdf("https://www.learngermanghana.com | 0205706589 | Accra, Ghana"),
+        ln=1,
+        align="C",
+    )
+    pdf.cell(0, 6, clean_for_pdf("Business Reg No: BN173410224"), ln=1, align="C")
+    pdf.ln(10)
 
+    pdf.set_font("Helvetica", size=12)
     lines = [
         f"Student: {student_name} ({student_level})",
         f"Student Code: {student_code}",
@@ -376,7 +410,7 @@ def generate_receipt_pdf(
         f"Date: {receipt_date}",
     ]
     for line in lines:
-        pdf.multi_cell(0, 10, clean_for_pdf(line))
+        pdf.multi_cell(0, 8, clean_for_pdf(line))
         pdf.ln(2)
 
     return pdf.output(dest="S").encode("latin1", "replace")
@@ -722,8 +756,20 @@ def render_results_and_resources_tab() -> None:
                 )
 
         elif choice == "Enrollment Letter":
-            start_date = st.text_input("Enrollment start")
-            end_date = st.text_input("Enrollment end")
+            df_students = load_student_data()
+            start_date = end_date = ""
+            if df_students is not None and "StudentCode" in df_students.columns:
+                try:
+                    row_match = df_students[
+                        df_students["StudentCode"].astype(str).str.lower().str.strip()
+                        == code_key
+                    ]
+                    if not row_match.empty:
+                        row0 = row_match.iloc[0]
+                        start_date = str(row0.get("ContractStart", ""))
+                        end_date = str(row0.get("ContractEnd", ""))
+                except Exception:
+                    pass
             if st.button("Generate Enrollment Letter"):
                 pdf_bytes = generate_enrollment_letter_pdf(
                     student_name or "Student",
