@@ -1910,7 +1910,8 @@ if tab == "Dashboard":
 
     if not _your_row.empty:
         _rank = int(_your_row.iloc[0]["Rank"])
-        _rank_text = f"Rank #{_rank} of {_total_students}"
+        _total_score = int(_your_row.iloc[0]["total_score"])
+        _rank_text = f"Rank #{_rank} of {_total_students} — {_total_score} pts"
         _lead_chip = "<span class='pill pill-purple'>On the board</span>"
     else:
         _rank_text = "Complete 3+ assignments to be ranked"
