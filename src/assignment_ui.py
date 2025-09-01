@@ -412,10 +412,12 @@ def generate_receipt_pdf(
     pdf.ln(10)
 
     pdf.set_font("DejaVu", size=12)
+    status = "Full payment" if balance == 0 else "Installment"
     lines = [
         f"Student: {student_name} ({student_level})",
         f"Student Code: {student_code}",
         f"Contract Start: {contract_start}",
+        f"Status: {status}",
         f"Amount Paid: {format_cedis(paid)}",
         f"Balance: {format_cedis(balance)}",
         f"Date: {receipt_date}",
