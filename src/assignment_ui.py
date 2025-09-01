@@ -444,12 +444,12 @@ def render_results_and_resources_tab() -> None:
         with st.expander("What badges can you earn?", expanded=False):
             st.markdown(
                 """
-                - 🏆 **Completion Trophy**: Finish all assignments for your level.
-                - 🥇 **Gold Badge**: Maintain an average score above 80.
-                - 🥈 **Silver Badge**: Average score above 70.
-                - 🥉 **Bronze Badge**: Average score above 60.
-                - 🌟 **Star Performer**: Score 85 or higher on any assignment.
-                """
+- 🏆 **Completion Trophy**: Finish all assignments for your level.
+- 🥇 **Gold Badge**: Maintain an average score above 80.
+- 🥈 **Silver Badge**: Average score above 70.
+- 🥉 **Bronze Badge**: Average score above 60.
+- 🌟 **Star Performer**: Score 85 or higher on any assignment.
+"""
             )
 
         badge_count = 0
