@@ -16,6 +16,7 @@ from fpdf import FPDF
 
 from .assignment import linkify_html, _clean_link, _is_http_url
 from .schedule import get_level_schedules as _get_level_schedules
+from .pdf_utils import make_qr_code
 
 # ---------------------------------------------------------------------------
 # Data loaders
@@ -222,6 +223,69 @@ def get_assignment_summary(student_code: str, level: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# PDF helpers
+# ---------------------------------------------------------------------------
+
+def generate_enrollment_letter_pdf(
+    student_name: str,
+    student_level: str,
+    enrollment_start: str,
+    enrollment_end: str,
+) -> bytes:
+    """Generate a simple enrollment letter as PDF bytes."""
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+
+    pdf.set_font("Arial", size=12)
+
+    text = (
+        f"This letter certifies that {student_name} is enrolled in the {student_level} "
+        f"course from {enrollment_start} to {enrollment_end}."
+    )
+    pdf.multi_cell(0, 10, clean_for_pdf(text))
+    pdf.ln(10)
+    pdf.multi_cell(
+        0,
+        10,
+        clean_for_pdf(
+            "For verification, scan the QR code or contact our office."
+        ),
+    )
+
+    # Watermark background image from Google Drive
+    WATERMARK_URL = (
+        "https://drive.google.com/uc?export=view&id=1DFpoy8VY8D47B4npUh0t1Jn_Jr_ozxTo"
+    )
+    try:  # pragma: no cover - network use is best effort
+        resp = requests.get(WATERMARK_URL, timeout=8)
+        resp.raise_for_status()
+        tmp_wm = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+        tmp_wm.write(resp.content)
+        tmp_wm.flush()
+        pdf.image(tmp_wm.name, x=15, y=60, w=180)
+    except Exception:
+        pass
+
+    # QR code
+    try:
+        qr_payload = (
+            f"{student_name}|{student_level}|{enrollment_start}|{enrollment_end}"
+        )
+        qr_bytes = make_qr_code(qr_payload)
+        if qr_bytes:
+            tmp_qr = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+            tmp_qr.write(qr_bytes)
+            tmp_qr.flush()
+            pdf.image(tmp_qr.name, x=pdf.w - 40, y=pdf.h - 50, w=30)
+    except Exception:
+        pass
+
+    return pdf.output(dest="S").encode("latin1", "replace")
+
+
+# ---------------------------------------------------------------------------
 # Main renderer
 # ---------------------------------------------------------------------------
 
@@ -312,7 +376,7 @@ def render_results_and_resources_tab() -> None:
 
     rr_page = st.radio(
         "Results & Resources section",
-        ["Overview", "My Scores", "Badges", "Missed & Next", "PDF", "Resources"],
+        ["Overview", "My Scores", "Badges", "Missed & Next", "PDF", "Downloads", "Resources"],
         horizontal=True,
         key="rr_page",
         on_change=on_rr_page_change,
@@ -558,6 +622,24 @@ def render_results_and_resources_tab() -> None:
                 "If the button does not work, right-click the blue link above and choose 'Save link as...'"
             )
 
+    elif rr_page == "Downloads":
+        st.subheader("Downloads")
+        start_date = st.text_input("Enrollment start")
+        end_date = st.text_input("Enrollment end")
+        if st.button("Generate Enrollment Letter"):
+            pdf_bytes = generate_enrollment_letter_pdf(
+                student_name or "Student",
+                level,
+                start_date or "",
+                end_date or "",
+            )
+            st.download_button(
+                "Download Enrollment Letter PDF",
+                data=pdf_bytes,
+                file_name=f"{code_key}_enrollment_letter.pdf",
+                mime="application/pdf",
+            )
+
     elif rr_page == "Resources":
         st.subheader("Useful Resources")
         st.markdown(
@@ -584,4 +666,5 @@ __all__ = [
     "load_assignment_scores",
     "render_results_and_resources_tab",
     "get_assignment_summary",
+    "generate_enrollment_letter_pdf",
 ]
