@@ -376,7 +376,7 @@ def render_results_and_resources_tab() -> None:
 
     rr_page = st.radio(
         "Results & Resources section",
-        ["Overview", "My Scores", "Badges", "Missed & Next", "PDF", "Downloads", "Resources"],
+        ["Overview", "My Scores", "Badges", "Missed & Next", "Downloads", "Resources"],
         horizontal=True,
         key="rr_page",
         on_change=on_rr_page_change,
@@ -509,8 +509,10 @@ def render_results_and_resources_tab() -> None:
         else:
             st.success("🎉 You’re up to date!")
 
-    elif rr_page == "PDF":
-        st.subheader("Download PDF Summary")
+    elif rr_page == "Downloads":
+        st.subheader("Downloads")
+
+        st.markdown("**Results summary PDF**")
         COL_ASSN_W, COL_SCORE_W, COL_DATE_W = 45, 18, 30
         PAGE_WIDTH, MARGIN = 210, 10
         FEEDBACK_W = PAGE_WIDTH - 2 * MARGIN - (COL_ASSN_W + COL_SCORE_W + COL_DATE_W)
@@ -559,7 +561,7 @@ def render_results_and_resources_tab() -> None:
                 self.set_text_color(0, 0, 0)
                 self.alias_nb_pages()
 
-        if st.button("⬇️ Create & Download PDF"):
+        if st.button("⬇️ Create & Download Results PDF"):
             pdf = PDFReport()
             pdf.add_page()
 
@@ -607,7 +609,7 @@ def render_results_and_resources_tab() -> None:
 
             pdf_bytes = pdf.output(dest="S").encode("latin1", "replace")
             st.download_button(
-                label="Download PDF",
+                label="Download Results PDF",
                 data=pdf_bytes,
                 file_name=f"{code_key}_results_{level}.pdf",
                 mime="application/pdf",
@@ -615,15 +617,15 @@ def render_results_and_resources_tab() -> None:
             b64 = _b64.b64encode(pdf_bytes).decode()
             st.markdown(
                 f'<a href="data:application/pdf;base64,{b64}" download="{code_key}_results_{level}.pdf" '
-                f'style="font-size:1.1em;font-weight:600;color:#2563eb;">📥 Click here to download PDF (manual)</a>',
+                f'style="font-size:1.1em;font-weight:600;color:#2563eb;">📥 Click here to download results PDF (manual)</a>',
                 unsafe_allow_html=True,
             )
             st.info(
                 "If the button does not work, right-click the blue link above and choose 'Save link as...'"
             )
 
-    elif rr_page == "Downloads":
-        st.subheader("Downloads")
+        st.markdown("---")
+        st.markdown("**Enrollment letter PDF**")
         start_date = st.text_input("Enrollment start")
         end_date = st.text_input("Enrollment end")
         if st.button("Generate Enrollment Letter"):
@@ -639,6 +641,15 @@ def render_results_and_resources_tab() -> None:
                 file_name=f"{code_key}_enrollment_letter.pdf",
                 mime="application/pdf",
             )
+
+        st.markdown("---")
+        st.markdown("**Receipt PDF**")
+        st.download_button(
+            "Download Receipt PDF (coming soon)",
+            data=b"",
+            file_name=f"{code_key}_receipt.pdf",
+            disabled=True,
+        )
 
     elif rr_page == "Resources":
         st.subheader("Useful Resources")
