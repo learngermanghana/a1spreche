@@ -572,192 +572,199 @@ def render_results_and_resources_tab() -> None:
 
     elif rr_page == "Downloads":
         st.subheader("Downloads")
+        choice = st.radio(
+            "Select a download", ["Results PDF", "Enrollment Letter", "Receipt"]
+        )
 
-        st.markdown("**Results summary PDF**")
-        COL_ASSN_W, COL_SCORE_W, COL_DATE_W = 45, 18, 30
-        PAGE_WIDTH, MARGIN = 210, 10
-        FEEDBACK_W = PAGE_WIDTH - 2 * MARGIN - (COL_ASSN_W + COL_SCORE_W + COL_DATE_W)
-        LOGO_URL = "https://i.imgur.com/iFiehrp.png"
+        if choice == "Results PDF":
+            st.markdown("**Results summary PDF**")
+            COL_ASSN_W, COL_SCORE_W, COL_DATE_W = 45, 18, 30
+            PAGE_WIDTH, MARGIN = 210, 10
+            FEEDBACK_W = PAGE_WIDTH - 2 * MARGIN - (
+                COL_ASSN_W + COL_SCORE_W + COL_DATE_W
+            )
+            LOGO_URL = "https://i.imgur.com/iFiehrp.png"
 
-        def fetch_logo():
-            try:
-                r = requests.get(LOGO_URL, timeout=6)
-                r.raise_for_status()
-                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-                tmp.write(r.content)
-                tmp.flush()
-                tmp.close()
-                return tmp.name
-            except Exception:
-                return None
+            def fetch_logo():
+                try:
+                    r = requests.get(LOGO_URL, timeout=6)
+                    r.raise_for_status()
+                    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+                    tmp.write(r.content)
+                    tmp.flush()
+                    tmp.close()
+                    return tmp.name
+                except Exception:
+                    return None
 
-        class PDFReport(FPDF):
-            def header(self):
-                logo_path = fetch_logo()
-                if logo_path:
-                    try:
-                        self.image(logo_path, 10, 8, 30)
-                    except Exception:
-                        pass
-                    finally:
+            class PDFReport(FPDF):
+                def header(self):
+                    logo_path = fetch_logo()
+                    if logo_path:
                         try:
-                            os.unlink(logo_path)
+                            self.image(logo_path, 10, 8, 30)
                         except Exception:
                             pass
-                    self.ln(20)
-                else:
-                    self.ln(28)
-                self.set_font("Arial", "B", 16)
-                self.cell(0, 12, clean_for_pdf("Learn Language Education Academy"), ln=1, align="C")
-                self.ln(3)
+                        finally:
+                            try:
+                                os.unlink(logo_path)
+                            except Exception:
+                                pass
+                        self.ln(20)
+                    else:
+                        self.ln(28)
+                    self.set_font("Arial", "B", 16)
+                    self.cell(
+                        0,
+                        12,
+                        clean_for_pdf("Learn Language Education Academy"),
+                        ln=1,
+                        align="C",
+                    )
+                    self.ln(3)
 
-            def footer(self):
-                self.set_y(-15)
-                self.set_font("Arial", "I", 9)
-                self.set_text_color(120, 120, 120)
-                footer_text = clean_for_pdf(
-                    "Learn Language Education Academy — Results generated on "
-                ) + pd.Timestamp.now().strftime("%d.%m.%Y")
-                self.cell(0, 8, footer_text, 0, 0, "C")
-                self.set_text_color(0, 0, 0)
-                self.alias_nb_pages()
+                def footer(self):
+                    self.set_y(-15)
+                    self.set_font("Arial", "I", 9)
+                    self.set_text_color(120, 120, 120)
+                    footer_text = clean_for_pdf(
+                        "Learn Language Education Academy — Results generated on "
+                    ) + pd.Timestamp.now().strftime("%d.%m.%Y")
+                    self.cell(0, 8, footer_text, 0, 0, "C")
+                    self.set_text_color(0, 0, 0)
+                    self.alias_nb_pages()
 
-        if st.button("⬇️ Create & Download Results PDF"):
-            pdf = PDFReport()
-            pdf.add_page()
+            if st.button("⬇️ Create & Download Results PDF"):
+                pdf = PDFReport()
+                pdf.add_page()
 
-            pdf.set_font("Arial", "", 12)
-            try:
-                shown_name = df_user.name.iloc[0]
-            except Exception:
-                shown_name = student_name or "Student"
-            pdf.cell(0, 8, clean_for_pdf(f"Name: {shown_name}"), ln=1)
-            pdf.cell(0, 8, clean_for_pdf(f"Code: {code_key}     Level: {level}"), ln=1)
-            pdf.cell(0, 8, clean_for_pdf(f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"), ln=1)
-            pdf.ln(5)
+                pdf.set_font("Arial", "", 12)
+                try:
+                    shown_name = df_user.name.iloc[0]
+                except Exception:
+                    shown_name = student_name or "Student"
+                pdf.cell(0, 8, clean_for_pdf(f"Name: {shown_name}"), ln=1)
+                pdf.cell(
+                    0, 8, clean_for_pdf(f"Code: {code_key}     Level: {level}"), ln=1
+                )
+                pdf.cell(
+                    0,
+                    8,
+                    clean_for_pdf(f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"),
+                    ln=1,
+                )
+                pdf.ln(5)
 
-            pdf.set_font("Arial", "B", 13)
-            pdf.cell(0, 10, clean_for_pdf("Summary Metrics"), ln=1)
-            pdf.set_font("Arial", "", 11)
-            pdf.cell(
-                0,
-                8,
-                clean_for_pdf(
-                    f"Total: {total}   Completed: {completed}   Avg: {avg_score:.1f}   Best: {best_score:.0f}"
-                ),
-                ln=1,
+                pdf.set_font("Arial", "B", 13)
+                pdf.cell(0, 10, clean_for_pdf("Summary Metrics"), ln=1)
+                pdf.set_font("Arial", "", 11)
+                pdf.cell(
+                    0,
+                    8,
+                    clean_for_pdf(
+                        f"Total: {total}   Completed: {completed}   Avg: {avg_score:.1f}   Best: {best_score:.0f}"
+                    ),
+                    ln=1,
+                )
+                pdf.ln(6)
+
+                pdf.set_font("Arial", "B", 11)
+                pdf.cell(COL_ASSN_W, 8, "Assignment", 1, 0, "C")
+                pdf.cell(COL_SCORE_W, 8, "Score", 1, 0, "C")
+                pdf.cell(COL_DATE_W, 8, "Date", 1, 0, "C")
+                pdf.cell(FEEDBACK_W, 8, "Feedback", 1, 1, "C")
+
+                pdf.set_font("Arial", "", 10)
+                row_fill = False
+                for _, row in df_display.iterrows():
+                    assn = clean_for_pdf(str(row["assignment"]))
+                    score_txt = clean_for_pdf(str(row["score"]))
+                    date_txt = clean_for_pdf(str(row["date"]))
+                    label = clean_for_pdf(score_label_fmt(row["score"], plain=True))
+                    pdf.cell(COL_ASSN_W, 8, assn, 1, 0, "L", row_fill)
+                    pdf.cell(COL_SCORE_W, 8, score_txt, 1, 0, "C", row_fill)
+                    pdf.cell(COL_DATE_W, 8, date_txt, 1, 0, "C", row_fill)
+                    pdf.multi_cell(FEEDBACK_W, 8, label, 1, "C", row_fill)
+                    row_fill = not row_fill
+
+                pdf_bytes = pdf.output(dest="S").encode("latin1", "replace")
+                st.download_button(
+                    label="Download Results PDF",
+                    data=pdf_bytes,
+                    file_name=f"{code_key}_results_{level}.pdf",
+                    mime="application/pdf",
+                )
+                b64 = _b64.b64encode(pdf_bytes).decode()
+                st.markdown(
+                    f'<a href="data:application/pdf;base64,{b64}" download="{code_key}_results_{level}.pdf" '
+                    f'style="font-size:1.1em;font-weight:600;color:#2563eb;">📥 Click here to download results PDF (manual)</a>',
+                    unsafe_allow_html=True,
+                )
+                st.info(
+                    "If the button does not work, right-click the blue link above and choose 'Save link as...'"
+                )
+
+        elif choice == "Enrollment Letter":
+            start_date = st.text_input("Enrollment start")
+            end_date = st.text_input("Enrollment end")
+            if st.button("Generate Enrollment Letter"):
+                pdf_bytes = generate_enrollment_letter_pdf(
+                    student_name or "Student",
+                    level,
+                    start_date or "",
+                    end_date or "",
+                )
+                st.download_button(
+                    "Download Enrollment Letter PDF",
+                    data=pdf_bytes,
+                    file_name=f"{code_key}_enrollment_letter.pdf",
+                    mime="application/pdf",
+                )
+        else:
+            df_students = load_student_data()
+            paid = balance = 0.0
+            if df_students is not None and "StudentCode" in df_students.columns:
+                try:
+                    row_match = df_students[
+                        df_students["StudentCode"].astype(str).str.lower().str.strip()
+                        == code_key
+                    ]
+                    if not row_match.empty:
+                        def _read_money(x):
+                            try:
+                                s = (
+                                    str(x)
+                                    .replace(",", "")
+                                    .replace(" ", "")
+                                    .strip()
+                                )
+                                return float(s) if s not in ("", "nan", "None") else 0.0
+                            except Exception:
+                                return 0.0
+
+                        row0 = row_match.iloc[0]
+                        paid = _read_money(row0.get("Paid", 0))
+                        balance = _read_money(row0.get("Balance", 0))
+                except Exception:
+                    pass
+
+            receipt_date = st.text_input(
+                "Receipt date", value=date.today().isoformat()
             )
-            pdf.ln(6)
-
-            pdf.set_font("Arial", "B", 11)
-            pdf.cell(COL_ASSN_W, 8, "Assignment", 1, 0, "C")
-            pdf.cell(COL_SCORE_W, 8, "Score", 1, 0, "C")
-            pdf.cell(COL_DATE_W, 8, "Date", 1, 0, "C")
-            pdf.cell(FEEDBACK_W, 8, "Feedback", 1, 1, "C")
-
-            pdf.set_font("Arial", "", 10)
-            row_fill = False
-            for _, row in df_display.iterrows():
-                assn = clean_for_pdf(str(row["assignment"]))
-                score_txt = clean_for_pdf(str(row["score"]))
-                date_txt = clean_for_pdf(str(row["date"]))
-                label = clean_for_pdf(score_label_fmt(row["score"], plain=True))
-                pdf.cell(COL_ASSN_W, 8, assn, 1, 0, "L", row_fill)
-                pdf.cell(COL_SCORE_W, 8, score_txt, 1, 0, "C", row_fill)
-                pdf.cell(COL_DATE_W, 8, date_txt, 1, 0, "C", row_fill)
-                pdf.multi_cell(FEEDBACK_W, 8, label, 1, "C", row_fill)
-                row_fill = not row_fill
-
-            pdf_bytes = pdf.output(dest="S").encode("latin1", "replace")
-            st.download_button(
-                label="Download Results PDF",
-                data=pdf_bytes,
-                file_name=f"{code_key}_results_{level}.pdf",
-                mime="application/pdf",
-            )
-            b64 = _b64.b64encode(pdf_bytes).decode()
-            st.markdown(
-                f'<a href="data:application/pdf;base64,{b64}" download="{code_key}_results_{level}.pdf" '
-                f'style="font-size:1.1em;font-weight:600;color:#2563eb;">📥 Click here to download results PDF (manual)</a>',
-                unsafe_allow_html=True,
-            )
-            st.info(
-                "If the button does not work, right-click the blue link above and choose 'Save link as...'"
-            )
-
-    elif rr_page == "Downloads":
-        st.subheader("Downloads")
-
-        df_students = load_student_data()
-        paid = balance = 0.0
-        if df_students is not None and "StudentCode" in df_students.columns:
-            try:
-                row_match = df_students[
-                    df_students["StudentCode"].astype(str).str.lower().str.strip()
-                    == code_key
-                ]
-                if not row_match.empty:
-                    def _read_money(x):
-                        try:
-                            s = (
-                                str(x)
-                                .replace(",", "")
-                                .replace(" ", "")
-                                .strip()
-                            )
-                            return float(s) if s not in ("", "nan", "None") else 0.0
-                        except Exception:
-                            return 0.0
-
-                    row0 = row_match.iloc[0]
-                    paid = _read_money(row0.get("Paid", 0))
-                    balance = _read_money(row0.get("Balance", 0))
-            except Exception:
-                pass
-
-
-        start_date = st.text_input("Enrollment start")
-        end_date = st.text_input("Enrollment end")
-        if st.button("Generate Enrollment Letter"):
-            pdf_bytes = generate_enrollment_letter_pdf(
-                student_name or "Student",
-                level,
-                start_date or "",
-                end_date or "",
-            )
-            st.download_button(
-                "Download Enrollment Letter PDF",
-                data=pdf_bytes,
-                file_name=f"{code_key}_enrollment_letter.pdf",
-                mime="application/pdf",
-            )
-
-        receipt_date = st.text_input(
-            "Receipt date", value=date.today().isoformat()
-        )
-        if st.button("Generate Receipt"):
-            pdf_bytes = generate_receipt_pdf(
-                student_name or "Student",
-                level,
-                paid,
-                balance,
-                receipt_date or "",
-            )
-            st.download_button(
-                "Download Receipt PDF",
-                data=pdf_bytes,
-                file_name=f"{code_key}_receipt.pdf",
-                mime="application/pdf",
-            )
-
-        st.markdown("---")
-        st.markdown("**Receipt PDF**")
-        st.download_button(
-            "Download Receipt PDF (coming soon)",
-            data=b"",
-            file_name=f"{code_key}_receipt.pdf",
-            disabled=True,
-        )
+            if st.button("Generate Receipt"):
+                pdf_bytes = generate_receipt_pdf(
+                    student_name or "Student",
+                    level,
+                    paid,
+                    balance,
+                    receipt_date or "",
+                )
+                st.download_button(
+                    "Download Receipt PDF",
+                    data=pdf_bytes,
+                    file_name=f"{code_key}_receipt.pdf",
+                    mime="application/pdf",
+                )
 
 
     elif rr_page == "Resources":
