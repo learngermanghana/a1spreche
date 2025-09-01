@@ -15,6 +15,7 @@ import streamlit as st
 from fpdf import FPDF
 
 from .assignment import linkify_html, _clean_link, _is_http_url
+from .data_loading import load_student_data
 from .schedule import get_level_schedules as _get_level_schedules
 from .pdf_utils import make_qr_code
 
@@ -127,6 +128,36 @@ def _get_current_student() -> Tuple[str, str, str]:
     ).strip()
     level = (row.get("Level") or "").strip().upper()
     return code, name, level
+
+
+def get_enrollment_dates(student_code: str) -> Tuple[str, str]:
+    """Return contract start and end dates for a student code.
+
+    Parameters
+    ----------
+    student_code:
+        The student's unique identifier.
+
+    Returns
+    -------
+    Tuple[str, str]
+        ``(ContractStart, ContractEnd)`` or empty strings if unavailable.
+    """
+
+    try:
+        df = load_student_data()
+    except Exception:
+        return "", ""
+    if df is None or "StudentCode" not in df.columns:
+        return "", ""
+    code_key = (student_code or "").lower().strip()
+    df_match = df[df["StudentCode"].astype(str).str.lower().str.strip() == code_key]
+    if df_match.empty:
+        return "", ""
+    row = df_match.iloc[0]
+    start = str(row.get("ContractStart", "") or "")
+    end = str(row.get("ContractEnd", "") or "")
+    return start, end
 
 
 def get_assignment_summary(student_code: str, level: str) -> dict:
@@ -623,11 +654,12 @@ def render_results_and_resources_tab() -> None:
             st.info(
                 "If the button does not work, right-click the blue link above and choose 'Save link as...'"
             )
-
-        st.markdown("---")
-        st.markdown("**Enrollment letter PDF**")
-        start_date = st.text_input("Enrollment start")
-        end_date = st.text_input("Enrollment end")
+    elif rr_page == "Downloads":
+        st.subheader("Downloads")
+        start_date, end_date = get_enrollment_dates(student_code)
+        st.markdown(f"**Enrollment start:** {start_date or 'N/A'}")
+        st.markdown(f"**Enrollment end:** {end_date or 'N/A'}")
+        
         if st.button("Generate Enrollment Letter"):
             pdf_bytes = generate_enrollment_letter_pdf(
                 student_name or "Student",
@@ -678,4 +710,5 @@ __all__ = [
     "render_results_and_resources_tab",
     "get_assignment_summary",
     "generate_enrollment_letter_pdf",
+    "get_enrollment_dates",
 ]
