@@ -372,7 +372,11 @@ def generate_receipt_pdf(
     balance: float,
     receipt_date: str,
 ) -> bytes:
-    """Generate a simple payment receipt as PDF bytes with improved fonts."""
+    """Generate a simple payment receipt as PDF bytes with improved fonts.
+
+    The receipt now includes a status line at the top indicating whether the
+    payment is complete or an installment with a remaining balance.
+    """
 
     pdf = FPDF()
     pdf.add_page()
@@ -412,7 +416,17 @@ def generate_receipt_pdf(
     pdf.ln(10)
 
     pdf.set_font("DejaVu", size=12)
+
+    # Add payment status before student details
+    if balance == 0:
+        status_line = "Status: Full payment"
+    else:
+        status_line = (
+            f"Status: Installment – Balance remaining {format_cedis(balance)}"
+        )
+
     lines = [
+        status_line,
         f"Student: {student_name} ({student_level})",
         f"Student Code: {student_code}",
         f"Contract Start: {contract_start}",
@@ -420,9 +434,10 @@ def generate_receipt_pdf(
         f"Balance: {format_cedis(balance)}",
         f"Date: {receipt_date}",
     ]
-    for line in lines:
+
+    for idx, line in enumerate(lines):
         pdf.multi_cell(0, 8, clean_for_pdf(line))
-        pdf.ln(2)
+        pdf.ln(4 if idx == 0 else 2)
 
     return pdf.output(dest="S").encode("latin1")
 

@@ -7,7 +7,8 @@ def test_generate_receipt_pdf_returns_bytes():
     )
     assert isinstance(pdf_bytes, (bytes, bytearray))
     assert len(pdf_bytes) > 0
-    import re, zlib
+    import re
+    import zlib
 
     extracted = b""
     for match in re.finditer(rb"stream\r?\n(.+?)\r?\nendstream", pdf_bytes, re.DOTALL):
