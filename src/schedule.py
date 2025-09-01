@@ -415,8 +415,8 @@ def get_a1_schedule():
             "instruction": " This chapter has no assignment. Only grammar",
             "grammar_topic": "Adjective Declension and Dative Verbs",
             "lesen_hören": {
-                "video": "",
-                "youtube_link": "",
+                "video": "https://youtu.be/sAd8rWu9O0Q",
+                "youtube_link": "https://youtu.be/sAd8rWu9O0Q",
                 "assignment": False,
                 "grammarbook_link": "https://drive.google.com/file/d/16h-yS0gkB2_FL1zxCC4MaqRBbKne7GI1/view?usp=sharing",
                 "workbook_link": ""
