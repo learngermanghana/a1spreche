@@ -756,7 +756,7 @@ def render_returning_login_area() -> bool:
 # ------------------------------------------------------------------------------
 def render_announcements(ANNOUNCEMENTS: list):
     if not ANNOUNCEMENTS:
-        st.info("📣 No announcements to show.")
+        st.info("📣 No new updates to show.")
         return
     _html = """
     <style>
@@ -778,7 +778,7 @@ def render_announcements(ANNOUNCEMENTS: list):
       .ann-dot[aria-current="true"]{background:var(--brand);opacity:1;transform:scale(1.22);box-shadow:0 0 0 4px var(--ring)}
     </style>
     <div class="page-wrap">
-      <div class="ann-title">📣 Announcements</div>
+      <div class="ann-title">📣 New Updates</div>
       <div class="ann-shell" id="ann_shell" aria-live="polite">
         <div id="ann_card">
           <div class="ann-heading"><span class="ann-chip" id="ann_tag" style="display:none;"></span><span id="ann_title"></span></div>
