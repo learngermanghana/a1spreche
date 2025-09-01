@@ -80,8 +80,9 @@ def clean_for_pdf(text: str) -> str:
     if not isinstance(text, str):
         text = str(text)
     text = _ud.normalize("NFKD", text)
-    text = "".join(c if 32 <= ord(c) <= 255 else "?" for c in text)
-    return text.replace("\n", " ").replace("\r", " ")
+    text = text.replace("\n", " ").replace("\r", " ")
+    text = "".join(c if c.isprintable() else "?" for c in text)
+    return text
 
 
 def load_school_logo() -> str:
@@ -372,6 +373,11 @@ def generate_receipt_pdf(
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
 
+    font_path = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "font", "DejaVuSans.ttf")
+    )
+    pdf.add_font("DejaVu", "", font_path, uni=True)
+
     logo = load_school_logo()
     if logo:
         try:  # pragma: no cover - rendering
@@ -400,7 +406,7 @@ def generate_receipt_pdf(
     pdf.cell(0, 6, clean_for_pdf("Business Reg No: BN173410224"), ln=1, align="C")
     pdf.ln(10)
 
-    pdf.set_font("Helvetica", size=12)
+    pdf.set_font("DejaVu", size=12)
     lines = [
         f"Student: {student_name} ({student_level})",
         f"Student Code: {student_code}",
@@ -413,7 +419,7 @@ def generate_receipt_pdf(
         pdf.multi_cell(0, 8, clean_for_pdf(line))
         pdf.ln(2)
 
-    return pdf.output(dest="S").encode("latin1", "replace")
+    return pdf.output(dest="S").encode("latin1")
 
 
 # ---------------------------------------------------------------------------
