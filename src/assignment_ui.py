@@ -17,7 +17,7 @@ from fpdf import FPDF
 
 from .assignment import linkify_html, _clean_link, _is_http_url
 from .schedule import get_level_schedules as _get_level_schedules
-from .pdf_utils import make_qr_code
+from .pdf_utils import make_qr_code, load_school_logo
 from .data_loading import load_student_data
 
 # URLs for letterhead and watermark images are configurable via environment
@@ -619,33 +619,14 @@ def render_results_and_resources_tab() -> None:
             FEEDBACK_W = PAGE_WIDTH - 2 * MARGIN - (
                 COL_ASSN_W + COL_SCORE_W + COL_DATE_W
             )
-            LOGO_URL = "https://i.imgur.com/iFiehrp.png"
-
-            def fetch_logo():
-                try:
-                    r = requests.get(LOGO_URL, timeout=6)
-                    r.raise_for_status()
-                    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-                    tmp.write(r.content)
-                    tmp.flush()
-                    tmp.close()
-                    return tmp.name
-                except Exception:
-                    return None
-
             class PDFReport(FPDF):
                 def header(self):
-                    logo_path = fetch_logo()
+                    logo_path = load_school_logo()
                     if logo_path:
                         try:
                             self.image(logo_path, 10, 8, 30)
                         except Exception:
                             pass
-                        finally:
-                            try:
-                                os.unlink(logo_path)
-                            except Exception:
-                                pass
                         self.ln(20)
                     else:
                         self.ln(28)
