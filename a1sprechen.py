@@ -1240,7 +1240,7 @@ def _do_logout():
     })
     st.session_state.pop("_google_btn_rendered", None)
     st.session_state.pop("_google_cta_rendered", None)
-    st.session_state.pop("_ann_rendered", None)
+    st.session_state.pop("_ann_hash", None)
     for k in list(st.session_state.keys()):
         if k.startswith("__google_btn_rendered::"):
             st.session_state.pop(k, None)
@@ -1411,12 +1411,15 @@ def render_sidebar_published():
 
 
 # ------------------------------------------------------------------------------
-# Small helper: render announcements once per rerun
+# Small helper: render announcements when dashboard is active or data changes
 # ------------------------------------------------------------------------------
-def render_announcements_once(data: list):
-    if not st.session_state.get("_ann_rendered"):
-        render_announcements(data)
-        st.session_state["_ann_rendered"] = True
+def render_announcements_once(data: list, dashboard_active: bool):
+    data_hash = hashlib.sha256(json.dumps(data, sort_keys=True).encode("utf-8")).hexdigest()
+    prev_hash = st.session_state.get("_ann_hash")
+    if dashboard_active or data_hash != prev_hash:
+        if dashboard_active:
+            render_announcements(data)
+        st.session_state["_ann_hash"] = data_hash
 
 
 # ------------------------------------------------------------------------------
@@ -1770,7 +1773,7 @@ try:
 except Exception as e:
     st.warning(f"Navigation init issue: {e}. Falling back to Dashboard.")
     tab = "Dashboard"
-render_announcements_once(announcements)
+render_announcements_once(announcements, tab == "Dashboard")
 
 
 # =========================================================

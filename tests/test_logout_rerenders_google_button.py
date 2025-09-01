@@ -34,6 +34,8 @@ def load_module():
     mod.cookie_manager = object()
     mod.logging = types.SimpleNamespace(exception=MagicMock())
     mod.render_announcements = MagicMock()
+    mod.hashlib = __import__("hashlib")
+    mod.json = __import__("json")
     code = compile(ast.Module(body=nodes, type_ignores=[]), "logout_module", "exec")
     exec(code, mod.__dict__)
     return mod
@@ -43,8 +45,8 @@ def test_logout_rerenders_components():
     mod = load_module()
 
     # Initial renders
-    mod.render_announcements_once([{"title": "t", "body": "b"}])
-    assert mod.st.session_state.get("_ann_rendered") is True
+    mod.render_announcements_once([{"title": "t", "body": "b"}], True)
+    assert mod.st.session_state.get("_ann_hash")
     mod.render_announcements.assert_called_once()
 
     mod.st.markdown.reset_mock()
@@ -67,13 +69,13 @@ def test_logout_rerenders_components():
     mod.components.html.reset_mock()
     mod.st.markdown.reset_mock()
     mod._do_logout()
-    assert "_ann_rendered" not in mod.st.session_state
+    assert "_ann_hash" not in mod.st.session_state
     assert "_google_cta_rendered" not in mod.st.session_state
     assert "__google_btn_rendered::primary" not in mod.st.session_state
     assert "_google_btn_rendered" not in mod.st.session_state
 
     # Re-render components after logout
-    mod.render_announcements_once([{"title": "t", "body": "b"}])
+    mod.render_announcements_once([{"title": "t", "body": "b"}], True)
     mod.render_announcements.assert_called_once()
 
     mod.st.markdown.reset_mock()
