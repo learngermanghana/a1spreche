@@ -15,7 +15,7 @@ def load_module():
     mod = types.ModuleType("logout_module")
     mod.__file__ = str(path)
     mod.st = types.SimpleNamespace(
-        session_state={"_ann_rendered": True},
+        session_state={"_ann_hash": "abc"},
         success=MagicMock(),
         rerun=MagicMock(),
     )
@@ -30,6 +30,6 @@ def load_module():
 
 def test_ann_flag_reset_after_logout():
     mod = load_module()
-    assert mod.st.session_state.get("_ann_rendered") is True
+    assert mod.st.session_state.get("_ann_hash") == "abc"
     mod._do_logout()
-    assert "_ann_rendered" not in mod.st.session_state
+    assert "_ann_hash" not in mod.st.session_state
