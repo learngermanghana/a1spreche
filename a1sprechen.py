@@ -1510,7 +1510,7 @@ render_sidebar_published()
 announcements = [
     {"title": "Download Draft (TXT) Backup", "body": "Use “⬇️ Download draft (TXT)” to save a clean backup with level/day/chapter + timestamp.", "tag": "New"},
     {"title": "Submit Flow & Locking", "body": "After **Confirm & Submit**, your box locks (read-only). Check Results & Resources for feedback.", "tag": "Action"},
-    {"title": "Quick Jumps", "body": "Buttons in Submit go straight to Classroom Q&A and your Notes.", "tag": "Tip"},
+    {"title": "Quick Jumps", "body": "Buttons in Submit go straight to Classroom Post A Grammar Question and your Notes.", "tag": "Tip"},
     {"title": "Lesson Links — One Download", "body": "Grab all lesson resources as a single TXT under **Your Work & Links**.", "tag": "New"},
     {"title": "Sprechen", "body": "Record speaking and get instant, level-aware AI feedback in Tools → Sprechen.", "tag": "New"},
 ]
@@ -3760,7 +3760,7 @@ if tab == "My Course":
 
         classroom_section = st.radio(
             "Classroom section",
-            ["Calendar", "Join on Zoom", "Members", "Announcements", "Q&A"],
+            ["Calendar", "Join on Zoom", "Members", "Announcements", "Post A Grammar Question"],
             horizontal=True,
             key="classroom_page",
             on_change=on_classroom_page_change,
@@ -4830,8 +4830,8 @@ if tab == "My Course":
                 for _, row in latest_df.iterrows():
                     render_announcement(row, is_pinned=False)
 
-        # ===================== Q&A =====================
-        elif classroom_section == "Q&A":
+        # ===================== Post A Grammar Question =====================
+        elif classroom_section == "Post A Grammar Question":
             q_base = db.collection("class_qna").document(class_name).collection("questions")
 
             _new7, _unans, _total = 0, 0, 0
@@ -5026,7 +5026,7 @@ if tab == "My Course":
                                     pass
                                 q_base.document(q_id).delete()
                                 _notify_slack(
-                                    f"🗑️ *Q&A question deleted* — {class_name}\n"
+                                    f"🗑️ *Post A Grammar Question question deleted* — {class_name}\n"
                                     f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
                                     f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
                                 )
@@ -5054,7 +5054,7 @@ if tab == "My Course":
                                     "topic": (new_topic or "").strip(),
                                 })
                                 _notify_slack(
-                                    f"✏️ *Q&A question edited* — {class_name}\n"
+                                    f"✏️ *Post A Grammar Question question edited* — {class_name}\n"
                                     f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
                                     f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
                                     f"*New:* {(new_text[:180] + '…') if len(new_text) > 180 else new_text}"
@@ -5096,7 +5096,7 @@ if tab == "My Course":
                                     if st.button("🗑️ Delete", key=f"r_del_btn_{q_id}_{rid}"):
                                         r.reference.delete()
                                         _notify_slack(
-                                            f"🗑️ *Q&A reply deleted* — {class_name}\n"
+                                            f"🗑️ *Post A Grammar Question reply deleted* — {class_name}\n"
                                             f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
                                             f"*When:* {_dt.now(_timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC"
                                         )
@@ -5119,7 +5119,7 @@ if tab == "My Course":
                                              "edited_at": _dt.now(_timezone.utc),
                                         })
                                         _notify_slack(
-                                            f"✏️ *Q&A reply edited* — {class_name}\n"
+                                            f"✏️ *Post A Grammar Question reply edited* — {class_name}\n"
                                             f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
                                             f"*When:* {_dt.now(_timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC\n"
                                             f"*New:* {(new_rtext[:180] + '…') if len(new_rtext) > 180 else new_rtext}"
@@ -5160,7 +5160,7 @@ if tab == "My Course":
                         r_ref.document(str(uuid4())[:8]).set(reply_payload)
                         prev = (reply_payload["reply_text"][:180] + "…") if len(reply_payload["reply_text"]) > 180 else reply_payload["reply_text"]
                         _notify_slack(
-                            f"💬 *New Q&A reply* — {class_name}\n"
+                            f"💬 *New Post A Grammar Question reply* — {class_name}\n"
                             f"*By:* {student_name} ({student_code})  •  *QID:* {q_id}\n"
                             f"*When:* {_dt.now(_timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC\n"
                             f"*Reply:* {prev}"
