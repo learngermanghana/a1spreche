@@ -17,7 +17,8 @@ from fpdf import FPDF
 
 from .assignment import linkify_html, _clean_link, _is_http_url
 from .schedule import get_level_schedules as _get_level_schedules
-from .pdf_utils import make_qr_code, load_school_logo
+# ``load_school_logo`` is defined below; only import QR helper here.
+from .pdf_utils import make_qr_code
 from .data_loading import load_student_data
 
 # URLs for letterhead and watermark images are configurable via environment
@@ -78,8 +79,8 @@ def clean_for_pdf(text: str) -> str:
 
     if not isinstance(text, str):
         text = str(text)
-    text = _ud.normalize("NFKD", text)
-    text = "".join(c if 32 <= ord(c) <= 255 else "?" for c in text)
+    text = _ud.normalize("NFKC", text)
+    text = "".join(c if ord(c) >= 32 else "?" for c in text)
     return text.replace("\n", " ").replace("\r", " ")
 
 
@@ -269,11 +270,18 @@ def generate_enrollment_letter_pdf(
     enrollment_start: str,
     enrollment_end: str,
 ) -> bytes:
-    """Generate a simple enrollment letter as PDF bytes."""
+    """Generate an enrollment letter as PDF bytes."""
 
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
+    font_path = os.path.join(os.path.dirname(__file__), "..", "font", "DejaVuSans.ttf")
+    try:
+        pdf.add_font("DejaVu", "", font_path, uni=True)
+        pdf.add_font("DejaVu", "B", font_path, uni=True)
+        base_font = "DejaVu"
+    except Exception:
+        base_font = "Helvetica"
 
     # Insert letterhead at the top of the page
     try:  # pragma: no cover - network use is best effort
@@ -308,22 +316,36 @@ def generate_enrollment_letter_pdf(
     except Exception:
         pass
 
-    pdf.set_font("Arial", size=12)
     pdf.set_y(40)
-
-    text = (
-        f"This letter certifies that {student_name} is enrolled in the {student_level} "
-        f"course from {enrollment_start} to {enrollment_end}."
-    )
-    pdf.multi_cell(0, 10, clean_for_pdf(text))
-    pdf.ln(10)
-    pdf.multi_cell(
+    pdf.set_font(base_font, "B", 16)
+    pdf.cell(0, 10, clean_for_pdf("Learn Language Education Academy"), ln=1, align="C")
+    pdf.set_font(base_font, size=10)
+    pdf.cell(
         0,
-        10,
-        clean_for_pdf(
-            "For verification, scan the QR code or contact our office."
-        ),
+        6,
+        clean_for_pdf("https://www.learngermanghana.com | 0205706589 | Accra, Ghana"),
+        ln=1,
+        align="C",
     )
+    pdf.cell(0, 6, clean_for_pdf("Business Reg No: BN173410224"), ln=1, align="C")
+    pdf.ln(10)
+
+    pdf.set_font(base_font, size=12)
+    body_lines = [
+        "To Whom It May Concern,",
+        f"{student_name} is officially enrolled in {student_level} at Learn Language Education Academy.",
+        f"Enrollment valid from {enrollment_start} to {enrollment_end}.",
+        "Business Reg No: BN173410224.",
+        "",
+        "Yours sincerely,",
+        "",
+        "Felix Asadu",
+        "Director",
+        "Learn Language Education Academy",
+    ]
+    for line in body_lines:
+        pdf.multi_cell(0, 8, clean_for_pdf(line))
+        pdf.ln(1)
 
     # QR code
     try:
@@ -351,11 +373,18 @@ def generate_receipt_pdf(
     balance: float,
     receipt_date: str,
 ) -> bytes:
-    """Generate a simple payment receipt as PDF bytes."""
+    """Generate a simple payment receipt as PDF bytes with improved fonts."""
 
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
+    font_path = os.path.join(os.path.dirname(__file__), "..", "font", "DejaVuSans.ttf")
+    try:
+        pdf.add_font("DejaVu", "", font_path, uni=True)
+        pdf.add_font("DejaVu", "B", font_path, uni=True)
+        base_font = "DejaVu"
+    except Exception:
+        base_font = "Helvetica"
 
     logo = load_school_logo()
     if logo:
@@ -365,8 +394,27 @@ def generate_receipt_pdf(
         except Exception:
             pdf.ln(5)
 
-    pdf.set_font("Arial", size=12)
+    pdf.set_font(base_font, "B", 16)
+    pdf.cell(0, 10, clean_for_pdf("Payment Receipt"), ln=1, align="C")
+    pdf.set_font(base_font, size=10)
+    pdf.cell(
+        0,
+        6,
+        clean_for_pdf("Learn Language Education Academy"),
+        ln=1,
+        align="C",
+    )
+    pdf.cell(
+        0,
+        6,
+        clean_for_pdf("https://www.learngermanghana.com | 0205706589 | Accra, Ghana"),
+        ln=1,
+        align="C",
+    )
+    pdf.cell(0, 6, clean_for_pdf("Business Reg No: BN173410224"), ln=1, align="C")
+    pdf.ln(10)
 
+    pdf.set_font(base_font, size=12)
     lines = [
         f"Student: {student_name} ({student_level})",
         f"Student Code: {student_code}",
@@ -376,7 +424,7 @@ def generate_receipt_pdf(
         f"Date: {receipt_date}",
     ]
     for line in lines:
-        pdf.multi_cell(0, 10, clean_for_pdf(line))
+        pdf.multi_cell(0, 8, clean_for_pdf(line))
         pdf.ln(2)
 
     return pdf.output(dest="S").encode("latin1", "replace")
@@ -619,6 +667,11 @@ def render_results_and_resources_tab() -> None:
             FEEDBACK_W = PAGE_WIDTH - 2 * MARGIN - (
                 COL_ASSN_W + COL_SCORE_W + COL_DATE_W
             )
+            font_path = os.path.join(
+                os.path.dirname(__file__), "..", "font", "DejaVuSans.ttf"
+            )
+            FONT_NAME = "DejaVu"
+
             class PDFReport(FPDF):
                 def header(self):
                     logo_path = load_school_logo()
@@ -630,7 +683,10 @@ def render_results_and_resources_tab() -> None:
                         self.ln(20)
                     else:
                         self.ln(28)
-                    self.set_font("Arial", "B", 16)
+                    try:
+                        self.set_font(FONT_NAME, "B", 16)
+                    except Exception:
+                        self.set_font("Helvetica", "B", 16)
                     self.cell(
                         0,
                         12,
@@ -642,7 +698,10 @@ def render_results_and_resources_tab() -> None:
 
                 def footer(self):
                     self.set_y(-15)
-                    self.set_font("Arial", "I", 9)
+                    try:
+                        self.set_font(FONT_NAME, "I", 9)
+                    except Exception:
+                        self.set_font("Helvetica", "I", 9)
                     self.set_text_color(120, 120, 120)
                     footer_text = clean_for_pdf(
                         "Learn Language Education Academy — Results generated on "
@@ -653,9 +712,18 @@ def render_results_and_resources_tab() -> None:
 
             if st.button("⬇️ Create & Download Results PDF"):
                 pdf = PDFReport()
+                try:
+                    pdf.add_font(FONT_NAME, "", font_path, uni=True)
+                    pdf.add_font(FONT_NAME, "B", font_path, uni=True)
+                    pdf.add_font(FONT_NAME, "I", font_path, uni=True)
+                except Exception:
+                    pass
                 pdf.add_page()
 
-                pdf.set_font("Arial", "", 12)
+                try:
+                    pdf.set_font(FONT_NAME, "", 12)
+                except Exception:
+                    pdf.set_font("Helvetica", "", 12)
                 try:
                     shown_name = df_user.name.iloc[0]
                 except Exception:
@@ -672,9 +740,15 @@ def render_results_and_resources_tab() -> None:
                 )
                 pdf.ln(5)
 
-                pdf.set_font("Arial", "B", 13)
+                try:
+                    pdf.set_font(FONT_NAME, "B", 13)
+                except Exception:
+                    pdf.set_font("Helvetica", "B", 13)
                 pdf.cell(0, 10, clean_for_pdf("Summary Metrics"), ln=1)
-                pdf.set_font("Arial", "", 11)
+                try:
+                    pdf.set_font(FONT_NAME, "", 11)
+                except Exception:
+                    pdf.set_font("Helvetica", "", 11)
                 pdf.cell(
                     0,
                     8,
@@ -684,14 +758,19 @@ def render_results_and_resources_tab() -> None:
                     ln=1,
                 )
                 pdf.ln(6)
-
-                pdf.set_font("Arial", "B", 11)
+                try:
+                    pdf.set_font(FONT_NAME, "B", 11)
+                except Exception:
+                    pdf.set_font("Helvetica", "B", 11)
                 pdf.cell(COL_ASSN_W, 8, "Assignment", 1, 0, "C")
                 pdf.cell(COL_SCORE_W, 8, "Score", 1, 0, "C")
                 pdf.cell(COL_DATE_W, 8, "Date", 1, 0, "C")
                 pdf.cell(FEEDBACK_W, 8, "Feedback", 1, 1, "C")
 
-                pdf.set_font("Arial", "", 10)
+                try:
+                    pdf.set_font(FONT_NAME, "", 10)
+                except Exception:
+                    pdf.set_font("Helvetica", "", 10)
                 row_fill = False
                 for _, row in df_display.iterrows():
                     assn = clean_for_pdf(str(row["assignment"]))
@@ -722,8 +801,20 @@ def render_results_and_resources_tab() -> None:
                 )
 
         elif choice == "Enrollment Letter":
-            start_date = st.text_input("Enrollment start")
-            end_date = st.text_input("Enrollment end")
+            df_students = load_student_data()
+            start_date = end_date = ""
+            if df_students is not None and "StudentCode" in df_students.columns:
+                try:
+                    row_match = df_students[
+                        df_students["StudentCode"].astype(str).str.lower().str.strip()
+                        == code_key
+                    ]
+                    if not row_match.empty:
+                        row0 = row_match.iloc[0]
+                        start_date = str(row0.get("ContractStart", ""))
+                        end_date = str(row0.get("ContractEnd", ""))
+                except Exception:
+                    pass
             if st.button("Generate Enrollment Letter"):
                 pdf_bytes = generate_enrollment_letter_pdf(
                     student_name or "Student",
