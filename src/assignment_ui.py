@@ -83,6 +83,29 @@ def clean_for_pdf(text: str) -> str:
     return text.replace("\n", " ").replace("\r", " ")
 
 
+def load_school_logo() -> str:
+    """Return path to the school logo image, downloading if necessary."""
+    local_path = os.path.join(os.path.dirname(__file__), "logo.png")
+    if os.path.exists(local_path):
+        return local_path
+
+    cache_path = "/tmp/school_logo.png"
+    if os.path.exists(cache_path):
+        return cache_path
+
+    url = (
+        "https://drive.google.com/uc?export=download&id="
+        "1xLTtiCbEeHJjrASvFjBgfFuGrgVzg6wU"
+    )
+    try:  # pragma: no cover - network
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        with open(cache_path, "wb") as fh:
+            fh.write(resp.content)
+        return cache_path
+    except Exception:  # noqa: BLE001 - best effort
+        return ""
+
 def _results_csv_url() -> str:
     try:
         u = (
@@ -322,6 +345,8 @@ def generate_enrollment_letter_pdf(
 def generate_receipt_pdf(
     student_name: str,
     student_level: str,
+    student_code: str,
+    contract_start: str,
     paid: float,
     balance: float,
     receipt_date: str,
@@ -331,12 +356,23 @@ def generate_receipt_pdf(
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
+
+    logo = load_school_logo()
+    if logo:
+        try:  # pragma: no cover - rendering
+            pdf.image(logo, x=10, y=8, w=40)
+            pdf.ln(35)
+        except Exception:
+            pdf.ln(5)
+
     pdf.set_font("Arial", size=12)
 
     lines = [
-        f"This receipt confirms that {student_name} has paid ₵{paid:,.2f} ",
-        f"toward the {student_level} course.",
-        f"Outstanding balance: ₵{balance:,.2f}.",
+        f"Student: {student_name} ({student_level})",
+        f"Student Code: {student_code}",
+        f"Contract Start: {contract_start}",
+        f"Amount Paid: ₵{paid:,.2f}",
+        f"Balance: ₵{balance:,.2f}",
         f"Date: {receipt_date}",
     ]
     for line in lines:
@@ -723,6 +759,7 @@ def render_results_and_resources_tab() -> None:
         else:
             df_students = load_student_data()
             paid = balance = 0.0
+            contract_start = ""
             if df_students is not None and "StudentCode" in df_students.columns:
                 try:
                     row_match = df_students[
@@ -745,6 +782,7 @@ def render_results_and_resources_tab() -> None:
                         row0 = row_match.iloc[0]
                         paid = _read_money(row0.get("Paid", 0))
                         balance = _read_money(row0.get("Balance", 0))
+                        contract_start = str(row0.get("ContractStart", ""))
                 except Exception:
                     pass
 
@@ -755,6 +793,8 @@ def render_results_and_resources_tab() -> None:
                 pdf_bytes = generate_receipt_pdf(
                     student_name or "Student",
                     level,
+                    student_code or "",
+                    contract_start or "",
                     paid,
                     balance,
                     receipt_date or "",
