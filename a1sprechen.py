@@ -1342,6 +1342,14 @@ def render_sidebar_published():
         _qp_set_safe(tab=tab_name)
         st.rerun()
 
+    def _go_post_qna():
+        st.session_state["nav_sel"] = "My Course"
+        st.session_state["main_tab_select"] = "My Course"
+        st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
+        st.session_state["classroom_page"] = "Post A Grammar Question"
+        _qp_set_safe(tab="My Course")
+        st.rerun()
+
     st.sidebar.markdown("## Quick access")
     st.sidebar.button("🏠 Dashboard",                use_container_width=True, on_click=_go, args=("Dashboard",))
     st.sidebar.button("📈 My Course",                use_container_width=True, on_click=_go, args=("My Course",))
@@ -1349,6 +1357,7 @@ def render_sidebar_published():
     st.sidebar.button("🗣️ Exams Mode & Custom Chat", use_container_width=True, on_click=_go, args=("Exams Mode & Custom Chat",))
     st.sidebar.button("📚 Vocab Trainer",            use_container_width=True, on_click=_go, args=("Vocab Trainer",))
     st.sidebar.button("✍️ Schreiben Trainer",        use_container_width=True, on_click=_go, args=("Schreiben Trainer",))
+    st.sidebar.button("❓ Post A Grammar Question",   use_container_width=True, on_click=_go_post_qna)
 
     st.sidebar.divider()
 
