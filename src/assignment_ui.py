@@ -20,6 +20,18 @@ from .schedule import get_level_schedules as _get_level_schedules
 from .pdf_utils import make_qr_code
 from .data_loading import load_student_data
 
+# URLs for letterhead and watermark images are configurable via environment
+# variables so deployments can easily swap in different assets without touching
+# the code.
+LETTERHEAD_URL = os.getenv(
+    "LETTERHEAD_URL",
+    "https://via.placeholder.com/600x100.png?text=Letterhead",
+)
+WATERMARK_URL = os.getenv(
+    "WATERMARK_URL",
+    "https://drive.google.com/uc?export=download&id=1dEXHtaPBmvnX941GKK-DsTmj3szz2Z5A",
+)
+
 # ---------------------------------------------------------------------------
 # Data loaders
 # ---------------------------------------------------------------------------
@@ -240,7 +252,41 @@ def generate_enrollment_letter_pdf(
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
 
+    # Insert letterhead at the top of the page
+    try:  # pragma: no cover - network use is best effort
+        resp = requests.get(LETTERHEAD_URL, timeout=8)
+        resp.raise_for_status()
+        tmp_lh = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+        tmp_lh.write(resp.content)
+        tmp_lh.flush()
+        pdf.image(tmp_lh.name, x=10, y=8, w=pdf.w - 20)
+    except Exception:
+        pass
+
+    # Centered watermark image
+    try:  # pragma: no cover - network use is best effort
+        resp = requests.get(WATERMARK_URL, timeout=8)
+        resp.raise_for_status()
+        tmp_wm = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+        tmp_wm.write(resp.content)
+        tmp_wm.flush()
+        wm_w = pdf.w * 0.8
+        wm_x = (pdf.w - wm_w) / 2
+        wm_y = (pdf.h - wm_w) / 2
+        try:
+            pdf.set_alpha(0.15)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        pdf.image(tmp_wm.name, x=wm_x, y=wm_y, w=wm_w)
+        try:
+            pdf.set_alpha(1)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+    except Exception:
+        pass
+
     pdf.set_font("Arial", size=12)
+    pdf.set_y(40)
 
     text = (
         f"This letter certifies that {student_name} is enrolled in the {student_level} "
@@ -255,20 +301,6 @@ def generate_enrollment_letter_pdf(
             "For verification, scan the QR code or contact our office."
         ),
     )
-
-    # Watermark background image from Google Drive
-    WATERMARK_URL = (
-        "https://drive.google.com/uc?export=view&id=1DFpoy8VY8D47B4npUh0t1Jn_Jr_ozxTo"
-    )
-    try:  # pragma: no cover - network use is best effort
-        resp = requests.get(WATERMARK_URL, timeout=8)
-        resp.raise_for_status()
-        tmp_wm = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-        tmp_wm.write(resp.content)
-        tmp_wm.flush()
-        pdf.image(tmp_wm.name, x=15, y=60, w=180)
-    except Exception:
-        pass
 
     # QR code
     try:

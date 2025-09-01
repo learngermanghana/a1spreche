@@ -16,7 +16,10 @@ def test_generate_enrollment_letter_pdf_returns_bytes(monkeypatch):
         def raise_for_status(self):
             return None
 
+    call_count = {"count": 0}
+
     def fake_get(url, timeout=0):
+        call_count["count"] += 1
         return DummyResp()
 
     # Patch network call and QR code generator
@@ -28,3 +31,5 @@ def test_generate_enrollment_letter_pdf_returns_bytes(monkeypatch):
     )
     assert isinstance(pdf_bytes, (bytes, bytearray))
     assert len(pdf_bytes) > 0
+    # Letterhead and watermark images should each trigger a download
+    assert call_count["count"] == 2
