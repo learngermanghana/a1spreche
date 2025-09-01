@@ -475,7 +475,7 @@ def render_results_and_resources_tab() -> None:
         st.write("Columns found:", df_scores.columns.tolist())
         st.stop()
 
-    student_code, student_name, _ = _get_current_student()
+    student_code, student_name, guessed_level = _get_current_student()
     code_key = (student_code or "").lower().strip()
 
     df_user = df_scores[
@@ -483,33 +483,48 @@ def render_results_and_resources_tab() -> None:
     ]
     if df_user.empty:
         st.info("No results yet. Complete an assignment to see your scores!")
-        st.stop()
+        level = (guessed_level or "").strip().upper()
+        df_lvl = pd.DataFrame(columns=["assignment", "score", "date", "comments", "link"])
+        df_display = df_lvl.copy()
+        total = completed = 0
+        avg_score = best_score = 0.0
+        sections = ["Downloads", "Resources"]
+    else:
+        df_user = df_user.copy()
+        df_user["level"] = df_user["level"].astype(str).str.upper().str.strip()
+        levels = sorted(df_user["level"].unique())
+        level = st.selectbox("Select level:", levels)
+        df_lvl = df_user[df_user.level == level].copy()
+        df_lvl["score"] = pd.to_numeric(df_lvl["score"], errors="coerce")
 
-    df_user = df_user.copy()
-    df_user["level"] = df_user["level"].astype(str).str.upper().str.strip()
-    levels = sorted(df_user["level"].unique())
-    level = st.selectbox("Select level:", levels)
-    df_lvl = df_user[df_user.level == level].copy()
-    df_lvl["score"] = pd.to_numeric(df_lvl["score"], errors="coerce")
+        totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
+        total = int(totals.get(level, 0))
+        completed = int(df_lvl["assignment"].nunique())
+        avg_score = float(df_lvl["score"].mean() or 0)
+        best_score = float(df_lvl["score"].max() or 0)
 
-    totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
-    total = int(totals.get(level, 0))
-    completed = int(df_lvl["assignment"].nunique())
-    avg_score = float(df_lvl["score"].mean() or 0)
-    best_score = float(df_lvl["score"].max() or 0)
+        df_display = (
+            df_lvl.sort_values(["assignment", "score"], ascending=[True, False])
+            .reset_index(drop=True)
+        )
+        if "comments" not in df_display.columns:
+            df_display["comments"] = ""
+        if "link" not in df_display.columns:
+            df_display["link"] = ""
 
-    df_display = (
-        df_lvl.sort_values(["assignment", "score"], ascending=[True, False])
-        .reset_index(drop=True)
-    )
-    if "comments" not in df_display.columns:
-        df_display["comments"] = ""
-    if "link" not in df_display.columns:
-        df_display["link"] = ""
+        sections = [
+            "Overview",
+            "My Scores",
+            "Badges",
+            "Missed & Next",
+            "Downloads",
+            "Resources",
+        ]
 
-
-    if "rr_page" not in st.session_state:
-        st.session_state["rr_page"] = "Overview"
+    if ("rr_page" not in st.session_state) or (
+        st.session_state.get("rr_page") not in sections
+    ):
+        st.session_state["rr_page"] = sections[0]
     if "rr_prev_page" not in st.session_state:
         st.session_state["rr_prev_page"] = st.session_state["rr_page"]
 
@@ -518,7 +533,7 @@ def render_results_and_resources_tab() -> None:
 
     rr_page = st.radio(
         "Results & Resources section",
-        ["Overview", "My Scores", "Badges", "Missed & Next", "Downloads", "Resources"],
+        sections,
         horizontal=True,
         key="rr_page",
         on_change=on_rr_page_change,
