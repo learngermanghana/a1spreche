@@ -1370,7 +1370,7 @@ def render_sidebar_published():
 - **Practice speaking:** **Tools → Sprechen** for instant pronunciation feedback.
 - **Build vocab:** **Vocab Trainer** for daily words & review cycles.
 - **Track progress:** **Dashboard** shows streaks, next lesson, and missed items.
-- **See announcements:** Dashboard → **View all announcements** for class updates.
+- **See announcements:** Dashboard → **View all class announcements** for class updates.
             """
         )
 
@@ -1791,7 +1791,7 @@ if tab == "Dashboard":
         _qp_set(tab="My Course")
         st.rerun()
 
-    st.button("View all announcements", on_click=_go_announcements, use_container_width=True)
+    st.button("View all class announcements", on_click=_go_announcements, use_container_width=True)
 
     # ---------- Helpers ----------
     def safe_get(row, key, default=""):
