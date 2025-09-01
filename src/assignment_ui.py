@@ -83,9 +83,18 @@ def _results_csv_url() -> str:
 
 @st.cache_data(ttl=600)
 def fetch_scores(csv_url: str) -> pd.DataFrame:
-    resp = requests.get(csv_url, timeout=8)
-    resp.raise_for_status()
-    df = pd.read_csv(io.StringIO(resp.text), engine="python")
+    required = ["student_code", "name", "assignment", "score", "date", "level"]
+    try:
+        resp = requests.get(csv_url, timeout=8)
+        resp.raise_for_status()
+    except requests.exceptions.RequestException as exc:  # pragma: no cover - network errors
+        st.error(f"Unable to fetch scores: {exc}")
+        return pd.DataFrame(columns=required)
+    try:
+        df = pd.read_csv(io.StringIO(resp.text), engine="python")
+    except pd.errors.ParserError as exc:
+        st.warning(f"Unable to parse scores: {exc}")
+        return pd.DataFrame(columns=required)
     df.columns = [
         str(c).strip().lower().replace("studentcode", "student_code")
         for c in df.columns
@@ -98,7 +107,6 @@ def fetch_scores(csv_url: str) -> pd.DataFrame:
     for src, dst in aliases.items():
         if src in df.columns and dst not in df.columns:
             df = df.rename(columns={src: dst})
-    required = ["student_code", "name", "assignment", "score", "date", "level"]
     if not set(required).issubset(df.columns):
         return pd.DataFrame(columns=required)
     df = df.dropna(subset=["student_code", "assignment", "score", "date", "level"])
