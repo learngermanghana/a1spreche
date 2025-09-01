@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64 as _b64
 import io
+import os
 import re
 import tempfile
 from typing import Tuple
@@ -292,8 +293,6 @@ def render_results_and_resources_tab() -> None:
     if "link" not in df_display.columns:
         df_display["link"] = ""
 
-    schedules_map = _get_level_schedules()
-    schedule = schedules_map.get(level, [])
 
     if "rr_page" not in st.session_state:
         st.session_state["rr_page"] = "Overview"
@@ -445,7 +444,6 @@ def render_results_and_resources_tab() -> None:
         FEEDBACK_W = PAGE_WIDTH - 2 * MARGIN - (COL_ASSN_W + COL_SCORE_W + COL_DATE_W)
         LOGO_URL = "https://i.imgur.com/iFiehrp.png"
 
-        @st.cache_data(ttl=3600)
         def fetch_logo():
             try:
                 r = requests.get(LOGO_URL, timeout=6)
@@ -453,6 +451,7 @@ def render_results_and_resources_tab() -> None:
                 tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
                 tmp.write(r.content)
                 tmp.flush()
+                tmp.close()
                 return tmp.name
             except Exception:
                 return None
@@ -463,9 +462,14 @@ def render_results_and_resources_tab() -> None:
                 if logo_path:
                     try:
                         self.image(logo_path, 10, 8, 30)
-                        self.ln(20)
                     except Exception:
-                        self.ln(20)
+                        pass
+                    finally:
+                        try:
+                            os.unlink(logo_path)
+                        except Exception:
+                            pass
+                    self.ln(20)
                 else:
                     self.ln(28)
                 self.set_font("Arial", "B", 16)
