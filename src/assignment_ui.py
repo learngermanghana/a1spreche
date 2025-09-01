@@ -82,6 +82,7 @@ def clean_for_pdf(text: str) -> str:
     text = _ud.normalize("NFKD", text)
     text = text.replace("\n", " ").replace("\r", " ")
     text = "".join(c if c.isprintable() else "?" for c in text)
+    text = text.encode("latin-1", "replace").decode("latin-1")
     return text
 
 
