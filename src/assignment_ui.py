@@ -20,6 +20,7 @@ from .schedule import get_level_schedules as _get_level_schedules
 # ``load_school_logo`` is defined below; only import QR helper here.
 from .pdf_utils import make_qr_code
 from .data_loading import load_student_data
+from .utils.currency import format_cedis
 
 # URLs for letterhead and watermark images are configurable via environment
 # variables so deployments can easily swap in different assets without touching
@@ -415,8 +416,8 @@ def generate_receipt_pdf(
         f"Student: {student_name} ({student_level})",
         f"Student Code: {student_code}",
         f"Contract Start: {contract_start}",
-        f"Amount Paid: ₵{paid:,.2f}",
-        f"Balance: ₵{balance:,.2f}",
+        f"Amount Paid: {format_cedis(paid)}",
+        f"Balance: {format_cedis(balance)}",
         f"Date: {receipt_date}",
     ]
     for line in lines:

@@ -80,6 +80,7 @@ from src.contracts import (
     months_between,
     is_contract_expired,
 )
+from src.utils.currency import format_cedis
 from src.firestore_utils import (
     _draft_doc_ref,
     load_chat_draft_from_db,
@@ -1987,9 +1988,11 @@ if tab == "Dashboard":
         f"<b>👤 {name}</b>"
         f"<span style='background:#eef4ff;color:#2541b2;padding:2px 8px;border-radius:999px;'>Level: {level}</span>"
         f"<span style='background:#f1f5f9;color:#334155;padding:2px 8px;border-radius:999px;'>Code: <code>{code}</code></span>"
-        + (f"<span style='background:#fff7ed;color:#7c2d12;padding:2px 8px;border-radius:999px;'>Balance: ₵{bal_val:,.2f}</span>"
-           if bal_val > 0 else
-           "<span style='background:#ecfdf5;color:#065f46;padding:2px 8px;border-radius:999px;'>Balance: ₵0.00</span>")
+        + (
+            f"<span style='background:#fff7ed;color:#7c2d12;padding:2px 8px;border-radius:999px;'>Balance: {format_cedis(bal_val)}</span>"
+            if bal_val > 0
+            else f"<span style='background:#ecfdf5;color:#065f46;padding:2px 8px;border-radius:999px;'>Balance: {format_cedis(0)}</span>"
+        )
         + "</div>",
         unsafe_allow_html=True
     )
@@ -2093,19 +2096,19 @@ if tab == "Dashboard":
             _severity = "error"
             _msg = (
                 f"💸 **Overdue by {_days_over} day{'s' if _days_over != 1 else ''}.** "
-                f"Amount due: **₵{_balance:,.2f}**. First due: {_first_due:%d %b %Y}."
+                f"Amount due: **{format_cedis(_balance)}**. First due: {_first_due:%d %b %Y}."
             )
         elif _today == _first_due:
             _exp_title = "💳 Payments • due today"
             _severity = "warning"
-            _msg = f"⏳ **Payment due today** ({_first_due:%d %b %Y}). Amount due: **₵{_balance:,.2f}**."
+            _msg = f"⏳ **Payment due today** ({_first_due:%d %b %Y}). Amount due: **{format_cedis(_balance)}**."
         else:
             _exp_title = "💳 Payments (info)"
             _severity = "info"
             _days_left = (_first_due - _today).days
             _msg = (
                 f"No payment expected yet. Your first payment date is **{_first_due:%d %b %Y}** "
-                f"(in {_days_left} day{'s' if _days_left != 1 else ''}). Current balance: **₵{_balance:,.2f}**."
+                f"(in {_days_left} day{'s' if _days_left != 1 else ''}). Current balance: **{format_cedis(_balance)}**."
             )
     elif _balance > 0 and not _first_due:
         _exp_title = "💳 Payments • schedule unknown"
@@ -2143,7 +2146,7 @@ if tab == "Dashboard":
             **Details**
             - Contract start: **{_cs_str}**
             - First payment due (start + 1 month): **{_fd_str}**
-            - Current balance: **₵{_balance:,.2f}**
+            - Current balance: **{format_cedis(_balance)}**
             """
         )
 
@@ -2155,12 +2158,12 @@ if tab == "Dashboard":
             if _days_left < 0:
                 st.error(
                     f"⚠️ Your contract ended on **{_ce_date:%d %b %Y}**. "
-                    f"If you need more time, extension costs **₵{EXT_FEE:,}/month**."
+                    f"If you need more time, extension costs **{format_cedis(EXT_FEE)}/month**."
                 )
             elif _days_left <= 14:
                 st.warning(
                     f"⏰ Your contract ends in **{_days_left} day{'s' if _days_left != 1 else ''}** "
-                    f"(**{_ce_date:%d %b %Y}**). Extension costs **₵{EXT_FEE:,}/month**."
+                    f"(**{_ce_date:%d %b %Y}**). Extension costs **{format_cedis(EXT_FEE)}/month**."
                 )
 
     # ---------- Always-visible Contract Alert ----------
@@ -2208,13 +2211,13 @@ if tab == "Dashboard":
             if _days_left < 0:
                 _msg = (
                     f"⚠️ <b>Your contract ended on {_ce_date:%d %b %Y}.</b> "
-                    f"To continue, extension costs <b>₵{_ext_fee:,}/month</b>."
+                    f"To continue, extension costs <b>{format_cedis(_ext_fee)}/month</b>."
                 )
                 _cls = "ca-err"
             elif _days_left <= 14:
                 _msg = (
                     f"⏰ <b>Your contract ends in {_days_left} day{'s' if _days_left != 1 else ''} "
-                    f"({_ce_date:%d %b %Y}).</b> Extension costs <b>₵{_ext_fee:,}/month</b>."
+                    f"({_ce_date:%d %b %Y}).</b> Extension costs <b>{format_cedis(_ext_fee)}/month</b>."
                 )
                 _cls = "ca-warn"
             else:
@@ -2383,9 +2386,9 @@ if tab == "Dashboard":
         if exam_info:
             exam_date, fee, module_fee = exam_info
             days_to_exam = (exam_date - date.today()).days
-            fee_text = f"**Fee:** ₵{fee:,}"
+            fee_text = f"**Fee:** {format_cedis(fee)}"
             if module_fee:
-                fee_text += f" &nbsp; | &nbsp; **Per Module:** ₵{module_fee:,}"
+                fee_text += f" &nbsp; | &nbsp; **Per Module:** {format_cedis(module_fee)}"
             if days_to_exam > 0:
                 st.info(
                     f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).  \n"
