@@ -7,6 +7,7 @@ import io
 import os
 import re
 import tempfile
+from datetime import date
 from typing import Tuple
 
 import pandas as pd
@@ -17,6 +18,7 @@ from fpdf import FPDF
 from .assignment import linkify_html, _clean_link, _is_http_url
 from .schedule import get_level_schedules as _get_level_schedules
 from .pdf_utils import make_qr_code
+from .data_loading import load_student_data
 
 # ---------------------------------------------------------------------------
 # Data loaders
@@ -281,6 +283,33 @@ def generate_enrollment_letter_pdf(
             pdf.image(tmp_qr.name, x=pdf.w - 40, y=pdf.h - 50, w=30)
     except Exception:
         pass
+
+    return pdf.output(dest="S").encode("latin1", "replace")
+
+
+def generate_receipt_pdf(
+    student_name: str,
+    student_level: str,
+    paid: float,
+    balance: float,
+    receipt_date: str,
+) -> bytes:
+    """Generate a simple payment receipt as PDF bytes."""
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_font("Arial", size=12)
+
+    lines = [
+        f"This receipt confirms that {student_name} has paid ₵{paid:,.2f} ",
+        f"toward the {student_level} course.",
+        f"Outstanding balance: ₵{balance:,.2f}.",
+        f"Date: {receipt_date}",
+    ]
+    for line in lines:
+        pdf.multi_cell(0, 10, clean_for_pdf(line))
+        pdf.ln(2)
 
     return pdf.output(dest="S").encode("latin1", "replace")
 
@@ -624,6 +653,34 @@ def render_results_and_resources_tab() -> None:
 
     elif rr_page == "Downloads":
         st.subheader("Downloads")
+
+        df_students = load_student_data()
+        paid = balance = 0.0
+        if df_students is not None and "StudentCode" in df_students.columns:
+            try:
+                row_match = df_students[
+                    df_students["StudentCode"].astype(str).str.lower().str.strip()
+                    == code_key
+                ]
+                if not row_match.empty:
+                    def _read_money(x):
+                        try:
+                            s = (
+                                str(x)
+                                .replace(",", "")
+                                .replace(" ", "")
+                                .strip()
+                            )
+                            return float(s) if s not in ("", "nan", "None") else 0.0
+                        except Exception:
+                            return 0.0
+
+                    row0 = row_match.iloc[0]
+                    paid = _read_money(row0.get("Paid", 0))
+                    balance = _read_money(row0.get("Balance", 0))
+            except Exception:
+                pass
+
         start_date = st.text_input("Enrollment start")
         end_date = st.text_input("Enrollment end")
         if st.button("Generate Enrollment Letter"):
@@ -637,6 +694,24 @@ def render_results_and_resources_tab() -> None:
                 "Download Enrollment Letter PDF",
                 data=pdf_bytes,
                 file_name=f"{code_key}_enrollment_letter.pdf",
+                mime="application/pdf",
+            )
+
+        receipt_date = st.text_input(
+            "Receipt date", value=date.today().isoformat()
+        )
+        if st.button("Generate Receipt"):
+            pdf_bytes = generate_receipt_pdf(
+                student_name or "Student",
+                level,
+                paid,
+                balance,
+                receipt_date or "",
+            )
+            st.download_button(
+                "Download Receipt PDF",
+                data=pdf_bytes,
+                file_name=f"{code_key}_receipt.pdf",
                 mime="application/pdf",
             )
 
@@ -667,4 +742,5 @@ __all__ = [
     "render_results_and_resources_tab",
     "get_assignment_summary",
     "generate_enrollment_letter_pdf",
+    "generate_receipt_pdf",
 ]
