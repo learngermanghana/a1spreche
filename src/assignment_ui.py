@@ -732,6 +732,7 @@ def render_results_and_resources_tab() -> None:
                 pdf.cell(FEEDBACK_W, 8, "Feedback", 1, 1, "C")
 
                 pdf.set_font("Arial", "", 10)
+                pdf.set_fill_color(240, 240, 240)
                 row_fill = False
                 for _, row in df_display.iterrows():
                     assn = clean_for_pdf(str(row["assignment"]))
@@ -743,6 +744,7 @@ def render_results_and_resources_tab() -> None:
                     pdf.cell(COL_DATE_W, 8, date_txt, 1, 0, "C", row_fill)
                     pdf.multi_cell(FEEDBACK_W, 8, label, 1, "C", row_fill)
                     row_fill = not row_fill
+                pdf.set_fill_color(255, 255, 255)
 
                 pdf_bytes = pdf.output(dest="S").encode("latin1", "replace")
                 st.download_button(
