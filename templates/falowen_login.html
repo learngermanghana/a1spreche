@@ -128,5 +128,10 @@
       </section>
     </div>
   </div>
+  <script>
+    window.addEventListener("load", () => {
+      fetch("/auth/refresh", { credentials: "include" }).catch(console.error);
+    });
+  </script>
 </body>
 </html>
