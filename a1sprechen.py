@@ -1522,11 +1522,10 @@ render_sidebar_published()
 
 # Announcements (render once)
 announcements = [
-    {"title": "Download Draft (TXT) Backup", "body": "Use “⬇️ Download draft (TXT)” to save a clean backup with level/day/chapter + timestamp.", "tag": "New"},
-    {"title": "Submit Flow & Locking", "body": "After **Confirm & Submit**, your box locks (read-only). Check Results & Resources for feedback.", "tag": "Action"},
-    {"title": "Quick Jumps", "body": "Buttons in Submit go straight to Classroom Post A Grammar Question and your Notes.", "tag": "Tip"},
-    {"title": "Lesson Links — One Download", "body": "Grab all lesson resources as a single TXT under **Your Work & Links**.", "tag": "New"},
-    {"title": "Sprechen", "body": "Record speaking and get instant, level-aware AI feedback in Tools → Sprechen.", "tag": "New"},
+    {"title": "Quick Access Menu", "body": "Use the left sidebar for quick access to lessons, tools, and resources.", "tag": "New"},
+    {"title": "Download Receipts & Results", "body": "Grab your receipt, results, and enrollment letter under **My Results & Resources**.", "tag": "New"},
+    {"title": "Account Deletion Requests", "body": "You can now request account deletion from your account settings.", "tag": "Info"},
+    {"title": "Refresh Session Fix", "body": "Frequent refresh session prompts have been resolved for smoother navigation.", "tag": "Update"},
 ]
 
 st.markdown("---")
