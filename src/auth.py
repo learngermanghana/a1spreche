@@ -81,7 +81,12 @@ def create_cookie_manager() -> SimpleCookieManager:
 
 def set_student_code_cookie(cm: MutableMapping[str, Any], code: str, **kwargs: Any) -> None:
     """Store the student code in a cookie."""
-    cookie_args = {"httponly": True, "secure": True, "samesite": "Strict"}
+    cookie_args = {
+        "httponly": True,
+        "secure": True,
+        "samesite": "Lax",
+        "domain": ".falowen.app",
+    }
     cookie_args.update(kwargs)
     cm["student_code"] = code
     # ``SimpleCookieManager`` tracks cookie options for test assertions.
@@ -93,7 +98,12 @@ def set_student_code_cookie(cm: MutableMapping[str, Any], code: str, **kwargs: A
 
 def set_session_token_cookie(cm: MutableMapping[str, Any], token: str, **kwargs: Any) -> None:
     """Store the session token in a cookie."""
-    cookie_args = {"httponly": True, "secure": True, "samesite": "Strict"}
+    cookie_args = {
+        "httponly": True,
+        "secure": True,
+        "samesite": "Lax",
+        "domain": ".falowen.app",
+    }
     cookie_args.update(kwargs)
     cm["session_token"] = token
     if hasattr(cm, "store"):

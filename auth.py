@@ -1,5 +1,4 @@
 # auth.py
-from datetime import timedelta
 from flask import Blueprint, request, jsonify, make_response
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
@@ -17,7 +16,8 @@ def login():
         max_age=MAX_AGE,
         httponly=True,
         secure=True,
-        samesite="Strict",
+        samesite="Lax",
+        domain=".falowen.app",
     )
     return resp
 
@@ -34,6 +34,7 @@ def refresh():
         max_age=MAX_AGE,
         httponly=True,
         secure=True,
-        samesite="Strict",
+        samesite="Lax",
+        domain=".falowen.app",
     )
     return resp
