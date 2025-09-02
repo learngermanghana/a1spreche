@@ -15,9 +15,14 @@ final class AuthViewModel: ObservableObject {
     ///   - maxAge: Maximum age of the session cookie in seconds.
     init(baseURL: URL, maxAge: TimeInterval = 60 * 60 * 24 * 30) {
         self.refreshURL = baseURL.appendingPathComponent("/auth/refresh")
-        // Refresh one minute before the cookie expires.
-        self.refreshInterval = maxAge - 60
+        // Safari's Intelligent Tracking Prevention purges cookies that aren't
+        // updated within roughly a week. Refresh at least daily (or half the
+        // cookie's declared lifetime) so the session stays alive well before
+        // the retention window closes.
+        self.refreshInterval = min(maxAge / 2, 60 * 60 * 24)
         scheduleRefresh()
+        // Extend the cookie immediately when the app launches.
+        refreshSession()
     }
 
     private func scheduleRefresh() {
