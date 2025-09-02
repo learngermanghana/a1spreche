@@ -10,7 +10,7 @@ let package = Package(
         .target(
             name: "AuthViewModelModule",
             path: ".",
-            sources: ["AuthViewModel.swift"]
+            sources: ["AuthViewModel.swift", "LoginWebView.swift"]
         ),
         .testTarget(
             name: "AuthViewModelTests",

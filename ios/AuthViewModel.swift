@@ -41,6 +41,11 @@ final class AuthViewModel: ObservableObject {
         self.retryBaseDelay = retryBaseDelay
 
         scheduleRefresh()
+#if canImport(WebKit)
+        // If cookies were restored from a previous session, ensure they are
+        // available to `URLSession` requests immediately on launch.
+        syncCookies(from: WKWebsiteDataStore.default().httpCookieStore)
+#endif
         // Extend the cookie immediately when the app launches.
         refreshSession()
     }
