@@ -35,10 +35,14 @@ final class AuthViewModel: ObservableObject {
     ///   - maxAge: Maximum age of the session cookie in seconds.
     init(baseURL: URL, maxAge: TimeInterval = 60 * 60 * 24 * 30, retryBaseDelay: TimeInterval = 1) {
         self.refreshURL = baseURL.appendingPathComponent("/auth/refresh")
+
         // Refresh one minute before the cookie expires.
         self.refreshInterval = maxAge - 60
         self.retryBaseDelay = retryBaseDelay
+
         scheduleRefresh()
+        // Extend the cookie immediately when the app launches.
+        refreshSession()
     }
 
     private func scheduleRefresh() {

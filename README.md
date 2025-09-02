@@ -29,3 +29,10 @@ repository root.  Include this file in the Xcode project or build process so it
 is compiled and bundled with the app.  The Python bridge executes the helper via
 `swift KeychainHelper.swift -` and sends short snippets that call `saveToken` and
 `deleteToken`.
+
+## Session Refresh
+
+The iOS app proactively refreshes its session cookie. Safari's Intelligent
+Tracking Prevention shortens cookie lifetimes to about a week when they aren't
+updated. A daily refresh ensures the cookie expiry is extended well before the
+platform can discard it.

@@ -10,7 +10,7 @@ from src.contracts import is_contract_expired
 stub_sessions = types.SimpleNamespace(validate_session_token=lambda *a, **k: None)
 sys.modules.setdefault("falowen.sessions", stub_sessions)
 
-from src.auth import (
+from src.auth import (  # noqa: E402
     create_cookie_manager,
     set_student_code_cookie,
     set_session_token_cookie,
@@ -307,10 +307,16 @@ def test_cookie_functions_apply_defaults_and_allow_override():
     student_kwargs = cm.store["student_code"]["kwargs"]
     token_kwargs = cm.store["session_token"]["kwargs"]
 
-    assert student_kwargs == {"httponly": True, "secure": True, "samesite": "Strict"}
+    assert student_kwargs == {
+        "httponly": True,
+        "secure": True,
+        "samesite": "Lax",
+        "domain": ".falowen.app",
+    }
     assert token_kwargs["httponly"] is True
     assert token_kwargs["secure"] is False
     assert token_kwargs["samesite"] == "Lax"
+    assert token_kwargs["domain"] == ".falowen.app"
 
 def test_multiple_cookie_managers_are_isolated():
     """Cookies set on different managers should not leak between sessions."""
@@ -337,7 +343,8 @@ def test_multiple_cookie_managers_are_isolated():
 
 def test_obsolete_cookie_triggers_login_flow(monkeypatch):
     """If cookie student code is missing from roster, session is cleared."""
-    import types, sys, importlib
+    import sys
+    import types
     import pandas as pd
     import streamlit as st
 
