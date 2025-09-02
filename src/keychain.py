@@ -46,6 +46,25 @@ def _run_swift(snippet: str) -> None:
         pass
 
 
+def _run_swift_capture(snippet: str) -> str | None:
+    """Execute Swift code and return its stdout."""
+
+    if not _SWIFT_BIN or not _SWIFT_HELPER.exists():
+        return None
+    try:
+        result = subprocess.run(
+            [_SWIFT_BIN, str(_SWIFT_HELPER), "-"],
+            input=snippet.encode(),
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception:
+        return None
+    output = result.stdout.decode().strip()
+    return output or None
+
+
 def save_token(token: str, key: KeychainKey) -> None:
     """Persist a token in the platform keychain."""
 
@@ -64,9 +83,21 @@ def delete_token(key: KeychainKey) -> None:
     snippet = f"deleteToken(for: .{key.value})"
     _run_swift(snippet)
 
+
+def get_token(key: KeychainKey) -> str | None:
+    """Fetch a token from the platform keychain."""
+
+    snippet = f"""
+if let token = loadToken(for: .{key.value}) {{
+    print(token)
+}}
+"""
+    return _run_swift_capture(snippet)
+
 # Provide a camelCase alias for parity with the Swift helper.
 saveToken = save_token
 deleteToken = delete_token
+getToken = get_token
 
 __all__ = [
     "KeychainKey",
@@ -74,4 +105,6 @@ __all__ = [
     "delete_token",
     "saveToken",
     "deleteToken",
+    "get_token",
+    "getToken",
 ]
