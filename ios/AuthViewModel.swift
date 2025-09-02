@@ -41,11 +41,27 @@ final class AuthViewModel: ObservableObject {
         self.refreshInterval = maxAge - 60
         self.retryBaseDelay = retryBaseDelay
 
+        #if canImport(Security)
+        if loadToken(for: .refreshToken) != nil {
+            scheduleRefresh()
+            // Extend the cookie immediately when the app launches.
+            refreshSession()
+        } else {
+            needsLogin = true
+        }
+        #else
         scheduleRefresh()
+#if canImport(WebKit)
+        // If cookies were restored from a previous session, ensure they are
+        // available to `URLSession` requests immediately on launch.
+        syncCookies(from: WKWebsiteDataStore.default().httpCookieStore)
+#endif
         // Extend the cookie immediately when the app launches.
+
         if performInitialRefresh {
             refreshSession()
         }
+
     }
 
     private func scheduleRefresh() {

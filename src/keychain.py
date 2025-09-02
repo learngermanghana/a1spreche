@@ -53,6 +53,7 @@ def _run_swift_with_output(snippet: str) -> str | None:
     function returns ``None`` so callers can gracefully degrade.
     """
 
+
     if not _SWIFT_BIN or not _SWIFT_HELPER.exists():
         return None
     try:
@@ -63,6 +64,7 @@ def _run_swift_with_output(snippet: str) -> str | None:
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
         )
+
         output = result.stdout.decode().strip()
         return output or None
     except Exception:
@@ -89,6 +91,7 @@ def delete_token(key: KeychainKey) -> None:
 
 
 def get_token(key: KeychainKey) -> str | None:
+
     """Retrieve a token from the platform keychain.
 
     Returns ``None`` when the Swift toolchain or helper are unavailable or the
@@ -99,6 +102,7 @@ def get_token(key: KeychainKey) -> str | None:
         f"if let t = loadToken(for: .{key.value}) {{ print(t) }}"
     )
     return _run_swift_with_output(snippet)
+
 
 # Provide a camelCase alias for parity with the Swift helper.
 saveToken = save_token
@@ -112,5 +116,7 @@ __all__ = [
     "get_token",
     "saveToken",
     "deleteToken",
+
+
     "getToken",
 ]

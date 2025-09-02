@@ -22,13 +22,17 @@ func saveToken(_ token: String, key: KeychainKey) {
     SecItemAdd(addQuery as CFDictionary, nil)
 }
 
-/// Retrieve a token from the Keychain.
-/// - Returns: The token if it exists, otherwise ``nil``.
+
+/// Retrieve a token stored under the provided key.
+/// - Parameter key: The key associated with the token.
+/// - Returns: The token string if found, otherwise `nil`.
+
 func loadToken(for key: KeychainKey) -> String? {
     let query: [String: Any] = [
         kSecClass as String: kSecClassGenericPassword,
         kSecAttrAccount as String: key.rawValue,
         kSecReturnData as String: true,
+
         kSecMatchLimit as String: kSecMatchLimitOne,
     ]
 
@@ -38,6 +42,7 @@ func loadToken(for key: KeychainKey) -> String? {
        let data = item as? Data,
        let token = String(data: data, encoding: .utf8) {
         return token
+
     }
     return nil
 }
