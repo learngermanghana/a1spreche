@@ -7444,21 +7444,22 @@ if tab == "Schreiben Trainer":
                 height=120,
                 placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ...",
                 label_visibility="collapsed",
+                on_change=lambda: save_now(draft_key, student_code),
             )
 
             autosave_maybe(
                 student_code,
                 draft_key,
                 st.session_state.get(draft_key, ""),
-                min_secs=0.2,
-                min_delta=1,
+                min_secs=2.0,
+                min_delta=12,
             )
 
             if st.button("\U0001f4be Save Draft", key=f"save_prompt_draft_btn_{student_code}"):
                 save_now(draft_key, student_code)
                 st.toast("Draft saved!", icon="\U0001f4be")
+            st.caption("Auto-saves every few seconds or click 'Save Draft' to save now.")
 
-            
             saved_at = st.session_state.get(f"{draft_key}_saved_at")
             if saved_at:
                 st.caption(f"Last saved at {saved_at.strftime('%H:%M:%S')}")
