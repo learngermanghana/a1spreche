@@ -40,13 +40,15 @@ from openai import OpenAI
 from streamlit.components.v1 import html as st_html
 from streamlit_quill import st_quill
 
-# app.py
 from flask import Flask
-from auth import auth_bp   # add this import
+from auth import auth_bp
 
 app = Flask(__name__)
-app.register_blueprint(auth_bp)  # add this line after creating the app
+app.register_blueprint(auth_bp)
 
+@app.get("/health")
+def health():
+    return {"ok": True}, 200
 
 
 # --- Streamlit page config (do this early) ---
