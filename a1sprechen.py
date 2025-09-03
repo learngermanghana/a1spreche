@@ -2289,16 +2289,24 @@ def fetch_latest(level: str, code: str, lesson_key: str) -> Optional[Dict[str, A
 # -------------------------
 # Misc existing helper preserved
 # -------------------------
-def post_message(level: str, code: str, name: str, text: str, reply_to: Optional[str] = None) -> None:
+def post_message(
+    level: str,
+    code: str,
+    name: str,
+    content: str,
+    reply_to: Optional[str] = None,
+) -> None:
     """Post a message to the class board."""
     posts_ref = db.collection("class_board").document(level).collection("posts")
-    posts_ref.add({
-        "student_code": code,
-        "student_name": name,
-        "text": text.strip(),
-        "timestamp": _dt.now(_timezone.utc),
-        "reply_to": reply_to,
-    })
+    posts_ref.add(
+        {
+            "student_code": code,
+            "student_name": name,
+            "content": content.strip(),
+            "created_at": _dt.now(_timezone.utc),
+            "reply_to": reply_to,
+        }
+    )
 
 RESOURCE_LABELS = {
     'video': '🎥 Video',
