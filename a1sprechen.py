@@ -3315,12 +3315,14 @@ if tab == "My Course":
         IS_ADMIN = (student_code in ADMINS)
 
         # ---------- slack helper (use global notify_slack if present; else env/secrets) ----------
-        def _notify_slack(text: str):
+        def _notify_slack(*parts: str):
+            text = "".join(parts)
             try:
                 fn = globals().get("notify_slack")
                 if callable(fn):
                     try:
-                        fn(text); return
+                        fn(text)
+                        return
                     except Exception:
                         pass
                 url = (os.getenv("SLACK_WEBHOOK_URL") or
