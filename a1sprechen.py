@@ -6138,10 +6138,18 @@ def load_vocab_lists():
         return {}, {}
 
     df.columns = df.columns.str.strip()
-    missing = [c for c in ("Level","German","English") if c not in df.columns]
-    if missing:
-        st.error(f"Missing column(s) in your vocab sheet: {missing}")
+
+    # "German" and "English" are required.  If they're missing we cannot proceed.
+    required = ["German", "English"]
+    missing_required = [c for c in required if c not in df.columns]
+    if missing_required:
+        st.error(f"Missing column(s) in your vocab sheet: {missing_required}")
         return {}, {}
+
+    # If "Level" is missing, default all rows to A1 and warn the user.
+    if "Level" not in df.columns:
+        st.warning("Missing 'Level' column in your vocab sheet. Defaulting to 'A1'.")
+        df["Level"] = "A1"
 
     # Normalize
     df["Level"]  = df["Level"].astype(str).str.strip()
