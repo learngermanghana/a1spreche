@@ -4516,6 +4516,7 @@ if tab == "My Course":
                 st.session_state["q_topic"] = ""
                 st.session_state["q_text"] = ""
             topic = st.text_input("Topic (optional)", key="q_topic")
+
             st.markdown(
                 """
                 <style>
@@ -4552,6 +4553,7 @@ if tab == "My Course":
                     st.session_state["__clear_q_form"] = True
                     st.success("Post published!")
                     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
             colsa, colsb, colsc = st.columns([2, 1, 1])
             with colsa:
@@ -4635,23 +4637,11 @@ if tab == "My Course":
                                     value=st.session_state.get(f"q_edit_topic_{q_id}", ""),
                                     key=f"q_edit_topic_input_{q_id}"
                                 )
-                                st.markdown(
-                                    """
-                                    <style>
-                                    textarea[aria-label="Edit post"] {
-                                        background-color: #233d2b;
-                                        color: #fff;
-                                        font-family: 'Chalkboard', 'Chalkduster', 'Comic Sans MS', cursive;
-                                    }
-                                    </style>
-                                    """,
-                                    unsafe_allow_html=True,
-                                )
                                 new_text = st.text_area(
                                     "Edit post",
                                     value=st.session_state.get(f"q_edit_text_{q_id}", ""),
                                     key=f"q_edit_text_input_{q_id}",
-                                    height=200
+                                    height=150
                                 )
                                 save_edit = st.form_submit_button("💾 Save")
                                 cancel_edit = st.form_submit_button("❌ Cancel")
