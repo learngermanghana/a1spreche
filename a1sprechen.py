@@ -4523,34 +4523,34 @@ if tab == "My Course":
                 except Exception:
                     return ""
 
-            with st.expander("➕ Add a new post", expanded=False):
-                if st.session_state.get("__clear_q_form"):
-                    st.session_state.pop("__clear_q_form", None)
-                    st.session_state["q_topic"] = ""
-                    st.session_state["q_text"] = ""
-                topic = st.text_input("Topic (optional)", key="q_topic")
-                new_q = st.text_area("Your content", key="q_text", height=80)
-                if st.button("Post", key="qna_post_question") and new_q.strip():
-                    q_id = str(uuid4())[:8]
-                    payload = {
-                        "content": new_q.strip(),
-                        "asked_by_name": student_name,
-                        "asked_by_code": student_code,
-                        "timestamp": _dt.utcnow(),
-                        "topic": (topic or "").strip(),
-                    }
-                    board_base.document(q_id).set(payload)
-                    preview = (payload["content"][:180] + "…") if len(payload["content"]) > 180 else payload["content"]
-                    topic_tag = f" • Topic: {payload['topic']}" if payload["topic"] else ""
-                    _notify_slack(
-                        f"📝 *New Class Board post* — {class_name}{topic_tag}\n"
-                        f"*From:* {student_name} ({student_code})\n"
-                        f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
-                        f"*Content:* {preview}"
-                    )
-                    st.session_state["__clear_q_form"] = True
-                    st.success("Post published!")
-                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+            st.subheader("➕ Add a new post")
+            if st.session_state.get("__clear_q_form"):
+                st.session_state.pop("__clear_q_form", None)
+                st.session_state["q_topic"] = ""
+                st.session_state["q_text"] = ""
+            topic = st.text_input("Topic (optional)", key="q_topic")
+            new_q = st.text_area("Your content", key="q_text", height=80)
+            if st.button("Post", key="qna_post_question") and new_q.strip():
+                q_id = str(uuid4())[:8]
+                payload = {
+                    "content": new_q.strip(),
+                    "asked_by_name": student_name,
+                    "asked_by_code": student_code,
+                    "timestamp": _dt.utcnow(),
+                    "topic": (topic or "").strip(),
+                }
+                board_base.document(q_id).set(payload)
+                preview = (payload["content"][:180] + "…") if len(payload["content"]) > 180 else payload["content"]
+                topic_tag = f" • Topic: {payload['topic']}" if payload["topic"] else ""
+                _notify_slack(
+                    f"📝 *New Class Board post* — {class_name}{topic_tag}\n"
+                    f"*From:* {student_name} ({student_code})\n"
+                    f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                    f"*Content:* {preview}"
+                )
+                st.session_state["__clear_q_form"] = True
+                st.success("Post published!")
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
             colsa, colsb, colsc = st.columns([2, 1, 1])
             with colsa:
