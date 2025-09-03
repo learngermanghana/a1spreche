@@ -4523,8 +4523,8 @@ if tab == "My Course":
                 """
                 <style>
                 textarea[aria-label="Your content"] {
-                    background-color: #233d2b;
-                    color: #fff;
+                    background-color: #f1f5f9;
+                    color: #0f172a;
                     font-family: 'Chalkboard', 'Chalkduster', 'Comic Sans MS', cursive;
                 }
                 </style>
