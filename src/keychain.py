@@ -46,8 +46,13 @@ def _run_swift(snippet: str) -> None:
         pass
 
 
-def _run_swift_capture(snippet: str) -> str | None:
-    """Execute Swift code and return its stdout."""
+def _run_swift_with_output(snippet: str) -> str | None:
+    """Execute Swift code and return its standard output.
+
+    The helper or Swift toolchain may be missing; in those situations this
+    function returns ``None`` so callers can gracefully degrade.
+    """
+
 
     if not _SWIFT_BIN or not _SWIFT_HELPER.exists():
         return None
@@ -59,10 +64,11 @@ def _run_swift_capture(snippet: str) -> str | None:
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
         )
+
+        output = result.stdout.decode().strip()
+        return output or None
     except Exception:
         return None
-    output = result.stdout.decode().strip()
-    return output or None
 
 
 def save_token(token: str, key: KeychainKey) -> None:
@@ -85,14 +91,18 @@ def delete_token(key: KeychainKey) -> None:
 
 
 def get_token(key: KeychainKey) -> str | None:
-    """Fetch a token from the platform keychain."""
 
-    snippet = f"""
-if let token = loadToken(for: .{key.value}) {{
-    print(token)
-}}
-"""
-    return _run_swift_capture(snippet)
+    """Retrieve a token from the platform keychain.
+
+    Returns ``None`` when the Swift toolchain or helper are unavailable or the
+    token does not exist.
+    """
+
+    snippet = (
+        f"if let t = loadToken(for: .{key.value}) {{ print(t) }}"
+    )
+    return _run_swift_with_output(snippet)
+
 
 # Provide a camelCase alias for parity with the Swift helper.
 saveToken = save_token
@@ -103,8 +113,10 @@ __all__ = [
     "KeychainKey",
     "save_token",
     "delete_token",
+    "get_token",
     "saveToken",
     "deleteToken",
-    "get_token",
+
+
     "getToken",
 ]

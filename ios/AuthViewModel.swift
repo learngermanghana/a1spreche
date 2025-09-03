@@ -29,11 +29,12 @@ final class AuthViewModel: ObservableObject {
     private let refreshInterval: TimeInterval
     private let retryBaseDelay: TimeInterval
     private let maxRetries = 3
+    nonisolated(unsafe) static var protocolClasses: [AnyClass]? = nil
 
     /// - Parameters:
     ///   - baseURL: Base URL of the backend server.
     ///   - maxAge: Maximum age of the session cookie in seconds.
-    init(baseURL: URL, maxAge: TimeInterval = 60 * 60 * 24 * 30, retryBaseDelay: TimeInterval = 1) {
+    init(baseURL: URL, maxAge: TimeInterval = 60 * 60 * 24 * 30, retryBaseDelay: TimeInterval = 1, performInitialRefresh: Bool = true) {
         self.refreshURL = baseURL.appendingPathComponent("/auth/refresh")
 
         // Refresh one minute before the cookie expires.
@@ -56,8 +57,11 @@ final class AuthViewModel: ObservableObject {
         syncCookies(from: WKWebsiteDataStore.default().httpCookieStore)
 #endif
         // Extend the cookie immediately when the app launches.
-        refreshSession()
-        #endif
+
+        if performInitialRefresh {
+            refreshSession()
+        }
+
     }
 
     private func scheduleRefresh() {
@@ -74,6 +78,9 @@ final class AuthViewModel: ObservableObject {
         var config = URLSessionConfiguration.default
         // Ensure cookies from the refresh response replace the existing ones.
         config.httpCookieStorage = HTTPCookieStorage.shared
+        if let classes = AuthViewModel.protocolClasses {
+            config.protocolClasses = classes
+        }
         let session = URLSession(configuration: config)
 
         var request = URLRequest(url: refreshURL)
@@ -112,4 +119,12 @@ final class AuthViewModel: ObservableObject {
         }
     }
 #endif
+
+    /// Retrieve the current session token from ``HTTPCookieStorage.shared``.
+    /// - Returns: The session token if present.
+    func loadToken() -> String? {
+        HTTPCookieStorage.shared.cookies?
+            .first(where: { $0.name == "session" })?
+            .value
+    }
 }

@@ -22,20 +22,27 @@ func saveToken(_ token: String, key: KeychainKey) {
     SecItemAdd(addQuery as CFDictionary, nil)
 }
 
+
 /// Retrieve a token stored under the provided key.
 /// - Parameter key: The key associated with the token.
 /// - Returns: The token string if found, otherwise `nil`.
+
 func loadToken(for key: KeychainKey) -> String? {
     let query: [String: Any] = [
         kSecClass as String: kSecClassGenericPassword,
         kSecAttrAccount as String: key.rawValue,
         kSecReturnData as String: true,
-        kSecMatchLimit as String: kSecMatchLimitOne
+
+        kSecMatchLimit as String: kSecMatchLimitOne,
     ]
-    var result: AnyObject?
-    let status = SecItemCopyMatching(query as CFDictionary, &result)
-    if status == errSecSuccess, let data = result as? Data {
-        return String(data: data, encoding: .utf8)
+
+    var item: CFTypeRef?
+    let status = SecItemCopyMatching(query as CFDictionary, &item)
+    if status == errSecSuccess,
+       let data = item as? Data,
+       let token = String(data: data, encoding: .utf8) {
+        return token
+
     }
     return nil
 }
