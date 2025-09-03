@@ -15,56 +15,57 @@ from src import ui_widgets
 BANNER = "www.falowen.app – your German conversational partner"
 
 
-def test_render_announcements_includes_banner(monkeypatch):
+def test_render_announcements_without_banner(monkeypatch):
+    import importlib
+    importlib.reload(ui_widgets)
     captured = {}
 
     def fake_html(html, *_, **__):
         captured["html"] = html
 
     monkeypatch.setattr(ui_widgets, "components", SimpleNamespace(html=fake_html))
+    ui_widgets.render_announcements([{"title": "t", "body": "b"}])
+    assert "t" in captured["html"]
+    assert "b" in captured["html"]
+    assert BANNER not in captured["html"]
 
-    def app():
-        from src import ui_widgets as uw
-        uw.render_announcements([{"title": "t", "body": "b"}])
 
-    at = AppTest.from_function(app)
-    at.run()
-    assert BANNER in captured["html"]
-
-def test_render_announcements_fallback_banner(monkeypatch):
+def test_render_announcements_fallback_without_banner(monkeypatch):
+    import importlib
+    importlib.reload(ui_widgets)
+    outputs = []
 
     def failing_html(*_, **__):
         raise TypeError("no components")
 
+    def fake_markdown(msg, *_, **__):
+        outputs.append(msg)
+
     monkeypatch.setattr(ui_widgets, "components", SimpleNamespace(html=failing_html))
+    monkeypatch.setattr(ui_widgets.st, "markdown", fake_markdown)
+    ui_widgets.render_announcements([{"title": "t", "body": "b"}])
+    assert outputs == ["**t** — b"]
+    assert all(BANNER not in o for o in outputs)
 
-    def app():
-        from src import ui_widgets as uw
-        uw.render_announcements([{"title": "t", "body": "b"}])
-
-    at = AppTest.from_function(app)
-    at.run()
-    bodies = [m.body for m in at.markdown]
-    assert BANNER in bodies[0]
-    assert BANNER in bodies[-1]
 
 def test_render_announcements_empty(monkeypatch):
+    import importlib
+    importlib.reload(ui_widgets)
+    info_msgs = []
     called = {}
 
     def fake_html(*_, **__):
         called["html"] = True
 
+    def fake_info(msg, *_, **__):
+        info_msgs.append(msg)
+
     monkeypatch.setattr(ui_widgets, "components", SimpleNamespace(html=fake_html))
-
-    def app():
-        from src import ui_widgets as uw
-        uw.render_announcements([])
-
-    at = AppTest.from_function(app)
-    at.run()
-    assert at.info[0].body == "📣 No new updates to show."
+    monkeypatch.setattr(ui_widgets.st, "info", fake_info)
+    ui_widgets.render_announcements([])
+    assert info_msgs == ["📣 No new updates to show."]
     assert "html" not in called
-    assert all(BANNER not in m.body for m in at.markdown)
+    assert all(BANNER not in m for m in info_msgs)
 
 def test_render_announcements_once_skips_when_hash_matches(monkeypatch):
     render_mock = MagicMock()

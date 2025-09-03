@@ -130,14 +130,6 @@ def render_announcements(announcements: list) -> None:
     if not announcements:
         st.info("📣 No new updates to show.")
         return
-    if st.query_params.get("hide_banner"):
-        st.session_state["_banner_dismissed"] = True
-        try:
-            del st.query_params["hide_banner"]
-        except Exception:
-            pass
-    banner_dismissed = st.session_state.get("_banner_dismissed", False)
-    banner_message = "www.falowen.app – your German conversational partner"
     _html = """
     <style>
       :root{ --brand:#1d4ed8; --ring:#93c5fd; --text:#0b1220; --muted:#475569; --card:#ffffff;
@@ -147,8 +139,6 @@ def render_announcements(announcements: list) -> None:
       }
       .page-wrap{max-width:1100px;margin:0 auto;padding:0 10px;}
       .ann-title{font-weight:800;font-size:1.05rem;line-height:1.2; padding-left:12px;border-left:5px solid var(--brand);margin:0 0 6px 0;color:var(--text);}
-      .ann-banner{text-align:center;font-weight:700;margin:8px 0;}
-      .ann-close{float:right;font-weight:900;text-decoration:none;color:inherit;cursor:pointer;}
       .ann-shell{border-radius:14px;border:1px solid var(--shell-border);background:var(--card);box-shadow:0 6px 18px rgba(2,6,23,.12);padding:12px 14px;overflow:hidden;}
       .ann-heading{display:flex;align-items:center;gap:10px;margin:0 0 6px 0;font-weight:800;color:var(--text);}
       .ann-chip{font-size:.78rem;font-weight:800;text-transform:uppercase;background:var(--chip-bg);color:var(--chip-fg);padding:4px 9px;border-radius:999px;border:1px solid var(--shell-border);}
@@ -161,7 +151,6 @@ def render_announcements(announcements: list) -> None:
     </style>
     <div class="page-wrap">
       <div class="ann-title">📣 New Updates</div>
-      <div class="ann-banner">__BANNER__</div>
       <div class="ann-shell" id="ann_shell" aria-live="polite">
         <div id="ann_card">
           <div class="ann-heading"><span class="ann-chip" id="ann_tag" style="display:none;"></span><span id="ann_title"></span></div>
@@ -170,7 +159,6 @@ def render_announcements(announcements: list) -> None:
         </div>
         <div class="ann-dots" id="ann_dots" role="tablist" aria-label="Announcement selector"></div>
       </div>
-      <div class="ann-banner">__BANNER__</div>
     </div>
     <script>
       const data = __DATA__;
@@ -197,13 +185,6 @@ def render_announcements(announcements: list) -> None:
       render(i);
     </script>
     """
-    if banner_dismissed:
-        _html = _html.replace('<div class="ann-banner">__BANNER__</div>', '')
-    else:
-        banner_block = (
-            f"{banner_message}<a class='ann-close' href='?hide_banner=1' target='_top'>&times;</a>"
-        )
-        _html = _html.replace("__BANNER__", banner_block)
     try:
         components.html(
             _html.replace("__DATA__", json.dumps(announcements, ensure_ascii=False)),
@@ -211,20 +192,8 @@ def render_announcements(announcements: list) -> None:
             scrolling=False,
         )
     except TypeError:
-        if not banner_dismissed:
-            st.markdown(
-                "<div style='text-align:center;font-weight:700;margin:8px 0;'>"
-                f"<a href='?hide_banner=1' target='_top' style='float:right;text-decoration:none;color:inherit;font-weight:900;'>&times;</a>{banner_message}</div>",
-                unsafe_allow_html=True,
-            )
         for a in announcements:
             st.markdown(f"**{a.get('title','')}** — {a.get('body','')}")
-        if not banner_dismissed:
-            st.markdown(
-                "<div style='text-align:center;font-weight:700;margin:8px 0;'>"
-                f"<a href='?hide_banner=1' target='_top' style='float:right;text-decoration:none;color:inherit;font-weight:900;'>&times;</a>{banner_message}</div>",
-                unsafe_allow_html=True,
-            )
 
 
 def render_announcements_once(data: list, dashboard_active: bool) -> None:
