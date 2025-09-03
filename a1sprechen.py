@@ -668,10 +668,12 @@ def render_returning_login_area() -> bool:
 def render_returning_login_form():
     """Simplified returning-user login form used in tests."""
     with st.form("returning_login_form", clear_on_submit=False):
-        _ = st.text_input("Email or Student Code")
-        st.text_input("Password", type="password")
-        st.form_submit_button("Log in")
+        login_id = st.text_input("Email or Student Code")
+        login_pass = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Log in")
         forgot = st.form_submit_button("Forgot password?")
+    if submitted:
+        render_login_form(login_id, login_pass)
     if forgot:
         # In reality this would trigger sending a reset email.
         send_reset_email("test@example.com", "reset-link")
