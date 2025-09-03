@@ -21,6 +21,18 @@ This value is required for secure cookie management.
 
 - From the Dashboard, use **View all class announcements** to jump to the full classroom announcements feed.
 
+### Vocab Sheet Format
+
+The vocabulary sheet must include the following columns:
+
+- `Level`
+- `German`
+- `English`
+
+| Level | German | English |
+|-------|--------|---------|
+| A1    | Haus   | house   |
+
 ## Keychain Helper
 
 The application uses a small Swift utility to read and write OAuth tokens from
