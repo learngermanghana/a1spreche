@@ -6887,14 +6887,23 @@ if tab == "Schreiben Trainer":
                 return []
 
         prompts = get_prompts_for_level(schreiben_level)
-        options = prompts or ["(no prompts available)"]
-        selected_prompt = st.selectbox(
-            "Choose a prompt",
-            options,
-            key=f"practice_prompt_{student_code}",
-        )
         if prompts:
-            st.markdown(f"### ✉️ Prompt\n\n{selected_prompt}")
+            options = [p["Thema"] for p in prompts]
+            selected_theme = st.selectbox(
+                "Choose a prompt",
+                options,
+                key=f"practice_prompt_{student_code}",
+            )
+            prompt = next((p for p in prompts if p["Thema"] == selected_theme), None)
+            if prompt:
+                st.markdown(f"### ✉️ {prompt['Thema']}")
+                st.markdown("\n".join(f"- {p}" for p in prompt['Punkte']))
+        else:
+            st.selectbox(
+                "Choose a prompt",
+                ["(no prompts available)"],
+                key=f"practice_prompt_{student_code}",
+            )
         st.info(
             "Use \u201cIdeas Generator (Letter Coach)\u201d for ideas and \u201cMark My Letter\u201d to submit your response for evaluation.",
         )
