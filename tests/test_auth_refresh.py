@@ -1,5 +1,6 @@
 from http.cookies import SimpleCookie
 from email.utils import parsedate_to_datetime
+import time
 
 from flask import Flask
 
@@ -25,9 +26,11 @@ def test_refresh_extends_cookie_expiry():
     login_resp = client.post("/auth/login", json={"user_id": "u"})
     first_expires, cookie_header = _cookie_expires(login_resp)
 
+    time.sleep(1)
     refresh_resp1 = client.get("/auth/refresh", headers={"Cookie": cookie_header})
     second_expires, cookie_header2 = _cookie_expires(refresh_resp1)
 
+    time.sleep(1)
     refresh_resp2 = client.get("/auth/refresh", headers={"Cookie": cookie_header2})
     third_expires, _ = _cookie_expires(refresh_resp2)
 
