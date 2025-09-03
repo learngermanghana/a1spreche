@@ -191,7 +191,9 @@ def render_announcements(announcements: list) -> None:
         setActiveDot(idx);
       }
       data.forEach((_, idx)=>{ const b=document.createElement('button'); b.className='ann-dot'; b.type='button'; b.setAttribute('role','tab');
-        b.setAttribute('aria-label','Show announcement '+(idx+1)); b.addEventListener('click', ()=>{ i=idx; render(i); }); dotsWrap.appendChild(b); });
+        b.setAttribute('aria-label','Slide '+(idx+1)); b.setAttribute('tabindex','0'); b.addEventListener('click', ()=>{ i=idx; render(i); });
+        b.addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '||e.key==='Spacebar'){ e.preventDefault(); i=idx; render(i); }});
+        dotsWrap.appendChild(b); });
       render(i);
     </script>
     """
