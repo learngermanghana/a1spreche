@@ -4422,8 +4422,8 @@ if tab == "My Course":
                     render_announcement(row, is_pinned=False)
 
 
-        # ===================== Class Board =====================
-        elif classroom_section == "Class Board":
+        # ===================== Class Notes & Q&A =====================
+        elif classroom_section == "Class Notes & Q&A":
             board_base = db.collection("class_board").document(class_name).collection("posts")
 
 
@@ -4510,7 +4510,7 @@ if tab == "My Course":
                     margin-bottom:12px;
                     box-shadow:0 2px 6px rgba(0,0,0,0.08);
                     display:flex;align-items:center;justify-content:space-between;">
-                    <div style="font-weight:700;font-size:1.15rem;">💬 Class Board {_badge_html}</div>
+                    <div style="font-weight:700;font-size:1.15rem;">💬 Class Notes & Q&A {_badge_html}</div>
                     <div style="font-size:0.92rem;opacity:.9;">Share a post • Comment with classmates</div>
                 </div>
                 ''',
