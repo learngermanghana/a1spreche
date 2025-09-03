@@ -4414,8 +4414,8 @@ if tab == "My Course":
                     render_announcement(row, is_pinned=False)
 
 
-        # ===================== Post A Grammar Question =====================
-        elif classroom_section == "Post A Grammar Question":
+        # ===================== Class Board =====================
+        elif classroom_section == "Class Board":
             board_base = db.collection("class_board").document(class_name).collection("posts")
 
 
@@ -4502,8 +4502,8 @@ if tab == "My Course":
                     margin-bottom:12px;
                     box-shadow:0 2px 6px rgba(0,0,0,0.08);
                     display:flex;align-items:center;justify-content:space-between;">
-                    <div style="font-weight:700;font-size:1.15rem;">💬 Class Q&amp;A {_badge_html}</div>
-                    <div style="font-size:0.92rem;opacity:.9;">Ask a question • Help classmates with answers</div>
+                    <div style="font-weight:700;font-size:1.15rem;">💬 Class Board {_badge_html}</div>
+                    <div style="font-size:0.92rem;opacity:.9;">Share a post • Comment with classmates</div>
                 </div>
                 ''',
                 unsafe_allow_html=True
@@ -4515,38 +4515,38 @@ if tab == "My Course":
                 except Exception:
                     return ""
 
-            with st.expander("➕ Ask a new question", expanded=False):
+            with st.expander("➕ Add a new post", expanded=False):
                 if st.session_state.get("__clear_q_form"):
                     st.session_state.pop("__clear_q_form", None)
                     st.session_state["q_topic"] = ""
                     st.session_state["q_text"] = ""
                 topic = st.text_input("Topic (optional)", key="q_topic")
-                new_q = st.text_area("Your question", key="q_text", height=80)
-                if st.button("Post Question", key="qna_post_question") and new_q.strip():
+                new_q = st.text_area("Your content", key="q_text", height=80)
+                if st.button("Post", key="qna_post_question") and new_q.strip():
                     q_id = str(uuid4())[:8]
                     payload = {
-                        "question": new_q.strip(),
+                        "content": new_q.strip(),
                         "asked_by_name": student_name,
                         "asked_by_code": student_code,
                         "timestamp": _dt.utcnow(),
                         "topic": (topic or "").strip(),
                     }
                     board_base.document(q_id).set(payload)
-                    preview = (payload["question"][:180] + "…") if len(payload["question"]) > 180 else payload["question"]
+                    preview = (payload["content"][:180] + "…") if len(payload["content"]) > 180 else payload["content"]
                     topic_tag = f" • Topic: {payload['topic']}" if payload["topic"] else ""
                     _notify_slack(
-                        f"❓ *New class question* — {class_name}{topic_tag}\n"
+                        f"📝 *New Class Board post* — {class_name}{topic_tag}\n"
                         f"*From:* {student_name} ({student_code})\n"
                         f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
-                        f"*Q:* {preview}"
+                        f"*Content:* {preview}"
                     )
                     st.session_state["__clear_q_form"] = True
-                    st.success("Question posted!")
+                    st.success("Post published!")
                     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
             colsa, colsb, colsc = st.columns([2, 1, 1])
             with colsa:
-                q_search = st.text_input("Search questions (text or topic)…", key="q_search")
+                q_search = st.text_input("Search posts (text or topic)…", key="q_search")
             with colsb:
                 show_latest = st.toggle("Newest first", value=True, key="q_show_latest")
             with colsc:
@@ -4570,13 +4570,13 @@ if tab == "My Course":
                 ql = q_search.lower()
                 questions = [
                     q for q in questions
-                    if ql in str(q.get("question", "")).lower() or ql in str(q.get("topic", "")).lower()
+                    if ql in str(q.get("content", "")).lower() or ql in str(q.get("topic", "")).lower()
                 ]
             if not show_latest:
                 questions = list(reversed(questions))
 
             if not questions:
-                st.info("No questions yet.")
+                st.info("No posts yet.")
             else:
                 for q in questions:
                     q_id = q.get("id", "")
@@ -4588,7 +4588,7 @@ if tab == "My Course":
                         f"<b>{q.get('asked_by_name','')}</b>"
                         f"<span style='color:#aaa;'> • {ts_label}</span>"
                         f"{topic_html}"
-                        f"{q.get('question','')}"
+                        f"{q.get('content','')}"
                         f"</div>",
                         unsafe_allow_html=True
                     )
@@ -4599,23 +4599,23 @@ if tab == "My Course":
                         with qc1:
                             if st.button("✏️ Edit", key=f"q_edit_btn_{q_id}"):
                                 st.session_state[f"q_editing_{q_id}"] = True
-                                st.session_state[f"q_edit_text_{q_id}"] = q.get("question", "")
+                                st.session_state[f"q_edit_text_{q_id}"] = q.get("content", "")
                                 st.session_state[f"q_edit_topic_{q_id}"] = q.get("topic", "")
                         with qc2:
                             if st.button("🗑️ Delete", key=f"q_del_btn_{q_id}"):
                                 try:
-                                    r_ref = board_base.document(q_id).collection("replies")
-                                    for rdoc in r_ref.stream():
+                                    c_ref = board_base.document(q_id).collection("comments")
+                                    for rdoc in c_ref.stream():
                                         rdoc.reference.delete()
                                 except Exception:
                                     pass
                                 board_base.document(q_id).delete()
                                 _notify_slack(
-                                    f"🗑️ *Class Notes & Q&A question deleted* — {class_name}\n"
+                                    f"🗑️ *Class Board post deleted* — {class_name}\n"
                                     f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
                                     f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
                                 )
-                                st.success("Question deleted.")
+                                st.success("Post deleted.")
                                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
                         if st.session_state.get(f"q_editing_{q_id}", False):
@@ -4626,7 +4626,7 @@ if tab == "My Course":
                                     key=f"q_edit_topic_input_{q_id}"
                                 )
                                 new_text = st.text_area(
-                                    "Edit question",
+                                    "Edit post",
                                     value=st.session_state.get(f"q_edit_text_{q_id}", ""),
                                     key=f"q_edit_text_input_{q_id}",
                                     height=100
@@ -4635,88 +4635,88 @@ if tab == "My Course":
                                 cancel_edit = st.form_submit_button("❌ Cancel")
                             if save_edit and new_text.strip():
                                 board_base.document(q_id).update({
-                                    "question": new_text.strip(),
+                                    "content": new_text.strip(),
                                     "topic": (new_topic or "").strip(),
                                 })
                                 _notify_slack(
-                                    f"✏️ *Class Notes & Q&A question edited* — {class_name}\n"
+                                    f"✏️ *Class Board post edited* — {class_name}\n"
                                     f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
                                     f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
                                     f"*New:* {(new_text[:180] + '…') if len(new_text) > 180 else new_text}"
                                 )
                                 st.session_state[f"q_editing_{q_id}"] = False
-                                st.success("Question updated.")
+                                st.success("Post updated.")
                                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
                             if cancel_edit:
                                 st.session_state[f"q_editing_{q_id}"] = False
                                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
-                    r_ref = board_base.document(q_id).collection("replies")
+                    c_ref = board_base.document(q_id).collection("comments")
                     try:
-                        replies_docs = list(r_ref.order_by("timestamp").stream())
+                        comments_docs = list(c_ref.order_by("timestamp").stream())
                     except Exception:
-                        replies_docs = list(r_ref.stream())
-                        replies_docs.sort(key=lambda r: (r.to_dict() or {}).get("timestamp"))
+                        comments_docs = list(c_ref.stream())
+                        comments_docs.sort(key=lambda c: (c.to_dict() or {}).get("timestamp"))
 
-                    if replies_docs:
-                        for r in replies_docs:
-                            rid = r.id
-                            r_data = r.to_dict() or {}
-                            r_label = _fmt_ts(r_data.get("timestamp"))
+                    if comments_docs:
+                        for c in comments_docs:
+                            cid = c.id
+                            c_data = c.to_dict() or {}
+                            c_label = _fmt_ts(c_data.get("timestamp"))
                             st.markdown(
-                                f"<div style='margin-left:20px;color:#444;'>↳ <b>{r_data.get('replied_by_name','')}</b> "
-                                f"<span style='color:#bbb;'>{r_label}</span><br>"
-                                f"{r_data.get('reply_text','')}</div>",
+                                f"<div style='margin-left:20px;color:#444;'>↳ <b>{c_data.get('replied_by_name','')}</b> "
+                                f"<span style='color:#bbb;'>{c_label}</span><br>"
+                                f"{c_data.get('content','')}</div>",
                                 unsafe_allow_html=True
                             )
 
-                            can_modify_r = (r_data.get("replied_by_code") == student_code) or IS_ADMIN
-                            if can_modify_r:
+                            can_modify_c = (c_data.get("replied_by_code") == student_code) or IS_ADMIN
+                            if can_modify_c:
                                 rc1, rc2, _ = st.columns([1, 1, 6])
                                 with rc1:
-                                    if st.button("✏️ Edit", key=f"r_edit_btn_{q_id}_{rid}"):
-                                        st.session_state[f"r_editing_{q_id}_{rid}"] = True
-                                        st.session_state[f"r_edit_text_{q_id}_{rid}"] = r_data.get("reply_text", "")
+                                    if st.button("✏️ Edit", key=f"c_edit_btn_{q_id}_{cid}"):
+                                        st.session_state[f"c_editing_{q_id}_{cid}"] = True
+                                        st.session_state[f"c_edit_text_{q_id}_{cid}"] = c_data.get("content", "")
                                 with rc2:
-                                    if st.button("🗑️ Delete", key=f"r_del_btn_{q_id}_{rid}"):
-                                        r.reference.delete()
+                                    if st.button("🗑️ Delete", key=f"c_del_btn_{q_id}_{cid}"):
+                                        c.reference.delete()
                                         _notify_slack(
-                                            f"🗑️ *Class Notes & Q&A reply deleted* — {class_name}\n"
+                                            f"🗑️ *Class Board comment deleted* — {class_name}\n"
                                             f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
                                             f"*When:* {_dt.now(_timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC"
                                         )
-                                        st.success("Reply deleted.")
+                                        st.success("Comment deleted.")
                                         st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
-                                if st.session_state.get(f"r_editing_{q_id}_{rid}", False):
-                                    with st.form(f"r_edit_form_{q_id}_{rid}"):
+                                if st.session_state.get(f"c_editing_{q_id}_{cid}", False):
+                                    with st.form(f"c_edit_form_{q_id}_{cid}"):
                                         new_rtext = st.text_area(
-                                            "Edit reply",
-                                            value=st.session_state.get(f"r_edit_text_{q_id}_{rid}", ""),
-                                            key=f"r_edit_text_input_{q_id}_{rid}",
+                                            "Edit comment",
+                                            value=st.session_state.get(f"c_edit_text_{q_id}_{cid}", ""),
+                                            key=f"c_edit_text_input_{q_id}_{cid}",
                                             height=80
                                         )
-                                        rsave = st.form_submit_button("💾 Save")
-                                        rcancel = st.form_submit_button("❌ Cancel")
-                                    if rsave and new_rtext.strip():
-                                        r.reference.update({
-                                            "reply_text": new_rtext.strip(),
+                                        csave = st.form_submit_button("💾 Save")
+                                        ccancel = st.form_submit_button("❌ Cancel")
+                                    if csave and new_rtext.strip():
+                                        c.reference.update({
+                                            "content": new_rtext.strip(),
                                              "edited_at": _dt.now(_timezone.utc),
                                         })
                                         _notify_slack(
-                                            f"✏️ *Class Notes & Q&A reply edited* — {class_name}\n"
+                                            f"✏️ *Class Board comment edited* — {class_name}\n"
                                             f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
                                             f"*When:* {_dt.now(_timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC\n"
                                             f"*New:* {(new_rtext[:180] + '…') if len(new_rtext) > 180 else new_rtext}"
                                         )
-                                        st.session_state[f"r_editing_{q_id}_{rid}"] = False
-                                        st.success("Reply updated.")
+                                        st.session_state[f"c_editing_{q_id}_{cid}"] = False
+                                        st.success("Comment updated.")
                                         st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-                                    if rcancel:
-                                        st.session_state[f"r_editing_{q_id}_{rid}"] = False
+                                    if ccancel:
+                                        st.session_state[f"c_editing_{q_id}_{cid}"] = False
                                         st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
-                    draft_key = f"classroom_reply_draft_{q_id}"
+                    draft_key = f"classroom_comment_draft_{q_id}"
                     last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
                     if draft_key not in st.session_state:
                         txt, ts = load_draft_meta_from_db(student_code, draft_key)
@@ -4725,30 +4725,30 @@ if tab == "My Course":
                         st.session_state[last_ts_key] = time.time()
                         st.session_state[saved_flag_key] = bool(txt)
                         st.session_state[saved_at_key] = ts
-                    reply_text = st.text_input(
-                        f"Reply to Q{q_id}",
+                    comment_text = st.text_input(
+                        f"Comment on Q{q_id}",
                         key=draft_key,
-                        placeholder="Write your reply…",
+                        placeholder="Write your comment…",
                         on_change=save_now,
                         args=(draft_key, student_code),
                     )
                     current_text = st.session_state.get(draft_key, "")
                     autosave_maybe(student_code, draft_key, current_text, min_secs=2.0, min_delta=12)
-                    if st.button(f"Send Reply {q_id}", key=f"q_reply_btn_{q_id}") and current_text.strip():
-                        reply_payload = {
-                            "reply_text": current_text.strip(),
+                    if st.button(f"Send Comment {q_id}", key=f"q_comment_btn_{q_id}") and current_text.strip():
+                        comment_payload = {
+                            "content": current_text.strip(),
                             "replied_by_name": student_name,
                             "replied_by_code": student_code,
                             "timestamp": _dt.now(_timezone.utc),
                         }
-                        r_ref = board_base.document(q_id).collection("replies")
-                        r_ref.document(str(uuid4())[:8]).set(reply_payload)
-                        prev = (reply_payload["reply_text"][:180] + "…") if len(reply_payload["reply_text"]) > 180 else reply_payload["reply_text"]
+                        c_ref = board_base.document(q_id).collection("comments")
+                        c_ref.document(str(uuid4())[:8]).set(comment_payload)
+                        prev = (comment_payload["content"][:180] + "…") if len(comment_payload["content"]) > 180 else comment_payload["content"]
                         _notify_slack(
-                            f"💬 *New Class Notes & Q&A reply* — {class_name}\n"
+                            f"💬 *New Class Board comment* — {class_name}\n"
                             f"*By:* {student_name} ({student_code})  •  *QID:* {q_id}\n"
                             f"*When:* {_dt.now(_timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC\n"
-                            f"*Reply:* {prev}"
+                            f"*Comment:* {prev}"
                         )
 
                         save_draft_to_db(student_code, draft_key, "")
@@ -4757,7 +4757,7 @@ if tab == "My Course":
                         st.session_state[last_ts_key] = time.time()
                         st.session_state[saved_flag_key] = False
                         st.session_state[saved_at_key] = None
-                        st.success("Reply sent!")
+                        st.success("Comment sent!")
                         st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
 
