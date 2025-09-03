@@ -3343,7 +3343,7 @@ if tab == "My Course":
 
         classroom_section = st.radio(
             "Classroom section",
-            ["Calendar", "Join on Zoom", "Members", "Announcements", "Post A Grammar Question"],
+            ["Calendar", "Join on Zoom", "Members", "Announcements", "Class Notes & Discussion"],
             horizontal=True,
             key="classroom_page",
             on_change=on_classroom_page_change,
@@ -4413,8 +4413,8 @@ if tab == "My Course":
                 for _, row in latest_df.iterrows():
                     render_announcement(row, is_pinned=False)
 
-        # ===================== Post A Grammar Question =====================
-        elif classroom_section == "Post A Grammar Question":
+        # ===================== Class Notes & Discussion =====================
+        elif classroom_section == "Class Notes & Discussion":
             q_base = db.collection("class_qna").document(class_name).collection("questions")
 
             _new7, _unans, _total = 0, 0, 0
@@ -4500,8 +4500,8 @@ if tab == "My Course":
                     margin-bottom:12px;
                     box-shadow:0 2px 6px rgba(0,0,0,0.08);
                     display:flex;align-items:center;justify-content:space-between;">
-                    <div style="font-weight:700;font-size:1.15rem;">💬 Class Q&amp;A {_badge_html}</div>
-                    <div style="font-size:0.92rem;opacity:.9;">Ask a question • Help classmates with answers</div>
+                    <div style="font-weight:700;font-size:1.15rem;">📝 Class Notes &amp; Discussion {_badge_html}</div>
+                    <div style="font-size:0.92rem;opacity:.9;">Share summaries, materials, questions, and opinions</div>
                 </div>
                 ''',
                 unsafe_allow_html=True
