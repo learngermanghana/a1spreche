@@ -4508,7 +4508,19 @@ if tab == "My Course":
                 st.session_state["q_topic"] = ""
                 st.session_state["q_text"] = ""
             topic = st.text_input("Topic (optional)", key="q_topic")
-            new_q = st.text_area("Your content", key="q_text", height=80)
+            st.markdown(
+                """
+                <style>
+                textarea[aria-label="Your content"] {
+                    background-color: #233d2b;
+                    color: #fff;
+                    font-family: 'Chalkboard', 'Chalkduster', 'Comic Sans MS', cursive;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+            new_q = st.text_area("Your content", key="q_text", height=160)
             if st.button("Post", key="qna_post_question") and new_q.strip():
                 q_id = str(uuid4())[:8]
                 payload = {
@@ -4612,11 +4624,23 @@ if tab == "My Course":
                                     value=st.session_state.get(f"q_edit_topic_{q_id}", ""),
                                     key=f"q_edit_topic_input_{q_id}"
                                 )
+                                st.markdown(
+                                    """
+                                    <style>
+                                    textarea[aria-label="Edit post"] {
+                                        background-color: #233d2b;
+                                        color: #fff;
+                                        font-family: 'Chalkboard', 'Chalkduster', 'Comic Sans MS', cursive;
+                                    }
+                                    </style>
+                                    """,
+                                    unsafe_allow_html=True,
+                                )
                                 new_text = st.text_area(
                                     "Edit post",
                                     value=st.session_state.get(f"q_edit_text_{q_id}", ""),
                                     key=f"q_edit_text_input_{q_id}",
-                                    height=100
+                                    height=200
                                 )
                                 save_edit = st.form_submit_button("💾 Save")
                                 cancel_edit = st.form_submit_button("❌ Cancel")
