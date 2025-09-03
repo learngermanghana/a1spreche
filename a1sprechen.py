@@ -6850,7 +6850,7 @@ if tab == "Schreiben Trainer":
     # --- Sub-tabs for the Trainer ---
     sub_tab = st.radio(
         "Choose Mode",
-        ["Mark My Letter", "Ideas Generator (Letter Coach)"],
+        ["Practice Letters", "Mark My Letter", "Ideas Generator (Letter Coach)"],
         horizontal=True,
         key=f"schreiben_sub_tab_{student_code}"
     )
@@ -6877,6 +6877,27 @@ if tab == "Schreiben Trainer":
 
 
     st.divider()
+
+    # ----------- PRACTICE LETTERS -----------
+    if sub_tab == "Practice Letters":
+        try:
+            from src.schreiben_prompts_module import get_prompts_for_level
+        except Exception:  # pragma: no cover - fallback if module missing
+            def get_prompts_for_level(_level):
+                return []
+
+        prompts = get_prompts_for_level(schreiben_level)
+        options = prompts or ["(no prompts available)"]
+        selected_prompt = st.selectbox(
+            "Choose a prompt",
+            options,
+            key=f"practice_prompt_{student_code}",
+        )
+        if prompts:
+            st.markdown(f"### ✉️ Prompt\n\n{selected_prompt}")
+        st.info(
+            "Use \u201cIdeas Generator (Letter Coach)\u201d for ideas and \u201cMark My Letter\u201d to submit your response for evaluation.",
+        )
 
     # ----------- 1. MARK MY LETTER -----------
     if sub_tab == "Mark My Letter":
