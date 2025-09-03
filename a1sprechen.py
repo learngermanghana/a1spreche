@@ -12,6 +12,7 @@ import random
 import re
 import tempfile
 import time
+import textwrap
 import urllib.parse as _urllib
 from urllib.parse import urlsplit, parse_qs, urlparse
 from datetime import date, timedelta, timezone as _timezone, UTC
@@ -4502,34 +4503,57 @@ if tab == "My Course":
                 except Exception:
                     return ""
 
+            def format_post(text: str) -> str:
+                """Normalize post text for consistent rendering."""
+                text = (text or "").strip()
+                text = re.sub(r"\n\s*\n+", "\n\n", text)
+                paragraphs = [textwrap.fill(p, width=80) for p in text.split("\n\n")]
+                return "\n\n".join(paragraphs)
+
             st.subheader("➕ Add a new post")
             if st.session_state.get("__clear_q_form"):
                 st.session_state.pop("__clear_q_form", None)
                 st.session_state["q_topic"] = ""
                 st.session_state["q_text"] = ""
             topic = st.text_input("Topic (optional)", key="q_topic")
-            new_q = st.text_area("Your content", key="q_text", height=120)
-            if st.button("Post", key="qna_post_question") and new_q.strip():
-                q_id = str(uuid4())[:8]
-                payload = {
-                    "content": new_q.strip(),
-                    "asked_by_name": student_name,
-                    "asked_by_code": student_code,
-                    "timestamp": _dt.utcnow(),
-                    "topic": (topic or "").strip(),
+
+            st.markdown(
+                """
+                <style>
+                textarea[aria-label="Your content"] {
+                    background-color: #233d2b;
+                    color: #fff;
+                    font-family: 'Chalkboard', 'Chalkduster', 'Comic Sans MS', cursive;
                 }
-                board_base.document(q_id).set(payload)
-                preview = (payload["content"][:180] + "…") if len(payload["content"]) > 180 else payload["content"]
-                topic_tag = f" • Topic: {payload['topic']}" if payload["topic"] else ""
-                _notify_slack(
-                    f"📝 *New Class Board post* — {class_name}{topic_tag}\n"
-                    f"*From:* {student_name} ({student_code})\n"
-                    f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
-                    f"*Content:* {preview}"
-                )
-                st.session_state["__clear_q_form"] = True
-                st.success("Post published!")
-                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+            new_q = st.text_area("Your content", key="q_text", height=160)
+            if st.button("Post", key="qna_post_question"):
+                formatted_q = format_post(new_q)
+                if formatted_q:
+                    q_id = str(uuid4())[:8]
+                    payload = {
+                        "content": formatted_q,
+                        "asked_by_name": student_name,
+                        "asked_by_code": student_code,
+                        "timestamp": _dt.utcnow(),
+                        "topic": (topic or "").strip(),
+                    }
+                    board_base.document(q_id).set(payload)
+                    preview = (formatted_q[:180] + "…") if len(formatted_q) > 180 else formatted_q
+                    topic_tag = f" • Topic: {payload['topic']}" if payload["topic"] else ""
+                    _notify_slack(
+                        f"📝 *New Class Board post* — {class_name}{topic_tag}\n",
+                        f"*From:* {student_name} ({student_code})\n",
+                        f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n",
+                        f"*Content:* {preview}"
+                    )
+                    st.session_state["__clear_q_form"] = True
+                    st.success("Post published!")
+                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
             colsa, colsb, colsc = st.columns([2, 1, 1])
             with colsa:
@@ -4570,12 +4594,13 @@ if tab == "My Course":
                     ts = q.get("timestamp")
                     ts_label = _fmt_ts(ts)
                     topic_html = (f"<div style='font-size:0.9em;color:#666;'>{q.get('topic','')}</div>" if q.get("topic") else "")
+                    content_html = format_post(q.get("content", "")).replace("\n", "<br>")
                     st.markdown(
                         f"<div style='padding:10px;background:#f8fafc;border:1px solid #ddd;border-radius:6px;margin:6px 0;'>"
                         f"<b>{q.get('asked_by_name','')}</b>"
                         f"<span style='color:#aaa;'> • {ts_label}</span>"
                         f"{topic_html}"
-                        f"{q.get('content','')}"
+                        f"{content_html}"
                         f"</div>",
                         unsafe_allow_html=True
                     )
@@ -4620,20 +4645,22 @@ if tab == "My Course":
                                 )
                                 save_edit = st.form_submit_button("💾 Save")
                                 cancel_edit = st.form_submit_button("❌ Cancel")
-                            if save_edit and new_text.strip():
-                                board_base.document(q_id).update({
-                                    "content": new_text.strip(),
-                                    "topic": (new_topic or "").strip(),
-                                })
-                                _notify_slack(
-                                    f"✏️ *Class Board post edited* — {class_name}\n"
-                                    f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
-                                    f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
-                                    f"*New:* {(new_text[:180] + '…') if len(new_text) > 180 else new_text}"
-                                )
-                                st.session_state[f"q_editing_{q_id}"] = False
-                                st.success("Post updated.")
-                                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                            if save_edit:
+                                formatted_edit = format_post(new_text)
+                                if formatted_edit:
+                                    board_base.document(q_id).update({
+                                        "content": formatted_edit,
+                                        "topic": (new_topic or "").strip(),
+                                    })
+                                    _notify_slack(
+                                        f"✏️ *Class Board post edited* — {class_name}\n",
+                                        f"*By:* {student_name} ({student_code}) • QID: {q_id}\n",
+                                        f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n",
+                                        f"*New:* {(formatted_edit[:180] + '…') if len(formatted_edit) > 180 else formatted_edit}",
+                                    )
+                                    st.session_state[f"q_editing_{q_id}"] = False
+                                    st.success("Post updated.")
+                                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
                             if cancel_edit:
                                 st.session_state[f"q_editing_{q_id}"] = False
                                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
