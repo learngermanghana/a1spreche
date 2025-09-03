@@ -3935,32 +3935,11 @@ if tab == "My Course":
                     margin: 6px 0 8px 0;
                     display:flex;align-items:center;gap:8px;">
                   <span style="font-size:1.05rem;">👥 <b>Class Members</b></span>
-                  <span style="font-size:.92rem;color:#055d87;">Tap below to open and view the list</span>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
-
-            # Light CSS for expanders
-            st.markdown(
-                """
-                <style>
-                  div[data-testid="stExpander"] > details > summary {
-                      background:#f0f9ff !important;
-                      border:1px solid #bae6fd !important;
-                      border-radius:12px !important;
-                      padding:10px 12px !important;
-                  }
-                  div[data-testid="stExpander"] > details[open] > summary {
-                      background:#e0f2fe !important;
-                      border-color:#7dd3fc !important;
-                  }
-                </style>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            with st.expander("👥 Class Members", expanded=False):
+            with st.container():
                 try:
                     df_students = load_student_data()
                 except Exception:
