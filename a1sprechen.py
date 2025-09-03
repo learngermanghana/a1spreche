@@ -4415,7 +4415,7 @@ if tab == "My Course":
 
         # ===================== Post A Grammar Question =====================
         elif classroom_section == "Post A Grammar Question":
-            q_base = db.collection("class_qna").document(class_name).collection("questions")
+            board_base = db.collection("class_board").document(class_name).collection("posts")
 
             _new7, _unans, _total = 0, 0, 0
             try:
@@ -4423,9 +4423,9 @@ if tab == "My Course":
                 try:
                     from firebase_admin import firestore as fbfs
                     direction_desc = getattr(fbfs.Query, "DESCENDING", "DESCENDING")
-                    _qdocs = list(q_base.order_by("created_at", direction=direction_desc).limit(250).stream())
+                    _qdocs = list(board_base.order_by("created_at", direction=direction_desc).limit(250).stream())
                 except Exception:
-                    _qdocs = list(q_base.order_by("created_at", direction="DESCENDING").limit(250).stream())
+                    _qdocs = list(board_base.order_by("created_at", direction="DESCENDING").limit(250).stream())
 
                 def _to_datetime_any(v):
                     if v is None:
@@ -4529,7 +4529,7 @@ if tab == "My Course":
                         "timestamp": _dt.utcnow(),
                         "topic": (topic or "").strip(),
                     }
-                    q_base.document(q_id).set(payload)
+                    board_base.document(q_id).set(payload)
                     preview = (payload["question"][:180] + "…") if len(payload["question"]) > 180 else payload["question"]
                     topic_tag = f" • Topic: {payload['topic']}" if payload["topic"] else ""
                     _notify_slack(
@@ -4555,12 +4555,12 @@ if tab == "My Course":
                 try:
                     from firebase_admin import firestore as fbfs
                     direction_desc = getattr(fbfs.Query, "DESCENDING", "DESCENDING")
-                    q_docs = list(q_base.order_by("timestamp", direction=direction_desc).stream())
+                    q_docs = list(board_base.order_by("timestamp", direction=direction_desc).stream())
                 except Exception:
-                    q_docs = list(q_base.order_by("timestamp", direction="DESCENDING").stream())
+                    q_docs = list(board_base.order_by("timestamp", direction="DESCENDING").stream())
                 questions = [dict(d.to_dict() or {}, id=d.id) for d in q_docs]
             except Exception:
-                q_docs = list(q_base.stream())
+                q_docs = list(board_base.stream())
                 questions = [dict(d.to_dict() or {}, id=d.id) for d in q_docs]
                 questions.sort(key=lambda x: x.get("timestamp"), reverse=True)
 
@@ -4602,12 +4602,12 @@ if tab == "My Course":
                         with qc2:
                             if st.button("🗑️ Delete", key=f"q_del_btn_{q_id}"):
                                 try:
-                                    r_ref = q_base.document(q_id).collection("replies")
+                                    r_ref = board_base.document(q_id).collection("replies")
                                     for rdoc in r_ref.stream():
                                         rdoc.reference.delete()
                                 except Exception:
                                     pass
-                                q_base.document(q_id).delete()
+                                board_base.document(q_id).delete()
                                 _notify_slack(
                                     f"🗑️ *Post A Grammar Question question deleted* — {class_name}\n"
                                     f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
@@ -4632,7 +4632,7 @@ if tab == "My Course":
                                 save_edit = st.form_submit_button("💾 Save")
                                 cancel_edit = st.form_submit_button("❌ Cancel")
                             if save_edit and new_text.strip():
-                                q_base.document(q_id).update({
+                                board_base.document(q_id).update({
                                     "question": new_text.strip(),
                                     "topic": (new_topic or "").strip(),
                                 })
@@ -4649,7 +4649,7 @@ if tab == "My Course":
                                 st.session_state[f"q_editing_{q_id}"] = False
                                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
-                    r_ref = q_base.document(q_id).collection("replies")
+                    r_ref = board_base.document(q_id).collection("replies")
                     try:
                         replies_docs = list(r_ref.order_by("timestamp").stream())
                     except Exception:
@@ -4739,7 +4739,7 @@ if tab == "My Course":
                             "replied_by_code": student_code,
                             "timestamp": _dt.now(_timezone.utc),
                         }
-                        r_ref = q_base.document(q_id).collection("replies")
+                        r_ref = board_base.document(q_id).collection("replies")
                         r_ref.document(str(uuid4())[:8]).set(reply_payload)
                         prev = (reply_payload["reply_text"][:180] + "…") if len(reply_payload["reply_text"]) > 180 else reply_payload["reply_text"]
                         _notify_slack(
