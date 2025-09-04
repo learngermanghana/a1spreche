@@ -5757,9 +5757,11 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["falowen_stage"]           = 4
                     st.session_state["falowen_messages"]        = []
                     st.session_state["custom_topic_intro_done"] = False
-                    st.session_state["remaining_topics"]        = filtered.copy()
+                    st.session_state["remaining_topics"]        = [t for t in filtered if t != chosen]
                     random.shuffle(st.session_state["remaining_topics"])
                     st.session_state["used_topics"]             = []
+                    student_code = st.session_state.get("student_code")
+                    save_exam_progress(student_code, [{"level": level, "teil": teil, "topic": topic}])
                     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
 
