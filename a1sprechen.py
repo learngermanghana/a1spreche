@@ -3187,7 +3187,36 @@ if tab == "My Course":
                                 f"Receipt: `{short_ref}` • You’ll be emailed when it’s marked. "
                                 "See **Results & Resources** for scores & feedback."
                             )
-
+                            answer_text = st.session_state.get(draft_key, "").strip()
+                            MIN_WORDS = 20
+                            is_incomplete = len(answer_text.split()) < MIN_WORDS
+                            if is_incomplete:
+                                st.markdown(
+                                    """
+                                    <div class="resubmit-box">
+                                      <p>Need to resubmit?</p>
+                                      <a href="mailto:learngermanghana@gmail.com?subject=Assignment%20Resubmission&body=Paste%20your%20revised%20work%20here.%0A%0AName:%20%0AStudent%20ID:%20">
+                                        Resubmit via email
+                                      </a>
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True,
+                                )
+                                st.markdown(
+                                    """
+                                    <style>
+                                      .resubmit-box {
+                                        margin-top: 1rem;
+                                        padding: 1rem;
+                                        background: #fff3cd;
+                                        border-left: 4px solid #ffa726;
+                                        border-radius: 8px;
+                                      }
+                                      .resubmit-box a { color: #d97706; font-weight: 600; }
+                                    </style>
+                                    """,
+                                    unsafe_allow_html=True,
+                                )
 
                             # Archive the draft so it won't rehydrate again (drafts_v2)
                             try:
