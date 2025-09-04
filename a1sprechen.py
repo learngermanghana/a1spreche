@@ -5499,6 +5499,35 @@ def build_custom_chat_prompt(level, student_code=None):
     return ""
 
 # ================= SESSION DEFAULTS (reuse your falowen_* keys) =================
+FINAL_FEEDBACK_MESSAGE = (
+    "Great job! You've completed six questions. Keep practicing and see you next time!"
+)
+
+
+def increment_turn_count_and_maybe_close(is_exam: bool) -> bool:
+    """Increment the custom chat turn counter and append final feedback if needed.
+
+    Returns True when the chat has reached the 6-turn limit in custom chat mode
+    and a final feedback message was appended. For exam mode the counter is not
+    incremented and the function always returns False.
+    """
+
+    if is_exam:
+        return False
+
+    st.session_state["falowen_turn_count"] = (
+        st.session_state.get("falowen_turn_count", 0) + 1
+    )
+
+    if st.session_state["falowen_turn_count"] >= 6:
+        st.session_state["falowen_messages"].append(
+            {"role": "assistant", "content": FINAL_FEEDBACK_MESSAGE}
+        )
+        return True
+
+    return False
+
+
 default_state = {
     "falowen_stage": 1,                  # 1: mode, 2: level, 3: part, 4: chat, 99: pron checker
     "falowen_mode": None,                # **RENAMED choices in UI below**
@@ -5847,6 +5876,8 @@ if tab == "Exams Mode & Custom Chat":
 
         # ========= Handle new input FIRST =========
 
+        chat_locked = (not is_exam) and st.session_state.get("falowen_turn_count", 0) >= 6
+
         col_in, col_btn = st.columns([8, 1])
         if st.session_state.pop("falowen_clear_draft", False):
             st.session_state[draft_key] = ""
@@ -5857,14 +5888,16 @@ if tab == "Exams Mode & Custom Chat":
                 key=draft_key,
                 on_change=save_now,
                 args=(draft_key, student_code),
+                disabled=chat_locked,
             )
-            autosave_maybe(
-                student_code,
-                draft_key,
-                st.session_state[draft_key],
-                min_secs=2.0,
-                min_delta=12,
-            )
+            if not chat_locked:
+                autosave_maybe(
+                    student_code,
+                    draft_key,
+                    st.session_state[draft_key],
+                    min_secs=2.0,
+                    min_delta=12,
+                )
         # Older Streamlit releases lack ``st.autorefresh``. Try to use the
         # ``streamlit-autorefresh`` helper when available so the chat area
         # periodically reruns in those environments.
@@ -5877,9 +5910,15 @@ if tab == "Exams Mode & Custom Chat":
             # installed.
             pass
         with col_btn:
-            send_clicked = st.button("Send", key=_wkey("chat_send"), type="primary")
+            send_clicked = st.button(
+                "Send", key=_wkey("chat_send"), type="primary", disabled=chat_locked
+            )
 
-        user_input = st.session_state.get(draft_key, "").strip() if send_clicked else ""
+        user_input = (
+            st.session_state.get(draft_key, "").strip()
+            if send_clicked and not chat_locked
+            else ""
+        )
         if user_input:
             st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
             try:
@@ -5901,8 +5940,9 @@ if tab == "Exams Mode & Custom Chat":
                 except Exception as e:
                     ai_reply = f"Sorry, an error occurred: {e}"
 
-            # 3) append assistant message
+            # 3) append assistant message and update turn count
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
+            increment_turn_count_and_maybe_close(is_exam)
 
             try:
                 doc = db.collection("falowen_chats").document(student_code)
