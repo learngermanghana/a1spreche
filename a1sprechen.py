@@ -6812,6 +6812,7 @@ def get_schreiben_usage(student_code):
     doc = db.collection("schreiben_usage").document(f"{student_code}_{today}").get()
     return doc.to_dict().get("count", 0) if doc.exists else 0
 
+
 def inc_schreiben_usage(student_code):
     today = str(date.today())
     doc_ref = db.collection("schreiben_usage").document(f"{student_code}_{today}")
@@ -6983,11 +6984,9 @@ if tab == "Schreiben Trainer":
 
     # ----------- 1. MARK MY LETTER -----------
     if sub_tab == "Mark My Letter":
-        MARK_LIMIT = 3
         daily_so_far = get_schreiben_usage(student_code)
-        st.markdown(f"**Daily usage:** {daily_so_far} / {MARK_LIMIT}")
+        st.markdown(f"**Daily usage:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}")
 
-        
         try:
             _ = _wkey
         except NameError:
@@ -7009,18 +7008,18 @@ if tab == "Schreiben Trainer":
             key=draft_key,
             value=existing_draft,
             on_change=lambda: save_now(draft_key, student_code),
-            disabled=(daily_so_far >= MARK_LIMIT),
             height=400,
             placeholder="Write your German letter here...",
+            disabled=(daily_so_far >= SCHREIBEN_DAILY_LIMIT),
         )
-        
+
         autosave_maybe(student_code, draft_key, user_letter, min_secs=2.0, min_delta=20)
-   
+
         if st.button("\U0001f4be Save Draft", key=f"save_draft_btn_{student_code}"):
             save_now(draft_key, student_code)
             st.toast("Draft saved!", icon="\U0001f4be")
         st.caption("Auto-saves every few seconds or click 'Save Draft' to save now.")
-        
+
         def clear_feedback_and_start_new():
             for k in [
                 "last_feedback",
@@ -7110,7 +7109,7 @@ if tab == "Schreiben Trainer":
             if session_key not in st.session_state:
                 st.session_state[session_key] = v
 
-        submit_disabled = daily_so_far >= MARK_LIMIT or not user_letter.strip()
+        submit_disabled = (not user_letter.strip()) or (daily_so_far >= SCHREIBEN_DAILY_LIMIT)
         feedback_btn = st.button(
             "Get Feedback",
             type="primary",
@@ -7179,6 +7178,7 @@ if tab == "Schreiben Trainer":
                     letter=user_letter
                 )
                 update_schreiben_stats(student_code)
+                inc_schreiben_usage(student_code)
                 save_draft_to_db(student_code, draft_key, "")
                 st.session_state.pop(draft_key, None)
 
