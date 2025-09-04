@@ -5,14 +5,15 @@ import os
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
-COOKIE_NAME = "session"
-COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "Lax")  # use "None" if cross-site; requires HTTPS
-COOKIE_PATH = "/"
+# Safari/iOS-safe refresh-token cookie settings
+REFRESH_COOKIE = "refresh_token"
+COOKIE_SAMESITE = "Strict"
+COOKIE_PATH = "/auth/refresh"
 MAX_AGE = 60 * 60 * 24 * 30  # 30 days
 
 def _set_cookie(resp, token: str):
     """
-    Sets the session cookie. If running under falowen.app, use domain=.falowen.app.
+    Sets the refresh-token cookie. If running under falowen.app, use domain=.falowen.app.
     Otherwise (e.g., testing on <app>.herokuapp.com), omit domain so the cookie is set.
     """
     kwargs = dict(
@@ -26,7 +27,7 @@ def _set_cookie(resp, token: str):
     if host.endswith("falowen.app"):
         kwargs["domain"] = ".falowen.app"  # share across www/api if needed
 
-    resp.set_cookie(COOKIE_NAME, token, **kwargs)
+    resp.set_cookie(REFRESH_COOKIE, token, **kwargs)
     return resp
 
 # --- Simple token stubs (replace with real JWT/DB logic) ---
@@ -58,7 +59,7 @@ def login():
 def refresh():
     # Prefer POST body; fall back to cookie (so web + iOS both work)
     body = request.get_json(silent=True) or {}
-    rt = body.get("refresh_token") or request.cookies.get(COOKIE_NAME)
+    rt = body.get("refresh_token") or request.cookies.get(REFRESH_COOKIE)
     if not rt:
         return jsonify(error="missing refresh token"), 401
 
@@ -82,5 +83,5 @@ def logout():
     host = (request.host or "").split(":")[0]
     if host.endswith("falowen.app"):
         kwargs["domain"] = ".falowen.app"
-    resp.set_cookie(COOKIE_NAME, "", **kwargs)
+    resp.set_cookie(REFRESH_COOKIE, "", **kwargs)
     return resp

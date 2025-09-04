@@ -4,7 +4,13 @@ import time
 
 from flask import Flask
 
-from auth import auth_bp, MAX_AGE
+from auth import (
+    auth_bp,
+    MAX_AGE,
+    REFRESH_COOKIE,
+    COOKIE_PATH,
+    COOKIE_SAMESITE,
+)
 
 
 def create_app():
@@ -13,10 +19,16 @@ def create_app():
     return app
 
 
-def _cookie_expires(resp):
+def _cookie_attrs(resp):
     cookie = SimpleCookie()
     cookie.load(resp.headers["Set-Cookie"])
-    return parsedate_to_datetime(cookie["session"]["expires"]), cookie["session"].OutputString()
+    morsel = cookie[REFRESH_COOKIE]
+    return (
+        parsedate_to_datetime(morsel["expires"]),
+        morsel["path"],
+        morsel["samesite"],
+        morsel.OutputString(),
+    )
 
 
 def test_refresh_extends_cookie_expiry():
@@ -24,15 +36,21 @@ def test_refresh_extends_cookie_expiry():
     client = app.test_client()
 
     login_resp = client.post("/auth/login", json={"user_id": "u"})
-    first_expires, cookie_header = _cookie_expires(login_resp)
+    first_expires, path, samesite, cookie_header = _cookie_attrs(login_resp)
+    assert path == COOKIE_PATH
+    assert samesite == COOKIE_SAMESITE
 
     time.sleep(1)
     refresh_resp1 = client.get("/auth/refresh", headers={"Cookie": cookie_header})
-    second_expires, cookie_header2 = _cookie_expires(refresh_resp1)
+    second_expires, path, samesite, cookie_header2 = _cookie_attrs(refresh_resp1)
+    assert path == COOKIE_PATH
+    assert samesite == COOKIE_SAMESITE
 
     time.sleep(1)
     refresh_resp2 = client.get("/auth/refresh", headers={"Cookie": cookie_header2})
-    third_expires, _ = _cookie_expires(refresh_resp2)
+    third_expires, path, samesite, _ = _cookie_attrs(refresh_resp2)
+    assert path == COOKIE_PATH
+    assert samesite == COOKIE_SAMESITE
 
     assert second_expires > first_expires
     assert third_expires > second_expires
