@@ -1,7 +1,10 @@
+import logging
 import os
 import threading
 from collections.abc import MutableMapping
 from typing import Any, Callable
+
+import streamlit as st
 
 import streamlit as st
 
@@ -66,6 +69,7 @@ def clear_session(cm: MutableMapping[str, Any]) -> None:
         cm.pop("session_token", None)
     except Exception:
         pass
+
 
 
 def reset_password_page():  # pragma: no cover - stub for compatibility
@@ -213,4 +217,5 @@ def restore_session_from_cookie(
             return None
 
     return {"student_code": sc, "session_token": token, "data": roster}
+
 
