@@ -1,5 +1,7 @@
 import os
 from datetime import datetime, timedelta, timezone
+from collections.abc import MutableMapping
+from typing import Any
 
 # --- Cookie defaults --------------------------------------------------------
 
