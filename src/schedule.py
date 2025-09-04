@@ -150,8 +150,8 @@ def get_a1_schedule():
             "grammar_topic": "schon mal, noch nie; irregular verbs; personal pronouns",
             "assignment": True,
             "lesen_hören": {
-                "video": "https://youtu.be/JfTc1G9mubs",
-                "youtube_link": "https://youtu.be/JfTc1G9mubs",
+                "video": "https://youtu.be/ZMXz-q5JXh0",
+                "youtube_link": "https://youtu.be/ZMXz-q5JXh0",
                 "grammarbook_link": "https://drive.google.com/file/d/1obsYT3dP3qT-i06SjXmqRzCT2pNoJJZp/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1woXksV9sTZ_8huXa8yf6QUQ8aUXPxVug/view?usp=sharing"
             }
