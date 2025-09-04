@@ -1,7 +1,64 @@
 import os
 from datetime import datetime, timedelta, timezone
 from collections.abc import MutableMapping
-from typing import Any
+from typing import Any, Iterator
+
+
+# --- SimpleCookieManager ----------------------------------------------------
+
+class SimpleCookieManager(MutableMapping[str, str]):
+    """A minimal in-memory cookie store.
+
+    The real application uses ``streamlit_cookies_manager`` which exposes a
+    mapping-like interface plus ``set`` and ``save`` methods.  The test suite
+    only requires a lightweight stand in that behaves similarly without any
+    external dependencies.  Values are stored along with any keyword arguments
+    provided so tests can inspect cookie metadata recorded by :func:`_set_cookie`.
+    """
+
+    def __init__(self) -> None:  # pragma: no cover - trivial
+        self.store: dict[str, dict[str, Any]] = {}
+
+    # -- MutableMapping protocol -----------------------------------------
+    def __getitem__(self, key: str) -> str:
+        return self.store[key]["value"]
+
+    def __setitem__(self, key: str, value: str) -> None:
+        # ``kwargs`` will be populated by ``set`` or ``_set_cookie`` later.
+        self.store[key] = {"value": value, "kwargs": {}}
+
+    def __delitem__(self, key: str) -> None:
+        del self.store[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.store)
+
+    def __len__(self) -> int:
+        return len(self.store)
+
+    # -- Convenience methods ---------------------------------------------
+    def get(self, key: str, default: Any = None) -> Any:  # pragma: no cover - simple
+        return self.store.get(key, {}).get("value", default)
+
+    def set(self, key: str, value: str, **kwargs: Any) -> None:
+        """Mimic ``EncryptedCookieManager.set``.
+
+        ``_set_cookie`` will use this when available to attach metadata.
+        """
+
+        self.store[key] = {"value": value, "kwargs": dict(kwargs)}
+
+    def save(self) -> None:  # pragma: no cover - no-op for tests
+        """Placeholder for API compatibility.
+
+        Real cookie managers persist cookies to the browser.  The simple
+        manager stores everything in memory so ``save`` is a no-op but tests
+        may override it to track calls.
+        """
+
+        return None
+
+
 
 # --- Cookie defaults --------------------------------------------------------
 
@@ -43,9 +100,11 @@ def _set_cookie(cm, key: str, value: str, **overrides):
         if hasattr(cm, "store") and isinstance(cm.store, dict) and key in cm.store:
             cm.store[key]["kwargs"] = kwargs
 
-    # Persist if supported (streamlit_cookies_manager uses .save())
+    # Persist if supported (streamlit_cookies_manager uses .save()).
+    # Our SimpleCookieManager intentionally requires an explicit save, so we
+    # only call ``save`` automatically for other implementations.
     save_fn = getattr(cm, "save", None)
-    if callable(save_fn):
+    if callable(save_fn) and not isinstance(cm, SimpleCookieManager):
         try:
             save_fn()
         except Exception:
@@ -72,3 +131,15 @@ def clear_session(cm: MutableMapping[str, Any]) -> None:
         cm.pop("session_token", None)
     except Exception:
         pass
+
+
+def create_cookie_manager() -> SimpleCookieManager:
+    """Return a new :class:`SimpleCookieManager` instance.
+
+    This mirrors the behaviour of ``get_cookie_manager`` in the real
+    application but keeps the implementation lightweight for tests.
+    Each invocation returns an isolated cookie store.
+    """
+
+    return SimpleCookieManager()
+
