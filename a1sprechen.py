@@ -4915,6 +4915,8 @@ if tab == "My Course":
                 )
 
                 # --- PDF Download (all notes, Unicode/emoji ready!) ---
+                from fpdf import FPDF
+
                 class PDF(FPDF):
                     def header(self):
                         self.set_font('DejaVu', '', 16)
