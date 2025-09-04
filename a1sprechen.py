@@ -5164,8 +5164,15 @@ exam_csv_url = f"https://docs.google.com/spreadsheets/d/{exam_sheet_id}/gviz/tq?
 
 @st.cache_data(ttl=3600)
 def _load_exam_topics_cached():
-    df = pd.read_csv(exam_csv_url)
-    for col in ['Level', 'Teil', 'Topic/Prompt', 'Keyword/Subtopic']:
+    expected_cols = ['Level', 'Teil', 'Topic/Prompt', 'Keyword/Subtopic']
+    try:
+        df = pd.read_csv(exam_csv_url)
+    except Exception as e:
+        logging.exception("Failed to load exam topics")
+        st.error("Unable to load exam topics. Please try again later.")
+        return pd.DataFrame(columns=expected_cols)
+
+    for col in expected_cols:
         if col not in df.columns:
             df[col] = ""
     # strip
