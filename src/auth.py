@@ -1,3 +1,4 @@
+import logging
 import os
 import threading
 from datetime import datetime, timedelta, timezone
@@ -9,6 +10,8 @@ import streamlit as st
 
 _session_clients: dict[str, str] = {}
 _session_lock = threading.Lock()
+
+import streamlit as st
 
 # --- Cookie defaults --------------------------------------------------------
 
@@ -69,7 +72,6 @@ def clear_session(cm: MutableMapping[str, Any]) -> None:
         cm.pop("session_token", None)
     except Exception:
         pass
-
 
 class SimpleCookieManager(MutableMapping[str, Any]):
     """In-memory cookie manager used for tests."""
