@@ -13,6 +13,7 @@ import re
 import tempfile
 import time
 import textwrap
+import urllib.parse
 import urllib.parse as _urllib
 from urllib.parse import urlsplit, parse_qs, urlparse
 from datetime import date, timedelta, timezone as _timezone, UTC
@@ -5476,7 +5477,7 @@ def build_custom_chat_prompt(level, student_code=None):
         correction_lang = "in English" if level in ["A1", "A2"] else "half in English and half in German"
         rec_url = (
             "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec"
-            f"?code={student_code}"
+            f"?code={urllib.parse.quote(student_code)}"
             )
         return (
             f"You are Herr Felix, a supportive and innovative German teacher. "
