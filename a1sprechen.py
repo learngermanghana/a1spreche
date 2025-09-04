@@ -3020,11 +3020,24 @@ if tab == "My Course":
                     MIN_WORDS = 20
                     needs_resubmit = len(answer_text.split()) < MIN_WORDS
                 if needs_resubmit:
+
+                    resubmit_body = (
+                        "Paste your revised work here.\n\n"
+                        f"Name: {name or ''}\n"
+                        f"Student Code: {code or ''}\n"
+                        f"Assignment number: {info['day']}"
+                    )
+                    resubmit_link = (
+                        "mailto:learngermanghana@gmail.com"
+                        "?subject=Assignment%20Resubmission"
+                        f"&body={_urllib.quote(resubmit_body)}"
+                    )
                     st.markdown(
-                        """
+                        f"""
                         <div class="resubmit-box">
                           <p>Need to resubmit?</p>
-                          <a href="mailto:learngermanghana@gmail.com?subject=Assignment%20Resubmission&body=Paste%20your%20revised%20work%20here.%0A%0AName:%20%0AStudent%20ID:%20">
+                          <a href="{resubmit_link}">
+
                             Resubmit via email
                           </a>
                         </div>
@@ -3220,34 +3233,10 @@ if tab == "My Course":
                             answer_text = st.session_state.get(draft_key, "").strip()
                             MIN_WORDS = 20
 
-                            is_incomplete = len(answer_text.split()) < MIN_WORDS
-                            if is_incomplete:
-                                st.markdown(
-                                    """
-                                    <div class="resubmit-box">
-                                      <p>Need to resubmit?</p>
-                                      <a href="mailto:learngermanghana@gmail.com?subject=Assignment%20Resubmission&body=Paste%20your%20revised%20work%20here.%0A%0AName:%20%0AStudent%20ID:%20">
-                                        Resubmit via email
-                                      </a>
-                                    </div>
-                                    """,
-                                    unsafe_allow_html=True,
-                                )
-                                st.markdown(
-                                    """
-                                    <style>
-                                      .resubmit-box {
-                                        margin-top: 1rem;
-                                        padding: 1rem;
-                                        background: #fff3cd;
-                                        border-left: 4px solid #ffa726;
-                                        border-radius: 8px;
-                                      }
-                                      .resubmit-box a { color: #d97706; font-weight: 600; }
-                                    </style>
-                                    """,
-                                    unsafe_allow_html=True,
-                                )
+                            st.session_state[f"{lesson_key}__needs_resubmit"] = (
+                                len(answer_text.split()) < MIN_WORDS
+                            )
+
 
                             # Archive the draft so it won't rehydrate again (drafts_v2)
                             try:
