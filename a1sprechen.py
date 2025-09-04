@@ -3016,6 +3016,49 @@ if tab == "My Course":
 
             if locked:
                 st.warning("This box is locked because you have already submitted your work.")
+                needs_resubmit = st.session_state.get(f"{lesson_key}__needs_resubmit")
+                if needs_resubmit is None:
+                    answer_text = st.session_state.get(draft_key, "").strip()
+                    MIN_WORDS = 20
+                    needs_resubmit = len(answer_text.split()) < MIN_WORDS
+                if needs_resubmit:
+                    resubmit_body = (
+                        "Paste your revised work here.\n\n"
+                        f"Name: {name or ''}\n"
+                        f"Student Code: {code or ''}\n"
+                        f"Assignment number: {info['day']}"
+                    )
+                    resubmit_link = (
+                        "mailto:learngermanghana@gmail.com"
+                        "?subject=Assignment%20Resubmission"
+                        f"&body={_urllib.quote(resubmit_body)}"
+                    )
+                    st.markdown(
+                        f"""
+                        <div class="resubmit-box">
+                          <p>Need to resubmit?</p>
+                          <a href="{resubmit_link}">
+                            Resubmit via email
+                          </a>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    st.markdown(
+                        """
+                        <style>
+                          .resubmit-box {
+                            margin-top: 1rem;
+                            padding: 1rem;
+                            background: #fff3cd;
+                            border-left: 4px solid #ffa726;
+                            border-radius: 8px;
+                          }
+                          .resubmit-box a { color: #d97706; font-weight: 600; }
+                        </style>
+                        """,
+                        unsafe_allow_html=True,
+                    )
                 
             # ---------- Editor (save on blur + debounce) ----------
             st.text_area(
@@ -3187,7 +3230,11 @@ if tab == "My Course":
                                 f"Receipt: `{short_ref}` • You’ll be emailed when it’s marked. "
                                 "See **Results & Resources** for scores & feedback."
                             )
-
+                            answer_text = st.session_state.get(draft_key, "").strip()
+                            MIN_WORDS = 20
+                            st.session_state[f"{lesson_key}__needs_resubmit"] = (
+                                len(answer_text.split()) < MIN_WORDS
+                            )
 
                             # Archive the draft so it won't rehydrate again (drafts_v2)
                             try:
