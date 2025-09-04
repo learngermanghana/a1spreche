@@ -1338,17 +1338,16 @@ render_announcements_once(announcements, tab == "Dashboard")
 # ===================== Dashboard =========================
 # =========================================================
 if tab == "Dashboard":
-    def _go_announcements() -> None:
-        st.session_state["nav_sel"] = "My Course"
-        st.session_state["main_tab_select"] = "My Course"
-        st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
-        st.session_state["cb_prev_subtab"] = "🧑‍🏫 Classroom"
-        st.session_state["classroom_page"] = "Announcements"
-        st.session_state["classroom_prev_page"] = "Announcements"
-        _qp_set(tab="My Course")
-        st.rerun()
-
-    st.button("View all class announcements", on_click=_go_announcements, use_container_width=True)
+    ann_url = (
+        "/?tab="
+        + _urllib.quote("My Course")
+        + "&coursebook_subtab="
+        + _urllib.quote("🧑‍🏫 Classroom")
+        + "&classroom_page=Announcements"
+    )
+    st.link_button(
+        "View all class announcements", ann_url, use_container_width=True
+    )
 
     # ---------- Helpers ----------
     def safe_get(row, key, default=""):
