@@ -1,8 +1,10 @@
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+import threading
 from collections.abc import MutableMapping
-from typing import Any
+from typing import Any, Callable
+
+import streamlit as st
 
 import streamlit as st
 
@@ -15,13 +17,9 @@ COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "Lax")         # or "None" if you
 def _cookie_kwargs() -> dict:
     """Standard cookie attributes for auth cookies."""
     kw = {
-        "path": "/",
         "secure": True,
         "httponly": True,
         "samesite": COOKIE_SAMESITE,  # "Lax" is fine for first-party; use "None" for iframes
-        "max_age": COOKIE_MAX_AGE,
-        # some libs accept either 'expires' (datetime) or 'max_age'
-        "expires": datetime.now(timezone.utc) + timedelta(seconds=COOKIE_MAX_AGE),
     }
     # Only set Domain when we're actually on a real domain (not localhost)
     if COOKIE_DOMAIN and COOKIE_DOMAIN not in ("localhost", "127.0.0.1"):
@@ -46,13 +44,9 @@ def _set_cookie(cm, key: str, value: str, **overrides):
         if hasattr(cm, "store") and isinstance(cm.store, dict) and key in cm.store:
             cm.store[key]["kwargs"] = kwargs
 
-    # Persist if supported (streamlit_cookies_manager uses .save())
-    save_fn = getattr(cm, "save", None)
-    if callable(save_fn):
-        try:
-            save_fn()
-        except Exception:
-            pass
+    # Callers may persist using ``cm.save()`` if supported; we avoid
+    # auto-saving here so multiple cookie operations can be batched before a
+    # single save call.
 
 def _expire_cookie(cm, key: str):
     """Tell the browser to delete the cookie."""
@@ -77,8 +71,151 @@ def clear_session(cm: MutableMapping[str, Any]) -> None:
         pass
 
 
-def reset_password_page(token: str) -> None:
-    """Display an invalid reset link message until fully implemented."""
-    logging.warning("reset_password_page placeholder invoked")
-    st.error("Reset link invalid or expired.")
-    return
+
+def reset_password_page():  # pragma: no cover - stub for compatibility
+    """Placeholder for the real reset-password UI."""
+    return None
+
+
+# --- Simple cookie manager for tests/CLI -----------------------------------
+
+
+class SimpleCookieManager(MutableMapping[str, Any]):
+    """In-memory stand-in for browser cookies.
+
+    The object behaves like a mapping whose values are stored in ``store`` as
+    ``{"value": ..., "kwargs": ...}`` so tests can introspect cookie
+    attributes written by :func:`_set_cookie`.
+    """
+
+    def __init__(self) -> None:  # pragma: no cover - trivial
+        self.store: dict[str, dict[str, Any]] = {}
+
+    # --- Mapping protocol -------------------------------------------------
+    def __getitem__(self, key: str) -> Any:  # pragma: no cover - trivial
+        return self.store[key]["value"]
+
+    def __setitem__(self, key: str, value: Any) -> None:  # pragma: no cover - trivial
+        self.store[key] = {"value": value, "kwargs": {}}
+
+    def __delitem__(self, key: str) -> None:  # pragma: no cover - trivial
+        del self.store[key]
+
+    def __iter__(self):  # pragma: no cover - trivial
+        return iter(self.store)
+
+    def __len__(self) -> int:  # pragma: no cover - trivial
+        return len(self.store)
+
+    # --- Convenience helpers --------------------------------------------
+    def get(self, key: str, default: Any = None) -> Any:  # noqa: A003 - mirror dict API
+        return self.store.get(key, {}).get("value", default)
+
+    def set(self, key: str, value: Any, **kwargs: Any) -> None:
+        self.store[key] = {"value": value, "kwargs": kwargs}
+
+    def pop(self, key: str, default: Any = None) -> Any:  # noqa: A003 - mirror dict API
+        return self.store.pop(key, {}).get("value", default)
+
+
+def create_cookie_manager() -> SimpleCookieManager:
+    """Return a new ``SimpleCookieManager`` instance.
+
+    The real application uses Streamlit's cookie manager. For tests and other
+    environments where it may not be available, a simple in-memory
+    implementation suffices.
+    """
+
+    return SimpleCookieManager()
+
+
+# --- Session client persistence --------------------------------------------
+
+_session_clients: dict[str, str] = {}
+_session_lock = threading.Lock()
+
+
+def persist_session_client(token: str, student_code: str) -> None:
+    """Remember which student code is associated with a session token."""
+
+    with _session_lock:
+        _session_clients[token] = student_code
+
+
+def get_session_client(token: str) -> str | None:
+    """Return the student code for ``token`` if known."""
+
+    with _session_lock:
+        return _session_clients.get(token)
+
+
+def clear_session_clients() -> None:
+    """Remove all persisted session mappings."""
+
+    with _session_lock:
+        _session_clients.clear()
+
+
+# --- Session restoration ---------------------------------------------------
+
+
+def restore_session_from_cookie(
+    cm: MutableMapping[str, Any],
+    loader: Callable[[], Any] | None = None,
+    contract_checker: Callable[[str, Any], bool] | None = None,
+) -> dict[str, Any] | None:
+    """Restore a session based on cookies.
+
+    Parameters
+    ----------
+    cm:
+        Cookie manager or mapping with ``student_code`` and ``session_token``.
+    loader:
+        Optional callable returning roster/roster-like data.
+    contract_checker:
+        Optional callable taking ``(student_code, roster)`` and returning
+        ``True`` if the session is still valid.
+    """
+
+    sc = getattr(cm, "get", lambda k, d=None: cm[k] if k in cm else d)(
+        "student_code"
+    )
+    token = getattr(cm, "get", lambda k, d=None: cm[k] if k in cm else d)(
+        "session_token"
+    )
+
+    if not sc or not token:
+        return None
+
+    ua_hash = st.session_state.get("__ua_hash", "")
+
+    try:
+        from falowen.sessions import validate_session_token
+
+        res = validate_session_token(token, ua_hash)
+    except Exception:
+        res = None
+
+    if not res or res.get("student_code") != sc:
+        clear_session(cm)
+        return None
+
+    roster = None
+    if loader is not None:
+        try:
+            roster = loader()
+        except Exception:
+            roster = None
+
+    if contract_checker and roster is not None:
+        try:
+            if not contract_checker(sc, roster):
+                clear_session(cm)
+                return None
+        except Exception:
+            clear_session(cm)
+            return None
+
+    return {"student_code": sc, "session_token": token, "data": roster}
+
+
