@@ -970,8 +970,8 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "grammar_topic": "Reflexive Verben",
-            "video": "",
-            "youtube_link": "",
+            "video": "https://youtu.be/3ozjxgOenaI",
+            "youtube_link": "https://youtu.be/3ozjxgOenaI",
             "grammarbook_link": "https://drive.google.com/file/d/1Mp6i2pbaTd3r5fLZGqh6NLFZE6txCZpJ/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1giWw3qYhTmm3VO9and2ZuS7ARUFkq7vO/view?usp=sharing"
         },
