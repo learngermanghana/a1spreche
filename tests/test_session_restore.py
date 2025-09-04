@@ -413,8 +413,6 @@ def test_obsolete_cookie_triggers_login_flow(monkeypatch):
         save_schreiben_feedback=lambda *a, **k: None,
         load_schreiben_feedback=lambda *a, **k: None,
         delete_schreiben_feedback=lambda *a, **k: None,
-        get_letter_coach_usage=lambda *a, **k: None,
-        inc_letter_coach_usage=lambda *a, **k: None,
     )
     sys.modules["src.group_schedules"] = types.SimpleNamespace(
         load_group_schedules=lambda *a, **k: None
