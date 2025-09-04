@@ -4638,6 +4638,47 @@ if tab == "My Course":
             if not show_latest:
                 questions = list(reversed(questions))
 
+            def send_comment(
+                q_id,
+                student_code,
+                student_name,
+                class_name,
+                board_base,
+                draft_key,
+                last_val_key,
+                last_ts_key,
+                saved_flag_key,
+                saved_at_key,
+            ):
+                current_text = st.session_state.get(draft_key, "").strip()
+                if not current_text:
+                    return
+                comment_payload = {
+                    "content": current_text,
+                    "replied_by_name": student_name,
+                    "replied_by_code": student_code,
+                    "timestamp": _dt.now(_timezone.utc),
+                }
+                c_ref = board_base.document(q_id).collection("comments")
+                c_ref.document(str(uuid4())[:8]).set(comment_payload)
+                prev = (
+                    comment_payload["content"][:180] + "…"
+                ) if len(comment_payload["content"]) > 180 else comment_payload["content"]
+                _notify_slack(
+                    f"💬 *New Class Board comment* — {class_name}\n",
+                    f"*By:* {student_name} ({student_code})  •  *QID:* {q_id}\n",
+                    f"*When:* {_dt.now(_timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC\n",
+                    f"*Comment:* {prev}",
+                )
+                save_draft_to_db(student_code, draft_key, "")
+                st.session_state[draft_key] = ""
+                st.session_state[last_val_key] = ""
+                st.session_state[last_ts_key] = time.time()
+                st.session_state[saved_flag_key] = False
+                st.session_state[saved_at_key] = None
+                st.success("Comment sent!")
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
             if not questions:
                 st.info("No posts yet.")
             else:
@@ -4800,31 +4841,23 @@ if tab == "My Course":
                     )
                     current_text = st.session_state.get(draft_key, "")
                     autosave_maybe(student_code, draft_key, current_text, min_secs=2.0, min_delta=12)
-                    if st.button(f"Send Comment {q_id}", key=f"q_comment_btn_{q_id}") and current_text.strip():
-                        comment_payload = {
-                            "content": current_text.strip(),
-                            "replied_by_name": student_name,
-                            "replied_by_code": student_code,
-                            "timestamp": _dt.now(_timezone.utc),
-                        }
-                        c_ref = board_base.document(q_id).collection("comments")
-                        c_ref.document(str(uuid4())[:8]).set(comment_payload)
-                        prev = (comment_payload["content"][:180] + "…") if len(comment_payload["content"]) > 180 else comment_payload["content"]
-                        _notify_slack(
-                            f"💬 *New Class Board comment* — {class_name}\n"
-                            f"*By:* {student_name} ({student_code})  •  *QID:* {q_id}\n"
-                            f"*When:* {_dt.now(_timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC\n"
-                            f"*Comment:* {prev}"
-                        )
-
-                        save_draft_to_db(student_code, draft_key, "")
-                        st.session_state[draft_key] = ""
-                        st.session_state[last_val_key] = ""
-                        st.session_state[last_ts_key] = time.time()
-                        st.session_state[saved_flag_key] = False
-                        st.session_state[saved_at_key] = None
-                        st.success("Comment sent!")
-                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                    st.button(
+                        f"Send Comment {q_id}",
+                        key=f"q_comment_btn_{q_id}",
+                        on_click=send_comment,
+                        args=(
+                            q_id,
+                            student_code,
+                            student_name,
+                            class_name,
+                            board_base,
+                            draft_key,
+                            last_val_key,
+                            last_ts_key,
+                            saved_flag_key,
+                            saved_at_key,
+                        ),
+                    )
 
 
     # === LEARNING NOTES SUBTAB ===
