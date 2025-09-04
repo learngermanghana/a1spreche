@@ -25,8 +25,6 @@ def test_back_step_clears_chat_state():
         'falowen_teil': 'T1',
         'falowen_exam_topic': 'topic',
         'falowen_exam_keyword': 'key',
-        'remaining_topics': ['a'],
-        'used_topics': ['b'],
         'falowen_messages': ['hi'],
         'falowen_loaded_key': 'lk',
         'falowen_conv_key': 'conv',
@@ -49,7 +47,7 @@ def test_back_step_clears_chat_state():
     for key in [
         'falowen_mode', 'falowen_level', 'falowen_teil',
         'falowen_exam_topic', 'falowen_exam_keyword',
-        'remaining_topics', 'used_topics', 'falowen_messages',
+        'falowen_messages',
         'falowen_loaded_key', 'falowen_conv_key',
         'falowen_chat_draft_key', 'custom_topic_intro_done',
         'falowen_turn_count', draft_key, *_draft_state_keys(draft_key)

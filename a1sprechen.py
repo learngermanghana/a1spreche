@@ -5143,7 +5143,7 @@ def back_step():
     for key in [
         "falowen_mode", "falowen_level", "falowen_teil",
         "falowen_exam_topic", "falowen_exam_keyword",
-        "remaining_topics", "used_topics", "falowen_messages",
+        "falowen_messages",
         "falowen_loaded_key", "falowen_conv_key",
         "falowen_chat_draft_key", "custom_topic_intro_done",
         "falowen_turn_count", "falowen_custom_topic",
@@ -5757,9 +5757,6 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["falowen_stage"]           = 4
                     st.session_state["falowen_messages"]        = []
                     st.session_state["custom_topic_intro_done"] = False
-                    st.session_state["remaining_topics"]        = [t for t in filtered if t != chosen]
-                    random.shuffle(st.session_state["remaining_topics"])
-                    st.session_state["used_topics"]             = []
                     student_code = st.session_state.get("student_code")
                     save_exam_progress(student_code, [{"level": level, "teil": teil, "topic": topic}])
                     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
@@ -5839,17 +5836,6 @@ if tab == "Exams Mode & Custom Chat":
 
         # Build system prompt (exam persona vs custom chat)
         if is_exam:
-            if (not st.session_state.get("falowen_exam_topic")) and st.session_state.get("remaining_topics"):
-                next_topic = st.session_state["remaining_topics"].pop(0)
-                if " – " in next_topic:
-                    topic, keyword = next_topic.split(" – ", 1)
-                    st.session_state["falowen_exam_topic"] = topic
-                    st.session_state["falowen_exam_keyword"] = keyword
-                else:
-                    st.session_state["falowen_exam_topic"] = next_topic
-                    st.session_state["falowen_exam_keyword"] = None
-                st.session_state["used_topics"].append(next_topic)
-
             base_prompt = build_exam_system_prompt(level, teil)
             topic = st.session_state.get("falowen_exam_topic")
             if topic:
@@ -6039,7 +6025,7 @@ if tab == "Exams Mode & Custom Chat":
                     for k in [
                         "falowen_stage","falowen_mode","falowen_level","falowen_teil",
                         "falowen_messages","custom_topic_intro_done","falowen_exam_topic",
-                        "falowen_exam_keyword","remaining_topics","used_topics",
+                        "falowen_exam_keyword",
                         "_falowen_loaded","falowen_loaded_key","falowen_custom_topic"
                     ]:
                         st.session_state.pop(k, None)
@@ -6050,28 +6036,6 @@ if tab == "Exams Mode & Custom Chat":
             if st.button("⬅️ Back", key=_wkey("btn_back_stage4")):
                 save_now(draft_key, student_code)
                 back_step()
-
-        if is_exam and st.session_state.get("remaining_topics"):
-            if st.button("⏭ Next Topic", key=_wkey("btn_next_topic")):
-                next_topic = st.session_state["remaining_topics"].pop(0)
-                st.session_state["falowen_messages"] = []
-                if " – " in next_topic:
-                    topic, keyword = next_topic.split(" – ", 1)
-                    st.session_state["falowen_exam_topic"] = topic
-                    st.session_state["falowen_exam_keyword"] = keyword
-                else:
-                    st.session_state["falowen_exam_topic"] = next_topic
-                    st.session_state["falowen_exam_keyword"] = None
-                st.session_state["used_topics"].append(next_topic)
-                try:
-                    doc = db.collection("falowen_chats").document(student_code)
-                    snap = doc.get()
-                    chats = snap.to_dict().get("chats", {}) if snap.exists else {}
-                    chats[conv_key] = []
-                    doc.set({"chats": chats}, merge=True)
-                except Exception:
-                    pass
-                st.rerun()
 
         st.divider()
 
