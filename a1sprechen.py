@@ -5145,7 +5145,7 @@ def back_step():
         "remaining_topics", "used_topics", "falowen_messages",
         "falowen_loaded_key", "falowen_conv_key",
         "falowen_chat_draft_key", "custom_topic_intro_done",
-        "falowen_turn_count",
+        "falowen_turn_count", "falowen_custom_topic",
     ]:
         st.session_state.pop(key, None)
     if draft_key:
@@ -5506,6 +5506,7 @@ default_state = {
     "falowen_teil": None,
     "falowen_messages": [],
     "falowen_turn_count": 0,
+    "falowen_custom_topic": "",
     "custom_topic_intro_done": False,
     "custom_chat_level": None,
     "falowen_exam_topic": None,
@@ -5551,6 +5552,7 @@ if tab == "Exams Mode & Custom Chat":
         )
         if st.button("Next ➡️", key="falowen_next_mode"):
             st.session_state["falowen_mode"] = mode
+            st.session_state["falowen_custom_topic"] = ""
             st.session_state["falowen_stage"] = 99 if mode == "Pronunciation & Speaking Checker" else 2
             if mode == "Pronunciation & Speaking Checker":
                 st.session_state["falowen_stage"] = 99
@@ -5565,6 +5567,10 @@ if tab == "Exams Mode & Custom Chat":
                 else:
                     st.session_state["falowen_level"] = level
                     st.session_state["falowen_stage"] = 3 if mode == "Exams Mode" else 4
+                    st.session_state["falowen_teil"] = None
+                    st.session_state["falowen_messages"] = []
+                    st.session_state["custom_topic_intro_done"] = False
+                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
 
 
@@ -5572,6 +5578,8 @@ if tab == "Exams Mode & Custom Chat":
     if st.session_state["falowen_stage"] == 2 and not st.session_state.get("falowen_level"):
         st.subheader("Step 2: Choose Your Level")
         level = st.radio("Select your level:", ["A1","A2","B1","B2","C1"], key="falowen_level_center")
+        if st.session_state["falowen_mode"] == "Custom Chat":
+            st.text_input("What topic would you like to discuss?", key="falowen_custom_topic")
 
         col1, col2 = st.columns(2)
         with col1:
@@ -5579,6 +5587,7 @@ if tab == "Exams Mode & Custom Chat":
                 st.session_state["falowen_stage"] = 1
                 st.session_state["falowen_messages"] = []
                 st.session_state["_falowen_loaded"] = False
+                st.session_state["falowen_custom_topic"] = ""
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
         with col2:
             if st.button("Next ➡️", key="falowen_next_level"):
@@ -5739,6 +5748,10 @@ if tab == "Exams Mode & Custom Chat":
         mode  = st.session_state.get("falowen_mode")
         is_exam = (mode == "Exams Mode")
         student_code = st.session_state.get("student_code", "demo")
+
+        if not is_exam and not st.session_state.get("falowen_custom_topic"):
+            st.text_input("What topic would you like to discuss?", key="falowen_custom_topic")
+            st.stop()
         
         # === Load messages & draft PER (student_code + mode/level/teil) ===
         conv_key = f"{mode}_{level}_{(teil or 'custom')}"
@@ -5767,9 +5780,14 @@ if tab == "Exams Mode & Custom Chat":
 
         # Seed the first assistant instruction if chat is empty
         if not st.session_state["falowen_messages"]:
-            instruction = build_exam_instruction(level, teil) if is_exam else (
-                "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
-            )
+            if is_exam:
+                instruction = build_exam_instruction(level, teil)
+            else:
+                topic = st.session_state.get("falowen_custom_topic")
+                if topic:
+                    instruction = f"Hallo! 👋 Lass uns über {topic} sprechen."
+                else:
+                    instruction = "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
             st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
             try:
                 doc = db.collection("falowen_chats").document(student_code)
@@ -5802,7 +5820,9 @@ if tab == "Exams Mode & Custom Chat":
             else:
                 system_prompt = base_prompt
         else:
-            system_prompt = build_custom_chat_prompt(level, student_code)
+            topic = st.session_state.get("falowen_custom_topic")
+            base_prompt = build_custom_chat_prompt(level, student_code)
+            system_prompt = f"Topic: {topic}. {base_prompt}" if topic else base_prompt
 
         # Always-visible recorder button
         RECORDER_BASE = "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec"
@@ -5970,7 +5990,7 @@ if tab == "Exams Mode & Custom Chat":
                         "falowen_stage","falowen_mode","falowen_level","falowen_teil",
                         "falowen_messages","custom_topic_intro_done","falowen_exam_topic",
                         "falowen_exam_keyword","remaining_topics","used_topics",
-                        "_falowen_loaded","falowen_loaded_key"
+                        "_falowen_loaded","falowen_loaded_key","falowen_custom_topic"
                     ]:
                         st.session_state.pop(k, None)
                     st.session_state["falowen_stage"] = 1
