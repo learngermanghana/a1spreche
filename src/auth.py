@@ -1,7 +1,10 @@
+import logging
 import os
 from datetime import datetime, timedelta, timezone
 from collections.abc import MutableMapping
 from typing import Any
+
+import streamlit as st
 
 # --- Cookie defaults --------------------------------------------------------
 
@@ -72,3 +75,10 @@ def clear_session(cm: MutableMapping[str, Any]) -> None:
         cm.pop("session_token", None)
     except Exception:
         pass
+
+
+def reset_password_page(token: str) -> None:
+    """Display an invalid reset link message until fully implemented."""
+    logging.warning("reset_password_page placeholder invoked")
+    st.error("Reset link invalid or expired.")
+    return
