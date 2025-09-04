@@ -91,7 +91,7 @@ def init_db():
         )
         """
     )
-    for tbl in ["sprechen_usage", "letter_coach_usage", "schreiben_usage"]:
+    for tbl in ["sprechen_usage", "schreiben_usage"]:
         c.execute(
             f"""
             CREATE TABLE IF NOT EXISTS {tbl} (

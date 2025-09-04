@@ -119,8 +119,6 @@ from src.schreiben import (
     save_schreiben_feedback,
     load_schreiben_feedback,
     delete_schreiben_feedback,
-    get_letter_coach_usage,
-    inc_letter_coach_usage,
 )
 from src.group_schedules import load_group_schedules
 from src.schedule import load_level_schedules, get_level_schedules
@@ -3022,6 +3020,7 @@ if tab == "My Course":
                     MIN_WORDS = 20
                     needs_resubmit = len(answer_text.split()) < MIN_WORDS
                 if needs_resubmit:
+
                     resubmit_body = (
                         "Paste your revised work here.\n\n"
                         f"Name: {name or ''}\n"
@@ -3038,6 +3037,7 @@ if tab == "My Course":
                         <div class="resubmit-box">
                           <p>Need to resubmit?</p>
                           <a href="{resubmit_link}">
+
                             Resubmit via email
                           </a>
                         </div>
@@ -3232,9 +3232,11 @@ if tab == "My Course":
                             )
                             answer_text = st.session_state.get(draft_key, "").strip()
                             MIN_WORDS = 20
+
                             st.session_state[f"{lesson_key}__needs_resubmit"] = (
                                 len(answer_text.split()) < MIN_WORDS
                             )
+
 
                             # Archive the draft so it won't rehydrate again (drafts_v2)
                             try:
@@ -6859,6 +6861,7 @@ def get_schreiben_usage(student_code):
     doc = db.collection("schreiben_usage").document(f"{student_code}_{today}").get()
     return doc.to_dict().get("count", 0) if doc.exists else 0
 
+
 def inc_schreiben_usage(student_code):
     today = str(date.today())
     doc_ref = db.collection("schreiben_usage").document(f"{student_code}_{today}")
@@ -7030,11 +7033,9 @@ if tab == "Schreiben Trainer":
 
     # ----------- 1. MARK MY LETTER -----------
     if sub_tab == "Mark My Letter":
-        MARK_LIMIT = 3
         daily_so_far = get_schreiben_usage(student_code)
-        st.markdown(f"**Daily usage:** {daily_so_far} / {MARK_LIMIT}")
+        st.markdown(f"**Daily usage:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}")
 
-        
         try:
             _ = _wkey
         except NameError:
@@ -7056,18 +7057,18 @@ if tab == "Schreiben Trainer":
             key=draft_key,
             value=existing_draft,
             on_change=lambda: save_now(draft_key, student_code),
-            disabled=(daily_so_far >= MARK_LIMIT),
             height=400,
             placeholder="Write your German letter here...",
+            disabled=(daily_so_far >= SCHREIBEN_DAILY_LIMIT),
         )
-        
+
         autosave_maybe(student_code, draft_key, user_letter, min_secs=2.0, min_delta=20)
-   
+
         if st.button("\U0001f4be Save Draft", key=f"save_draft_btn_{student_code}"):
             save_now(draft_key, student_code)
             st.toast("Draft saved!", icon="\U0001f4be")
         st.caption("Auto-saves every few seconds or click 'Save Draft' to save now.")
-        
+
         def clear_feedback_and_start_new():
             for k in [
                 "last_feedback",
@@ -7157,7 +7158,7 @@ if tab == "Schreiben Trainer":
             if session_key not in st.session_state:
                 st.session_state[session_key] = v
 
-        submit_disabled = daily_so_far >= MARK_LIMIT or not user_letter.strip()
+        submit_disabled = (not user_letter.strip()) or (daily_so_far >= SCHREIBEN_DAILY_LIMIT)
         feedback_btn = st.button(
             "Get Feedback",
             type="primary",
@@ -7226,6 +7227,7 @@ if tab == "Schreiben Trainer":
                     letter=user_letter
                 )
                 update_schreiben_stats(student_code)
+                inc_schreiben_usage(student_code)
                 save_draft_to_db(student_code, draft_key, "")
                 st.session_state.pop(draft_key, None)
 
@@ -7566,13 +7568,6 @@ if tab == "Schreiben Trainer":
             unsafe_allow_html=True
         )
 
-        IDEAS_LIMIT = 14
-        ideas_so_far = get_letter_coach_usage(student_code)
-        st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
-        if ideas_so_far >= IDEAS_LIMIT:
-            st.warning("You have reached today's letter coach limit. Please come back tomorrow.")
-            st.stop()
-
         # --- Stage 0: Prompt input ---
         if st.session_state[ns("stage")] == 0:
             if st.button("Start new write-up"):
@@ -7654,7 +7649,6 @@ if tab == "Schreiben Trainer":
 
                     st.session_state[ns("chat")] = chat_history
                     st.session_state[ns("stage")] = 1
-                    inc_letter_coach_usage(student_code)
                     save_letter_coach_progress(
                         student_code,
                         student_level,
