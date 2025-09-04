@@ -6049,6 +6049,28 @@ if tab == "Exams Mode & Custom Chat":
                 save_now(draft_key, student_code)
                 back_step()
 
+        if is_exam and st.session_state.get("remaining_topics"):
+            if st.button("⏭ Next Topic", key=_wkey("btn_next_topic")):
+                next_topic = st.session_state["remaining_topics"].pop(0)
+                st.session_state["falowen_messages"] = []
+                if " – " in next_topic:
+                    topic, keyword = next_topic.split(" – ", 1)
+                    st.session_state["falowen_exam_topic"] = topic
+                    st.session_state["falowen_exam_keyword"] = keyword
+                else:
+                    st.session_state["falowen_exam_topic"] = next_topic
+                    st.session_state["falowen_exam_keyword"] = None
+                st.session_state["used_topics"].append(next_topic)
+                try:
+                    doc = db.collection("falowen_chats").document(student_code)
+                    snap = doc.get()
+                    chats = snap.to_dict().get("chats", {}) if snap.exists else {}
+                    chats[conv_key] = []
+                    doc.set({"chats": chats}, merge=True)
+                except Exception:
+                    pass
+                st.rerun()
+
         st.divider()
 
     # ——— Stage 99: Pronunciation & Speaking Checker (unchanged)
