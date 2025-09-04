@@ -53,13 +53,17 @@ def health():
     return {"ok": True}, 200
 
 
-# --- Streamlit page config (do this early) ---
+from pathlib import Path
+
+ICON_PATH = Path(__file__).parent / "static/icons/falowen-512.png"
+
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
-    page_icon="👋",
+    page_icon=str(ICON_PATH),  # now uses official Falowen icon
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
 
 if st.session_state.pop("needs_rerun", False):
     st.rerun()
