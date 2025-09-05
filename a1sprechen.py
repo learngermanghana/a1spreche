@@ -300,10 +300,7 @@ def _handle_google_oauth(code: str, state: str) -> None:
         set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
         persist_session_client(sess_token, student_row["StudentCode"])
         set_session_token_cookie(cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
-        try:
-            cookie_manager.save()
-        except Exception:
-            logging.exception("Cookie save failed")
+        save_cookies(cookie_manager)
 
         qp_clear()
         st.success(f"Welcome, {student_row['Name']}!")
@@ -535,10 +532,7 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
     persist_session_client(sess_token, student_row["StudentCode"])
     set_session_token_cookie(cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
-    try:
-        cookie_manager.save()
-    except Exception:
-        logging.exception("Cookie save failed")
+    save_cookies(cookie_manager)
 
     st.success(f"Welcome, {student_row['Name']}!")
     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
