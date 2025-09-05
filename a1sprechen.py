@@ -2506,7 +2506,7 @@ if tab == "My Course":
         schedule = schedules.get(level_key, schedules.get("A1", []))
         if not schedule:
             st.warning(f"No lessons found for level **{level_key}**.")
-            st.stop()
+            # Removed st.stop() so downstream sections (e.g., class board) can still render
 
         # ---- Search ----
         query = st.text_input("🔍 Search for topic, chapter, grammar, day, or anything…")
@@ -2516,7 +2516,7 @@ if tab == "My Course":
             matches = [(i, d) for i, d in enumerate(schedule) if filter_matches(d, search_terms)]
             if not matches:
                 st.warning("No matching lessons. Try simpler terms or check spelling.")
-                st.stop()
+                # Removed st.stop() so downstream sections (e.g., class board) can still render
 
             labels = []
             for _, d in matches:
