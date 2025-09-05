@@ -4505,7 +4505,7 @@ if tab == "My Course":
                         save_teacher_answer(doc.id, ans)
                         st.success("Answer saved.")
                     st.divider()
-            st.stop()
+            # Allow fall-through so class board renders after Q&A
             board_base = db.collection("class_board").document(class_name).collection("posts")
 
 
