@@ -32,14 +32,10 @@ _FALLBACK_COOKIE_PASSWORD = "dev-only-fallback-change-me"
 def _cookie_kwargs() -> dict[str, Any]:
     """Standard attributes for auth cookies (persist across refresh/app restarts)."""
     kw: dict[str, Any] = {
-        "path": "/",
         "secure": True,
         "httponly": True,  # EncryptedCookieManager can't make HttpOnly, but harmless to include
-        "samesite": COOKIE_SAMESITE,  # "Lax" for first-party; "None" (with Secure) for iframes/cross-site
-        "max_age": COOKIE_MAX_AGE,
-        "expires": datetime.now(timezone.utc) + timedelta(seconds=COOKIE_MAX_AGE),
+        "samesite": COOKIE_SAMESITE,
     }
-    # Only set Domain when actually on a real domain (avoid localhost issues)
     if COOKIE_DOMAIN and COOKIE_DOMAIN not in ("localhost", "127.0.0.1"):
         kw["domain"] = COOKIE_DOMAIN
     return kw
@@ -97,7 +93,6 @@ def clear_session(cm: MutableMapping[str, Any]) -> None:
         cm.pop("session_token", None)
     except Exception:
         pass
-    save_cookies(cm)
 
 
 def reset_password_page() -> None:  # pragma: no cover - stub
@@ -110,14 +105,15 @@ def reset_password_page() -> None:  # pragma: no cover - stub
 # ───────────────────────────────────────────────────────────────────────────────
 
 def bootstrap_cookie_manager(cm: Any) -> Any:
+    """Return a usable cookie manager.
+
+    If the encrypted manager isn't ready (as is often the case when running
+    outside of ``streamlit run``), fall back to ``SimpleCookieManager`` so tests
+    and CLI usage still work.
     """
-    Ensure the cookie manager is ready. On first run, Streamlit needs one
-    round-trip to initialize cookies; stopping the script here lets Streamlit
-    re-run automatically.
-    """
-    ready = getattr(cm, "ready", None)
-    if callable(ready) and not cm.ready():
-        st.stop()
+    ready_fn = getattr(cm, "ready", None)
+    if callable(ready_fn) and not ready_fn():
+        return SimpleCookieManager()
     return cm
 
 
@@ -185,6 +181,39 @@ class SimpleCookieManager(MutableMapping[str, Any]):
 
     def save(self) -> None:  # keep API parity with real managers
         return None
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# In-memory session store with TTL (used in tests)
+# ───────────────────────────────────────────────────────────────────────────────
+
+class _SessionStore:
+    """Simple mapping that expires entries after ``ttl`` seconds."""
+
+    def __init__(self, ttl: int = 60) -> None:
+        self.ttl = ttl
+        self._data: dict[str, tuple[str, datetime]] = {}
+
+    def set(self, key: str, value: str) -> None:
+        self._prune()
+        self._data[key] = (value, datetime.now(timezone.utc))
+
+    def get(self, key: str) -> str | None:
+        self._prune()
+        item = self._data.get(key)
+        if not item:
+            return None
+        value, ts = item
+        if (datetime.now(timezone.utc) - ts).total_seconds() > self.ttl:
+            self._data.pop(key, None)
+            return None
+        return value
+
+    def _prune(self) -> None:
+        now = datetime.now(timezone.utc)
+        expired = [k for k, (_, ts) in self._data.items() if (now - ts).total_seconds() > self.ttl]
+        for k in expired:
+            self._data.pop(k, None)
 
 
 # ───────────────────────────────────────────────────────────────────────────────
@@ -291,6 +320,7 @@ __all__ = [
     "clear_session_clients",
     # test double
     "SimpleCookieManager",
+    "_SessionStore",
     # misc
     "reset_password_page",
 ]

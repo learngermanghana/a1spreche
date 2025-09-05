@@ -9,6 +9,7 @@ import firebase_admin
 import requests
 import streamlit as st
 from firebase_admin import credentials, firestore
+from flask import Blueprint, jsonify, make_response, request
 
 # Initialize Firestore
 try:  # pragma: no cover - runtime side effects
@@ -122,3 +123,64 @@ def api_post(url, headers=None, params=None, **kwargs):
         headers.setdefault("X-Session-Token", tok)
         params.setdefault("session_token", tok)
     return requests.post(url, headers=headers, params=params, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# Flask endpoint for refreshing session tokens
+# ---------------------------------------------------------------------------
+
+SESSION_COOKIE = "session_token"
+SESSION_COOKIE_SAMESITE = "Strict"
+SESSION_COOKIE_PATH = "/"
+SESSION_COOKIE_MAX_AGE = 60 * 60 * 24 * 30  # 30 days
+
+
+def _issue_access(user_id: str) -> str:
+    """Return a stub access token for the given user."""
+    return f"access_{user_id}_{int(time.time())}"
+
+
+auth_bp = Blueprint("session_auth", __name__, url_prefix="/auth")
+
+
+@auth_bp.post("/refresh")
+def refresh_endpoint():
+    """Validate and rotate a refresh token, returning new tokens.
+
+    The incoming refresh token is read from the JSON body as either
+    ``refresh_token`` or ``refreshToken``. If the token is valid, the session
+    is rotated and a new access token is issued. A ``session_token`` cookie is
+    set on the response with secure attributes.
+    """
+
+    body = request.get_json(silent=True) or {}
+    token = body.get("refresh_token") or body.get("refreshToken")
+    if not token:
+        return jsonify(error="missing refresh token"), 401
+
+    data = validate_session_token(token)
+    if not data:
+        return jsonify(error="invalid refresh token"), 401
+
+    new_token = refresh_or_rotate_session_token(token)
+    access = _issue_access(data.get("student_code", "user"))
+
+    resp = make_response(
+        jsonify(
+            access_token=access,
+            refresh_token=new_token,
+            expires_in=3600,
+        ),
+        200,
+    )
+
+    resp.set_cookie(
+        SESSION_COOKIE,
+        new_token,
+        max_age=SESSION_COOKIE_MAX_AGE,
+        httponly=True,
+        secure=True,
+        samesite=SESSION_COOKIE_SAMESITE,
+        path=SESSION_COOKIE_PATH,
+    )
+    return resp

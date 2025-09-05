@@ -168,6 +168,17 @@ except Exception:
 if session:
     st.session_state["student_code"] = session["student_code"]
     st.session_state["session_token"] = session["session_token"]
+else:
+    # Ensure stale cookies are cleared if session restoration fails
+    try:
+        clear_session(cm)
+    except Exception:
+        pass
+    try:
+        cm.pop("student_code", None)
+        cm.pop("session_token", None)
+    except Exception:
+        pass
 
 # ------------------------------------------------------------------------------
 # Google OAuth (Gmail sign-in) — single-source, no duplicate buttons
