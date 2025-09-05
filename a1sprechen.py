@@ -53,23 +53,7 @@ st.set_page_config(
 
 if st.session_state.pop("needs_rerun", False):
     st.rerun()
-
-# One cookie manager for the whole app
-cm = create_cookie_manager()
-
-# Try to restore session from cookies (loads roster, checks contract)
-restored = restore_session_from_cookie(
-    cm,
-    loader=load_student_data,                    # returns the roster DataFrame
-    contract_checker=lambda sc, df: _contract_active(sc, df),  # keep your checker
-)
-
-if restored:
-    st.session_state["student_code"]  = restored["student_code"]
-    st.session_state["session_token"] = restored["session_token"]
-    st.session_state["logged_in"]     = True
-else:
-    st.session_state.setdefault("logged_in", False)
+st.session_state.setdefault("logged_in", False)
 
 
 
@@ -170,30 +154,10 @@ from src.ui_widgets import (
     render_google_brand_button_once,
     render_announcements_once,
 )
+# ------------------------------------------------------------------------------
+# External
+# ------------------------------------------------------------------------------
 from src.logout import do_logout
-
-load_roster = load_student_data
-contract_active = lambda *a, **k: True
-
-cm = create_cookie_manager()
-
-session = restore_session_from_cookie(
-    cm,
-    loader=load_roster,                   # whatever you currently use to fetch roster/data
-    contract_validator=contract_active,   # or contract_checker=...
-)
-
-if session:
-    # user stays logged in
-    st.session_state["student_code"] = session["student_code"]
-    st.session_state["session_token"] = session["session_token"]
-    data = session.get("data")
-else:
-    # show login UI
-    ...
-
-    ...
-
 
 # ------------------------------------------------------------------------------
 # Cookie manager
@@ -917,9 +881,9 @@ def render_level_welcome_video(level: str | None):
     )
 
 # after your backend returns (student_code, session_token)
-set_student_code_cookie(cm, student_code)
-set_session_token_cookie(cm, session_token)
-save_cookies(cm)      # <-- persist to browser
+set_student_code_cookie(cookie_manager, student_code)
+set_session_token_cookie(cookie_manager, session_token)
+save_cookies(cookie_manager)      # <-- persist to browser
 st.rerun()            # optional; refresh UI as “logged in”
 
 # ------------------------------------------------------------------------------
