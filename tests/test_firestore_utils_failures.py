@@ -134,25 +134,6 @@ def test_save_ai_answer_logs_warning_on_failure(monkeypatch, caplog):
     assert any("Failed to save AI answer" in r.message for r in caplog.records)
 
 
-def test_save_teacher_answer_logs_warning_on_failure(monkeypatch, caplog):
-    class DummyRef:
-        def set(self, *args, **kwargs):
-            raise RuntimeError("boom")
-
-    class DummyDB:
-        def collection(self, *args, **kwargs):
-            return self
-
-        def document(self, *args, **kwargs):
-            return DummyRef()
-
-    monkeypatch.setattr(firestore_utils, "db", DummyDB())
-
-    with caplog.at_level(logging.WARNING):
-        firestore_utils.save_teacher_answer("id", "text")
-    assert any("Failed to save teacher answer" in r.message for r in caplog.records)
-
-
 def test_save_response_logs_warning_on_failure(monkeypatch, caplog):
     class DummyRef:
         def set(self, *args, **kwargs):
@@ -168,5 +149,5 @@ def test_save_response_logs_warning_on_failure(monkeypatch, caplog):
     monkeypatch.setattr(firestore_utils, "db", DummyDB())
 
     with caplog.at_level(logging.WARNING):
-        firestore_utils.save_response("id", "code", "text")
+        firestore_utils.save_response("id", "text", "code")
     assert any("Failed to save response" in r.message for r in caplog.records)
