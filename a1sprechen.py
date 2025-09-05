@@ -175,6 +175,13 @@ if session:
     st.session_state["session_token"] = session["session_token"]
     data = session.get("data")
 else:
+    # Clear any stale cookies if session restoration failed
+    if hasattr(cm, "pop"):
+        try:
+            cm.pop("student_code", None)
+            cm.pop("session_token", None)
+        except Exception:
+            pass
     # show login UI
     st.write("TODO: implement login UI")  # TODO: implement login UI
 

@@ -29,17 +29,41 @@ COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "Lax")        # use "None" if emb
 
 _FALLBACK_COOKIE_PASSWORD = "dev-only-fallback-change-me"
 
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# In-memory session store with TTL
+# ───────────────────────────────────────────────────────────────────────────────
+
+class _SessionStore:
+    """Simple TTL-based mapping used for lightweight session persistence."""
+
+    def __init__(self, ttl: int = 3600) -> None:
+        self.ttl = ttl
+        self._store: dict[str, tuple[Any, datetime]] = {}
+
+    def _prune(self) -> None:
+        now = datetime.now(timezone.utc)
+        for key, (_val, ts) in list(self._store.items()):
+            if now - ts > timedelta(seconds=self.ttl):
+                self._store.pop(key, None)
+
+    def set(self, key: str, value: Any) -> None:
+        self._prune()
+        self._store[key] = (value, datetime.now(timezone.utc))
+
+    def get(self, key: str) -> Any | None:  # noqa: A003
+        self._prune()
+        item = self._store.get(key)
+        return item[0] if item else None
+
 def _cookie_kwargs() -> dict[str, Any]:
-    """Standard attributes for auth cookies (persist across refresh/app restarts)."""
+    """Standard attributes for auth cookies."""
     kw: dict[str, Any] = {
-        "path": "/",
         "secure": True,
-        "httponly": True,  # EncryptedCookieManager can't make HttpOnly, but harmless to include
-        "samesite": COOKIE_SAMESITE,  # "Lax" for first-party; "None" (with Secure) for iframes/cross-site
-        "max_age": COOKIE_MAX_AGE,
-        "expires": datetime.now(timezone.utc) + timedelta(seconds=COOKIE_MAX_AGE),
+        "httponly": True,
+        "samesite": COOKIE_SAMESITE,
     }
-    # Only set Domain when actually on a real domain (avoid localhost issues)
     if COOKIE_DOMAIN and COOKIE_DOMAIN not in ("localhost", "127.0.0.1"):
         kw["domain"] = COOKIE_DOMAIN
     return kw
@@ -97,7 +121,6 @@ def clear_session(cm: MutableMapping[str, Any]) -> None:
         cm.pop("session_token", None)
     except Exception:
         pass
-    save_cookies(cm)
 
 
 def reset_password_page() -> None:  # pragma: no cover - stub
@@ -122,9 +145,8 @@ def bootstrap_cookie_manager(cm: Any) -> Any:
 
 
 def create_cookie_manager() -> Any:
-    """Return an EncryptedCookieManager (preferred) or a SimpleCookieManager fallback."""
-    if EncryptedCookieManager is None:
-        # Fallback for tests/CLI where the plugin isn't installed.
+    """Return a cookie manager for the current environment."""
+    if EncryptedCookieManager is None or os.getenv("USE_ENCRYPTED_COOKIES") != "1":
         return SimpleCookieManager()
 
     cookie_password = (
@@ -133,14 +155,11 @@ def create_cookie_manager() -> Any:
         or _FALLBACK_COOKIE_PASSWORD
     )
 
-    if cookie_password == _FALLBACK_COOKIE_PASSWORD and os.getenv("DEBUG", "0") == "1":
-        logging.warning(
-            "Using built-in fallback cookie password (set `cookie_password` or "
-            "`COOKIE_PASSWORD` for production)."
-        )
-
-    cm = EncryptedCookieManager(password=cookie_password, prefix="falowen")
-    return bootstrap_cookie_manager(cm)
+    try:
+        cm = EncryptedCookieManager(password=cookie_password, prefix="falowen")
+        return bootstrap_cookie_manager(cm)
+    except Exception:
+        return SimpleCookieManager()
 
 
 # ───────────────────────────────────────────────────────────────────────────────

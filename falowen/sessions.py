@@ -8,22 +8,25 @@ from typing import Optional
 import firebase_admin
 import requests
 import streamlit as st
+from flask import Blueprint, jsonify, make_response, request
 from firebase_admin import credentials, firestore
 
 # Initialize Firestore
 try:  # pragma: no cover - runtime side effects
     if not firebase_admin._apps:  # guard against re-init
-        cred_dict = dict(st.secrets["firebase"])
-        cred = credentials.Certificate(cred_dict)
-        firebase_admin.initialize_app(cred)
-    db = firestore.client()
+        cred_dict = dict(st.secrets.get("firebase", {}))
+        if cred_dict:
+            cred = credentials.Certificate(cred_dict)
+            firebase_admin.initialize_app(cred)
+    db = firestore.client() if firebase_admin._apps else None
 except Exception as e:  # pragma: no cover - streamlit UI feedback
-    st.error(f"Firebase init failed: {e}")
-    raise RuntimeError("Firebase initialization failed") from e
+    st.warning(f"Firebase init skipped: {e}")
+    db = None
 
 SESSIONS_COL = "sessions"
 SESSION_TTL_MIN = 60 * 24 * 14  # 14 days
 SESSION_ROTATE_AFTER_MIN = 60 * 24 * 7  # 7 days
+SESSION_COOKIE = "session_token"
 
 
 def _rand_token(nbytes: int = 48) -> str:
@@ -122,3 +125,52 @@ def api_post(url, headers=None, params=None, **kwargs):
         headers.setdefault("X-Session-Token", tok)
         params.setdefault("session_token", tok)
     return requests.post(url, headers=headers, params=params, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# Flask endpoint for token refresh
+# ---------------------------------------------------------------------------
+
+auth_bp = Blueprint("sessions_auth", __name__, url_prefix="/auth")
+
+
+def _issue_access(user_id: str) -> str:
+    """Create a dummy access token (replace with real JWT logic)."""
+    return f"access_{user_id}_{int(time.time())}"
+
+
+def _set_session_cookie(resp, token: str):
+    """Attach the session token cookie with secure attributes."""
+    resp.set_cookie(
+        SESSION_COOKIE,
+        token,
+        max_age=SESSION_TTL_MIN * 60,
+        httponly=True,
+        secure=True,
+        samesite="Strict",
+        path="/",
+    )
+    return resp
+
+
+@auth_bp.post("/refresh")
+def refresh():
+    """Validate and rotate refresh token, returning new credentials."""
+    body = request.get_json(silent=True) or {}
+    token = body.get("refresh_token")
+    if not token:
+        return jsonify(error="missing refresh token"), 401
+
+    session = validate_session_token(token)
+    if not session:
+        return jsonify(error="invalid refresh token"), 401
+
+    new_token = refresh_or_rotate_session_token(token)
+    access = _issue_access(session.get("student_code", "user"))
+
+    resp = make_response(
+        jsonify(access_token=access, refresh_token=new_token),
+        200,
+    )
+    _set_session_cookie(resp, new_token)
+    return resp
