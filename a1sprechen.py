@@ -5047,12 +5047,17 @@ if tab == "My Course":
                 # --- PDF Download (all notes, Unicode/emoji ready!) ---
                 from fpdf import FPDF
 
-                class PDF(FPDF):
+                class SafePDF(FPDF):
+                    def _putTTfontwidths(self, font, maxUni):
+                        maxUni = min(maxUni, len(font['cw']) - 1)
+                        super()._putTTfontwidths(font, maxUni)
+
                     def header(self):
                         self.set_font('DejaVu', '', 16)
                         self.cell(0, 12, "My Learning Notes", align="C", ln=1)
                         self.ln(5)
-                pdf = PDF()
+
+                pdf = SafePDF()
                 pdf.add_font('DejaVu', '', './font/DejaVuSans.ttf', uni=True)
                 pdf.add_page()
                 pdf.set_auto_page_break(auto=True, margin=15)
@@ -5069,8 +5074,12 @@ if tab == "My Course":
                     if n.get("tag"):
                         pdf.cell(0, 8, f"Tag: {n['tag']}", ln=1)
                     pdf.set_font("DejaVu", '', 12)
-                    for line in n.get('text','').split("\n"):
-                        pdf.multi_cell(0, 7, line)
+                    max_cw_index = len(pdf.current_font['cw']) - 1
+                    for line in n.get('text', '').split("\n"):
+                        safe_line = ''.join(
+                            ch if ord(ch) <= max_cw_index else '?' for ch in line
+                        )
+                        pdf.multi_cell(0, 7, safe_line)
                     pdf.ln(1)
                     pdf.set_font("DejaVu", '', 11)
                     pdf.cell(0, 8, f"Date: {n.get('updated', n.get('created',''))}", ln=1)
