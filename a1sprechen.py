@@ -1,10 +1,9 @@
 # ==== Standard Library ====
-import base64
 import calendar
 import difflib
 import hashlib
-import html as html_stdlib
-import io, json
+import io
+import json
 import math
 import logging
 import os
@@ -21,7 +20,7 @@ from datetime import datetime
 from datetime import datetime as _dt
 from uuid import uuid4
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 from functools import lru_cache
 
 # ==== Third-Party Packages ====
@@ -31,16 +30,10 @@ import requests
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
 import streamlit.components.v1 as components
-from streamlit_cookies_manager import EncryptedCookieManager
 from docx import Document
 from google.cloud.firestore_v1 import FieldFilter
-from google.api_core.exceptions import GoogleAPICallError
-from firebase_admin import credentials, firestore, messaging  # Firebase
-import fpdf
-from gtts import gTTS
+from firebase_admin import firestore  # Firebase
 from openai import OpenAI
-from streamlit.components.v1 import html as st_html
-from streamlit_quill import st_quill
 
 from flask import Flask
 from auth import auth_bp
@@ -53,7 +46,6 @@ def health():
     return {"ok": True}, 200
 
 
-from pathlib import Path
 
 ICON_PATH = Path(__file__).parent / "static/icons/falowen-512.png"
 
@@ -70,29 +62,18 @@ if st.session_state.pop("needs_rerun", False):
 
 
 # --- Falowen modules ---
-from falowen.email_utils import send_reset_email, build_gas_reset_link, GAS_RESET_URL
+from falowen.email_utils import send_reset_email, build_gas_reset_link
 from falowen.sessions import (
     db,
     create_session_token,
     destroy_session_token,
-    api_get,
     api_post,
 )
 from falowen.db import (
-    FALOWEN_DAILY_LIMIT,
-    VOCAB_DAILY_LIMIT,
     SCHREIBEN_DAILY_LIMIT,
-    get_connection,
-    init_db,
-    get_sprechen_usage,
     inc_sprechen_usage,
-    has_sprechen_quota,
 )
-from src.assignment import linkify_html, _clean_link, _is_http_url
 from src.contracts import (
-    parse_contract_end,
-    add_months,
-    months_between,
     is_contract_expired,
 )
 from src.utils.currency import format_cedis
@@ -103,6 +84,9 @@ from src.firestore_utils import (
     load_draft_meta_from_db,
     save_chat_draft_to_db,
     save_draft_to_db,
+    save_question,
+    save_ai_answer,
+    save_teacher_answer,
 )
 from src.ui_components import (
     render_assignment_reminder,
@@ -111,7 +95,6 @@ from src.ui_components import (
 )
 from src.stats import (
     get_student_level,
-    get_vocab_stats,
     save_vocab_attempt,
     vocab_attempt_exists,
 )
@@ -125,11 +108,10 @@ from src.schreiben import (
     delete_schreiben_feedback,
 )
 from src.group_schedules import load_group_schedules
-from src.schedule import load_level_schedules, get_level_schedules
+from src.schedule import load_level_schedules
 from src.ui_helpers import (
     qp_get,
     qp_clear,
-    qp_clear_keys,
     seed_falowen_state_from_qp,
     highlight_terms,
     filter_matches,
@@ -620,7 +602,8 @@ def render_signup_request_banner():
 def render_google_oauth(return_url: bool = True) -> Optional[str]:
     """Complete OAuth if ?code=... else return the Google Authorization URL.
        (Does not render any buttons — we control that elsewhere.)"""
-    import secrets, urllib.parse
+    import secrets
+    import urllib.parse
 
     def _qp_first(val):
         return val[0] if isinstance(val, list) else val
@@ -3329,7 +3312,14 @@ if tab == "My Course":
         db = _get_db()
 
         # ---------- Shared helpers & imports used across tabs ----------
-        import math, os, io, re, json, hashlib, pandas as pd, requests
+        import math
+        import os
+        import io
+        import re
+        import json
+        import hashlib
+        import pandas as pd
+        import requests
         from uuid import uuid4
         from datetime import datetime as _dt, timedelta as _td
         import urllib.parse as _urllib
@@ -4460,6 +4450,62 @@ if tab == "My Course":
 
         # ===================== Class Notes & Q&A =====================
         elif classroom_section == "Class Notes & Q&A":
+            st.subheader("Class Notes & Q&A")
+            question = st.text_area("Your question", key="qa_question")
+            if st.button("Request AI help", key="qa_request_ai"):
+                post_id = save_question(student_code, question)
+                if post_id:
+                    try:
+                        resp = client.chat.completions.create(
+                            model="gpt-3.5-turbo",
+                            messages=[
+                                {"role": "system", "content": "You are a helpful German teacher."},
+                                {"role": "user", "content": question},
+                            ],
+                            temperature=0.2,
+                        )
+                        ai_text = resp.choices[0].message.content.strip()
+                    except Exception:
+                        ai_text = ""
+                        st.error("AI help failed. Please try again later.")
+                    save_ai_answer(post_id, ai_text)
+            try:
+                q_docs = [] if db is None else list(db.collection("qa_posts").where("student_code", "==", student_code).stream())
+            except Exception:
+                q_docs = []
+            for doc in q_docs:
+                data = doc.to_dict() or {}
+                st.markdown(f"**Question:** {data.get('question', '')}")
+                ai_txt = data.get("ai_suggestion")
+                if ai_txt:
+                    if st.toggle("Show AI suggestion", key=f"show_ai_{doc.id}"):
+                        st.info(f"AI suggestion: {ai_txt}")
+                        if st.button("Flag suggestion", key=f"flag_{doc.id}"):
+                            save_ai_answer(doc.id, ai_txt, flagged=True)
+                            st.warning("Flagged for teacher review.")
+                teacher_txt = data.get("teacher_answer")
+                if teacher_txt:
+                    st.success(f"Teacher answer: {teacher_txt}")
+                st.divider()
+            if IS_ADMIN:
+                st.subheader("Teacher review")
+                try:
+                    review_docs = [] if db is None else list(db.collection("qa_posts").where("teacher_answer", "==", None).stream())
+                except Exception:
+                    review_docs = []
+                review_docs.sort(key=lambda d: not (d.to_dict().get("flagged", False)))
+                for doc in review_docs:
+                    data = doc.to_dict() or {}
+                    st.markdown(f"**{data.get('student_code', '')}** asked: {data.get('question', '')}")
+                    ai_txt = data.get("ai_suggestion", "")
+                    if ai_txt:
+                        st.markdown(f"*AI suggestion:* {ai_txt}")
+                    ans = st.text_area("Teacher answer", value=ai_txt, key=f"teach_ans_{doc.id}")
+                    if st.button("Save answer", key=f"teach_save_{doc.id}"):
+                        save_teacher_answer(doc.id, ans)
+                        st.success("Answer saved.")
+                    st.divider()
+            st.stop()
             board_base = db.collection("class_board").document(class_name).collection("posts")
 
 
@@ -5197,7 +5243,8 @@ if tab == "My Results and Resources":
 # —— keep Firestore `db` and OpenAI `client` from above (not redefined here) ——
 
 # Ensure these are available in this tab
-import re, random
+import re
+import random
 import urllib.parse as _urllib
 
 # Optional: progress saver (kept from your code; safe if unused)
@@ -5253,7 +5300,7 @@ def _load_exam_topics_cached():
     expected_cols = ['Level', 'Teil', 'Topic/Prompt', 'Keyword/Subtopic']
     try:
         df = pd.read_csv(exam_csv_url)
-    except Exception as e:
+    except Exception:
         logging.exception("Failed to load exam topics")
         st.error("Unable to load exam topics. Please try again later.")
         return pd.DataFrame(columns=expected_cols)
@@ -6716,7 +6763,10 @@ if tab == "Vocab Trainer":
     # SUBTAB: Dictionary  (download-only audio)
     # ===========================
     elif subtab == "Dictionary":
-        import io, json, difflib, pandas as pd
+        import io
+        import json
+        import difflib
+        import pandas as pd
 
         # functions used here
         _map = {"ä":"ae","ö":"oe","ü":"ue","ß":"ss"}
@@ -7241,7 +7291,7 @@ if tab == "Schreiben Trainer":
                     st.session_state[f"{student_code}_last_feedback"] = feedback
                     st.session_state[f"{student_code}_last_user_letter"] = user_letter
                     st.session_state[f"{student_code}_delta_compare_feedback"] = None
-                except Exception as e:
+                except Exception:
                     st.error("AI feedback failed. Please check your OpenAI setup.")
                     feedback = None
 
@@ -7350,7 +7400,8 @@ if tab == "Schreiben Trainer":
 
                 # PDF & WhatsApp buttons
                 from fpdf import FPDF
-                import urllib.parse, os
+                import urllib.parse
+                import os
 
                 def sanitize_text(text):
                     return text.encode('latin-1', errors='replace').decode('latin-1')
@@ -7510,11 +7561,11 @@ if tab == "Schreiben Trainer":
                 "Always reply in English, never in German. "
                 "Congratulate the student with ideas about how to go about the letter, analyze the type of submission, and determine whether it is a formal letter, informal letter, or opinion essay. "
                 "If you are not sure, politely ask the student what type of writing they need help with. "
-                f"1. Always give students short ideas,structure and tips and phrases on how to build their points for the conversation in English and simple German. Dont overfeed students, help them but let them think by themselves also "
-                f"2. Always check to be sure their letters are organized with paragraphs using sequences and sentence starters "
-                f"3. Always add your ideas after student submmit their sentence if necessary "
-                f"4. Always be sure that students complete formal letter is between 40 to 50 words,informal letter and opinion essay between 80 to 90 words "
-                f"5. When giving ideas for sentences, just give 2 to 3 words and tell student to continue from there. Let the student also think and dont over feed them. "
+                "1. Always give students short ideas,structure and tips and phrases on how to build their points for the conversation in English and simple German. Dont overfeed students, help them but let them think by themselves also "
+                "2. Always check to be sure their letters are organized with paragraphs using sequences and sentence starters "
+                "3. Always add your ideas after student submmit their sentence if necessary "
+                "4. Always be sure that students complete formal letter is between 40 to 50 words,informal letter and opinion essay between 80 to 90 words "
+                "5. When giving ideas for sentences, just give 2 to 3 words and tell student to continue from there. Let the student also think and dont over feed them. "
                 "For a formal letter, give a brief overview of the structure (greeting, introduction, main reason/request, closing), with useful examples. "
                 "Always make grammar correction or suggest a better phrase when necessary. "
                 "For an informal letter, outline the friendly structure (greeting, introduction, reason, personal info, closing), with simple examples. "
@@ -7529,11 +7580,11 @@ if tab == "Schreiben Trainer":
                 "Always reply in English, never in German. "
                 "Congratulate the student with ideas about how to go about the letter, analyze the type of input, and determine if it is a formal letter, informal letter, or an opinion/argumentative essay. "
                 "If you are not sure, politely ask the student what type of writing they need help with. "
-                f"1. Always give students short ideas,structure and tips and phrases on how to build their points for the conversation in English and simple German. Dont overfeed students, help them but let them think by themselves also "
-                f"2. Always check to be sure their letters are organized with paragraphs using sequences and sentence starters "
-                f"3. Always add your ideas after student submmit their sentence if necessary "
-                f"4. Always be sure that students complete formal letter is between 100 to 150 words and opinion essay is 150 to 170 words "
-                f"5. When giving ideas for sentences, just give 2 to 3 words and tell student to continue from there. Let the student also think and dont over feed them. "
+                "1. Always give students short ideas,structure and tips and phrases on how to build their points for the conversation in English and simple German. Dont overfeed students, help them but let them think by themselves also "
+                "2. Always check to be sure their letters are organized with paragraphs using sequences and sentence starters "
+                "3. Always add your ideas after student submmit their sentence if necessary "
+                "4. Always be sure that students complete formal letter is between 100 to 150 words and opinion essay is 150 to 170 words "
+                "5. When giving ideas for sentences, just give 2 to 3 words and tell student to continue from there. Let the student also think and dont over feed them. "
                 "Always make grammar correction or suggest a better phrase when necessary. "
                 "For a formal letter, briefly outline the advanced structure: greeting, introduction, clear argument/reason, supporting details, closing—with examples. "
                 "For an informal letter, outline a friendly but organized structure: greeting, personal introduction, main point/reason, examples, closing. "
@@ -7547,11 +7598,11 @@ if tab == "Schreiben Trainer":
                 "You are Herr Felix, an advanced and supportive German writing coach for C1 students. "
                 "Always reply in English, and in German when neccessary. If the German is difficult, explain it to the student "
                 "Congratulate the student with ideas about how to go about the letter, analyze the type of input, and determine if it is a formal letter, informal letter, or an academic/opinion essay. "
-                f"1. Always give students short ideas,structure and tips and phrases on how to build their points for the conversation in English and simple German. Dont overfeed students, help them but let them think by themselves also "
-                f"2. Always check to be sure their letters are organized with paragraphs using sequence and sentence starters "
-                f"3. Always add your ideas after student submmit their sentence if necessary "
-                f"4. Always be sure that students complete formal letter is between 120 to 150 words and opinion essay is 230 to 250 words "
-                f"5. When giving ideas for sentences, just give 2 to 3 words and tell student to continue from there. Let the student also think and dont over feed them. "
+                "1. Always give students short ideas,structure and tips and phrases on how to build their points for the conversation in English and simple German. Dont overfeed students, help them but let them think by themselves also "
+                "2. Always check to be sure their letters are organized with paragraphs using sequence and sentence starters "
+                "3. Always add your ideas after student submmit their sentence if necessary "
+                "4. Always be sure that students complete formal letter is between 120 to 150 words and opinion essay is 230 to 250 words "
+                "5. When giving ideas for sentences, just give 2 to 3 words and tell student to continue from there. Let the student also think and dont over feed them. "
                 "If you are not sure, politely ask the student what type of writing they need help with. "
                 "For a formal letter, give a precise overview: greeting, sophisticated introduction, detailed argument, supporting evidence, closing, with nuanced examples. "
                 "Always make grammar correction or suggest a better phrase when necessary. "
@@ -7680,7 +7731,7 @@ if tab == "Schreiben Trainer":
                             max_tokens=380
                         )
                         ai_reply = resp.choices[0].message.content
-                    except Exception as e:
+                    except Exception:
                         ai_reply = "Sorry, there was an error generating a response. Please try again."
                     chat_history.append({"role": "assistant", "content": ai_reply})
 

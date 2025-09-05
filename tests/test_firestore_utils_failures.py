@@ -93,3 +93,61 @@ def test_load_draft_meta_from_db_logs_error_on_failure(monkeypatch, caplog):
     # three paths attempted: new, compat, legacy
     assert len(messages) == 3
     assert all("code/draft_X" in msg for msg in messages)
+
+
+def test_save_question_logs_warning_on_failure(monkeypatch, caplog):
+    class DummyRef:
+        def set(self, *args, **kwargs):
+            raise RuntimeError("boom")
+
+    class DummyCollection:
+        def document(self, *args, **kwargs):
+            return DummyRef()
+
+    class DummyDB:
+        def collection(self, *args, **kwargs):
+            return DummyCollection()
+
+    monkeypatch.setattr(firestore_utils, "db", DummyDB())
+
+    with caplog.at_level(logging.WARNING):
+        firestore_utils.save_question("code", "hi")
+    assert any("Failed to save question" in r.message for r in caplog.records)
+
+
+def test_save_ai_answer_logs_warning_on_failure(monkeypatch, caplog):
+    class DummyRef:
+        def set(self, *args, **kwargs):
+            raise RuntimeError("boom")
+
+    class DummyDB:
+        def collection(self, *args, **kwargs):
+            return self
+
+        def document(self, *args, **kwargs):
+            return DummyRef()
+
+    monkeypatch.setattr(firestore_utils, "db", DummyDB())
+
+    with caplog.at_level(logging.WARNING):
+        firestore_utils.save_ai_answer("id", "text")
+    assert any("Failed to save AI answer" in r.message for r in caplog.records)
+
+
+def test_save_teacher_answer_logs_warning_on_failure(monkeypatch, caplog):
+    class DummyRef:
+        def set(self, *args, **kwargs):
+            raise RuntimeError("boom")
+
+    class DummyDB:
+        def collection(self, *args, **kwargs):
+            return self
+
+        def document(self, *args, **kwargs):
+            return DummyRef()
+
+    monkeypatch.setattr(firestore_utils, "db", DummyDB())
+
+    with caplog.at_level(logging.WARNING):
+        firestore_utils.save_teacher_answer("id", "text")
+    assert any("Failed to save teacher answer" in r.message for r in caplog.records)

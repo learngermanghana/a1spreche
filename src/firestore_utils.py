@@ -163,5 +163,70 @@ def load_draft_meta_from_db(code: str, field_key: str) -> Tuple[str, Optional[da
         logging.exception(
             "Failed to load draft meta (legacy) for %s/%s: %s", code, field_key, exc
         )
-        
+
     return "", None
+
+
+# ---- Q&A posts ---------------------------------------------------------------
+
+
+def _qa_doc_ref(post_id: str):
+    """Return the Firestore document reference for a Q&A post."""
+
+    if db is None:
+        return None
+    return db.collection("qa_posts").document(post_id)
+
+
+def save_question(code: str, question: str) -> Optional[str]:
+    """Persist a new question and return the document ID."""
+
+    if db is None:
+        return None
+    ref = db.collection("qa_posts").document()
+    payload = {
+        "question": question or "",
+        "student_code": code,
+        "created_at": firestore.SERVER_TIMESTAMP,
+        "flagged": False,
+    }
+    try:
+        ref.set(payload)
+        return ref.id
+    except Exception as exc:  # pragma: no cover - runtime depends on Firestore
+        logging.warning("Failed to save question for %s: %s", code, exc)
+        return None
+
+
+def save_ai_answer(post_id: str, ai_text: str, flagged: bool = False) -> None:
+    """Attach an AI-generated suggestion to the question."""
+
+    ref = _qa_doc_ref(post_id)
+    if ref is None:
+        return
+    payload = {
+        "ai_suggestion": ai_text,
+        "ai_created_at": firestore.SERVER_TIMESTAMP,
+    }
+    if flagged:
+        payload["flagged"] = True
+    try:
+        ref.set(payload, merge=True)
+    except Exception as exc:  # pragma: no cover - runtime depends on Firestore
+        logging.warning("Failed to save AI answer for %s: %s", post_id, exc)
+
+
+def save_teacher_answer(post_id: str, teacher_text: str) -> None:
+    """Persist the teacher's response for a question."""
+
+    ref = _qa_doc_ref(post_id)
+    if ref is None:
+        return
+    payload = {
+        "teacher_answer": teacher_text,
+        "teacher_created_at": firestore.SERVER_TIMESTAMP,
+    }
+    try:
+        ref.set(payload, merge=True)
+    except Exception as exc:  # pragma: no cover - runtime depends on Firestore
+        logging.warning("Failed to save teacher answer for %s: %s", post_id, exc)
