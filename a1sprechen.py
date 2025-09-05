@@ -165,6 +165,26 @@ from src.ui_widgets import (
 )
 from src.logout import do_logout
 
+cm = create_cookie_manager()
+
+session = restore_session_from_cookie(
+    cm,
+    loader=load_roster,                   # whatever you currently use to fetch roster/data
+    contract_validator=contract_active,   # or contract_checker=...
+)
+
+if session:
+    # user stays logged in
+    st.session_state["student_code"] = session["student_code"]
+    st.session_state["session_token"] = session["session_token"]
+    data = session.get("data")
+else:
+    # show login UI
+    ...
+
+    ...
+
+
 # ------------------------------------------------------------------------------
 # Cookie manager
 # ------------------------------------------------------------------------------
@@ -892,6 +912,11 @@ def render_level_welcome_video(level: str | None):
         """, height=320, scrolling=False
     )
 
+# after your backend returns (student_code, session_token)
+set_student_code_cookie(cm, student_code)
+set_session_token_cookie(cm, session_token)
+save_cookies(cm)      # <-- persist to browser
+st.rerun()            # optional; refresh UI as “logged in”
 
 # ------------------------------------------------------------------------------
 # Sidebar (publish-ready)
