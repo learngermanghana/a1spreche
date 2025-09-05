@@ -7228,12 +7228,13 @@ if tab == "Schreiben Trainer":
                 import os
 
                 def sanitize_text(text):
-                    return text.encode('latin-1', errors='replace').decode('latin-1')
+                    return text
 
                 # PDF
                 pdf = FPDF()
+                pdf.add_font("DejaVu", "", "font/DejaVuSans.ttf", uni=True)
                 pdf.add_page()
-                pdf.set_font("Arial", size=12)
+                pdf.set_font("DejaVu", size=12)
                 improved_letter = st.session_state.get(f"{student_code}_final_improved_letter", "")
                 improved_feedback = st.session_state[f"{student_code}_delta_compare_feedback"]
                 pdf.multi_cell(0, 10, f"Your Improved Letter:\n\n{sanitize_text(improved_letter)}\n\nFeedback from Herr Felix:\n\n{sanitize_text(improved_feedback)}")
