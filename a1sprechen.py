@@ -54,7 +54,7 @@ st.set_page_config(
 if st.session_state.pop("needs_rerun", False):
     st.rerun()
 
-
+st.session_state.setdefault("logged_in", False)
 
 # --- Falowen modules ---
 from falowen.email_utils import send_reset_email, build_gas_reset_link, GAS_RESET_URL
@@ -153,29 +153,17 @@ from src.ui_widgets import (
     render_google_brand_button_once,
     render_announcements_once,
 )
+# ------------------------------------------------------------------------------
+# External
+# ------------------------------------------------------------------------------
 from src.logout import do_logout
 
-load_roster = load_student_data
-contract_active = lambda *a, **k: True
 
-cm = create_cookie_manager()
+# ------------------------------------------------------------------------------
+# Cookie manager
+# ------------------------------------------------------------------------------
+cookie_manager = create_cookie_manager()
 
-session = restore_session_from_cookie(
-    cm,
-    loader=load_roster,                   # whatever you currently use to fetch roster/data
-    contract_validator=contract_active,   # or contract_checker=...
-)
-
-if session:
-    # user stays logged in
-    st.session_state["student_code"] = session["student_code"]
-    st.session_state["session_token"] = session["session_token"]
-    data = session.get("data")
-else:
-    # show login UI
-    ...
-
-    ...
 
 # ------------------------------------------------------------------------------
 # Google OAuth (Gmail sign-in) — single-source, no duplicate buttons
@@ -894,9 +882,9 @@ def render_level_welcome_video(level: str | None):
     )
 
 # after your backend returns (student_code, session_token)
-set_student_code_cookie(cm, student_code)
-set_session_token_cookie(cm, session_token)
-save_cookies(cm)      # <-- persist to browser
+set_student_code_cookie(cookie_manager, student_code)
+set_session_token_cookie(cookie_manager, session_token)
+save_cookies(cookie_manager)      # <-- persist to browser
 st.rerun()            # optional; refresh UI as “logged in”
 
 # ------------------------------------------------------------------------------
