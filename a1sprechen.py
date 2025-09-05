@@ -31,7 +31,6 @@ import requests
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
 import streamlit.components.v1 as components
-from streamlit_cookies_manager import EncryptedCookieManager
 from docx import Document
 from google.cloud.firestore_v1 import FieldFilter
 from google.api_core.exceptions import GoogleAPICallError
@@ -41,19 +40,6 @@ from gtts import gTTS
 from openai import OpenAI
 from streamlit.components.v1 import html as st_html
 from streamlit_quill import st_quill
-
-from flask import Flask
-from auth import auth_bp
-
-app = Flask(__name__)
-app.register_blueprint(auth_bp)
-
-@app.get("/health")
-def health():
-    return {"ok": True}, 200
-
-
-from pathlib import Path
 
 ICON_PATH = Path(__file__).parent / "static/icons/falowen-512.png"
 
@@ -135,11 +121,13 @@ from src.ui_helpers import (
     filter_matches,
 )
 from src.auth import (
+    create_cookie_manager,
+    restore_session_from_cookie,
     set_student_code_cookie,
     set_session_token_cookie,
+    save_cookies,
     clear_session,
     persist_session_client,
-    restore_session_from_cookie,
     reset_password_page,
 )
 from src.assignment_ui import (
@@ -153,8 +141,9 @@ from src.session_management import (
     ensure_student_level,
 )
 from src.sentence_bank import SENTENCE_BANK
-from src.config import get_cookie_manager, SB_SESSION_TARGET
 from src.data_loading import load_student_data
+
+SB_SESSION_TARGET = int(os.environ.get("SB_SESSION_TARGET") or 5)
 from src.youtube import (
     get_playlist_ids_for_level,
     fetch_youtube_playlist_videos,
@@ -164,6 +153,9 @@ from src.ui_widgets import (
     render_announcements_once,
 )
 from src.logout import do_logout
+
+load_roster = load_student_data
+contract_active = lambda *a, **k: True
 
 cm = create_cookie_manager()
 
@@ -188,7 +180,7 @@ else:
 # ------------------------------------------------------------------------------
 # Cookie manager
 # ------------------------------------------------------------------------------
-cookie_manager = get_cookie_manager()
+cookie_manager = create_cookie_manager()
 
 # ------------------------------------------------------------------------------
 # Google OAuth (Gmail sign-in) — single-source, no duplicate buttons
