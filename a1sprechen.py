@@ -4880,8 +4880,10 @@ if tab == "My Course":
                         st.session_state[last_ts_key] = time.time()
                         st.session_state[saved_flag_key] = bool(txt)
                         st.session_state[saved_at_key] = ts
+                    current_text = st.session_state.get(draft_key, "")
                     comment_text = st.text_input(
                         f"Comment on Q{q_id}",
+                        value=current_text,
                         key=draft_key,
                         placeholder="Write your comment…",
                         on_change=save_now,
@@ -4889,6 +4891,38 @@ if tab == "My Course":
                     )
                     current_text = st.session_state.get(draft_key, "")
                     autosave_maybe(student_code, draft_key, current_text, min_secs=2.0, min_delta=12)
+
+                    def apply_ai_correction(q_id: str, draft_key: str, current_text: str) -> None:
+                        if not current_text.strip():
+                            return
+                        try:
+                            resp = client.chat.completions.create(
+                                model="gpt-4o-mini",
+                                messages=[
+                                    {
+                                        "role": "system",
+                                        "content": (
+                                            "You are a helpful assistant that corrects German replies. "
+                                            "Return only the corrected reply."
+                                        ),
+                                    },
+                                    {
+                                        "role": "user",
+                                        "content": f"Question: {q.get('content','')}\nReply: {current_text}",
+                                    },
+                                ],
+                                temperature=0,
+                                max_tokens=300,
+                            )
+                            ai_text = (resp.choices[0].message.content or "").strip()
+                            flagged = resp.choices[0].finish_reason == "content_filter"
+                        except Exception:
+                            ai_text = ""
+                            flagged = False
+                        if ai_text:
+                            st.session_state[draft_key] = ai_text
+                            save_ai_response(q_id, ai_text, flagged)
+
                     send_col, ai_col = st.columns([1, 1])
                     with send_col:
                         st.button(
@@ -4909,39 +4943,12 @@ if tab == "My Course":
                             ),
                         )
                     with ai_col:
-                        if st.button(
+                        st.button(
                             "✨ Correct with AI",
                             key=f"q_ai_btn_{q_id}",
-                        ) and current_text.strip():
-                            try:
-                                resp = client.chat.completions.create(
-                                    model="gpt-4o-mini",
-                                    messages=[
-                                        {
-                                            "role": "system",
-                                            "content": (
-                                                "You are a helpful assistant that corrects German replies. "
-                                                "Return only the corrected reply."
-                                            ),
-                                        },
-                                        {
-                                            "role": "user",
-                                            "content": (
-                                                f"Question: {q.get('content','')}\nReply: {current_text}"
-                                            ),
-                                        },
-                                    ],
-                                    temperature=0,
-                                    max_tokens=300,
-                                )
-                                ai_text = (resp.choices[0].message.content or "").strip()
-                                flagged = resp.choices[0].finish_reason == "content_filter"
-                            except Exception:
-                                ai_text = ""
-                                flagged = False
-                            if ai_text:
-                                st.session_state[draft_key] = ai_text
-                                save_ai_response(q_id, ai_text, flagged)
+                            on_click=apply_ai_correction,
+                            args=(q_id, draft_key, current_text),
+                        )
 
 
     # === LEARNING NOTES SUBTAB ===
