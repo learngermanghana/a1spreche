@@ -160,11 +160,14 @@ contract_active = lambda *a, **k: True
 
 cm = create_cookie_manager()
 
-session = restore_session_from_cookie(
-    cm,
-    loader=load_roster,                   # whatever you currently use to fetch roster/data
-    contract_validator=contract_active,   # or contract_checker=...
-)
+try:
+    session = restore_session_from_cookie(
+        cm,
+        loader=load_roster,                   # whatever you currently use to fetch roster/data
+        contract_validator=contract_active,   # or contract_checker=...
+    )
+except Exception:
+    session = None
 
 if session:
     # user stays logged in
@@ -894,10 +897,11 @@ def render_level_welcome_video(level: str | None):
     )
 
 # after your backend returns (student_code, session_token)
-set_student_code_cookie(cm, student_code)
-set_session_token_cookie(cm, session_token)
-save_cookies(cm)      # <-- persist to browser
-st.rerun()            # optional; refresh UI as “logged in”
+def apply_login_cookies(cm, student_code, session_token):
+    set_student_code_cookie(cm, student_code)
+    set_session_token_cookie(cm, session_token)
+    save_cookies(cm)      # <-- persist to browser
+    st.rerun()            # optional; refresh UI as “logged in”
 
 # ------------------------------------------------------------------------------
 # Sidebar (publish-ready)
@@ -993,11 +997,12 @@ def render_sidebar_published():
 # OpenAI (used elsewhere in app)
 # ------------------------------------------------------------------------------
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
-if not OPENAI_API_KEY:
+if OPENAI_API_KEY:
+    os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+    client = OpenAI(api_key=OPENAI_API_KEY)
+else:
     st.error("Missing OpenAI API key. Please add OPENAI_API_KEY in Streamlit secrets.")
-    raise RuntimeError("Missing OpenAI API key")
-os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
-client = OpenAI(api_key=OPENAI_API_KEY)
+    client = None
 
 
 # ------------------------------------------------------------------------------
@@ -1036,7 +1041,10 @@ def _contract_active(sc: str, roster):
 
     return True
 
-restored = restore_session_from_cookie(cm, load_student_data, _contract_active)
+try:
+    restored = restore_session_from_cookie(cm, load_student_data, _contract_active)
+except Exception:
+    restored = None
 if restored is not None and not st.session_state.get("logged_in", False):
     sc_cookie = restored["student_code"]
     token = restored["session_token"]
