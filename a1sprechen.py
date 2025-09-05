@@ -17,7 +17,7 @@ import urllib.parse
 import urllib.parse as _urllib
 from urllib.parse import urlsplit, parse_qs, urlparse
 from datetime import date, timedelta, timezone as _timezone, UTC
-from datetime import datetime, timezone
+from datetime import datetime
 from datetime import datetime as _dt
 from uuid import uuid4
 from pathlib import Path
@@ -31,6 +31,7 @@ import requests
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
 import streamlit.components.v1 as components
+from streamlit_cookies_manager import EncryptedCookieManager
 from docx import Document
 from google.cloud.firestore_v1 import FieldFilter
 from google.api_core.exceptions import GoogleAPICallError
@@ -40,6 +41,19 @@ from gtts import gTTS
 from openai import OpenAI
 from streamlit.components.v1 import html as st_html
 from streamlit_quill import st_quill
+
+from flask import Flask
+from auth import auth_bp
+
+app = Flask(__name__)
+app.register_blueprint(auth_bp)
+
+@app.get("/health")
+def health():
+    return {"ok": True}, 200
+
+
+from pathlib import Path
 
 ICON_PATH = Path(__file__).parent / "static/icons/falowen-512.png"
 
@@ -53,7 +67,6 @@ st.set_page_config(
 
 if st.session_state.pop("needs_rerun", False):
     st.rerun()
-
 
 
 # --- Falowen modules ---
@@ -122,13 +135,11 @@ from src.ui_helpers import (
     filter_matches,
 )
 from src.auth import (
-    create_cookie_manager,
-    restore_session_from_cookie,
     set_student_code_cookie,
     set_session_token_cookie,
-    save_cookies,
     clear_session,
     persist_session_client,
+    restore_session_from_cookie,
     reset_password_page,
 )
 from src.assignment_ui import (
@@ -142,9 +153,8 @@ from src.session_management import (
     ensure_student_level,
 )
 from src.sentence_bank import SENTENCE_BANK
+from src.config import get_cookie_manager, SB_SESSION_TARGET
 from src.data_loading import load_student_data
-
-SB_SESSION_TARGET = int(os.environ.get("SB_SESSION_TARGET") or 5)
 from src.youtube import (
     get_playlist_ids_for_level,
     fetch_youtube_playlist_videos,
@@ -155,30 +165,10 @@ from src.ui_widgets import (
 )
 from src.logout import do_logout
 
-cm = create_cookie_manager()
-try:
-    session = restore_session_from_cookie(
-        cm,
-        loader=load_student_data,
-        contract_validator=lambda *a, **k: True,
-    )
-except Exception:
-    session = None
-
-if session:
-    st.session_state["student_code"] = session["student_code"]
-    st.session_state["session_token"] = session["session_token"]
-else:
-    # Ensure stale cookies are cleared if session restoration fails
-    try:
-        clear_session(cm)
-    except Exception:
-        pass
-    try:
-        cm.pop("student_code", None)
-        cm.pop("session_token", None)
-    except Exception:
-        pass
+# ------------------------------------------------------------------------------
+# Cookie manager
+# ------------------------------------------------------------------------------
+cookie_manager = get_cookie_manager()
 
 # ------------------------------------------------------------------------------
 # Google OAuth (Gmail sign-in) — single-source, no duplicate buttons
@@ -264,9 +254,9 @@ def _handle_google_oauth(code: str, state: str) -> None:
             except Exception:
                 logging.exception("Logout warning (revoke)")
 
-        clear_session(cm)
+        clear_session(cookie_manager)
 
-        sess_token = create_session_token(student_row["StudentCode"])
+        sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
         level = determine_level(student_row["StudentCode"], student_row)
 
         st.session_state.update({
@@ -277,11 +267,13 @@ def _handle_google_oauth(code: str, state: str) -> None:
             "session_token": sess_token,
             "student_level": level,
         })
-        expires_at = datetime.now(UTC) + timedelta(days=30)
-        set_student_code_cookie(cm, student_row["StudentCode"], expires=expires_at)
-        set_session_token_cookie(cm, sess_token, expires=expires_at)
-        save_cookies(cm)
+        set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
         persist_session_client(sess_token, student_row["StudentCode"])
+        set_session_token_cookie(cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
+        try:
+            cookie_manager.save()
+        except Exception:
+            logging.exception("Cookie save failed")
 
         qp_clear()
         st.success(f"Welcome, {student_row['Name']}!")
@@ -498,10 +490,10 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
         except Exception:
             logging.exception("Logout warning (revoke)")
 
-    sess_token = create_session_token(student_row["StudentCode"])
+    sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
     level = determine_level(student_row["StudentCode"], student_row)
 
-    clear_session(cm)
+    clear_session(cookie_manager)
     st.session_state.update({
         "logged_in": True,
         "student_row": dict(student_row),
@@ -510,11 +502,13 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
         "session_token": sess_token,
         "student_level": level,
     })
-    expires_at = datetime.now(UTC) + timedelta(days=30)
-    set_student_code_cookie(cm, student_row["StudentCode"], expires=expires_at)
-    set_session_token_cookie(cm, sess_token, expires=expires_at)
-    save_cookies(cm)
+    set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
     persist_session_client(sess_token, student_row["StudentCode"])
+    set_session_token_cookie(cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
+    try:
+        cookie_manager.save()
+    except Exception:
+        logging.exception("Cookie save failed")
 
     st.success(f"Welcome, {student_row['Name']}!")
     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
@@ -586,6 +580,8 @@ def render_returning_login_area() -> bool:
     return False
 
 
+# --- One-time branded Google button (kept exactly once on the page)
+
 # --- Small explanatory banner shown above the tabs
 def render_signup_request_banner():
     if not st.session_state.get("_signup_banner_css_done"):
@@ -649,6 +645,43 @@ def render_google_oauth(return_url: bool = True) -> Optional[str]:
     }
     auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
     return auth_url
+
+# --- One-time branded Google button (shows ONCE under "Returning user login")
+# ------------------------------------------------------------------------------
+# Returning login (no extra Google button here anymore)
+# ------------------------------------------------------------------------------
+def render_returning_login_area() -> bool:
+    with st.form("returning_login_form", clear_on_submit=False):
+        login_id  = st.text_input("Email or Student Code")
+        login_pass= st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Log in")
+
+    if submitted and render_login_form(login_id, login_pass):
+        return True
+
+    # Forgot password toggle below the form
+    col_a, col_b = st.columns([0.5, 0.5])
+    with col_a:
+        if st.button("Forgot password?"):
+            st.session_state["show_reset_panel"] = True
+    if st.session_state.get("show_reset_panel"):
+        render_forgot_password_panel()
+
+    return False
+
+def render_returning_login_form():
+    """Simplified returning-user login form used in tests."""
+    with st.form("returning_login_form", clear_on_submit=False):
+        login_id = st.text_input("Email or Student Code")
+        login_pass = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Log in")
+        forgot = st.form_submit_button("Forgot password?")
+    if submitted:
+        render_login_form(login_id, login_pass)
+    if forgot:
+        # In reality this would trigger sending a reset email.
+        send_reset_email("test@example.com", "reset-link")
+    return False
 
 
 @lru_cache(maxsize=1)
@@ -775,10 +808,10 @@ def login_page():
     </div>
     """, unsafe_allow_html=True)
 
-    from datetime import datetime as _dt_now, timezone
+    from datetime import datetime as _dt_now
     st.markdown(f"""
     <div class="page-wrap" style="text-align:center;color:#64748b; margin-bottom:16px;">
-      © {_dt_now.now(timezone.utc).year} Learn Language Education Academy • Accra, Ghana<br>
+      © {_dt_now.utcnow().year} Learn Language Education Academy • Accra, Ghana<br>
       Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> •
       <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>
     </div>
@@ -830,7 +863,7 @@ def render_logged_in_topbar():
                       key="logout_global",
                       type="primary",
                       use_container_width=True,
-                      on_click=lambda: do_logout(cm))
+                      on_click=lambda: do_logout(cookie_manager))
 
 
 # ------------------------------------------------------------------------------
@@ -859,13 +892,6 @@ def render_level_welcome_video(level: str | None):
         """, height=320, scrolling=False
     )
 
-# after your backend returns (student_code, session_token)
-def apply_login_cookies(cm, student_code, session_token):
-    expires_at = datetime.now(UTC) + timedelta(days=30)
-    set_student_code_cookie(cm, student_code, expires=expires_at)
-    set_session_token_cookie(cm, session_token, expires=expires_at)
-    save_cookies(cm)      # <-- persist to browser
-    st.rerun()            # optional; refresh UI as “logged in”
 
 # ------------------------------------------------------------------------------
 # Sidebar (publish-ready)
@@ -961,12 +987,11 @@ def render_sidebar_published():
 # OpenAI (used elsewhere in app)
 # ------------------------------------------------------------------------------
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
-if OPENAI_API_KEY:
-    os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
-    client = OpenAI(api_key=OPENAI_API_KEY)
-else:
+if not OPENAI_API_KEY:
     st.error("Missing OpenAI API key. Please add OPENAI_API_KEY in Streamlit secrets.")
-    client = None
+    raise RuntimeError("Missing OpenAI API key")
+os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 
 # ------------------------------------------------------------------------------
@@ -1005,10 +1030,7 @@ def _contract_active(sc: str, roster):
 
     return True
 
-try:
-    restored = restore_session_from_cookie(cm, load_student_data, _contract_active)
-except Exception:
-    restored = None
+restored = restore_session_from_cookie(cookie_manager, load_student_data, _contract_active)
 if restored is not None and not st.session_state.get("logged_in", False):
     sc_cookie = restored["student_code"]
     token = restored["session_token"]
@@ -1019,7 +1041,7 @@ if restored is not None and not st.session_state.get("logged_in", False):
         else pd.DataFrame()
     )
     if match.empty:
-        clear_session(cm)
+        clear_session(cookie_manager)
         st.warning("Session expired. Please log in again.")
     else:
         row = match.iloc[0]
@@ -4417,7 +4439,7 @@ if tab == "My Course":
                                                 _notify_slack(
                                                     f"✏️ *Announcement reply edited* — {class_name}\n"
                                                     f"*By:* {student_name} ({student_code})\n"
-                                                    f"*When:* {_dt.now(timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC\n"
+                                                    f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
                                                     f"*Preview:* {new_txt[:180]}{'…' if len(new_txt)>180 else ''}"
                                                 )
                                                 st.success("Reply updated.")
@@ -4572,7 +4594,7 @@ if tab == "My Course":
                         "content": formatted_q,
                         "asked_by_name": student_name,
                         "asked_by_code": student_code,
-                        "timestamp": _dt.now(timezone.utc),
+                        "timestamp": _dt.utcnow(),
                         "topic": (topic or "").strip(),
                     }
                     board_base.document(q_id).set(payload)
@@ -4581,7 +4603,7 @@ if tab == "My Course":
                     _notify_slack(
                         f"📝 *New Class Board post* — {class_name}{topic_tag}\n",
                         f"*From:* {student_name} ({student_code})\n",
-                                                    f"*When:* {_dt.now(timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC\n",
+                        f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n",
                         f"*Content:* {preview}"
                     )
                     st.session_state["__clear_q_form"] = True
@@ -4700,7 +4722,7 @@ if tab == "My Course":
                                 _notify_slack(
                                     f"🗑️ *Class Board post deleted* — {class_name}\n"
                                     f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
-                                    f"*When:* {_dt.now(timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC"
+                                    f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
                                 )
                                 st.success("Post deleted.")
                                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
@@ -4730,7 +4752,7 @@ if tab == "My Course":
                                     _notify_slack(
                                         f"✏️ *Class Board post edited* — {class_name}\n",
                                         f"*By:* {student_name} ({student_code}) • QID: {q_id}\n",
-                                        f"*When:* {_dt.now(timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC\n",
+                                        f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n",
                                         f"*New:* {(formatted_edit[:180] + '…') if len(formatted_edit) > 180 else formatted_edit}",
                                     )
                                     st.session_state[f"q_editing_{q_id}"] = False
