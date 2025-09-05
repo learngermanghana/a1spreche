@@ -167,44 +167,12 @@ def load_draft_meta_from_db(code: str, field_key: str) -> Tuple[str, Optional[da
     return "", None
 
 
-# ---- Q&A posts ---------------------------------------------------------------
-
-
-def _qa_doc_ref(post_id: str):
-    """Return the Firestore document reference for a Q&A post."""
-
-    if db is None:
-        return None
-    return db.collection("qa_posts").document(post_id)
-
-
-def save_post(code: str, text: str, is_question: bool) -> Optional[str]:
-    """Persist a new note or question and return the document ID."""
-
-    if db is None:
-        return None
-    ref = db.collection("qa_posts").document()
-    payload = {
-        "text": text or "",
-        "student_code": code,
-        "created_at": firestore.SERVER_TIMESTAMP,
-        "flagged": False,
-        "is_question": is_question,
-    }
-    try:
-        ref.set(payload)
-        return ref.id
-    except Exception as exc:  # pragma: no cover - runtime depends on Firestore
-        logging.warning("Failed to save post for %s: %s", code, exc)
-        return None
-
-
 def save_ai_answer(post_id: str, ai_text: str, flagged: bool = False) -> None:
     """Attach an AI-generated suggestion to the post."""
 
-    ref = _qa_doc_ref(post_id)
-    if ref is None:
+    if db is None:
         return
+    ref = db.collection("qa_posts").document(post_id)
     payload = {
         "ai_suggestion": ai_text,
         "ai_created_at": firestore.SERVER_TIMESTAMP,
@@ -220,9 +188,9 @@ def save_ai_answer(post_id: str, ai_text: str, flagged: bool = False) -> None:
 def save_ai_response(post_id: str, ai_text: str, flagged: bool = False) -> None:
     """Attach an AI-generated reply suggestion to the post."""
 
-    ref = _qa_doc_ref(post_id)
-    if ref is None:
+    if db is None:
         return
+    ref = db.collection("qa_posts").document(post_id)
     payload = {
         "ai_response_suggestion": ai_text,
         "ai_response_created_at": firestore.SERVER_TIMESTAMP,
@@ -242,9 +210,9 @@ def save_response(post_id: str, text: str, responder_code: str) -> None:
     includes the ``responder_code`` and server timestamp.
     """
 
-    ref = _qa_doc_ref(post_id)
-    if ref is None:
+    if db is None:
         return
+    ref = db.collection("qa_posts").document(post_id)
     payload = {
         "responses": firestore.ArrayUnion([
             {
