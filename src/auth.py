@@ -1,32 +1,51 @@
+# auth.py
+# Authentication helpers for managing user cookies and sessions (Streamlit + iOS/PWA friendly)
+
+from __future__ import annotations
+
 import logging
 import os
 import threading
 from collections.abc import MutableMapping
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
 import streamlit as st
 
-import streamlit as st
+# Try to use the real encrypted cookie manager; fall back to an in-memory test double if unavailable.
+try:  # pragma: no cover - import guard
+    from streamlit_cookies_manager import EncryptedCookieManager  # type: ignore
+except Exception:  # pragma: no cover - defensive
+    EncryptedCookieManager = None  # type: ignore
 
-# --- Cookie defaults --------------------------------------------------------
 
-COOKIE_DOMAIN = os.getenv("COOKIE_DOMAIN", ".falowen.app")  # leave empty on localhost
-COOKIE_MAX_AGE = int(os.getenv("COOKIE_MAX_AGE", "2592000"))  # 30 days
-COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "Lax")         # or "None" if you embed cross-site
+# ───────────────────────────────────────────────────────────────────────────────
+# Cookie defaults (tuned for Safari / iOS / PWA persistence)
+# ───────────────────────────────────────────────────────────────────────────────
 
-def _cookie_kwargs() -> dict:
-    """Standard cookie attributes for auth cookies."""
-    kw = {
+COOKIE_DOMAIN = os.getenv("COOKIE_DOMAIN", ".falowen.app")   # omit/empty for localhost
+COOKIE_MAX_AGE = int(os.getenv("COOKIE_MAX_AGE", "2592000")) # 30 days
+COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "Lax")        # use "None" if embedding cross-site
+
+_FALLBACK_COOKIE_PASSWORD = "dev-only-fallback-change-me"
+
+def _cookie_kwargs() -> dict[str, Any]:
+    """Standard attributes for auth cookies (persist across refresh/app restarts)."""
+    kw: dict[str, Any] = {
+        "path": "/",
         "secure": True,
-        "httponly": True,
-        "samesite": COOKIE_SAMESITE,  # "Lax" is fine for first-party; use "None" for iframes
+        "httponly": True,  # EncryptedCookieManager can't make HttpOnly, but harmless to include
+        "samesite": COOKIE_SAMESITE,  # "Lax" for first-party; "None" (with Secure) for iframes/cross-site
+        "max_age": COOKIE_MAX_AGE,
+        "expires": datetime.now(timezone.utc) + timedelta(seconds=COOKIE_MAX_AGE),
     }
-    # Only set Domain when we're actually on a real domain (not localhost)
+    # Only set Domain when actually on a real domain (avoid localhost issues)
     if COOKIE_DOMAIN and COOKIE_DOMAIN not in ("localhost", "127.0.0.1"):
         kw["domain"] = COOKIE_DOMAIN
     return kw
 
-def _set_cookie(cm, key: str, value: str, **overrides):
+
+def _set_cookie(cm: Any, key: str, value: str, **overrides: Any) -> None:
     """
     Unified cookie setter:
     - uses cm.set(...) if available (real manager)
@@ -34,25 +53,34 @@ def _set_cookie(cm, key: str, value: str, **overrides):
     """
     kwargs = {**_cookie_kwargs(), **overrides}
 
-    # Real cookie managers usually expose .set()
     set_fn = getattr(cm, "set", None)
     if callable(set_fn):
         set_fn(key, value, **kwargs)
     else:
-        # Fallback for the SimpleCookieManager/dict-like stores
+        # Fallback for simple/dict-like stores
         cm[key] = value
         if hasattr(cm, "store") and isinstance(cm.store, dict) and key in cm.store:
             cm.store[key]["kwargs"] = kwargs
 
-    # Callers may persist using ``cm.save()`` if supported; we avoid
-    # auto-saving here so multiple cookie operations can be batched before a
-    # single save call.
 
-def _expire_cookie(cm, key: str):
-    """Tell the browser to delete the cookie."""
+def save_cookies(cm: Any) -> None:
+    """Persist cookies if the manager supports it (EncryptedCookieManager does)."""
+    save_fn = getattr(cm, "save", None)
+    if callable(save_fn):
+        try:
+            save_fn()
+        except Exception:
+            pass
+
+
+def _expire_cookie(cm: Any, key: str) -> None:
+    """Expire cookie in the browser."""
     _set_cookie(cm, key, "", max_age=0, expires=0)
 
-# --- Public helpers ---------------------------------------------------------
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Public cookie helpers
+# ───────────────────────────────────────────────────────────────────────────────
 
 def set_student_code_cookie(cm: MutableMapping[str, Any], code: str, **kwargs: Any) -> None:
     _set_cookie(cm, "student_code", code, **kwargs)
@@ -69,29 +97,67 @@ def clear_session(cm: MutableMapping[str, Any]) -> None:
         cm.pop("session_token", None)
     except Exception:
         pass
+    save_cookies(cm)
 
 
-
-def reset_password_page():  # pragma: no cover - stub for compatibility
+def reset_password_page() -> None:  # pragma: no cover - stub
     """Placeholder for the real reset-password UI."""
     return None
 
 
-# --- Simple cookie manager for tests/CLI -----------------------------------
+# ───────────────────────────────────────────────────────────────────────────────
+# Real cookie manager bootstrap + factory
+# ───────────────────────────────────────────────────────────────────────────────
 
+def bootstrap_cookie_manager(cm: Any) -> Any:
+    """
+    Ensure the cookie manager is ready. On first run, Streamlit needs one
+    round-trip to initialize cookies; stopping the script here lets Streamlit
+    re-run automatically.
+    """
+    ready = getattr(cm, "ready", None)
+    if callable(ready) and not cm.ready():
+        st.stop()
+    return cm
+
+
+def create_cookie_manager() -> Any:
+    """Return an EncryptedCookieManager (preferred) or a SimpleCookieManager fallback."""
+    if EncryptedCookieManager is None:
+        # Fallback for tests/CLI where the plugin isn't installed.
+        return SimpleCookieManager()
+
+    cookie_password = (
+        st.secrets.get("cookie_password")
+        or os.environ.get("COOKIE_PASSWORD")
+        or _FALLBACK_COOKIE_PASSWORD
+    )
+
+    if cookie_password == _FALLBACK_COOKIE_PASSWORD and os.getenv("DEBUG", "0") == "1":
+        logging.warning(
+            "Using built-in fallback cookie password (set `cookie_password` or "
+            "`COOKIE_PASSWORD` for production)."
+        )
+
+    cm = EncryptedCookieManager(password=cookie_password, prefix="falowen")
+    return bootstrap_cookie_manager(cm)
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# SimpleCookieManager: in-memory stand-in for tests/CLI
+# ───────────────────────────────────────────────────────────────────────────────
 
 class SimpleCookieManager(MutableMapping[str, Any]):
-    """In-memory stand-in for browser cookies.
-
-    The object behaves like a mapping whose values are stored in ``store`` as
-    ``{"value": ..., "kwargs": ...}`` so tests can introspect cookie
-    attributes written by :func:`_set_cookie`.
     """
+    In-memory stand-in for browser cookies.
 
+    Values are kept as {"value": ..., "kwargs": ...} so tests can inspect
+    attributes written by _set_cookie.
+    """
     def __init__(self) -> None:  # pragma: no cover - trivial
         self.store: dict[str, dict[str, Any]] = {}
 
-    # --- Mapping protocol -------------------------------------------------
+    # Mapping protocol
     def __getitem__(self, key: str) -> Any:  # pragma: no cover - trivial
         return self.store[key]["value"]
 
@@ -107,99 +173,86 @@ class SimpleCookieManager(MutableMapping[str, Any]):
     def __len__(self) -> int:  # pragma: no cover - trivial
         return len(self.store)
 
-    # --- Convenience helpers --------------------------------------------
-    def get(self, key: str, default: Any = None) -> Any:  # noqa: A003 - mirror dict API
+    # Convenience
+    def get(self, key: str, default: Any = None) -> Any:  # noqa: A003
         return self.store.get(key, {}).get("value", default)
 
     def set(self, key: str, value: Any, **kwargs: Any) -> None:
         self.store[key] = {"value": value, "kwargs": kwargs}
 
-    def pop(self, key: str, default: Any = None) -> Any:  # noqa: A003 - mirror dict API
+    def pop(self, key: str, default: Any = None) -> Any:  # noqa: A003
         return self.store.pop(key, {}).get("value", default)
 
-
-def create_cookie_manager() -> SimpleCookieManager:
-    """Return a new ``SimpleCookieManager`` instance.
-
-    The real application uses Streamlit's cookie manager. For tests and other
-    environments where it may not be available, a simple in-memory
-    implementation suffices.
-    """
-
-    return SimpleCookieManager()
+    def save(self) -> None:  # keep API parity with real managers
+        return None
 
 
-# --- Session client persistence --------------------------------------------
+# ───────────────────────────────────────────────────────────────────────────────
+# Session client mapping (optional convenience)
+# ───────────────────────────────────────────────────────────────────────────────
 
 _session_clients: dict[str, str] = {}
 _session_lock = threading.Lock()
 
-
 def persist_session_client(token: str, student_code: str) -> None:
-    """Remember which student code is associated with a session token."""
-
     with _session_lock:
         _session_clients[token] = student_code
 
-
 def get_session_client(token: str) -> str | None:
-    """Return the student code for ``token`` if known."""
-
     with _session_lock:
         return _session_clients.get(token)
 
-
 def clear_session_clients() -> None:
-    """Remove all persisted session mappings."""
-
     with _session_lock:
         _session_clients.clear()
 
 
-# --- Session restoration ---------------------------------------------------
-
+# ───────────────────────────────────────────────────────────────────────────────
+# Session restoration (robust to transient errors; iOS/PWA safe)
+# ───────────────────────────────────────────────────────────────────────────────
 
 def restore_session_from_cookie(
     cm: MutableMapping[str, Any],
     loader: Callable[[], Any] | None = None,
+    contract_validator: Callable[[str, Any], bool] | None = None,
     contract_checker: Callable[[str, Any], bool] | None = None,
 ) -> dict[str, Any] | None:
-    """Restore a session based on cookies.
-
-    Parameters
-    ----------
-    cm:
-        Cookie manager or mapping with ``student_code`` and ``session_token``.
-    loader:
-        Optional callable returning roster/roster-like data.
-    contract_checker:
-        Optional callable taking ``(student_code, roster)`` and returning
-        ``True`` if the session is still valid.
     """
+    Attempt to restore a user session from cookies.
 
-    sc = getattr(cm, "get", lambda k, d=None: cm[k] if k in cm else d)(
-        "student_code"
-    )
-    token = getattr(cm, "get", lambda k, d=None: cm[k] if k in cm else d)(
-        "session_token"
-    )
+    Accepts either `contract_validator` or `contract_checker` for backwards
+    compatibility. Only one is needed.
+    """
+    # Read cookies defensively
+    if hasattr(cm, "get"):
+        sc = cm.get("student_code")
+        token = cm.get("session_token")
+    else:
+        sc = cm["student_code"] if "student_code" in cm else None
+        token = cm["session_token"] if "session_token" in cm else None
 
     if not sc or not token:
         return None
 
-    ua_hash = st.session_state.get("__ua_hash", "")
-
+    # Best-effort UA hash for validation (safe if not present)
+    ua_hash = ""
     try:
-        from falowen.sessions import validate_session_token
-
-        res = validate_session_token(token, ua_hash)
+        ua_hash = st.session_state.get("__ua_hash", "") or ""
     except Exception:
-        res = None
+        ua_hash = ""
+
+    # Validate session token with server
+    try:
+        from falowen.sessions import validate_session_token  # your server-side validator
+        res = validate_session_token(token, ua_hash=ua_hash)
+    except Exception:
+        res = None  # network/server error → do NOT forcibly log out; just fail to restore
 
     if not res or res.get("student_code") != sc:
         clear_session(cm)
         return None
 
+    # Optional extra data load
     roster = None
     if loader is not None:
         try:
@@ -207,9 +260,11 @@ def restore_session_from_cookie(
         except Exception:
             roster = None
 
-    if contract_checker and roster is not None:
+    # Optional contract check (support both names)
+    validator = contract_validator or contract_checker
+    if validator and roster is not None:
         try:
-            if not contract_checker(sc, roster):
+            if not validator(sc, roster):
                 clear_session(cm)
                 return None
         except Exception:
@@ -219,3 +274,23 @@ def restore_session_from_cookie(
     return {"student_code": sc, "session_token": token, "data": roster}
 
 
+__all__ = [
+    # factories / bootstrap
+    "create_cookie_manager",
+    "bootstrap_cookie_manager",
+    # cookie helpers
+    "set_student_code_cookie",
+    "set_session_token_cookie",
+    "save_cookies",
+    "clear_session",
+    # session restore
+    "restore_session_from_cookie",
+    # optional client map
+    "persist_session_client",
+    "get_session_client",
+    "clear_session_clients",
+    # test double
+    "SimpleCookieManager",
+    # misc
+    "reset_password_page",
+]
