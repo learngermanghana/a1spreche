@@ -1,3 +1,4 @@
+
 import importlib
 from flask import Flask
 import bcrypt
@@ -32,4 +33,5 @@ def test_login_bad_password(monkeypatch):
     app = _create_app(monkeypatch)
     client = app.test_client()
     resp = client.post("/auth/login", json={"email": "user", "password": "wrong"})
+
     assert resp.status_code == 401
