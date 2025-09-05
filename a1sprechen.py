@@ -4563,6 +4563,9 @@ if tab == "My Course":
                 return "\n\n".join(paragraphs)
 
             st.subheader("➕ Add a new post")
+            st.info(
+                "Contribute to the forum. Scroll down to reply to a question or ask your own."
+            )
             if st.session_state.get("__clear_q_form"):
                 st.session_state.pop("__clear_q_form", None)
                 st.session_state["q_topic"] = ""
