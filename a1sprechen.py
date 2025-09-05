@@ -84,7 +84,6 @@ from src.firestore_utils import (
     load_draft_meta_from_db,
     save_chat_draft_to_db,
     save_draft_to_db,
-    save_post,
     save_ai_response,
 )
 from src.ui_components import (
@@ -4455,55 +4454,8 @@ if tab == "My Course":
                     render_announcement(row, is_pinned=False)
 
 
-        # ===================== Class Notes & Q&A =====================
+        # ===================== Class Board =====================
         elif classroom_section == "Class Notes & Q&A":
-            st.subheader("Class Notes & Q&A")
-            post_text = st.text_area("Share notes or ask a question", key="qa_post")
-            if st.button("Submit", key="qa_submit") and post_text.strip():
-                is_question = post_text.strip().endswith("?")
-                post_id = save_post(student_code, post_text, is_question)
-                if post_id:
-                    st.session_state["_qa_feed"] = [
-                        {
-                            "student_code": student_code,
-                            "text": post_text,
-                            "ai_suggestion": "",
-                            "responses": [],
-                            "is_question": is_question,
-                        }
-                    ] + st.session_state.get("_qa_feed", [])
-                    st.session_state["qa_post"] = ""
-            if "_qa_feed" not in st.session_state:
-                try:
-                    if db is None:
-                        raw_docs = []
-                    else:
-                        try:
-                            from firebase_admin import firestore as fbfs
-                            direction_desc = getattr(fbfs.Query, "DESCENDING", "DESCENDING")
-                            raw_docs = list(
-                                db.collection("qa_posts")
-                                .order_by("created_at", direction=direction_desc)
-                                .stream()
-                            )
-                        except Exception:
-                            raw_docs = list(
-                                db.collection("qa_posts")
-                                .order_by("created_at", direction="DESCENDING")
-                                .stream()
-                            )
-                except Exception:
-                    raw_docs = []
-                st.session_state["_qa_feed"] = [doc.to_dict() or {} for doc in raw_docs]
-            for data in st.session_state.get("_qa_feed", []):
-                _txt = data.get("text") or data.get("question", "")
-                st.markdown(f"**{data.get('student_code', '')}**: {_txt}")
-                ai_txt = data.get("ai_suggestion")
-                if ai_txt:
-                    st.markdown(f"*AI suggestion:* {ai_txt}")
-                for r in data.get("responses") or []:
-                    st.success(f"{r.get('responder_code', '')}: {r.get('text', '')}")
-                st.divider()
             board_base = db.collection("class_board").document(class_name).collection("posts")
 
 
@@ -4590,7 +4542,7 @@ if tab == "My Course":
                     margin-bottom:12px;
                     box-shadow:0 2px 6px rgba(0,0,0,0.08);
                     display:flex;align-items:center;justify-content:space-between;">
-                    <div style="font-weight:700;font-size:1.15rem;">💬 Class Notes & Q&A {_badge_html}</div>
+                    <div style="font-weight:700;font-size:1.15rem;">💬 Class Board {_badge_html}</div>
                     <div style="font-size:0.92rem;opacity:.9;">Share a post • Comment with classmates</div>
                 </div>
                 ''',
