@@ -3,6 +3,7 @@ from src.firestore_utils import (
     _extract_level_and_lesson,
     save_post,
     save_response,
+    save_ai_response,
 )
 
 
@@ -80,3 +81,29 @@ def test_save_response_stores_responder_code(monkeypatch):
     resp = dummy_db.ref.payload["responses"][0]
     assert resp["responder_code"] == "XYZ"
     assert resp["text"] == "hello"
+
+
+def test_save_ai_response_stores_flag(monkeypatch):
+    class DummyRef:
+        def __init__(self):
+            self.payload = None
+
+        def set(self, payload, merge=True):
+            self.payload = payload
+
+    class DummyDB:
+        def __init__(self):
+            self.ref = DummyRef()
+
+        def collection(self, *args, **kwargs):
+            return self
+
+        def document(self, *args, **kwargs):
+            return self.ref
+
+    dummy_db = DummyDB()
+    monkeypatch.setattr(firestore_utils, "db", dummy_db)
+    monkeypatch.setattr(firestore_utils.firestore, "SERVER_TIMESTAMP", 0, raising=False)
+    save_ai_response("id1", "hello there", True)
+    assert dummy_db.ref.payload["ai_response_suggestion"] == "hello there"
+    assert dummy_db.ref.payload["flagged"] is True

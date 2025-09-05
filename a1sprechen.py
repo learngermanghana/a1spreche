@@ -85,6 +85,7 @@ from src.firestore_utils import (
     save_chat_draft_to_db,
     save_draft_to_db,
     save_post,
+    save_ai_response,
 )
 from src.ui_components import (
     render_assignment_reminder,
@@ -4888,23 +4889,59 @@ if tab == "My Course":
                     )
                     current_text = st.session_state.get(draft_key, "")
                     autosave_maybe(student_code, draft_key, current_text, min_secs=2.0, min_delta=12)
-                    st.button(
-                        f"Send Comment {q_id}",
-                        key=f"q_comment_btn_{q_id}",
-                        on_click=send_comment,
-                        args=(
-                            q_id,
-                            student_code,
-                            student_name,
-                            class_name,
-                            board_base,
-                            draft_key,
-                            last_val_key,
-                            last_ts_key,
-                            saved_flag_key,
-                            saved_at_key,
-                        ),
-                    )
+                    send_col, ai_col = st.columns([1, 1])
+                    with send_col:
+                        st.button(
+                            f"Send Comment {q_id}",
+                            key=f"q_comment_btn_{q_id}",
+                            on_click=send_comment,
+                            args=(
+                                q_id,
+                                student_code,
+                                student_name,
+                                class_name,
+                                board_base,
+                                draft_key,
+                                last_val_key,
+                                last_ts_key,
+                                saved_flag_key,
+                                saved_at_key,
+                            ),
+                        )
+                    with ai_col:
+                        if st.button(
+                            "✨ Correct with AI",
+                            key=f"q_ai_btn_{q_id}",
+                        ) and current_text.strip():
+                            try:
+                                resp = client.chat.completions.create(
+                                    model="gpt-4o-mini",
+                                    messages=[
+                                        {
+                                            "role": "system",
+                                            "content": (
+                                                "You are a helpful assistant that corrects German replies. "
+                                                "Return only the corrected reply."
+                                            ),
+                                        },
+                                        {
+                                            "role": "user",
+                                            "content": (
+                                                f"Question: {q.get('content','')}\nReply: {current_text}"
+                                            ),
+                                        },
+                                    ],
+                                    temperature=0,
+                                    max_tokens=300,
+                                )
+                                ai_text = (resp.choices[0].message.content or "").strip()
+                                flagged = resp.choices[0].finish_reason == "content_filter"
+                            except Exception:
+                                ai_text = ""
+                                flagged = False
+                            if ai_text:
+                                st.session_state[draft_key] = ai_text
+                                save_ai_response(q_id, ai_text, flagged)
 
 
     # === LEARNING NOTES SUBTAB ===
