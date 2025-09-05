@@ -5,11 +5,30 @@ from __future__ import annotations
 import io
 from typing import Any, Dict, List
 
+import unicodedata as _ud
+
 try:  # pragma: no cover - optional dependency
     from fpdf import FPDF
 except Exception:  # pragma: no cover
     FPDF = None  # type: ignore
 
+
+def clean_for_pdf(text: str) -> str:
+    """Return ``text`` sanitized for insertion into PDFs.
+
+    Any characters that cannot be represented in the Latin-1 encoding used by
+    :class:`fpdf.FPDF` are replaced with ``?`` so that PDF generation never
+    raises encoding errors. Newlines and other non-printable characters are
+    stripped to keep the layout predictable.
+    """
+
+    if not isinstance(text, str):
+        text = str(text)
+    text = _ud.normalize("NFKD", text)
+    text = text.replace("\n", " ").replace("\r", " ")
+    text = "".join(c if c.isprintable() else "?" for c in text)
+    # Ensure compatibility with Latin-1
+    return text.encode("latin-1", "replace").decode("latin-1")
 
 def extract_text_from_pdf(pdf_bytes: bytes) -> str:
     """Return text extracted from PDF bytes using best-effort parsers."""
@@ -56,25 +75,21 @@ def generate_notes_pdf(
     pdf.cell(0, 10, "Table of Contents", ln=1)
     pdf.set_font("DejaVu", "", 11)
     for idx, note in enumerate(notes):
-        pdf.cell(
-            0,
-            8,
-            f"{idx+1}. {note.get('title','')} - {note.get('created', note.get('updated',''))}",
-            ln=1,
-        )
+        toc_line = f"{idx+1}. {note.get('title','')} - {note.get('created', note.get('updated',''))}"
+        pdf.cell(0, 8, clean_for_pdf(toc_line), ln=1)
     pdf.ln(5)
     for n in notes:
         pdf.set_font("DejaVu", "", 13)
-        pdf.cell(0, 10, f"Title: {n.get('title','')}", ln=1)
+        pdf.cell(0, 10, clean_for_pdf(f"Title: {n.get('title','')}"), ln=1)
         pdf.set_font("DejaVu", "", 11)
         if n.get("tag"):
-            pdf.cell(0, 8, f"Tag: {n['tag']}", ln=1)
+            pdf.cell(0, 8, clean_for_pdf(f"Tag: {n['tag']}"), ln=1)
         pdf.set_font("DejaVu", "", 12)
         for line in n.get("text", "").split("\n"):
-            pdf.multi_cell(0, 7, line)
+            pdf.multi_cell(0, 7, clean_for_pdf(line))
         pdf.ln(1)
         pdf.set_font("DejaVu", "", 11)
-        pdf.cell(0, 8, f"Date: {n.get('updated', n.get('created',''))}", ln=1)
+        pdf.cell(0, 8, clean_for_pdf(f"Date: {n.get('updated', n.get('created',''))}"), ln=1)
         pdf.ln(5)
         pdf.set_font("DejaVu", "", 10)
         pdf.cell(0, 4, "-" * 55, ln=1)
@@ -93,7 +108,7 @@ def generate_single_note_pdf(
     class SingleNotePDF(FPDF):
         def header(self) -> None:  # pragma: no cover - layout only
             self.set_font("DejaVu", "", 13)
-            self.cell(0, 10, note.get("title", "Note"), ln=True, align="C")
+            self.cell(0, 10, clean_for_pdf(note.get("title", "Note")), ln=True, align="C")
             self.ln(2)
 
     pdf_note = SingleNotePDF()
@@ -101,12 +116,12 @@ def generate_single_note_pdf(
     pdf_note.add_page()
     pdf_note.set_font("DejaVu", "", 12)
     if note.get("tag"):
-        pdf_note.cell(0, 8, f"Tag: {note.get('tag','')}", ln=1)
+        pdf_note.cell(0, 8, clean_for_pdf(f"Tag: {note.get('tag','')}"), ln=1)
     for line in note.get("text", "").split("\n"):
-        pdf_note.multi_cell(0, 7, line)
+        pdf_note.multi_cell(0, 7, clean_for_pdf(line))
     pdf_note.ln(1)
     pdf_note.set_font("DejaVu", "", 11)
-    pdf_note.cell(0, 8, f"Date: {note.get('updated', note.get('created',''))}", ln=1)
+    pdf_note.cell(0, 8, clean_for_pdf(f"Date: {note.get('updated', note.get('created',''))}"), ln=1)
     return pdf_note.output(dest="S").encode("latin1", "replace")
 
 
@@ -121,7 +136,8 @@ def generate_chat_pdf(messages: List[Dict[str, Any]]) -> bytes:
     pdf.set_font("DejaVu", size=12)
     for m in messages:
         who = "Herr Felix" if m.get("role") == "assistant" else "Student"
-        pdf.multi_cell(0, 8, f"{who}: {m.get('content','')}")
+        line = f"{who}: {m.get('content','')}"
+        pdf.multi_cell(0, 8, clean_for_pdf(line))
         pdf.ln(1)
     return pdf.output(dest="S").encode("latin1", "replace")
 
