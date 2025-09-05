@@ -178,28 +178,29 @@ def _qa_doc_ref(post_id: str):
     return db.collection("qa_posts").document(post_id)
 
 
-def save_question(code: str, question: str) -> Optional[str]:
-    """Persist a new question and return the document ID."""
+def save_post(code: str, text: str, is_question: bool) -> Optional[str]:
+    """Persist a new note or question and return the document ID."""
 
     if db is None:
         return None
     ref = db.collection("qa_posts").document()
     payload = {
-        "question": question or "",
+        "text": text or "",
         "student_code": code,
         "created_at": firestore.SERVER_TIMESTAMP,
         "flagged": False,
+        "is_question": is_question,
     }
     try:
         ref.set(payload)
         return ref.id
     except Exception as exc:  # pragma: no cover - runtime depends on Firestore
-        logging.warning("Failed to save question for %s: %s", code, exc)
+        logging.warning("Failed to save post for %s: %s", code, exc)
         return None
 
 
 def save_ai_answer(post_id: str, ai_text: str, flagged: bool = False) -> None:
-    """Attach an AI-generated suggestion to the question."""
+    """Attach an AI-generated suggestion to the post."""
 
     ref = _qa_doc_ref(post_id)
     if ref is None:
@@ -217,7 +218,7 @@ def save_ai_answer(post_id: str, ai_text: str, flagged: bool = False) -> None:
 
 
 def save_response(post_id: str, text: str, responder_code: str) -> None:
-    """Persist a response for a question.
+    """Persist a response for a post.
 
     The response is appended to the ``responses`` array on the post and
     includes the ``responder_code`` and server timestamp.
