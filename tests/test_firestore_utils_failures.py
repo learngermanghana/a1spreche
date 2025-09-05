@@ -95,7 +95,7 @@ def test_load_draft_meta_from_db_logs_error_on_failure(monkeypatch, caplog):
     assert all("code/draft_X" in msg for msg in messages)
 
 
-def test_save_question_logs_warning_on_failure(monkeypatch, caplog):
+def test_save_post_logs_warning_on_failure(monkeypatch, caplog):
     class DummyRef:
         def set(self, *args, **kwargs):
             raise RuntimeError("boom")
@@ -111,8 +111,8 @@ def test_save_question_logs_warning_on_failure(monkeypatch, caplog):
     monkeypatch.setattr(firestore_utils, "db", DummyDB())
 
     with caplog.at_level(logging.WARNING):
-        firestore_utils.save_question("code", "hi")
-    assert any("Failed to save question" in r.message for r in caplog.records)
+        firestore_utils.save_post("code", "hi", True)
+    assert any("Failed to save post" in r.message for r in caplog.records)
 
 
 def test_save_ai_answer_logs_warning_on_failure(monkeypatch, caplog):

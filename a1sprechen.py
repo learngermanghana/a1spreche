@@ -84,9 +84,7 @@ from src.firestore_utils import (
     load_draft_meta_from_db,
     save_chat_draft_to_db,
     save_draft_to_db,
-    save_question,
-    save_ai_answer,
-    save_response,
+    save_post,
 )
 from src.ui_components import (
     render_assignment_reminder,
@@ -4459,108 +4457,52 @@ if tab == "My Course":
         # ===================== Class Notes & Q&A =====================
         elif classroom_section == "Class Notes & Q&A":
             st.subheader("Class Notes & Q&A")
-            question = st.text_area("Your question", key="qa_question")
-            if st.button("Request AI help", key="qa_request_ai"):
-                post_id = save_question(student_code, question)
+            post_text = st.text_area("Share notes or ask a question", key="qa_post")
+            if st.button("Submit", key="qa_submit") and post_text.strip():
+                is_question = post_text.strip().endswith("?")
+                post_id = save_post(student_code, post_text, is_question)
                 if post_id:
-                    try:
-                        resp = client.chat.completions.create(
-                            model="gpt-3.5-turbo",
-                            messages=[
-                                {"role": "system", "content": "You are a helpful German teacher."},
-                                {"role": "user", "content": question},
-                            ],
-                            temperature=0.2,
-                        )
-                        ai_text = resp.choices[0].message.content.strip()
-                    except Exception:
-                        ai_text = ""
-                        st.error("AI help failed. Please try again later.")
-                    save_ai_answer(post_id, ai_text)
-            try:
-                q_docs = [] if db is None else list(db.collection("qa_posts").where("student_code", "==", student_code).stream())
-            except Exception:
-                q_docs = []
-            for doc in q_docs:
-                data = doc.to_dict() or {}
-                st.markdown(f"**Question:** {data.get('question', '')}")
-                ai_txt = data.get("ai_suggestion")
-                if ai_txt:
-                    if st.toggle("Show AI suggestion", key=f"show_ai_{doc.id}"):
-                        st.info(f"AI suggestion: {ai_txt}")
-                        if st.button("Flag suggestion", key=f"flag_{doc.id}"):
-                            save_ai_answer(doc.id, ai_txt, flagged=True)
-                            st.warning("Flagged for teacher review.")
-                responses = data.get("responses") or []
-                for r in responses:
-                    st.success(f"{r.get('responder_code', '')} answered: {r.get('text', '')}")
-                st.divider()
-            # ---- Unanswered questions ----
-            try:
-                all_docs = [] if db is None else list(db.collection("qa_posts").stream())
-            except Exception:
-                all_docs = []
-
-            def _is_unanswered(d: Any) -> bool:
-                data = d.to_dict() or {}
-                if data.get("flagged"):
-                    return True
-                return not data.get("responses")
-
-            hide_mine = st.checkbox("Hide my questions", value=True)
-            unanswered_docs = [
-                d
-                for d in all_docs
-                if _is_unanswered(d)
-                and (not hide_mine or (d.to_dict() or {}).get("student_code") != student_code)
-            ]
-
-            unanswered_docs.sort(key=lambda d: not (d.to_dict().get("flagged", False)))
-
-            if unanswered_docs:
-                st.subheader("Open Questions")
-            for doc in unanswered_docs:
-                data = doc.to_dict() or {}
-                st.markdown(f"**{data.get('student_code', '')}** asked: {data.get('question', '')}")
-                if data.get("flagged"):
-                    st.warning("Flagged question")
+                    st.session_state["_qa_feed"] = [
+                        {
+                            "student_code": student_code,
+                            "text": post_text,
+                            "ai_suggestion": "",
+                            "responses": [],
+                            "is_question": is_question,
+                        }
+                    ] + st.session_state.get("_qa_feed", [])
+                    st.session_state["qa_post"] = ""
+            if "_qa_feed" not in st.session_state:
+                try:
+                    if db is None:
+                        raw_docs = []
+                    else:
+                        try:
+                            from firebase_admin import firestore as fbfs
+                            direction_desc = getattr(fbfs.Query, "DESCENDING", "DESCENDING")
+                            raw_docs = list(
+                                db.collection("qa_posts")
+                                .order_by("created_at", direction=direction_desc)
+                                .stream()
+                            )
+                        except Exception:
+                            raw_docs = list(
+                                db.collection("qa_posts")
+                                .order_by("created_at", direction="DESCENDING")
+                                .stream()
+                            )
+                except Exception:
+                    raw_docs = []
+                st.session_state["_qa_feed"] = [doc.to_dict() or {} for doc in raw_docs]
+            for data in st.session_state.get("_qa_feed", []):
+                _txt = data.get("text") or data.get("question", "")
+                st.markdown(f"**{data.get('student_code', '')}**: {_txt}")
                 ai_txt = data.get("ai_suggestion")
                 if ai_txt:
                     st.markdown(f"*AI suggestion:* {ai_txt}")
-                if student_code:
-                    resp_key = f"resp_{doc.id}"
-                    resp = st.text_area("Your response", key=resp_key)
-                    if st.button("AI suggestion", key=f"ai_resp_{doc.id}"):
-                        draft = st.session_state.get(resp_key, "")
-                        try:
-                            msgs = [
-                                {"role": "system", "content": "You are a helpful German teacher."},
-                                {"role": "user", "content": data.get("question", "")},
-                            ]
-                            if draft:
-                                msgs.append({"role": "assistant", "content": draft})
-                            resp_ai = client.chat.completions.create(
-                                model="gpt-3.5-turbo",
-                                messages=msgs,
-                                temperature=0.2,
-                            )
-                            ai_text = resp_ai.choices[0].message.content.strip()
-                            st.session_state[resp_key] = ai_text
-                            st.session_state[f"ai_suggest_{doc.id}"] = ai_text
-                            st.rerun()
-                        except Exception:
-                            st.error("AI suggestion failed. Please try again later.")
-                    if st.session_state.get(f"ai_suggest_{doc.id}"):
-                        if st.button("Flag AI reply", key=f"flag_ai_{doc.id}"):
-                            ai_text = st.session_state.get(f"ai_suggest_{doc.id}", "")
-                            save_ai_answer(doc.id, ai_text, flagged=True)
-                            st.warning("AI reply flagged for review.")
-                    if st.button("Submit response", key=f"resp_submit_{doc.id}"):
-                        final_resp = st.session_state.get(resp_key, resp)
-                        save_response(doc.id, final_resp, student_code)
-                        st.success("Response submitted.")
+                for r in data.get("responses") or []:
+                    st.success(f"{r.get('responder_code', '')}: {r.get('text', '')}")
                 st.divider()
-            # Allow fall-through so class board renders after Q&A
             board_base = db.collection("class_board").document(class_name).collection("posts")
 
 
