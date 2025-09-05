@@ -48,3 +48,19 @@ The iOS app proactively refreshes its session cookie. Safari's Intelligent
 Tracking Prevention shortens cookie lifetimes to about a week when they aren't
 updated. A daily refresh ensures the cookie expiry is extended well before the
 platform can discard it.
+
+## Level-Based Admin Mapping
+
+Administrative access is determined by combining the `roles.admins` list from
+Streamlit secrets with the `ADMINS_BY_LEVEL` dictionary in `a1sprechen.py`. Each
+entry maps a CEFR level to a set of teacher codes:
+
+```python
+ADMINS_BY_LEVEL = {
+    "A1": {"felixa177"},
+    "A2": {"felixa2"},
+    # Extend with additional levels or codes as needed
+}
+```
+
+Update this mapping whenever new levels or teachers require admin access.
