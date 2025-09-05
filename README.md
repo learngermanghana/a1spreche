@@ -48,3 +48,18 @@ The iOS app proactively refreshes its session cookie. Safari's Intelligent
 Tracking Prevention shortens cookie lifetimes to about a week when they aren't
 updated. A daily refresh ensures the cookie expiry is extended well before the
 platform can discard it.
+
+## Authentication API
+
+Clients authenticate by POSTing JSON to `/auth/login`:
+
+```json
+{
+  "email": "name@example.com",
+  "password": "hunter2"
+}
+```
+
+Both `email` (or `user_id`) and `password` are required. Missing fields result in
+a `400` response, while an incorrect password yields `401`. Successful requests
+return an access token and refresh token pair.
