@@ -2,6 +2,7 @@
 from datetime import datetime
 from flask import Blueprint, request, jsonify, make_response
 import os
+import bcrypt
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
@@ -38,11 +39,35 @@ def _issue_refresh(user_id: str) -> str:
     return f"refresh_{user_id}_{int(datetime.utcnow().timestamp())}"
 # ------------------------------------------------------------
 
+def _get_password_hash() -> str:
+    """Return the stored bcrypt hash for login validation."""
+    return os.environ.get("PASSWORD_HASH", "")
+
+
 @auth_bp.post("/login")
 def login():
+    """Authenticate a user.
+
+    Expected JSON body::
+
+        {"email": "name@example.com", "password": "hunter2"}
+
+    Either ``email`` or ``user_id`` may be supplied for the user identifier. Both
+    fields are required, otherwise a ``400`` is returned. The supplied password is
+    verified against ``PASSWORD_HASH`` using bcrypt. Invalid credentials yield a
+    ``401``.
+    """
+
     data = request.get_json(silent=True) or {}
-    user_id = data.get("user_id") or data.get("email") or "user"
-    # TODO: validate credentials here
+    user_id = data.get("user_id") or data.get("email")
+    password = data.get("password")
+
+    if not user_id or not password:
+        return jsonify(error="missing credentials"), 400
+
+    stored_hash = _get_password_hash()
+    if not stored_hash or not bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8")):
+        return jsonify(error="invalid credentials"), 401
 
     access = _issue_access(user_id)
     refresh = _issue_refresh(user_id)
