@@ -162,6 +162,7 @@ REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowe
 ADMINS_BY_LEVEL = {
     "A1": {"felixa177"},
     "A2": {"felixa2"},
+    "B1": {"felixb1"},
 }
 
 def _get_qp():
