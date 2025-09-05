@@ -5087,11 +5087,7 @@ if tab == "My Course":
                     pdf.set_font("DejaVu", '', 10)
                     pdf.cell(0, 4, '-' * 55, ln=1)
                     pdf.ln(8)
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
-                    pdf.output(tmp_pdf.name)
-                    tmp_pdf.seek(0)
-                    pdf_bytes = tmp_pdf.read()
-                os.remove(tmp_pdf.name)
+                pdf_bytes = pdf.output(dest="S").encode("latin1", "replace")
                 st.download_button(
                     label="⬇️ Download All Notes (PDF)",
                     data=pdf_bytes,
