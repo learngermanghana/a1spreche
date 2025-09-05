@@ -586,8 +586,6 @@ def render_returning_login_area() -> bool:
     return False
 
 
-# --- One-time branded Google button (kept exactly once on the page)
-
 # --- Small explanatory banner shown above the tabs
 def render_signup_request_banner():
     if not st.session_state.get("_signup_banner_css_done"):
@@ -651,43 +649,6 @@ def render_google_oauth(return_url: bool = True) -> Optional[str]:
     }
     auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
     return auth_url
-
-# --- One-time branded Google button (shows ONCE under "Returning user login")
-# ------------------------------------------------------------------------------
-# Returning login (no extra Google button here anymore)
-# ------------------------------------------------------------------------------
-def render_returning_login_area() -> bool:
-    with st.form("returning_login_form", clear_on_submit=False):
-        login_id  = st.text_input("Email or Student Code")
-        login_pass= st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Log in")
-
-    if submitted and render_login_form(login_id, login_pass):
-        return True
-
-    # Forgot password toggle below the form
-    col_a, col_b = st.columns([0.5, 0.5])
-    with col_a:
-        if st.button("Forgot password?"):
-            st.session_state["show_reset_panel"] = True
-    if st.session_state.get("show_reset_panel"):
-        render_forgot_password_panel()
-
-    return False
-
-def render_returning_login_form():
-    """Simplified returning-user login form used in tests."""
-    with st.form("returning_login_form", clear_on_submit=False):
-        login_id = st.text_input("Email or Student Code")
-        login_pass = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Log in")
-        forgot = st.form_submit_button("Forgot password?")
-    if submitted:
-        render_login_form(login_id, login_pass)
-    if forgot:
-        # In reality this would trigger sending a reset email.
-        send_reset_email("test@example.com", "reset-link")
-    return False
 
 
 @lru_cache(maxsize=1)
