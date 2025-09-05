@@ -13,7 +13,6 @@ final class AuthViewModel: ObservableObject {
     @Published var isAuthenticated = false
     @Published var errorMessage: String?
 
-    private let accountKey = "falowen.tokenpair"
     private var bootstrapping = false
 
     func bootstrap() async {
@@ -23,77 +22,73 @@ final class AuthViewModel: ObservableObject {
         defer { bootstrapping = false }
 
         do {
-            // 1) No saved session → show login, but don’t call logout
-            guard let pair: TokenPair = try Keychain.shared.readCodable(TokenPair.self, account: accountKey) else {
-                isAuthenticated = false
-                errorMessage = nil
-                return
-            }
-
-            // 2) We have a session → stay signed in by default
+            var pair = try await TokenStore.shared.currentPair()
             isAuthenticated = true
             errorMessage = nil
 
-            // 3) Refresh only if near/after expiry (tweak the grace as you like)
-            let needsRefresh = pair.expiry <= Date().addingTimeInterval(60) // 60s grace
+            let needsRefresh = pair.expiry <= Date().addingTimeInterval(60)
             guard needsRefresh else { return }
 
             do {
-                let newPair = try await AuthAPI.refresh(using: pair.refreshToken)
-                try Keychain.shared.saveCodable(newPair, account: accountKey)
+                pair = try await TokenStore.shared.ensureFreshPair()
+                try await TokenStore.shared.save(pair)
                 #if DEBUG
-                print("♻️ Refreshed token. New expiry:", newPair.expiry)
+                print("♻️ Refreshed token. New expiry:", pair.expiry)
                 #endif
             } catch let api as AuthAPIError {
                 switch api {
                 case .http(let code) where code == 401:
-                    // Only a true 401 on refresh ends the session.
-                    try? Keychain.shared.delete(account: accountKey)
+                    try? await TokenStore.shared.clear()
                     isAuthenticated = false
                     errorMessage = "Session expired. Please sign in again."
                 default:
-                    // Network/timeout/5xx/JSON hiccups → stay logged in; try again later.
                     #if DEBUG
                     print("⚠️ Refresh failed (transient):", api.localizedDescription)
                     #endif
                 }
             } catch {
-                // Any other error → treat as transient; keep user signed in.
                 #if DEBUG
                 print("⚠️ Refresh failed (other):", error.localizedDescription)
                 #endif
             }
         } catch {
-            // Rare Keychain read error
             #if DEBUG
-            print("‼️ Bootstrap Keychain error:", error.localizedDescription)
+            print("‼️ Bootstrap token error:", error.localizedDescription)
             #endif
+            isAuthenticated = false
+            errorMessage = nil
+        }
+    }
+
+    func login(email: String, password: String) async {
+        do {
+            let pair = try await AuthAPI.login(email: email, password: password)
+            try await TokenStore.shared.save(pair)
+            isAuthenticated = true
+            errorMessage = nil
+        } catch let api as AuthAPIError {
+            isAuthenticated = false
+            errorMessage = api.localizedDescription
+        } catch {
             isAuthenticated = false
             errorMessage = error.localizedDescription
         }
     }
 
-    // keep your existing login(...) and logout() or use the versions we added earlier
-}
-
-
-    // Sign out
-    func logout() {
+    func logout() async {
         do {
-            try Keychain.shared.delete(account: accountKey)
+            try await TokenStore.shared.clear()
         } catch {
             errorMessage = error.localizedDescription
             #if DEBUG
-            print("⚠️ Logout keychain error:", error.localizedDescription)
+            print("⚠️ Logout token error:", error.localizedDescription)
             #endif
         }
         isAuthenticated = false
     }
 
-    // Attach Bearer to requests (optional helper)
-    func authorizedRequest(url: URL) throws -> URLRequest {
-        guard let pair: TokenPair = try Keychain.shared.readCodable(TokenPair.self, account: accountKey)
-        else { throw URLError(.userAuthenticationRequired) }
+    func authorizedRequest(url: URL) async throws -> URLRequest {
+        let pair = try await TokenStore.shared.currentPair()
         var req = URLRequest(url: url)
         req.addValue("Bearer \(pair.accessToken)", forHTTPHeaderField: "Authorization")
         req.addValue("application/json", forHTTPHeaderField: "Accept")
