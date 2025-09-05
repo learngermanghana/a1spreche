@@ -144,6 +144,12 @@ from src.ui_widgets import (
     render_announcements_once,
 )
 from src.logout import do_logout
+from src.pdf_handling import (
+    extract_text_from_pdf,
+    generate_notes_pdf,
+    generate_single_note_pdf,
+    generate_chat_pdf,
+)
 
 # ------------------------------------------------------------------------------
 # Cookie manager
@@ -272,116 +278,16 @@ def _handle_google_oauth(code: str, state: str) -> None:
         logging.exception("Google OAuth error")
         st.error(f"Google OAuth error: {e}")
 
-# ------------------------------------------------------------------------------
-# Robust Head / PWA injection (avoid height=0 TypeError)
-# ------------------------------------------------------------------------------
-BASE = st.secrets.get("PUBLIC_BASE_URL", "")
-_manifest = f'{BASE}/manifest.webmanifest' if BASE else "/manifest.webmanifest"
-_icon180  = f'{BASE}/static/icons/falowen-180.png' if BASE else "/static/icons/falowen-180.png"
-
 def _inject_meta_tags():
-    if st.session_state.get("_pwa_head_done"):
-        return
-    snippet = f"""
-    <script>
-      (function(){{
-        try {{
-          var head = document.getElementsByTagName('head')[0];
-          var tags = [
-            '<link rel="manifest" href="{_manifest}">',
-            '<link rel="apple-touch-icon" href="{_icon180}">',
-            '<meta name="apple-mobile-web-app-capable" content="yes">',
-            '<meta name="apple-mobile-web-app-title" content="Falowen">',
-            '<meta name="apple-mobile-web-app-status-bar-style" content="default">',
-            '<meta name="color-scheme" content="light">',
-            '<meta name="theme-color" content="#f3f7fb">',
-            '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
-          ];
-          tags.forEach(function(t){{ head.insertAdjacentHTML('beforeend', t); }});
-          if ('serviceWorker' in navigator) {{
-            navigator.serviceWorker.register('/sw.js', {{ scope: '/' }}).catch(function(){{}});
-          }}
-        }} catch(e) {{}}
-      }})();
-    </script>
-    """
-    try:
-        components.html(snippet, height=1, scrolling=False)
-    except Exception:
-        pass
-    st.session_state["_pwa_head_done"] = True
+    from src.login_ui import inject_meta_tags
+    inject_meta_tags()
+
 
 def inject_notice_css():
-    st.markdown("""
-    <style>
-      :root{ --chip-border: rgba(148,163,184,.35); }
-      @media (prefers-color-scheme: dark){
-        :root{ --chip-border: rgba(148,163,184,.28); }
-      }
+    from src.login_ui import inject_notice_css as _inject_css
+    _inject_css()
 
-      /* ---- chips (unchanged) ---- */
-      .chip { display:inline-flex; align-items:center; gap:8px;
-              padding:8px 12px; border-radius:999px; font-weight:700; font-size:.98rem;
-              border:1px solid var(--chip-border); }
-      .chip-red   { background:#fef2f2; color:#991b1b; border-color:#fecaca; }
-      .chip-amber { background:#fff7ed; color:#7c2d12; border-color:#fed7aa; }
-      .chip-blue  { background:#eef4ff; color:#2541b2; border-color:#c7d2fe; }
-      .chip-gray  { background:#f1f5f9; color:#334155; border-color:#cbd5e1; }
-
-      .pill { display:inline-block; padding:3px 9px; border-radius:999px; font-weight:700; font-size:.92rem; }
-      .pill-green  { background:#e6ffed; color:#0a7f33; }
-      .pill-purple { background:#efe9ff; color:#5b21b6; }
-      .pill-amber  { background:#fff7ed; color:#7c2d12; }
-
-      /* ---- mini-card grid (ensure horizontal cards) ---- */
-      .minirow{
-        display:grid;
-        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-        gap:14px;
-        margin:10px 0 6px 0;
-        align-items:stretch;
-      }
-      .minicard{
-        border:1px solid var(--chip-border);
-        border-radius:12px;
-        padding:12px;
-        background:#fff;
-        box-shadow:0 1px 4px rgba(2,6,23,.04);
-      }
-      .minicard h4 { margin:0 0 6px 0; font-size:1.02rem; color:#0f172a; }
-      .minicard .sub { color:#475569; font-size:.92rem; }
-
-      @media (max-width:640px){
-        .minicard{ padding:11px; }
-      }
-    </style>
-    """, unsafe_allow_html=True)
-
-# ------------------------------------------------------------------------------
-# Hero (HTML template) with safe fallback — strips in-template Google by default
-# ------------------------------------------------------------------------------
-@lru_cache(maxsize=1)
-def _read_hero_template() -> str:
-    html_path = Path(__file__).parent / "templates" / "falowen_login.html"
-    return html_path.read_text(encoding="utf-8")
-
-def render_falowen_login(google_auth_url: str, show_google_in_hero: bool = False) -> None:
-    try:
-        html = _read_hero_template()
-        if show_google_in_hero:
-            html = html.replace("{{GOOGLE_AUTH_URL}}", google_auth_url or "#")
-        else:
-            # Strip any anchor using the placeholder to avoid duplicates
-            html = re.sub(r'<a[^>]+{{GOOGLE_AUTH_URL}}[^>]*>[\s\S]*?</a>', '', html, flags=re.IGNORECASE)
-            html = html.replace("{{GOOGLE_AUTH_URL}}", "#")
-    except Exception:
-        st.error("Falowen hero template missing or unreadable.")
-        return
-    try:
-        components.html(html, height=720, scrolling=True)
-    except TypeError:
-        safe = re.sub(r'<script[\s\S]*?</script>', '', html, flags=re.IGNORECASE)
-        st.markdown(safe, unsafe_allow_html=True)
+# Legacy hero rendering moved to src.login_ui
 
 # ------------------------------------------------------------------------------
 # Sign up / Login / Forgot password
@@ -675,26 +581,27 @@ def render_returning_login_form():
 
 @lru_cache(maxsize=1)
 def _load_falowen_login_html() -> str:
-    """Load and sanitize the Falowen login hero HTML template."""
-    path = Path(__file__).parent / "templates" / "falowen_login.html"
-    try:
-        html = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError as exc:
-        raise RuntimeError("falowen_login.html must be valid UTF-8") from exc
-    html = re.sub(r"<aside[\s\S]*?</aside>", "", html, flags=re.IGNORECASE)
-    html = re.sub(r"<script[\s\S]*?</script>", "", html, flags=re.IGNORECASE)
-    html = re.sub(r"</body>.*", "</body>", html, flags=re.IGNORECASE | re.DOTALL)
-    return html
+    import sys
+    from importlib import import_module
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent
+    if str(root) not in sys.path:
+        sys.path.append(str(root))
+    load_falowen_login_html = import_module("src.login_ui").load_falowen_login_html
+    return load_falowen_login_html()
 
 
 def render_falowen_login(google_auth_url: str = "", show_google_in_hero: bool = False) -> None:
-    try:
-        html = _load_falowen_login_html()
-    except Exception:
-        st.error("Falowen login template missing or unreadable.")
-        logging.exception("Failed to load Falowen login HTML")
-        return
-    components.html(html, height=720, scrolling=True)
+    import sys
+    from importlib import import_module
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent
+    if str(root) not in sys.path:
+        sys.path.append(str(root))
+    _render = import_module("src.login_ui").render_falowen_login
+    _render(google_auth_url, show_google_in_hero, st=st, components=components, logging=logging)
 
 # ------------------------------------------------------------------------------
 # Login page (hero + single Google CTA under 'Returning user login' + tabs)
@@ -3504,23 +3411,8 @@ if tab == "My Course":
                 return None
 
             def _extract_text_from_pdf(pdf_bytes: bytes) -> str:
-                try:
-                    from pypdf import PdfReader
-                    t = []
-                    reader = PdfReader(io.BytesIO(pdf_bytes))
-                    for p in reader.pages:
-                        try:
-                            t.append(p.extract_text() or "")
-                        except Exception:
-                            t.append("")
-                    return "\n".join(t)
-                except Exception:
-                    pass
-                try:
-                    from pdfminer.high_level import extract_text
-                    return extract_text(io.BytesIO(pdf_bytes)) or ""
-                except Exception:
-                    return ""
+                from src.pdf_handling import extract_text_from_pdf
+                return extract_text_from_pdf(pdf_bytes)
 
             _DATE_PATTERNS = [
                 r"\b(20\d{2}-\d{2}-\d{2})\b",
@@ -5045,54 +4937,14 @@ if tab == "My Course":
                 )
 
                 # --- PDF Download (all notes, Unicode/emoji ready!) ---
-                from fpdf import FPDF
 
-                class SafePDF(FPDF):
-                    def _putTTfontwidths(self, font, maxUni):
-                        maxUni = min(maxUni, len(font['cw']) - 1)
-                        super()._putTTfontwidths(font, maxUni)
+                pdf_bytes = generate_notes_pdf(notes_to_show)
 
-                    def header(self):
-                        self.set_font('DejaVu', '', 16)
-                        self.cell(0, 12, "My Learning Notes", align="C", ln=1)
-                        self.ln(5)
-
-                pdf = SafePDF()
-                pdf.add_font('DejaVu', '', './font/DejaVuSans.ttf', uni=True)
-                pdf.add_page()
-                pdf.set_auto_page_break(auto=True, margin=15)
-                pdf.set_font("DejaVu", '', 13)
-                pdf.cell(0, 10, "Table of Contents", ln=1)
-                pdf.set_font("DejaVu", '', 11)
-                for idx, note in enumerate(notes_to_show):
-                    pdf.cell(0, 8, f"{idx+1}. {note.get('title','')} - {note.get('created', note.get('updated',''))}", ln=1)
-                pdf.ln(5)
-                for n in notes_to_show:
-                    pdf.set_font("DejaVu", '', 13)
-                    pdf.cell(0, 10, f"Title: {n.get('title','')}", ln=1)
-                    pdf.set_font("DejaVu", '', 11)
-                    if n.get("tag"):
-                        pdf.cell(0, 8, f"Tag: {n['tag']}", ln=1)
-                    pdf.set_font("DejaVu", '', 12)
-                    max_cw_index = len(pdf.current_font['cw']) - 1
-                    for line in n.get('text', '').split("\n"):
-                        safe_line = ''.join(
-                            ch if ord(ch) <= max_cw_index else '?' for ch in line
-                        )
-                        pdf.multi_cell(0, 7, safe_line)
-                    pdf.ln(1)
-                    pdf.set_font("DejaVu", '', 11)
-                    pdf.cell(0, 8, f"Date: {n.get('updated', n.get('created',''))}", ln=1)
-                    pdf.ln(5)
-                    pdf.set_font("DejaVu", '', 10)
-                    pdf.cell(0, 4, '-' * 55, ln=1)
-                    pdf.ln(8)
-                pdf_bytes = pdf.output(dest="S").encode("latin1", "replace")
                 st.download_button(
                     label="⬇️ Download All Notes (PDF)",
                     data=pdf_bytes,
                     file_name=f"{student_code}_notes.pdf",
-                    mime="application/pdf"
+                    mime="application/pdf",
                 )
 
                 # --- DOCX Download (all notes) ---
@@ -5158,29 +5010,13 @@ if tab == "My Course":
                         )
                     with download_cols[1]:
                         # PDF per note (Unicode/emoji ready!)
-                        class SingleNotePDF(FPDF):
-                            def header(self):
-                                self.set_font('DejaVu', '', 13)
-                                self.cell(0, 10, note.get('title','Note'), ln=True, align='C')
-                                self.ln(2)
-                        pdf_note = SingleNotePDF()
-                        pdf_note.add_font('DejaVu', '', './font/DejaVuSans.ttf', uni=True)
-                        pdf_note.add_page()
-                        pdf_note.set_font("DejaVu", '', 12)
-                        if note.get("tag"):
-                            pdf_note.cell(0, 8, f"Tag: {note.get('tag','')}", ln=1)
-                        for line in note.get('text','').split("\n"):
-                            pdf_note.multi_cell(0, 7, line)
-                        pdf_note.ln(1)
-                        pdf_note.set_font("DejaVu", '', 11)
-                        pdf_note.cell(0, 8, f"Date: {note.get('updated', note.get('created',''))}", ln=1)
-                        pdf_bytes_single = pdf_note.output(dest="S").encode("latin1", "replace")
+                        pdf_bytes_single = generate_single_note_pdf(note)
                         st.download_button(
                             label="⬇️ PDF",
                             data=pdf_bytes_single,
                             file_name=f"{student_code}_{note.get('title','note').replace(' ','_')}.pdf",
                             mime="application/pdf",
-                            key=f"download_pdf_{i}"
+                            key=f"download_pdf_{i}",
                         )
                     with download_cols[2]:
                         # DOCX per note
@@ -6101,28 +5937,14 @@ if tab == "Exams Mode & Custom Chat":
                             unsafe_allow_html=True
                         )
         # ---- Downloads
-        if st.session_state["falowen_messages"]:
-            from fpdf import FPDF
-            def falowen_download_pdf(messages, filename):
-                def safe_latin1(text): return text.encode("latin1","replace").decode("latin1")
-                pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial", size=12)
-                for m in messages:
-                    who = "Herr Felix" if m["role"]=="assistant" else "Student"
-                    pdf.multi_cell(0, 8, safe_latin1(f"{who}: {m['content']}"))
-                    pdf.ln(1)
-                return pdf.output(dest='S').encode('latin1','replace')
-
             teil_str = str(teil) if teil else "chat"
-            pdf_bytes = falowen_download_pdf(
-                st.session_state["falowen_messages"],
-                f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}"
-            )
+            pdf_bytes = generate_chat_pdf(st.session_state["falowen_messages"])
             st.download_button(
                 "⬇️ Download Chat as PDF",
                 pdf_bytes,
                 file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.pdf",
                 mime="application/pdf",
-                key=_wkey("dl_chat_pdf")
+                key=_wkey("dl_chat_pdf"),
             )
             chat_as_text = "\n".join(
                 [f"{m['role'].capitalize()}: {m['content']}" for m in st.session_state["falowen_messages"]]
