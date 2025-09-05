@@ -196,11 +196,9 @@ else:
 
 
 # ------------------------------------------------------------------------------
-# Cookie manager
-# ------------------------------------------------------------------------------
-cookie_manager = create_cookie_manager()
 
-# ------------------------------------------------------------------------------
+# Cookie manager
+
 # Google OAuth (Gmail sign-in) — single-source, no duplicate buttons
 # ------------------------------------------------------------------------------
 GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
@@ -284,7 +282,7 @@ def _handle_google_oauth(code: str, state: str) -> None:
             except Exception:
                 logging.exception("Logout warning (revoke)")
 
-        clear_session(cookie_manager)
+        clear_session(cm)
 
         sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
         level = determine_level(student_row["StudentCode"], student_row)
@@ -297,10 +295,12 @@ def _handle_google_oauth(code: str, state: str) -> None:
             "session_token": sess_token,
             "student_level": level,
         })
-        set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
+        set_student_code_cookie(cm, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
         persist_session_client(sess_token, student_row["StudentCode"])
-        set_session_token_cookie(cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
-        save_cookies(cookie_manager)
+
+        set_session_token_cookie(cm, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
+        save_cookies(cm)
+
 
         qp_clear()
         st.success(f"Welcome, {student_row['Name']}!")
@@ -520,7 +520,7 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
     level = determine_level(student_row["StudentCode"], student_row)
 
-    clear_session(cookie_manager)
+    clear_session(cm)
     st.session_state.update({
         "logged_in": True,
         "student_row": dict(student_row),
@@ -529,10 +529,12 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
         "session_token": sess_token,
         "student_level": level,
     })
-    set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
+    set_student_code_cookie(cm, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
     persist_session_client(sess_token, student_row["StudentCode"])
-    set_session_token_cookie(cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
-    save_cookies(cookie_manager)
+
+    set_session_token_cookie(cm, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
+    save_cookies(cm)
+
 
     st.success(f"Welcome, {student_row['Name']}!")
     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
@@ -887,7 +889,7 @@ def render_logged_in_topbar():
                       key="logout_global",
                       type="primary",
                       use_container_width=True,
-                      on_click=lambda: do_logout(cookie_manager))
+                      on_click=lambda: do_logout(cm))
 
 
 # ------------------------------------------------------------------------------
@@ -1059,7 +1061,7 @@ def _contract_active(sc: str, roster):
 
     return True
 
-restored = restore_session_from_cookie(cookie_manager, load_student_data, _contract_active)
+restored = restore_session_from_cookie(cm, load_student_data, _contract_active)
 if restored is not None and not st.session_state.get("logged_in", False):
     sc_cookie = restored["student_code"]
     token = restored["session_token"]
@@ -1070,7 +1072,7 @@ if restored is not None and not st.session_state.get("logged_in", False):
         else pd.DataFrame()
     )
     if match.empty:
-        clear_session(cookie_manager)
+        clear_session(cm)
         st.warning("Session expired. Please log in again.")
     else:
         row = match.iloc[0]
