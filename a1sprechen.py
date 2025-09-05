@@ -160,6 +160,13 @@ GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khd
 GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
 REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowen.app/")
 
+# Mapping of CEFR levels to teacher codes that should receive admin rights.
+# Extend this dictionary as new levels or teachers are added.
+ADMINS_BY_LEVEL = {
+    "A1": {"felixa177"},
+    "A2": {"felixa2"},
+}
+
 def _get_qp():
     try:
         return qp_get()
@@ -3357,7 +3364,8 @@ if tab == "My Course":
             ADMINS = set(st.secrets["roles"]["admins"])
         except Exception:
             pass
-        IS_ADMIN = (student_code in ADMINS)
+        ADMINS |= ADMINS_BY_LEVEL.get(student_level, set())
+        IS_ADMIN = student_code in ADMINS
 
         # ---------- slack helper (use global notify_slack if present; else env/secrets) ----------
         def _notify_slack(*parts: str):
