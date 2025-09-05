@@ -1,5 +1,5 @@
 # auth.py
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify, make_response
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -40,10 +40,10 @@ def _set_cookie(resp, token: str):
 
 # --- Simple token stubs (replace with real JWT/DB logic) ---
 def _issue_access(user_id: str) -> str:
-    return f"access_{user_id}_{int(datetime.utcnow().timestamp())}"
+    return f"access_{user_id}_{int(datetime.now(timezone.utc).timestamp())}"
 
 def _issue_refresh(user_id: str) -> str:
-    return f"refresh_{user_id}_{int(datetime.utcnow().timestamp())}"
+    return f"refresh_{user_id}_{int(datetime.now(timezone.utc).timestamp())}"
 # ------------------------------------------------------------
 
 @auth_bp.post("/login")
