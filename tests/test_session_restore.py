@@ -430,10 +430,16 @@ def test_obsolete_cookie_triggers_login_flow(monkeypatch):
         filter_matches=lambda *a, **k: None,
     )
 
-    # Patch config and session helpers
-    sys.modules["src.config"] = types.SimpleNamespace(
-        get_cookie_manager=lambda: cm,
-        SB_SESSION_TARGET="",
+    # Patch auth and session helpers
+    sys.modules["src.auth"] = types.SimpleNamespace(
+        create_cookie_manager=lambda: cm,
+        restore_session_from_cookie=lambda *a, **k: None,
+        set_student_code_cookie=lambda *a, **k: None,
+        set_session_token_cookie=lambda *a, **k: None,
+        save_cookies=lambda *a, **k: None,
+        clear_session=lambda *a, **k: None,
+        persist_session_client=lambda *a, **k: None,
+        reset_password_page=lambda *a, **k: None,
     )
 
     sys.modules["falowen.sessions"] = types.SimpleNamespace(
