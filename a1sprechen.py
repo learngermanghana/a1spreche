@@ -155,28 +155,19 @@ from src.ui_widgets import (
 )
 from src.logout import do_logout
 
-load_roster = load_student_data
-contract_active = lambda *a, **k: True
-
 cm = create_cookie_manager()
-
 try:
     session = restore_session_from_cookie(
         cm,
-        loader=load_roster,                   # whatever you currently use to fetch roster/data
-        contract_validator=contract_active,   # or contract_checker=...
+        loader=load_student_data,
+        contract_validator=lambda *a, **k: True,
     )
 except Exception:
     session = None
 
 if session:
-    # user stays logged in
     st.session_state["student_code"] = session["student_code"]
     st.session_state["session_token"] = session["session_token"]
-    data = session.get("data")
-else:
-    # show login UI
-    st.write("TODO: implement login UI")  # TODO: implement login UI
 
 # ------------------------------------------------------------------------------
 # Google OAuth (Gmail sign-in) — single-source, no duplicate buttons
