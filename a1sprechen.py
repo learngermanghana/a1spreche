@@ -4530,8 +4530,34 @@ if tab == "My Course":
                 if student_code:
                     resp_key = f"resp_{doc.id}"
                     resp = st.text_area("Your response", key=resp_key)
+                    if st.button("AI suggestion", key=f"ai_resp_{doc.id}"):
+                        draft = st.session_state.get(resp_key, "")
+                        try:
+                            msgs = [
+                                {"role": "system", "content": "You are a helpful German teacher."},
+                                {"role": "user", "content": data.get("question", "")},
+                            ]
+                            if draft:
+                                msgs.append({"role": "assistant", "content": draft})
+                            resp_ai = client.chat.completions.create(
+                                model="gpt-3.5-turbo",
+                                messages=msgs,
+                                temperature=0.2,
+                            )
+                            ai_text = resp_ai.choices[0].message.content.strip()
+                            st.session_state[resp_key] = ai_text
+                            st.session_state[f"ai_suggest_{doc.id}"] = ai_text
+                            st.rerun()
+                        except Exception:
+                            st.error("AI suggestion failed. Please try again later.")
+                    if st.session_state.get(f"ai_suggest_{doc.id}"):
+                        if st.button("Flag AI reply", key=f"flag_ai_{doc.id}"):
+                            ai_text = st.session_state.get(f"ai_suggest_{doc.id}", "")
+                            save_ai_answer(doc.id, ai_text, flagged=True)
+                            st.warning("AI reply flagged for review.")
                     if st.button("Submit response", key=f"resp_submit_{doc.id}"):
-                        save_response(doc.id, resp, student_code)
+                        final_resp = st.session_state.get(resp_key, resp)
+                        save_response(doc.id, final_resp, student_code)
                         st.success("Response submitted.")
                 st.divider()
             # Allow fall-through so class board renders after Q&A
