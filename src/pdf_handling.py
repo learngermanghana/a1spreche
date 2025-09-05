@@ -115,15 +115,13 @@ def generate_chat_pdf(messages: List[Dict[str, Any]]) -> bytes:
     if FPDF is None:  # pragma: no cover - dependency missing
         return b""
 
-    def safe_latin1(text: str) -> str:
-        return text.encode("latin1", "replace").decode("latin1")
-
     pdf = FPDF()
+    pdf.add_font("DejaVu", "", "./font/DejaVuSans.ttf", uni=True)
     pdf.add_page()
-    pdf.set_font("Arial", size=12)
+    pdf.set_font("DejaVu", size=12)
     for m in messages:
         who = "Herr Felix" if m.get("role") == "assistant" else "Student"
-        pdf.multi_cell(0, 8, safe_latin1(f"{who}: {m.get('content','')}"))
+        pdf.multi_cell(0, 8, f"{who}: {m.get('content','')}")
         pdf.ln(1)
     return pdf.output(dest="S").encode("latin1", "replace")
 
