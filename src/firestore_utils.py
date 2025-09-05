@@ -216,24 +216,12 @@ def save_ai_answer(post_id: str, ai_text: str, flagged: bool = False) -> None:
         logging.warning("Failed to save AI answer for %s: %s", post_id, exc)
 
 
-def save_teacher_answer(post_id: str, teacher_text: str) -> None:
-    """Persist the teacher's response for a question."""
+def save_response(post_id: str, text: str, responder_code: str) -> None:
+    """Persist a response for a question.
 
-    ref = _qa_doc_ref(post_id)
-    if ref is None:
-        return
-    payload = {
-        "teacher_answer": teacher_text,
-        "teacher_created_at": firestore.SERVER_TIMESTAMP,
-    }
-    try:
-        ref.set(payload, merge=True)
-    except Exception as exc:  # pragma: no cover - runtime depends on Firestore
-        logging.warning("Failed to save teacher answer for %s: %s", post_id, exc)
-
-
-def save_response(post_id: str, student_code: str, response_text: str) -> None:
-    """Persist a peer response for a question."""
+    The response is appended to the ``responses`` array on the post and
+    includes the ``responder_code`` and server timestamp.
+    """
 
     ref = _qa_doc_ref(post_id)
     if ref is None:
@@ -241,8 +229,8 @@ def save_response(post_id: str, student_code: str, response_text: str) -> None:
     payload = {
         "responses": firestore.ArrayUnion([
             {
-                "student_code": student_code,
-                "response": response_text,
+                "responder_code": responder_code,
+                "text": text,
                 "created_at": firestore.SERVER_TIMESTAMP,
             }
         ])

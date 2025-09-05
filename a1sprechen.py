@@ -86,7 +86,6 @@ from src.firestore_utils import (
     save_draft_to_db,
     save_question,
     save_ai_answer,
-    save_teacher_answer,
     save_response,
 )
 from src.ui_components import (
@@ -4484,43 +4483,34 @@ if tab == "My Course":
                         if st.button("Flag suggestion", key=f"flag_{doc.id}"):
                             save_ai_answer(doc.id, ai_txt, flagged=True)
                             st.warning("Flagged for teacher review.")
-                teacher_txt = data.get("teacher_answer")
-                if teacher_txt:
-                    st.success(f"Teacher answer: {teacher_txt}")
+                responses = data.get("responses") or []
+                for r in responses:
+                    st.success(f"{r.get('responder_code', '')} answered: {r.get('text', '')}")
                 st.divider()
-
-            # ---- Unanswered questions from classmates ----
+            # ---- Unanswered questions ----
             try:
-                docs_unanswered = [] if db is None else list(
-                    db.collection("qa_posts").where("teacher_answer", "==", None).stream()
-                )
-                flagged_docs = [] if db is None else list(
-                    db.collection("qa_posts").where("flagged", "==", True).stream()
-                )
-                combined = {d.id: d for d in docs_unanswered}
-                for d in flagged_docs:
-                    combined[d.id] = d
-                unanswered_docs = list(combined.values())
+                all_docs = [] if db is None else list(db.collection("qa_posts").stream())
             except Exception:
-                unanswered_docs = []
+                all_docs = []
 
             def _is_unanswered(d: Any) -> bool:
                 data = d.to_dict() or {}
                 if data.get("flagged"):
                     return True
-                if data.get("teacher_answer"):
-                    return False
                 return not data.get("responses")
 
+            hide_mine = st.checkbox("Hide my questions", value=True)
             unanswered_docs = [
-                d for d in unanswered_docs
-                if (d.to_dict() or {}).get("student_code") != student_code and _is_unanswered(d)
+                d
+                for d in all_docs
+                if _is_unanswered(d)
+                and (not hide_mine or (d.to_dict() or {}).get("student_code") != student_code)
             ]
 
             unanswered_docs.sort(key=lambda d: not (d.to_dict().get("flagged", False)))
 
             if unanswered_docs:
-                st.subheader("Classmate Questions")
+                st.subheader("Open Questions")
             for doc in unanswered_docs:
                 data = doc.to_dict() or {}
                 st.markdown(f"**{data.get('student_code', '')}** asked: {data.get('question', '')}")
@@ -4529,30 +4519,13 @@ if tab == "My Course":
                 ai_txt = data.get("ai_suggestion")
                 if ai_txt:
                     st.markdown(f"*AI suggestion:* {ai_txt}")
-                resp_key = f"resp_{doc.id}"
-                resp = st.text_area("Your response", key=resp_key)
-                if st.button("Submit response", key=f"resp_submit_{doc.id}"):
-                    save_response(doc.id, student_code, resp)
-                    st.success("Response submitted.")
+                if student_code:
+                    resp_key = f"resp_{doc.id}"
+                    resp = st.text_area("Your response", key=resp_key)
+                    if st.button("Submit response", key=f"resp_submit_{doc.id}"):
+                        save_response(doc.id, resp, student_code)
+                        st.success("Response submitted.")
                 st.divider()
-            if IS_ADMIN:
-                st.subheader("Teacher review")
-                try:
-                    review_docs = [] if db is None else list(db.collection("qa_posts").where("teacher_answer", "==", None).stream())
-                except Exception:
-                    review_docs = []
-                review_docs.sort(key=lambda d: not (d.to_dict().get("flagged", False)))
-                for doc in review_docs:
-                    data = doc.to_dict() or {}
-                    st.markdown(f"**{data.get('student_code', '')}** asked: {data.get('question', '')}")
-                    ai_txt = data.get("ai_suggestion", "")
-                    if ai_txt:
-                        st.markdown(f"*AI suggestion:* {ai_txt}")
-                    ans = st.text_area("Teacher answer", value=ai_txt, key=f"teach_ans_{doc.id}")
-                    if st.button("Save answer", key=f"teach_save_{doc.id}"):
-                        save_teacher_answer(doc.id, ans)
-                        st.success("Answer saved.")
-                    st.divider()
             # Allow fall-through so class board renders after Q&A
             board_base = db.collection("class_board").document(class_name).collection("posts")
 
