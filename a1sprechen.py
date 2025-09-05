@@ -54,6 +54,24 @@ st.set_page_config(
 if st.session_state.pop("needs_rerun", False):
     st.rerun()
 
+# One cookie manager for the whole app
+cm = create_cookie_manager()
+
+# Try to restore session from cookies (loads roster, checks contract)
+restored = restore_session_from_cookie(
+    cm,
+    loader=load_student_data,                    # returns the roster DataFrame
+    contract_checker=lambda sc, df: _contract_active(sc, df),  # keep your checker
+)
+
+if restored:
+    st.session_state["student_code"]  = restored["student_code"]
+    st.session_state["session_token"] = restored["session_token"]
+    st.session_state["logged_in"]     = True
+else:
+    st.session_state.setdefault("logged_in", False)
+
+
 
 # --- Falowen modules ---
 from falowen.email_utils import send_reset_email, build_gas_reset_link, GAS_RESET_URL
@@ -178,6 +196,9 @@ else:
 
 
 # ------------------------------------------------------------------------------
+
+# Cookie manager
+
 # Google OAuth (Gmail sign-in) — single-source, no duplicate buttons
 # ------------------------------------------------------------------------------
 GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
@@ -276,8 +297,10 @@ def _handle_google_oauth(code: str, state: str) -> None:
         })
         set_student_code_cookie(cm, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
         persist_session_client(sess_token, student_row["StudentCode"])
+
         set_session_token_cookie(cm, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
         save_cookies(cm)
+
 
         qp_clear()
         st.success(f"Welcome, {student_row['Name']}!")
@@ -508,8 +531,10 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     })
     set_student_code_cookie(cm, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
     persist_session_client(sess_token, student_row["StudentCode"])
+
     set_session_token_cookie(cm, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
     save_cookies(cm)
+
 
     st.success(f"Welcome, {student_row['Name']}!")
     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
