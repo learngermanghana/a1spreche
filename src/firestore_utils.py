@@ -217,6 +217,24 @@ def save_ai_answer(post_id: str, ai_text: str, flagged: bool = False) -> None:
         logging.warning("Failed to save AI answer for %s: %s", post_id, exc)
 
 
+def save_ai_response(post_id: str, ai_text: str, flagged: bool = False) -> None:
+    """Attach an AI-generated reply suggestion to the post."""
+
+    ref = _qa_doc_ref(post_id)
+    if ref is None:
+        return
+    payload = {
+        "ai_response_suggestion": ai_text,
+        "ai_response_created_at": firestore.SERVER_TIMESTAMP,
+    }
+    if flagged:
+        payload["flagged"] = True
+    try:
+        ref.set(payload, merge=True)
+    except Exception as exc:  # pragma: no cover - runtime depends on Firestore
+        logging.warning("Failed to save AI response for %s: %s", post_id, exc)
+
+
 def save_response(post_id: str, text: str, responder_code: str) -> None:
     """Persist a response for a post.
 
