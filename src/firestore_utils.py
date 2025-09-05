@@ -230,3 +230,25 @@ def save_teacher_answer(post_id: str, teacher_text: str) -> None:
         ref.set(payload, merge=True)
     except Exception as exc:  # pragma: no cover - runtime depends on Firestore
         logging.warning("Failed to save teacher answer for %s: %s", post_id, exc)
+
+
+def save_response(post_id: str, student_code: str, response_text: str) -> None:
+    """Persist a peer response for a question."""
+
+    ref = _qa_doc_ref(post_id)
+    if ref is None:
+        return
+    payload = {
+        "responses": firestore.ArrayUnion([
+            {
+                "student_code": student_code,
+                "response": response_text,
+                "created_at": firestore.SERVER_TIMESTAMP,
+            }
+        ])
+    }
+    try:
+        ref.set(payload, merge=True)
+    except Exception as exc:  # pragma: no cover - runtime depends on Firestore
+        logging.warning("Failed to save response for %s: %s", post_id, exc)
+

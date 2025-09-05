@@ -87,6 +87,7 @@ from src.firestore_utils import (
     save_question,
     save_ai_answer,
     save_teacher_answer,
+    save_response,
 )
 from src.ui_components import (
     render_assignment_reminder,
@@ -4486,6 +4487,53 @@ if tab == "My Course":
                 teacher_txt = data.get("teacher_answer")
                 if teacher_txt:
                     st.success(f"Teacher answer: {teacher_txt}")
+                st.divider()
+
+            # ---- Unanswered questions from classmates ----
+            try:
+                docs_unanswered = [] if db is None else list(
+                    db.collection("qa_posts").where("teacher_answer", "==", None).stream()
+                )
+                flagged_docs = [] if db is None else list(
+                    db.collection("qa_posts").where("flagged", "==", True).stream()
+                )
+                combined = {d.id: d for d in docs_unanswered}
+                for d in flagged_docs:
+                    combined[d.id] = d
+                unanswered_docs = list(combined.values())
+            except Exception:
+                unanswered_docs = []
+
+            def _is_unanswered(d: Any) -> bool:
+                data = d.to_dict() or {}
+                if data.get("flagged"):
+                    return True
+                if data.get("teacher_answer"):
+                    return False
+                return not data.get("responses")
+
+            unanswered_docs = [
+                d for d in unanswered_docs
+                if (d.to_dict() or {}).get("student_code") != student_code and _is_unanswered(d)
+            ]
+
+            unanswered_docs.sort(key=lambda d: not (d.to_dict().get("flagged", False)))
+
+            if unanswered_docs:
+                st.subheader("Classmate Questions")
+            for doc in unanswered_docs:
+                data = doc.to_dict() or {}
+                st.markdown(f"**{data.get('student_code', '')}** asked: {data.get('question', '')}")
+                if data.get("flagged"):
+                    st.warning("Flagged question")
+                ai_txt = data.get("ai_suggestion")
+                if ai_txt:
+                    st.markdown(f"*AI suggestion:* {ai_txt}")
+                resp_key = f"resp_{doc.id}"
+                resp = st.text_area("Your response", key=resp_key)
+                if st.button("Submit response", key=f"resp_submit_{doc.id}"):
+                    save_response(doc.id, student_code, resp)
+                    st.success("Response submitted.")
                 st.divider()
             if IS_ADMIN:
                 st.subheader("Teacher review")
