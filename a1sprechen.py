@@ -264,7 +264,7 @@ def _handle_google_oauth(code: str, state: str) -> None:
 
         clear_session(cm)
 
-        sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
+        sess_token = create_session_token(student_row["StudentCode"])
         level = determine_level(student_row["StudentCode"], student_row)
 
         st.session_state.update({
@@ -275,10 +275,11 @@ def _handle_google_oauth(code: str, state: str) -> None:
             "session_token": sess_token,
             "student_level": level,
         })
-        set_student_code_cookie(cm, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
-        persist_session_client(sess_token, student_row["StudentCode"])
-        set_session_token_cookie(cm, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
+        expires_at = datetime.now(UTC) + timedelta(days=30)
+        set_student_code_cookie(cm, student_row["StudentCode"], expires=expires_at)
+        set_session_token_cookie(cm, sess_token, expires=expires_at)
         save_cookies(cm)
+        persist_session_client(sess_token, student_row["StudentCode"])
 
         qp_clear()
         st.success(f"Welcome, {student_row['Name']}!")
@@ -495,7 +496,7 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
         except Exception:
             logging.exception("Logout warning (revoke)")
 
-    sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
+    sess_token = create_session_token(student_row["StudentCode"])
     level = determine_level(student_row["StudentCode"], student_row)
 
     clear_session(cm)
@@ -507,10 +508,11 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
         "session_token": sess_token,
         "student_level": level,
     })
-    set_student_code_cookie(cm, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
-    persist_session_client(sess_token, student_row["StudentCode"])
-    set_session_token_cookie(cm, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
+    expires_at = datetime.now(UTC) + timedelta(days=30)
+    set_student_code_cookie(cm, student_row["StudentCode"], expires=expires_at)
+    set_session_token_cookie(cm, sess_token, expires=expires_at)
     save_cookies(cm)
+    persist_session_client(sess_token, student_row["StudentCode"])
 
     st.success(f"Welcome, {student_row['Name']}!")
     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
@@ -896,8 +898,9 @@ def render_level_welcome_video(level: str | None):
 
 # after your backend returns (student_code, session_token)
 def apply_login_cookies(cm, student_code, session_token):
-    set_student_code_cookie(cm, student_code)
-    set_session_token_cookie(cm, session_token)
+    expires_at = datetime.now(UTC) + timedelta(days=30)
+    set_student_code_cookie(cm, student_code, expires=expires_at)
+    set_session_token_cookie(cm, session_token, expires=expires_at)
     save_cookies(cm)      # <-- persist to browser
     st.rerun()            # optional; refresh UI as “logged in”
 
