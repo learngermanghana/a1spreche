@@ -1,7 +1,7 @@
 # auth.py
 from datetime import datetime
 from flask import Blueprint, request, jsonify, make_response
-import os
+from werkzeug.security import check_password_hash, generate_password_hash
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
@@ -10,6 +10,14 @@ REFRESH_COOKIE = "refresh_token"
 COOKIE_SAMESITE = "Strict"
 COOKIE_PATH = "/auth/refresh"
 MAX_AGE = 60 * 60 * 24 * 30  # 30 days
+
+# Simple in-memory user store with hashed passwords for demo/testing
+USERS = {
+    "alice@example.com": {
+        "id": "alice",
+        "password": generate_password_hash("wonderland"),
+    }
+}
 
 def _set_cookie(resp, token: str):
     """
@@ -41,9 +49,16 @@ def _issue_refresh(user_id: str) -> str:
 @auth_bp.post("/login")
 def login():
     data = request.get_json(silent=True) or {}
-    user_id = data.get("user_id") or data.get("email") or "user"
-    # TODO: validate credentials here
+    email = data.get("email")
+    password = data.get("password")
+    if not email or not password:
+        return jsonify(error="invalid credentials"), 401
 
+    user = USERS.get(email)
+    if not user or not check_password_hash(user["password"], password):
+        return jsonify(error="invalid credentials"), 401
+
+    user_id = user.get("id", email)
     access = _issue_access(user_id)
     refresh = _issue_refresh(user_id)
 
