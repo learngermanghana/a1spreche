@@ -4937,7 +4937,9 @@ if tab == "My Course":
                 )
 
                 # --- PDF Download (all notes, Unicode/emoji ready!) ---
+
                 pdf_bytes = generate_notes_pdf(notes_to_show)
+
                 st.download_button(
                     label="⬇️ Download All Notes (PDF)",
                     data=pdf_bytes,

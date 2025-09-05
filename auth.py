@@ -1,7 +1,9 @@
 # auth.py
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, make_response
 import os
+import jwt
+import uuid
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
@@ -29,19 +31,60 @@ def _set_cookie(resp, token: str):
     resp.set_cookie(COOKIE_NAME, token, **kwargs)
     return resp
 
-# --- Simple token stubs (replace with real JWT/DB logic) ---
+# --- Simple in-memory user store and JWT helpers ---
+JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret")
+JWT_ALG = "HS256"
+ACCESS_TTL = 3600
+
+USERS = {
+    "u": {"password": "pw", "refresh": None},
+}
+
+
 def _issue_access(user_id: str) -> str:
-    return f"access_{user_id}_{int(datetime.utcnow().timestamp())}"
+    payload = {"sub": user_id, "exp": datetime.utcnow() + timedelta(seconds=ACCESS_TTL)}
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
+
 
 def _issue_refresh(user_id: str) -> str:
-    return f"refresh_{user_id}_{int(datetime.utcnow().timestamp())}"
+    payload = {
+        "sub": user_id,
+        "type": "refresh",
+        "exp": datetime.utcnow() + timedelta(seconds=MAX_AGE),
+        "iat": datetime.utcnow(),
+        "jti": uuid.uuid4().hex,
+    }
+    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
+    USERS.setdefault(user_id, {}).update({"refresh": token})
+    return token
+
+
+def _get_user_from_refresh(token: str) -> str | None:
+    """Validate refresh token and return user_id if valid, else None."""
+    try:
+        data = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
+        if data.get("type") != "refresh":
+            raise jwt.InvalidTokenError("not refresh")
+        user_id = data["sub"]
+    except jwt.PyJWTError:
+        return None
+
+    stored = USERS.get(user_id, {}).get("refresh")
+    if stored != token:
+        # Revoke mismatched token
+        if user_id in USERS:
+            USERS[user_id]["refresh"] = None
+        return None
+    return user_id
 # ------------------------------------------------------------
 
 @auth_bp.post("/login")
 def login():
     data = request.get_json(silent=True) or {}
-    user_id = data.get("user_id") or data.get("email") or "user"
-    # TODO: validate credentials here
+    user_id = data.get("user_id") or data.get("email")
+    password = data.get("password") or data.get("pw")
+    if not user_id or user_id not in USERS or USERS[user_id]["password"] != password:
+        return jsonify(error="invalid credentials"), 401
 
     access = _issue_access(user_id)
     refresh = _issue_refresh(user_id)
@@ -62,9 +105,12 @@ def refresh():
     if not rt:
         return jsonify(error="missing refresh token"), 401
 
-    # TODO: validate/rotate the refresh token
-    access = _issue_access("user")
-    new_refresh = rt  # rotate in production
+    user_id = _get_user_from_refresh(rt)
+    if not user_id:
+        return jsonify(error="invalid refresh token"), 401
+
+    access = _issue_access(user_id)
+    new_refresh = _issue_refresh(user_id)
 
     resp = make_response(jsonify(
         access_token=access,
@@ -76,6 +122,12 @@ def refresh():
 
 @auth_bp.post("/logout")
 def logout():
+    rt = request.cookies.get(COOKIE_NAME)
+    if rt:
+        uid = _get_user_from_refresh(rt)
+        if uid and uid in USERS:
+            USERS[uid]["refresh"] = None
+
     resp = make_response("", 204)
     # Clear cookie with the same attributes we set
     kwargs = dict(httponly=True, secure=True, samesite=COOKIE_SAMESITE, path=COOKIE_PATH, max_age=0)
