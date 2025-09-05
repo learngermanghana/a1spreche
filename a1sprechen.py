@@ -54,6 +54,24 @@ st.set_page_config(
 if st.session_state.pop("needs_rerun", False):
     st.rerun()
 
+# One cookie manager for the whole app
+cm = create_cookie_manager()
+
+# Try to restore session from cookies (loads roster, checks contract)
+restored = restore_session_from_cookie(
+    cm,
+    loader=load_student_data,                    # returns the roster DataFrame
+    contract_checker=lambda sc, df: _contract_active(sc, df),  # keep your checker
+)
+
+if restored:
+    st.session_state["student_code"]  = restored["student_code"]
+    st.session_state["session_token"] = restored["session_token"]
+    st.session_state["logged_in"]     = True
+else:
+    st.session_state.setdefault("logged_in", False)
+
+
 
 # --- Falowen modules ---
 from falowen.email_utils import send_reset_email, build_gas_reset_link, GAS_RESET_URL
