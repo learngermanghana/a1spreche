@@ -176,9 +176,7 @@ if session:
     data = session.get("data")
 else:
     # show login UI
-    ...
-
-    ...
+    st.write("TODO: implement login UI")  # TODO: implement login UI
 
 # ------------------------------------------------------------------------------
 # Google OAuth (Gmail sign-in) — single-source, no duplicate buttons
