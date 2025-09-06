@@ -511,12 +511,12 @@ Use:
     ]
 
 
-def get_a1_schedule():
+def get_a2_schedule():
     return [
         # DAY 0 - TUTORIAL
         {
             "day": 0,
-            "topic": "Tutorial – Course Overview for Levels A2, B1, B2",
+            "topic": "Tutorial – Course Overview",
             "chapter": "Tutorial",
             "goal": "Welcome to Day 0! This orientation page introduces how our four-part course is organized and how you’ll navigate the overview, assignment, and submit tabs each day.",
             "instruction": """1. Overview
@@ -999,7 +999,7 @@ def get_b1_schedule():
         # DAY 0 - TUTORIAL
         {
             "day": 0,
-            "topic": "Tutorial – Course Overview for Levels A2, B1, B2",
+            "topic": "Tutorial – Course Overview",
             "chapter": "Tutorial",
             "goal": "Welcome to Day 0! This orientation page introduces how our four-part course is organized and how you’ll navigate the overview, assignment, and submit tabs each day.",
             "instruction": """1. Overview
@@ -1478,6 +1478,10 @@ Wir wünschen dir weiterhin viel Erfolg auf deinem Sprachlernweg! 🚀
 
 def get_b2_schedule():
     return [
+        {
+            "day": 0,
+            "topic": "Tutorial – Course Overview",
+        },
         {
             "day": 1,
             "topic": "Persönliche Identität und Selbstverständnis",
