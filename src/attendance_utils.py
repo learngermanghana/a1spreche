@@ -11,6 +11,8 @@ from __future__ import annotations
 from typing import List, Dict, Tuple
 import logging
 
+from .firestore_utils import format_record
+
 try:  # Firestore client is optional in test environments
     from falowen.sessions import db  # pragma: no cover - runtime side effect
 except Exception:  # pragma: no cover - Firestore may be unavailable
@@ -22,9 +24,10 @@ def load_attendance_records(
 ) -> Tuple[List[Dict[str, object]], int, float]:
     """Return a tuple ``(records, sessions, hours)`` for ``student_code``.
 
-    Each record in ``records`` is a mapping with ``{"session": <id>,
-    "present": <bool>}``.  ``sessions`` is the number of sessions attended and
-    ``hours`` is the invested time assuming **1 hour per attended session**.
+    Each record in ``records`` is a mapping with ``{"session": <label>,
+    "present": <bool>}`` where ``label`` is a normalised session title.  ``sessions``
+    is the number of sessions attended and ``hours`` is the invested time based on
+    the Firestore record (defaulting to **1 hour** when unspecified).
 
     If Firestore is unavailable or an error occurs the function returns
     ``([], 0, 0.0)``.
@@ -44,31 +47,9 @@ def load_attendance_records(
         hours = 0.0
         for snap in sessions_ref.stream():
             data = snap.to_dict() or {}
-            attendees = data.get("attendees") or data
-
-            present = False
-            session_hours = 0.0
-
-            if isinstance(attendees, dict):
-                entry = attendees.get(student_code)
-                if isinstance(entry, dict) and "present" in entry:
-                    present = bool(entry.get("present"))
-                    if present:
-                        session_hours = float(entry.get("hours", 1))
-                elif isinstance(entry, (int, float, bool)):
-                    present = bool(entry)
-                    if present:
-                        session_hours = 1.0
-            elif isinstance(attendees, list):
-                present = any(
-                    isinstance(item, dict) and item.get("code") == student_code
-                    for item in attendees
-                )
-                if present:
-                    session_hours = 1.0
-
-            records.append({"session": getattr(snap, "id", ""), "present": present})
-            if present:
+            record, session_hours = format_record(getattr(snap, "id", ""), data, student_code)
+            records.append(record)
+            if record["present"]:
                 count += 1
                 hours += session_hours
 

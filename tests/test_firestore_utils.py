@@ -4,6 +4,8 @@ from src.firestore_utils import (
     save_response,
     save_ai_response,
     fetch_attendance_summary,
+    normalize_label,
+    format_record,
 )
 
 
@@ -17,6 +19,31 @@ def test_extract_level_and_lesson_without_prefix():
     level, lesson = _extract_level_and_lesson("C1_day2_ch1")
     assert level == "C1"
     assert lesson == "C1_day2_ch1"
+
+
+def test_normalize_label_strip_and_match(monkeypatch):
+    monkeypatch.setattr(
+        firestore_utils,
+        "CANONICAL_LABELS",
+        ["Greetings"],
+        raising=False,
+    )
+    assert normalize_label("Woche 5: greeting") == "Greetings"
+
+
+def test_format_record_normalizes_and_extracts_hours(monkeypatch):
+    monkeypatch.setattr(
+        firestore_utils,
+        "normalize_label",
+        lambda s: s.upper(),
+    )
+    data = {
+        "attendees": {"abc": {"present": True, "hours": 1.5}},
+        "label": "foo",
+    }
+    record, hours = format_record("doc1", data, "abc")
+    assert record == {"session": "FOO", "present": True}
+    assert abs(hours - 1.5) < 1e-6
 def test_save_response_stores_responder_code(monkeypatch):
     class DummyRef:
         def __init__(self):
