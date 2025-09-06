@@ -4578,7 +4578,7 @@ if tab == "My Course":
             if not questions:
                 st.info("No posts yet.")
             else:
-                for q in questions:
+                for idx, q in enumerate(questions):
                     q_id = q.get("id", "")
                     ts = q.get("timestamp")
                     ts_label = _fmt_ts(ts)
@@ -4797,6 +4797,9 @@ if tab == "My Course":
                             on_click=apply_ai_correction,
                             args=(q_id, draft_key, current_text),
                         )
+
+                    if idx < len(questions) - 1:
+                        st.divider()
 
 
     # === LEARNING NOTES SUBTAB ===
