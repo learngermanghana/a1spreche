@@ -19,7 +19,7 @@ This value is required for secure cookie management.
 
 ## Usage
 
-- From the Dashboard, use **View all class announcements** to jump to the full classroom announcements feed.
+- From the Dashboard, use **View class board** to jump to the class notes & Q&A section.
 
 ### Vocab Sheet Format
 

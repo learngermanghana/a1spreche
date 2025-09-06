@@ -837,7 +837,7 @@ def render_sidebar_published():
 - **Practice speaking:** **Tools → Sprechen** for instant pronunciation feedback.
 - **Build vocab:** **Vocab Trainer** for daily words & review cycles.
 - **Track progress:** **Dashboard** shows streaks, next lesson, and missed items.
-- **See announcements:** Dashboard → **View all class announcements** for class updates.
+- **See class notes:** Dashboard → **View class board** for notes and Q&A.
             """
         )
 
@@ -1058,19 +1058,6 @@ def load_reviews():
         st.session_state["reviews_df"] = _load_reviews_cached()
     return st.session_state["reviews_df"]
 
-@st.cache_data(ttl=300)
-def _fetch_announcements_csv_cached():
-    csv_url = "https://docs.google.com/spreadsheets/d/16gjj0krncWsDwMfMbhlxODPSJsI50fuHAzkF7Prrs1k/export?format=csv&gid=0"
-    try:
-        return pd.read_csv(csv_url)
-    except Exception:
-        return pd.DataFrame()
-
-def fetch_announcements_csv():
-    if "announcements_df" not in st.session_state:
-        st.session_state["announcements_df"] = _fetch_announcements_csv_cached()
-    return st.session_state["announcements_df"]
-
 def parse_contract_start(date_str: str):
 
     """Parse a contract start date in multiple common formats.
@@ -1236,17 +1223,17 @@ render_announcements_once(announcements, tab == "Dashboard")
 # ===================== Dashboard =========================
 # =========================================================
 if tab == "Dashboard":
-    def _go_announcements() -> None:
+    def _go_classboard() -> None:
         st.session_state["nav_sel"] = "My Course"
         st.session_state["main_tab_select"] = "My Course"
         st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
         st.session_state["cb_prev_subtab"] = "🧑‍🏫 Classroom"
-        st.session_state["classroom_page"] = "Announcements"
-        st.session_state["classroom_prev_page"] = "Announcements"
+        st.session_state["classroom_page"] = "Class Notes & Q&A"
+        st.session_state["classroom_prev_page"] = "Class Notes & Q&A"
         _qp_set(tab="My Course")
         st.rerun()
 
-    st.button("View all class announcements", on_click=_go_announcements)
+    st.button("View class board", on_click=_go_classboard)
 
     # ---------- Helpers ----------
     def safe_get(row, key, default=""):
@@ -3236,7 +3223,6 @@ if tab == "My Course":
         from uuid import uuid4
         from datetime import datetime as _dt, timedelta as _td
         import urllib.parse as _urllib
-        from urllib.parse import urlparse as _urlparse
         try:
             import streamlit.components.v1 as components
         except Exception:
@@ -3312,7 +3298,7 @@ if tab == "My Course":
 
         classroom_section = st.radio(
             "Classroom section",
-            ["Calendar", "Join on Zoom", "Members", "Announcements", "Class Notes & Q&A"],
+            ["Calendar", "Join on Zoom", "Members", "Class Notes & Q&A"],
             horizontal=True,
             key="classroom_page",
             on_change=on_classroom_page_change,
@@ -4025,326 +4011,6 @@ if tab == "My Course":
                         "✅ Use the **calendar** tab to receive automatic class reminders.",
                         icon="📅",
                     )
-
-
-        # ===================== ANNOUNCEMENTS =====================
-        elif classroom_section == "Announcements":
-            # Fetch CSV (prefer cached helper)
-            try:
-                df = fetch_announcements_csv()
-            except Exception:
-                df = pd.DataFrame()
-            if df.empty:
-                CSV_URL = "https://docs.google.com/spreadsheets/d/16gjj0krncWsDwMfMbhlxODPSJsI50fuHAzkF7Prrs1k/export?format=csv&gid=0"
-                try:
-                    df = pd.read_csv(CSV_URL)
-                except Exception:
-                    df = pd.DataFrame()
-
-            URL_RE = re.compile(r"(https?://[^\s]+)")
-
-            # Banner with NEW badge
-            _new_badge_html = ""
-            try:
-                _today = _dt.today().date()
-                _recent = 0
-                if not df.empty and "Date" in df.columns:
-                    def _parse_date_any(s: str):
-                        s = str(s).strip()
-                        if not s:
-                            return None
-                        if _dateparse:
-                            try:
-                                return _dateparse.parse(s).date()
-                            except Exception:
-                                pass
-                        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"):
-                            try:
-                                return _dt.strptime(s, fmt).date()
-                            except Exception:
-                                continue
-                        return None
-                    for v in df["Date"].astype(str).tolist():
-                        d = _parse_date_any(v)
-                        if d and (_today - d).days <= 7:
-                            _recent += 1
-                if _recent > 0:
-                    _new_badge_html = f"<span style='margin-left:8px;background:#16a34a;color:#fff;padding:2px 8px;border-radius:999px;font-size:0.8rem;'>NEW · {_recent}</span>"
-            except Exception:
-                pass
-
-            st.markdown(
-                f'''
-                <div style="
-                    padding:12px;
-                    background: linear-gradient(90deg,#0ea5e9,#22c55e);
-                    color:#ffffff;
-                    border-radius:8px;
-                    margin-bottom:12px;
-                    box-shadow:0 2px 6px rgba(0,0,0,0.08);
-                    display:flex;align-items:center;justify-content:space-between;">
-                    <div style="font-weight:700;font-size:1.15rem;">📢 Announcements {_new_badge_html}</div>
-                    <div style="font-size:0.92rem;opacity:.9;">Latest class updates, deadlines & links</div>
-                </div>
-                ''',
-                unsafe_allow_html=True
-            )
-
-            def _short_label_from_url(u: str) -> str:
-                try:
-                    p = _urlparse(u)
-                    host = (p.netloc or "").replace("www.", "")
-                    path = (p.path or "").strip("/")
-                    label = host if not path else f"{host}/{path}"
-                    return label[:60] + ("…" if len(label) > 60 else "")
-                except Exception:
-                    return u[:60] + ("…" if len(u) > 60 else "")
-
-            def _guess_link_emoji_and_label(u: str):
-                lu = u.lower()
-                if "zoom.us" in lu: return "🎦", None
-                if "youtu" in lu:   return "▶️", None
-                if lu.endswith(".pdf"): return "📄", None
-                if "drive.google" in lu: return "🟢", None
-                if "deepl.com" in lu: return "🌐", None
-                if "google.com" in lu: return "🔗", None
-                return "🔗", None
-
-            if not df.empty:
-                df.columns = [str(c).strip() for c in df.columns]
-                lower_map = {c.lower(): c for c in df.columns}
-
-                def _col(name: str):
-                    return lower_map.get(name.lower())
-
-                for logical in ("announcement", "class", "date", "pinned"):
-                    if _col(logical) is None:
-                        df[logical] = ""
-
-                rename_map = {}
-                if _col("announcement"): rename_map[_col("announcement")] = "Announcement"
-                if _col("class"):        rename_map[_col("class")]        = "Class"
-                if _col("date"):         rename_map[_col("date")]         = "Date"
-                if _col("pinned"):       rename_map[_col("pinned")]       = "Pinned"
-                df = df.rename(columns=rename_map)
-
-                for c in ("Announcement", "Class", "Date", "Pinned"):
-                    if c not in df.columns:
-                        df[c] = ""
-
-                link_key = lower_map.get("link") or lower_map.get("links")
-                df["Links"] = [[] for _ in range(len(df))]
-                if link_key:
-                    def _split_links(val):
-                        s = str(val or "").strip()
-                        if not s:
-                            return []
-                        parts = [p for chunk in s.split(",") for p in chunk.split()]
-                        return [p.strip() for p in parts if p.strip().lower().startswith(("http://", "https://"))]
-                    df["Links"] = df[link_key].apply(_split_links)
-
-                def _norm_pinned(v) -> bool:
-                    s = str(v).strip().lower()
-                    return s in {"true", "yes", "1"}
-                df["Pinned"] = df["Pinned"].apply(_norm_pinned)
-
-                def _parse_dt(x):
-                    for fmt in ("%Y-%m-%d %H:%M", "%Y/%m/%d %H:%M", "%d/%m/%Y %H:%M", "%Y-%m-%d", "%d/%m/%Y"):
-                        try:
-                            return _dt.strptime(str(x), fmt)
-                        except Exception:
-                            continue
-                    try:
-                        return pd.to_datetime(x, errors="coerce")
-                    except Exception:
-                        return pd.NaT
-                df["__dt"] = df["Date"].apply(_parse_dt)
-
-                def _append_detected_links(row):
-                    txt = str(row.get("Announcement", "") or "")
-                    found = URL_RE.findall(txt)
-                    existing = list(row.get("Links", []) or [])
-                    merged, seen = [], set()
-                    for url in existing + found:
-                        if url not in seen:
-                            merged.append(url); seen.add(url)
-                    return merged
-                df["Links"] = df.apply(_append_detected_links, axis=1)
-
-                def _ann_id(row):
-                    try:
-                        raw = f"{row.get('Class','')}|{row.get('Date','')}|{row.get('Announcement','')}".encode("utf-8")
-                        return hashlib.sha1(raw).hexdigest()[:16]
-                    except Exception:
-                        return str(uuid4()).replace("-", "")[:16]
-                df["__id"] = df.apply(_ann_id, axis=1)
-
-            def _ann_reply_coll(ann_id: str):
-                return (db.collection("class_announcements")
-                         .document(class_name)
-                         .collection("replies")
-                         .document(ann_id)
-                         .collection("posts"))
-
-            def _load_replies_with_ids(ann_id: str):
-                try:
-                    docs = list(_ann_reply_coll(ann_id).order_by("timestamp").stream())
-                except Exception:
-                    docs = list(_ann_reply_coll(ann_id).stream())
-                    docs.sort(key=lambda d: (d.to_dict() or {}).get("timestamp"))
-                out = []
-                for d in docs:
-                    x = d.to_dict() or {}
-                    x["__id"] = d.id
-                    out.append(x)
-                return out
-
-            def _update_reply_text(ann_id: str, reply_id: str, new_text: str):
-                _ann_reply_coll(ann_id).document(reply_id).update({
-                    "text": new_text.strip(),
-                    "edited_at": _dt.now(_timezone.utc),
-                    "edited_by": student_name,
-                    "edited_by_code": student_code,
-                })
-
-            def _delete_reply(ann_id: str, reply_id: str):
-                _ann_reply_coll(ann_id).document(reply_id).delete()
-
-            if df.empty:
-                st.info("No announcements yet.")
-            else:
-                c1, c2, c3 = st.columns([1, 2, 1])
-                with c1:
-                    show_only_pinned = st.checkbox("Show only pinned", value=False, key="ann_only_pinned")
-                with c2:
-                    search_term = st.text_input("Search announcements…", "", key="ann_search")
-                with c3:
-                    if st.button("↻ Refresh", key="ann_refresh"):
-                        try:
-                            st.cache_data.clear()
-                        except Exception:
-                            pass
-                        st.rerun()
-
-                df["__class_norm"] = (
-                    df["Class"].astype(str)
-                    .str.replace(r"\s+", " ", regex=True)
-                    .str.strip()
-                    .str.lower()
-                )
-                class_norm = re.sub(r"\s+", " ", class_name.strip().lower())
-                view = df[df["__class_norm"] == class_norm].copy()
-
-                if show_only_pinned:
-                    view = view[view["Pinned"] == True]
-                if search_term.strip():
-                    q = search_term.lower()
-                    view = view[view["Announcement"].astype(str).str.lower().str.contains(q)]
-
-                view.sort_values("__dt", ascending=False, inplace=True, na_position="last")
-                pinned_df = view[view["Pinned"] == True]
-                latest_df = view[view["Pinned"] == False]
-
-                def render_announcement(row, is_pinned=False):
-                    try:
-                        ts_label = row.get("__dt").strftime("%d %b %H:%M")
-                    except Exception:
-                        ts_label = ""
-                    st.markdown(
-                        f"<div style='padding:10px 12px; background:{'#fff7ed' if is_pinned else '#f8fafc'}; "
-                        f"border:1px solid #e5e7eb; border-radius:8px; margin:4px 0;'>"
-                        f"{'📌 <b>Pinned</b> • ' if is_pinned else ''}"
-                        f"<b>Teacher</b> <span style='color:#888;'>{ts_label} GMT</span><br>"
-                        f"{row.get('Announcement','')}"
-                        f"</div>",
-                        unsafe_allow_html=True,
-                    )
-
-                    links = row.get("Links") or []
-                    if isinstance(links, str):
-                        links = [links] if links.strip() else []
-                    if links:
-                        st.markdown("**🔗 Links:**")
-                        for u in links:
-                            emoji, label = _guess_link_emoji_and_label(u)
-                            label = label or _short_label_from_url(u)
-                            st.markdown(f"- {emoji} [{label}]({u})")
-
-                    ann_id = row.get("__id")
-                    replies = _load_replies_with_ids(ann_id)
-                    if replies:
-                        for r in replies:
-                            ts = r.get("timestamp")
-                            when = ""
-                            try:
-                                when = ts.strftime("%d %b %H:%M") + " UTC"
-                            except Exception:
-                                pass
-                            edited_badge = ""
-                            if r.get("edited_at"):
-                                try:
-                                    edited_badge = f" <span style='color:#aaa;'>(edited {r['edited_at'].strftime('%d %b %H:%M')} UTC)</span>"
-                                except Exception:
-                                    edited_badge = " <span style='color:#aaa;'>(edited)</span>"
-
-                            st.markdown(
-                                f"<div style='margin-left:20px; color:#444;'>↳ <b>{r.get('student_name','')}</b> "
-                                f"<span style='color:#bbb;'>{when}</span>{edited_badge}<br>"
-                                f"{r.get('text','')}</div>",
-                                unsafe_allow_html=True,
-                            )
-
-                            can_edit = IS_ADMIN or (r.get("student_code") == student_code)
-                            if can_edit:
-                                c_ed, c_del = st.columns([1, 1])
-                                with c_ed:
-                                    if st.button("✏️ Edit", key=f"ann_edit_reply_{ann_id}_{r['__id']}"):
-                                        st.session_state[f"edit_mode_{ann_id}_{r['__id']}"] = True
-                                        st.session_state[f"edit_text_{ann_id}_{r['__id']}"] = r.get("text", "")
-                                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-                                with c_del:
-                                    if st.button("🗑️ Delete", key=f"ann_del_reply_{ann_id}_{r['__id']}"):
-                                        _delete_reply(ann_id, r["__id"])
-                                        _notify_slack(
-                                            f"🗑️ *Announcement reply deleted* — {class_name}\n"
-                                            f"*By:* {student_name} ({student_code})\n"
-                                            f"*When:* {_dt.now(_timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC"
-                                        )
-                                        st.success("Reply deleted.")
-                                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-
-                                if st.session_state.get(f"edit_mode_{ann_id}_{r['__id']}", False):
-                                    new_txt = st.text_area(
-                                        "Edit reply",
-                                        key=f"ann_editbox_{ann_id}_{r['__id']}",
-                                        value=st.session_state.get(f"edit_text_{ann_id}_{r['__id']}", r.get("text", "")),
-                                        height=100,
-                                    )
-                                    ec1, ec2 = st.columns([1, 1])
-                                    with ec1:
-                                        if st.button("💾 Save", key=f"ann_save_reply_{ann_id}_{r['__id']}"):
-                                            if new_txt.strip():
-                                                _update_reply_text(ann_id, r["__id"], new_txt)
-                                                _notify_slack(
-                                                    f"✏️ *Announcement reply edited* — {class_name}\n"
-                                                    f"*By:* {student_name} ({student_code})\n"
-                                                    f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
-                                                    f"*Preview:* {new_txt[:180]}{'…' if len(new_txt)>180 else ''}"
-                                                )
-                                                st.success("Reply updated.")
-                                            st.session_state.pop(f"edit_mode_{ann_id}_{r['__id']}", None)
-                                            st.session_state.pop(f"edit_text_{ann_id}_{r['__id']}", None)
-                                            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-                                    with ec2:
-                                        if st.button("❌ Cancel", key=f"ann_cancel_reply_{ann_id}_{r['__id']}"):
-                                            st.session_state.pop(f"edit_mode_{ann_id}_{r['__id']}", None)
-                                            st.session_state.pop(f"edit_text_{ann_id}_{r['__id']}", None)
-                                            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-
-                for _, row in pinned_df.iterrows():
-                    render_announcement(row, is_pinned=True)
-                for _, row in latest_df.iterrows():
-                    render_announcement(row, is_pinned=False)
 
 
         # ===================== Class Board =====================
