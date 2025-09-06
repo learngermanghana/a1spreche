@@ -875,10 +875,6 @@ def render_sidebar_published():
             """
         )
 
-    with st.sidebar.expander("🎥 Welcome / video tutorials", expanded=False):
-        render_level_welcome_video(st.session_state.get("student_level"))
-        st.caption("More tutorials will appear here as they’re published.")
-
     st.sidebar.divider()
 
     st.sidebar.markdown("## Support")
