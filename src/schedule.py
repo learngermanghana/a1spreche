@@ -471,16 +471,16 @@ def get_a1_schedule():
         # DAY 25
         {
             "day": 25,
-            "topic": "Goethe Mock Test 15",
+            "topic": "Congratulations!",
             "chapter": "15",
-            "assignment": True,
-            "goal": "This test should help the student have an idea about how the lesen and horen will look like",
-            "instruction": "Open the link and answer the questions using the link. After submit and alert your tutor.",
-            "schreiben_sprechen": {
-                "video": "",
-                "youtube_link": "",
-                "workbook_link": "https://forms.gle/FP8ZPNhwxcAZsTfY6"
-            }
+            "assignment": False,
+            "goal": "Celebrate your achievement and plan your next steps.",
+            "instruction": (
+                "Congratulations on finishing your A1 course. You worked hard and made great progress. "
+                "The school will confirm your results and send your completion certificate to your email. "
+                "Kindly communicate with us what you would like to do next by emailing learngermanghana@gmail.com. "
+                "You can prepare for the A1 exams or progress to A2. We wish you continued success in your journey."
+            ),
         }
     ]
 
