@@ -254,17 +254,27 @@ def fetch_attendance_summary(student_code: str, class_name: str) -> tuple[int, f
                 attendees = data.get("attendees") or {}
             else:
                 attendees = data
-            if isinstance(attendees, dict) and student_code in attendees:
-                count += 1
-                try:
-                    hours += float(attendees.get(student_code, 0) or 0)
-                except Exception:
-                    pass
+            if isinstance(attendees, dict):
+                entry = attendees.get(student_code)
+                if isinstance(entry, dict) and "present" in entry:
+                    if bool(entry.get("present")):
+                        count += 1
+                        try:
+                            hours += float(entry.get("hours", 1) or 0)
+                        except Exception:
+                            pass
+                elif student_code in attendees:
+                    count += 1
+                    try:
+                        hours += float(attendees.get(student_code, 0) or 0)
+                    except Exception:
+                        pass
             elif isinstance(attendees, list):
                 for item in attendees:
                     if (
                         isinstance(item, dict)
                         and item.get("code") == student_code
+                        and bool(item.get("present", True))
                     ):
                         count += 1
                         try:
