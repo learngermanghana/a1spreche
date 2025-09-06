@@ -498,8 +498,8 @@ Use:
 - **Vocabulary Trainer**  
 - **Schreiben Trainer** (includes pre-filled questions on typical exam topics)  
 
-📌 Note: You’ll keep access to your tutor until your contract officially ends.  
-💡 If you enjoyed the course, please [leave us a positive review on Google](https://g.page/r/Cdogveq3Hy69EBE/review).  
+ℹ️ Note: You’ll keep access to your tutor until your contract officially ends.  
+🎉 If you enjoyed the course, please [leave us a positive review on Google](https://g.page/r/Cdogveq3Hy69EBE/review).  
             """,
             "grammar_topic": None,
             "assignment": False,
@@ -981,8 +981,8 @@ Use:
 - **Vocabulary Trainer**  
 - **Schreiben Trainer** (includes pre-filled questions on typical exam topics)  
 
-📌 Note: You’ll keep access to your tutor until your contract officially ends.  
-💡 If you enjoyed the course, please [leave us a positive review on Google](https://g.page/r/Cdogveq3Hy69EBE/review).  
+ℹ️ Note: You’ll keep access to your tutor until your contract officially ends.  
+🎉 If you enjoyed the course, please [leave us a positive review on Google](https://g.page/r/Cdogveq3Hy69EBE/review).  
             """,
             "grammar_topic": None,
             "assignment": False,
