@@ -480,6 +480,10 @@ def get_a1_schedule():
                 "The school will confirm your results and send your completion certificate to your email. "
                 "Kindly communicate with us what you would like to do next by emailing learngermanghana@gmail.com. "
                 "You can prepare for the A1 exams or progress to A2. We wish you continued success in your journey. "
+                "Use Exams Mode, Custom Chat, the Vocabulary Trainer, and the Schreiben Trainer for complete exam prep. "
+                "The Schreiben Trainer includes pre-filled questions on typical topics. "
+                "Exams Mode links to past Goethe questions; only the Hörverstehen audio is missing, so use YouTube for listening practice. "
+                "You'll keep access to your tutor until your contract officially ends. "
                 "If you enjoyed the course, please leave us a positive review on [Google](https://g.page/r/YOUR_REVIEW_ID/review)."
             ),
         }
