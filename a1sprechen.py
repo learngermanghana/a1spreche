@@ -855,6 +855,15 @@ def render_sidebar_published():
             """
         )
 
+    with st.sidebar.expander("🔔 Telegram notifications", expanded=False):
+        st.markdown(
+            """
+- [Open the Falowen bot](https://t.me/falowenbot) and tap **Start**  
+- Register: `/register <student_code>` (e.g. `/register kwame202`)  
+- To deactivate: send `/stop`  
+            """
+        )
+
     with st.sidebar.expander("🎥 Welcome / video tutorials", expanded=False):
         render_level_welcome_video(st.session_state.get("student_level"))
         st.caption("More tutorials will appear here as they’re published.")
