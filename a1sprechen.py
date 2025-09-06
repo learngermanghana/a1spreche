@@ -166,7 +166,7 @@ REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowe
 # Mapping of CEFR levels to teacher codes that should receive admin rights.
 # Extend this dictionary as new levels or teachers are added.
 ADMINS_BY_LEVEL = {
-    "A1": {"felixa177"},
+    "A1": {"felixa177", "felixa1"},
     "A2": {"felixa2"},
     "B1": {"felixb1"},
 }
@@ -4491,6 +4491,7 @@ if tab == "My Course":
                         "timestamp": _dt.utcnow(),
                         "topic": (topic or "").strip(),
                         "link": (link or "").strip(),
+                        "pinned": False,
                     }
                     board_base.document(q_id).set(payload)
                     preview = (formatted_q[:180] + "…") if len(formatted_q) > 180 else formatted_q
@@ -4536,6 +4537,10 @@ if tab == "My Course":
                 ]
             if not show_latest:
                 questions = list(reversed(questions))
+
+            pinned_qs = [q for q in questions if q.get("pinned")]
+            other_qs = [q for q in questions if not q.get("pinned")]
+            questions = pinned_qs + other_qs
 
             def send_comment(
                 q_id,
@@ -4585,6 +4590,7 @@ if tab == "My Course":
                     q_id = q.get("id", "")
                     ts = q.get("timestamp")
                     ts_label = _fmt_ts(ts)
+                    pin_html = " 📌" if q.get("pinned") else ""
                     topic_html = (f"<div style='font-size:0.9em;color:#666;'>{q.get('topic','')}</div>" if q.get("topic") else "")
                     content_html = format_post(q.get("content", "")).replace("\n", "<br>")
                     link_html = (
@@ -4594,7 +4600,7 @@ if tab == "My Course":
                     )
                     st.markdown(
                         f"<div style='padding:10px;background:#f8fafc;border:1px solid #ddd;border-radius:6px;margin:6px 0;'>"
-                        f"<b>{q.get('asked_by_name','')}</b>"
+                        f"<b>{q.get('asked_by_name','')}</b>{pin_html}"
                         f"<span style='color:#aaa;'> • {ts_label}</span>"
                         f"{topic_html}"
                         f"{content_html}"
@@ -4605,7 +4611,7 @@ if tab == "My Course":
 
                     can_modify_q = (q.get("asked_by_code") == student_code) or IS_ADMIN
                     if can_modify_q:
-                        qc1, qc2, _ = st.columns([1, 1, 6])
+                        qc1, qc2, qc3, _ = st.columns([1, 1, 1, 6])
                         with qc1:
                             if st.button("✏️ Edit", key=f"q_edit_btn_{q_id}"):
                                 st.session_state[f"q_editing_{q_id}"] = True
@@ -4627,6 +4633,11 @@ if tab == "My Course":
                                     f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
                                 )
                                 st.success("Post deleted.")
+                                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                        with qc3:
+                            pin_label = "📌 Unpin" if q.get("pinned") else "📌 Pin"
+                            if st.button(pin_label, key=f"q_pin_btn_{q_id}"):
+                                board_base.document(q_id).update({"pinned": not q.get("pinned", False)})
                                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
                         if st.session_state.get(f"q_editing_{q_id}", False):
