@@ -29,16 +29,16 @@ def test_get_a1_schedule_is_list():
 def test_get_a2_schedule_has_day0():
     schedule = get_a2_schedule()
     assert schedule[0]["day"] == 0
-    assert schedule[0]["topic"] == "Small Talk 1.1 (Exercise)"
+    assert schedule[0]["topic"] == "Tutorial – Course Overview"
 
 
 def test_get_b1_schedule_has_day0():
     schedule = get_b1_schedule()
     assert schedule[0]["day"] == 0
-    assert schedule[0]["topic"] == "Traumwelten (Übung) 1.1"
+    assert schedule[0]["topic"] == "Tutorial – Course Overview"
 
 
 def test_get_b2_schedule_has_day0():
     schedule = get_b2_schedule()
     assert schedule[0]["day"] == 0
-    assert schedule[0]["topic"] == "Persönliche Identität und Selbstverständnis"
+    assert schedule[0]["topic"] == "Tutorial – Course Overview"
