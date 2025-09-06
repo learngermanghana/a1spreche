@@ -209,7 +209,7 @@ def get_assignment_summary(student_code: str, level: str) -> dict:
     if df.empty:
         return {"missed": [], "next": None}
 
-    schedule = _get_level_schedules().get(lvl, [])
+    schedule_raw = _get_level_schedules().get(lvl, [])
 
     def _extract_all_nums(chapter_str: str):
         parts = re.split(r"[_\s,;]+", str(chapter_str))
@@ -219,6 +219,26 @@ def get_assignment_summary(student_code: str, level: str) -> dict:
             if m:
                 nums.append(float(m.group()))
         return nums
+
+    def _extract_max_num(chapter: str):
+        nums = re.findall(r"\d+(?:\.\d+)?", str(chapter))
+        return max([float(n) for n in nums], default=None)
+
+    def _contains_goethe(lesson: dict) -> bool:
+        text = f"{lesson.get('topic', '')} {lesson.get('instruction', '')}".lower()
+        return "goethe" in text
+
+    FINAL_ASSIGNMENTS = {"A1": 14.1, "A2": 10.28, "B1": 10.28}
+    max_allowed = FINAL_ASSIGNMENTS.get(lvl, float("inf"))
+
+    schedule: list[dict] = []
+    for lesson in schedule_raw:
+        if _contains_goethe(lesson):
+            continue
+        max_chap = _extract_max_num(lesson.get("chapter", ""))
+        if max_chap and max_chap > max_allowed:
+            continue
+        schedule.append(lesson)
 
     completed_nums = set()
     for _, row in df.iterrows():
@@ -242,10 +262,6 @@ def get_assignment_summary(student_code: str, level: str) -> dict:
     def _is_recommendable(lesson: dict) -> bool:
         topic = str(lesson.get("topic", "")).lower()
         return not ("schreiben" in topic and "sprechen" in topic)
-
-    def _extract_max_num(chapter: str):
-        nums = re.findall(r"\d+(?:\.\d+)?", str(chapter))
-        return max([float(n) for n in nums], default=None)
 
     completed_chapters = []
     for a in df["assignment"]:
