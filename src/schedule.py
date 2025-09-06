@@ -484,7 +484,10 @@ def get_a1_schedule():
                 "The Schreiben Trainer includes pre-filled questions on typical topics. "
                 "Exams Mode links to past Goethe questions; only the Hörverstehen audio is missing, so use YouTube for listening practice. "
                 "You'll keep access to your tutor until your contract officially ends. "
-                "If you enjoyed the course, please leave us a positive review on [Google](https://g.page/r/YOUR_REVIEW_ID/review)."
+                "If you enjoyed the course, please leave us a positive review on "
+                "[Google](<https://www.google.com/maps/place/Learn+Language+Education+Academy+(Former+%22Learn+German+Ghana%22)/@5.5814065,-0.2752282,17z/data=!3m1!4b1!4m6!3m5!1s0xfdf9838bd7f57d1:0xbd2e1fb7eabd20da!8m2!3d5.5814065!4d-0.2752282!16s%2Fg%2F11fz9wvzdy?entry=ttu&g_ep=EgoyMDI1MDkwMy4wIKXMDSoASAFQAw%3D%3D>). "
+                "Visit https://www.learngermanghana.com/upcoming-classes to choose your next class and "
+                "complete registration via https://register.falowen.app."
             ),
         }
     ]
@@ -916,7 +919,10 @@ def get_a2_schedule():
                 "The Schreiben Trainer includes pre-filled questions on typical topics. "
                 "Exams Mode links to past Goethe questions; only the Hörverstehen audio is missing, so use YouTube for listening practice. "
                 "You'll keep access to your tutor until your contract officially ends. "
-                "If you enjoyed the course, please leave us a positive review on [Google](https://g.page/r/YOUR_REVIEW_ID/review)."
+                "If you enjoyed the course, please leave us a positive review on "
+                "[Google](<https://www.google.com/maps/place/Learn+Language+Education+Academy+(Former+%22Learn+German+Ghana%22)/@5.5814065,-0.2752282,17z/data=!3m1!4b1!4m6!3m5!1s0xfdf9838bd7f57d1:0xbd2e1fb7eabd20da!8m2!3d5.5814065!4d-0.2752282!16s%2Fg%2F11fz9wvzdy?entry=ttu&g_ep=EgoyMDI1MDkwMy4wIKXMDSoASAFQAw%3D%3D>). "
+                "Visit https://www.learngermanghana.com/upcoming-classes to choose your next class and "
+                "complete registration via https://register.falowen.app."
             ),
         }
     ]
@@ -1344,7 +1350,10 @@ def get_b1_schedule():
                 "The Schreiben Trainer includes pre-filled questions on typical topics. "
                 "Exams Mode links to past Goethe questions; only the Hörverstehen audio is missing, so use YouTube for listening practice. "
                 "You'll keep access to your tutor until your contract officially ends. "
-                "If you enjoyed the course, please leave us a positive review on [Google](https://g.page/r/YOUR_REVIEW_ID/review)."
+                "If you enjoyed the course, please leave us a positive review on "
+                "[Google](<https://www.google.com/maps/place/Learn+Language+Education+Academy+(Former+%22Learn+German+Ghana%22)/@5.5814065,-0.2752282,17z/data=!3m1!4b1!4m6!3m5!1s0xfdf9838bd7f57d1:0xbd2e1fb7eabd20da!8m2!3d5.5814065!4d-0.2752282!16s%2Fg%2F11fz9wvzdy?entry=ttu&g_ep=EgoyMDI1MDkwMy4wIKXMDSoASAFQAw%3D%3D>). "
+                "Visit https://www.learngermanghana.com/upcoming-classes to choose your next class and "
+                "complete registration via https://register.falowen.app."
             ),
         },
     ]
@@ -1708,7 +1717,10 @@ def get_b2_schedule():
                 "The Schreiben Trainer includes pre-filled questions on typical topics. "
                 "Exams Mode links to past Goethe questions; only the Hörverstehen audio is missing, so use YouTube for listening practice. "
                 "You'll keep access to your tutor until your contract officially ends. "
-                "If you enjoyed the course, please leave us a positive review on [Google](https://g.page/r/YOUR_REVIEW_ID/review)."
+                "If you enjoyed the course, please leave us a positive review on "
+                "[Google](<https://www.google.com/maps/place/Learn+Language+Education+Academy+(Former+%22Learn+German+Ghana%22)/@5.5814065,-0.2752282,17z/data=!3m1!4b1!4m6!3m5!1s0xfdf9838bd7f57d1:0xbd2e1fb7eabd20da!8m2!3d5.5814065!4d-0.2752282!16s%2Fg%2F11fz9wvzdy?entry=ttu&g_ep=EgoyMDI1MDkwMy4wIKXMDSoASAFQAw%3D%3D>). "
+                "Visit https://www.learngermanghana.com/upcoming-classes to choose your next class and "
+                "complete registration via https://register.falowen.app."
             ),
         }
     ]
