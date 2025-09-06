@@ -87,6 +87,7 @@ from src.firestore_utils import (
     save_ai_response,
     fetch_attendance_summary,
 )
+from src.attendance_utils import load_attendance_records
 from src.ui_components import (
     render_assignment_reminder,
     render_link,
@@ -3323,7 +3324,7 @@ if tab == "My Course":
 
         classroom_section = st.radio(
             "Classroom section",
-            ["Calendar", "Join on Zoom", "Members", "Class Notes & Q&A"],
+            ["Calendar", "Join on Zoom", "Members", "Class Notes & Q&A", "Attendance"],
             horizontal=True,
             key="classroom_page",
             on_change=on_classroom_page_change,
@@ -3868,7 +3869,7 @@ if tab == "My Course":
 
                 st.markdown(
                     f"""
-                    **Computer or iPhone:** Download the **.ics** above and install.  
+                    **Computer or iPhone:** Download the **.ics** above and install.
                     - **Computer (Google Calendar web):** calendar.google.com → **Settings** → **Import & export** → **Import**.
                     - **iPhone (Apple Calendar):** Download the `.ics`, open it, choose notifications, then **Done**.
 
@@ -3878,6 +3879,41 @@ if tab == "My Course":
                     """,
                     unsafe_allow_html=True,
                 )
+
+        # ===================== ATTENDANCE =====================
+        elif classroom_section == "Attendance":
+            with st.container():
+                st.markdown(
+                    """
+                    <div style="
+                        padding:10px 12px;
+                        background:#f0f9ff;
+                        border:1px solid #bae6fd;
+                        border-radius:12px;
+                        margin: 6px 0 8px 0;
+                        display:flex;align-items:center;gap:8px;">
+                      <span style="font-size:1.05rem;">📊 <b>Attendance</b></span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                records, sessions_attended, hours_invested = load_attendance_records(
+                    student_code, class_name
+                )
+                cols = st.columns(2)
+                cols[0].metric("Attended sessions", sessions_attended)
+                cols[1].metric("Invested hours", f"{hours_invested:.1f}")
+                if records:
+                    df_att = pd.DataFrame(records)
+                    df_att["Present"] = df_att.pop("present").map({True: "✓", False: ""})
+                    df_att.rename(columns={"session": "Session"}, inplace=True)
+                    st.dataframe(
+                        df_att,
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+                else:
+                    st.info("No attendance records found yet.")
 
         # ===================== MEMBERS =====================
         elif classroom_section == "Members":
