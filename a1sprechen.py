@@ -4463,7 +4463,9 @@ if tab == "My Course":
                 st.session_state.pop("__clear_q_form", None)
                 st.session_state["q_topic"] = ""
                 st.session_state["q_text"] = ""
+                st.session_state["q_link"] = ""
             topic = st.text_input("Topic (optional)", key="q_topic")
+            link = st.text_input("Link (optional)", key="q_link")
 
             st.markdown(
                 """
@@ -4488,6 +4490,7 @@ if tab == "My Course":
                         "asked_by_code": student_code,
                         "timestamp": _dt.utcnow(),
                         "topic": (topic or "").strip(),
+                        "link": (link or "").strip(),
                     }
                     board_base.document(q_id).set(payload)
                     preview = (formatted_q[:180] + "…") if len(formatted_q) > 180 else formatted_q
@@ -4584,12 +4587,18 @@ if tab == "My Course":
                     ts_label = _fmt_ts(ts)
                     topic_html = (f"<div style='font-size:0.9em;color:#666;'>{q.get('topic','')}</div>" if q.get("topic") else "")
                     content_html = format_post(q.get("content", "")).replace("\n", "<br>")
+                    link_html = (
+                        f"<div style='margin-top:4px;'><a href='{q.get('link')}' target='_blank'>{q.get('link')}</a></div>"
+                        if q.get("link")
+                        else ""
+                    )
                     st.markdown(
                         f"<div style='padding:10px;background:#f8fafc;border:1px solid #ddd;border-radius:6px;margin:6px 0;'>"
                         f"<b>{q.get('asked_by_name','')}</b>"
                         f"<span style='color:#aaa;'> • {ts_label}</span>"
                         f"{topic_html}"
                         f"{content_html}"
+                        f"{link_html}"
                         f"</div>",
                         unsafe_allow_html=True
                     )
@@ -4602,6 +4611,7 @@ if tab == "My Course":
                                 st.session_state[f"q_editing_{q_id}"] = True
                                 st.session_state[f"q_edit_text_{q_id}"] = q.get("content", "")
                                 st.session_state[f"q_edit_topic_{q_id}"] = q.get("topic", "")
+                                st.session_state[f"q_edit_link_{q_id}"] = q.get("link", "")
                         with qc2:
                             if st.button("🗑️ Delete", key=f"q_del_btn_{q_id}"):
                                 try:
@@ -4626,6 +4636,11 @@ if tab == "My Course":
                                     value=st.session_state.get(f"q_edit_topic_{q_id}", ""),
                                     key=f"q_edit_topic_input_{q_id}"
                                 )
+                                new_link = st.text_input(
+                                    "Edit link (optional)",
+                                    value=st.session_state.get(f"q_edit_link_{q_id}", ""),
+                                    key=f"q_edit_link_input_{q_id}"
+                                )
                                 new_text = st.text_area(
                                     "Edit post",
                                     value=st.session_state.get(f"q_edit_text_{q_id}", ""),
@@ -4640,6 +4655,7 @@ if tab == "My Course":
                                     board_base.document(q_id).update({
                                         "content": formatted_edit,
                                         "topic": (new_topic or "").strip(),
+                                        "link": (new_link or "").strip(),
                                     })
                                     _notify_slack(
                                         f"✏️ *Class Board post edited* — {class_name}\n",
