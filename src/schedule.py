@@ -903,18 +903,6 @@ def get_a2_schedule():
         # DAY 29
         {
             "day": 29,
-            "topic": "Goethe Mock Test 10.29",
-            "chapter": "10.29",
-            "goal": "Practice how the final exams for the lesen will look like",
-            "assignment": True,
-            "instruction": "Answer everything on the phone and dont write in your book. The answers will be sent to your email",
-            "video": "",
-            "youtube_link": "",
-            "workbook_link": "https://forms.gle/YqCEMXTF5d3N9Q7C7"
-        },
-        # DAY 30
-        {
-            "day": 30,
             "topic": "Congratulations!",
             "chapter": "15",
             "assignment": False,
