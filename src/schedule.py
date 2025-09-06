@@ -5,7 +5,7 @@ import streamlit as st
 
 
 def get_a1_schedule() -> list[dict]:
-    """Return a minimal A1 schedule."""
+    """Return a full A1 schedule."""
     return [
         {
             "day": 0,
