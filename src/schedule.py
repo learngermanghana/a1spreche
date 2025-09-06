@@ -13,28 +13,30 @@ def get_a1_schedule():
             "goal": "Welcome to the A1 German course! This first chapter is a guided tour showing how the course works. Your name is automatically pulled from your profile, so every page greets you personally.",
             "instruction": """Daily Focus Options
 
-    Lesen & Hören
-    Schreiben & Sprechen
+    Lesen & Hören  
+        • Tutor Lecture-oriented: Tutor will do about 90% and student about 10%.  
+        • Tutor explains the grammar concepts clearly for understanding.  
+
+    Schreiben & Sprechen  
+        • Practical session: Student will do about 90% and tutor 10%.  
+        • Tutor tests student knowledge to ensure full understanding of previous lessons.  
 
 Chapter Structure
-
-    Goal
-    Instructions
-    Recorded Lectures
-    Grammar Notes
-    Workbook Exercises
+    • Goal  
+    • Instructions  
+    • Recorded Lectures  
+    • Grammar Notes  
+    • Workbook Exercises  
 
 Tabs in the Course Interface
-
-    Overview
-    Assignments
-    Submit
+    • Overview  
+    • Assignments (contains your recorded lecture, grammar, and workbook)  
+    • Submit  
 
 Submitting Work
-
-    Use the level selector at the top.
-    Upload your work via the Submit tab.
-    Receive email or Telegram notifications when your work is reviewed.
+    • Use the level selector at the top.  
+    • Upload your work via the Submit tab.  
+    • Receive email or Telegram notifications when your work is reviewed.  
             """,
             "grammar_topic": None,
             "assignment": False,
