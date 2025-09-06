@@ -227,3 +227,55 @@ def save_response(post_id: str, text: str, responder_code: str) -> None:
     except Exception as exc:  # pragma: no cover - runtime depends on Firestore
         logging.warning("Failed to save response for %s: %s", post_id, exc)
 
+
+def fetch_attendance_summary(student_code: str, class_name: str) -> tuple[int, float]:
+    """Return ``(sessions, hours)`` attended by ``student_code`` in ``class_name``.
+
+    The data is expected under ``attendance/{class_name}/sessions`` where each
+    session document contains an ``attendees`` mapping of student codes to hours
+    attended.  If Firestore is unavailable or an error occurs, ``(0, 0.0)`` is
+    returned.
+    """
+
+    if db is None:
+        return 0, 0.0
+
+    try:
+        sessions_ref = (
+            db.collection("attendance")
+            .document(class_name)
+            .collection("sessions")
+        )
+        count = 0
+        hours = 0.0
+        for snap in sessions_ref.stream():
+            data = snap.to_dict() or {}
+            attendees = data.get("attendees", {}) or {}
+            if isinstance(attendees, dict) and student_code in attendees:
+                count += 1
+                try:
+                    hours += float(attendees.get(student_code, 0) or 0)
+                except Exception:
+                    pass
+            elif isinstance(attendees, list):
+                for item in attendees:
+                    if (
+                        isinstance(item, dict)
+                        and item.get("code") == student_code
+                    ):
+                        count += 1
+                        try:
+                            hours += float(item.get("hours", 0) or 0)
+                        except Exception:
+                            pass
+                        break
+        return count, hours
+    except Exception as exc:  # pragma: no cover - runtime depends on Firestore
+        logging.exception(
+            "Failed to fetch attendance summary for %s/%s: %s",
+            class_name,
+            student_code,
+            exc,
+        )
+        return 0, 0.0
+

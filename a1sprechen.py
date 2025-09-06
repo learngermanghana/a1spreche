@@ -85,6 +85,7 @@ from src.firestore_utils import (
     save_chat_draft_to_db,
     save_draft_to_db,
     save_ai_response,
+    fetch_attendance_summary,
 )
 from src.ui_components import (
     render_assignment_reminder,
@@ -1233,6 +1234,16 @@ if tab == "Dashboard":
         _qp_set(tab="My Course")
         st.rerun()
 
+    def _go_attendance() -> None:
+        st.session_state["nav_sel"] = "My Course"
+        st.session_state["main_tab_select"] = "My Course"
+        st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
+        st.session_state["cb_prev_subtab"] = "🧑‍🏫 Classroom"
+        st.session_state["classroom_page"] = "Attendance"
+        st.session_state["classroom_prev_page"] = "Attendance"
+        _qp_set(tab="My Course")
+        st.rerun()
+
     st.button("View class board", on_click=_go_classboard)
 
     # ---------- Helpers ----------
@@ -1378,6 +1389,14 @@ if tab == "Dashboard":
     else:
         _next_chip = "<span class='pill pill-green'>All caught up</span>"
         _next_sub = ""
+    _class_name = str(safe_get(student_row, "ClassName", "")).strip()
+    _att_sessions, _att_hours = (0, 0.0)
+    if _class_name and _student_code:
+        _att_sessions, _att_hours = fetch_attendance_summary(_student_code, _class_name)
+    _attendance_chip = (
+        f"<span class='pill pill-purple'>{_att_sessions} sessions • {_att_hours:.1f}h</span>"
+    )
+
 
 
     st.markdown(
@@ -1408,10 +1427,16 @@ if tab == "Dashboard":
             <div>{_next_chip}</div>
             <div class="sub">{_next_sub}</div>
           </div>
+          <div class="minicard">
+            <h4>🕛 Attendance</h4>
+            <div>{_attendance_chip}</div>
+            <div class="sub"></div>
+          </div>
         </div>
         """,
         unsafe_allow_html=True
     )
+    st.button("View attendance", on_click=_go_attendance)
     st.divider()
 
     # ---------- Student header (compact) + details (expander) ----------
