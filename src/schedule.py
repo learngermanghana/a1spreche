@@ -483,8 +483,11 @@ def get_a1_schedule():
                 "Use Exams Mode, Custom Chat, the Vocabulary Trainer, and the Schreiben Trainer for complete exam prep. "
                 "The Schreiben Trainer includes pre-filled questions on typical topics. "
                 "Exams Mode links to past Goethe questions; only the Hörverstehen audio is missing, so use YouTube for listening practice. "
-                "You'll keep access to your tutor until your contract officially ends. "
-                "If you enjoyed the course, please leave us a positive review on [Google](https://g.page/r/YOUR_REVIEW_ID/review)."
+                "You'll keep access to your tutor until your contract officially ends.\n\n"
+                "**Next Steps**\n"
+                "- Leave a positive review on [Google](https://g.page/r/Cdogveq3Hy69EBM/review).\n"
+                "- Visit https://www.learngermanghana.com/upcoming-classes to choose your next class.\n"
+                "- Complete registration via https://register.falowen.app."
             ),
         }
     ]
@@ -915,8 +918,11 @@ def get_a2_schedule():
                 "Use Exams Mode, Custom Chat, the Vocabulary Trainer, and the Schreiben Trainer for complete exam prep. "
                 "The Schreiben Trainer includes pre-filled questions on typical topics. "
                 "Exams Mode links to past Goethe questions; only the Hörverstehen audio is missing, so use YouTube for listening practice. "
-                "You'll keep access to your tutor until your contract officially ends. "
-                "If you enjoyed the course, please leave us a positive review on [Google](https://g.page/r/YOUR_REVIEW_ID/review)."
+                "You'll keep access to your tutor until your contract officially ends.\n\n"
+                "**Next Steps**\n"
+                "- Leave a positive review on [Google](https://g.page/r/Cdogveq3Hy69EBM/review).\n"
+                "- Visit https://www.learngermanghana.com/upcoming-classes to choose your next class.\n"
+                "- Complete registration via https://register.falowen.app."
             ),
         }
     ]
@@ -1343,8 +1349,11 @@ def get_b1_schedule():
                 "Use Exams Mode, Custom Chat, the Vocabulary Trainer, and the Schreiben Trainer for complete exam prep. "
                 "The Schreiben Trainer includes pre-filled questions on typical topics. "
                 "Exams Mode links to past Goethe questions; only the Hörverstehen audio is missing, so use YouTube for listening practice. "
-                "You'll keep access to your tutor until your contract officially ends. "
-                "If you enjoyed the course, please leave us a positive review on [Google](https://g.page/r/YOUR_REVIEW_ID/review)."
+                "You'll keep access to your tutor until your contract officially ends.\n\n"
+                "**Next Steps**\n"
+                "- Leave a positive review on [Google](https://g.page/r/Cdogveq3Hy69EBM/review).\n"
+                "- Visit https://www.learngermanghana.com/upcoming-classes to choose your next class.\n"
+                "- Complete registration via https://register.falowen.app."
             ),
         },
     ]
@@ -1707,8 +1716,11 @@ def get_b2_schedule():
                 "Use Exams Mode, Custom Chat, the Vocabulary Trainer, and the Schreiben Trainer for complete exam prep. "
                 "The Schreiben Trainer includes pre-filled questions on typical topics. "
                 "Exams Mode links to past Goethe questions; only the Hörverstehen audio is missing, so use YouTube for listening practice. "
-                "You'll keep access to your tutor until your contract officially ends. "
-                "If you enjoyed the course, please leave us a positive review on [Google](https://g.page/r/YOUR_REVIEW_ID/review)."
+                "You'll keep access to your tutor until your contract officially ends.\n\n"
+                "**Next Steps**\n"
+                "- Leave a positive review on [Google](https://g.page/r/Cdogveq3Hy69EBM/review).\n"
+                "- Visit https://www.learngermanghana.com/upcoming-classes to choose your next class.\n"
+                "- Complete registration via https://register.falowen.app."
             ),
         }
     ]
