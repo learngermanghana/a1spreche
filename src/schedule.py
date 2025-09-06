@@ -511,8 +511,78 @@ Use:
     ]
 
 
-def get_a2_schedule():
+def get_a1_schedule():
     return [
+        # DAY 0 - TUTORIAL
+        {
+            "day": 0,
+            "topic": "Tutorial – Course Overview for Levels A2, B1, B2",
+            "chapter": "Tutorial",
+            "goal": "Welcome to Day 0! This orientation page introduces how our four-part course is organized and how you’ll navigate the overview, assignment, and submit tabs each day.",
+            "instruction": """1. Overview
+
+Purpose: Recommends your learning path and the order to approach each day’s materials.
+
+Course Structure: Each day is divided into four Teile (parts).
+
+    Teil 1 – Group Practice (no assignment)
+        • Read this section one chapter ahead to prepare for class discussions.  
+        • It includes a topic-of-the-day and tips to spark conversation.  
+        • Participation here is essential; unprepared students may find it difficult to contribute.  
+        • For extra practice, go to Exams Mode → Custom Chat. Copy or type the daily question into the chat; the AI will offer tips so you arrive “three times prepared.”  
+
+    Teil 2 – Schreiben (Writing Assignment)
+        • Use the Schreibentrainer tools to draft and refine your writing.  
+        • This segment is part of your daily assignment.  
+
+    Teil 3 – Lesen (Reading Assignment)
+        • Contains seven comprehension questions.  
+        • This segment is also part of your assignment.  
+
+    Teil 4 – Hören (Listening Assignment)
+        • Includes five listening questions.  
+        • This segment completes your assignment set.  
+
+2. Assignment
+
+    Workbook: All assignment tasks (Teile 2–4) are housed here.  
+
+    Recorded Lecture & Grammar Notes: Each day offers a recorded lecture and grammar notebook.  
+        • The grammar section serves as your personal notes.  
+        • The workbook portion is the space where you complete Teile 2–4.  
+
+3. Submit
+
+    Submission Steps:  
+        • Copy the completed answers from Teile 2, 3, and 4 in your workbook.  
+        • Paste them into the Submit tab.  
+        • Tick the two confirmation boxes.  
+        • Click “Submit.”  
+
+    Feedback:  
+        • Your results will be sent by email.  
+        • If you opt in to Telegram notifications, you’ll receive them automatically as well.  
+
+Summary
+    • Teil 1: Prepare for group discussion (no submission).  
+    • Teil 2–4: Complete writing, reading, and listening assignments daily.  
+    • Stay Ahead: Always read Teil 1 one chapter in advance.  
+    • Be Prepared: Use Exams Mode → Custom Chat to practice the question of the day.  
+    • Use Tools: Schreibentrainer for writing, recorded lectures for each topic, and grammar notes for quick reference.  
+    • Submit Work: Teile 2–4 only, via the Submit tab.  
+
+Good luck and viel Erfolg on your language journey!
+            """,
+            "grammar_topic": None,
+            "assignment": False,
+            "lesen_hören": {
+                "video": None,
+                "youtube_link": None,
+                "grammarbook_link": None,
+                "workbook_link": None
+            }
+        },
+
         # DAY 1
         {
             "day": 1,
@@ -880,6 +950,8 @@ def get_a2_schedule():
         },
         # DAY 28
         {
+        # DAY 28
+        {
             "day": 28,
             "topic": "Über die Zukunft sprechen 10.28",
             "chapter": "10.28",
@@ -890,23 +962,113 @@ def get_a2_schedule():
             "youtube_link": "",
             "workbook_link": "https://drive.google.com/file/d/1164aJFtkZM1AMb87s1-K59wuobD7q34U/view?usp=sharing"
         },
-        # DAY 29
+
+        # DAY 29 - CONGRATULATIONS
         {
             "day": 29,
-            "topic": "Goethe Mock Test 10.29",
-            "chapter": "10.29",
-            "goal": "Practice how the final exams for the lesen will look like",
-            "assignment": True,
-            "instruction": "Answer everything on the phone and dont write in your book. The answers will be sent to your email",
-            "video": "",
-            "youtube_link": "",
-            "workbook_link": "https://forms.gle/YqCEMXTF5d3N9Q7C7"
+            "topic": "Course Completed!",
+            "chapter": None,
+            "goal": "🎯 Goal: Celebrate your achievement and plan your next steps.",
+            "instruction": """📝 Instruction: Congratulations on finishing your A2 course. 
+You worked hard and made excellent progress. The school will confirm your results and send your completion certificate to your email. 
+
+Kindly communicate with us what you would like to do next by emailing **learngermanghana@gmail.com**. 
+You can prepare for the A2 exams or progress to B1. We wish you continued success in your journey. 
+
+Use:
+- **Exams Mode** (links to past Goethe questions; only Hörverstehen audio is missing, so use YouTube for listening practice)  
+- **Custom Chat**  
+- **Vocabulary Trainer**  
+- **Schreiben Trainer** (includes pre-filled questions on typical exam topics)  
+
+📌 Note: You’ll keep access to your tutor until your contract officially ends.  
+💡 If you enjoyed the course, please [leave us a positive review on Google](https://g.page/r/Cdogveq3Hy69EBE/review).  
+            """,
+            "grammar_topic": None,
+            "assignment": False,
+            "lesen_hören": {
+                "video": None,
+                "youtube_link": None,
+                "grammarbook_link": None,
+                "workbook_link": None
+            }
         },
     ]
-#
+
+
 def get_b1_schedule():
     return [
-        # TAG 1
+        # DAY 0 - TUTORIAL
+        {
+            "day": 0,
+            "topic": "Tutorial – Course Overview for Levels A2, B1, B2",
+            "chapter": "Tutorial",
+            "goal": "Welcome to Day 0! This orientation page introduces how our four-part course is organized and how you’ll navigate the overview, assignment, and submit tabs each day.",
+            "instruction": """1. Overview
+
+Purpose: Recommends your learning path and the order to approach each day’s materials.
+
+Course Structure: Each day is divided into four Teile (parts).
+
+    Teil 1 – Group Practice (no assignment)
+        • Read this section one chapter ahead to prepare for class discussions.  
+        • It includes a topic-of-the-day and tips to spark conversation.  
+        • Participation here is essential; unprepared students may find it difficult to contribute.  
+        • For extra practice, go to Exams Mode → Custom Chat. Copy or type the daily question into the chat; the AI will offer tips so you arrive “three times prepared.”  
+
+    Teil 2 – Schreiben (Writing Assignment)
+        • Use the Schreibentrainer tools to draft and refine your writing.  
+        • This segment is part of your daily assignment.  
+
+    Teil 3 – Lesen (Reading Assignment)
+        • Contains seven comprehension questions.  
+        • This segment is also part of your assignment.  
+
+    Teil 4 – Hören (Listening Assignment)
+        • Includes five listening questions.  
+        • This segment completes your assignment set.  
+
+2. Assignment
+
+    Workbook: All assignment tasks (Teile 2–4) are housed here.  
+
+    Recorded Lecture & Grammar Notes: Each day offers a recorded lecture and grammar notebook.  
+        • The grammar section serves as your personal notes.  
+        • The workbook portion is the space where you complete Teile 2–4.  
+
+3. Submit
+
+    Submission Steps:  
+        • Copy the completed answers from Teile 2, 3, and 4 in your workbook.  
+        • Paste them into the Submit tab.  
+        • Tick the two confirmation boxes.  
+        • Click “Submit.”  
+
+    Feedback:  
+        • Your results will be sent by email.  
+        • If you opt in to Telegram notifications, you’ll receive them automatically as well.  
+
+Summary
+    • Teil 1: Prepare for group discussion (no submission).  
+    • Teil 2–4: Complete writing, reading, and listening assignments daily.  
+    • Stay Ahead: Always read Teil 1 one chapter in advance.  
+    • Be Prepared: Use Exams Mode → Custom Chat to practice the question of the day.  
+    • Use Tools: Schreibentrainer for writing, recorded lectures for each topic, and grammar notes for quick reference.  
+    • Submit Work: Teile 2–4 only, via the Submit tab.  
+
+Good luck and viel Erfolg on your language journey!
+            """,
+            "grammar_topic": None,
+            "assignment": False,
+            "lesen_hören": {
+                "video": None,
+                "youtube_link": None,
+                "grammarbook_link": None,
+                "workbook_link": None
+            }
+        },
+
+        # DAY 1
         {
             "day": 1,
             "topic": "Traumwelten (Übung) 1.1",
@@ -1280,6 +1442,39 @@ def get_b1_schedule():
             "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/1iBeZHMDq_FnusY4kkRwRQvyOfm51-COU/view?usp=sharing"
         },
+
+        # TAG 29 - ABSCHLUSS / GRATULATION
+        {
+            "day": 29,
+            "topic": "Kurs abgeschlossen!",
+            "chapter": None,
+            "goal": "🎯 Ziel: Feiere deinen Erfolg und plane deine nächsten Schritte.",
+            "instruction": """📝 Herzlichen Glückwunsch! Du hast den B1-Deutschkurs erfolgreich abgeschlossen. 
+Du hast fleißig gearbeitet und große Fortschritte gemacht. Die Schule wird deine Ergebnisse bestätigen und dir dein Abschlusszertifikat per E-Mail zusenden.  
+
+Nächste Schritte:  
+- Du kannst dich jetzt auf die **B1-Prüfung** vorbereiten oder direkt mit dem **B2-Kurs** weitermachen.  
+- Nutze weiterhin die Lern-Tools:  
+  • **Prüfungsmodus** (mit alten Goethe-Prüfungsfragen – für Hörverstehen bitte YouTube verwenden)  
+  • **Vokabeltrainer**  
+  • **Schreibtrainer** mit typischen Prüfungsthemen  
+  • **Custom Chat** für zusätzliche Übung  
+
+📌 Hinweis: Dein Zugang zu deinem Tutor bleibt bis zum Ende deines Vertrags aktiv.  
+⭐ Wenn dir der Kurs gefallen hat, hinterlasse uns bitte eine [positive Bewertung auf Google](https://g.page/r/Cdogveq3Hy69EBE/review).  
+
+Wir wünschen dir weiterhin viel Erfolg auf deinem Sprachlernweg! 🚀
+            """,
+            "grammar_topic": None,
+            "assignment": False,
+            "lesen_hören": {
+                "video": None,
+                "youtube_link": None,
+                "grammarbook_link": None,
+                "workbook_link": None
+            }
+        },
+    ]
     ]
 
 
