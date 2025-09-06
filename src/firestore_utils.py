@@ -250,7 +250,10 @@ def fetch_attendance_summary(student_code: str, class_name: str) -> tuple[int, f
         hours = 0.0
         for snap in sessions_ref.stream():
             data = snap.to_dict() or {}
-            attendees = data.get("attendees", {}) or {}
+            if "attendees" in data:
+                attendees = data.get("attendees") or {}
+            else:
+                attendees = data
             if isinstance(attendees, dict) and student_code in attendees:
                 count += 1
                 try:

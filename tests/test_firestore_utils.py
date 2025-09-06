@@ -105,3 +105,39 @@ def test_fetch_attendance_summary_counts_sessions(monkeypatch):
     count, hours = fetch_attendance_summary("abc", "C1")
     assert count == 2
     assert abs(hours - 2.0) < 1e-6
+
+
+def test_fetch_attendance_summary_root_attendees(monkeypatch):
+    class DummySnap:
+        def __init__(self, data):
+            self._data = data
+
+        def to_dict(self):
+            return self._data
+
+    class DummySessions:
+        def stream(self):
+            return [
+                DummySnap({"abc": True, "xyz": True}),
+                DummySnap({"abc": 2, "date": "2024-01-01"}),
+            ]
+
+    class DummyClass:
+        def collection(self, name):
+            assert name == "sessions"
+            return DummySessions()
+
+    class DummyAttendance:
+        def document(self, name):
+            assert name == "C1"
+            return DummyClass()
+
+    class DummyDB:
+        def collection(self, name):
+            assert name == "attendance"
+            return DummyAttendance()
+
+    monkeypatch.setattr(firestore_utils, "db", DummyDB())
+    count, hours = fetch_attendance_summary("abc", "C1")
+    assert count == 2
+    assert abs(hours - 3.0) < 1e-6
