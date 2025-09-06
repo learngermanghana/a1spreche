@@ -84,6 +84,47 @@ def test_load_attendance_records_root_attendees(monkeypatch):
     assert records2 == [{"session": "s1", "present": False}]
 
 
+def test_load_attendance_records_only_student_codes(monkeypatch):
+    class DummySnap:
+        def __init__(self, doc_id, data):
+            self.id = doc_id
+            self._data = data
+
+        def to_dict(self):
+            return self._data
+
+    class DummySessions:
+        def stream(self):
+            return [
+                DummySnap("s1", {"abc": 1}),
+                DummySnap("s2", {"xyz": 1}),
+            ]
+
+    class DummyClass:
+        def collection(self, name):
+            assert name == "sessions"
+            return DummySessions()
+
+    class DummyAttendance:
+        def document(self, name):
+            assert name == "C1"
+            return DummyClass()
+
+    class DummyDB:
+        def collection(self, name):
+            assert name == "attendance"
+            return DummyAttendance()
+
+    monkeypatch.setattr(attendance_utils, "db", DummyDB())
+    records, count, hours = attendance_utils.load_attendance_records("abc", "C1")
+    assert count == 1
+    assert hours == 1.0
+    assert records == [
+        {"session": "s1", "present": True},
+        {"session": "s2", "present": False},
+    ]
+
+
 def test_load_attendance_records_handles_error(monkeypatch):
     class DummyDB:
         def collection(self, name):
