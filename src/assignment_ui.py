@@ -528,7 +528,7 @@ def render_results_and_resources_tab() -> None:
         df_lvl = df_user[df_user.level == level].copy()
         df_lvl["score"] = pd.to_numeric(df_lvl["score"], errors="coerce")
 
-        totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
+        totals = {"A1": 17, "A2": 28, "B1": 28, "B2": 24, "C1": 24}
         total = int(totals.get(level, 0))
         completed = int(df_lvl["assignment"].nunique())
         avg_score = float(df_lvl["score"].mean() or 0)
