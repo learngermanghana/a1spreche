@@ -5,6 +5,37 @@ import streamlit as st
 
 def get_a1_schedule():
     return [
+        # DAY 0 – Tutorial
+        {
+            "day": 0,
+            "topic": "Tutorial",
+            "chapter": "Tutorial",
+            "assignment": False,
+            "goal": (
+                "Welcome to the A1 German course! This first chapter is a guided tour "
+                "showing how the course works. Your name is automatically pulled from your "
+                "profile, so every page greets you personally."
+            ),
+            "instruction": (
+                "**Daily Focus Options**\n"
+                "- *Lesen & Hören*\n"
+                "- *Schreiben & Sprechen*\n\n"
+                "**Chapter Structure**\n"
+                "- Goal\n"
+                "- Instructions\n"
+                "- Recorded Lectures\n"
+                "- Grammar Notes\n"
+                "- Workbook Exercises\n\n"
+                "**Tabs in the Course Interface**\n"
+                "- Overview\n"
+                "- Assignments\n"
+                "- Submit\n\n"
+                "**Submitting Work**\n"
+                "1. Use the level selector at the top.\n"
+                "2. Upload your work via the **Submit** tab.\n"
+                "3. Receive email or Telegram notifications when your work is reviewed.\n"
+            ),
+        },
         # DAY 1
         {
             "day": 1,
