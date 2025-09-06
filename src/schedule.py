@@ -912,6 +912,25 @@ def get_a2_schedule():
             "youtube_link": "",
             "workbook_link": "https://forms.gle/YqCEMXTF5d3N9Q7C7"
         },
+        # DAY 30
+        {
+            "day": 30,
+            "topic": "Congratulations!",
+            "chapter": "15",
+            "assignment": False,
+            "goal": "Celebrate your achievement and plan your next steps.",
+            "instruction": (
+                "Congratulations on finishing your A2 course. You worked hard and made great progress. "
+                "The school will confirm your results and send your completion certificate to your email. "
+                "Kindly communicate with us what you would like to do next by emailing learngermanghana@gmail.com. "
+                "You can prepare for the A2 exams or progress to B1. We wish you continued success in your journey. "
+                "Use Exams Mode, Custom Chat, the Vocabulary Trainer, and the Schreiben Trainer for complete exam prep. "
+                "The Schreiben Trainer includes pre-filled questions on typical topics. "
+                "Exams Mode links to past Goethe questions; only the Hörverstehen audio is missing, so use YouTube for listening practice. "
+                "You'll keep access to your tutor until your contract officially ends. "
+                "If you enjoyed the course, please leave us a positive review on [Google](https://g.page/r/YOUR_REVIEW_ID/review)."
+            ),
+        }
     ]
 #
 def get_b1_schedule():
