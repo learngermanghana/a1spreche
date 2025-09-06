@@ -665,6 +665,7 @@ def render_results_and_resources_tab() -> None:
         summary = get_assignment_summary(code_key, level)
         skipped_assignments = summary.get("missed", [])
         next_assignment = summary.get("next")
+        completed_level = not skipped_assignments and next_assignment is None
 
         if skipped_assignments:
             st.markdown(
@@ -695,7 +696,13 @@ def render_results_and_resources_tab() -> None:
                 f"**Instruction:** {next_assignment.get('instruction','')}"
             )
         else:
-            st.success("🎉 You’re up to date!")
+            if completed_level:
+                st.success(
+                    "🎉 Congratulations! You’ve completed "
+                    f"{level}. Your completion certificate will be emailed to you."
+                )
+            else:
+                st.success("🎉 You’re up to date!")
 
     elif rr_page == "Downloads":
         st.subheader("Downloads")
