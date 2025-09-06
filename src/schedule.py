@@ -1617,6 +1617,12 @@ def load_level_schedules():
         st.session_state["level_schedules"] = _load_level_schedules_cached()
     return st.session_state["level_schedules"]
 
+
+def refresh_level_schedules():
+    """Clear cached level schedules so latest data is loaded on next access."""
+    st.session_state.pop("level_schedules", None)
+    st.cache_data.clear()
+
 # -------------------------
 
 
