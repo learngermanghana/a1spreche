@@ -1478,6 +1478,75 @@ Wir wünschen dir weiterhin viel Erfolg auf deinem Sprachlernweg! 🚀
 
 def get_b2_schedule():
     return [
+        # DAY 0 - TUTORIAL
+        {
+            "day": 0,
+            "topic": "Tutorial – Course Overview",
+            "chapter": "Tutorial",
+            "goal": "Welcome to Day 0! This orientation page introduces how our four-part course is organized and how you’ll navigate the overview, assignment, and submit tabs each day.",
+            "instruction": """1. Overview
+
+Purpose: Recommends your learning path and the order to approach each day’s materials.
+
+Course Structure: Each day is divided into four Teile (parts).
+
+    Teil 1 – Group Practice (no assignment)
+        • Read this section one chapter ahead to prepare for class discussions.
+        • It includes a topic-of-the-day and tips to spark conversation.
+        • Participation here is essential; unprepared students may find it difficult to contribute.
+        • For extra practice, go to Exams Mode → Custom Chat. Copy or type the daily question into the chat; the AI will offer tips so you arrive “three times prepared.”
+
+    Teil 2 – Schreiben (Writing Assignment)
+        • Use the Schreibentrainer tools to draft and refine your writing.
+        • This segment is part of your daily assignment.
+
+    Teil 3 – Lesen (Reading Assignment)
+        • Contains seven comprehension questions.
+        • This segment is also part of your assignment.
+
+    Teil 4 – Hören (Listening Assignment)
+        • Includes five listening questions.
+        • This segment completes your assignment set.
+
+2. Assignment
+
+    Workbook: All assignment tasks (Teile 2–4) are housed here.
+
+    Recorded Lecture & Grammar Notes: Each day offers a recorded lecture and grammar notebook.
+        • The grammar section serves as your personal notes.
+        • The workbook portion is the space where you complete Teile 2–4.
+
+3. Submit
+
+    Submission Steps:
+        • Copy the completed answers from Teile 2, 3, and 4 in your workbook.
+        • Paste them into the Submit tab.
+        • Tick the two confirmation boxes.
+        • Click “Submit.”
+
+    Feedback:
+        • Your results will be sent by email.
+        • If you opt in to Telegram notifications, you’ll receive them automatically as well.
+
+Summary
+    • Teil 1: Prepare for group discussion (no submission).
+    • Teil 2–4: Complete writing, reading, and listening assignments daily.
+    • Stay Ahead: Always read Teil 1 one chapter in advance.
+    • Be Prepared: Use Exams Mode → Custom Chat to practice the question of the day.
+    • Use Tools: Schreibentrainer for writing, recorded lectures for each topic, and grammar notes for quick reference.
+    • Submit Work: Teile 2–4 only, via the Submit tab.
+
+Good luck and viel Erfolg on your language journey!
+            """,
+            "grammar_topic": None,
+            "assignment": False,
+            "lesen_hören": {
+                "video": None,
+                "youtube_link": None,
+                "grammarbook_link": None,
+                "workbook_link": None
+            }
+        },
         {
             "day": 0,
             "topic": "Tutorial – Course Overview",
