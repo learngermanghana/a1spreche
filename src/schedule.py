@@ -950,8 +950,6 @@ Good luck and viel Erfolg on your language journey!
         },
         # DAY 28
         {
-        # DAY 28
-        {
             "day": 28,
             "topic": "Über die Zukunft sprechen 10.28",
             "chapter": "10.28",
@@ -1474,7 +1472,6 @@ Wir wünschen dir weiterhin viel Erfolg auf deinem Sprachlernweg! 🚀
                 "workbook_link": None
             }
         },
-    ]
     ]
 
 
