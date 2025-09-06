@@ -226,6 +226,48 @@ def test_load_attendance_records_dict_attendee_with_hours(monkeypatch):
     assert records == [{"session": "Hallo", "present": True}]
 
 
+def test_load_attendance_records_students_mapping(monkeypatch):
+    class DummySnap:
+        def __init__(self, doc_id, students, label):
+            self.id = doc_id
+            self._students = students
+            self._label = label
+
+        def to_dict(self):
+            return {"students": self._students, "label": self._label}
+
+    class DummySessions:
+        def stream(self):
+            return [
+                DummySnap("s1", {"abc": 1}, "Woche 1: Hallo"),
+                DummySnap("s2", {"xyz": 1}, "Woche 2: Tschuess"),
+            ]
+
+    class DummyClass:
+        def collection(self, name):
+            assert name == "sessions"
+            return DummySessions()
+
+    class DummyAttendance:
+        def document(self, name):
+            assert name == "C1"
+            return DummyClass()
+
+    class DummyDB:
+        def collection(self, name):
+            assert name == "attendance"
+            return DummyAttendance()
+
+    monkeypatch.setattr(attendance_utils, "db", DummyDB())
+    records, count, hours = attendance_utils.load_attendance_records("abc", "C1")
+    assert count == 1
+    assert hours == 1.0
+    assert records == [
+        {"session": "Hallo", "present": True},
+        {"session": "Tschuess", "present": False},
+    ]
+
+
 def test_load_attendance_records_handles_error(monkeypatch):
     class DummyDB:
         def collection(self, name):

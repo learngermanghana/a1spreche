@@ -57,14 +57,15 @@ def normalize_label(label: str) -> str:
 def format_record(doc_id: str, data: Dict[str, Any], student_code: str) -> Tuple[Dict[str, object], float]:
     """Return a normalized attendance record and invested hours.
 
-    ``data`` is the dictionary representation of a session document.  The
-    return value is a tuple ``(record, hours)`` where ``record`` is suitable for
-    display in the UI and ``hours`` indicates the invested time for the
-    student.  The ``record`` mapping contains ``{"session": <label>,
-    "present": <bool>}``.
+    ``data`` is the dictionary representation of a session document.  Attendance
+    may be stored under an ``attendees`` or ``students`` mapping or as
+    top-level keys.  The return value is a tuple ``(record, hours)`` where
+    ``record`` is suitable for display in the UI and ``hours`` indicates the
+    invested time for the student.  The ``record`` mapping contains
+    ``{"session": <label>, "present": <bool>}``.
     """
 
-    attendees = data.get("attendees") or data
+    attendees = data.get("attendees") or data.get("students") or data
     label = normalize_label(data.get("label") or doc_id)
 
     present = False
@@ -316,9 +317,9 @@ def fetch_attendance_summary(student_code: str, class_name: str) -> tuple[int, f
     """Return ``(sessions, hours)`` attended by ``student_code`` in ``class_name``.
 
     The data is expected under ``attendance/{class_name}/sessions`` where each
-    session document contains an ``attendees`` mapping of student codes to hours
-    attended.  If Firestore is unavailable or an error occurs, ``(0, 0.0)`` is
-    returned.
+    session document contains an ``attendees`` or ``students`` mapping of
+    student codes to hours attended.  If Firestore is unavailable or an error
+    occurs, ``(0, 0.0)`` is returned.
     """
 
     if db is None:
@@ -336,6 +337,8 @@ def fetch_attendance_summary(student_code: str, class_name: str) -> tuple[int, f
             data = snap.to_dict() or {}
             if "attendees" in data:
                 attendees = data.get("attendees") or {}
+            elif "students" in data:
+                attendees = data.get("students") or {}
             else:
                 attendees = data
             if isinstance(attendees, dict):
