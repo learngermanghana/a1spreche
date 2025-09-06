@@ -12,6 +12,7 @@ def migrate():
     ops = 0
     for class_doc in qna_ref.stream():
         class_name = class_doc.id
+        level = class_name.split()[0]
         questions_ref = class_doc.reference.collection("questions")
         for qdoc in questions_ref.stream():
             qdata = qdoc.to_dict() or {}
@@ -27,6 +28,8 @@ def migrate():
 
             post_ref = (
                 db.collection("class_board")
+                .document(level)
+                .collection("classes")
                 .document(class_name)
                 .collection("posts")
                 .document(qdoc.id)

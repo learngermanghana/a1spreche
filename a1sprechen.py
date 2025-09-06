@@ -2224,13 +2224,20 @@ def fetch_latest(level: str, code: str, lesson_key: str) -> Optional[Dict[str, A
 # -------------------------
 def post_message(
     level: str,
+    class_name: str,
     code: str,
     name: str,
     content: str,
     reply_to: Optional[str] = None,
 ) -> None:
-    """Post a message to the class board."""
-    posts_ref = db.collection("class_board").document(level).collection("posts")
+    """Post a message to the class board for a specific class."""
+    posts_ref = (
+        db.collection("class_board")
+        .document(level)
+        .collection("classes")
+        .document(class_name)
+        .collection("posts")
+    )
     posts_ref.add(
         {
             "student_code": code,
@@ -4096,7 +4103,13 @@ if tab == "My Course":
 
         # ===================== Class Board =====================
         elif classroom_section == "Class Notes & Q&A":
-            board_base = db.collection("class_board").document(class_name).collection("posts")
+            board_base = (
+                db.collection("class_board")
+                .document(student_level)
+                .collection("classes")
+                .document(class_name)
+                .collection("posts")
+            )
 
 
             _new7, _unans, _total = 0, 0, 0
