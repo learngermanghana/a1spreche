@@ -999,6 +999,7 @@ announcements = [
     {"title": "Download Receipts & Results", "body": "Grab your receipt, results, and enrollment letter under **My Results & Resources**.", "tag": "New"},
     {"title": "Account Deletion Requests", "body": "You can now request account deletion from your account settings.", "tag": "Info"},
     {"title": "Refresh Session Fix", "body": "Frequent refresh session prompts have been resolved for smoother navigation.", "tag": "Update"},
+    {"title": "Attendance Now Being Marked", "body": "Find attendance under My Course ➜ Classroom/Attendance. Telegram notifications are available.", "tag": "New"},
 ]
 
 st.markdown("---")
