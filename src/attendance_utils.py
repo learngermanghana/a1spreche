@@ -41,28 +41,37 @@ def load_attendance_records(
         )
         records: List[Dict[str, object]] = []
         count = 0
+        hours = 0.0
         for snap in sessions_ref.stream():
             data = snap.to_dict() or {}
-            if "attendees" in data:
-                attendees = data.get("attendees") or {}
-            else:
-                attendees = {
-                    k: v
-                    for k, v in data.items()
-                    if isinstance(k, str) and len(k) == 3 and k.isalpha()
-                }
+            attendees = data.get("attendees") or data
+
             present = False
+            session_hours = 0.0
+
             if isinstance(attendees, dict):
-                present = student_code in attendees
+                entry = attendees.get(student_code)
+                if isinstance(entry, dict) and "present" in entry:
+                    present = bool(entry.get("present"))
+                    if present:
+                        session_hours = float(entry.get("hours", 1))
+                elif isinstance(entry, (int, float, bool)):
+                    present = bool(entry)
+                    if present:
+                        session_hours = 1.0
             elif isinstance(attendees, list):
                 present = any(
                     isinstance(item, dict) and item.get("code") == student_code
                     for item in attendees
                 )
+                if present:
+                    session_hours = 1.0
+
             records.append({"session": getattr(snap, "id", ""), "present": present})
             if present:
                 count += 1
-        hours = float(count)
+                hours += session_hours
+
         return records, count, hours
     except Exception as exc:  # pragma: no cover - runtime depends on Firestore
         logging.exception(
