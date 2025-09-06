@@ -3,6 +3,7 @@ from src.firestore_utils import (
     _extract_level_and_lesson,
     save_response,
     save_ai_response,
+    fetch_attendance_summary,
 )
 
 
@@ -67,3 +68,40 @@ def test_save_ai_response_stores_flag(monkeypatch):
     save_ai_response("id1", "hello there", True)
     assert dummy_db.ref.payload["ai_response_suggestion"] == "hello there"
     assert dummy_db.ref.payload["flagged"] is True
+
+
+def test_fetch_attendance_summary_counts_sessions(monkeypatch):
+    class DummySnap:
+        def __init__(self, attendees):
+            self._attendees = attendees
+
+        def to_dict(self):
+            return {"attendees": self._attendees}
+
+    class DummySessions:
+        def stream(self):
+            return [
+                DummySnap({"abc": 1.5, "xyz": 2}),
+                DummySnap({"xyz": 1}),
+                DummySnap({"abc": 0.5}),
+            ]
+
+    class DummyClass:
+        def collection(self, name):
+            assert name == "sessions"
+            return DummySessions()
+
+    class DummyAttendance:
+        def document(self, name):
+            assert name == "C1"
+            return DummyClass()
+
+    class DummyDB:
+        def collection(self, name):
+            assert name == "attendance"
+            return DummyAttendance()
+
+    monkeypatch.setattr(firestore_utils, "db", DummyDB())
+    count, hours = fetch_attendance_summary("abc", "C1")
+    assert count == 2
+    assert abs(hours - 2.0) < 1e-6

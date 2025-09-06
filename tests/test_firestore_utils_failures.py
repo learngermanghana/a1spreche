@@ -150,3 +150,27 @@ def test_save_response_logs_warning_on_failure(monkeypatch, caplog):
     with caplog.at_level(logging.WARNING):
         firestore_utils.save_response("id", "text", "code")
     assert any("Failed to save response" in r.message for r in caplog.records)
+
+
+def test_fetch_attendance_summary_logs_error(monkeypatch, caplog):
+    class DummySessions:
+        def stream(self):
+            raise RuntimeError("boom")
+
+    class DummyClass:
+        def collection(self, name):
+            return DummySessions()
+
+    class DummyAttendance:
+        def document(self, name):
+            return DummyClass()
+
+    class DummyDB:
+        def collection(self, name):
+            return DummyAttendance()
+
+    monkeypatch.setattr(firestore_utils, "db", DummyDB())
+    with caplog.at_level(logging.ERROR):
+        count, hours = firestore_utils.fetch_attendance_summary("code", "ClassA")
+    assert count == 0 and hours == 0.0
+    assert any("Failed to fetch attendance summary" in r.message for r in caplog.records)
