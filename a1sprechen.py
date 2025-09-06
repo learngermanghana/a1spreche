@@ -37,6 +37,10 @@ from openai import OpenAI
 
 from flask import Flask
 from auth import auth_bp
+from src.group_schedules import load_group_schedules
+import src.schedule as _schedule
+load_level_schedules = _schedule.load_level_schedules
+refresh_level_schedules = getattr(_schedule, "refresh_level_schedules", lambda: None)
 
 app = Flask(__name__)
 app.register_blueprint(auth_bp)
@@ -59,6 +63,12 @@ st.set_page_config(
 
 if st.session_state.pop("needs_rerun", False):
     st.rerun()
+
+
+# Ensure the latest lesson schedule is loaded
+if "level_schedules_initialized" not in st.session_state:
+    refresh_level_schedules()
+    st.session_state["level_schedules_initialized"] = True
 
 
 # --- Falowen modules ---
@@ -107,8 +117,6 @@ from src.schreiben import (
     load_schreiben_feedback,
     delete_schreiben_feedback,
 )
-from src.group_schedules import load_group_schedules
-from src.schedule import load_level_schedules
 from src.ui_helpers import (
     qp_get,
     qp_clear,
@@ -827,6 +835,9 @@ def render_sidebar_published():
     st.sidebar.button("📚 Vocab Trainer",            use_container_width=True, on_click=_go, args=("Vocab Trainer",))
     st.sidebar.button("✍️ Schreiben Trainer",        use_container_width=True, on_click=_go, args=("Schreiben Trainer",))
     st.sidebar.button("❓ Class Notes & Q&A",         use_container_width=True, on_click=_go_post_qna)
+    if st.sidebar.button("🔄 Refresh schedule",       use_container_width=True):
+        refresh_level_schedules()
+        st.rerun()
 
     st.sidebar.divider()
 
