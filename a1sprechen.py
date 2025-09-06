@@ -2087,6 +2087,18 @@ def notify_slack_submission(
     except Exception:
         pass  # never block the student
 
+
+def has_telegram_subscription(student_code: str) -> bool:
+    """Return True if the student has enabled Telegram notifications."""
+    _db = globals().get("db")
+    if _db is None:
+        return False
+    try:
+        snap = _db.collection("telegram_subscriptions").document(student_code).get()
+        return snap.exists and bool((snap.to_dict() or {}).get("chat_id"))
+    except Exception:
+        return False
+
 # -------------------------
 # Firestore helpers (uses your existing `db` and `from firebase_admin import firestore`)
 # -------------------------
@@ -3168,6 +3180,25 @@ if tab == "My Course":
                                 f"Receipt: `{short_ref}` • You’ll be emailed when it’s marked. "
                                 "See **Results & Resources** for scores & feedback."
                             )
+                            row = st.session_state.get("student_row") or {}
+                            tg_subscribed = bool(
+                                row.get("TelegramChatID")
+                                or row.get("telegram_chat_id")
+                                or row.get("Telegram")
+                                or row.get("telegram")
+                            )
+                            if not tg_subscribed:
+                                try:
+                                    tg_subscribed = has_telegram_subscription(code)
+                                except Exception:
+                                    tg_subscribed = False
+                            if tg_subscribed:
+                                st.info("You'll also receive a Telegram notification when your score is posted.")
+                            else:
+                                with st.expander("🔔 Subscribe to Telegram notifications", expanded=False):
+                                    st.markdown(
+                                        f"""1. [Open the Falowen bot](https://t.me/falowenbot) and tap **Start**\n2. Register: `/register {code}`\n3. To deactivate: send `/stop`"""
+                                    )
                             answer_text = st.session_state.get(draft_key, "").strip()
                             MIN_WORDS = 20
 
