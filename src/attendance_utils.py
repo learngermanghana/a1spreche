@@ -43,7 +43,14 @@ def load_attendance_records(
         count = 0
         for snap in sessions_ref.stream():
             data = snap.to_dict() or {}
-            attendees = data.get("attendees", {}) or {}
+            if "attendees" in data:
+                attendees = data.get("attendees") or {}
+            else:
+                attendees = {
+                    k: v
+                    for k, v in data.items()
+                    if isinstance(k, str) and len(k) == 3 and k.isalpha()
+                }
             present = False
             if isinstance(attendees, dict):
                 present = student_code in attendees
