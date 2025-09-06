@@ -255,22 +255,41 @@ def fetch_attendance_summary(student_code: str, class_name: str) -> tuple[int, f
             else:
                 attendees = data
             if isinstance(attendees, dict) and student_code in attendees:
-                count += 1
-                try:
-                    hours += float(attendees.get(student_code, 0) or 0)
-                except Exception:
-                    pass
+                entry = attendees.get(student_code)
+                if isinstance(entry, dict):
+                    present = entry.get("present")
+                    if present:
+                        count += 1
+                        if "hours" in entry:
+                            try:
+                                hours += float(entry.get("hours") or 0)
+                            except Exception:
+                                pass
+                        else:
+                            hours += 1.0
+                else:
+                    if entry:
+                        count += 1
+                        try:
+                            hours += float(entry or 0)
+                        except Exception:
+                            pass
             elif isinstance(attendees, list):
                 for item in attendees:
                     if (
                         isinstance(item, dict)
                         and item.get("code") == student_code
                     ):
-                        count += 1
-                        try:
-                            hours += float(item.get("hours", 0) or 0)
-                        except Exception:
-                            pass
+                        present = item.get("present")
+                        if present or present is None:
+                            count += 1
+                            if "hours" in item:
+                                try:
+                                    hours += float(item.get("hours") or 0)
+                                except Exception:
+                                    pass
+                            else:
+                                hours += 1.0
                         break
         return count, hours
     except Exception as exc:  # pragma: no cover - runtime depends on Firestore
