@@ -7,10 +7,94 @@ re-used outside the monolithic :mod:`a1sprechen` module.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import logging
+import re
 from firebase_admin import firestore
+from rapidfuzz import fuzz, process
+
+# Build a canonical list of exercise labels used across the platform.  This
+# allows us to fuzzy-match noisy user-facing titles to their official version.
+try:  # pragma: no cover - schedule/streamlit may be unavailable in some tests
+    from .schedule import get_a1_schedule
+
+    CANONICAL_LABELS = sorted(
+        {
+            item.get("topic", "")
+            for item in get_a1_schedule()  # type: ignore[func-returns-value]
+            if item.get("topic")
+        }
+    )
+except Exception:  # pragma: no cover - best effort for offline tests
+    CANONICAL_LABELS: list[str] = []
+
+
+def normalize_label(label: str) -> str:
+    """Return a cleaned exercise label.
+
+    Removes any leading ``"Woche X:"`` prefix and attempts to fuzzy-match the
+    remainder against :data:`CANONICAL_LABELS`.  If no sufficiently close match
+    is found the cleaned label is returned unchanged.
+    """
+
+    if not label:
+        return ""
+
+    cleaned = re.sub(r"^Woche\s*\d+\s*:\s*", "", label, flags=re.I).strip()
+    if not CANONICAL_LABELS:
+        return cleaned
+
+    match = process.extractOne(
+        cleaned,
+        CANONICAL_LABELS,
+        scorer=fuzz.ratio,
+        score_cutoff=80,
+    )
+    return match[0] if match else cleaned
+
+
+def format_record(doc_id: str, data: Dict[str, Any], student_code: str) -> Tuple[Dict[str, object], float]:
+    """Return a normalized attendance record and invested hours.
+
+    ``data`` is the dictionary representation of a session document.  The
+    return value is a tuple ``(record, hours)`` where ``record`` is suitable for
+    display in the UI and ``hours`` indicates the invested time for the
+    student.  The ``record`` mapping contains ``{"session": <label>,
+    "present": <bool>}``.
+    """
+
+    attendees = data.get("attendees") or data
+    label = normalize_label(data.get("label") or doc_id)
+
+    present = False
+    session_hours = 0.0
+
+    if isinstance(attendees, dict):
+        entry = attendees.get(student_code)
+        if isinstance(entry, dict):
+            present = bool(entry.get("present"))
+            if present:
+                try:
+                    session_hours = float(entry.get("hours", 1) or 0)
+                except Exception:
+                    session_hours = 1.0
+        elif isinstance(entry, (int, float, bool)):
+            present = bool(entry)
+            if present:
+                try:
+                    session_hours = float(entry)
+                except Exception:
+                    session_hours = 1.0
+    elif isinstance(attendees, list):
+        present = any(
+            isinstance(item, dict) and item.get("code") == student_code
+            for item in attendees
+        )
+        if present:
+            session_hours = 1.0
+
+    return {"session": label, "present": present}, session_hours
 
 try:  # Firestore client is optional in test environments
     from falowen.sessions import db  # pragma: no cover - runtime side effect
