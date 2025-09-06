@@ -5,6 +5,47 @@ import streamlit as st
 
 def get_a1_schedule():
     return [
+        # DAY 0
+        {
+            "day": 0,
+            "topic": "Tutorial",
+            "chapter": "Tutorial",
+            "goal": "Welcome to the A1 German course! This first chapter is a guided tour showing how the course works. Your name is automatically pulled from your profile, so every page greets you personally.",
+            "instruction": """Daily Focus Options
+
+    Lesen & Hören
+    Schreiben & Sprechen
+
+Chapter Structure
+
+    Goal
+    Instructions
+    Recorded Lectures
+    Grammar Notes
+    Workbook Exercises
+
+Tabs in the Course Interface
+
+    Overview
+    Assignments
+    Submit
+
+Submitting Work
+
+    Use the level selector at the top.
+    Upload your work via the Submit tab.
+    Receive email or Telegram notifications when your work is reviewed.
+            """,
+            "grammar_topic": None,
+            "assignment": False,
+            "lesen_hören": {
+                "video": None,
+                "youtube_link": None,
+                "grammarbook_link": None,
+                "workbook_link": None
+            }
+        },
+
         # DAY 1
         {
             "day": 1,
@@ -437,18 +478,34 @@ def get_a1_schedule():
                 "workbook_link": "https://drive.google.com/file/d/1LE1b9ilkLLobE5Uw0TVLG0RIVpLK5k1t/view?usp=sharing"
             }
         },
-        # DAY 25
+        # DAY 25 - CONGRATULATIONS
         {
             "day": 25,
-            "topic": "Goethe Mock Test 15",
-            "chapter": "15",
-            "assignment": True,
-            "goal": "This test should help the student have an idea about how the lesen and horen will look like",
-            "instruction": "Open the link and answer the questions using the link. After submit and alert your tutor.",
-            "schreiben_sprechen": {
-                "video": "",
-                "youtube_link": "",
-                "workbook_link": "https://forms.gle/FP8ZPNhwxcAZsTfY6"
+            "topic": "Course Completed!",
+            "chapter": None,
+            "goal": "🎯 Goal: Celebrate your achievement and plan your next steps.",
+            "instruction": """📝 Instruction: Congratulations on finishing your A1 course. 
+You worked hard and made great progress. The school will confirm your results and send your completion certificate to your email. 
+
+Kindly communicate with us what you would like to do next by emailing **learngermanghana@gmail.com**. 
+You can prepare for the A1 exams or progress to A2. We wish you continued success in your journey. 
+
+Use:
+- **Exams Mode** (links to past Goethe questions; only Hörverstehen audio is missing, so use YouTube for listening practice)  
+- **Custom Chat**  
+- **Vocabulary Trainer**  
+- **Schreiben Trainer** (includes pre-filled questions on typical exam topics)  
+
+📌 Note: You’ll keep access to your tutor until your contract officially ends.  
+💡 If you enjoyed the course, please [leave us a positive review on Google](https://g.page/r/Cdogveq3Hy69EBE/review).  
+            """,
+            "grammar_topic": None,
+            "assignment": False,
+            "lesen_hören": {
+                "video": None,
+                "youtube_link": None,
+                "grammarbook_link": None,
+                "workbook_link": None
             }
         }
     ]
