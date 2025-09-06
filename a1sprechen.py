@@ -1464,6 +1464,7 @@ if tab == "Dashboard":
     name = safe_get(student_row, "Name")
     level = safe_get(student_row, "Level", "")
     code  = safe_get(student_row, "StudentCode", "")
+    class_name = safe_get(student_row, "ClassName", "")
     try:
         bal_val = float(str(safe_get(student_row, "Balance", 0)).replace(",", "").strip() or 0)
     except Exception:
@@ -1475,6 +1476,7 @@ if tab == "Dashboard":
         f"background:#ffffff;'>"
         f"<b>👤 {name}</b>"
         f"<span style='background:#eef4ff;color:#2541b2;padding:2px 8px;border-radius:999px;'>Level: {level}</span>"
+        f"<span style='background:#f3e8ff;color:#6b21a8;padding:2px 8px;border-radius:999px;'>Class: {class_name}</span>"
         f"<span style='background:#f1f5f9;color:#334155;padding:2px 8px;border-radius:999px;'>Code: <code>{code}</code></span>"
         + (
             f"<span style='background:#fff7ed;color:#7c2d12;padding:2px 8px;border-radius:999px;'>Balance: {format_cedis(bal_val)}</span>"
