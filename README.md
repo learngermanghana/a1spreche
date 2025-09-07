@@ -1,5 +1,14 @@
 # A1Sprechen
 
+## Brand Colors
+
+| Name       | Hex       |
+|------------|-----------|
+| Background | `#f3f7fb` |
+| Text       | `#1a2340` |
+| Primary    | `#25317e` |
+| Accent     | `#6366f1` |
+
 ## Deployment
 
 Set the cookie encryption password either in Streamlit secrets or via an environment variable:
