@@ -5089,12 +5089,20 @@ if tab == "Exams Mode & Custom Chat":
             send_clicked = st.button(
                 "Send", key=_wkey("chat_send"), type="primary", disabled=chat_locked
             )
+        save_clicked = st.button(
+            "Save draft",
+            key=_wkey("chat_save_draft"),
+            disabled=chat_locked,
+            use_container_width=True,
+        )
 
         user_input = (
             st.session_state.get(draft_key, "").strip()
             if send_clicked and not chat_locked
             else ""
         )
+        if save_clicked:
+            save_now(draft_key, student_code)
         if user_input:
             st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
             st.session_state["falowen_clear_draft"] = True
