@@ -250,7 +250,6 @@ def login_page():
     render_falowen_login(auth_url, show_google_in_hero=False)
 
     # 3) Returning user section (Google CTA below the form)
-    st.markdown("### Returning user login")
     login_success = render_returning_login_area()
     render_google_brand_button_once(auth_url, center=True)
     if login_success:
