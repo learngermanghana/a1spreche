@@ -983,7 +983,8 @@ if tab == "Dashboard":
         
     st.divider()
     # ---------- 3) Motivation mini-cards (streak / vocab / leaderboard) ----------
-    _student_code = (st.session_state.get("student_code", "") or "").strip().lower()
+    _student_code_raw = (st.session_state.get("student_code", "") or "").strip()
+    _student_code = _student_code_raw.lower()
     _df_assign = load_assignment_scores()
     _df_assign["date"] = pd.to_datetime(_df_assign["date"], errors="coerce").dt.date
     _mask_student = _df_assign["studentcode"].str.lower().str.strip() == _student_code
@@ -1067,8 +1068,10 @@ if tab == "Dashboard":
         _next_sub = ""
     _class_name = str(safe_get(student_row, "ClassName", "")).strip()
     _att_sessions, _att_hours = (0, 0.0)
-    if _class_name and _student_code:
-        _att_sessions, _att_hours = fetch_attendance_summary(_student_code, _class_name)
+    if _class_name and _student_code_raw:
+        _att_sessions, _att_hours = fetch_attendance_summary(
+            _student_code_raw, _class_name
+        )
     _attendance_chip = (
         f"<span class='pill pill-purple'>{_att_sessions} sessions • {_att_hours:.1f}h</span>"
     )

@@ -293,3 +293,40 @@ def test_fetch_attendance_summary_dict_attendee(monkeypatch):
     count, hours = fetch_attendance_summary("felixa2", "C1")
     assert count == 2
     assert abs(hours - 2.5) < 1e-6
+
+
+def test_fetch_attendance_summary_mixed_case_student_code(monkeypatch):
+    class DummySnap:
+        def __init__(self, attendees):
+            self._attendees = attendees
+
+        def to_dict(self):
+            return {"attendees": self._attendees}
+
+    class DummySessions:
+        def stream(self):
+            return [
+                DummySnap({"AbC": 1.5, "xyz": 2}),
+                DummySnap({"xyz": 1}),
+                DummySnap({"aBc": 0.5}),
+            ]
+
+    class DummyClass:
+        def collection(self, name):
+            assert name == "sessions"
+            return DummySessions()
+
+    class DummyAttendance:
+        def document(self, name):
+            assert name == "C1"
+            return DummyClass()
+
+    class DummyDB:
+        def collection(self, name):
+            assert name == "attendance"
+            return DummyAttendance()
+
+    monkeypatch.setattr(firestore_utils, "db", DummyDB())
+    count, hours = fetch_attendance_summary("ABC", "C1")
+    assert count == 2
+    assert abs(hours - 2.0) < 1e-6
