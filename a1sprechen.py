@@ -190,6 +190,15 @@ LEVEL_TIPS = {
     "C1": "Discuss complex topics in German and review grammar nuances regularly.",
 }
 
+# Exam preparation advice for each CEFR level.
+EXAM_ADVICE = {
+    "A1": "Focus on listening comprehension to build a strong foundation.",
+    "A2": "Review core grammar and practice everyday conversations.",
+    "B1": "Work on grammar accuracy and write short essays.",
+    "B2": "Engage with longer authentic texts and audio.",
+    "C1": "Hone precision in complex discussions and essays.",
+}
+
 def _get_qp():
     try:
         return qp_get()
@@ -1898,6 +1907,13 @@ if tab == "Dashboard":
                     f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.  \n"
                     f"{fee_text}"
                 )
+
+            st.caption(
+                EXAM_ADVICE.get(
+                    level,
+                    "No exam advice available for your level."
+                )
+            )
 
             playlist_ids = get_playlist_ids_for_level(level)
             fetch_videos = fetch_youtube_playlist_videos
