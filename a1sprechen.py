@@ -6832,4 +6832,4 @@ if tab == "Schreiben Trainer":
 
 
 if st.session_state.pop("need_rerun", False):
-    st.experimental_rerun()
+    st.rerun()
