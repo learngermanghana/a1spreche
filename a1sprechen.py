@@ -6704,10 +6704,12 @@ if tab == "Schreiben Trainer":
     st.info(
         """
         ✍️ **This section is for Writing (Schreiben) only.**
-        - Practice your German letters, emails, and essays for A1–C1 exams.
-        - **Want to prepare for class presentations, topic expansion, or practice Speaking, Reading (Lesen), or Listening (Hören)?**  
-          👉 Go to **Exam Mode & Custom Chat** (tab above)!
-        - **Tip:** Choose your exam level on the right before submitting your letter. Your writing will be checked and scored out of 25 marks, just like in the real exam.
+        Practice German letters, emails, and essays for A1–C1 exams—now with automatic level detection.
+
+        Want to practice presentations or focus on Speaking, Reading, or Listening?
+        👉 Switch to **Exam Mode & Custom Chat** (tab above)!
+
+        Your writing will be assessed and scored out of 25 marks, just like in the real exam.
         """,
         icon="✉️"
     )
