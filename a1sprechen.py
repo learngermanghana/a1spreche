@@ -6615,6 +6615,7 @@ if tab == "Schreiben Trainer":
             if send:
                 user_input = st.session_state[draft_key].strip()
                 save_now(draft_key, student_code)
+                toast_ok("Saved!")
 
             else:
                 user_input = ""
