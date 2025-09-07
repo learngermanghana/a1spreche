@@ -5539,10 +5539,13 @@ if tab == "Vocab Trainer":
 
             mask = (g_contains | e_contains) if match_mode=="Contains" else (g_starts | e_starts) if match_mode=="Starts with" else (g_exact | e_exact)
             if mask.any():
-                df_view = df_view[mask].copy().reset_index(drop=True)
-                exact_mask  = (g_exact | e_exact)
-                starts_mask = (g_starts | e_starts)
-                top_row = df_view[exact_mask].iloc[0] if exact_mask.any() else df_view[starts_mask].iloc[0] if starts_mask.any() else df_view.iloc[0]
+                exact_mask = (g_exact | e_exact) & mask
+                starts_mask = (g_starts | e_starts) & mask
+                df_view = df_view[mask].reset_index(drop=True)
+                exact_mask = exact_mask[mask].reset_index(drop=True)
+                starts_mask = starts_mask[mask].reset_index(drop=True)
+                if not df_view.empty:
+                    top_row = df_view[exact_mask].iloc[0] if exact_mask.any() else df_view[starts_mask].iloc[0] if starts_mask.any() else df_view.iloc[0]
             else:
                 vocab_all = df_view["German"].astype(str).unique().tolist()
                 suggestions = difflib.get_close_matches(q, vocab_all, n=5, cutoff=0.72)
