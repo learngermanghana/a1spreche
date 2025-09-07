@@ -2,12 +2,13 @@ import zlib
 
 from fpdf import FPDF
 
+from src.pdf_handling import FONT_PATH
 from src.pdf_utils import clean_for_pdf
 
 
 def test_pdf_cells_preserve_unicode():
     pdf = FPDF()
-    pdf.add_font("DejaVu", "", "font/DejaVuSans.ttf", uni=True)
+    pdf.add_font("DejaVu", "", str(FONT_PATH), uni=True)
     pdf.add_page()
     pdf.set_font("DejaVu", "", 12)
     # Text with umlauts and ß
@@ -29,7 +30,7 @@ def test_pdf_cells_preserve_unicode():
 
 def test_pdf_cells_preserve_emoji():
     pdf = FPDF()
-    pdf.add_font("DejaVu", "", "font/DejaVuSans.ttf", uni=True)
+    pdf.add_font("DejaVu", "", str(FONT_PATH), uni=True)
     pdf.add_page()
     pdf.set_font("DejaVu", "", 12)
     emoji_txt = clean_for_pdf("Emoji 😊")

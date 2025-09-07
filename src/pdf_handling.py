@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+from pathlib import Path
 from typing import Any, Dict, List
 
 from .pdf_utils import clean_for_pdf
@@ -11,6 +12,9 @@ try:  # pragma: no cover - optional dependency
     from fpdf import FPDF
 except Exception:  # pragma: no cover
     FPDF = None  # type: ignore
+
+
+FONT_PATH = Path(__file__).resolve().parent.parent / "font/DejaVuSans.ttf"
 
 
 def extract_text_from_pdf(pdf_bytes: bytes) -> str:
@@ -38,7 +42,7 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
 
 def generate_notes_pdf(
     notes: List[Dict[str, Any]],
-    font_path: str = "./font/DejaVuSans.ttf",
+    font_path: str = str(FONT_PATH),
 ) -> bytes:
     """Return a PDF containing the provided notes."""
     if FPDF is None:  # pragma: no cover - dependency missing
@@ -82,7 +86,7 @@ def generate_notes_pdf(
 
 def generate_single_note_pdf(
     note: Dict[str, Any],
-    font_path: str = "./font/DejaVuSans.ttf",
+    font_path: str = str(FONT_PATH),
 ) -> bytes:
     """Return a PDF for a single note."""
     if FPDF is None:  # pragma: no cover - dependency missing
@@ -115,7 +119,7 @@ def generate_chat_pdf(messages: List[Dict[str, Any]]) -> bytes:
 
     def _build_pdf(msgs: List[Dict[str, Any]]) -> "FPDF":
         pdf = FPDF()
-        pdf.add_font("DejaVu", "", "./font/DejaVuSans.ttf", uni=True)
+        pdf.add_font("DejaVu", "", str(FONT_PATH), uni=True)
         pdf.add_page()
         pdf.set_font("DejaVu", size=12)
         for m in msgs:
