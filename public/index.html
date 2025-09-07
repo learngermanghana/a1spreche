@@ -10,7 +10,16 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    :root{
+    
+/* --- Accessibility & states --- */
+button:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.err { color: var(--error); font-size: 0.9rem; }
+/* Disabled button state */
+button[disabled] { opacity: .6; cursor: not-allowed; }
+:root{
   --bg: #f3f7fb;
   --bg2: #eef3fc;
   --text: #1a2340;
@@ -239,8 +248,13 @@
     [data-animate="5"] { animation-delay: .2s; }
     @keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
   </style>
+  <link rel="icon" href="/logo.svg" type="image/svg+xml" />
 </head>
 <body>
+  <div class="brand-header" style="display:flex;align-items:center;gap:12px;padding:16px 20px">
+    <img src="/logo.svg" alt="Falowen logo" width="120" height="32" />
+  </div>
+
   <div class="decorations" aria-hidden="true"></div>
   <div class="shell">
 
@@ -308,7 +322,7 @@
             <label for="email">Email</label>
             <div class="input">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M3 7l9 6 9-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><rect x="3" y="5" width="18" height="14" rx="2" ry="2" stroke="currentColor" stroke-width="1.6" fill="none"/></svg>
-              <input id="email" type="email" name="email" placeholder="you@example.com" required autocomplete="email" />
+              <input id="email" type="email" name="email" placeholder="you@example.com" required autocomplete="email" / aria-label="Email">
               <span></span>
             </div>
           </div>
@@ -317,7 +331,8 @@
             <label for="password">Password</label>
             <div class="input">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="3" y="11" width="18" height="10" rx="2" ry="2" stroke="currentColor" stroke-width="1.6"/><path d="M7 11V8a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-              <input id="password" type="password" name="password" placeholder="••••••••" required autocomplete="current-password" />
+              <input id="password" type="password" name="password" placeholder="••••••••" required autocomplete="current-password" / aria-label="Password">
+    <p id="error" class="err" role="alert" aria-live="polite" style="margin-top:6px;"></p>
               <button class="icon-btn" type="button" id="togglePass" aria-label="Show password" title="Show/Hide password">
                 <svg id="eyeOpen" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/></svg>
                 <svg id="eyeClosed" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:none"><path d="M3 3l18 18" stroke="currentColor" stroke-width="1.6"/><path d="M10 5.3A11.8 11.8 0 0 1 12 5c6 0 10 7 10 7a18.8 18.8 0 0 1-4.1 4.86" stroke="currentColor" stroke-width="1.6"/><path d="M6.2 6.2A18.6 18.6 0 0 0 2 12s4 7 10 7c1.1 0 2.1-.18 3.1-.49" stroke="currentColor" stroke-width="1.6"/></svg>
@@ -330,7 +345,7 @@
             <a href="#" onclick="alert('Password reset flow coming soon.'); return false;">Forgot password?</a>
           </div>
 
-          <button class="btn btn-primary" type="submit">
+          <button class="btn btn-primary" type="submit" id="loginBtn">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             Sign In
           </button>
@@ -354,6 +369,29 @@
       eyeOpen.style.display = isHidden ? 'none' : '';
       eyeClosed.style.display = isHidden ? '' : 'none';
     });
-  </script>
+  
+// Accessibility-friendly submit handling
+const loginBtn = document.getElementById('loginBtn');
+if (loginBtn) {
+  loginBtn.addEventListener('click', () => {
+    const form = loginBtn.closest('form') || document;
+    if (!loginBtn.hasAttribute('data-busy')) {
+      loginBtn.setAttribute('data-busy', '1');
+      loginBtn.disabled = true;
+      const prevText = loginBtn.innerText;
+      loginBtn.setAttribute('data-prev', prevText);
+      loginBtn.innerText = 'Signing in…';
+      // Re-enable after 8s safety timeout in case of network issues
+      setTimeout(() => {
+        if (loginBtn.disabled) {
+          loginBtn.disabled = false;
+          loginBtn.innerText = loginBtn.getAttribute('data-prev') || 'Sign in';
+          loginBtn.removeAttribute('data-busy');
+        }
+      }, 8000);
+    }
+  });
+}
+</script>
 </body>
 </html>
