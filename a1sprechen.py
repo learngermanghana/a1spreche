@@ -5273,6 +5273,15 @@ def build_dict_df(levels):
         df = df.drop_duplicates(subset=["Level", "German"]).reset_index(drop=True)
     return df
 
+
+def is_correct_answer(user_input: str, answer: str) -> bool:
+    """Return True if the user's input matches the expected answer.
+
+    Comparison ignores leading/trailing whitespace and letter casing.
+    """
+
+    return user_input.strip().lower() == answer.strip().lower()
+
 # ================================
 # TAB: Vocab Trainer (locked by Level)
 # ================================
