@@ -1,5 +1,4 @@
 [theme]
-# Falowen brand colors
 base = "light"
 primaryColor = "#25317e"
 backgroundColor = "#f3f7fb"
