@@ -271,3 +271,20 @@ html[lang="de"] a:hover, html[lang="de"] button:hover { transform: translateY(-1
 html[lang="de"] .muted { margin-top: 10px; font-size: .92rem; color: var(--sub); }
 html[lang="de"] .status { margin-top: 12px; font-size: .92rem; }
 html[lang="de"] .tips { margin-top: 12px; font-size: .9rem; color: var(--sub); }
+
+.toast {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  display: none;
+}
+
+.toast.show {
+  display: block;
+}
