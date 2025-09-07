@@ -177,6 +177,7 @@ from src.pdf_handling import (
 # Cookie manager
 # ------------------------------------------------------------------------------
 cookie_manager = get_cookie_manager()
+st.session_state["cookie_manager"] = cookie_manager
 
 # ------------------------------------------------------------------------------
 # Google OAuth (Gmail sign-in) — single-source, no duplicate buttons
