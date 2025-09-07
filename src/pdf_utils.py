@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 import requests
+import unicodedata as _ud
 
 try:  # pragma: no cover - optional dependency
     import qrcode
@@ -29,6 +30,24 @@ LOGO_URL = "https://i.imgur.com/iFiehrp.png"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 LOCAL_LOGO = PROJECT_ROOT / "logo.png"
 CACHE_LOGO = Path("/tmp/school_logo.png")
+
+
+def clean_for_pdf(text: str) -> str:
+    """Return ``text`` normalised and stripped of non-printable characters.
+
+    ``fpdf`` can handle Unicode strings when provided with a suitable font.
+    This helper therefore keeps the text in Unicode, normalising it and
+    removing only characters that are not printable so that PDF generation
+    remains stable while user supplied international text — including
+    emoji — stays intact.
+    """
+
+    if not isinstance(text, str):
+        text = str(text)
+    text = _ud.normalize("NFKC", text)
+    text = text.replace("\n", " ").replace("\r", " ")
+    text = "".join(ch for ch in text if ch.isprintable())
+    return text
 
 
 def make_qr_code(data: str) -> bytes:
@@ -78,4 +97,4 @@ def load_school_logo() -> Optional[str]:
         return None
 
 
-__all__ = ["make_qr_code", "load_school_logo"]
+__all__ = ["clean_for_pdf", "make_qr_code", "load_school_logo"]

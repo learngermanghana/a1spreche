@@ -17,8 +17,8 @@ from fpdf import FPDF
 
 from .assignment import linkify_html, _clean_link, _is_http_url
 from .schedule import get_level_schedules as _get_level_schedules
-# ``load_school_logo`` is defined below; only import QR helper here.
-from .pdf_utils import make_qr_code
+# ``load_school_logo`` is defined below; import shared PDF helpers here.
+from .pdf_utils import make_qr_code, clean_for_pdf
 from .data_loading import load_student_data
 from .attendance_utils import load_attendance_records
 from .utils.currency import format_cedis
@@ -74,31 +74,6 @@ def score_label_fmt(score, *, plain: bool = False) -> str:
     if s >= 60:
         return "Sufficient ✔️" if not plain else "Sufficient"
     return "Needs Improvement ❗" if not plain else "Needs Improvement"
-
-
-def clean_for_pdf(text: str) -> str:
-    """Return ``text`` normalised and stripped of non-printable chars.
-
-    The previous implementation attempted to coerce all output to the
-    Latin-1 charset which caused characters like ``ä`` or ``ß`` to be
-    replaced with ``?``.  The updated version keeps the text in Unicode,
-    merely normalising it and dropping only characters that are not
-    printable so that PDF generation remains stable while user supplied
-    international text — including emoji — stays intact.
-    """
-
-    import unicodedata as _ud
-
-    if not isinstance(text, str):
-        text = str(text)
-    # Normalise to a canonical composed form so combined characters such as
-    # ``a\u0308`` become ``ä``.
-    text = _ud.normalize("NFKC", text)
-    # Replace line breaks with spaces to keep layout predictable.
-    text = text.replace("\n", " ").replace("\r", " ")
-    # Filter out any remaining non-printable characters.
-    text = "".join(ch for ch in text if ch.isprintable())
-    return text
 
 
 def load_school_logo() -> str:

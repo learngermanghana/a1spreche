@@ -2,7 +2,7 @@ import zlib
 
 from fpdf import FPDF
 
-from src.assignment_ui import clean_for_pdf
+from src.pdf_utils import clean_for_pdf
 
 
 def test_pdf_cells_preserve_unicode():

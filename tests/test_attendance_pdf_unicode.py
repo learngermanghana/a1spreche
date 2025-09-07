@@ -2,7 +2,7 @@ import zlib
 
 from fpdf import FPDF
 
-from src.assignment_ui import clean_for_pdf
+from src.pdf_utils import clean_for_pdf
 
 
 def test_attendance_pdf_preserves_unicode_and_emoji():
