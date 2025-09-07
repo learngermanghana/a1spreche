@@ -28,7 +28,6 @@ import bcrypt
 import pandas as pd
 import requests
 import streamlit as st
-from streamlit.errors import StreamlitAPIException
 import streamlit.components.v1 as components
 from docx import Document
 from google.cloud.firestore_v1 import FieldFilter
@@ -4969,10 +4968,15 @@ if tab == "Exams Mode & Custom Chat":
         student_code = st.session_state.get("student_code", "demo")
 
         # === Load messages & draft PER (student_code + mode/level/teil) ===
-        conv_key = f"{mode}_{level}_{(teil or 'custom')}"
+        mode_level_teil = f"{mode}_{level}_{(teil or 'custom')}"
+        conv_key = st.session_state.get("falowen_conv_key")
+        if not conv_key or not conv_key.startswith(f"{mode_level_teil}_"):
+            conv_key = f"{mode_level_teil}_{uuid4().hex[:8]}"
+        st.session_state["falowen_conv_key"] = conv_key
+
         draft_key = _wkey("chat_draft")
         st.session_state["falowen_chat_draft_key"] = draft_key
-        st.session_state["falowen_conv_key"] = conv_key
+
         try:
             doc = db.collection("falowen_chats").document(student_code).get()
             if doc.exists:
@@ -5062,14 +5066,14 @@ if tab == "Exams Mode & Custom Chat":
                 args=(draft_key, student_code),
                 disabled=chat_locked,
             )
-            if not chat_locked:
-                autosave_maybe(
-                    student_code,
-                    draft_key,
-                    st.session_state[draft_key],
-                    min_secs=2.0,
-                    min_delta=12,
-                )
+            autosave_maybe(
+                student_code,
+                draft_key,
+                st.session_state.get(draft_key, ""),
+                min_secs=2.0,
+                min_delta=12,
+                locked=chat_locked,
+            )
         # Older Streamlit releases lack ``st.autorefresh``. Try to use the
         # ``streamlit-autorefresh`` helper when available so the chat area
         # periodically reruns in those environments.
@@ -5085,14 +5089,24 @@ if tab == "Exams Mode & Custom Chat":
             send_clicked = st.button(
                 "Send", key=_wkey("chat_send"), type="primary", disabled=chat_locked
             )
+        save_clicked = st.button(
+            "Save draft",
+            key=_wkey("chat_save_draft"),
+            disabled=chat_locked,
+            use_container_width=True,
+        )
 
         user_input = (
             st.session_state.get(draft_key, "").strip()
             if send_clicked and not chat_locked
             else ""
         )
+        if save_clicked:
+            save_now(draft_key, student_code)
         if user_input:
             st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
+            st.session_state["falowen_clear_draft"] = True
+            st.session_state["need_rerun"] = True
             try:
                 if "inc_sprechen_usage" in globals():
                     inc_sprechen_usage(student_code)
@@ -5124,20 +5138,6 @@ if tab == "Exams Mode & Custom Chat":
                 doc.set({"chats": chats}, merge=True)
             except Exception:
                 pass
-
-            # Guard against empty or missing draft_key before clearing the draft
-            if (
-                isinstance(draft_key, str)
-                and draft_key
-                and draft_key in st.session_state
-            ):
-                try:
-                    st.session_state["falowen_clear_draft"] = True
-                    st.session_state["need_rerun"] = True
-                except StreamlitAPIException as e:
-                    st.error(f"Unexpected error clearing draft: {e}")
-            else:
-                st.warning("Missing draft key; nothing to clear.")
         with chat_display:
             for msg in st.session_state["falowen_messages"]:
                 if msg["role"] == "assistant":
