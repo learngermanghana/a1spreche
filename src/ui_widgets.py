@@ -156,7 +156,7 @@ def render_announcements(announcements: list) -> None:
       .ann-actions{margin-top:8px}
       .ann-actions a{color:var(--link);text-decoration:none;font-weight:700}
       .ann-dots{display:flex;gap:12px;justify-content:center;margin-top:12px}
-      .ann-dot{width:11px;height:11px;border-radius:999px;background:#9ca3af;opacity:.9;transform:scale(.95);border:none;cursor:pointer;}
+      .ann-dot{width:11px;height:11px;border-radius:999px;background:#9ca3af;opacity:.9;transform:scale(.95);border:none;cursor:pointer;touch-action:manipulation;}
       .ann-dot[aria-current="true"]{background:var(--brand);opacity:1;transform:scale(1.22);box-shadow:0 0 0 4px var(--ring)}
     </style>
     <div class="page-wrap">
@@ -188,8 +188,13 @@ def render_announcements(announcements: list) -> None:
           actionEl.textContent=''; actionEl.appendChild(link); actionEl.style.display=''; } else { actionEl.textContent=''; actionEl.style.display='none'; }
         setActiveDot(idx);
       }
+      function bindQuick(el, handler){
+        el.addEventListener('click', handler);
+        el.addEventListener('pointerdown', (e)=>{ if(e.pointerType!=='mouse'){ e.preventDefault(); handler(); }});
+      }
+
       data.forEach((_, idx)=>{ const b=document.createElement('button'); b.className='ann-dot'; b.type='button'; b.setAttribute('role','tab');
-        b.setAttribute('aria-label','Slide '+(idx+1)); b.setAttribute('tabindex','0'); b.addEventListener('click', ()=>{ i=idx; render(i); });
+        b.setAttribute('aria-label','Slide '+(idx+1)); b.setAttribute('tabindex','0'); bindQuick(b, ()=>{ i=idx; render(i); });
         b.addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '||e.key==='Spacebar'){ e.preventDefault(); i=idx; render(i); }});
         dotsWrap.appendChild(b); });
       render(i);
