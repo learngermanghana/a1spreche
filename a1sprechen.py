@@ -176,8 +176,7 @@ from src.pdf_handling import (
 # ------------------------------------------------------------------------------
 # Cookie manager
 # ------------------------------------------------------------------------------
-cookie_manager = get_cookie_manager()
-st.session_state["cookie_manager"] = cookie_manager
+st.session_state.setdefault("cookie_manager", get_cookie_manager())
 
 # ------------------------------------------------------------------------------
 # Google OAuth (Gmail sign-in) — single-source, no duplicate buttons
@@ -373,11 +372,13 @@ def render_logged_in_topbar():
                 unsafe_allow_html=True
             )
         with c2:
-            st.button("Log out",
-                      key="logout_global",
-                      type="primary",
-                      use_container_width=True,
-                      on_click=lambda: do_logout(cookie_manager))
+            st.button(
+                "Log out",
+                key="logout_global",
+                type="primary",
+                use_container_width=True,
+                on_click=lambda: do_logout(st.session_state["cookie_manager"]),
+            )
 
     level_key = (level or "").strip().upper()
     tip = LEVEL_TIPS.get(level_key, "Keep practicing and immerse yourself daily.")
@@ -523,7 +524,11 @@ bootstrap_state()
 seed_falowen_state_from_qp()
 
 
-restored = restore_session_from_cookie(cookie_manager, load_student_data, contract_active)
+restored = restore_session_from_cookie(
+    st.session_state["cookie_manager"],
+    load_student_data,
+    contract_active,
+)
 if restored is not None and not st.session_state.get("logged_in", False):
     sc_cookie = restored["student_code"]
     token = restored["session_token"]
@@ -534,7 +539,7 @@ if restored is not None and not st.session_state.get("logged_in", False):
         else pd.DataFrame()
     )
     if match.empty:
-        clear_session(cookie_manager)
+        clear_session(st.session_state["cookie_manager"])
         st.warning("Session expired. Please log in again.")
     else:
         row = match.iloc[0]
