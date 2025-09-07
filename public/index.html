@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0ea5e9" />
   <title>Falowen Login</title>
+  <link rel="icon" href="/static/icons/falowen-192.png">
   <!-- Font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -94,14 +95,11 @@
       gap: 12px;
     }
     .badge {
-      width: 36px; height: 36px;
-      display: grid; place-items: center;
-      background: conic-gradient(from 90deg at 50% 50%, var(--primary), var(--accent));
-      color: white;
+      width: 36px;
+      height: 36px;
       border-radius: 10px;
       box-shadow: var(--shadow);
-      font-weight: 800;
-      letter-spacing: .5px;
+      display: block;
     }
     .brand h1 {
       margin: 0;
@@ -250,7 +248,7 @@
 
     <header class="header">
       <div class="brand">
-        <div class="badge">F</div>
+        <img src="/static/icons/falowen-192.png" alt="Falowen logo" class="badge">
         <h1>Falowen</h1>
       </div>
       <div style="font-weight:600; color: var(--muted);">Learn Language Education Academy</div>
