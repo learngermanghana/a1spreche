@@ -711,6 +711,18 @@ def render_results_and_resources_tab() -> None:
             "Select a download", ["Results PDF", "Enrollment Letter", "Receipt", "Attendance PDF"]
         )
 
+        def _read_money(x):
+            try:
+                s = (
+                    str(x)
+                    .replace(",", "")
+                    .replace(" ", "")
+                    .strip()
+                )
+                return float(s) if s not in ("", "nan", "None") else 0.0
+            except Exception:
+                return 0.0
+
         if choice == "Results PDF":
             st.markdown("**Results summary PDF**")
             COL_ASSN_W, COL_SCORE_W, COL_DATE_W = 45, 18, 30
@@ -825,6 +837,7 @@ def render_results_and_resources_tab() -> None:
         elif choice == "Enrollment Letter":
             df_students = load_student_data()
             start_date = end_date = ""
+            balance = 0.0
             if df_students is not None and "StudentCode" in df_students.columns:
                 try:
                     row_match = df_students[
@@ -835,21 +848,25 @@ def render_results_and_resources_tab() -> None:
                         row0 = row_match.iloc[0]
                         start_date = str(row0.get("ContractStart", ""))
                         end_date = str(row0.get("ContractEnd", ""))
+                        balance = _read_money(row0.get("Balance", 0))
                 except Exception:
                     pass
-            if st.button("Generate Enrollment Letter"):
-                pdf_bytes = generate_enrollment_letter_pdf(
-                    student_name or "Student",
-                    level,
-                    start_date or "",
-                    end_date or "",
-                )
-                st.download_button(
-                    "Download Enrollment Letter PDF",
-                    data=pdf_bytes,
-                    file_name=f"{code_key}_enrollment_letter.pdf",
-                    mime="application/pdf",
-                )
+            if balance > 0:
+                st.error("Outstanding balance…")
+            else:
+                if st.button("Generate Enrollment Letter"):
+                    pdf_bytes = generate_enrollment_letter_pdf(
+                        student_name or "Student",
+                        level,
+                        start_date or "",
+                        end_date or "",
+                    )
+                    st.download_button(
+                        "Download Enrollment Letter PDF",
+                        data=pdf_bytes,
+                        file_name=f"{code_key}_enrollment_letter.pdf",
+                        mime="application/pdf",
+                    )
         elif choice == "Receipt":
             df_students = load_student_data()
             paid = balance = 0.0
@@ -861,18 +878,6 @@ def render_results_and_resources_tab() -> None:
                         == code_key
                     ]
                     if not row_match.empty:
-                        def _read_money(x):
-                            try:
-                                s = (
-                                    str(x)
-                                    .replace(",", "")
-                                    .replace(" ", "")
-                                    .strip()
-                                )
-                                return float(s) if s not in ("", "nan", "None") else 0.0
-                            except Exception:
-                                return 0.0
-
                         row0 = row_match.iloc[0]
                         paid = _read_money(row0.get("Paid", 0))
                         balance = _read_money(row0.get("Balance", 0))
