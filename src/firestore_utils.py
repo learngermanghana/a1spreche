@@ -169,11 +169,14 @@ def save_chat_draft_to_db(code: str, conv_key: str, text: str) -> None:
     if db is None:
         return
     ref = db.collection("falowen_chats").document(code)
+    mode_level_teil = conv_key.rsplit("_", 1)[0]
     try:
+        updates = {"current_conv": {mode_level_teil: conv_key}}
         if text:
-            ref.set({"drafts": {conv_key: text}}, merge=True)
+            updates["drafts"] = {conv_key: text}
         else:
-            ref.set({"drafts": {conv_key: firestore.DELETE_FIELD}}, merge=True)
+            updates["drafts"] = {conv_key: firestore.DELETE_FIELD}
+        ref.set(updates, merge=True)
     except Exception as exc:  # pragma: no cover - runtime depends on Firestore
         logging.warning("Failed to save chat draft for %s/%s: %s", code, conv_key, exc)
         return

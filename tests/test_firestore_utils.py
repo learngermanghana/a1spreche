@@ -112,6 +112,40 @@ def test_save_ai_response_stores_flag(monkeypatch):
     assert dummy_db.ref.payload["flagged"] is True
 
 
+def test_save_chat_draft_updates_current_conv(monkeypatch):
+    class DummyDoc:
+        def __init__(self):
+            self.payloads = []
+
+        def set(self, payload, merge=True):
+            self.payloads.append(payload)
+
+    dummy_doc = DummyDoc()
+
+    class DummyCollection:
+        def document(self, *args, **kwargs):
+            return dummy_doc
+
+    class DummyDB:
+        def collection(self, *args, **kwargs):
+            return DummyCollection()
+
+    monkeypatch.setattr(firestore_utils, "db", DummyDB())
+    conv_key = "ChatMode_A1_T1_abcd1234"
+
+    firestore_utils.save_chat_draft_to_db("code", conv_key, "hi")
+    payload = dummy_doc.payloads[-1]
+    assert payload["drafts"][conv_key] == "hi"
+    assert payload["current_conv"]["ChatMode_A1_T1"] == conv_key
+
+    firestore_utils.save_chat_draft_to_db("code", conv_key, "")
+    payload = dummy_doc.payloads[-1]
+    assert (
+        payload["drafts"][conv_key] is firestore_utils.firestore.DELETE_FIELD
+    )
+    assert payload["current_conv"]["ChatMode_A1_T1"] == conv_key
+
+
 def test_fetch_attendance_summary_counts_sessions(monkeypatch):
     class DummySnap:
         def __init__(self, attendees):
