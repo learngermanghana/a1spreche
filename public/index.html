@@ -107,7 +107,7 @@
             Sign In
           </button>
 
-          <button class="btn btn-ghost" type="button" onclick="alert('SSO coming soon')">Sign in with Google</button>
+          <a class="btn btn-ghost" id="googleLogin" href="#">Sign in with Google</a>
         </form>
         <p class="legal">By continuing, you agree to our <a href="#" style="color:var(--accent); text-decoration:none; font-weight:600">Terms</a> and <a href="#" style="color:var(--accent); text-decoration:none; font-weight:600">Privacy Policy</a>.</p>
       </aside>
@@ -126,6 +126,50 @@
       eyeOpen.style.display = isHidden ? 'none' : '';
       eyeClosed.style.display = isHidden ? '' : 'none';
     });
+
+    // Generate Google OAuth URL
+    const GOOGLE_CLIENT_ID = "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com";
+    const REDIRECT_URI = window.location.origin + "/";
+
+    function getGoogleAuthURL() {
+      const state = (self.crypto?.randomUUID?.() || Math.random().toString(36).slice(2));
+      localStorage.setItem("_oauth_state", state);
+      const params = new URLSearchParams({
+        client_id: GOOGLE_CLIENT_ID,
+        redirect_uri: REDIRECT_URI,
+        response_type: "code",
+        scope: "openid email profile",
+        prompt: "select_account",
+        state,
+        include_granted_scopes: "true",
+        access_type: "online",
+      });
+      return "https://accounts.google.com/o/oauth2/v2/auth?" + params.toString();
+    }
+
+    // Attach click handler to Google login link
+    const googleLink = document.getElementById('googleLogin');
+    googleLink?.addEventListener('click', (e) => {
+      e.preventDefault();
+      window.location.href = getGoogleAuthURL();
+    });
+
+    // Attempt to restore session using existing cookie
+    async function restoreSession() {
+      try {
+        const resp = await fetch('/auth/refresh', { credentials: 'include' });
+        if (resp.ok) {
+          const data = await resp.json();
+          localStorage.setItem('access_token', data.access_token);
+        }
+      } catch (err) {
+        console.error('session restore failed', err);
+      }
+    }
+    restoreSession();
+
+    // Expose for testing
+    window.getGoogleAuthURL = getGoogleAuthURL;
   </script>
 </body>
 </html>
