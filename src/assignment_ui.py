@@ -20,6 +20,7 @@ from .schedule import get_level_schedules as _get_level_schedules
 # ``load_school_logo`` is defined below; only import QR helper here.
 from .pdf_utils import make_qr_code
 from .data_loading import load_student_data
+from .attendance_utils import load_attendance_records
 from .utils.currency import format_cedis
 
 # URLs for letterhead and watermark images are configurable via environment
@@ -707,7 +708,7 @@ def render_results_and_resources_tab() -> None:
     elif rr_page == "Downloads":
         st.subheader("Downloads")
         choice = st.radio(
-            "Select a download", ["Results PDF", "Enrollment Letter", "Receipt"]
+            "Select a download", ["Results PDF", "Enrollment Letter", "Receipt", "Attendance PDF"]
         )
 
         if choice == "Results PDF":
@@ -849,7 +850,7 @@ def render_results_and_resources_tab() -> None:
                     file_name=f"{code_key}_enrollment_letter.pdf",
                     mime="application/pdf",
                 )
-        else:
+        elif choice == "Receipt":
             df_students = load_student_data()
             paid = balance = 0.0
             contract_start = ""
@@ -898,6 +899,67 @@ def render_results_and_resources_tab() -> None:
                     file_name=f"{code_key}_receipt.pdf",
                     mime="application/pdf",
                 )
+
+        elif choice == "Attendance PDF":
+            class_name = (
+                st.session_state.get("student_row", {}).get("ClassName")
+            )
+            if not class_name or not student_code:
+                st.info("No attendance data available.")
+            else:
+                records, _sessions, _hours = load_attendance_records(
+                    student_code, class_name
+                )
+                if records:
+                    df_att = pd.DataFrame(records)
+                    df_att["Present"] = df_att["present"].map(
+                        lambda x: "Yes" if x else "No"
+                    )
+                    pdf = FPDF()
+                    pdf.add_page()
+                    pdf.set_font("Arial", "B", 14)
+                    pdf.cell(
+                        0,
+                        10,
+                        clean_for_pdf(
+                            f"Attendance for {student_name or 'Student'}"
+                        ),
+                        ln=1,
+                        align="C",
+                    )
+                    pdf.set_font("Arial", "", 11)
+                    pdf.cell(0, 8, clean_for_pdf(f"Class: {class_name}"), ln=1)
+                    pdf.ln(4)
+                    pdf.set_font("Arial", "B", 11)
+                    pdf.cell(120, 8, "Session", 1, 0, "C")
+                    pdf.cell(40, 8, "Present", 1, 1, "C")
+                    pdf.set_font("Arial", "", 10)
+                    for _, row in df_att.iterrows():
+                        pdf.cell(
+                            120,
+                            8,
+                            clean_for_pdf(str(row.get("session", ""))),
+                            1,
+                            0,
+                            "L",
+                        )
+                        pdf.cell(
+                            40,
+                            8,
+                            row.get("Present", ""),
+                            1,
+                            1,
+                            "C",
+                        )
+                    pdf_bytes = pdf.output(dest="S").encode("latin1", "replace")
+                    st.download_button(
+                        "Download Attendance PDF",
+                        data=pdf_bytes,
+                        file_name=f"{code_key}_attendance.pdf",
+                        mime="application/pdf",
+                    )
+                else:
+                    st.info("No attendance data available.")
 
 
     elif rr_page == "Resources":
