@@ -835,10 +835,6 @@ def render_sidebar_published():
     st.sidebar.button("📚 Vocab Trainer",            use_container_width=True, on_click=_go, args=("Vocab Trainer",))
     st.sidebar.button("✍️ Schreiben Trainer",        use_container_width=True, on_click=_go, args=("Schreiben Trainer",))
     st.sidebar.button("❓ Class Notes & Q&A",         use_container_width=True, on_click=_go_post_qna)
-    if st.sidebar.button("🔄 Refresh schedule",       use_container_width=True):
-        refresh_level_schedules()
-        st.rerun()
-
     st.sidebar.divider()
 
     st.sidebar.markdown("## How-to & tips")
