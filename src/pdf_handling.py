@@ -5,31 +5,13 @@ from __future__ import annotations
 import io
 from typing import Any, Dict, List
 
-import unicodedata as _ud
+from .pdf_utils import clean_for_pdf
 
 try:  # pragma: no cover - optional dependency
     from fpdf import FPDF
 except Exception:  # pragma: no cover
     FPDF = None  # type: ignore
 
-
-def clean_for_pdf(text: str) -> str:
-    """Return ``text`` normalised and stripped of non-printable characters.
-
-    ``fpdf`` can handle Unicode strings when provided with a suitable font.
-    This helper therefore no longer forces the text into Latin-1, keeping
-    characters such as ``ä`` or ``ß`` intact. The function simply normalises
-    the text and filters out any non-printable characters so that the layout
-    remains predictable while preserving all Unicode characters, including
-    emoji.
-    """
-
-    if not isinstance(text, str):
-        text = str(text)
-    text = _ud.normalize("NFKC", text)
-    text = text.replace("\n", " ").replace("\r", " ")
-    text = "".join(ch for ch in text if ch.isprintable())
-    return text
 
 def extract_text_from_pdf(pdf_bytes: bytes) -> str:
     """Return text extracted from PDF bytes using best-effort parsers."""
