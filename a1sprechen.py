@@ -758,6 +758,17 @@ def render_app_footer(links: dict):
 
 st.markdown("""
 <style>
+/* Keep header visible so the sidebar toggle still works (esp. on mobile) */
+#MainMenu, footer { visibility: hidden; }     /* hide menu + footer */
+header [data-testid="stToolbar"] { display:none; } /* hide toolbar icons only */
+
+/* Optional: a bit tighter top padding */
+.block-container { padding-top: 0.75rem; }
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<style>
 /* Hide Streamlit chrome */
 #MainMenu, header, footer {visibility: hidden;}
 /* Optional: reduce top padding after hiding header */
