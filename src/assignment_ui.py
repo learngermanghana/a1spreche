@@ -82,9 +82,9 @@ def clean_for_pdf(text: str) -> str:
     The previous implementation attempted to coerce all output to the
     Latin-1 charset which caused characters like ``ä`` or ``ß`` to be
     replaced with ``?``.  The updated version keeps the text in Unicode,
-    merely normalising it and dropping characters that are not printable or
-    outside the Basic Multilingual Plane (e.g. emoji) so that PDF generation
-    remains stable while user supplied international text stays intact.
+    merely normalising it and dropping only characters that are not
+    printable so that PDF generation remains stable while user supplied
+    international text — including emoji — stays intact.
     """
 
     import unicodedata as _ud
@@ -96,12 +96,8 @@ def clean_for_pdf(text: str) -> str:
     text = _ud.normalize("NFKC", text)
     # Replace line breaks with spaces to keep layout predictable.
     text = text.replace("\n", " ").replace("\r", " ")
-    # Filter out any remaining non-printable characters and those outside the
-    # Basic Multilingual Plane which are not supported by the fonts used for
-    # PDF generation (e.g. emoji).
-    text = "".join(
-        ch for ch in text if ch.isprintable() and ord(ch) <= 0xFFFF
-    )
+    # Filter out any remaining non-printable characters.
+    text = "".join(ch for ch in text if ch.isprintable())
     return text
 
 

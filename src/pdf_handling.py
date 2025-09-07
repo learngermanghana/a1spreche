@@ -18,19 +18,17 @@ def clean_for_pdf(text: str) -> str:
 
     ``fpdf`` can handle Unicode strings when provided with a suitable font.
     This helper therefore no longer forces the text into Latin-1, keeping
-    characters such as ``ä`` or ``ß`` intact.  The function simply normalises
-    the text and filters out any non-printable characters as well as those
-    outside the Basic Multilingual Plane (e.g. emoji) so that the layout
-    remains predictable.
+    characters such as ``ä`` or ``ß`` intact. The function simply normalises
+    the text and filters out any non-printable characters so that the layout
+    remains predictable while preserving all Unicode characters, including
+    emoji.
     """
 
     if not isinstance(text, str):
         text = str(text)
     text = _ud.normalize("NFKC", text)
     text = text.replace("\n", " ").replace("\r", " ")
-    text = "".join(
-        ch for ch in text if ch.isprintable() and ord(ch) <= 0xFFFF
-    )
+    text = "".join(ch for ch in text if ch.isprintable())
     return text
 
 def extract_text_from_pdf(pdf_bytes: bytes) -> str:
