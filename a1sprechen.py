@@ -5367,10 +5367,12 @@ if tab == "Vocab Trainer":
         not_done = [p for p in items if p[0] not in completed]
         st.info(f"{len(not_done)} words NOT yet done at {level}.")
 
-        if st.button("🔁 Start New Practice", key="vt_reset"):
+        def _vt_reset():
             for k in defaults:
                 st.session_state[k] = defaults[k]
-            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+            st.experimental_rerun()
+
+        st.button("🔁 Start New Practice", key="vt_reset", on_click=_vt_reset)
 
         if st.session_state.vt_total is None:
             with st.form("vt_setup"):
@@ -5403,15 +5405,18 @@ if tab == "Vocab Trainer":
                 ]
                 st.session_state.vt_saved = False
                 st.session_state.vt_session_id = str(uuid4())
-                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                st.experimental_rerun()
         else:
             st.markdown("### Daily Practice Setup")
             st.info(
                 f"{st.session_state.vt_total} words · {st.session_state.get('vt_mode')}"
             )
-            if st.button("Change goal", key="vt_change_goal"):
+
+            def _vt_change_goal():
                 st.session_state.vt_total = None
-                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                st.experimental_rerun()
+
+            st.button("Change goal", key="vt_change_goal", on_click=_vt_change_goal)
 
         tot = st.session_state.vt_total
         idx = st.session_state.vt_index
@@ -5477,7 +5482,7 @@ if tab == "Vocab Trainer":
                     fb = f"❌ Nope. '{word}' = '{answer}'"
                 st.session_state.vt_history.append(("assistant", fb))
                 st.session_state.vt_index += 1
-                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                st.experimental_rerun()
 
         if isinstance(tot, int) and idx >= tot:
             score = st.session_state.vt_score
@@ -5497,11 +5502,12 @@ if tab == "Vocab Trainer":
                         session_id=st.session_state.vt_session_id
                     )
                 st.session_state.vt_saved = True
-                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-            if st.button("Practice Again", key="vt_again"):
-                for k in defaults:
-                    st.session_state[k] = defaults[k]
-                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                st.session_state.vt_history.append(
+                    ("assistant", f"🏁 Practice complete! You scored {score}/{tot}.")
+                )
+                st.experimental_rerun()
+
+            st.button("Practice Again", key="vt_again", on_click=_vt_reset)
 
     # ===========================
     # SUBTAB: Dictionary  (download-only audio)
