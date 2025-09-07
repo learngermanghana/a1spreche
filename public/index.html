@@ -17,6 +17,19 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   outline-offset: 2px;
 }
 .err { color: var(--error); font-size: 0.9rem; }
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      background: #fff;
+      color: #000;
+      padding: 8px 12px;
+      z-index: 100;
+      border-radius: 4px;
+    }
+    .skip-link:focus {
+      top: 8px;
+    }
 /* Disabled button state */
 button[disabled] { opacity: .6; cursor: not-allowed; }
 :root{
@@ -251,12 +264,13 @@ button[disabled] { opacity: .6; cursor: not-allowed; }
   <link rel="icon" href="/logo.svg" type="image/svg+xml" />
 </head>
 <body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
   <div class="brand-header" style="display:flex;align-items:center;gap:12px;padding:16px 20px">
     <img src="/logo.svg" alt="Falowen logo" width="120" height="32" />
   </div>
 
   <div class="decorations" aria-hidden="true"></div>
-  <div class="shell">
+  <main id="main-content" class="shell">
 
     <header class="header">
       <div class="brand">
@@ -355,7 +369,7 @@ button[disabled] { opacity: .6; cursor: not-allowed; }
         <p class="legal">By continuing, you agree to our <a href="#" style="color:var(--accent); text-decoration:none; font-weight:600">Terms</a> and <a href="#" style="color:var(--accent); text-decoration:none; font-weight:600">Privacy Policy</a>.</p>
       </aside>
     </div>
-    </div>
+  </main>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
           <script>
