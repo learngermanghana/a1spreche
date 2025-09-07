@@ -924,35 +924,47 @@ def render_results_and_resources_tab() -> None:
                     )
                     pdf = FPDF()
                     pdf.add_page()
-                    pdf.add_font("DejaVu", "", "font/DejaVuSans.ttf", uni=True)
-                    pdf.add_font(
-                        "DejaVu",
-                        "B",
-                        "font/DejaVuSans-Bold.ttf",
-                        uni=True,
-                    )
-                    pdf.set_font("DejaVu", "B", 14)
+                    dejavu_available = True
+                    try:
+                        pdf.add_font("DejaVu", "", "font/DejaVuSans.ttf", uni=True)
+                        pdf.add_font(
+                            "DejaVu",
+                            "B",
+                            "font/DejaVuSans-Bold.ttf",
+                            uni=True,
+                        )
+                    except RuntimeError:
+                        dejavu_available = False
+                        pdf.set_font("Helvetica", size=11)
+
+                    font_family = "DejaVu" if dejavu_available else "Helvetica"
+
+                    def _pdf_text(txt: str) -> str:
+                        txt = clean_for_pdf(txt)
+                        if not dejavu_available:
+                            txt = txt.encode("latin1", "replace").decode("latin1")
+                        return txt
+
+                    pdf.set_font(font_family, "B", 14)
                     pdf.cell(
                         0,
                         10,
-                        clean_for_pdf(
-                            f"Attendance for {student_name or 'Student'}"
-                        ),
+                        _pdf_text(f"Attendance for {student_name or 'Student'}"),
                         ln=1,
                         align="C",
                     )
-                    pdf.set_font("DejaVu", "", 11)
-                    pdf.cell(0, 8, clean_for_pdf(f"Class: {class_name}"), ln=1)
+                    pdf.set_font(font_family, "", 11)
+                    pdf.cell(0, 8, _pdf_text(f"Class: {class_name}"), ln=1)
                     pdf.ln(4)
-                    pdf.set_font("DejaVu", "B", 11)
-                    pdf.cell(120, 8, "Session", 1, 0, "C")
-                    pdf.cell(40, 8, "Present", 1, 1, "C")
-                    pdf.set_font("DejaVu", "", 10)
+                    pdf.set_font(font_family, "B", 11)
+                    pdf.cell(120, 8, _pdf_text("Session"), 1, 0, "C")
+                    pdf.cell(40, 8, _pdf_text("Present"), 1, 1, "C")
+                    pdf.set_font(font_family, "", 10)
                     for _, row in df_att.iterrows():
                         pdf.cell(
                             120,
                             8,
-                            clean_for_pdf(str(row.get("session", ""))),
+                            _pdf_text(str(row.get("session", ""))),
                             1,
                             0,
                             "L",
@@ -960,7 +972,7 @@ def render_results_and_resources_tab() -> None:
                         pdf.cell(
                             40,
                             8,
-                            row.get("Present", ""),
+                            _pdf_text(row.get("Present", "")),
                             1,
                             1,
                             "C",
