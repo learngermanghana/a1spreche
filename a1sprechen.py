@@ -7750,35 +7750,3 @@ if tab == "Schreiben Trainer":
                 st.session_state[ns("prompt")] = ""
                 st.session_state[ns("selected_letter_lines")] = []
                 st.rerun()
-
-
-# ---- Dashboard (Assignments/Vocab/Leaderboard/Missed/Next/Attendance) ----
-st.markdown('<div class="h1">📊 Dashboard</div>', unsafe_allow_html=True)
-st.markdown('<div class="section-subtle">Your weekly progress and quick actions.</div>', unsafe_allow_html=True)
-st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
-
-c1,c2,c3 = st.columns(3)
-
-with c1:
-    badge("1 day streak","green")
-    card("Assignment Streak", "Submitted **1/3** this week — **2** to go")
-with c2:
-    badge("Buslinie","purple")
-    card("Vocab of the Day", "bus line · **Level A1**")
-with c3:
-    badge("Not ranked yet","orange")
-    card("Leaderboard", "Complete **3+** assignments to unlock your rank 🚀")
-
-c4,c5,c6 = st.columns(3)
-with c4:
-    badge("None","green")
-    card("Missed Assignments", "Perfect! You’re on track 🎉")
-with c5:
-    badge("Next","")
-    card("Next Assignment",
-         "Day 2: **0.2_1.1 – Lesen & Hören 0.2 and 1.1**<br/>Understand the German alphabets, personal pronouns and verb conjugation in German.")
-with c6:
-    card("Attendance", "<div class='empty'>0 sessions • 0.0h</div>")
-
-st.write("")
-st.button("View class board", key="home_view_class_board")
