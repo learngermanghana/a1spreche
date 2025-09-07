@@ -69,12 +69,12 @@ inject_global_styles()
 def _reopen_sidebar() -> None:
     """Force the sidebar open and rerun the app."""
     st.session_state["sidebar_state"] = "expanded"
-    st.rerun()
+    st.session_state["need_rerun"] = True
 
 
 def _collapse_sidebar() -> None:
     st.session_state["sidebar_state"] = "collapsed"
-    st.rerun()
+    st.session_state["need_rerun"] = True
 
 
 if st.session_state.get("sidebar_state") == "collapsed":
@@ -250,6 +250,7 @@ EXAM_ADVICE = {
 
 
 
+
 def inject_notice_css():
     from src.ui.login import inject_notice_css as _inject_css
     _inject_css()
@@ -270,7 +271,7 @@ def login_page():
     login_success = render_returning_login_area()
     render_google_brand_button_once(auth_url, center=True)
     if login_success:
-        st.rerun()
+        st.session_state["need_rerun"] = True
 
     # 4) Explanation banner + tabs
     render_signup_request_banner()
@@ -466,7 +467,7 @@ def render_sidebar_published():
         st.session_state["nav_sel"] = tab_name
         st.session_state["main_tab_select"] = tab_name
         _qp_set_safe(tab=tab_name)
-        st.rerun()
+        st.session_state["need_rerun"] = True
 
     def _go_post_qna():
         st.session_state["nav_sel"] = "My Course"
@@ -474,7 +475,7 @@ def render_sidebar_published():
         st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
         st.session_state["classroom_page"] = "Class Notes & Q&A"
         _qp_set_safe(tab="My Course")
-        st.rerun()
+        st.session_state["need_rerun"] = True
 
     st.sidebar.markdown("## Quick access")
     st.sidebar.button("🏠 Dashboard",                use_container_width=True, on_click=_go, args=("Dashboard",))
@@ -879,7 +880,7 @@ if tab == "Dashboard":
         st.session_state["classroom_page"] = "Class Notes & Q&A"
         st.session_state["classroom_prev_page"] = "Class Notes & Q&A"
         _qp_set(tab="My Course")
-        st.rerun()
+        st.session_state["need_rerun"] = True
 
     def _go_attendance() -> None:
         st.session_state["nav_sel"] = "My Course"
@@ -889,7 +890,7 @@ if tab == "Dashboard":
         st.session_state["classroom_page"] = "Attendance"
         st.session_state["classroom_prev_page"] = "Attendance"
         _qp_set(tab="My Course")
-        st.rerun()
+        st.session_state["need_rerun"] = True
 
     st.button("View class board", on_click=_go_classboard)
 
@@ -1535,7 +1536,7 @@ if tab == "Dashboard":
             if playlist_id:
                 if st.button("🔄 Refresh videos", key=f"refresh_vod_{level}"):
                     st.cache_data.clear()
-                    st.rerun()
+                    st.session_state["need_rerun"] = True
                 st.caption(
                     "Click 'Refresh videos' to clear cached playlist data and reload"
                     " from YouTube if results look out of date."
@@ -2176,7 +2177,7 @@ if tab == "My Course":
             if playlist_id:
                 if st.button("🔄 Refresh videos", key=f"refresh_vod_{level_key}"):
                     st.cache_data.clear()
-                    st.rerun()
+                    st.session_state["need_rerun"] = True
                 st.caption(
                     "Click 'Refresh videos' to clear cached playlist data and reload"
                     " from YouTube if results look out of date."
@@ -3968,8 +3969,8 @@ if tab == "My Course":
                                     saved_flag_key,
                                     saved_at_key,
                                 )
-                            st.session_state[send_flag] = False
-                            st.rerun()
+                                st.session_state[send_flag] = False
+                                st.session_state["need_rerun"] = True
 
                         if st.button(
                             f"Send Comment {q_id}",
@@ -3977,14 +3978,14 @@ if tab == "My Course":
                             disabled=st.session_state.get(send_flag, False),
                         ):
                             st.session_state[send_flag] = True
-                            st.rerun()
+                            st.session_state["need_rerun"] = True
 
                     with ai_col:
                         if st.session_state.get(ai_flag):
                             with st.spinner("Correcting with AI..."):
                                 apply_ai_correction(q_id, draft_key, current_text)
                             st.session_state[ai_flag] = False
-                            st.rerun()
+                            st.session_state["need_rerun"] = True
 
                         if st.button(
                             "✨ Correct with AI",
@@ -3992,7 +3993,7 @@ if tab == "My Course":
                             disabled=st.session_state.get(ai_flag, False),
                         ):
                             st.session_state[ai_flag] = True
-                            st.rerun()
+                            st.session_state["need_rerun"] = True
 
                     if idx < len(questions) - 1:
                         st.divider()
@@ -5132,7 +5133,7 @@ if tab == "Exams Mode & Custom Chat":
             ):
                 try:
                     st.session_state["falowen_clear_draft"] = True
-                    st.rerun()
+                    st.session_state["need_rerun"] = True
                 except StreamlitAPIException as e:
                     st.error(f"Unexpected error clearing draft: {e}")
             else:
@@ -5962,7 +5963,7 @@ if tab == "Schreiben Trainer":
             for key in (lv, lt, sf, sa):
                 st.session_state.pop(key, None)
             delete_schreiben_feedback(student_code)
-            st.rerun()
+            st.session_state["need_rerun"] = True
 
         if st.session_state.get(f"{student_code}_last_feedback"):
             st.info(
@@ -6250,7 +6251,7 @@ if tab == "Schreiben Trainer":
                     lv, lt, sf, sa = _draft_state_keys(draft_key)
                     for key in (lv, lt, sf, sa):
                         st.session_state.pop(key, None)
-                    st.rerun()
+                    st.session_state["need_rerun"] = True
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
 
@@ -6451,7 +6452,7 @@ if tab == "Schreiben Trainer":
         if st.session_state[ns("stage")] == 0:
             if st.button("Start new write-up"):
                 st.session_state[ns("reset_coach")] = True
-                st.rerun()
+                st.session_state["need_rerun"] = True
             st.markdown("### ✏️ Enter your exam prompt or draft to start coaching")
             draft_key = ns("prompt_draft")
             if draft_key not in st.session_state:
@@ -6535,7 +6536,7 @@ if tab == "Schreiben Trainer":
                         st.session_state[ns("chat")],
                     )
                     st.session_state[ns("clear_prompt")] = True
-                    st.rerun()
+                    st.session_state["need_rerun"] = True
                     
             if prompt:
                 st.markdown("---")
@@ -6638,7 +6639,7 @@ if tab == "Schreiben Trainer":
                     st.session_state[ns("chat")],
                 )
                 st.session_state[ns("clear_chat")] = True
-                st.rerun()
+                st.session_state["need_rerun"] = True
 
             # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
             import streamlit.components.v1 as components
@@ -6779,7 +6780,7 @@ if tab == "Schreiben Trainer":
                 st.session_state[ns("chat")] = []
                 st.session_state[ns("prompt")] = ""
                 st.session_state[ns("selected_letter_lines")] = []
-                st.rerun()
+                st.session_state["need_rerun"] = True
 
 
 
@@ -6829,3 +6830,6 @@ if tab == "Schreiben Trainer":
 
 
 
+
+if st.session_state.pop("need_rerun", False):
+    st.experimental_rerun()

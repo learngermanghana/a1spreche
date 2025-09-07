@@ -9,7 +9,6 @@ def test_logout_rerenders_components():
     mock_st = types.SimpleNamespace(
         session_state={},
         success=MagicMock(),
-        rerun=MagicMock(),
         markdown=MagicMock(),
         link_button=MagicMock(),
     )
@@ -60,12 +59,12 @@ def test_logout_rerenders_components():
     mock_components.html.reset_mock()
     ui_widgets.render_google_signin_once("https://auth.example")
     mock_components.html.assert_called_once()
-
-    mock_st.rerun.assert_called_once()
+    
+    assert mock_st.session_state.get("need_rerun") is True
 
 
 def test_logout_saves_cookie_changes():
-    mock_st = types.SimpleNamespace(session_state={}, success=MagicMock(), rerun=MagicMock())
+    mock_st = types.SimpleNamespace(session_state={}, success=MagicMock())
     cookie_manager = types.SimpleNamespace(save=MagicMock())
     clear_session = MagicMock()
     do_logout(
@@ -77,4 +76,4 @@ def test_logout_saves_cookie_changes():
     )
     clear_session.assert_called_once_with(cookie_manager)
     cookie_manager.save.assert_called_once()
-    mock_st.rerun.assert_called_once()
+    assert mock_st.session_state.get("need_rerun") is True
