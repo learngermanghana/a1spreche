@@ -925,6 +925,12 @@ def render_results_and_resources_tab() -> None:
                     pdf = FPDF()
                     pdf.add_page()
                     pdf.add_font("DejaVu", "", "font/DejaVuSans.ttf", uni=True)
+                    pdf.add_font(
+                        "DejaVu",
+                        "B",
+                        "font/DejaVuSans-Bold.ttf",
+                        uni=True,
+                    )
                     pdf.set_font("DejaVu", "B", 14)
                     pdf.cell(
                         0,
