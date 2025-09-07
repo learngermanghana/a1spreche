@@ -98,6 +98,24 @@ from src.firestore_utils import (
     save_ai_response,
     fetch_attendance_summary,
 )
+from src.draft_management import (
+    _draft_state_keys,
+    save_now,
+    autosave_maybe,
+    load_notes_from_db,
+    save_notes_to_db,
+    autosave_learning_note,
+    on_cb_subtab_change,
+)
+from src.firestore_helpers import (
+    lesson_key_build,
+    lock_id,
+    has_existing_submission,
+    acquire_lock,
+    is_locked,
+    resolve_current_content,
+    fetch_latest,
+)
 from src.attendance_utils import load_attendance_records
 from src.ui_components import (
     render_assignment_reminder,
@@ -172,6 +190,7 @@ from src.pdf_handling import (
     generate_single_note_pdf,
     generate_chat_pdf,
 )
+from src.sentence_builder import render_sentence_builder
 
 # ------------------------------------------------------------------------------
 # Cookie manager
@@ -1516,82 +1535,6 @@ if tab == "Dashboard":
     render_app_footer(FOOTER_LINKS)
 
 
-# -------------------------
-# UI helpers
-# -------------------------
-
-def _draft_state_keys(draft_key: str) -> "Tuple[str, str, str, str]":
-    """Return the session-state keys used to track last save info for a draft."""
-    return (
-        f"{draft_key}__last_val",
-        f"{draft_key}__last_ts",
-        f"{draft_key}_saved",
-        f"{draft_key}_saved_at"
-    )
-
-def save_now(draft_key: str, code: str) -> None:
-    """
-    Immediate save invoked by the text area's on_change hook.
-    Guarantees a Firestore write on blur or explicit change.
-    """
-    text = st.session_state.get(draft_key, "") or ""
-    if st.session_state.get("falowen_chat_draft_key") == draft_key:
-        conv = st.session_state.get("falowen_conv_key", "")
-        save_chat_draft_to_db(code, conv, text)
-    else:
-        save_draft_to_db(code, draft_key, text)
-
-    # Update local 'last saved' markers so the UI shows the correct time.
-    last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
-    st.session_state[last_val_key]   = text
-    st.session_state[last_ts_key]    = time.time()
-    st.session_state[saved_flag_key] = True
-    st.session_state[saved_at_key]   = datetime.now(_timezone.utc)
-
-def autosave_maybe(
-    code: str,
-    lesson_field_key: str,
-    text: str,
-    *,
-    min_secs: float = 5.0,
-    min_delta: int = 30,
-    locked: bool = False
-) -> None:
-    """
-    Debounced background autosave.
-    Saves only if content changed AND (enough time passed OR change is large).
-    Also updates local 'last saved' markers to avoid redundant writes.
-
-    Args:
-        code: Student code (document id).
-        lesson_field_key: Field name / draft key (e.g., 'draft_A1_day3_chX').
-        text: Current textarea content.
-        min_secs: Minimum seconds between saves for small changes.
-        min_delta: Minimum character count difference to treat as 'big change'.
-        locked: If True, do nothing (submitted/locked state).
-    """
-    if locked:
-        return
-
-    last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(lesson_field_key)
-    last_val = st.session_state.get(last_val_key, "")
-    last_ts  = float(st.session_state.get(last_ts_key, 0.0))
-    now = time.time()
-
-    changed    = (text != last_val)
-    big_change = abs(len(text) - len(last_val)) >= min_delta
-    time_ok    = (now - last_ts) >= min_secs
-
-    if changed and (time_ok or big_change):
-        if st.session_state.get("falowen_chat_draft_key") == lesson_field_key:
-            conv = st.session_state.get("falowen_conv_key", "")
-            save_chat_draft_to_db(code, conv, text)
-        else:
-            save_draft_to_db(code, lesson_field_key, text)
-        st.session_state[last_val_key]   = text
-        st.session_state[last_ts_key]    = now
-        st.session_state[saved_flag_key] = True
-        st.session_state[saved_at_key]   = datetime.now(_timezone.utc)
 
 def render_section(day_info: dict, key: str, title: str, icon: str) -> None:
     """Render a lesson section (supports list or single dict)."""
@@ -1694,132 +1637,6 @@ def has_telegram_subscription(student_code: str) -> bool:
 # -------------------------
 # Firestore helpers (uses your existing `db` and `from firebase_admin import firestore`)
 # -------------------------
-def lesson_key_build(level: str, day: int, chapter: str) -> str:
-    """Unique, safe key for this lesson (reusable in docs/fields)."""
-    safe_ch = re.sub(r'[^A-Za-z0-9_\-]+', '_', str(chapter))
-    return f"{level}_day{day}_ch{safe_ch}"
-
-def lock_id(level: str, code: str, lesson_key: str) -> str:
-    """Stable document id for submission lock."""
-    safe_code = re.sub(r'[^A-Za-z0-9_\-]+', '_', str(code))
-    return f"{level}__{safe_code}__{lesson_key}"
-
-def has_existing_submission(level: str, code: str, lesson_key: str) -> bool:
-    """True if a submission exists for this (level, code, lesson_key)."""
-    posts_ref = db.collection("submissions").document(level).collection("posts")
-    try:
-        q = (posts_ref.where(filter=FieldFilter("student_code", "==", code))
-                      .where(filter=FieldFilter("lesson_key", "==", lesson_key))
-                      .limit(1).stream())
-        return any(True for _ in q)
-    except Exception:
-        try:
-            for _ in posts_ref.where(filter=FieldFilter("student_code", "==", code))\
-                              .where(filter=FieldFilter("lesson_key", "==", lesson_key)).stream():
-                return True
-        except Exception:
-            pass
-        return False
-
-def acquire_lock(level: str, code: str, lesson_key: str) -> bool:
-    """
-    Create a lock doc; if it already exists, treat as locked.
-    Works without importing AlreadyExists explicitly.
-    """
-    ref = db.collection("submission_locks").document(lock_id(level, code, lesson_key))
-    try:
-        ref.create({
-            "level": level,
-            "student_code": code,
-            "lesson_key": lesson_key,
-            "created_at": firestore.SERVER_TIMESTAMP,
-        })
-        return True
-    except Exception:
-        try:
-            exists = ref.get().exists
-            if exists:
-                return False
-            ref.set({
-                "level": level,
-                "student_code": code,
-                "lesson_key": lesson_key,
-                "created_at": firestore.SERVER_TIMESTAMP,
-            }, merge=False)
-            return True
-        except Exception:
-            return False
-
-def is_locked(level: str, code: str, lesson_key: str) -> bool:
-    """Treat either an existing submission OR a lock doc as 'locked'."""
-    if has_existing_submission(level, code, lesson_key):
-        return True
-    try:
-        ref = db.collection("submission_locks").document(lock_id(level, code, lesson_key))
-        return ref.get().exists
-    except Exception:
-        return False
-
-
-def resolve_current_content(level: str, code: str, lesson_key: str, draft_key: str) -> dict:
-    """
-    Decide what the editor should show for this lesson.
-    Priority:
-      1) Submitted answer (locked, read-only)
-      2) Saved draft (from drafts_v2 or legacy)
-      3) Empty
-    """
-    latest = fetch_latest(level, code, lesson_key)
-    if latest:
-        return {
-            "text": latest.get("answer", "") or "",
-            "ts": latest.get("updated_at"),
-            "status": "submitted",
-            "locked": True,
-            "source": "submission",
-        }
-
-    draft_text, draft_ts = load_draft_meta_from_db(code, draft_key)
-    if draft_text:
-        return {
-            "text": draft_text,
-            "ts": draft_ts,
-            "status": "draft",
-            "locked": False,
-            "source": "draft",
-        }
-
-    return {
-        "text": "",
-        "ts": None,
-        "status": "empty",
-        "locked": False,
-        "source": "empty",
-    }
-
-def fetch_latest(level: str, code: str, lesson_key: str) -> Optional[Dict[str, Any]]:
-    """Fetch the most recent submission for this user/lesson (or None)."""
-    posts_ref = db.collection("submissions").document(level).collection("posts")
-    try:
-        docs = (
-            posts_ref.where(filter=FieldFilter("student_code", "==", code))
-            .where(filter=FieldFilter("lesson_key", "==", lesson_key))
-            .order_by("updated_at", direction=firestore.Query.DESCENDING)
-            .limit(1)
-            .stream()
-        )
-        for d in docs:
-            return d.to_dict()
-    except Exception:
-        try:
-            docs = posts_ref.where(filter=FieldFilter("student_code", "==", code))\
-                            .where(filter=FieldFilter("lesson_key", "==", lesson_key)).stream()
-            items = [d.to_dict() for d in docs]
-            items.sort(key=lambda x: x.get("updated_at"), reverse=True)
-            return items[0] if items else None
-        except Exception:
-            return None
-    return None
 
 # -------------------------
 # Misc existing helper preserved
@@ -1860,82 +1677,6 @@ RESOURCE_LABELS = {
 
 
 # ---- Firestore Helpers ----
-def load_notes_from_db(student_code):
-    ref = db.collection("learning_notes").document(student_code)
-    doc = ref.get()
-    return doc.to_dict().get("notes", []) if doc.exists else []
-
-def save_notes_to_db(student_code, notes):
-    ref = db.collection("learning_notes").document(student_code)
-    ref.set({"notes": notes}, merge=True)
-
-def autosave_learning_note(student_code: str, key_notes: str) -> None:
-    """Autosave current note draft to Firestore."""
-    notes = st.session_state.get(key_notes, [])
-    idx = st.session_state.get("edit_note_idx")
-    draft = st.session_state.get("learning_note_draft", "")
-    title = st.session_state.get("learning_note_title", "")
-    tag = st.session_state.get("learning_note_tag", "")
-    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
-
-    note = {
-        "title": title.strip().title(),
-        "tag": tag.strip().title(),
-        "text": draft.strip(),
-        "pinned": False,
-        "created": ts,
-        "updated": ts,
-    }
-
-    if idx is not None and idx < len(notes):
-        existing = notes[idx]
-        note["pinned"] = existing.get("pinned", False)
-        note["created"] = existing.get("created", ts)
-        notes[idx] = note
-    else:
-        notes.insert(0, note)
-        st.session_state["edit_note_idx"] = 0
-
-    st.session_state[key_notes] = notes
-    save_notes_to_db(student_code, notes)
-    st.session_state["learning_note_last_saved"] = ts
-
-def on_cb_subtab_change():
-    """Save or restore classroom reply drafts when switching subtabs."""
-    prev = st.session_state.get("__cb_subtab_prev")
-    curr = st.session_state.get("coursebook_subtab")
-    code = st.session_state.get("student_code", "")
-
-    if prev == "🧑‍🏫 Classroom" and curr != "🧑‍🏫 Classroom":
-        for key in [k for k in st.session_state.keys() if k.startswith("classroom_reply_draft_")]:
-            try:
-                save_draft_to_db(code, key, st.session_state.get(key, ""))
-            except Exception:
-                pass
-            last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(key)
-            for k in (key, last_val_key, last_ts_key, saved_flag_key, saved_at_key):
-                st.session_state.pop(k, None)
-
-    elif curr == "🧑‍🏫 Classroom" and prev != "🧑‍🏫 Classroom":
-        try:
-            lessons = db.collection("drafts_v2").document(code).collection("lessons")
-            for doc in lessons.stream():
-                if doc.id.startswith("classroom_reply_draft_"):
-                    data = doc.to_dict() or {}
-                    text = data.get("text", "")
-                    ts = data.get("updated_at")
-                    st.session_state[doc.id] = text
-                    last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(doc.id)
-                    st.session_state[last_val_key] = text
-                    st.session_state[last_ts_key] = time.time()
-                    st.session_state[saved_flag_key] = bool(text)
-                    st.session_state[saved_at_key] = ts
-        except Exception:
-            pass
-
-    st.session_state["__cb_subtab_prev"] = curr
-    
-
 if tab == "My Course":
     # === HANDLE ALL SWITCHING *BEFORE* ANY WIDGET ===
     # Jump flags set by buttons elsewhere
@@ -5554,162 +5295,7 @@ if tab == "Vocab Trainer":
     # SUBTAB: Sentence Builder  (unchanged logic, audio not needed here)
     # ===========================
     if subtab == "Sentence Builder":
-        student_level = student_level_locked
-        st.info(f"✍️ You are practicing **Sentence Builder** at **{student_level}** (locked from your profile).")
-        
-        # --- Guide ---
-        with st.expander("✍️ Sentence Builder — Guide", expanded=False):
-            st.caption("Click words in order; use Check/Next.")
-
-        # --- Progress ---
-        with st.expander("Progress", expanded=False):
-        
-            try:
-                done_unique, total_items = get_sentence_progress(student_code, student_level)
-            except Exception:
-                total_items = len(SENTENCE_BANK.get(student_level, []))
-                done_unique = 0
-            pct = int((done_unique / total_items) * 100) if total_items else 0
-            st.progress(pct)
-            st.caption(
-                f"Overall Progress: {done_unique} / {total_items} unique sentences correct ({pct}%)."
-            )
-
-        # ---- Session state defaults ----
-        init_defaults = {
-            "sb_round": 0, "sb_pool": None, "sb_pool_level": None, "sb_current": None,
-            "sb_shuffled": [], "sb_selected_idx": [], "sb_score": 0, "sb_total": 0,
-            "sb_feedback": "", "sb_correct": None,
-        }
-        for k, v in init_defaults.items():
-            st.session_state.setdefault(k, v)
-
-        # ---- Init / Level change ----
-        if (st.session_state.sb_pool is None) or (st.session_state.sb_pool_level != student_level):
-            import random
-            st.session_state.sb_pool_level = student_level
-            st.session_state.sb_pool = SENTENCE_BANK.get(student_level, SENTENCE_BANK.get("A1", [])).copy()
-            random.shuffle(st.session_state.sb_pool)
-            st.session_state.sb_round = 0
-            st.session_state.sb_score = 0
-            st.session_state.sb_total = 0
-            st.session_state.sb_feedback = ""
-            st.session_state.sb_correct = None
-            st.session_state.sb_current = None
-            st.session_state.sb_selected_idx = []
-            st.session_state.sb_shuffled = []
-
-        def new_sentence():
-            import random
-            if not st.session_state.sb_pool:
-                st.session_state.sb_pool = SENTENCE_BANK.get(student_level, SENTENCE_BANK.get("A1", [])).copy()
-                random.shuffle(st.session_state.sb_pool)
-            if st.session_state.sb_pool:
-                st.session_state.sb_current = st.session_state.sb_pool.pop()
-                words = st.session_state.sb_current.get("tokens", [])[:]
-                random.shuffle(words)
-                st.session_state.sb_shuffled = words
-                st.session_state.sb_selected_idx = []
-                st.session_state.sb_feedback = ""
-                st.session_state.sb_correct = None
-                st.session_state.sb_round += 1
-            else:
-                st.warning("No sentences available for this level.")
-
-        if st.session_state.sb_current is None:
-            new_sentence()
-
-        # ---- Top metrics ----
-        target = SB_SESSION_TARGET
-        cols = st.columns(2)
-        with cols[0]:
-            st.metric("Score (this session)", f"{st.session_state.sb_score}")
-        with cols[1]:
-            st.metric("Progress (this session)", f"{st.session_state.sb_total}/{target}")
-
-        st.divider()
-
-        # Prompt box
-        cur = st.session_state.sb_current or {}
-        prompt_en = cur.get("prompt_en", "")
-        hint_en = cur.get("hint_en", "")
-        grammar_tag = cur.get("grammar_tag", "")
-        if prompt_en:
-            st.markdown(
-                f"""
-                <div style="box-sizing:border-box; padding:12px 14px; margin:6px 0 14px 0;
-                            background:#f0f9ff; border:1px solid #bae6fd; border-left:6px solid #0ea5e9;
-                            border-radius:10px;">
-                  <div style="font-size:1.05rem;">
-                    🇬🇧 <b>Translate into German:</b> <span style="color:#0b4a6f">{prompt_en}</span>
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-            with st.expander("💡 Need a nudge? (Hint)"):
-                if hint_en: st.markdown(f"**Hint:** {hint_en}")
-                if grammar_tag: st.caption(f"Grammar: {grammar_tag}")
-
-        # Word buttons
-        st.markdown("#### 🧩 Click the words in order")
-        if st.session_state.sb_shuffled:
-            word_cols = st.columns(min(6, len(st.session_state.sb_shuffled)) or 1)
-            for i, w in enumerate(st.session_state.sb_shuffled):
-                selected = i in st.session_state.sb_selected_idx
-                btn_label = f"✅ {w}" if selected else w
-                col = word_cols[i % len(word_cols)]
-                with col:
-                    if st.button(btn_label, key=f"sb_word_{st.session_state.sb_round}_{i}", disabled=selected):
-                        st.session_state.sb_selected_idx.append(i)
-                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-
-        # Preview
-        chosen_tokens = [st.session_state.sb_shuffled[i] for i in st.session_state.sb_selected_idx]
-        st.markdown("#### ✨ Your sentence")
-        st.code(normalize_join(chosen_tokens) if chosen_tokens else "—", language="text")
-
-        # Actions
-        a, b, c = st.columns(3)
-        with a:
-            if st.button("🧹 Clear"):
-                st.session_state.sb_selected_idx = []
-                st.session_state.sb_feedback = ""
-                st.session_state.sb_correct = None
-                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-        with b:
-            if st.button("✅ Check"):
-                target_sentence = st.session_state.sb_current.get("target_de", "").strip()
-                chosen_sentence = normalize_join(chosen_tokens).strip()
-                correct = (chosen_sentence.lower() == target_sentence.lower())
-                st.session_state.sb_correct = correct
-                st.session_state.sb_total += 1
-                if correct:
-                    st.session_state.sb_score += 1
-                    st.session_state.sb_feedback = "✅ **Correct!** Great job!"
-                else:
-                    tip = st.session_state.sb_current.get("hint_en", "")
-                    st.session_state.sb_feedback = f"❌ **Not quite.**\n\n**Correct:** {target_sentence}\n\n*Tip:* {tip}"
-                save_sentence_attempt(
-                    student_code=student_code,
-                    level=student_level,
-                    target_sentence=target_sentence,
-                    chosen_sentence=chosen_sentence,
-                    correct=correct,
-                    tip=st.session_state.sb_current.get("hint_en", ""),
-                )
-                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-        with c:
-            next_disabled = (st.session_state.sb_correct is None)
-            if st.button("➡️ Next", disabled=next_disabled):
-                if st.session_state.sb_total >= target:
-                    st.success(f"Session complete! Score: {st.session_state.sb_score}/{st.session_state.sb_total}")
-                new_sentence()
-                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-
-        # Feedback
-        if st.session_state.sb_feedback:
-            (st.success if st.session_state.sb_correct else st.info)(st.session_state.sb_feedback)
+        render_sentence_builder(student_code, student_level_locked)
 
     # ===========================
     # SUBTAB: Vocab Practice  (download-only audio)
