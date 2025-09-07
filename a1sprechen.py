@@ -317,15 +317,15 @@ def _handle_google_oauth(code: str, state: str) -> None:
         st.error(f"Google OAuth error: {e}")
 
 def _inject_meta_tags():
-    from src.login_ui import inject_meta_tags
+    from src.ui.login import inject_meta_tags
     inject_meta_tags()
 
 
 def inject_notice_css():
-    from src.login_ui import inject_notice_css as _inject_css
+    from src.ui.login import inject_notice_css as _inject_css
     _inject_css()
 
-# Legacy hero rendering moved to src.login_ui
+# Legacy hero rendering moved to src.ui.login
 
 # ------------------------------------------------------------------------------
 # Sign up / Login / Forgot password
@@ -626,7 +626,7 @@ def _load_falowen_login_html() -> str:
     root = Path(__file__).resolve().parent
     if str(root) not in sys.path:
         sys.path.append(str(root))
-    load_falowen_login_html = import_module("src.login_ui").load_falowen_login_html
+    load_falowen_login_html = import_module("src.ui.login").load_falowen_login_html
     return load_falowen_login_html()
 
 
@@ -638,7 +638,7 @@ def render_falowen_login(google_auth_url: str = "", show_google_in_hero: bool = 
     root = Path(__file__).resolve().parent
     if str(root) not in sys.path:
         sys.path.append(str(root))
-    _render = import_module("src.login_ui").render_falowen_login
+    _render = import_module("src.ui.login").render_falowen_login
     _render(google_auth_url, show_google_in_hero, st=st, components=components, logging=logging)
 
 # ------------------------------------------------------------------------------
