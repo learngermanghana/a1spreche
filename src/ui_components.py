@@ -28,7 +28,7 @@ def _load_vocab_sheet(sheet_id: str = VOCAB_SHEET_ID) -> Optional[pd.DataFrame]:
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
     try:
         return pd.read_csv(url)
-    except Exception as exc:  # pragma: no cover - network or parsing issues
+    except Exception:  # pragma: no cover - network or parsing issues
         logging.exception("Failed to load vocabulary sheet")
         return None
 
@@ -139,7 +139,7 @@ def render_vocab_lookup(key: str) -> None:
             if audio_url:
                 try:  # pragma: no cover - best effort on mobile browsers
                     st.audio(audio_url)
-                except Exception as exc:
+                except Exception:
                     logging.exception("Failed to play audio")
 
 
@@ -251,7 +251,7 @@ def render_reviews() -> None:
 
       .rev-dots{ display:flex; gap:6px; justify-content:center; margin-top:10px; }
       .rev-dot{
-        width:8px; height:8px; border-radius:999px; background:#cbd5e1; border:none; padding:0; cursor:pointer;
+        width:8px; height:8px; border-radius:999px; background:#cbd5e1; border:none; padding:0; cursor:pointer; touch-action:manipulation;
       }
       .rev-dot[aria-current="true"]{ background:#25317e; }
       .fade{ opacity:0; transform:translateY(4px); transition:opacity .28s ease, transform .28s ease; }
@@ -288,6 +288,13 @@ def render_reviews() -> None:
         });
       }
 
+      function bindQuick(el, handler){
+        el.addEventListener("click", handler);
+        el.addEventListener("pointerdown", (e)=>{
+          if(e.pointerType !== "mouse"){ e.preventDefault(); handler(); }
+        });
+      }
+
       function setDots(){
         dots.innerHTML = "";
         DATA.forEach((_, idx) => {
@@ -295,7 +302,7 @@ def render_reviews() -> None:
           b.className = "rev-dot";
           b.setAttribute("aria-label", "Go to review " + (idx+1));
           if(idx === i) b.setAttribute("aria-current","true");
-          b.addEventListener("click", () => { i = idx; show(true); restart(); });
+          bindQuick(b, () => { i = idx; show(true); restart(); });
           dots.appendChild(b);
         });
       }
@@ -329,8 +336,8 @@ def render_reviews() -> None:
       function stop(){ if(timer){ clearInterval(timer); timer = null; } }
       function restart(){ stop(); start(); }
 
-      nextBtn.addEventListener("click", () => { next(); restart(); });
-      prevBtn.addEventListener("click", () => { prev(); restart(); });
+      bindQuick(nextBtn, () => { next(); restart(); });
+      bindQuick(prevBtn, () => { prev(); restart(); });
       wrap.addEventListener("mouseenter", () => { hovered = true; });
       wrap.addEventListener("mouseleave", () => { hovered = false; });
 
