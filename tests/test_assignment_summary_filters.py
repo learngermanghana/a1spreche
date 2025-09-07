@@ -19,10 +19,9 @@ def test_next_assignment_skips_goethe_and_final_cap(monkeypatch):
             "date": ["2024-01-01"],
         }
     )
-    monkeypatch.setattr(assignment_ui, "load_assignment_scores", lambda: df)
     monkeypatch.setattr(assignment_ui, "_get_level_schedules", lambda: {"A1": schedule})
 
-    summary = assignment_ui.get_assignment_summary("s1", "A1")
+    summary = assignment_ui.get_assignment_summary("s1", "A1", df)
     assert summary["missed"] == []
     assert summary["next"]["day"] == 4
 
@@ -42,9 +41,8 @@ def test_missed_assignments_skip_goethe(monkeypatch):
             "date": ["2024-01-01"],
         }
     )
-    monkeypatch.setattr(assignment_ui, "load_assignment_scores", lambda: df)
     monkeypatch.setattr(assignment_ui, "_get_level_schedules", lambda: {"A1": schedule})
 
-    summary = assignment_ui.get_assignment_summary("s1", "A1")
+    summary = assignment_ui.get_assignment_summary("s1", "A1", df)
     assert summary["missed"] == []
     assert summary["next"]["day"] == 3
