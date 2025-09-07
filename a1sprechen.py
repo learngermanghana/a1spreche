@@ -50,8 +50,10 @@ register_health_route(app)
 
 ICON_PATH = Path(__file__).parent / "static/icons/falowen-512.png"
 
-# Determine desired sidebar state and apply it early so users can recover the menu
-_sb_state = st.session_state.get("sidebar_state", "expanded")
+# Ensure the sidebar starts visible on first load and remember user's choice
+if "sidebar_state" not in st.session_state:
+    st.session_state["sidebar_state"] = "expanded"
+_sb_state = st.session_state["sidebar_state"]
 
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
