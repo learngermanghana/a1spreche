@@ -407,12 +407,13 @@ def render_logged_in_topbar():
                 unsafe_allow_html=True
             )
         with c2:
+            cm = st.session_state["cookie_manager"]
             st.button(
                 "Log out",
                 key="logout_global",
                 type="primary",
                 use_container_width=True,
-                on_click=lambda: do_logout(st.session_state["cookie_manager"]),
+                on_click=lambda cm=cm: do_logout(cm),
             )
 
     level_key = (level or "").strip().upper()
