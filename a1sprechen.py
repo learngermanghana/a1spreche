@@ -7781,4 +7781,4 @@ with c6:
     card("Attendance", "<div class='empty'>0 sessions • 0.0h</div>")
 
 st.write("")
-st.button("View class board")
+st.button("View class board", key="home_view_class_board")
