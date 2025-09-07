@@ -12,3 +12,4 @@ def test_ann_flag_reset_after_logout():
     )
     do_logout({}, st_module=mock_st, destroy_token=MagicMock(), clear_session_fn=MagicMock(), logger=types.SimpleNamespace(exception=MagicMock()))
     assert "_ann_hash" not in mock_st.session_state
+    mock_st.rerun.assert_called_once()
