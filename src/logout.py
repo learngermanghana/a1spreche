@@ -30,6 +30,10 @@ def do_logout(
             except Exception:
                 logger.exception("Token revoke failed on logout")
         clear_session_fn(cookie_manager)
+        try:
+            cookie_manager.save()
+        except Exception:
+            logger.exception("Cookie save failed")
     except Exception:
         logger.exception("Cookie/session clear failed")
     st_module.session_state.update(

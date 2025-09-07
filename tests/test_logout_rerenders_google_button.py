@@ -60,3 +60,18 @@ def test_logout_rerenders_components():
     mock_components.html.reset_mock()
     ui_widgets.render_google_signin_once("https://auth.example")
     mock_components.html.assert_called_once()
+
+
+def test_logout_saves_cookie_changes():
+    mock_st = types.SimpleNamespace(session_state={}, success=MagicMock())
+    cookie_manager = types.SimpleNamespace(save=MagicMock())
+    clear_session = MagicMock()
+    do_logout(
+        cookie_manager,
+        st_module=mock_st,
+        destroy_token=MagicMock(),
+        clear_session_fn=clear_session,
+        logger=types.SimpleNamespace(exception=MagicMock()),
+    )
+    clear_session.assert_called_once_with(cookie_manager)
+    cookie_manager.save.assert_called_once()
