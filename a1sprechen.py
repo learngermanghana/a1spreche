@@ -5461,8 +5461,14 @@ if tab == "Vocab Trainer":
                 unsafe_allow_html=True
             )
 
-            usr = st.text_input(f"{word} = ?", key=f"vt_input_{idx}", placeholder="Type your answer here...")
-            if usr and st.button("Check", key=f"vt_check_{idx}"):
+            with st.form(key=f"vt_form_{idx}"):
+                usr = st.text_input(
+                    f"{word} = ?",
+                    key=f"vt_input_{idx}",
+                    placeholder="Type your answer here...",
+                )
+                submitted = st.form_submit_button("Check")
+            if submitted:
                 st.session_state.vt_history.append(("user", usr))
                 if is_correct_answer(usr, answer):
                     st.session_state.vt_score += 1
