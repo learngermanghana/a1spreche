@@ -3930,31 +3930,49 @@ if tab == "My Course":
                             save_ai_response(q_id, ai_text, flagged)
 
                     send_col, ai_col = st.columns([1, 1])
+                    send_flag = f"q_comment_busy_{q_id}"
+                    ai_flag = f"q_ai_busy_{q_id}"
+
                     with send_col:
-                        st.button(
+                        if st.session_state.get(send_flag):
+                            with st.spinner("Sending..."):
+                                send_comment(
+                                    q_id,
+                                    student_code,
+                                    student_name,
+                                    class_name,
+                                    board_base,
+                                    draft_key,
+                                    last_val_key,
+                                    last_ts_key,
+                                    saved_flag_key,
+                                    saved_at_key,
+                                )
+                            st.session_state[send_flag] = False
+                            st.rerun()
+
+                        if st.button(
                             f"Send Comment {q_id}",
                             key=f"q_comment_btn_{q_id}",
-                            on_click=send_comment,
-                            args=(
-                                q_id,
-                                student_code,
-                                student_name,
-                                class_name,
-                                board_base,
-                                draft_key,
-                                last_val_key,
-                                last_ts_key,
-                                saved_flag_key,
-                                saved_at_key,
-                            ),
-                        )
+                            disabled=st.session_state.get(send_flag, False),
+                        ):
+                            st.session_state[send_flag] = True
+                            st.rerun()
+
                     with ai_col:
-                        st.button(
+                        if st.session_state.get(ai_flag):
+                            with st.spinner("Correcting with AI..."):
+                                apply_ai_correction(q_id, draft_key, current_text)
+                            st.session_state[ai_flag] = False
+                            st.rerun()
+
+                        if st.button(
                             "✨ Correct with AI",
                             key=f"q_ai_btn_{q_id}",
-                            on_click=apply_ai_correction,
-                            args=(q_id, draft_key, current_text),
-                        )
+                            disabled=st.session_state.get(ai_flag, False),
+                        ):
+                            st.session_state[ai_flag] = True
+                            st.rerun()
 
                     if idx < len(questions) - 1:
                         st.divider()
