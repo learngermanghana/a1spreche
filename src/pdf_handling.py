@@ -14,21 +14,24 @@ except Exception:  # pragma: no cover
 
 
 def clean_for_pdf(text: str) -> str:
-    """Return ``text`` sanitized for insertion into PDFs.
+    """Return ``text`` normalised and stripped of non-printable characters.
 
-    Any characters that cannot be represented in the Latin-1 encoding used by
-    :class:`fpdf.FPDF` are replaced with ``?`` so that PDF generation never
-    raises encoding errors. Newlines and other non-printable characters are
-    stripped to keep the layout predictable.
+    ``fpdf`` can handle Unicode strings when provided with a suitable font.
+    This helper therefore no longer forces the text into Latin-1, keeping
+    characters such as ``ä`` or ``ß`` intact.  The function simply normalises
+    the text and filters out any non-printable characters as well as those
+    outside the Basic Multilingual Plane (e.g. emoji) so that the layout
+    remains predictable.
     """
 
     if not isinstance(text, str):
         text = str(text)
-    text = _ud.normalize("NFKD", text)
+    text = _ud.normalize("NFKC", text)
     text = text.replace("\n", " ").replace("\r", " ")
-    text = "".join(c if c.isprintable() else "?" for c in text)
-    # Ensure compatibility with Latin-1
-    return text.encode("latin-1", "replace").decode("latin-1")
+    text = "".join(
+        ch for ch in text if ch.isprintable() and ord(ch) <= 0xFFFF
+    )
+    return text
 
 def extract_text_from_pdf(pdf_bytes: bytes) -> str:
     """Return text extracted from PDF bytes using best-effort parsers."""

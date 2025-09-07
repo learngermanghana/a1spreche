@@ -77,17 +77,31 @@ def score_label_fmt(score, *, plain: bool = False) -> str:
 
 
 def clean_for_pdf(text: str) -> str:
+    """Return ``text`` normalised and stripped of non-printable chars.
+
+    The previous implementation attempted to coerce all output to the
+    Latin-1 charset which caused characters like ``ä`` or ``ß`` to be
+    replaced with ``?``.  The updated version keeps the text in Unicode,
+    merely normalising it and dropping characters that are not printable or
+    outside the Basic Multilingual Plane (e.g. emoji) so that PDF generation
+    remains stable while user supplied international text stays intact.
+    """
+
     import unicodedata as _ud
 
     if not isinstance(text, str):
         text = str(text)
-    text = _ud.normalize("NFKD", text)
+    # Normalise to a canonical composed form so combined characters such as
+    # ``a\u0308`` become ``ä``.
+    text = _ud.normalize("NFKC", text)
+    # Replace line breaks with spaces to keep layout predictable.
     text = text.replace("\n", " ").replace("\r", " ")
-    text = "".join(c if c.isprintable() else "?" for c in text)
-    # Ensure the result is compatible with the Latin-1 encoding used by FPDF.
-    # Characters outside that range are replaced with ``?`` so encoding will
-    # not fail when generating PDFs.
-    text = text.encode("latin-1", "replace").decode("latin-1")
+    # Filter out any remaining non-printable characters and those outside the
+    # Basic Multilingual Plane which are not supported by the fonts used for
+    # PDF generation (e.g. emoji).
+    text = "".join(
+        ch for ch in text if ch.isprintable() and ord(ch) <= 0xFFFF
+    )
     return text
 
 
