@@ -56,6 +56,99 @@ st.markdown("""
 # ---------- /Falowen UI block ----------
 
 
+# ---- Global CSS polish ----
+st.markdown("""
+<style>
+/* Layout spacing */
+.block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
+
+/* Headings hierarchy */
+h1, .h1 { font-size: 1.6rem; font-weight: 800; margin: 0.2rem 0 0.6rem; color: #1a2340; }
+h2, .h2 { font-size: 1.25rem; font-weight: 700; margin: 0.2rem 0 0.6rem; color: #1a2340; }
+.section-subtle { color:#64748b; margin:0.25rem 0 1rem; }
+
+/* Card */
+.f-card{
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 2px 0 rgba(37,49,126,0.05), 0 12px 24px rgba(2,6,23,0.06);
+}
+.f-card + .f-card { margin-top: 12px; }
+
+.f-card h3{
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+/* Badges */
+.badge{
+  display: inline-flex; align-items:center; gap:6px;
+  padding: 4px 10px; border-radius: 999px; font-size: .80rem; font-weight: 700;
+  background: #eef2ff; color:#25317e; border: 1px solid #e0e7ff;
+}
+.badge.green{ background:#ecfdf5; color:#065f46; border-color:#a7f3d0; }
+.badge.orange{ background:#fff7ed; color:#9a3412; border-color:#fed7aa; }
+.badge.purple{ background:#f5f3ff; color:#6d28d9; border-color:#ddd6fe; }
+
+/* CTA button look for st.button */
+.stButton > button {
+  border-radius: 12px !important;
+  padding: 10px 16px !important;
+  font-weight: 700 !important;
+  box-shadow: 0 6px 20px rgba(37,49,126,0.12);
+}
+
+/* Divider */
+.hr { height:1px; background:linear-gradient(90deg,#e5e7eb,transparent); margin: 14px 0; }
+
+/* Empty state */
+.empty{
+  background:#f9fafb; border:1px dashed #e5e7eb; color:#6b7280;
+  padding:14px; border-radius: 14px; font-size:.95rem;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ---- Small helpers ----
+def badge(text, kind=""):
+    kind_class = f" {kind}" if kind else ""
+    st.markdown(f'<span class="badge{kind_class}">{text}</span>', unsafe_allow_html=True)
+
+
+def card(title, body_md="", right=None):
+    right_html = f'<div style="margin-left:auto">{right}</div>' if right else ""
+    st.markdown(
+        f'''
+        <div class="f-card" style="display:flex; align-items:flex-start; gap:10px">
+            <div style="flex:1">
+                <h3>{title}</h3>
+                <div>{body_md}</div>
+            </div>
+            {right_html}
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
+
+
+
+
+# Show brand logo in sidebar if available
+try:
+    from pathlib import Path as _Path
+    _logo = _Path(__file__).parent / "public" / "logo.svg"
+    if _logo.exists():
+        st.sidebar.image(str(_logo), use_column_width=True)
+except Exception:
+    pass
+
+
+
+
 from streamlit.errors import StreamlitAPIException
 import streamlit.components.v1 as components
 from docx import Document
@@ -317,15 +410,15 @@ def _handle_google_oauth(code: str, state: str) -> None:
         st.error(f"Google OAuth error: {e}")
 
 def _inject_meta_tags():
-    from src.ui.login import inject_meta_tags
+    from src.login_ui import inject_meta_tags
     inject_meta_tags()
 
 
 def inject_notice_css():
-    from src.ui.login import inject_notice_css as _inject_css
+    from src.login_ui import inject_notice_css as _inject_css
     _inject_css()
 
-# Legacy hero rendering moved to src.ui.login
+# Legacy hero rendering moved to src.login_ui
 
 # ------------------------------------------------------------------------------
 # Sign up / Login / Forgot password
@@ -626,7 +719,7 @@ def _load_falowen_login_html() -> str:
     root = Path(__file__).resolve().parent
     if str(root) not in sys.path:
         sys.path.append(str(root))
-    load_falowen_login_html = import_module("src.ui.login").load_falowen_login_html
+    load_falowen_login_html = import_module("src.login_ui").load_falowen_login_html
     return load_falowen_login_html()
 
 
@@ -638,7 +731,7 @@ def render_falowen_login(google_auth_url: str = "", show_google_in_hero: bool = 
     root = Path(__file__).resolve().parent
     if str(root) not in sys.path:
         sys.path.append(str(root))
-    _render = import_module("src.ui.login").render_falowen_login
+    _render = import_module("src.login_ui").render_falowen_login
     _render(google_auth_url, show_google_in_hero, st=st, components=components, logging=logging)
 
 # ------------------------------------------------------------------------------
@@ -6297,12 +6390,10 @@ if tab == "Vocab Trainer":
         not_done = [p for p in items if p[0] not in completed]
         st.info(f"{len(not_done)} words NOT yet done at {level}.")
 
-        def _vt_reset():
+        if st.button("🔁 Start New Practice", key="vt_reset"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
-            st.experimental_rerun()
-
-        st.button("🔁 Start New Practice", key="vt_reset", on_click=_vt_reset)
+            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
         if st.session_state.vt_total is None:
             with st.form("vt_setup"):
@@ -6335,18 +6426,15 @@ if tab == "Vocab Trainer":
                 ]
                 st.session_state.vt_saved = False
                 st.session_state.vt_session_id = str(uuid4())
-                st.experimental_rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
         else:
             st.markdown("### Daily Practice Setup")
             st.info(
                 f"{st.session_state.vt_total} words · {st.session_state.get('vt_mode')}"
             )
-
-            def _vt_change_goal():
+            if st.button("Change goal", key="vt_change_goal"):
                 st.session_state.vt_total = None
-                st.experimental_rerun()
-
-            st.button("Change goal", key="vt_change_goal", on_click=_vt_change_goal)
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
         tot = st.session_state.vt_total
         idx = st.session_state.vt_index
@@ -6406,7 +6494,7 @@ if tab == "Vocab Trainer":
                     fb = f"❌ Nope. '{word}' = '{answer}'"
                 st.session_state.vt_history.append(("assistant", fb))
                 st.session_state.vt_index += 1
-                st.experimental_rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
         if isinstance(tot, int) and idx >= tot:
             score = st.session_state.vt_score
@@ -6426,12 +6514,11 @@ if tab == "Vocab Trainer":
                         session_id=st.session_state.vt_session_id
                     )
                 st.session_state.vt_saved = True
-                st.session_state.vt_history.append(
-                    ("assistant", f"🏁 Practice complete! You scored {score}/{tot}.")
-                )
-                st.experimental_rerun()
-
-            st.button("Practice Again", key="vt_again", on_click=_vt_reset)
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+            if st.button("Practice Again", key="vt_again"):
+                for k in defaults:
+                    st.session_state[k] = defaults[k]
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
     # ===========================
     # SUBTAB: Dictionary  (download-only audio)
@@ -7665,50 +7752,33 @@ if tab == "Schreiben Trainer":
                 st.rerun()
 
 
+# ---- Dashboard (Assignments/Vocab/Leaderboard/Missed/Next/Attendance) ----
+st.markdown('<div class="h1">📊 Dashboard</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-subtle">Your weekly progress and quick actions.</div>', unsafe_allow_html=True)
+st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
 
+c1,c2,c3 = st.columns(3)
 
+with c1:
+    badge("1 day streak","green")
+    card("Assignment Streak", "Submitted **1/3** this week — **2** to go")
+with c2:
+    badge("Buslinie","purple")
+    card("Vocab of the Day", "bus line · **Level A1**")
+with c3:
+    badge("Not ranked yet","orange")
+    card("Leaderboard", "Complete **3+** assignments to unlock your rank 🚀")
 
+c4,c5,c6 = st.columns(3)
+with c4:
+    badge("None","green")
+    card("Missed Assignments", "Perfect! You’re on track 🎉")
+with c5:
+    badge("Next","")
+    card("Next Assignment",
+         "Day 2: **0.2_1.1 – Lesen & Hören 0.2 and 1.1**<br/>Understand the German alphabets, personal pronouns and verb conjugation in German.")
+with c6:
+    card("Attendance", "<div class='empty'>0 sessions • 0.0h</div>")
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+st.write("")
+st.button("View class board")
