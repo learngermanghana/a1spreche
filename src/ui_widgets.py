@@ -7,8 +7,20 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 
+def _reset_google_render_flags() -> None:
+    """Clear Google render flags when the user is logged out."""
+    if st.session_state.get("logged_in"):
+        return
+    st.session_state.pop("_google_btn_rendered", None)
+    st.session_state.pop("_google_cta_rendered", None)
+    for key in list(st.session_state.keys()):
+        if key.startswith("__google_btn_rendered::"):
+            st.session_state.pop(key, None)
+
+
 def render_google_button_once(auth_url: str, key: str = "primary") -> None:
     """Render a branded Google button once per session key."""
+    _reset_google_render_flags()
     ss_key = f"__google_btn_rendered::{key}"
     if st.session_state.get(ss_key):
         return
@@ -41,6 +53,7 @@ def render_google_button_once(auth_url: str, key: str = "primary") -> None:
 
 def render_google_signin_once(auth_url: str, full_width: bool = True) -> None:
     """Render a single Google sign-in button with guard."""
+    _reset_google_render_flags()
     if not auth_url or st.session_state.get("_google_btn_rendered"):
         return
     btn_html = f"""
@@ -92,6 +105,7 @@ def render_google_signin_once(auth_url: str, full_width: bool = True) -> None:
 
 def render_google_brand_button_once(auth_url: str, center: bool = True) -> None:
     """Render a branded Google call-to-action only once."""
+    _reset_google_render_flags()
     if not auth_url or st.session_state.get("_google_cta_rendered"):
         return
     align = "text-align:center;" if center else ""
