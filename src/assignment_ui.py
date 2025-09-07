@@ -312,6 +312,8 @@ def generate_enrollment_letter_pdf(
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_font("DejaVu", "", "font/DejaVuSans.ttf", uni=True)
+    pdf.add_font("DejaVu", "B", "font/DejaVuSans.ttf", uni=True)
 
     # Insert letterhead at the top of the page
     try:  # pragma: no cover - network use is best effort
@@ -347,9 +349,9 @@ def generate_enrollment_letter_pdf(
         pass
 
     pdf.set_y(40)
-    pdf.set_font("Helvetica", "B", 16)
+    pdf.set_font("DejaVu", "B", 16)
     pdf.cell(0, 10, clean_for_pdf("Learn Language Education Academy"), ln=1, align="C")
-    pdf.set_font("Helvetica", size=10)
+    pdf.set_font("DejaVu", size=10)
     pdf.cell(
         0,
         6,
@@ -360,7 +362,7 @@ def generate_enrollment_letter_pdf(
     pdf.cell(0, 6, clean_for_pdf("Business Reg No: BN173410224"), ln=1, align="C")
     pdf.ln(10)
 
-    pdf.set_font("Helvetica", size=12)
+    pdf.set_font("DejaVu", size=12)
     body_lines = [
         "To Whom It May Concern,",
         f"{student_name} is officially enrolled in {student_level} at Learn Language Education Academy.",
@@ -417,6 +419,7 @@ def generate_receipt_pdf(
         os.path.join(os.path.dirname(__file__), "..", "font", "DejaVuSans.ttf")
     )
     pdf.add_font("DejaVu", "", font_path, uni=True)
+    pdf.add_font("DejaVu", "B", font_path, uni=True)
 
     logo = load_school_logo()
     if logo:
@@ -426,9 +429,9 @@ def generate_receipt_pdf(
         except Exception:
             pdf.ln(5)
 
-    pdf.set_font("Helvetica", "B", 16)
+    pdf.set_font("DejaVu", "B", 16)
     pdf.cell(0, 10, clean_for_pdf("Payment Receipt"), ln=1, align="C")
-    pdf.set_font("Helvetica", size=10)
+    pdf.set_font("DejaVu", size=10)
     pdf.cell(
         0,
         6,
