@@ -207,7 +207,7 @@ def render_forgot_password_panel() -> None:
 
     if back_btn:
         st.session_state["show_reset_panel"] = False
-        st.rerun()
+        st.session_state["need_rerun"] = True
 
     if send_btn:
         if not email_for_reset:
@@ -405,7 +405,7 @@ def _handle_google_oauth(code: str, state: str) -> None:
         qp_clear()
         st.success(f"Welcome, {student_row['Name']}!")
         refresh_with_toast()
-        st.rerun()
+        st.session_state["need_rerun"] = True
 
     except Exception as e:  # pragma: no cover - network errors
         logging.exception("Google OAuth error")
