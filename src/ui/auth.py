@@ -12,7 +12,6 @@ import logging
 import requests
 
 import bcrypt
-import pandas as pd
 import streamlit as st
 
 from falowen.email_utils import send_reset_email, build_gas_reset_link
@@ -28,7 +27,6 @@ from src.data_loading import load_student_data
 from src.session_management import determine_level
 from src.ui_helpers import qp_get, qp_clear
 from src.services.contracts import contract_active
-from src.config import get_cookie_manager
 
 # Google OAuth configuration
 GOOGLE_CLIENT_ID = st.secrets.get(
@@ -37,8 +35,6 @@ GOOGLE_CLIENT_ID = st.secrets.get(
 )
 GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
 REDIRECT_URI = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowen.app/")
-
-cookie_manager = get_cookie_manager()
 
 
 def render_signup_form() -> None:
@@ -161,7 +157,9 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
     level = determine_level(student_row["StudentCode"], student_row)
 
-    clear_session(cookie_manager)
+    cookie_manager = st.session_state.get("cookie_manager")
+    if cookie_manager:
+        clear_session(cookie_manager)
     st.session_state.update(
         {
             "logged_in": True,
@@ -172,19 +170,21 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
             "student_level": level,
         }
     )
-    set_student_code_cookie(
-        cookie_manager,
-        student_row["StudentCode"],
-        expires=datetime.now(UTC) + timedelta(days=180),
-    )
+    if cookie_manager:
+        set_student_code_cookie(
+            cookie_manager,
+            student_row["StudentCode"],
+            expires=datetime.now(UTC) + timedelta(days=180),
+        )
     persist_session_client(sess_token, student_row["StudentCode"])
-    set_session_token_cookie(
-        cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30)
-    )
-    try:
-        cookie_manager.save()
-    except Exception:
-        logging.exception("Cookie save failed")
+    if cookie_manager:
+        set_session_token_cookie(
+            cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30)
+        )
+        try:
+            cookie_manager.save()
+        except Exception:
+            logging.exception("Cookie save failed")
 
     st.success(f"Welcome, {student_row['Name']}!")
     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
@@ -366,7 +366,9 @@ def _handle_google_oauth(code: str, state: str) -> None:
             except Exception:
                 logging.exception("Logout warning (revoke)")
 
-        clear_session(cookie_manager)
+        cookie_manager = st.session_state.get("cookie_manager")
+        if cookie_manager:
+            clear_session(cookie_manager)
 
         sess_token = create_session_token(
             student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash
@@ -383,19 +385,21 @@ def _handle_google_oauth(code: str, state: str) -> None:
                 "student_level": level,
             }
         )
-        set_student_code_cookie(
-            cookie_manager,
-            student_row["StudentCode"],
-            expires=datetime.now(UTC) + timedelta(days=180),
-        )
+        if cookie_manager:
+            set_student_code_cookie(
+                cookie_manager,
+                student_row["StudentCode"],
+                expires=datetime.now(UTC) + timedelta(days=180),
+            )
         persist_session_client(sess_token, student_row["StudentCode"])
-        set_session_token_cookie(
-            cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30)
-        )
-        try:
-            cookie_manager.save()
-        except Exception:
-            logging.exception("Cookie save failed")
+        if cookie_manager:
+            set_session_token_cookie(
+                cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30)
+            )
+            try:
+                cookie_manager.save()
+            except Exception:
+                logging.exception("Cookie save failed")
 
         qp_clear()
         st.success(f"Welcome, {student_row['Name']}!")
