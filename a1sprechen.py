@@ -28,17 +28,43 @@ import bcrypt
 import pandas as pd
 import requests
 import streamlit as st
+
+# ---------- Falowen UI: Inter Font + Global Styles ----------
+try:
+    st.set_page_config(page_title="Falowen", page_icon="🦊", layout="wide")
+except Exception:
+    pass
+
+st.markdown("""
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  html, body, [class*="css"]  {
+    font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif !important;
+  }
+  .stButton > button {
+    border-radius: 12px !important;
+    padding: 10px 16px !important;
+    font-weight: 600 !important;
+  }
+  .stTextInput > div > div > input, textarea, select {
+    border-radius: 12px !important;
+  }
+</style>
+""", unsafe_allow_html=True)
+# ---------- /Falowen UI block ----------
+
+
 from streamlit.errors import StreamlitAPIException
 import streamlit.components.v1 as components
 from docx import Document
 from google.cloud.firestore_v1 import FieldFilter
 from firebase_admin import firestore  # Firebase
 from openai import OpenAI
-from src.styles import inject_global_styles
 
 from flask import Flask
 from auth import auth_bp
-from src.routes.health import register_health_route
 from src.group_schedules import load_group_schedules
 import src.schedule as _schedule
 load_level_schedules = _schedule.load_level_schedules
@@ -46,7 +72,12 @@ refresh_level_schedules = getattr(_schedule, "refresh_level_schedules", lambda: 
 
 app = Flask(__name__)
 app.register_blueprint(auth_bp)
-register_health_route(app)
+
+@app.get("/health")
+def health():
+    return {"ok": True}, 200
+
+
 
 ICON_PATH = Path(__file__).parent / "static/icons/falowen-512.png"
 
@@ -56,9 +87,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
-# Load global CSS classes and variables
-inject_global_styles()
 
 
 if st.session_state.pop("needs_rerun", False):
@@ -86,7 +114,6 @@ from falowen.db import (
 from src.contracts import (
     is_contract_expired,
 )
-from src.services.contracts import contract_active
 from src.utils.currency import format_cedis
 from src.firestore_utils import (
     _draft_doc_ref,
@@ -97,24 +124,6 @@ from src.firestore_utils import (
     save_draft_to_db,
     save_ai_response,
     fetch_attendance_summary,
-)
-from src.draft_management import (
-    _draft_state_keys,
-    save_now,
-    autosave_maybe,
-    load_notes_from_db,
-    save_notes_to_db,
-    autosave_learning_note,
-    on_cb_subtab_change,
-)
-from src.firestore_helpers import (
-    lesson_key_build,
-    lock_id,
-    has_existing_submission,
-    acquire_lock,
-    is_locked,
-    resolve_current_content,
-    fetch_latest,
 )
 from src.attendance_utils import load_attendance_records
 from src.ui_components import (
@@ -128,17 +137,6 @@ from src.stats import (
     vocab_attempt_exists,
 )
 from src.stats_ui import render_vocab_stats, render_schreiben_stats
-from src.ui.auth import (
-    render_signup_form,
-    render_login_form,
-    render_forgot_password_panel,
-    render_returning_login_area,
-    render_signup_request_banner,
-    render_google_oauth,
-    render_returning_login_form,
-)
-from src.ui.login import render_falowen_login
-from src.services.vocab import VOCAB_LISTS, AUDIO_URLS, get_audio_url
 from src.schreiben import (
     update_schreiben_stats,
     get_schreiben_stats,
@@ -190,12 +188,11 @@ from src.pdf_handling import (
     generate_single_note_pdf,
     generate_chat_pdf,
 )
-from src.sentence_builder import render_sentence_builder
 
 # ------------------------------------------------------------------------------
 # Cookie manager
 # ------------------------------------------------------------------------------
-st.session_state.setdefault("cookie_manager", get_cookie_manager())
+cookie_manager = get_cookie_manager()
 
 # ------------------------------------------------------------------------------
 # Google OAuth (Gmail sign-in) — single-source, no duplicate buttons
@@ -212,35 +209,440 @@ ADMINS_BY_LEVEL = {
     "B1": {"felixb1"},
 }
 
-# Study tips shown on the dashboard for each CEFR level.
-LEVEL_TIPS = {
-    "A1": "Focus on everyday phrases and practice listening with simple dialogues.",
-    "A2": "Build vocabulary around daily routines and start speaking in longer sentences.",
-    "B1": "Read short articles to boost comprehension and keep a diary in German.",
-    "B2": "Engage with podcasts or news to refine your listening and expand vocabulary.",
-    "C1": "Discuss complex topics in German and review grammar nuances regularly.",
-}
+def _get_qp():
+    try:
+        return qp_get()
+    except Exception:
+        return getattr(st, "query_params", {})  # fallback
 
-# Exam preparation advice for each CEFR level.
-EXAM_ADVICE = {
-    "A1": "Focus on listening comprehension to build a strong foundation.",
-    "A2": "Review core grammar and practice everyday conversations.",
-    "B1": "Work on grammar accuracy and write short essays.",
-    "B2": "Engage with longer authentic texts and audio.",
-    "C1": "Hone precision in complex discussions and essays.",
-}
+def _qp_first(v):
+    if isinstance(v, list): return v[0] if v else None
+    return v
 
+def _handle_google_oauth(code: str, state: str) -> None:
+    df = load_student_data()
+    if df is None:
+        st.error("Student roster unavailable. Please try again later.")
+        return
+    df["Email"] = df["Email"].str.lower().str.strip()
+    try:
+        # CSRF/state + re-use guard
+        if st.session_state.get("_oauth_state") and state != st.session_state["_oauth_state"]:
+            st.error("OAuth state mismatch. Please try again.")
+            return
+        if st.session_state.get("_oauth_code_redeemed") == code:
+            return
 
+        # Exchange code
+        token_url = "https://oauth2.googleapis.com/token"
+        data = {
+            "code": code,
+            "client_id": GOOGLE_CLIENT_ID,
+            "client_secret": GOOGLE_CLIENT_SECRET,
+            "redirect_uri": REDIRECT_URI,
+            "grant_type": "authorization_code",
+        }
+        resp = requests.post(token_url, data=data, timeout=10)
+        if not resp.ok:
+            st.error(f"Google login failed: {resp.status_code} {resp.text}")
+            return
+
+        token_data    = resp.json()
+        access_token  = token_data.get("access_token")
+        refresh_token = token_data.get("refresh_token")
+        if not access_token:
+            st.error("Google login failed: no access token.")
+            return
+
+        st.session_state["_oauth_code_redeemed"] = code
+        st.session_state["access_token"] = access_token
+        if refresh_token:
+            st.session_state["refresh_token"] = refresh_token
+
+        # Fetch profile
+        userinfo = requests.get(
+            "https://www.googleapis.com/oauth2/v2/userinfo",
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=10,
+        ).json()
+
+        email = (userinfo.get("email") or "").lower().strip()
+        match = df[df["Email"] == email]
+        if match.empty:
+            st.error("No student account found for that Google email.")
+            return
+
+        student_row = match.iloc[0]
+        if is_contract_expired(student_row):
+            st.error("Your contract has expired. Contact the office.")
+            return
+
+        # End any old token, clear cookie/session, create new session
+        ua_hash    = st.session_state.get("__ua_hash", "")
+        prev_token = st.session_state.get("session_token", "")
+        if prev_token:
+            try:
+                destroy_session_token(prev_token)
+            except Exception:
+                logging.exception("Logout warning (revoke)")
+
+        clear_session(cookie_manager)
+
+        sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
+        level = determine_level(student_row["StudentCode"], student_row)
+
+        st.session_state.update({
+            "logged_in": True,
+            "student_row": student_row.to_dict(),
+            "student_code": student_row["StudentCode"],
+            "student_name": student_row["Name"],
+            "session_token": sess_token,
+            "student_level": level,
+        })
+        set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
+        persist_session_client(sess_token, student_row["StudentCode"])
+        set_session_token_cookie(cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
+        try:
+            cookie_manager.save()
+        except Exception:
+            logging.exception("Cookie save failed")
+
+        qp_clear()
+        st.success(f"Welcome, {student_row['Name']}!")
+        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+        st.rerun()
+
+    except Exception as e:
+        logging.exception("Google OAuth error")
+        st.error(f"Google OAuth error: {e}")
+
+def _inject_meta_tags():
+    from src.login_ui import inject_meta_tags
+    inject_meta_tags()
 
 
 def inject_notice_css():
-    from src.ui.login import inject_notice_css as _inject_css
+    from src.login_ui import inject_notice_css as _inject_css
     _inject_css()
 
 # Legacy hero rendering moved to src.login_ui
 
 # ------------------------------------------------------------------------------
 # Sign up / Login / Forgot password
+# ------------------------------------------------------------------------------
+def render_signup_form():
+    with st.form("signup_form", clear_on_submit=False):
+        new_name = st.text_input("Full Name", key="ca_name")
+        new_email = st.text_input(
+            "Email (must match teacher’s record)",
+            help="Use the school email your tutor added to the roster.",
+            key="ca_email",
+        ).strip().lower()
+        new_code = st.text_input("Student Code (from teacher)", help="Example: felixa2", key="ca_code").strip().lower()
+        new_password = st.text_input("Choose a Password", type="password", key="ca_pass")
+        signup_btn = st.form_submit_button("Create Account")
+
+    if not signup_btn:
+        return
+    if not (new_name and new_email and new_code and new_password):
+        st.error("Please fill in all fields."); return
+    if len(new_password) < 8:
+        st.error("Password must be at least 8 characters."); return
+
+    df = load_student_data()
+    if df is None:
+        st.error("Student roster unavailable. Please try again later."); return
+    df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+    df["Email"]       = df["Email"].str.lower().str.strip()
+    valid = df[(df["StudentCode"] == new_code) & (df["Email"] == new_email)]
+    if valid.empty:
+        st.error("Your code/email aren’t registered. Use 'Request Access' first."); return
+
+    doc_ref = db.collection("students").document(new_code)
+    if doc_ref.get().exists:
+        st.error("An account with this student code already exists. Please log in instead."); return
+
+    hashed_pw = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
+    st.success("Account created! Please log in on the Returning tab.")
+
+def render_login_form(login_id: str, login_pass: str) -> bool:
+    login_id = (login_id or "").strip().lower()
+    login_pass = login_pass or ""
+    if not (login_id and login_pass):
+        st.error("Please enter both email and password.")
+        return False
+
+    df = load_student_data()
+    if df is None:
+        st.error("Student roster unavailable. Please try again later.")
+        return False
+
+    df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+    df["Email"]       = df["Email"].str.lower().str.strip()
+    lookup = df[(df["StudentCode"] == login_id) | (df["Email"] == login_id)]
+    if lookup.empty:
+        st.error("No matching student code or email found."); return False
+    if lookup.shape[0] > 1:
+        st.error("Multiple matching accounts found. Please contact the office."); return False
+
+    student_row = lookup.iloc[0]
+    if is_contract_expired(student_row):
+        st.error("Your contract has expired. Contact the office."); return False
+
+    if not _contract_active(student_row["StudentCode"], df):
+        st.error("Outstanding balance past due. Contact the office."); return False
+
+    doc_ref = db.collection("students").document(student_row["StudentCode"])
+    doc = doc_ref.get()
+    if not doc.exists:
+        st.error("Account not found. Please use 'Sign Up (Approved)' first."); return False
+
+    data = doc.to_dict() or {}
+    stored_pw = data.get("password", "")
+    is_hash = stored_pw.startswith(("$2a$", "$2b$", "$2y$")) and len(stored_pw) >= 60
+
+    try:
+        ok = bcrypt.checkpw(login_pass.encode("utf-8"), stored_pw.encode("utf-8")) if is_hash else stored_pw == login_pass
+        if ok and not is_hash:
+            new_hash = bcrypt.hashpw(login_pass.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            doc_ref.update({"password": new_hash})
+    except Exception:
+        logging.exception("Password hash upgrade failed")
+        ok = False
+
+    if not ok:
+        st.error("Incorrect password."); return False
+
+    ua_hash = st.session_state.get("__ua_hash", "")
+    prev_token = st.session_state.get("session_token", "")
+    if prev_token:
+        try:
+            destroy_session_token(prev_token)
+        except Exception:
+            logging.exception("Logout warning (revoke)")
+
+    sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
+    level = determine_level(student_row["StudentCode"], student_row)
+
+    clear_session(cookie_manager)
+    st.session_state.update({
+        "logged_in": True,
+        "student_row": dict(student_row),
+        "student_code": student_row["StudentCode"],
+        "student_name": student_row["Name"],
+        "session_token": sess_token,
+        "student_level": level,
+    })
+    set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
+    persist_session_client(sess_token, student_row["StudentCode"])
+    set_session_token_cookie(cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
+    try:
+        cookie_manager.save()
+    except Exception:
+        logging.exception("Cookie save failed")
+
+    st.success(f"Welcome, {student_row['Name']}!")
+    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+    return True
+
+def render_forgot_password_panel():
+    st.markdown("##### Forgot password")
+    email_for_reset = st.text_input("Registered email", key="reset_email")
+    c3, c4 = st.columns([0.55, 0.45])
+    with c3:
+        send_btn = st.button("Send reset link", key="send_reset_btn", use_container_width=True)
+    with c4:
+        back_btn = st.button("Back to login", key="hide_reset_btn", use_container_width=True)
+
+    if back_btn:
+        st.session_state["show_reset_panel"] = False
+        st.rerun()
+
+    if send_btn:
+        if not email_for_reset:
+            st.error("Please enter your email.")
+        else:
+            e = email_for_reset.lower().strip()
+            user_query = db.collection("students").where("email", "==", e).get()
+            if not user_query:
+                user_query = db.collection("students").where("Email", "==", e).get()
+            if not user_query:
+                st.error("No account found with that email.")
+            else:
+                token = uuid4().hex
+                expires_at = datetime.now(UTC) + timedelta(hours=1)
+                try:
+                    reset_link = build_gas_reset_link(token)
+                except Exception:
+                    base_url = (st.secrets.get("PUBLIC_BASE_URL", "https://falowen.app") or "").rstrip("/")
+                    reset_link = f"{base_url}/?token={_urllib.quote(token, safe='')}"
+                db.collection("password_resets").document(token).set({
+                    "email": e,
+                    "created": datetime.now(UTC).isoformat(),
+                    "expires_at": expires_at.isoformat(),
+                })
+                if send_reset_email(e, reset_link):
+                    st.success("Reset link sent! Check your inbox (and spam).")
+                else:
+                    st.error("We couldn't send the email. Please try again later.")
+
+def render_returning_login_area() -> bool:
+    """Email/Password login + optional forgot-password panel. No Google button here."""
+    with st.form("returning_login_form", clear_on_submit=False):
+        st.markdown("#### Returning user login")
+        login_id = st.text_input("Email or Student Code")
+        login_pass = st.text_input("Password", type="password")
+        c1, c2 = st.columns([0.6, 0.4])
+        with c1:
+            submitted = st.form_submit_button("Log in")
+        with c2:
+            forgot_toggle = st.form_submit_button("Forgot password?", help="Reset via email")
+
+    if submitted and render_login_form(login_id, login_pass):
+        return True
+
+    if forgot_toggle:
+        st.session_state["show_reset_panel"] = True
+
+    if st.session_state.get("show_reset_panel"):
+        render_forgot_password_panel()
+
+    # ❌ Do not render Google here (single button lives below the hero)
+    return False
+
+
+# --- One-time branded Google button (kept exactly once on the page)
+
+# --- Small explanatory banner shown above the tabs
+def render_signup_request_banner():
+    if not st.session_state.get("_signup_banner_css_done"):
+        st.markdown(
+            """
+            <style>
+              .inline-banner{
+                background:#f5f9ff; border:1px solid rgba(30,64,175,.15);
+                border-radius:12px; padding:12px 14px; margin:12px 0;
+                box-shadow:0 4px 10px rgba(2,6,23,.04);
+              }
+              .inline-banner b{ color:#0f172a; }
+              .inline-banner .note{ color:#475569; font-size:.95rem; margin-top:6px; }
+              .inline-banner ul{ margin:6px 0 0 1.1rem; }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.session_state["_signup_banner_css_done"] = True
+
+    st.markdown(
+        """
+        <div class="inline-banner">
+          <div><b>Which option should I use?</b></div>
+          <ul>
+            <li><b>Sign Up (Approved):</b> For students already added by your tutor/office. Use your <b>Student Code</b> and <b>registered email</b> to create a password.</li>
+            <li><b>Request Access:</b> New learner or not on the roster yet. Fill the form and we’ll set you up and email next steps.</li>
+          </ul>
+          <div class="note">Not sure? Choose <b>Request Access</b> — we’ll route you correctly.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_google_oauth(return_url: bool = True) -> Optional[str]:
+    """Complete OAuth if ?code=... else return the Google Authorization URL.
+       (Does not render any buttons — we control that elsewhere.)"""
+    import secrets
+    import urllib.parse
+
+    def _qp_first(val):
+        return val[0] if isinstance(val, list) else val
+
+    qp = qp_get()
+    code  = _qp_first(qp.get("code")) if hasattr(qp, "get") else None
+    state = _qp_first(qp.get("state")) if hasattr(qp, "get") else None
+    if code:
+        _handle_google_oauth(code, state)
+        return None
+
+    st.session_state["_oauth_state"] = secrets.token_urlsafe(24)
+    params = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": REDIRECT_URI,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "prompt": "select_account",
+        "state": st.session_state["_oauth_state"],
+        "include_granted_scopes": "true",
+        "access_type": "online",
+    }
+    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
+    return auth_url
+
+# --- One-time branded Google button (shows ONCE under "Returning user login")
+# ------------------------------------------------------------------------------
+# Returning login (no extra Google button here anymore)
+# ------------------------------------------------------------------------------
+def render_returning_login_area() -> bool:
+    with st.form("returning_login_form", clear_on_submit=False):
+        login_id  = st.text_input("Email or Student Code")
+        login_pass= st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Log in")
+
+    if submitted and render_login_form(login_id, login_pass):
+        return True
+
+    # Forgot password toggle below the form
+    col_a, col_b = st.columns([0.5, 0.5])
+    with col_a:
+        if st.button("Forgot password?"):
+            st.session_state["show_reset_panel"] = True
+    if st.session_state.get("show_reset_panel"):
+        render_forgot_password_panel()
+
+    return False
+
+def render_returning_login_form():
+    """Simplified returning-user login form used in tests."""
+    with st.form("returning_login_form", clear_on_submit=False):
+        login_id = st.text_input("Email or Student Code")
+        login_pass = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Log in")
+        forgot = st.form_submit_button("Forgot password?")
+    if submitted:
+        render_login_form(login_id, login_pass)
+    if forgot:
+        # In reality this would trigger sending a reset email.
+        send_reset_email("test@example.com", "reset-link")
+    return False
+
+
+@lru_cache(maxsize=1)
+def _load_falowen_login_html() -> str:
+    import sys
+    from importlib import import_module
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent
+    if str(root) not in sys.path:
+        sys.path.append(str(root))
+    load_falowen_login_html = import_module("src.login_ui").load_falowen_login_html
+    return load_falowen_login_html()
+
+
+def render_falowen_login(google_auth_url: str = "", show_google_in_hero: bool = False) -> None:
+    import sys
+    from importlib import import_module
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent
+    if str(root) not in sys.path:
+        sys.path.append(str(root))
+    _render = import_module("src.login_ui").render_falowen_login
+    _render(google_auth_url, show_google_in_hero, st=st, components=components, logging=logging)
+
+# ------------------------------------------------------------------------------
+# Login page (hero + single Google CTA under 'Returning user login' + tabs)
 # ------------------------------------------------------------------------------
 def login_page():
     # 1) Get Google auth URL (also completes flow if ?code=...)
@@ -391,17 +793,11 @@ def render_logged_in_topbar():
                 unsafe_allow_html=True
             )
         with c2:
-            st.button(
-                "Log out",
-                key="logout_global",
-                type="primary",
-                use_container_width=True,
-                on_click=lambda: do_logout(st.session_state["cookie_manager"]),
-            )
-
-    level_key = (level or "").strip().upper()
-    tip = LEVEL_TIPS.get(level_key, "Keep practicing and immerse yourself daily.")
-    st.info(tip)
+            st.button("Log out",
+                      key="logout_global",
+                      type="primary",
+                      use_container_width=True,
+                      on_click=lambda: do_logout(cookie_manager))
 
 
 # ------------------------------------------------------------------------------
@@ -542,12 +938,37 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 bootstrap_state()
 seed_falowen_state_from_qp()
 
+def _contract_active(sc: str, roster):
+    if roster is None or "StudentCode" not in roster.columns:
+        return True
+    match = roster[roster["StudentCode"].str.lower() == sc.lower()]
+    if match.empty:
+        return True
+    row = match.iloc[0]
+    if is_contract_expired(row):
+        return False
 
-restored = restore_session_from_cookie(
-    st.session_state["cookie_manager"],
-    load_student_data,
-    contract_active,
-)
+    # Check for outstanding balances older than 30 days
+    start_str = str(row.get("ContractStart", "") or "")
+    start_date = pd.to_datetime(start_str, errors="coerce")
+    if start_date is not pd.NaT:
+        days_since_start = (
+            pd.Timestamp.now(tz=UTC).date() - start_date.date()
+        ).days
+        def _read_money(x):
+            try:
+                s = str(x).replace(",", "").replace(" ", "").strip()
+                return float(s) if s not in ("", "nan", "None") else 0.0
+            except Exception:
+                return 0.0
+
+        balance = _read_money(row.get("Balance", 0))
+        if balance > 0 and days_since_start >= 30:
+            return False
+
+    return True
+
+restored = restore_session_from_cookie(cookie_manager, load_student_data, _contract_active)
 if restored is not None and not st.session_state.get("logged_in", False):
     sc_cookie = restored["student_code"]
     token = restored["session_token"]
@@ -558,7 +979,7 @@ if restored is not None and not st.session_state.get("logged_in", False):
         else pd.DataFrame()
     )
     if match.empty:
-        clear_session(st.session_state["cookie_manager"])
+        clear_session(cookie_manager)
         st.warning("Session expired. Please log in again.")
     else:
         row = match.iloc[0]
@@ -1493,13 +1914,6 @@ if tab == "Dashboard":
                     f"{fee_text}"
                 )
 
-            st.caption(
-                EXAM_ADVICE.get(
-                    level,
-                    "No exam advice available for your level."
-                )
-            )
-
             playlist_ids = get_playlist_ids_for_level(level)
             fetch_videos = fetch_youtube_playlist_videos
             playlist_id = random.choice(playlist_ids) if playlist_ids else None
@@ -1535,6 +1949,82 @@ if tab == "Dashboard":
     render_app_footer(FOOTER_LINKS)
 
 
+# -------------------------
+# UI helpers
+# -------------------------
+
+def _draft_state_keys(draft_key: str) -> "Tuple[str, str, str, str]":
+    """Return the session-state keys used to track last save info for a draft."""
+    return (
+        f"{draft_key}__last_val",
+        f"{draft_key}__last_ts",
+        f"{draft_key}_saved",
+        f"{draft_key}_saved_at"
+    )
+
+def save_now(draft_key: str, code: str) -> None:
+    """
+    Immediate save invoked by the text area's on_change hook.
+    Guarantees a Firestore write on blur or explicit change.
+    """
+    text = st.session_state.get(draft_key, "") or ""
+    if st.session_state.get("falowen_chat_draft_key") == draft_key:
+        conv = st.session_state.get("falowen_conv_key", "")
+        save_chat_draft_to_db(code, conv, text)
+    else:
+        save_draft_to_db(code, draft_key, text)
+
+    # Update local 'last saved' markers so the UI shows the correct time.
+    last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
+    st.session_state[last_val_key]   = text
+    st.session_state[last_ts_key]    = time.time()
+    st.session_state[saved_flag_key] = True
+    st.session_state[saved_at_key]   = datetime.now(_timezone.utc)
+
+def autosave_maybe(
+    code: str,
+    lesson_field_key: str,
+    text: str,
+    *,
+    min_secs: float = 5.0,
+    min_delta: int = 30,
+    locked: bool = False
+) -> None:
+    """
+    Debounced background autosave.
+    Saves only if content changed AND (enough time passed OR change is large).
+    Also updates local 'last saved' markers to avoid redundant writes.
+
+    Args:
+        code: Student code (document id).
+        lesson_field_key: Field name / draft key (e.g., 'draft_A1_day3_chX').
+        text: Current textarea content.
+        min_secs: Minimum seconds between saves for small changes.
+        min_delta: Minimum character count difference to treat as 'big change'.
+        locked: If True, do nothing (submitted/locked state).
+    """
+    if locked:
+        return
+
+    last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(lesson_field_key)
+    last_val = st.session_state.get(last_val_key, "")
+    last_ts  = float(st.session_state.get(last_ts_key, 0.0))
+    now = time.time()
+
+    changed    = (text != last_val)
+    big_change = abs(len(text) - len(last_val)) >= min_delta
+    time_ok    = (now - last_ts) >= min_secs
+
+    if changed and (time_ok or big_change):
+        if st.session_state.get("falowen_chat_draft_key") == lesson_field_key:
+            conv = st.session_state.get("falowen_conv_key", "")
+            save_chat_draft_to_db(code, conv, text)
+        else:
+            save_draft_to_db(code, lesson_field_key, text)
+        st.session_state[last_val_key]   = text
+        st.session_state[last_ts_key]    = now
+        st.session_state[saved_flag_key] = True
+        st.session_state[saved_at_key]   = datetime.now(_timezone.utc)
 
 def render_section(day_info: dict, key: str, title: str, icon: str) -> None:
     """Render a lesson section (supports list or single dict)."""
@@ -1637,6 +2127,132 @@ def has_telegram_subscription(student_code: str) -> bool:
 # -------------------------
 # Firestore helpers (uses your existing `db` and `from firebase_admin import firestore`)
 # -------------------------
+def lesson_key_build(level: str, day: int, chapter: str) -> str:
+    """Unique, safe key for this lesson (reusable in docs/fields)."""
+    safe_ch = re.sub(r'[^A-Za-z0-9_\-]+', '_', str(chapter))
+    return f"{level}_day{day}_ch{safe_ch}"
+
+def lock_id(level: str, code: str, lesson_key: str) -> str:
+    """Stable document id for submission lock."""
+    safe_code = re.sub(r'[^A-Za-z0-9_\-]+', '_', str(code))
+    return f"{level}__{safe_code}__{lesson_key}"
+
+def has_existing_submission(level: str, code: str, lesson_key: str) -> bool:
+    """True if a submission exists for this (level, code, lesson_key)."""
+    posts_ref = db.collection("submissions").document(level).collection("posts")
+    try:
+        q = (posts_ref.where(filter=FieldFilter("student_code", "==", code))
+                      .where(filter=FieldFilter("lesson_key", "==", lesson_key))
+                      .limit(1).stream())
+        return any(True for _ in q)
+    except Exception:
+        try:
+            for _ in posts_ref.where(filter=FieldFilter("student_code", "==", code))\
+                              .where(filter=FieldFilter("lesson_key", "==", lesson_key)).stream():
+                return True
+        except Exception:
+            pass
+        return False
+
+def acquire_lock(level: str, code: str, lesson_key: str) -> bool:
+    """
+    Create a lock doc; if it already exists, treat as locked.
+    Works without importing AlreadyExists explicitly.
+    """
+    ref = db.collection("submission_locks").document(lock_id(level, code, lesson_key))
+    try:
+        ref.create({
+            "level": level,
+            "student_code": code,
+            "lesson_key": lesson_key,
+            "created_at": firestore.SERVER_TIMESTAMP,
+        })
+        return True
+    except Exception:
+        try:
+            exists = ref.get().exists
+            if exists:
+                return False
+            ref.set({
+                "level": level,
+                "student_code": code,
+                "lesson_key": lesson_key,
+                "created_at": firestore.SERVER_TIMESTAMP,
+            }, merge=False)
+            return True
+        except Exception:
+            return False
+
+def is_locked(level: str, code: str, lesson_key: str) -> bool:
+    """Treat either an existing submission OR a lock doc as 'locked'."""
+    if has_existing_submission(level, code, lesson_key):
+        return True
+    try:
+        ref = db.collection("submission_locks").document(lock_id(level, code, lesson_key))
+        return ref.get().exists
+    except Exception:
+        return False
+
+
+def resolve_current_content(level: str, code: str, lesson_key: str, draft_key: str) -> dict:
+    """
+    Decide what the editor should show for this lesson.
+    Priority:
+      1) Submitted answer (locked, read-only)
+      2) Saved draft (from drafts_v2 or legacy)
+      3) Empty
+    """
+    latest = fetch_latest(level, code, lesson_key)
+    if latest:
+        return {
+            "text": latest.get("answer", "") or "",
+            "ts": latest.get("updated_at"),
+            "status": "submitted",
+            "locked": True,
+            "source": "submission",
+        }
+
+    draft_text, draft_ts = load_draft_meta_from_db(code, draft_key)
+    if draft_text:
+        return {
+            "text": draft_text,
+            "ts": draft_ts,
+            "status": "draft",
+            "locked": False,
+            "source": "draft",
+        }
+
+    return {
+        "text": "",
+        "ts": None,
+        "status": "empty",
+        "locked": False,
+        "source": "empty",
+    }
+
+def fetch_latest(level: str, code: str, lesson_key: str) -> Optional[Dict[str, Any]]:
+    """Fetch the most recent submission for this user/lesson (or None)."""
+    posts_ref = db.collection("submissions").document(level).collection("posts")
+    try:
+        docs = (
+            posts_ref.where(filter=FieldFilter("student_code", "==", code))
+            .where(filter=FieldFilter("lesson_key", "==", lesson_key))
+            .order_by("updated_at", direction=firestore.Query.DESCENDING)
+            .limit(1)
+            .stream()
+        )
+        for d in docs:
+            return d.to_dict()
+    except Exception:
+        try:
+            docs = posts_ref.where(filter=FieldFilter("student_code", "==", code))\
+                            .where(filter=FieldFilter("lesson_key", "==", lesson_key)).stream()
+            items = [d.to_dict() for d in docs]
+            items.sort(key=lambda x: x.get("updated_at"), reverse=True)
+            return items[0] if items else None
+        except Exception:
+            return None
+    return None
 
 # -------------------------
 # Misc existing helper preserved
@@ -1677,6 +2293,82 @@ RESOURCE_LABELS = {
 
 
 # ---- Firestore Helpers ----
+def load_notes_from_db(student_code):
+    ref = db.collection("learning_notes").document(student_code)
+    doc = ref.get()
+    return doc.to_dict().get("notes", []) if doc.exists else []
+
+def save_notes_to_db(student_code, notes):
+    ref = db.collection("learning_notes").document(student_code)
+    ref.set({"notes": notes}, merge=True)
+
+def autosave_learning_note(student_code: str, key_notes: str) -> None:
+    """Autosave current note draft to Firestore."""
+    notes = st.session_state.get(key_notes, [])
+    idx = st.session_state.get("edit_note_idx")
+    draft = st.session_state.get("learning_note_draft", "")
+    title = st.session_state.get("learning_note_title", "")
+    tag = st.session_state.get("learning_note_tag", "")
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    note = {
+        "title": title.strip().title(),
+        "tag": tag.strip().title(),
+        "text": draft.strip(),
+        "pinned": False,
+        "created": ts,
+        "updated": ts,
+    }
+
+    if idx is not None and idx < len(notes):
+        existing = notes[idx]
+        note["pinned"] = existing.get("pinned", False)
+        note["created"] = existing.get("created", ts)
+        notes[idx] = note
+    else:
+        notes.insert(0, note)
+        st.session_state["edit_note_idx"] = 0
+
+    st.session_state[key_notes] = notes
+    save_notes_to_db(student_code, notes)
+    st.session_state["learning_note_last_saved"] = ts
+
+def on_cb_subtab_change():
+    """Save or restore classroom reply drafts when switching subtabs."""
+    prev = st.session_state.get("__cb_subtab_prev")
+    curr = st.session_state.get("coursebook_subtab")
+    code = st.session_state.get("student_code", "")
+
+    if prev == "🧑‍🏫 Classroom" and curr != "🧑‍🏫 Classroom":
+        for key in [k for k in st.session_state.keys() if k.startswith("classroom_reply_draft_")]:
+            try:
+                save_draft_to_db(code, key, st.session_state.get(key, ""))
+            except Exception:
+                pass
+            last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(key)
+            for k in (key, last_val_key, last_ts_key, saved_flag_key, saved_at_key):
+                st.session_state.pop(k, None)
+
+    elif curr == "🧑‍🏫 Classroom" and prev != "🧑‍🏫 Classroom":
+        try:
+            lessons = db.collection("drafts_v2").document(code).collection("lessons")
+            for doc in lessons.stream():
+                if doc.id.startswith("classroom_reply_draft_"):
+                    data = doc.to_dict() or {}
+                    text = data.get("text", "")
+                    ts = data.get("updated_at")
+                    st.session_state[doc.id] = text
+                    last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(doc.id)
+                    st.session_state[last_val_key] = text
+                    st.session_state[last_ts_key] = time.time()
+                    st.session_state[saved_flag_key] = bool(text)
+                    st.session_state[saved_at_key] = ts
+        except Exception:
+            pass
+
+    st.session_state["__cb_subtab_prev"] = curr
+    
+
 if tab == "My Course":
     # === HANDLE ALL SWITCHING *BEFORE* ANY WIDGET ===
     # Jump flags set by buttons elsewhere
@@ -4337,24 +5029,6 @@ def highlight_keywords(text, words, ignore_case=True):
         )
     return text
 
-def render_message(role: str, text: str) -> None:
-    """Render a single chat message with bubble styling."""
-    if role == "assistant":
-        with st.chat_message("assistant", avatar="🧑‍🏫"):
-            st.markdown(
-                f"<div style='{bubble_assistant}'>{highlight_keywords(text, highlight_words)}</div>",
-                unsafe_allow_html=True,
-            )
-    else:
-        with st.chat_message("user"):
-            st.markdown(
-                (
-                    "<div style='display:flex;justify-content:flex-end;'>"
-                    f"<div style='{bubble_user}'>🗣️ {text}</div></div>"
-                ),
-                unsafe_allow_html=True,
-            )
-
 def clear_falowen_chat(student_code, mode, level, teil):
     """Deletes the saved chat for a particular student/mode/level/teil from Firestore."""
     chat_key = f"{mode}_{level}_{teil or 'custom'}"
@@ -5251,6 +5925,137 @@ if tab == "Exams Mode & Custom Chat":
 # ================================
 # CONFIG: Sheet for Vocab + Audio
 # ================================
+SHEET_ID  = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
+SHEET_GID = 0  # <-- change this if your Vocab tab uses another gid
+
+# ================================
+# HELPERS: Utilities used below
+# ================================
+def normalize_join(tokens):
+    s = " ".join(tokens)
+    for p in [",", ".", "!", "?", ":", ";"]:
+        s = s.replace(f" {p}", p)
+    return s
+
+def render_message(role, msg):
+    align   = "left"   if role=="assistant" else "right"
+    bgcolor = "#FAFAFA" if role=="assistant" else "#D2F8D2"
+    bordcol = "#CCCCCC"
+    label   = "Herr Felix 👨‍🏫" if role=="assistant" else "You"
+    style = (
+        f"padding:14px; border-radius:12px; max-width:96vw; "
+        f"margin:7px 0; text-align:{align}; background:{bgcolor}; "
+        f"border:1px solid {bordcol}; font-size:1.12em; word-break:break-word;"
+    )
+    st.markdown(f"<div style='{style}'><b>{label}:</b> {msg}</div>", unsafe_allow_html=True)
+
+def clean_text(text):
+    return text.replace("the ", "").replace(",", "").replace(".", "").strip().lower()
+
+def is_correct_answer(user_input, answer):
+    import re
+    possible = [clean_text(a) for a in re.split(r"[,/;]", str(answer))]
+    return clean_text(str(user_input)) in possible
+
+# ---------- Fallback TTS bytes (for when sheet link missing) ----------
+@st.cache_data(show_spinner=False)
+def _dict_tts_bytes_de(word: str, slow: bool = False):
+    try:
+        from gtts import gTTS
+        import io
+        t = gTTS(text=word, lang="de", slow=bool(slow))
+        buf = io.BytesIO()
+        t.write_to_fp(buf)
+        buf.seek(0)
+        return buf.read()
+    except Exception:
+        return None
+
+# ---- Safety shims for Sentence Builder stats (prevents NameError) ----
+if 'get_sentence_progress' not in globals():
+    def get_sentence_progress(student_code: str, level: str):
+        # Fallback: no DB? just return 0 done, and the count of available sentences
+        return 0, len(SENTENCE_BANK.get(level, []))
+
+if 'save_sentence_attempt' not in globals():
+    def save_sentence_attempt(student_code, level, target_sentence, chosen_sentence, correct, tip):
+        # No-op fallback if Firestore/_get_db not set up
+        return
+
+
+# ================================
+# HELPERS: Load vocab + audio from Sheet
+# ================================
+@st.cache_data
+def load_vocab_lists():
+    """
+    Reads the Vocab tab CSV (Level, German, English) and optional audio columns:
+    - Audio (normal) / Audio (slow) / Audio
+    Returns:
+      VOCAB_LISTS: dict[level] -> list[(German, English)]
+      AUDIO_URLS:  dict[(level, German)] -> {"normal": url, "slow": url}
+    """
+    import pandas as pd
+    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={SHEET_GID}"
+    try:
+        df = pd.read_csv(csv_url)
+    except Exception as e:
+        st.error(f"Could not fetch vocab CSV: {e}")
+        return {}, {}
+
+    df.columns = df.columns.str.strip()
+
+    # "German" and "English" are required.  If they're missing we cannot proceed.
+    required = ["German", "English"]
+    missing_required = [c for c in required if c not in df.columns]
+    if missing_required:
+        st.error(f"Missing column(s) in your vocab sheet: {missing_required}")
+        return {}, {}
+
+    # If "Level" is missing, default all rows to A1 and warn the user.
+    if "Level" not in df.columns:
+        st.warning("Missing 'Level' column in your vocab sheet. Defaulting to 'A1'.")
+        df["Level"] = "A1"
+
+    # Normalize
+    df["Level"]  = df["Level"].astype(str).str.strip()
+    df["German"] = df["German"].astype(str).str.strip()
+    df["English"]= df["English"].astype(str).str.strip()
+    df = df.dropna(subset=["Level","German"])
+
+    # Flexible audio detection
+    def pick(*names):
+        for n in names:
+            if n in df.columns:
+                return n
+        return None
+    normal_col = pick("Audio (normal)", "Audio normal", "Audio_Normal", "Audio")
+    slow_col   = pick("Audio (slow)", "Audio slow", "Audio_Slow")
+
+    # Build outputs
+    vocab_lists = {lvl: list(zip(grp["German"], grp["English"])) for lvl, grp in df.groupby("Level")}
+    audio_urls = {}
+    for _, r in df.iterrows():
+        key = (r["Level"], r["German"])
+        audio_urls[key] = {
+            "normal": str(r.get(normal_col, "")).strip() if normal_col else "",
+            "slow":   str(r.get(slow_col, "")).strip()   if slow_col else "",
+        }
+    return vocab_lists, audio_urls
+
+VOCAB_LISTS, AUDIO_URLS = load_vocab_lists()
+
+def refresh_vocab_from_sheet():
+    load_vocab_lists.clear()
+    global VOCAB_LISTS, AUDIO_URLS
+    VOCAB_LISTS, AUDIO_URLS = load_vocab_lists()
+
+def get_audio_url(level: str, german_word: str) -> str:
+    """Prefer slow for A1, otherwise normal; fallback to whichever exists."""
+    urls = AUDIO_URLS.get((str(level).upper(), str(german_word).strip()), {})
+    lvl = str(level).upper()
+    return (urls.get("slow") if (lvl == "A1" and urls.get("slow")) else urls.get("normal")) or urls.get("slow") or ""
+
 @st.cache_data
 def build_dict_df(levels):
     rows = []
@@ -5272,36 +6077,6 @@ def build_dict_df(levels):
         df = pd.concat([df, pd.DataFrame(extra)], ignore_index=True)
         df = df.drop_duplicates(subset=["Level", "German"]).reset_index(drop=True)
     return df
-
-
-def is_correct_answer(user_input: str, answer: str) -> bool:
-    """Return True if the user's input matches the expected answer.
-
-    Comparison ignores leading/trailing whitespace and letter casing. In
-    addition, leading English articles ("the", "a", "an") are removed and a
-    fuzzy similarity check is performed using :class:`difflib.SequenceMatcher`.
-    """
-
-    from difflib import SequenceMatcher
-
-    normalized_user = user_input.strip().lower()
-    normalized_answer = answer.strip().lower()
-
-    # Fast path for exact matches
-    if normalized_user == normalized_answer:
-        return True
-
-    def _strip_article(s: str) -> str:
-        for article in ("the ", "a ", "an "):
-            if s.startswith(article):
-                return s[len(article):].lstrip()
-        return s
-
-    normalized_user = _strip_article(normalized_user)
-    normalized_answer = _strip_article(normalized_answer)
-
-    similarity = SequenceMatcher(None, normalized_user, normalized_answer).ratio()
-    return similarity >= 0.85
 
 # ================================
 # TAB: Vocab Trainer (locked by Level)
@@ -5343,7 +6118,162 @@ if tab == "Vocab Trainer":
     # SUBTAB: Sentence Builder  (unchanged logic, audio not needed here)
     # ===========================
     if subtab == "Sentence Builder":
-        render_sentence_builder(student_code, student_level_locked)
+        student_level = student_level_locked
+        st.info(f"✍️ You are practicing **Sentence Builder** at **{student_level}** (locked from your profile).")
+        
+        # --- Guide ---
+        with st.expander("✍️ Sentence Builder — Guide", expanded=False):
+            st.caption("Click words in order; use Check/Next.")
+
+        # --- Progress ---
+        with st.expander("Progress", expanded=False):
+        
+            try:
+                done_unique, total_items = get_sentence_progress(student_code, student_level)
+            except Exception:
+                total_items = len(SENTENCE_BANK.get(student_level, []))
+                done_unique = 0
+            pct = int((done_unique / total_items) * 100) if total_items else 0
+            st.progress(pct)
+            st.caption(
+                f"Overall Progress: {done_unique} / {total_items} unique sentences correct ({pct}%)."
+            )
+
+        # ---- Session state defaults ----
+        init_defaults = {
+            "sb_round": 0, "sb_pool": None, "sb_pool_level": None, "sb_current": None,
+            "sb_shuffled": [], "sb_selected_idx": [], "sb_score": 0, "sb_total": 0,
+            "sb_feedback": "", "sb_correct": None,
+        }
+        for k, v in init_defaults.items():
+            st.session_state.setdefault(k, v)
+
+        # ---- Init / Level change ----
+        if (st.session_state.sb_pool is None) or (st.session_state.sb_pool_level != student_level):
+            import random
+            st.session_state.sb_pool_level = student_level
+            st.session_state.sb_pool = SENTENCE_BANK.get(student_level, SENTENCE_BANK.get("A1", [])).copy()
+            random.shuffle(st.session_state.sb_pool)
+            st.session_state.sb_round = 0
+            st.session_state.sb_score = 0
+            st.session_state.sb_total = 0
+            st.session_state.sb_feedback = ""
+            st.session_state.sb_correct = None
+            st.session_state.sb_current = None
+            st.session_state.sb_selected_idx = []
+            st.session_state.sb_shuffled = []
+
+        def new_sentence():
+            import random
+            if not st.session_state.sb_pool:
+                st.session_state.sb_pool = SENTENCE_BANK.get(student_level, SENTENCE_BANK.get("A1", [])).copy()
+                random.shuffle(st.session_state.sb_pool)
+            if st.session_state.sb_pool:
+                st.session_state.sb_current = st.session_state.sb_pool.pop()
+                words = st.session_state.sb_current.get("tokens", [])[:]
+                random.shuffle(words)
+                st.session_state.sb_shuffled = words
+                st.session_state.sb_selected_idx = []
+                st.session_state.sb_feedback = ""
+                st.session_state.sb_correct = None
+                st.session_state.sb_round += 1
+            else:
+                st.warning("No sentences available for this level.")
+
+        if st.session_state.sb_current is None:
+            new_sentence()
+
+        # ---- Top metrics ----
+        target = SB_SESSION_TARGET
+        cols = st.columns(2)
+        with cols[0]:
+            st.metric("Score (this session)", f"{st.session_state.sb_score}")
+        with cols[1]:
+            st.metric("Progress (this session)", f"{st.session_state.sb_total}/{target}")
+
+        st.divider()
+
+        # Prompt box
+        cur = st.session_state.sb_current or {}
+        prompt_en = cur.get("prompt_en", "")
+        hint_en = cur.get("hint_en", "")
+        grammar_tag = cur.get("grammar_tag", "")
+        if prompt_en:
+            st.markdown(
+                f"""
+                <div style="box-sizing:border-box; padding:12px 14px; margin:6px 0 14px 0;
+                            background:#f0f9ff; border:1px solid #bae6fd; border-left:6px solid #0ea5e9;
+                            border-radius:10px;">
+                  <div style="font-size:1.05rem;">
+                    🇬🇧 <b>Translate into German:</b> <span style="color:#0b4a6f">{prompt_en}</span>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            with st.expander("💡 Need a nudge? (Hint)"):
+                if hint_en: st.markdown(f"**Hint:** {hint_en}")
+                if grammar_tag: st.caption(f"Grammar: {grammar_tag}")
+
+        # Word buttons
+        st.markdown("#### 🧩 Click the words in order")
+        if st.session_state.sb_shuffled:
+            word_cols = st.columns(min(6, len(st.session_state.sb_shuffled)) or 1)
+            for i, w in enumerate(st.session_state.sb_shuffled):
+                selected = i in st.session_state.sb_selected_idx
+                btn_label = f"✅ {w}" if selected else w
+                col = word_cols[i % len(word_cols)]
+                with col:
+                    if st.button(btn_label, key=f"sb_word_{st.session_state.sb_round}_{i}", disabled=selected):
+                        st.session_state.sb_selected_idx.append(i)
+                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
+        # Preview
+        chosen_tokens = [st.session_state.sb_shuffled[i] for i in st.session_state.sb_selected_idx]
+        st.markdown("#### ✨ Your sentence")
+        st.code(normalize_join(chosen_tokens) if chosen_tokens else "—", language="text")
+
+        # Actions
+        a, b, c = st.columns(3)
+        with a:
+            if st.button("🧹 Clear"):
+                st.session_state.sb_selected_idx = []
+                st.session_state.sb_feedback = ""
+                st.session_state.sb_correct = None
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+        with b:
+            if st.button("✅ Check"):
+                target_sentence = st.session_state.sb_current.get("target_de", "").strip()
+                chosen_sentence = normalize_join(chosen_tokens).strip()
+                correct = (chosen_sentence.lower() == target_sentence.lower())
+                st.session_state.sb_correct = correct
+                st.session_state.sb_total += 1
+                if correct:
+                    st.session_state.sb_score += 1
+                    st.session_state.sb_feedback = "✅ **Correct!** Great job!"
+                else:
+                    tip = st.session_state.sb_current.get("hint_en", "")
+                    st.session_state.sb_feedback = f"❌ **Not quite.**\n\n**Correct:** {target_sentence}\n\n*Tip:* {tip}"
+                save_sentence_attempt(
+                    student_code=student_code,
+                    level=student_level,
+                    target_sentence=target_sentence,
+                    chosen_sentence=chosen_sentence,
+                    correct=correct,
+                    tip=st.session_state.sb_current.get("hint_en", ""),
+                )
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+        with c:
+            next_disabled = (st.session_state.sb_correct is None)
+            if st.button("➡️ Next", disabled=next_disabled):
+                if st.session_state.sb_total >= target:
+                    st.success(f"Session complete! Score: {st.session_state.sb_score}/{st.session_state.sb_total}")
+                new_sentence()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
+        # Feedback
+        if st.session_state.sb_feedback:
+            (st.success if st.session_state.sb_correct else st.info)(st.session_state.sb_feedback)
 
     # ===========================
     # SUBTAB: Vocab Practice  (download-only audio)
@@ -5461,14 +6391,8 @@ if tab == "Vocab Trainer":
                 unsafe_allow_html=True
             )
 
-            with st.form(key=f"vt_form_{idx}"):
-                usr = st.text_input(
-                    f"{word} = ?",
-                    key=f"vt_input_{idx}",
-                    placeholder="Type your answer here...",
-                )
-                submitted = st.form_submit_button("Check")
-            if submitted:
+            usr = st.text_input(f"{word} = ?", key=f"vt_input_{idx}", placeholder="Type your answer here...")
+            if usr and st.button("Check", key=f"vt_check_{idx}"):
                 st.session_state.vt_history.append(("user", usr))
                 if is_correct_answer(usr, answer):
                     st.session_state.vt_score += 1
@@ -5566,13 +6490,10 @@ if tab == "Vocab Trainer":
 
             mask = (g_contains | e_contains) if match_mode=="Contains" else (g_starts | e_starts) if match_mode=="Starts with" else (g_exact | e_exact)
             if mask.any():
-                exact_mask = (g_exact | e_exact) & mask
-                starts_mask = (g_starts | e_starts) & mask
-                df_view = df_view[mask].reset_index(drop=True)
-                exact_mask = exact_mask[mask].reset_index(drop=True)
-                starts_mask = starts_mask[mask].reset_index(drop=True)
-                if not df_view.empty:
-                    top_row = df_view[exact_mask].iloc[0] if exact_mask.any() else df_view[starts_mask].iloc[0] if starts_mask.any() else df_view.iloc[0]
+                df_view = df_view[mask].copy().reset_index(drop=True)
+                exact_mask  = (g_exact | e_exact)
+                starts_mask = (g_starts | e_starts)
+                top_row = df_view[exact_mask].iloc[0] if exact_mask.any() else df_view[starts_mask].iloc[0] if starts_mask.any() else df_view.iloc[0]
             else:
                 vocab_all = df_view["German"].astype(str).unique().tolist()
                 suggestions = difflib.get_close_matches(q, vocab_all, n=5, cutoff=0.72)
@@ -5778,12 +6699,10 @@ if tab == "Schreiben Trainer":
     st.info(
         """
         ✍️ **This section is for Writing (Schreiben) only.**
-        Practice German letters, emails, and essays for A1–C1 exams—now with automatic level detection.
-
-        Want to practice presentations or focus on Speaking, Reading, or Listening?
-        👉 Switch to **Exam Mode & Custom Chat** (tab above)!
-
-        Your writing will be assessed and scored out of 25 marks, just like in the real exam.
+        - Practice your German letters, emails, and essays for A1–C1 exams.
+        - **Want to prepare for class presentations, topic expansion, or practice Speaking, Reading (Lesen), or Listening (Hören)?**  
+          👉 Go to **Exam Mode & Custom Chat** (tab above)!
+        - **Tip:** Choose your exam level on the right before submitting your letter. Your writing will be checked and scored out of 25 marks, just like in the real exam.
         """,
         icon="✉️"
     )
