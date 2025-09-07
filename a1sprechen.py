@@ -618,7 +618,12 @@ def _load_full_vocab_sheet_cached():
     SHEET_ID = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
     csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
     try:
-        df = pd.read_csv(csv_url, dtype=str)
+        resp = requests.get(csv_url, timeout=8)
+        resp.raise_for_status()
+        df = pd.read_csv(io.StringIO(resp.text), dtype=str)
+    except requests.RequestException as e:
+        st.error(f"Could not load vocab sheet: {e}")
+        return pd.DataFrame(columns=["level", "german", "english", "example"])
     except Exception:
         st.error("Could not load vocab sheet.")
         return pd.DataFrame(columns=["level", "german", "english", "example"])
