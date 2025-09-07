@@ -64,3 +64,27 @@ ADMINS_BY_LEVEL = {
 ```
 
 Update this mapping whenever new levels or teachers require admin access.
+
+## Styling
+
+Global CSS variables and layout helpers live in `src/styles.py`. These styles are
+loaded at app start and expose reusable class names such as `flex-center`,
+`btn`, and `btn-google`.
+
+To style a new widget, call the classes in your HTML snippet:
+
+```python
+from src.styles import inject_global_styles  # already called in a1sprechen.py
+
+st.markdown(
+    """
+    <div class="flex-center">
+      <button class="btn">Example</button>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+```
+
+Extend `src/styles.py` with additional variables or classes and reuse them across
+components.
