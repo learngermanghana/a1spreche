@@ -3,7 +3,7 @@ import pathlib
 
 
 def load_returning_login_func():
-    path = pathlib.Path(__file__).resolve().parents[1] / "a1sprechen.py"
+    path = pathlib.Path(__file__).resolve().parents[1] / "src/ui/auth.py"
     source = path.read_text()
     tree = ast.parse(source)
     for node in tree.body:

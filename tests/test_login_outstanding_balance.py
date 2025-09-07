@@ -3,27 +3,25 @@ import types
 from pathlib import Path
 from datetime import UTC
 import pandas as pd
-import sys
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
 from src.contracts import is_contract_expired
+from src.services.contracts import contract_active
 
 
-def _load_login_funcs():
-    src_path = Path(__file__).resolve().parents[1] / "a1sprechen.py"
+def _load_login_func():
+    src_path = Path(__file__).resolve().parents[1] / "src/ui/auth.py"
     mod_ast = ast.parse(src_path.read_text())
-    nodes = [
-        n
-        for n in mod_ast.body
-        if isinstance(n, ast.FunctionDef) and n.name in {"render_login_form", "_contract_active"}
-    ]
-    temp_module = ast.Module(body=nodes, type_ignores=[])
-    code = compile(temp_module, filename="a1sprechen.py", mode="exec")
+    func_node = next(
+        n for n in mod_ast.body if isinstance(n, ast.FunctionDef) and n.name == "render_login_form"
+    )
+    temp_module = ast.Module(body=[func_node], type_ignores=[])
+    code = compile(temp_module, filename="auth.py", mode="exec")
 
     mod = types.ModuleType("login_test_module")
     mod.pd = pd
     mod.UTC = UTC
     mod.is_contract_expired = is_contract_expired
+    mod.contract_active = contract_active
 
     errors: list[str] = []
 
@@ -50,11 +48,11 @@ def _load_login_funcs():
     mod.load_student_data = lambda: df
 
     exec(code, mod.__dict__)
-    return mod, errors
+    return mod.render_login_form, errors
 
 
 def test_login_rejected_when_balance_overdue():
-    mod, errors = _load_login_funcs()
-    ok = mod.render_login_form("abc", "pw")
+    render_login_form, errors = _load_login_func()
+    ok = render_login_form("abc", "pw")
     assert ok is False
     assert errors and "Outstanding balance past due" in errors[0]

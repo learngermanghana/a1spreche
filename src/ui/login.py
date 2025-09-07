@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
+from functools import lru_cache
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -95,6 +96,7 @@ def inject_notice_css() -> None:
         unsafe_allow_html=True,
     )
 
+@lru_cache(maxsize=1)
 def load_falowen_login_html() -> str:
     """Load and sanitize the Falowen login hero HTML template."""
     path = Path(__file__).resolve().parent.parent / "templates" / "falowen_login.html"
