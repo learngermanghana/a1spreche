@@ -16,3 +16,11 @@ def test_toast_err(monkeypatch):
     monkeypatch.setattr(toasts, "st", mock_st)
     toasts.toast_err("oops")
     mock_st.toast.assert_called_once_with("oops", icon="❌")
+
+
+def test_refresh_with_toast(monkeypatch):
+    mock_st = types.SimpleNamespace(toast=MagicMock(), session_state={})
+    monkeypatch.setattr(toasts, "st", mock_st)
+    toasts.refresh_with_toast()
+    mock_st.toast.assert_called_once_with("Saved!", icon="✅")
+    assert mock_st.session_state["__refresh"] == 1

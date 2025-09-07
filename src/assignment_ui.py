@@ -22,6 +22,7 @@ from .pdf_utils import make_qr_code, clean_for_pdf
 from .data_loading import load_student_data
 from .attendance_utils import load_attendance_records
 from .utils.currency import format_cedis
+from src.utils.toasts import refresh_with_toast
 
 # URLs for letterhead and watermark images are configurable via environment
 # variables so deployments can easily swap in different assets without touching
@@ -489,7 +490,7 @@ def render_results_and_resources_tab() -> None:
         if st.button("🔄 Refresh"):
             st.cache_data.clear()
             st.success("Cache cleared! Reloading…")
-            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+            refresh_with_toast()
 
     df_scores = fetch_scores(GOOGLE_SHEET_CSV)
     required_cols = {

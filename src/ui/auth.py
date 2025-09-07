@@ -27,6 +27,7 @@ from src.data_loading import load_student_data
 from src.session_management import determine_level
 from src.ui_helpers import qp_get, qp_clear
 from src.services.contracts import contract_active
+from src.utils.toasts import refresh_with_toast
 
 # Google OAuth configuration
 GOOGLE_CLIENT_ID = st.secrets.get(
@@ -187,7 +188,7 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
             logging.exception("Cookie save failed")
 
     st.success(f"Welcome, {student_row['Name']}!")
-    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+    refresh_with_toast()
     return True
 
 
@@ -403,7 +404,7 @@ def _handle_google_oauth(code: str, state: str) -> None:
 
         qp_clear()
         st.success(f"Welcome, {student_row['Name']}!")
-        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+        refresh_with_toast()
         st.rerun()
 
     except Exception as e:  # pragma: no cover - network errors
