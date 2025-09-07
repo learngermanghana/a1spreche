@@ -48,5 +48,5 @@ def do_logout(
     for k in list(st_module.session_state.keys()):
         if k.startswith("__google_btn_rendered::"):
             st_module.session_state.pop(k, None)
-    st_module.session_state["needs_rerun"] = True
+    st_module.session_state["_needs_rerun"] = True
     st_module.success("You’ve been logged out.")

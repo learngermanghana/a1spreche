@@ -66,23 +66,25 @@ st.set_page_config(
 inject_global_styles()
 
 
+if st.session_state.get("_needs_rerun"):
+    st.info("Refreshed")
+    st.session_state.pop("_needs_rerun", None)
+    st.rerun()
+
+
 def _reopen_sidebar() -> None:
     """Force the sidebar open and rerun the app."""
     st.session_state["sidebar_state"] = "expanded"
-    st.rerun()
+    st.session_state["_needs_rerun"] = True
 
 
 def _collapse_sidebar() -> None:
     st.session_state["sidebar_state"] = "collapsed"
-    st.rerun()
+    st.session_state["_needs_rerun"] = True
 
 
 if st.session_state.get("sidebar_state") == "collapsed":
     st.button("☰ Menu", key="_sb_restore", on_click=_reopen_sidebar)
-
-
-if st.session_state.pop("needs_rerun", False):
-    st.rerun()
 
 
 # Ensure the latest lesson schedule is loaded
@@ -469,7 +471,7 @@ def render_sidebar_published():
         st.session_state["nav_sel"] = tab_name
         st.session_state["main_tab_select"] = tab_name
         _qp_set_safe(tab=tab_name)
-        st.rerun()
+        st.session_state["_needs_rerun"] = True
 
     def _go_post_qna():
         st.session_state["nav_sel"] = "My Course"
@@ -477,7 +479,7 @@ def render_sidebar_published():
         st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
         st.session_state["classroom_page"] = "Class Notes & Q&A"
         _qp_set_safe(tab="My Course")
-        st.rerun()
+        st.session_state["_needs_rerun"] = True
 
     st.sidebar.markdown("## Quick access")
     st.sidebar.button("🏠 Dashboard",                use_container_width=True, on_click=_go, args=("Dashboard",))
@@ -882,7 +884,7 @@ if tab == "Dashboard":
         st.session_state["classroom_page"] = "Class Notes & Q&A"
         st.session_state["classroom_prev_page"] = "Class Notes & Q&A"
         _qp_set(tab="My Course")
-        st.rerun()
+        st.session_state["_needs_rerun"] = True
 
     def _go_attendance() -> None:
         st.session_state["nav_sel"] = "My Course"
@@ -892,7 +894,7 @@ if tab == "Dashboard":
         st.session_state["classroom_page"] = "Attendance"
         st.session_state["classroom_prev_page"] = "Attendance"
         _qp_set(tab="My Course")
-        st.rerun()
+        st.session_state["_needs_rerun"] = True
 
     st.button("View class board", on_click=_go_classboard)
 
