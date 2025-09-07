@@ -34,6 +34,7 @@ from docx import Document
 from google.cloud.firestore_v1 import FieldFilter
 from firebase_admin import firestore  # Firebase
 from openai import OpenAI
+from src.styles import inject_global_styles
 
 from flask import Flask
 from auth import auth_bp
@@ -59,6 +60,9 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# Load global CSS classes and variables
+inject_global_styles()
 
 
 if st.session_state.pop("needs_rerun", False):

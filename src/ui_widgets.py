@@ -14,15 +14,10 @@ def render_google_button_once(auth_url: str, key: str = "primary") -> None:
         return
     st.session_state[ss_key] = True
     btn_html = f"""
-    <div style="display:flex;justify-content:center;margin:12px 0;">
-      <a href="{auth_url}" style="text-decoration:none;">
-        <button aria-label="Continue with Google"
-          style="
-            display:inline-flex;align-items:center;gap:10px;
-            background:#1a73e8;color:#fff;border:none;border-radius:8px;
-            padding:10px 18px;cursor:pointer;font-weight:700;font-size:15px;
-            box-shadow:0 2px 8px rgba(26,115,232,.25);">
-          <span style="display:inline-flex;width:18px;height:18px;">
+    <div class="flex-center g-btn-wrap">
+      <a href="{auth_url}" class="no-decoration">
+        <button aria-label="Continue with Google" class="btn btn-google">
+          <span class="google-logo">
             <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' width='18' height='18'>
               <path fill='#FFC107' d='M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12
               s5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24
@@ -41,6 +36,7 @@ def render_google_button_once(auth_url: str, key: str = "primary") -> None:
     </div>
     """
     st.markdown(btn_html, unsafe_allow_html=True)
+
 
 
 def render_google_signin_once(auth_url: str, full_width: bool = True) -> None:
