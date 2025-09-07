@@ -13,6 +13,7 @@ import streamlit as st
 
 from falowen.sessions import db
 from src.firestore_utils import save_chat_draft_to_db, save_draft_to_db
+from src.utils.toasts import toast_ok
 
 
 def _draft_state_keys(draft_key: str) -> Tuple[str, str, str, str]:
@@ -41,6 +42,7 @@ def save_now(draft_key: str, code: str) -> None:
     st.session_state[last_ts_key] = time.time()
     st.session_state[saved_flag_key] = True
     st.session_state[saved_at_key] = datetime.now(_timezone.utc)
+    toast_ok("Saved!")
 
 
 def autosave_maybe(
