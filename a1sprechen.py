@@ -5277,10 +5277,31 @@ def build_dict_df(levels):
 def is_correct_answer(user_input: str, answer: str) -> bool:
     """Return True if the user's input matches the expected answer.
 
-    Comparison ignores leading/trailing whitespace and letter casing.
+    Comparison ignores leading/trailing whitespace and letter casing. In
+    addition, leading English articles ("the", "a", "an") are removed and a
+    fuzzy similarity check is performed using :class:`difflib.SequenceMatcher`.
     """
 
-    return user_input.strip().lower() == answer.strip().lower()
+    from difflib import SequenceMatcher
+
+    normalized_user = user_input.strip().lower()
+    normalized_answer = answer.strip().lower()
+
+    # Fast path for exact matches
+    if normalized_user == normalized_answer:
+        return True
+
+    def _strip_article(s: str) -> str:
+        for article in ("the ", "a ", "an "):
+            if s.startswith(article):
+                return s[len(article):].lstrip()
+        return s
+
+    normalized_user = _strip_article(normalized_user)
+    normalized_answer = _strip_article(normalized_answer)
+
+    similarity = SequenceMatcher(None, normalized_user, normalized_answer).ratio()
+    return similarity >= 0.85
 
 # ================================
 # TAB: Vocab Trainer (locked by Level)
