@@ -32,11 +32,18 @@
       tipEl.textContent = online ? 'Verbunden – Seite lädt gleich neu …' : 'WLAN/Mobilfunk prüfen oder später erneut versuchen.';
       if (online) setTimeout(() => location.reload(), 700);
     }
+    const retryText = retryBtn.textContent;
     retryBtn.addEventListener('click', async () => {
+      retryBtn.disabled = true;
+      retryBtn.textContent = '⏳';
       try {
         const res = await fetch('/manifest.webmanifest', { cache: 'no-store' });
         if (res.ok) location.reload(); else setStatus();
       } catch { setStatus(); }
+      finally {
+        retryBtn.textContent = retryText;
+        retryBtn.disabled = false;
+      }
     });
     addEventListener('online', setStatus);
     addEventListener('offline', setStatus);
