@@ -128,6 +128,30 @@ def render_falowen_login(
         st.error("Falowen login template missing or unreadable.")
         logging.exception("Failed to load Falowen login HTML")
         return
+
+    if show_google_in_hero and google_auth_url:
+        from types import SimpleNamespace
+        from .. import ui_widgets
+
+        captured: dict[str, str] = {}
+
+        def _capture(markup: str, **_: object) -> None:
+            captured["html"] = markup
+
+        original_components = ui_widgets.components
+        ui_widgets.components = SimpleNamespace(html=_capture)
+        try:  # capture button HTML without rendering a separate component
+            ui_widgets.render_google_signin_once(google_auth_url, full_width=True)
+        finally:
+            ui_widgets.components = original_components
+        btn_html = captured.get("html")
+        if btn_html:
+            marker = '<p class="cta">👇 Scroll to sign in or create your account.</p>'
+            if marker in html:
+                html = html.replace(marker, f"{marker}\n        {btn_html}")
+            else:
+                html = html.replace("<section class=\"hero card\" data-animate>", f"<section class=\"hero card\" data-animate>{btn_html}")
+
     components.html(html, height=720, scrolling=True)
 
 __all__ = [
