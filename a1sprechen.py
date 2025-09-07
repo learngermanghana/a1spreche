@@ -50,15 +50,28 @@ register_health_route(app)
 
 ICON_PATH = Path(__file__).parent / "static/icons/falowen-512.png"
 
+# Determine desired sidebar state and apply it early so users can recover the menu
+_sb_state = st.session_state.get("sidebar_state", "expanded")
+
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
     page_icon=str(ICON_PATH),  # now uses official Falowen icon
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state=_sb_state,
 )
 
 # Load global CSS classes and variables
 inject_global_styles()
+
+
+def _reopen_sidebar() -> None:
+    """Force the sidebar open and rerun the app."""
+    st.session_state["sidebar_state"] = "expanded"
+    st.rerun()
+
+
+# Lightweight toggle so the sidebar can always be recovered
+st.button("☰ Menu", key="_sb_restore", on_click=_reopen_sidebar)
 
 
 if st.session_state.pop("needs_rerun", False):
