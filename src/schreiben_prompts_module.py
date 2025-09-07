@@ -344,6 +344,90 @@ WRITING_PROMPTS = {
             ],
         },
     ],
+    "B2": [
+        {
+            "Thema": "Schreiben Sie einen Bericht an Ihren Vorgesetzten über die Ergebnisse einer Marktanalyse.",
+            "Punkte": [
+                "Welche Ziele hatte die Analyse?",
+                "Welche wichtigsten Ergebnisse haben Sie gefunden?",
+                "Welche nächsten Schritte empfehlen Sie?",
+            ],
+        },
+        {
+            "Thema": "Verfassen Sie eine formelle E-Mail an einen Geschäftspartner, um eine Verzögerung im Projekt zu erklären.",
+            "Punkte": [
+                "Warum gibt es die Verzögerung?",
+                "Welche Auswirkungen hat sie?",
+                "Wie möchten Sie weiter vorgehen?",
+            ],
+        },
+        {
+            "Thema": "Schreiben Sie eine Stellungnahme für die Personalabteilung zur Verbesserung der Arbeitsbedingungen.",
+            "Punkte": [
+                "Welche Probleme haben Sie beobachtet?",
+                "Welche Vorschläge haben Sie?",
+                "Wie profitieren Mitarbeiter und Unternehmen?",
+            ],
+        },
+        {
+            "Thema": "Erstellen Sie eine Einladung zu einem Workshop für Mitarbeiter über digitales Marketing.",
+            "Punkte": [
+                "Warum wird der Workshop veranstaltet?",
+                "Welche Themen werden behandelt?",
+                "Wie können sich Mitarbeiter anmelden?",
+            ],
+        },
+        {
+            "Thema": "Schreiben Sie einen Bericht über die Ergebnisse einer Kundenumfrage für die Geschäftsleitung.",
+            "Punkte": [
+                "Wie wurde die Umfrage durchgeführt?",
+                "Welche Trends zeigen die Ergebnisse?",
+                "Welche Maßnahmen schlagen Sie vor?",
+            ],
+        },
+    ],
+    "C1": [
+        {
+            "Thema": "Verfassen Sie eine Analyse für ein Fachjournal über die Auswirkungen der Globalisierung auf mittelständische Unternehmen.",
+            "Punkte": [
+                "Welche Aspekte der Globalisierung betrachten Sie?",
+                "Welche Chancen und Risiken sehen Sie?",
+                "Welche Handlungsempfehlungen geben Sie?",
+            ],
+        },
+        {
+            "Thema": "Schreiben Sie ein Gutachten für eine Kommune zur Integration erneuerbarer Energien in die städtische Infrastruktur.",
+            "Punkte": [
+                "Welche Technologien schlagen Sie vor?",
+                "Wie sollen sie finanziert werden?",
+                "Welche langfristigen Vorteile erwarten Sie?",
+            ],
+        },
+        {
+            "Thema": "Erstellen Sie eine Rede für eine Konferenz zum Thema digitale Ethik.",
+            "Punkte": [
+                "Welche Hauptpunkte möchten Sie hervorheben?",
+                "Welche Beispiele unterstützen Ihre Argumente?",
+                "Welche Fragen stellen Sie dem Publikum?",
+            ],
+        },
+        {
+            "Thema": "Verfassen Sie einen Kommentar für eine Zeitung über die Bedeutung lebenslangen Lernens in der modernen Arbeitswelt.",
+            "Punkte": [
+                "Warum ist lebenslanges Lernen wichtig?",
+                "Welche Herausforderungen gibt es?",
+                "Welche Lösungen schlagen Sie vor?",
+            ],
+        },
+        {
+            "Thema": "Schreiben Sie einen Projektvorschlag für eine internationale Kooperation in der Forschung.",
+            "Punkte": [
+                "Welches Ziel verfolgt das Projekt?",
+                "Wer sind die beteiligten Partner?",
+                "Wie wird der Erfolg gemessen?",
+            ],
+        },
+    ],
 }
 
 
