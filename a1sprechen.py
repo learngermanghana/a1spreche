@@ -738,6 +738,36 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+st.markdown("""
+<style>
+/* Accessibility inside Streamlit */
+
+/* Ensure focus is always visible */
+button:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 3px solid #25317e;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Larger tap targets */
+.stButton > button, .stCheckbox, .stRadio {
+  min-height: 44px; /* Apple accessibility guideline */
+}
+
+/* Reusable error style */
+.err { color: #d32f2f; font-weight: 600; }
+
+/* Announce feedback */
+[role="alert"] {
+  padding: 6px 10px;
+  border-left: 4px solid #d32f2f;
+  margin: 8px 0;
+  background: #fff5f5;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
 
 # =========================================================
 # ===================== NAV & HELPERS =====================
