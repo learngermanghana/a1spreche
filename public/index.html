@@ -342,7 +342,7 @@ button[disabled] { opacity: .6; cursor: not-allowed; }
 
           <div class="row">
             <label class="inline"><input type="checkbox" name="remember" /> Remember me</label>
-            <a href="#" onclick="alert('Password reset flow coming soon.'); return false;">Forgot password?</a>
+            <a href="#" id="forgotPassword">Forgot password?</a>
           </div>
 
           <button class="btn btn-primary" type="submit" id="loginBtn">
@@ -350,48 +350,71 @@ button[disabled] { opacity: .6; cursor: not-allowed; }
             Sign In
           </button>
 
-          <button class="btn btn-ghost" type="button" onclick="alert('SSO coming soon')">Sign in with Google</button>
+          <button class="btn btn-ghost" type="button" id="googleSignin">Sign in with Google</button>
         </form>
         <p class="legal">By continuing, you agree to our <a href="#" style="color:var(--accent); text-decoration:none; font-weight:600">Terms</a> and <a href="#" style="color:var(--accent); text-decoration:none; font-weight:600">Privacy Policy</a>.</p>
       </aside>
     </div>
-  </div>
+    </div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script>
-    // Password toggle
-    const pass = document.getElementById('password');
-    const toggle = document.getElementById('togglePass');
-    const eyeOpen = document.getElementById('eyeOpen');
-    const eyeClosed = document.getElementById('eyeClosed');
-    toggle?.addEventListener('click', () => {
-      const isHidden = pass.type === 'password';
-      pass.type = isHidden ? 'text' : 'password';
-      eyeOpen.style.display = isHidden ? 'none' : '';
-      eyeClosed.style.display = isHidden ? '' : 'none';
-    });
-  
-// Accessibility-friendly submit handling
-const loginBtn = document.getElementById('loginBtn');
-if (loginBtn) {
-  loginBtn.addEventListener('click', () => {
-    const form = loginBtn.closest('form') || document;
-    if (!loginBtn.hasAttribute('data-busy')) {
-      loginBtn.setAttribute('data-busy', '1');
-      loginBtn.disabled = true;
-      const prevText = loginBtn.innerText;
-      loginBtn.setAttribute('data-prev', prevText);
-      loginBtn.innerText = 'Signing in…';
-      // Re-enable after 8s safety timeout in case of network issues
-      setTimeout(() => {
-        if (loginBtn.disabled) {
-          loginBtn.disabled = false;
-          loginBtn.innerText = loginBtn.getAttribute('data-prev') || 'Sign in';
-          loginBtn.removeAttribute('data-busy');
+          <script>
+        // Password toggle
+        const pass = document.getElementById('password');
+        const toggle = document.getElementById('togglePass');
+        const eyeOpen = document.getElementById('eyeOpen');
+        const eyeClosed = document.getElementById('eyeClosed');
+        toggle?.addEventListener('click', () => {
+          const isHidden = pass.type === 'password';
+          pass.type = isHidden ? 'text' : 'password';
+          eyeOpen.style.display = isHidden ? 'none' : '';
+          eyeClosed.style.display = isHidden ? '' : 'none';
+        });
+
+        // Accessibility-friendly submit handling
+        const loginBtn = document.getElementById('loginBtn');
+        if (loginBtn) {
+          loginBtn.addEventListener('click', () => {
+            const form = loginBtn.closest('form') || document;
+            if (!loginBtn.hasAttribute('data-busy')) {
+              loginBtn.setAttribute('data-busy', '1');
+              loginBtn.disabled = true;
+              const prevText = loginBtn.innerText;
+              loginBtn.setAttribute('data-prev', prevText);
+              loginBtn.innerText = 'Signing in…';
+              // Re-enable after 8s safety timeout in case of network issues
+              setTimeout(() => {
+                if (loginBtn.disabled) {
+                  loginBtn.disabled = false;
+                    loginBtn.innerText = loginBtn.getAttribute('data-prev') || 'Sign in';
+                  loginBtn.removeAttribute('data-busy');
+                }
+              }, 8000);
+            }
+          });
         }
-      }, 8000);
-    }
-  });
-}
-</script>
+
+        const toast = document.getElementById('toast');
+        function showToast(message) {
+          if (!toast) return;
+          toast.textContent = message;
+          toast.classList.add('show');
+          setTimeout(() => {
+            toast.classList.remove('show');
+            toast.textContent = '';
+          }, 3000);
+        }
+
+        const forgot = document.getElementById('forgotPassword');
+        forgot?.addEventListener('click', (e) => {
+          e.preventDefault();
+          showToast('Password reset flow coming soon.');
+        });
+
+        const google = document.getElementById('googleSignin');
+        google?.addEventListener('click', () => {
+          showToast('SSO coming soon');
+        });
+      </script>
 </body>
 </html>
