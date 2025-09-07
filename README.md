@@ -11,7 +11,7 @@
 
 ## Deployment
 
-Set the cookie encryption password either in Streamlit secrets or via an environment variable:
+Set the cookie encryption password either in Streamlit secrets or via an environment variable. The password **must be a long, random value** (32+ characters) – short phrases are insecure:
 
 ```
 [secrets]
@@ -24,7 +24,7 @@ or
 export COOKIE_PASSWORD=<strong-secret>
 ```
 
-This value is required for secure cookie management.
+This value is required for secure cookie management. If it is omitted the app falls back to a built-in password intended only for tests and logs a warning. Never rely on the fallback in production.
 
 ## Usage
 
