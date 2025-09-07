@@ -4970,32 +4970,47 @@ if tab == "Exams Mode & Custom Chat":
         # === Load messages & draft PER (student_code + mode/level/teil) ===
         mode_level_teil = f"{mode}_{level}_{(teil or 'custom')}"
         conv_key = st.session_state.get("falowen_conv_key")
+        doc_data: dict[str, object] = {}
+        doc_ref = None
+        if db is not None:
+            doc_ref = db.collection("falowen_chats").document(student_code)
+            try:
+                snap = doc_ref.get()
+                doc_data = snap.to_dict() or {} if snap.exists else {}
+            except Exception:
+                doc_data = {}
+                doc_ref = None
         if not conv_key or not conv_key.startswith(f"{mode_level_teil}_"):
-            conv_key = f"{mode_level_teil}_{uuid4().hex[:8]}"
+            conv_key = (doc_data.get("current_conv", {}) or {}).get(mode_level_teil)
+            if not conv_key or not conv_key.startswith(f"{mode_level_teil}_"):
+                drafts = (doc_data.get("drafts", {}) or {})
+                conv_key = next(
+                    (k for k in drafts if k.startswith(f"{mode_level_teil}_")),
+                    None,
+                )
+            if not conv_key:
+                conv_key = f"{mode_level_teil}_{uuid4().hex[:8]}"
+            if doc_ref is not None:
+                try:
+                    doc_ref.set({"current_conv": {mode_level_teil: conv_key}}, merge=True)
+                except Exception:
+                    pass
         st.session_state["falowen_conv_key"] = conv_key
 
         draft_key = _wkey("chat_draft")
         st.session_state["falowen_chat_draft_key"] = draft_key
 
-        try:
-            doc = db.collection("falowen_chats").document(student_code).get()
-            if doc.exists:
-                chats = (doc.to_dict() or {}).get("chats", {})
-                st.session_state["falowen_messages"] = chats.get(conv_key, [])
-            else:
-                st.session_state["falowen_messages"] = []
-        except Exception:
-            st.session_state["falowen_messages"] = []
+        chats = (doc_data.get("chats", {}) or {})
+        st.session_state["falowen_messages"] = chats.get(conv_key, [])
 
-        if st.session_state.get("falowen_loaded_key") != conv_key:
-            draft_text = load_chat_draft_from_db(student_code, conv_key)
-            st.session_state[draft_key] = draft_text
-            lv, lt, sf, sa = _draft_state_keys(draft_key)
-            st.session_state[lv] = draft_text
-            st.session_state[lt] = time.time()
-            st.session_state[sf] = True
-            st.session_state[sa] = datetime.now(_timezone.utc)
-            st.session_state["falowen_loaded_key"] = conv_key
+        draft_text = load_chat_draft_from_db(student_code, conv_key)
+        st.session_state[draft_key] = draft_text
+        lv, lt, sf, sa = _draft_state_keys(draft_key)
+        st.session_state[lv] = draft_text
+        st.session_state[lt] = time.time()
+        st.session_state[sf] = True
+        st.session_state[sa] = datetime.now(_timezone.utc)
+        st.session_state["falowen_loaded_key"] = conv_key
 
         # Seed the first assistant instruction if chat is empty
         if not st.session_state["falowen_messages"]:
