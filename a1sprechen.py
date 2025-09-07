@@ -4337,6 +4337,24 @@ def highlight_keywords(text, words, ignore_case=True):
         )
     return text
 
+def render_message(role: str, text: str) -> None:
+    """Render a single chat message with bubble styling."""
+    if role == "assistant":
+        with st.chat_message("assistant", avatar="🧑‍🏫"):
+            st.markdown(
+                f"<div style='{bubble_assistant}'>{highlight_keywords(text, highlight_words)}</div>",
+                unsafe_allow_html=True,
+            )
+    else:
+        with st.chat_message("user"):
+            st.markdown(
+                (
+                    "<div style='display:flex;justify-content:flex-end;'>"
+                    f"<div style='{bubble_user}'>🗣️ {text}</div></div>"
+                ),
+                unsafe_allow_html=True,
+            )
+
 def clear_falowen_chat(student_code, mode, level, teil):
     """Deletes the saved chat for a particular student/mode/level/teil from Firestore."""
     chat_key = f"{mode}_{level}_{teil or 'custom'}"
