@@ -21,3 +21,9 @@ def test_is_correct_answer_handles_case_and_spaces():
     assert fn(" Hallo ", "hallo")
     assert fn("HALLO", "hallo")
     assert not fn("Tschüss", "hallo")
+
+
+def test_is_correct_answer_articles_and_similarity():
+    fn = _load_is_correct_answer()
+    assert fn("the intersection", "intersection")
+    assert not fn("roundabout", "intersection")
