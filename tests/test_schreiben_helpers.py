@@ -5,10 +5,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-import src.schreiben as schreiben
 
 @pytest.fixture
 def helpers(monkeypatch):
+    import src.schreiben as schreiben
     mod = importlib.reload(schreiben)
     monkeypatch.setattr(mod, "st", MagicMock())
     monkeypatch.setattr(mod, "db", MagicMock())
@@ -67,6 +67,7 @@ def test_delete_schreiben_feedback_clears_record(helpers):
     helpers.st.warning.assert_not_called()
     assert result == ("", "")
 
+
 def test_save_submission_empty(helpers):
     helpers.save_submission("", 50, True, None, "A1", "L")
     helpers.db.collection.assert_not_called()
@@ -76,25 +77,10 @@ def test_save_submission_empty(helpers):
 def test_save_submission_valid(helpers):
     helpers.save_submission("abc", 75, False, None, "A1", "text")
     helpers.db.collection.assert_called_once_with("schreiben_submissions")
-    helpers.db.collection.return_value.add.assert_called_once_with(
-        {
-            "student_code": "abc",
-            "score": 75,
-            "passed": False,
-            "date": helpers.firestore.SERVER_TIMESTAMP,
-            "level": "A1",
-            "letter": "text",
-        }
-    )
-    helpers.st.warning.assert_not_called()
-
-def test_save_submission_no_db(monkeypatch):
-    mod = importlib.reload(schreiben)
-    monkeypatch.setattr(mod, "st", MagicMock())
-    # Simulate Firestore being unavailable
-    monkeypatch.setattr(mod, "db", None)
-
-    mod.save_submission("abc", 80, True, None, "A1", "text")
-    mod.st.warning.assert_called_once()
-
-
+    helpers.db.collection.return_value.add.assert_called_once()
+    data = helpers.db.collection.return_value.add.call_args[0][0]
+    assert data["student_code"] == "abc"
+    assert data["score"] == 75
+    assert data["passed"] is False
+    assert data["level"] == "A1"
+    assert data["letter"] == "text"

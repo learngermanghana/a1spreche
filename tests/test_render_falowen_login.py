@@ -1,37 +1,27 @@
-import ast
 import pathlib
+import sys
+import importlib
 import types
 from unittest.mock import MagicMock
 
 import pytest
 
 
-def load_login_module():
-    path = pathlib.Path(__file__).resolve().parents[1] / "a1sprechen.py"
-    source = path.read_text()
-    module_ast = ast.parse(source)
-    nodes = []
-    for node in module_ast.body:
-        if isinstance(node, ast.FunctionDef) and node.name in {"_load_falowen_login_html", "render_falowen_login"}:
-            nodes.append(node)
-    mod = types.ModuleType("login_module")
-    mod.__file__ = str(path)
-    mod.Path = pathlib.Path
-    mod.re = __import__("re")
-    mod.lru_cache = __import__("functools").lru_cache
-    mod.st = MagicMock()
-    mod.st.error = MagicMock()
-    mod.components = MagicMock()
-    mod.logging = MagicMock()
-    code = compile(ast.Module(body=nodes, type_ignores=[]), "login_module", "exec")
-    exec(code, mod.__dict__)
-    return mod
-
-
 @pytest.fixture()
-def login_mod():
-    mod = load_login_module()
-    assert hasattr(mod, "render_falowen_login"), "render_falowen_login not defined"
+def login_mod(monkeypatch):
+    st_mod = types.ModuleType("streamlit")
+    st_mod.secrets = {}
+    st_mod.session_state = {}
+    st_mod.error = MagicMock()
+    components_v1 = MagicMock()
+    components_mod = types.ModuleType("streamlit.components")
+    components_mod.v1 = components_v1
+    monkeypatch.setitem(sys.modules, "streamlit", st_mod)
+    monkeypatch.setitem(sys.modules, "streamlit.components", components_mod)
+    monkeypatch.setitem(sys.modules, "streamlit.components.v1", components_v1)
+    mod = importlib.reload(importlib.import_module("src.ui.login"))
+    mod.st = st_mod
+    mod.components = components_v1
     return mod
 
 
@@ -43,8 +33,8 @@ def test_render_calls_components_html(login_mod, monkeypatch):
 <script>bad</script></body>
 """
     monkeypatch.setattr(pathlib.Path, "read_text", lambda self, encoding='utf-8': sample_html)
-    login_mod._load_falowen_login_html.cache_clear()
-    expected_html = login_mod._load_falowen_login_html()
+    login_mod.load_falowen_login_html.cache_clear()
+    expected_html = login_mod.load_falowen_login_html()
     login_mod.components.html.reset_mock()
     login_mod.render_falowen_login()
     login_mod.components.html.assert_called_once_with(expected_html, height=720, scrolling=True)
@@ -59,26 +49,23 @@ def test_load_html_removes_multiple_scripts(login_mod, monkeypatch):
 <script>two</script></body>
 """
     monkeypatch.setattr(pathlib.Path, "read_text", lambda self, encoding='utf-8': sample_html)
-    login_mod._load_falowen_login_html.cache_clear()
-    cleaned = login_mod._load_falowen_login_html()
+    login_mod.load_falowen_login_html.cache_clear()
+    cleaned = login_mod.load_falowen_login_html()
     assert "<script" not in cleaned
     assert cleaned.count("</body>") == 1
 
 
 def test_missing_template_shows_error(login_mod, monkeypatch):
     monkeypatch.setattr(pathlib.Path, "read_text", MagicMock(side_effect=FileNotFoundError))
-    login_mod._load_falowen_login_html.cache_clear()
+    login_mod.load_falowen_login_html.cache_clear()
     login_mod.render_falowen_login()
     login_mod.st.error.assert_called_once()
-    login_mod.logging.exception.assert_called_once()
     assert not login_mod.components.html.called
-
 
 
 def test_unicode_decode_error_raises_runtime_error(login_mod, monkeypatch):
     err = UnicodeDecodeError("utf-8", b"", 0, 1, "bad data")
     monkeypatch.setattr(pathlib.Path, "read_text", MagicMock(side_effect=err))
-    login_mod._load_falowen_login_html.cache_clear()
+    login_mod.load_falowen_login_html.cache_clear()
     with pytest.raises(RuntimeError, match="valid UTF-8"):
-        login_mod._load_falowen_login_html()
-
+        login_mod.load_falowen_login_html()

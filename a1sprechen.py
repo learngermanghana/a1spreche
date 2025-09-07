@@ -38,6 +38,7 @@ from src.styles import inject_global_styles
 
 from flask import Flask
 from auth import auth_bp
+from src.routes.health import register_health_route
 from src.group_schedules import load_group_schedules
 import src.schedule as _schedule
 load_level_schedules = _schedule.load_level_schedules
@@ -45,12 +46,7 @@ refresh_level_schedules = getattr(_schedule, "refresh_level_schedules", lambda: 
 
 app = Flask(__name__)
 app.register_blueprint(auth_bp)
-
-@app.get("/health")
-def health():
-    return {"ok": True}, 200
-
-
+register_health_route(app)
 
 ICON_PATH = Path(__file__).parent / "static/icons/falowen-512.png"
 
@@ -90,6 +86,7 @@ from falowen.db import (
 from src.contracts import (
     is_contract_expired,
 )
+from src.services.contracts import contract_active
 from src.utils.currency import format_cedis
 from src.firestore_utils import (
     _draft_doc_ref,
@@ -113,6 +110,17 @@ from src.stats import (
     vocab_attempt_exists,
 )
 from src.stats_ui import render_vocab_stats, render_schreiben_stats
+from src.ui.auth import (
+    render_signup_form,
+    render_login_form,
+    render_forgot_password_panel,
+    render_returning_login_area,
+    render_signup_request_banner,
+    render_google_oauth,
+    render_returning_login_form,
+)
+from src.ui.login import render_falowen_login
+from src.services.vocab import VOCAB_LISTS, AUDIO_URLS, get_audio_url
 from src.schreiben import (
     update_schreiben_stats,
     get_schreiben_stats,
@@ -203,440 +211,17 @@ EXAM_ADVICE = {
     "C1": "Hone precision in complex discussions and essays.",
 }
 
-def _get_qp():
-    try:
-        return qp_get()
-    except Exception:
-        return getattr(st, "query_params", {})  # fallback
 
-def _qp_first(v):
-    if isinstance(v, list): return v[0] if v else None
-    return v
-
-def _handle_google_oauth(code: str, state: str) -> None:
-    df = load_student_data()
-    if df is None:
-        st.error("Student roster unavailable. Please try again later.")
-        return
-    df["Email"] = df["Email"].str.lower().str.strip()
-    try:
-        # CSRF/state + re-use guard
-        if st.session_state.get("_oauth_state") and state != st.session_state["_oauth_state"]:
-            st.error("OAuth state mismatch. Please try again.")
-            return
-        if st.session_state.get("_oauth_code_redeemed") == code:
-            return
-
-        # Exchange code
-        token_url = "https://oauth2.googleapis.com/token"
-        data = {
-            "code": code,
-            "client_id": GOOGLE_CLIENT_ID,
-            "client_secret": GOOGLE_CLIENT_SECRET,
-            "redirect_uri": REDIRECT_URI,
-            "grant_type": "authorization_code",
-        }
-        resp = requests.post(token_url, data=data, timeout=10)
-        if not resp.ok:
-            st.error(f"Google login failed: {resp.status_code} {resp.text}")
-            return
-
-        token_data    = resp.json()
-        access_token  = token_data.get("access_token")
-        refresh_token = token_data.get("refresh_token")
-        if not access_token:
-            st.error("Google login failed: no access token.")
-            return
-
-        st.session_state["_oauth_code_redeemed"] = code
-        st.session_state["access_token"] = access_token
-        if refresh_token:
-            st.session_state["refresh_token"] = refresh_token
-
-        # Fetch profile
-        userinfo = requests.get(
-            "https://www.googleapis.com/oauth2/v2/userinfo",
-            headers={"Authorization": f"Bearer {access_token}"},
-            timeout=10,
-        ).json()
-
-        email = (userinfo.get("email") or "").lower().strip()
-        match = df[df["Email"] == email]
-        if match.empty:
-            st.error("No student account found for that Google email.")
-            return
-
-        student_row = match.iloc[0]
-        if is_contract_expired(student_row):
-            st.error("Your contract has expired. Contact the office.")
-            return
-
-        # End any old token, clear cookie/session, create new session
-        ua_hash    = st.session_state.get("__ua_hash", "")
-        prev_token = st.session_state.get("session_token", "")
-        if prev_token:
-            try:
-                destroy_session_token(prev_token)
-            except Exception:
-                logging.exception("Logout warning (revoke)")
-
-        clear_session(cookie_manager)
-
-        sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
-        level = determine_level(student_row["StudentCode"], student_row)
-
-        st.session_state.update({
-            "logged_in": True,
-            "student_row": student_row.to_dict(),
-            "student_code": student_row["StudentCode"],
-            "student_name": student_row["Name"],
-            "session_token": sess_token,
-            "student_level": level,
-        })
-        set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
-        persist_session_client(sess_token, student_row["StudentCode"])
-        set_session_token_cookie(cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
-        try:
-            cookie_manager.save()
-        except Exception:
-            logging.exception("Cookie save failed")
-
-        qp_clear()
-        st.success(f"Welcome, {student_row['Name']}!")
-        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-        st.rerun()
-
-    except Exception as e:
-        logging.exception("Google OAuth error")
-        st.error(f"Google OAuth error: {e}")
-
-def _inject_meta_tags():
-    from src.login_ui import inject_meta_tags
-    inject_meta_tags()
 
 
 def inject_notice_css():
-    from src.login_ui import inject_notice_css as _inject_css
+    from src.ui.login import inject_notice_css as _inject_css
     _inject_css()
 
 # Legacy hero rendering moved to src.login_ui
 
 # ------------------------------------------------------------------------------
 # Sign up / Login / Forgot password
-# ------------------------------------------------------------------------------
-def render_signup_form():
-    with st.form("signup_form", clear_on_submit=False):
-        new_name = st.text_input("Full Name", key="ca_name")
-        new_email = st.text_input(
-            "Email (must match teacher’s record)",
-            help="Use the school email your tutor added to the roster.",
-            key="ca_email",
-        ).strip().lower()
-        new_code = st.text_input("Student Code (from teacher)", help="Example: felixa2", key="ca_code").strip().lower()
-        new_password = st.text_input("Choose a Password", type="password", key="ca_pass")
-        signup_btn = st.form_submit_button("Create Account")
-
-    if not signup_btn:
-        return
-    if not (new_name and new_email and new_code and new_password):
-        st.error("Please fill in all fields."); return
-    if len(new_password) < 8:
-        st.error("Password must be at least 8 characters."); return
-
-    df = load_student_data()
-    if df is None:
-        st.error("Student roster unavailable. Please try again later."); return
-    df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-    df["Email"]       = df["Email"].str.lower().str.strip()
-    valid = df[(df["StudentCode"] == new_code) & (df["Email"] == new_email)]
-    if valid.empty:
-        st.error("Your code/email aren’t registered. Use 'Request Access' first."); return
-
-    doc_ref = db.collection("students").document(new_code)
-    if doc_ref.get().exists:
-        st.error("An account with this student code already exists. Please log in instead."); return
-
-    hashed_pw = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-    doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
-    st.success("Account created! Please log in on the Returning tab.")
-
-def render_login_form(login_id: str, login_pass: str) -> bool:
-    login_id = (login_id or "").strip().lower()
-    login_pass = login_pass or ""
-    if not (login_id and login_pass):
-        st.error("Please enter both email and password.")
-        return False
-
-    df = load_student_data()
-    if df is None:
-        st.error("Student roster unavailable. Please try again later.")
-        return False
-
-    df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-    df["Email"]       = df["Email"].str.lower().str.strip()
-    lookup = df[(df["StudentCode"] == login_id) | (df["Email"] == login_id)]
-    if lookup.empty:
-        st.error("No matching student code or email found."); return False
-    if lookup.shape[0] > 1:
-        st.error("Multiple matching accounts found. Please contact the office."); return False
-
-    student_row = lookup.iloc[0]
-    if is_contract_expired(student_row):
-        st.error("Your contract has expired. Contact the office."); return False
-
-    if not _contract_active(student_row["StudentCode"], df):
-        st.error("Outstanding balance past due. Contact the office."); return False
-
-    doc_ref = db.collection("students").document(student_row["StudentCode"])
-    doc = doc_ref.get()
-    if not doc.exists:
-        st.error("Account not found. Please use 'Sign Up (Approved)' first."); return False
-
-    data = doc.to_dict() or {}
-    stored_pw = data.get("password", "")
-    is_hash = stored_pw.startswith(("$2a$", "$2b$", "$2y$")) and len(stored_pw) >= 60
-
-    try:
-        ok = bcrypt.checkpw(login_pass.encode("utf-8"), stored_pw.encode("utf-8")) if is_hash else stored_pw == login_pass
-        if ok and not is_hash:
-            new_hash = bcrypt.hashpw(login_pass.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-            doc_ref.update({"password": new_hash})
-    except Exception:
-        logging.exception("Password hash upgrade failed")
-        ok = False
-
-    if not ok:
-        st.error("Incorrect password."); return False
-
-    ua_hash = st.session_state.get("__ua_hash", "")
-    prev_token = st.session_state.get("session_token", "")
-    if prev_token:
-        try:
-            destroy_session_token(prev_token)
-        except Exception:
-            logging.exception("Logout warning (revoke)")
-
-    sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
-    level = determine_level(student_row["StudentCode"], student_row)
-
-    clear_session(cookie_manager)
-    st.session_state.update({
-        "logged_in": True,
-        "student_row": dict(student_row),
-        "student_code": student_row["StudentCode"],
-        "student_name": student_row["Name"],
-        "session_token": sess_token,
-        "student_level": level,
-    })
-    set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180))
-    persist_session_client(sess_token, student_row["StudentCode"])
-    set_session_token_cookie(cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30))
-    try:
-        cookie_manager.save()
-    except Exception:
-        logging.exception("Cookie save failed")
-
-    st.success(f"Welcome, {student_row['Name']}!")
-    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-    return True
-
-def render_forgot_password_panel():
-    st.markdown("##### Forgot password")
-    email_for_reset = st.text_input("Registered email", key="reset_email")
-    c3, c4 = st.columns([0.55, 0.45])
-    with c3:
-        send_btn = st.button("Send reset link", key="send_reset_btn", use_container_width=True)
-    with c4:
-        back_btn = st.button("Back to login", key="hide_reset_btn", use_container_width=True)
-
-    if back_btn:
-        st.session_state["show_reset_panel"] = False
-        st.rerun()
-
-    if send_btn:
-        if not email_for_reset:
-            st.error("Please enter your email.")
-        else:
-            e = email_for_reset.lower().strip()
-            user_query = db.collection("students").where("email", "==", e).get()
-            if not user_query:
-                user_query = db.collection("students").where("Email", "==", e).get()
-            if not user_query:
-                st.error("No account found with that email.")
-            else:
-                token = uuid4().hex
-                expires_at = datetime.now(UTC) + timedelta(hours=1)
-                try:
-                    reset_link = build_gas_reset_link(token)
-                except Exception:
-                    base_url = (st.secrets.get("PUBLIC_BASE_URL", "https://falowen.app") or "").rstrip("/")
-                    reset_link = f"{base_url}/?token={_urllib.quote(token, safe='')}"
-                db.collection("password_resets").document(token).set({
-                    "email": e,
-                    "created": datetime.now(UTC).isoformat(),
-                    "expires_at": expires_at.isoformat(),
-                })
-                if send_reset_email(e, reset_link):
-                    st.success("Reset link sent! Check your inbox (and spam).")
-                else:
-                    st.error("We couldn't send the email. Please try again later.")
-
-def render_returning_login_area() -> bool:
-    """Email/Password login + optional forgot-password panel. No Google button here."""
-    with st.form("returning_login_form", clear_on_submit=False):
-        st.markdown("#### Returning user login")
-        login_id = st.text_input("Email or Student Code")
-        login_pass = st.text_input("Password", type="password")
-        c1, c2 = st.columns([0.6, 0.4])
-        with c1:
-            submitted = st.form_submit_button("Log in")
-        with c2:
-            forgot_toggle = st.form_submit_button("Forgot password?", help="Reset via email")
-
-    if submitted and render_login_form(login_id, login_pass):
-        return True
-
-    if forgot_toggle:
-        st.session_state["show_reset_panel"] = True
-
-    if st.session_state.get("show_reset_panel"):
-        render_forgot_password_panel()
-
-    # ❌ Do not render Google here (single button lives below the hero)
-    return False
-
-
-# --- One-time branded Google button (kept exactly once on the page)
-
-# --- Small explanatory banner shown above the tabs
-def render_signup_request_banner():
-    if not st.session_state.get("_signup_banner_css_done"):
-        st.markdown(
-            """
-            <style>
-              .inline-banner{
-                background:#f5f9ff; border:1px solid rgba(30,64,175,.15);
-                border-radius:12px; padding:12px 14px; margin:12px 0;
-                box-shadow:0 4px 10px rgba(2,6,23,.04);
-              }
-              .inline-banner b{ color:#0f172a; }
-              .inline-banner .note{ color:#475569; font-size:.95rem; margin-top:6px; }
-              .inline-banner ul{ margin:6px 0 0 1.1rem; }
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.session_state["_signup_banner_css_done"] = True
-
-    st.markdown(
-        """
-        <div class="inline-banner">
-          <div><b>Which option should I use?</b></div>
-          <ul>
-            <li><b>Sign Up (Approved):</b> For students already added by your tutor/office. Use your <b>Student Code</b> and <b>registered email</b> to create a password.</li>
-            <li><b>Request Access:</b> New learner or not on the roster yet. Fill the form and we’ll set you up and email next steps.</li>
-          </ul>
-          <div class="note">Not sure? Choose <b>Request Access</b> — we’ll route you correctly.</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def render_google_oauth(return_url: bool = True) -> Optional[str]:
-    """Complete OAuth if ?code=... else return the Google Authorization URL.
-       (Does not render any buttons — we control that elsewhere.)"""
-    import secrets
-    import urllib.parse
-
-    def _qp_first(val):
-        return val[0] if isinstance(val, list) else val
-
-    qp = qp_get()
-    code  = _qp_first(qp.get("code")) if hasattr(qp, "get") else None
-    state = _qp_first(qp.get("state")) if hasattr(qp, "get") else None
-    if code:
-        _handle_google_oauth(code, state)
-        return None
-
-    st.session_state["_oauth_state"] = secrets.token_urlsafe(24)
-    params = {
-        "client_id": GOOGLE_CLIENT_ID,
-        "redirect_uri": REDIRECT_URI,
-        "response_type": "code",
-        "scope": "openid email profile",
-        "prompt": "select_account",
-        "state": st.session_state["_oauth_state"],
-        "include_granted_scopes": "true",
-        "access_type": "online",
-    }
-    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
-    return auth_url
-
-# --- One-time branded Google button (shows ONCE under "Returning user login")
-# ------------------------------------------------------------------------------
-# Returning login (no extra Google button here anymore)
-# ------------------------------------------------------------------------------
-def render_returning_login_area() -> bool:
-    with st.form("returning_login_form", clear_on_submit=False):
-        login_id  = st.text_input("Email or Student Code")
-        login_pass= st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Log in")
-
-    if submitted and render_login_form(login_id, login_pass):
-        return True
-
-    # Forgot password toggle below the form
-    col_a, col_b = st.columns([0.5, 0.5])
-    with col_a:
-        if st.button("Forgot password?"):
-            st.session_state["show_reset_panel"] = True
-    if st.session_state.get("show_reset_panel"):
-        render_forgot_password_panel()
-
-    return False
-
-def render_returning_login_form():
-    """Simplified returning-user login form used in tests."""
-    with st.form("returning_login_form", clear_on_submit=False):
-        login_id = st.text_input("Email or Student Code")
-        login_pass = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Log in")
-        forgot = st.form_submit_button("Forgot password?")
-    if submitted:
-        render_login_form(login_id, login_pass)
-    if forgot:
-        # In reality this would trigger sending a reset email.
-        send_reset_email("test@example.com", "reset-link")
-    return False
-
-
-@lru_cache(maxsize=1)
-def _load_falowen_login_html() -> str:
-    import sys
-    from importlib import import_module
-    from pathlib import Path
-
-    root = Path(__file__).resolve().parent
-    if str(root) not in sys.path:
-        sys.path.append(str(root))
-    load_falowen_login_html = import_module("src.login_ui").load_falowen_login_html
-    return load_falowen_login_html()
-
-
-def render_falowen_login(google_auth_url: str = "", show_google_in_hero: bool = False) -> None:
-    import sys
-    from importlib import import_module
-    from pathlib import Path
-
-    root = Path(__file__).resolve().parent
-    if str(root) not in sys.path:
-        sys.path.append(str(root))
-    _render = import_module("src.login_ui").render_falowen_login
-    _render(google_auth_url, show_google_in_hero, st=st, components=components, logging=logging)
-
-# ------------------------------------------------------------------------------
-# Login page (hero + single Google CTA under 'Returning user login' + tabs)
 # ------------------------------------------------------------------------------
 def login_page():
     # 1) Get Google auth URL (also completes flow if ?code=...)
@@ -936,37 +521,8 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 bootstrap_state()
 seed_falowen_state_from_qp()
 
-def _contract_active(sc: str, roster):
-    if roster is None or "StudentCode" not in roster.columns:
-        return True
-    match = roster[roster["StudentCode"].str.lower() == sc.lower()]
-    if match.empty:
-        return True
-    row = match.iloc[0]
-    if is_contract_expired(row):
-        return False
 
-    # Check for outstanding balances older than 30 days
-    start_str = str(row.get("ContractStart", "") or "")
-    start_date = pd.to_datetime(start_str, errors="coerce")
-    if start_date is not pd.NaT:
-        days_since_start = (
-            pd.Timestamp.now(tz=UTC).date() - start_date.date()
-        ).days
-        def _read_money(x):
-            try:
-                s = str(x).replace(",", "").replace(" ", "").strip()
-                return float(s) if s not in ("", "nan", "None") else 0.0
-            except Exception:
-                return 0.0
-
-        balance = _read_money(row.get("Balance", 0))
-        if balance > 0 and days_since_start >= 30:
-            return False
-
-    return True
-
-restored = restore_session_from_cookie(cookie_manager, load_student_data, _contract_active)
+restored = restore_session_from_cookie(cookie_manager, load_student_data, contract_active)
 if restored is not None and not st.session_state.get("logged_in", False):
     sc_cookie = restored["student_code"]
     token = restored["session_token"]
@@ -5930,137 +5486,6 @@ if tab == "Exams Mode & Custom Chat":
 # ================================
 # CONFIG: Sheet for Vocab + Audio
 # ================================
-SHEET_ID  = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
-SHEET_GID = 0  # <-- change this if your Vocab tab uses another gid
-
-# ================================
-# HELPERS: Utilities used below
-# ================================
-def normalize_join(tokens):
-    s = " ".join(tokens)
-    for p in [",", ".", "!", "?", ":", ";"]:
-        s = s.replace(f" {p}", p)
-    return s
-
-def render_message(role, msg):
-    align   = "left"   if role=="assistant" else "right"
-    bgcolor = "#FAFAFA" if role=="assistant" else "#D2F8D2"
-    bordcol = "#CCCCCC"
-    label   = "Herr Felix 👨‍🏫" if role=="assistant" else "You"
-    style = (
-        f"padding:14px; border-radius:12px; max-width:96vw; "
-        f"margin:7px 0; text-align:{align}; background:{bgcolor}; "
-        f"border:1px solid {bordcol}; font-size:1.12em; word-break:break-word;"
-    )
-    st.markdown(f"<div style='{style}'><b>{label}:</b> {msg}</div>", unsafe_allow_html=True)
-
-def clean_text(text):
-    return text.replace("the ", "").replace(",", "").replace(".", "").strip().lower()
-
-def is_correct_answer(user_input, answer):
-    import re
-    possible = [clean_text(a) for a in re.split(r"[,/;]", str(answer))]
-    return clean_text(str(user_input)) in possible
-
-# ---------- Fallback TTS bytes (for when sheet link missing) ----------
-@st.cache_data(show_spinner=False)
-def _dict_tts_bytes_de(word: str, slow: bool = False):
-    try:
-        from gtts import gTTS
-        import io
-        t = gTTS(text=word, lang="de", slow=bool(slow))
-        buf = io.BytesIO()
-        t.write_to_fp(buf)
-        buf.seek(0)
-        return buf.read()
-    except Exception:
-        return None
-
-# ---- Safety shims for Sentence Builder stats (prevents NameError) ----
-if 'get_sentence_progress' not in globals():
-    def get_sentence_progress(student_code: str, level: str):
-        # Fallback: no DB? just return 0 done, and the count of available sentences
-        return 0, len(SENTENCE_BANK.get(level, []))
-
-if 'save_sentence_attempt' not in globals():
-    def save_sentence_attempt(student_code, level, target_sentence, chosen_sentence, correct, tip):
-        # No-op fallback if Firestore/_get_db not set up
-        return
-
-
-# ================================
-# HELPERS: Load vocab + audio from Sheet
-# ================================
-@st.cache_data
-def load_vocab_lists():
-    """
-    Reads the Vocab tab CSV (Level, German, English) and optional audio columns:
-    - Audio (normal) / Audio (slow) / Audio
-    Returns:
-      VOCAB_LISTS: dict[level] -> list[(German, English)]
-      AUDIO_URLS:  dict[(level, German)] -> {"normal": url, "slow": url}
-    """
-    import pandas as pd
-    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={SHEET_GID}"
-    try:
-        df = pd.read_csv(csv_url)
-    except Exception as e:
-        st.error(f"Could not fetch vocab CSV: {e}")
-        return {}, {}
-
-    df.columns = df.columns.str.strip()
-
-    # "German" and "English" are required.  If they're missing we cannot proceed.
-    required = ["German", "English"]
-    missing_required = [c for c in required if c not in df.columns]
-    if missing_required:
-        st.error(f"Missing column(s) in your vocab sheet: {missing_required}")
-        return {}, {}
-
-    # If "Level" is missing, default all rows to A1 and warn the user.
-    if "Level" not in df.columns:
-        st.warning("Missing 'Level' column in your vocab sheet. Defaulting to 'A1'.")
-        df["Level"] = "A1"
-
-    # Normalize
-    df["Level"]  = df["Level"].astype(str).str.strip()
-    df["German"] = df["German"].astype(str).str.strip()
-    df["English"]= df["English"].astype(str).str.strip()
-    df = df.dropna(subset=["Level","German"])
-
-    # Flexible audio detection
-    def pick(*names):
-        for n in names:
-            if n in df.columns:
-                return n
-        return None
-    normal_col = pick("Audio (normal)", "Audio normal", "Audio_Normal", "Audio")
-    slow_col   = pick("Audio (slow)", "Audio slow", "Audio_Slow")
-
-    # Build outputs
-    vocab_lists = {lvl: list(zip(grp["German"], grp["English"])) for lvl, grp in df.groupby("Level")}
-    audio_urls = {}
-    for _, r in df.iterrows():
-        key = (r["Level"], r["German"])
-        audio_urls[key] = {
-            "normal": str(r.get(normal_col, "")).strip() if normal_col else "",
-            "slow":   str(r.get(slow_col, "")).strip()   if slow_col else "",
-        }
-    return vocab_lists, audio_urls
-
-VOCAB_LISTS, AUDIO_URLS = load_vocab_lists()
-
-def refresh_vocab_from_sheet():
-    load_vocab_lists.clear()
-    global VOCAB_LISTS, AUDIO_URLS
-    VOCAB_LISTS, AUDIO_URLS = load_vocab_lists()
-
-def get_audio_url(level: str, german_word: str) -> str:
-    """Prefer slow for A1, otherwise normal; fallback to whichever exists."""
-    urls = AUDIO_URLS.get((str(level).upper(), str(german_word).strip()), {})
-    lvl = str(level).upper()
-    return (urls.get("slow") if (lvl == "A1" and urls.get("slow")) else urls.get("normal")) or urls.get("slow") or ""
-
 @st.cache_data
 def build_dict_df(levels):
     rows = []
