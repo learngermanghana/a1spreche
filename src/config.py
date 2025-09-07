@@ -18,11 +18,20 @@ from streamlit_cookies_manager import EncryptedCookieManager
 
 from .session_management import bootstrap_cookie_manager
 
-# Streamlit changed the caching API in v1.18.  ``cache_resource`` replaces
-# ``experimental_singleton``.  Select whichever decorator is available so that
-# repeated calls return the same cookie manager instance without re-inserting
-# the component.
-_cache_decorator = getattr(st, "cache_resource", st.experimental_singleton)
+# Streamlit revamped its caching API in v1.18 where ``cache_resource``
+# superseded the older ``experimental_singleton`` decorator.  Newer
+# releases may drop ``experimental_singleton`` entirely, so check for the
+# available attribute in order and gracefully fall back to a no-op if
+# neither exists.  This ensures repeated calls return the same cookie
+# manager instance without re-inserting the component regardless of
+# Streamlit version.
+if hasattr(st, "cache_resource"):
+    _cache_decorator = st.cache_resource
+elif hasattr(st, "experimental_singleton"):
+    _cache_decorator = st.experimental_singleton
+else:  # pragma: no cover - defensive fallback for future Streamlit versions
+    def _cache_decorator(func):
+        return func
 
 # Default number of sentences per session in Sentence Builder.  This
 # constant lives here so that any module may import it without touching
