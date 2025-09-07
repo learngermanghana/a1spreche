@@ -107,7 +107,7 @@
             Sign In
           </button>
 
-          <button class="btn btn-ghost" type="button" onclick="alert('SSO coming soon')">Sign in with Google</button>
+          <button class="btn btn-ghost" type="button" id="googleSignIn">Sign in with Google</button>
         </form>
         <p class="legal">By continuing, you agree to our <a href="#" style="color:var(--accent); text-decoration:none; font-weight:600">Terms</a> and <a href="#" style="color:var(--accent); text-decoration:none; font-weight:600">Privacy Policy</a>.</p>
       </aside>
@@ -126,6 +126,31 @@
       eyeOpen.style.display = isHidden ? 'none' : '';
       eyeClosed.style.display = isHidden ? '' : 'none';
     });
+
+    // Initiate Google OAuth flow
+    document.getElementById('googleSignIn')?.addEventListener('click', async () => {
+      try {
+        const resp = await fetch('/auth/google-url', { credentials: 'include' });
+        const data = await resp.json();
+        if (data.url) {
+          window.location.href = data.url;
+        }
+      } catch (err) {
+        console.error('OAuth initiation failed', err);
+      }
+    });
+
+    // Restore session from cookie on load
+    (async () => {
+      const hasSession = document.cookie.split('; ').some(c => c.startsWith('session='));
+      if (hasSession) {
+        try {
+          await fetch('/auth/refresh', { method: 'GET', credentials: 'include' });
+        } catch (err) {
+          console.error('Session restore failed', err);
+        }
+      }
+    })();
   </script>
 </body>
 </html>
