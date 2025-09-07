@@ -70,8 +70,13 @@ def _reopen_sidebar() -> None:
     st.rerun()
 
 
-# Lightweight toggle so the sidebar can always be recovered
-st.button("☰ Menu", key="_sb_restore", on_click=_reopen_sidebar)
+def _collapse_sidebar() -> None:
+    st.session_state["sidebar_state"] = "collapsed"
+    st.rerun()
+
+
+if st.session_state.get("sidebar_state") == "collapsed":
+    st.button("☰ Menu", key="_sb_restore", on_click=_reopen_sidebar)
 
 
 if st.session_state.pop("needs_rerun", False):
@@ -535,6 +540,8 @@ def render_sidebar_published():
 - ✉️ [About Us](https://register.falowen.app/#about-us)
         """
     )
+
+    st.sidebar.button("Hide menu", on_click=_collapse_sidebar)
 
 
 
