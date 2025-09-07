@@ -1,4 +1,15 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://www.falowen.app/sitemap.xml
+# Don’t index auth & app-only areas (optional, you said it’s fine if visible)
+# Disallow: /login
+# Disallow: /dashboard
+# Disallow: /my-course
+# Disallow: /results
+# Disallow: /exams
+# Disallow: /vocab-trainer
+# Disallow: /class-notes
+# Disallow: /api/
+
+# Point crawlers to your public sitemap on the register site
+Sitemap: https://register.falowen.app/sitemap.xml
