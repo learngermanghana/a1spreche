@@ -159,7 +159,11 @@ def _get_current_student() -> Tuple[str, str, str]:
     return code, name, level
 
 
-def get_assignment_summary(student_code: str, level: str) -> dict:
+def get_assignment_summary(
+    student_code: str,
+    level: str,
+    scores_df: pd.DataFrame | None = None,
+) -> dict:
     """Return missed assignments and next recommendation for a student.
 
     Parameters
@@ -168,6 +172,9 @@ def get_assignment_summary(student_code: str, level: str) -> dict:
         The student's unique code.
     level: str
         The level to check (e.g., "A1").
+    scores_df: pandas.DataFrame, optional
+        Pre-loaded assignment scores. When omitted, ``load_assignment_scores`` is
+        used to fetch the data.
 
     Returns
     -------
@@ -176,10 +183,13 @@ def get_assignment_summary(student_code: str, level: str) -> dict:
         or ``None``).
     """
 
-    try:
-        df = load_assignment_scores()
-    except Exception:
-        return {"missed": [], "next": None}
+    if scores_df is None:
+        try:
+            df = load_assignment_scores()
+        except Exception:
+            return {"missed": [], "next": None}
+    else:
+        df = scores_df
 
     if df.empty or not {"studentcode", "assignment", "level"}.issubset(df.columns):
         return {"missed": [], "next": None}

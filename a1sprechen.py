@@ -1029,7 +1029,7 @@ if tab == "Dashboard":
         _rank_text = "Complete 3+ assignments to be ranked"
         _lead_chip = "<span class='pill pill-amber'>Not ranked yet</span>"
 
-    _summary = get_assignment_summary(_student_code, _level)
+    _summary = get_assignment_summary(_student_code, _level, _df_assign)
     _missed_list = _summary.get("missed", [])
     _next_lesson = _summary.get("next")
 
