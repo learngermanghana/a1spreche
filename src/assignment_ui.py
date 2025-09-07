@@ -745,6 +745,9 @@ def render_results_and_resources_tab() -> None:
                 COL_ASSN_W + COL_SCORE_W + COL_DATE_W
             )
             class PDFReport(FPDF):
+                def __init__(self, *args, **kwargs):
+                    super().__init__(*args, **kwargs)
+                    self.add_font("DejaVu", "", "font/DejaVuSans.ttf", uni=True)
                 def header(self):
                     logo_path = load_school_logo()
                     if logo_path:
@@ -755,7 +758,7 @@ def render_results_and_resources_tab() -> None:
                         self.ln(20)
                     else:
                         self.ln(28)
-                    self.set_font("Arial", "B", 16)
+                    self.set_font("DejaVu", "B", 16)
                     self.cell(
                         0,
                         12,
@@ -767,7 +770,7 @@ def render_results_and_resources_tab() -> None:
 
                 def footer(self):
                     self.set_y(-15)
-                    self.set_font("Arial", "I", 9)
+                    self.set_font("DejaVu", "I", 9)
                     self.set_text_color(120, 120, 120)
                     footer_text = clean_for_pdf(
                         "Learn Language Education Academy — Results generated on "
@@ -780,7 +783,7 @@ def render_results_and_resources_tab() -> None:
                 pdf = PDFReport()
                 pdf.add_page()
 
-                pdf.set_font("Arial", "", 12)
+                pdf.set_font("DejaVu", "", 12)
                 try:
                     shown_name = df_user.name.iloc[0]
                 except Exception:
@@ -797,9 +800,9 @@ def render_results_and_resources_tab() -> None:
                 )
                 pdf.ln(5)
 
-                pdf.set_font("Arial", "B", 13)
+                pdf.set_font("DejaVu", "B", 13)
                 pdf.cell(0, 10, clean_for_pdf("Summary Metrics"), ln=1)
-                pdf.set_font("Arial", "", 11)
+                pdf.set_font("DejaVu", "", 11)
                 pdf.cell(
                     0,
                     8,
@@ -810,13 +813,13 @@ def render_results_and_resources_tab() -> None:
                 )
                 pdf.ln(6)
 
-                pdf.set_font("Arial", "B", 11)
+                pdf.set_font("DejaVu", "B", 11)
                 pdf.cell(COL_ASSN_W, 8, "Assignment", 1, 0, "C")
                 pdf.cell(COL_SCORE_W, 8, "Score", 1, 0, "C")
                 pdf.cell(COL_DATE_W, 8, "Date", 1, 0, "C")
                 pdf.cell(FEEDBACK_W, 8, "Feedback", 1, 1, "C")
 
-                pdf.set_font("Arial", "", 10)
+                pdf.set_font("DejaVu", "", 10)
                 pdf.set_fill_color(240, 240, 240)
                 row_fill = False
                 for _, row in df_display.iterrows():
