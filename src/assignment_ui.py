@@ -936,7 +936,8 @@ def render_results_and_resources_tab() -> None:
                     )
                     pdf = FPDF()
                     pdf.add_page()
-                    pdf.set_font("Arial", "B", 14)
+                    pdf.add_font("DejaVu", "", "font/DejaVuSans.ttf", uni=True)
+                    pdf.set_font("DejaVu", "B", 14)
                     pdf.cell(
                         0,
                         10,
@@ -946,13 +947,13 @@ def render_results_and_resources_tab() -> None:
                         ln=1,
                         align="C",
                     )
-                    pdf.set_font("Arial", "", 11)
+                    pdf.set_font("DejaVu", "", 11)
                     pdf.cell(0, 8, clean_for_pdf(f"Class: {class_name}"), ln=1)
                     pdf.ln(4)
-                    pdf.set_font("Arial", "B", 11)
+                    pdf.set_font("DejaVu", "B", 11)
                     pdf.cell(120, 8, "Session", 1, 0, "C")
                     pdf.cell(40, 8, "Present", 1, 1, "C")
-                    pdf.set_font("Arial", "", 10)
+                    pdf.set_font("DejaVu", "", 10)
                     for _, row in df_att.iterrows():
                         pdf.cell(
                             120,
