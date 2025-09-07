@@ -18,6 +18,12 @@ from streamlit_cookies_manager import EncryptedCookieManager
 
 from .session_management import bootstrap_cookie_manager
 
+# Streamlit changed the caching API in v1.18.  ``cache_resource`` replaces
+# ``experimental_singleton``.  Select whichever decorator is available so that
+# repeated calls return the same cookie manager instance without re-inserting
+# the component.
+_cache_decorator = getattr(st, "cache_resource", st.experimental_singleton)
+
 # Default number of sentences per session in Sentence Builder.  This
 # constant lives here so that any module may import it without touching
 # the main ``a1sprechen`` entrypoint.
@@ -40,6 +46,7 @@ _FALLBACK_COOKIE_PASSWORD = hashlib.sha256(
 ).hexdigest()
 
 
+@_cache_decorator
 def get_cookie_manager() -> EncryptedCookieManager:
     """Return an initialised :class:`EncryptedCookieManager` instance.
 
