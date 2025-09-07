@@ -108,7 +108,7 @@ from src.contracts import (
 )
 from src.services.contracts import contract_active
 from src.utils.currency import format_cedis
-from src.utils.toasts import toast_ok
+from src.utils.toasts import toast_ok, refresh_with_toast
 from src.firestore_utils import (
     _draft_doc_ref,
     load_chat_draft_from_db,
@@ -1353,7 +1353,7 @@ if tab == "Dashboard":
                 )
                 if st.button("Got it — hide this notice for today", key=f"btn_contract_alert_{_student_code}"):
                     st.session_state[_alert_key] = True
-                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                    refresh_with_toast()
 
     # ---------- Class schedules ----------
     with st.expander("🗓️ Class Schedule & Upcoming Sessions", expanded=False):
@@ -1715,18 +1715,18 @@ if tab == "My Course":
     if st.session_state.get("__go_classroom"):
         st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
         del st.session_state["__go_classroom"]
-        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+        refresh_with_toast()
 
     if st.session_state.get("__go_notes"):
         st.session_state["coursebook_subtab"] = "📒 Learning Notes"
         del st.session_state["__go_notes"]
-        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+        refresh_with_toast()
 
     # Backward-compat: older code may still set this
     if st.session_state.get("switch_to_notes"):
         st.session_state["coursebook_subtab"] = "📒 Learning Notes"
         del st.session_state["switch_to_notes"]
-        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+        refresh_with_toast()
 
     # First run default
     if "coursebook_subtab" not in st.session_state:
@@ -2499,7 +2499,7 @@ if tab == "My Course":
                             if has_existing_submission(student_level, code, lesson_key):
                                 st.session_state[locked_key] = True
                                 st.warning("You have already submitted this assignment. It is locked.")
-                                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                                refresh_with_toast()
                             else:
                                 st.info("Found an old lock without a submission — recovering and submitting now…")
 
@@ -2595,7 +2595,7 @@ if tab == "My Course":
                                 )
 
                             # Rerun so hydration path immediately shows locked view
-                            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                            refresh_with_toast()
                         else:
                             # 4) Failure: remove the lock doc so student can retry cleanly
                             try:
@@ -3658,7 +3658,7 @@ if tab == "My Course":
                     )
                     st.session_state["__clear_q_form"] = True
                     st.success("Post published!")
-                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                    refresh_with_toast()
 
 
             colsa, colsb, colsc = st.columns([2, 1, 1])
@@ -3668,7 +3668,7 @@ if tab == "My Course":
                 show_latest = st.toggle("Newest first", value=True, key="q_show_latest")
             with colsc:
                 if st.button("↻ Refresh", key="qna_refresh"):
-                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                    refresh_with_toast()
 
             try:
                 try:
@@ -3735,7 +3735,7 @@ if tab == "My Course":
                 st.session_state[saved_flag_key] = False
                 st.session_state[saved_at_key] = None
                 st.success("Comment sent!")
-                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                refresh_with_toast()
 
             if not questions:
                 st.info("No posts yet.")
@@ -3787,12 +3787,12 @@ if tab == "My Course":
                                     f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
                                 )
                                 st.success("Post deleted.")
-                                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                                refresh_with_toast()
                         with qc3:
                             pin_label = "📌 Unpin" if q.get("pinned") else "📌 Pin"
                             if st.button(pin_label, key=f"q_pin_btn_{q_id}"):
                                 board_base.document(q_id).update({"pinned": not q.get("pinned", False)})
-                                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                                refresh_with_toast()
 
                         if st.session_state.get(f"q_editing_{q_id}", False):
                             with st.form(f"q_edit_form_{q_id}"):
@@ -3830,10 +3830,10 @@ if tab == "My Course":
                                     )
                                     st.session_state[f"q_editing_{q_id}"] = False
                                     st.success("Post updated.")
-                                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                                    refresh_with_toast()
                             if cancel_edit:
                                 st.session_state[f"q_editing_{q_id}"] = False
-                                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                                refresh_with_toast()
 
                     c_ref = board_base.document(q_id).collection("comments")
                     try:
@@ -3870,7 +3870,7 @@ if tab == "My Course":
                                             f"*When:* {_dt.now(_timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC"
                                         )
                                         st.success("Comment deleted.")
-                                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                                        refresh_with_toast()
 
                                 if st.session_state.get(f"c_editing_{q_id}_{cid}", False):
                                     with st.form(f"c_edit_form_{q_id}_{cid}"):
@@ -3895,10 +3895,10 @@ if tab == "My Course":
                                         )
                                         st.session_state[f"c_editing_{q_id}_{cid}"] = False
                                         st.success("Comment updated.")
-                                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                                        refresh_with_toast()
                                     if ccancel:
                                         st.session_state[f"c_editing_{q_id}_{cid}"] = False
-                                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                                        refresh_with_toast()
 
                     draft_key = f"classroom_comment_draft_{q_id}"
                     last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
@@ -4096,7 +4096,7 @@ if tab == "My Course":
                         del st.session_state[k]
 
                 st.session_state["switch_to_library"] = True
-                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                refresh_with_toast()
 
         elif notes_subtab == "📚 My Notes Library":
             st.markdown("#### 📚 All My Notes")
@@ -4246,27 +4246,27 @@ if tab == "My Course":
                             st.session_state["edit_note_text"] = note["text"]
                             st.session_state["edit_note_tag"] = note.get("tag", "")
                             st.session_state["switch_to_edit_note"] = True
-                            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                            refresh_with_toast()
                     with cols[1]:
                         if st.button("🗑️ Delete", key=f"del_{i}"):
                             notes.remove(note)
                             st.session_state[key_notes] = notes
                             save_notes_to_db(student_code, notes)
                             st.success("Note deleted.")
-                            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                            refresh_with_toast()
                     with cols[2]:
                         if note.get("pinned"):
                             if st.button("📌 Unpin", key=f"unpin_{i}"):
                                 note["pinned"] = False
                                 st.session_state[key_notes] = notes
                                 save_notes_to_db(student_code, notes)
-                                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                                refresh_with_toast()
                         else:
                             if st.button("📍 Pin", key=f"pin_{i}"):
                                 note["pinned"] = True
                                 st.session_state[key_notes] = notes
                                 save_notes_to_db(student_code, notes)
-                                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                                refresh_with_toast()
                     with cols[3]:
                         st.caption("")
 
@@ -4328,7 +4328,7 @@ def back_step():
             st.session_state.pop(extra, None)
     st.session_state["_falowen_loaded"] = False
     st.session_state["falowen_stage"] = 1
-    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+    refresh_with_toast()
 
 # --- CONFIG (same doc, no duplicate db init) ---
 exam_sheet_id = "1zaAT5NjRGKiITV7EpuSHvYMBHHENMs9Piw3pNcyQtho"
@@ -4796,7 +4796,7 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["falowen_teil"] = None
                     st.session_state["falowen_messages"] = []
                     st.session_state["custom_topic_intro_done"] = False
-                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                    refresh_with_toast()
 
 
 
@@ -4810,7 +4810,7 @@ if tab == "Exams Mode & Custom Chat":
                 st.session_state["falowen_stage"] = 1
                 st.session_state["falowen_messages"] = []
                 st.session_state["_falowen_loaded"] = False
-                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                refresh_with_toast()
         with col2:
             if st.button("Next ➡️", key="falowen_next_level"):
                 if st.session_state.get("falowen_level"):
@@ -4818,7 +4818,7 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["falowen_teil"] = None
                     st.session_state["falowen_messages"] = []
                     st.session_state["custom_topic_intro_done"] = False
-                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                    refresh_with_toast()
         st.stop()
 
     # ——— Step 3: Exam Part or Lesen/Hören links ———
@@ -4881,7 +4881,7 @@ if tab == "Exams Mode & Custom Chat":
             if st.button("⬅️ Back", key="lesen_hoeren_back"):
                 st.session_state["falowen_stage"] = 2
                 st.session_state["falowen_messages"] = []
-                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                refresh_with_toast()
 
         else:
             # Topic picker (your format: "Topic/Prompt" + "Keyword/Subtopic")
@@ -4935,7 +4935,7 @@ if tab == "Exams Mode & Custom Chat":
                 if st.button("⬅️ Back", key="falowen_back_part"):
                     st.session_state["falowen_stage"]    = 2
                     st.session_state["falowen_messages"] = []
-                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                    refresh_with_toast()
             with col_start:
                 if st.button("Start Practice", key="falowen_start_practice"):
                     st.session_state["falowen_teil"]            = teil
@@ -4944,7 +4944,7 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["custom_topic_intro_done"] = False
                     student_code = st.session_state.get("student_code")
                     save_exam_progress(student_code, [{"level": level, "teil": teil, "topic": topic}])
-                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                    refresh_with_toast()
 
 
     # ——— Step 4: Chat (Exam or Custom) ———
@@ -5195,7 +5195,7 @@ if tab == "Exams Mode & Custom Chat":
                         st.session_state.pop(k, None)
                     st.session_state["falowen_stage"] = 1
                     st.success("All chat history deleted.")
-                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                    refresh_with_toast()
         with col2:
             if st.button("⬅️ Back", key=_wkey("btn_back_stage4")):
                 save_now(draft_key, student_code)
@@ -5243,7 +5243,7 @@ if tab == "Exams Mode & Custom Chat":
                 _entered = _norm_code(_entered)
                 if _entered:
                     st.session_state["student_code"] = _entered
-                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                    refresh_with_toast()
             st.stop()
 
         try:
@@ -5286,7 +5286,7 @@ if tab == "Exams Mode & Custom Chat":
 
         if st.button("⬅️ Back to Start"):
             st.session_state["falowen_stage"] = 1
-            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+            refresh_with_toast()
 
 # =========================================
 # End
@@ -5420,7 +5420,7 @@ if tab == "Vocab Trainer":
         if st.button("🔁 Start New Practice", key="vt_reset"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
-            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+            refresh_with_toast()
 
         if st.session_state.vt_total is None:
             with st.form("vt_setup"):
@@ -5453,7 +5453,7 @@ if tab == "Vocab Trainer":
                 ]
                 st.session_state.vt_saved = False
                 st.session_state.vt_session_id = str(uuid4())
-                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                refresh_with_toast()
         else:
             st.markdown("### Daily Practice Setup")
             st.info(
@@ -5461,7 +5461,7 @@ if tab == "Vocab Trainer":
             )
             if st.button("Change goal", key="vt_change_goal"):
                 st.session_state.vt_total = None
-                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                refresh_with_toast()
 
         tot = st.session_state.vt_total
         idx = st.session_state.vt_index
@@ -5521,7 +5521,7 @@ if tab == "Vocab Trainer":
                     fb = f"❌ Nope. '{word}' = '{answer}'"
                 st.session_state.vt_history.append(("assistant", fb))
                 st.session_state.vt_index += 1
-                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                refresh_with_toast()
 
         if isinstance(tot, int) and idx >= tot:
             score = st.session_state.vt_score
@@ -5541,11 +5541,11 @@ if tab == "Vocab Trainer":
                         session_id=st.session_state.vt_session_id
                     )
                 st.session_state.vt_saved = True
-                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                refresh_with_toast()
             if st.button("Practice Again", key="vt_again"):
                 for k in defaults:
                     st.session_state[k] = defaults[k]
-                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                refresh_with_toast()
 
     # ===========================
     # SUBTAB: Dictionary  (download-only audio)
@@ -5659,7 +5659,7 @@ if tab == "Vocab Trainer":
                 with bcols[i]:
                     if st.button(s, key=f"sugg_{i}"):
                         st.session_state["dict_q"] = s
-                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+                        refresh_with_toast()
 
         with st.expander(f"Browse all words at level {student_level_locked}", expanded=False):
             df_show = df_view[["German","English"]].copy()

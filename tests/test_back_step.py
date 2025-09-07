@@ -2,6 +2,7 @@ import ast
 from types import SimpleNamespace
 
 from src.draft_management import _draft_state_keys
+from src.utils import toasts
 
 
 def _load_back_step():
@@ -13,8 +14,13 @@ def _load_back_step():
     ]
     module_ast = ast.Module(body=funcs, type_ignores=[])
     code = compile(module_ast, "a1sprechen.py", "exec")
-    st = SimpleNamespace(session_state={})
-    glb = {"st": st, "_draft_state_keys": _draft_state_keys}
+    st = SimpleNamespace(session_state={}, toast=lambda *a, **k: None)
+    toasts.st = st
+    glb = {
+        "st": st,
+        "_draft_state_keys": _draft_state_keys,
+        "refresh_with_toast": toasts.refresh_with_toast,
+    }
     exec(code, glb)
     return glb["back_step"], st
 
