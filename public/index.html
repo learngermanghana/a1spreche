@@ -4,39 +4,241 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#25317e" />
-
-  <title>Falowen — Sign in</title>
-  <meta name="description" content="Sign in to Falowen, the all-in-one German learning platform by Learn Language Education Academy." />
-
-  <!-- IMPORTANT: login should not be indexed -->
-  <meta name="robots" content="noindex, nofollow, noarchive" />
-
-  <!-- Canonical (stable login URL) -->
-  <link rel="canonical" href="https://www.falowen.app/login" />
-
-  <!-- Icons -->
-  <link rel="icon" href="/static/icons/falowen-192.png" sizes="192x192">
-  <link rel="apple-touch-icon" href="/static/icons/falowen-192.png">
-
-  <!-- Social cards -->
-  <meta property="og:type" content="website">
-  <meta property="og:title" content="Falowen — Sign in">
-  <meta property="og:description" content="Sign in to Falowen to access your courses, exams, and tools." />
-  <meta property="og:url" content="https://www.falowen.app/login">
-  <meta property="og:image" content="https://www.falowen.app/static/icons/falowen-192.png">
-  <meta property="og:site_name" content="Falowen">
-  <meta property="og:locale" content="en_GH">
-
-  <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Falowen — Sign in">
-  <meta name="twitter:description" content="Sign in to Falowen to access your courses, exams, and tools.">
-  <meta name="twitter:image" content="https://www.falowen.app/static/icons/falowen-192.png">
-
-  <!-- Fonts & CSS -->
+  <title>Falowen Login</title>
+  <!-- Font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css">
+  <style>
+    :root{
+  --bg: #f3f7fb;
+  --bg2: #eef3fc;
+  --text: #1a2340;
+  --muted: #475569;
+  --primary: #25317e;
+  --primary-2: #1b255f;
+  --accent: #ffb703;
+  --success: #16a34a;
+  --error: #dc2626;
+}
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f6f8fb;
+        --bg2: #eef2ff;
+        --card: #ffffff;
+        --card-opaque: #ffffff;
+        --text: #0f172a;
+        --muted: #64748b;
+        --border: rgba(15, 23, 42, 0.08);
+        --shadow: 0 12px 30px rgba(2,132,199,0.10), 0 2px 8px rgba(2,6,23,0.06);
+      }
+    }
+
+    /* Reset-ish */
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: var(--text);
+      background: radial-gradient(1200px 1200px at -10% -10%, var(--bg2) 0%, transparent 40%),
+                  radial-gradient(1000px 1000px at 110% 10%, rgba(99,102,241,0.25) 0%, transparent 40%),
+                  linear-gradient(180deg, var(--bg) 0%, #0b1324 100%);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Decorative blobs */
+    .decorations::before,
+    .decorations::after {
+      content: "";
+      position: fixed;
+      inset: auto auto 10% -120px;
+      width: 380px; height: 380px;
+      background: radial-gradient(circle at 30% 30%, rgba(14,165,233,0.45), transparent 60%),
+                  radial-gradient(circle at 70% 70%, rgba(99,102,241,0.45), transparent 60%);
+      filter: blur(60px);
+      transform: rotate(12deg);
+      z-index: 0;
+      pointer-events: none;
+    }
+    .decorations::after {
+      inset: 8% -120px auto auto;
+      transform: rotate(-8deg);
+      background: radial-gradient(circle at 30% 30%, rgba(99,102,241,0.35), transparent 60%),
+                  radial-gradient(circle at 70% 70%, rgba(14,165,233,0.35), transparent 60%);
+    }
+
+    /* Shell */
+    .shell {
+      position: relative;
+      max-width: 1120px;
+      margin: 48px auto;
+      padding: 0 24px;
+      z-index: 1;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 28px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .badge {
+      width: 36px; height: 36px;
+      display: grid; place-items: center;
+      background: conic-gradient(from 90deg at 50% 50%, var(--primary), var(--accent));
+      color: white;
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      font-weight: 800;
+      letter-spacing: .5px;
+    }
+    .brand h1 {
+      margin: 0;
+      font-size: 1.45rem;
+      font-weight: 800;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap: 28px;
+    }
+    @media (max-width: 940px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    /* Card */
+    .card {
+      background: var(--card);
+      backdrop-filter: saturate(140%) blur(10px);
+      -webkit-backdrop-filter: saturate(140%) blur(10px);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    /* Left column */
+    .hero.card { padding: 28px; }
+    .hero h2 {
+      margin: 0 0 8px;
+      font-size: 2rem;
+      color: #0ea5e9;
+      letter-spacing: -0.02em;
+    }
+    .hero p { margin: 0; color: var(--muted); line-height: 1.65; }
+
+    .features {
+      margin-top: 24px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+    .feature {
+      padding: 16px;
+      background: var(--card-opaque);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      transition: transform .2s ease, box-shadow .2s ease;
+    }
+    .feature:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(2,6,23,0.08); }
+    .feature h3 { margin: 6px 0 6px; font-size: 1rem; }
+    .feature p { margin: 0; color: var(--muted); font-size: .95rem; line-height: 1.55; }
+    .icon {
+      width: 28px; height: 28px;
+      display: grid; place-items: center;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: white;
+      box-shadow: 0 6px 14px rgba(14,165,233,0.32);
+    }
+
+    .stats {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+    }
+    .stat { background: var(--card-opaque); border: 1px solid var(--border); border-radius: 14px; padding: 16px; text-align: center; }
+    .stat strong { display: block; font-size: 1.35rem; letter-spacing: -0.02em; }
+    .stat span { color: var(--muted); font-size: .92rem; }
+
+    /* Login card */
+    .login.card { padding: 26px; align-self: start; }
+    .login h3 { margin: 0 0 14px; font-size: 1.15rem; }
+    .sub { margin: -6px 0 16px; color: var(--muted); font-size: .92rem; }
+
+    .form {
+      display: grid;
+      gap: 12px;
+    }
+    .field { display: grid; gap: 6px; }
+    label { font-size: .9rem; font-weight: 600; }
+    .input {
+      display: grid;
+      grid-template-columns: 36px 1fr 36px;
+      align-items: center;
+      gap: 8px;
+      background: var(--card-opaque);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 10px 10px 12px;
+      transition: box-shadow .15s ease, border-color .15s ease, transform .06s ease;
+    }
+    .input:focus-within { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(14,165,233,0.15); }
+    .input input {
+      width: 100%;
+      border: none;
+      outline: none;
+      background: transparent;
+      font-size: 1rem;
+      color: var(--text);
+    }
+    .input button.icon-btn {
+      border: none; background: transparent; cursor: pointer; padding: 6px; border-radius: 8px;
+    }
+    .input button.icon-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+    .row {
+      display: flex; align-items: center; justify-content: space-between; margin-top: 2px;
+    }
+    .row label.inline { font-weight: 500; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+    .row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--primary); }
+    .row a { color: var(--accent); text-decoration: none; font-weight: 600; }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: none; cursor: pointer; border-radius: 12px; padding: 12px 16px; font-weight: 700; }
+    .btn-primary {
+      width: 100%;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(2,132,199,0.35);
+      transition: transform .06s ease, filter .2s ease, box-shadow .2s ease;
+    }
+    .btn-primary:hover { filter: brightness(1.05); box-shadow: 0 14px 28px rgba(2,132,199,0.42); transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(0); }
+
+    .btn-ghost { width: 100%; background: transparent; color: var(--text); border: 1px dashed var(--border); }
+
+    .legal { margin-top: 12px; color: var(--muted); font-size: .85rem; line-height: 1.5; }
+
+    /* Animations */
+    [data-animate] { opacity: 0; transform: translateY(10px); animation: fadeUp .6s ease forwards; }
+    [data-animate="2"] { animation-delay: .05s; }
+    [data-animate="3"] { animation-delay: .1s; }
+    [data-animate="4"] { animation-delay: .15s; }
+    [data-animate="5"] { animation-delay: .2s; }
+    @keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
+  </style>
 </head>
 <body>
   <div class="decorations" aria-hidden="true"></div>
@@ -44,7 +246,7 @@
 
     <header class="header">
       <div class="brand">
-        <img src="/static/icons/falowen-192.png" alt="Falowen logo" class="badge">
+        <div class="badge">F</div>
         <h1>Falowen</h1>
       </div>
       <div style="font-weight:600; color: var(--muted);">Learn Language Education Academy</div>
@@ -133,9 +335,9 @@
             Sign In
           </button>
 
-          <button class="btn btn-ghost" type="button" id="googleSignIn">Sign in with Google</button>
+          <button class="btn btn-ghost" type="button" onclick="alert('SSO coming soon')">Sign in with Google</button>
         </form>
-        <p class="legal">By continuing, you agree to our <a href="/terms" style="color:var(--accent); text-decoration:none; font-weight:600">Terms</a> and <a href="/privacy" style="color:var(--accent); text-decoration:none; font-weight:600">Privacy Policy</a>.</p>
+        <p class="legal">By continuing, you agree to our <a href="#" style="color:var(--accent); text-decoration:none; font-weight:600">Terms</a> and <a href="#" style="color:var(--accent); text-decoration:none; font-weight:600">Privacy Policy</a>.</p>
       </aside>
     </div>
   </div>
@@ -152,31 +354,6 @@
       eyeOpen.style.display = isHidden ? 'none' : '';
       eyeClosed.style.display = isHidden ? '' : 'none';
     });
-
-    // Initiate Google OAuth flow
-    document.getElementById('googleSignIn')?.addEventListener('click', async () => {
-      try {
-        const resp = await fetch('/auth/google-url', { credentials: 'include' });
-        const data = await resp.json();
-        if (data.url) {
-          window.location.href = data.url;
-        }
-      } catch (err) {
-        console.error('OAuth initiation failed', err);
-      }
-    });
-
-    // Restore session from cookie on load
-    (async () => {
-      const hasSession = document.cookie.split('; ').some(c => c.startsWith('session='));
-      if (hasSession) {
-        try {
-          await fetch('/auth/refresh', { method: 'GET', credentials: 'include' });
-        } catch (err) {
-          console.error('Session restore failed', err);
-        }
-      }
-    })();
   </script>
 </body>
 </html>
