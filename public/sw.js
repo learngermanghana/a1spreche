@@ -4,7 +4,8 @@ const OFFLINE_URL = "/offline.html";
 const PRECACHE = [
   OFFLINE_URL,
   "/static/icons/falowen-192.png",
-  "/static/icons/falowen-512.png"
+  "/static/icons/falowen-512.png",
+  "/styles.css"
 ];
 
 self.addEventListener("install", (event) => {
