@@ -181,6 +181,15 @@ ADMINS_BY_LEVEL = {
     "B1": {"felixb1"},
 }
 
+# Study tips shown on the dashboard for each CEFR level.
+LEVEL_TIPS = {
+    "A1": "Focus on everyday phrases and practice listening with simple dialogues.",
+    "A2": "Build vocabulary around daily routines and start speaking in longer sentences.",
+    "B1": "Read short articles to boost comprehension and keep a diary in German.",
+    "B2": "Engage with podcasts or news to refine your listening and expand vocabulary.",
+    "C1": "Discuss complex topics in German and review grammar nuances regularly.",
+}
+
 def _get_qp():
     try:
         return qp_get()
@@ -770,6 +779,10 @@ def render_logged_in_topbar():
                       type="primary",
                       use_container_width=True,
                       on_click=lambda: do_logout(cookie_manager))
+
+    level_key = (level or "").strip().upper()
+    tip = LEVEL_TIPS.get(level_key, "Keep practicing and immerse yourself daily.")
+    st.info(tip)
 
 
 # ------------------------------------------------------------------------------
