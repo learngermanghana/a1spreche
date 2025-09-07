@@ -113,16 +113,32 @@ def generate_chat_pdf(messages: List[Dict[str, Any]]) -> bytes:
     if FPDF is None:  # pragma: no cover - dependency missing
         return b""
 
-    pdf = FPDF()
-    pdf.add_font("DejaVu", "", "./font/DejaVuSans.ttf", uni=True)
-    pdf.add_page()
-    pdf.set_font("DejaVu", size=12)
-    for m in messages:
-        who = "Herr Felix" if m.get("role") == "assistant" else "Student"
-        line = f"{who}: {m.get('content','')}"
-        pdf.multi_cell(0, 8, clean_for_pdf(line))
-        pdf.ln(1)
-    return pdf.output(dest="S").encode("latin1", "replace")
+    def _build_pdf(msgs: List[Dict[str, Any]]) -> "FPDF":
+        pdf = FPDF()
+        pdf.add_font("DejaVu", "", "./font/DejaVuSans.ttf", uni=True)
+        pdf.add_page()
+        pdf.set_font("DejaVu", size=12)
+        for m in msgs:
+            who = "Herr Felix" if m.get("role") == "assistant" else "Student"
+            who = clean_for_pdf(who)
+            content = clean_for_pdf(m.get("content", ""))
+            line = f"{who}: {content}"
+            pdf.multi_cell(0, 8, line)
+            pdf.ln(1)
+        return pdf
+
+    pdf = _build_pdf(messages)
+    try:
+        return pdf.output(dest="S").encode("latin1", "replace")
+    except IndexError:
+        cleaned: List[Dict[str, Any]] = []
+        for m in messages:
+            c = m.get("content", "")
+            c = c.encode("utf-8", errors="ignore").decode("utf-8")
+            c = c.encode("latin1", errors="ignore").decode("latin1")
+            cleaned.append({**m, "content": c})
+        pdf = _build_pdf(cleaned)
+        return pdf.output(dest="S").encode("latin1", "replace")
 
 
 __all__ = [
