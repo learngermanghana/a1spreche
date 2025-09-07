@@ -55,7 +55,7 @@ def get_cookie_manager() -> EncryptedCookieManager:
         or _FALLBACK_COOKIE_PASSWORD
     )
 
-    if cookie_password == _FALLBACK_COOKIE_PASSWORD and os.getenv("DEBUG", "0") == "1":
+    if cookie_password == _FALLBACK_COOKIE_PASSWORD:
         logging.warning(
             "Using built-in fallback cookie password (set `cookie_password` or `COOKIE_PASSWORD` for production)."
         )
