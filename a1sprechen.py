@@ -769,15 +769,6 @@ header [data-testid="stToolbar"] { display:none; } /* hide toolbar icons only */
 
 st.markdown("""
 <style>
-/* Hide Streamlit chrome */
-#MainMenu, header, footer {visibility: hidden;}
-/* Optional: reduce top padding after hiding header */
-.block-container { padding-top: 0.75rem; }
-</style>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-<style>
 /* Accessibility inside Streamlit */
 
 /* Ensure focus is always visible */
