@@ -99,7 +99,11 @@ def inject_notice_css() -> None:
 @lru_cache(maxsize=1)
 def load_falowen_login_html() -> str:
     """Load and sanitize the Falowen login hero HTML template."""
-    path = Path(__file__).resolve().parent.parent / "templates" / "falowen_login.html"
+    path = (
+        Path(__file__).resolve().parent.parent.parent
+        / "templates"
+        / "falowen_login.html"
+    )
     try:
         html = path.read_text(encoding="utf-8")
     except UnicodeDecodeError as exc:  # pragma: no cover - malformed file
