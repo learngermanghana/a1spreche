@@ -3568,11 +3568,15 @@ if tab == "My Course":
                 f'''
                 <div style="
                     padding:12px;
-                    background: linear-gradient(90deg,#6366f1,#0ea5e9);
-                    color:#ffffff;
+                    background:#2e7d32;
+                    background-image:radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px);
+                    background-size:6px 6px;
+                    color:#f5f5f5;
                     border-radius:8px;
                     margin-bottom:12px;
-                    box-shadow:0 2px 6px rgba(0,0,0,0.08);
+                    border:2px solid #c8c8c8;
+                    box-shadow:inset 0 0 4px rgba(0,0,0,0.6), 0 2px 6px rgba(0,0,0,0.08);
+                    font-family:'Chalkboard','Chalkduster','Comic Sans MS',cursive;
                     display:flex;align-items:center;justify-content:space-between;">
                     <div style="font-weight:700;font-size:1.15rem;">💬 Class Board {_badge_html}</div>
                     <div style="font-size:0.92rem;opacity:.9;">Share a post • Comment with classmates</div>
