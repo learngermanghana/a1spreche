@@ -187,6 +187,13 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
         except Exception:
             logging.exception("Cookie save failed")
 
+    from streamlit.components.v1 import html as _html
+
+    _html(
+        f"<script>window.localStorage.setItem('falowen_token','{_urllib.quote(sess_token)}');</script>",
+        height=0,
+    )
+
     st.success(f"Welcome, {student_row['Name']}!")
     refresh_with_toast()
     return True
@@ -401,6 +408,12 @@ def _handle_google_oauth(code: str, state: str) -> None:
                 cookie_manager.save()
             except Exception:
                 logging.exception("Cookie save failed")
+        from streamlit.components.v1 import html as _html
+
+        _html(
+            f"<script>window.localStorage.setItem('falowen_token','{_urllib.quote(sess_token)}');</script>",
+            height=0,
+        )
 
         qp_clear()
         st.success(f"Welcome, {student_row['Name']}!")

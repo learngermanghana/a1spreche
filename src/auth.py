@@ -242,6 +242,44 @@ def restore_session_from_cookie(
     }
 
 
+def recover_session_from_qp_token() -> None:  # pragma: no cover - network
+    """Recreate cookies from ``?t=`` query parameter if present."""
+    try:
+        import streamlit as st
+    except Exception:  # pragma: no cover - streamlit missing
+        return
+
+    tok = st.query_params.get("t")
+    if isinstance(tok, list):
+        tok = tok[0] if tok else None
+    if not tok:
+        return
+
+    from falowen.sessions import validate_session_token
+
+    session_data = validate_session_token(tok, ua_hash=st.session_state.get("__ua_hash", ""))
+    student_code = (
+        session_data.get("student_code") if isinstance(session_data, dict) else None
+    )
+    cm = st.session_state.get("cookie_manager")
+    if cm is not None and student_code:
+        persist_session_client(tok, student_code)
+        set_student_code_cookie(
+            cm, student_code, expires=datetime.now(timezone.utc) + timedelta(days=180)
+        )
+        set_session_token_cookie(
+            cm, tok, expires=datetime.now(timezone.utc) + timedelta(days=30)
+        )
+        try:
+            cm.save()  # type: ignore[attr-defined]
+        except Exception:
+            logging.exception("Cookie save failed")
+
+    if "t" in st.query_params:
+        del st.query_params["t"]
+    st.rerun()
+
+
 def reset_password_page(token: str) -> None:  # pragma: no cover -
     """Placeholder for the password reset flow."""
     return None
@@ -258,5 +296,6 @@ __all__ = [
     "clear_session_clients",
     "bootstrap_cookies",
     "restore_session_from_cookie",
+    "recover_session_from_qp_token",
     "reset_password_page",
 ]
