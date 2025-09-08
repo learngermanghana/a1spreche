@@ -3740,7 +3740,7 @@ if tab == "My Course":
                         else ""
                     )
                     st.markdown(
-                        f"<div style='padding:10px;background:#f8fafc;border:1px solid #ddd;border-radius:6px;margin:6px 0;'>"
+                        f"<div style='padding:10px;background:#f8fafc;border:1px solid #ddd;border-radius:6px;margin:6px 0;font-size:1rem;line-height:1.5;'>"
                         f"<b>{q.get('asked_by_name','')}</b>{pin_html}"
                         f"<span style='color:#aaa;'> • {ts_label}</span>"
                         f"{topic_html}"
@@ -3848,7 +3848,7 @@ if tab == "My Course":
                             c_data = c.to_dict() or {}
                             c_label = _fmt_ts(c_data.get("timestamp"))
                             st.markdown(
-                                f"<div style='margin-left:20px;color:#444;'>↳ <b>{c_data.get('replied_by_name','')}</b> "
+                                f"<div style='margin-left:20px;color:#444;font-size:0.95rem;line-height:1.45;'>↳ <b>{c_data.get('replied_by_name','')}</b> "
                                 f"<span style='color:#bbb;'>{c_label}</span><br>"
                                 f"{c_data.get('content','')}</div>",
                                 unsafe_allow_html=True
