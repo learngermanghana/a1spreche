@@ -3759,6 +3759,17 @@ if tab == "My Course":
                         f"</div>",
                         unsafe_allow_html=True
                     )
+                    clear_q_edit_flag = f"__clear_q_edit_{q_id}"
+                    if st.session_state.pop(clear_q_edit_flag, False):
+                        for _k in [
+                            f"q_edit_text_{q_id}",
+                            f"q_edit_topic_{q_id}",
+                            f"q_edit_link_{q_id}",
+                            f"q_edit_text_input_{q_id}",
+                            f"q_edit_topic_input_{q_id}",
+                            f"q_edit_link_input_{q_id}",
+                        ]:
+                            st.session_state.pop(_k, None)
 
                     can_modify_q = (q.get("asked_by_code") == student_code) or IS_ADMIN
                     if can_modify_q:
@@ -3826,10 +3837,12 @@ if tab == "My Course":
                                         f"*New:* {(formatted_edit[:180] + '…') if len(formatted_edit) > 180 else formatted_edit}",
                                     )
                                     st.session_state[f"q_editing_{q_id}"] = False
+                                    st.session_state[f"__clear_q_edit_{q_id}"] = True
                                     st.success("Post updated.")
                                     refresh_with_toast()
                             if cancel_edit:
                                 st.session_state[f"q_editing_{q_id}"] = False
+                                st.session_state[f"__clear_q_edit_{q_id}"] = True
                                 refresh_with_toast()
 
                     c_ref = board_base.document(q_id).collection("comments")
@@ -3850,6 +3863,14 @@ if tab == "My Course":
                                 f"{c_data.get('content','')}</div>",
                                 unsafe_allow_html=True
                             )
+
+                            clear_c_edit_flag = f"__clear_c_edit_{q_id}_{cid}"
+                            if st.session_state.pop(clear_c_edit_flag, False):
+                                for _k in [
+                                    f"c_edit_text_{q_id}_{cid}",
+                                    f"c_edit_text_input_{q_id}_{cid}",
+                                ]:
+                                    st.session_state.pop(_k, None)
 
                             can_modify_c = (c_data.get("replied_by_code") == student_code) or IS_ADMIN
                             if can_modify_c:
@@ -3891,10 +3912,12 @@ if tab == "My Course":
                                             f"*New:* {(new_rtext[:180] + '…') if len(new_rtext) > 180 else new_rtext}"
                                         )
                                         st.session_state[f"c_editing_{q_id}_{cid}"] = False
+                                        st.session_state[f"__clear_c_edit_{q_id}_{cid}"] = True
                                         st.success("Comment updated.")
                                         refresh_with_toast()
                                     if ccancel:
                                         st.session_state[f"c_editing_{q_id}_{cid}"] = False
+                                        st.session_state[f"__clear_c_edit_{q_id}_{cid}"] = True
                                         refresh_with_toast()
 
                     draft_key = f"classroom_comment_draft_{q_id}"
