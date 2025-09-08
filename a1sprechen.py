@@ -5605,8 +5605,15 @@ if tab == "Vocab Trainer":
             for k,v in _map.items(): s = s.replace(k, v)
             return "".join(ch for ch in s if ch.isalnum() or ch.isspace())
 
-        # Build data (for the locked level)
-        levels = [student_level_locked]
+        # Build data from selected levels
+        available_levels = sorted(VOCAB_LISTS.keys())
+        default_levels = [student_level_locked] if student_level_locked in available_levels else []
+        levels = st.multiselect(
+            "Select level(s)",
+            available_levels,
+            default=default_levels,
+            key="dict_levels",
+        )
         df_dict = build_dict_df(levels)
         for c in ["Level","German","English","Pronunciation"]:
             if c not in df_dict.columns: df_dict[c] = ""
@@ -5707,8 +5714,11 @@ if tab == "Vocab Trainer":
                         st.session_state["dict_q"] = s
                         refresh_with_toast()
 
-        with st.expander(f"Browse all words at level {student_level_locked}", expanded=False):
-            df_show = df_view[["German","English"]].copy()
+        levels_label = ", ".join(levels) if levels else "none"
+        with st.expander(
+            f"Browse all words for levels: {levels_label}", expanded=False
+        ):
+            df_show = df_view[["German", "English"]].copy()
             st.dataframe(df_show, use_container_width=True, height=420)
 
 
