@@ -5680,10 +5680,12 @@ if tab == "Vocab Trainer":
 
             sheet_audio = get_audio_url(lvl, de)
             if sheet_audio:
+                st.audio(sheet_audio, format="audio/mpeg")
                 st.markdown(f"[⬇️ Download / Open MP3]({sheet_audio})")
             else:
                 audio_bytes = _dict_tts_bytes_de(de)
                 if audio_bytes:
+                    st.audio(audio_bytes, format="audio/mpeg")
                     st.download_button(
                         "⬇️ Download MP3",
                         data=audio_bytes,
