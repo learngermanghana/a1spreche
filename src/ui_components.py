@@ -77,15 +77,22 @@ def render_vocab_lookup(key: str) -> None:
         Unique key so Streamlit state doesn't clash across lessons.
     """
 
+    st.markdown("#### 📖 Mini Dictionary")
+    st.caption("Search words from this assignment")
+
+    translate_caption = (
+        'Need to translate a longer phrase? Try '
+        '<a href="https://www.deepl.com/translator" target="_blank">DeepL</a> '
+        'or <a href="https://translate.google.com" target="_blank">Google Translate</a>.'
+    )
+
     df = _load_vocab_sheet()
     if df is None:
         st.info("Vocabulary lookup currently unavailable.")
-    st.caption(
-        'Need to translate a longer phrase? Try '
-        '<a href="https://www.deepl.com/translator" target="_blank">DeepL</a> '
-        'or <a href="https://translate.google.com" target="_blank">Google Translate</a>.',
-        unsafe_allow_html=True,
-    )
+        st.caption(translate_caption, unsafe_allow_html=True)
+        return
+
+    st.caption(translate_caption, unsafe_allow_html=True)
 
     query = st.text_input("🔎 Search vocabulary", key=f"vocab-{key}")
     if not query:
