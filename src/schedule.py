@@ -1219,7 +1219,7 @@ Good luck and viel Erfolg on your language journey!
             "video": "",
             "youtube_link": "",
             "grammarbook_link": "",
-            "workbook_link": ""
+            "workbook_link": "https://drive.google.com/file/d/1kq9m4nHQVyj_clhr9GtadLfpSU0CuhnH/view?usp=sharing"
         },
         # TAG 12
         {
@@ -1231,8 +1231,8 @@ Good luck and viel Erfolg on your language journey!
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "youtube_link": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1tR7dhUkR-am4c21HInXHP8XdY210MDII/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/14jYuVQ1WKDakOT_z4a4EzwJ0soqQrr8V/view?usp=sharing"
         },
         # TAG 13
         {
@@ -1244,8 +1244,8 @@ Good luck and viel Erfolg on your language journey!
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "youtube_link": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/11_i8x_tmppV5Vzc1jfYAkGAhJYelwMrr/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1dC4H3hyiX2gZ0R3jj_0CAjhl7iBa5oA7/view?usp=sharing"
         },
         # TAG 14
         {
@@ -1257,8 +1257,8 @@ Good luck and viel Erfolg on your language journey!
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "youtube_link": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1-E7DhaqHRwiFgZ3tWg-NWjctDW7rZScT/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1TMNv-jozqNaaJ_ejoV_5hDXkIbSdr3Nu/view?usp=sharing"
         },
         # TAG 15
         {
