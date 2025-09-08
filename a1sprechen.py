@@ -716,6 +716,24 @@ def parse_contract_start(date_str: str):
             continue
     return None
 
+
+def _dict_tts_bytes_de(text: str) -> Optional[bytes]:
+    """Return MP3 bytes for German *text* using gTTS.
+
+    On failure, log and return ``None`` instead of raising to avoid crashing the app.
+    """
+    if not text:
+        return None
+    try:
+        from gtts import gTTS
+
+        buf = io.BytesIO()
+        gTTS(text=text, lang="de").write_to_fp(buf)
+        return buf.getvalue()
+    except Exception as exc:  # pragma: no cover - best effort
+        logging.warning("gTTS synthesis failed: %s", exc)
+        return None
+
 # ------------------------------- Footer -------------------------------
 FOOTER_LINKS = {
     "Terms of Service": "https://register.falowen.app/#terms-of-service",
