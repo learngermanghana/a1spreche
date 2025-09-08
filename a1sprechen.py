@@ -5362,18 +5362,21 @@ def build_dict_df(levels):
                 sentence_map.setdefault((lvl, t), sentence)
 
     # Build initial rows from the vocab lists
-    for lvl in levels:
-        for de, en in VOCAB_LISTS.get(lvl, []):
-            sent = sentence_map.get((lvl, de), "")
-            rows.append(
-                {
-                    "Level": lvl,
-                    "German": de,
-                    "English": en,
-                    "Pronunciation": "",
-                    "Sentence": sent,
-                }
-            )
+        for lvl in levels:
+            for entry in VOCAB_LISTS.get(lvl, []):
+                de = entry[0]
+                en = entry[1]
+                pron = entry[2] if len(entry) > 2 else ""
+                sent = sentence_map.get((lvl, de), "")
+                rows.append(
+                    {
+                        "Level": lvl,
+                        "German": de,
+                        "English": en,
+                        "Pronunciation": pron,
+                        "Sentence": sent,
+                    }
+                )
 
     df = (
         pd.DataFrame(rows)
@@ -5562,7 +5565,9 @@ if tab == "Vocab Trainer":
                 render_message(who, msg)
 
         if isinstance(tot, int) and idx < tot:
-            word, answer = st.session_state.vt_list[idx]
+            current = st.session_state.vt_list[idx]
+            word = current[0]
+            answer = current[1]
 
             # ---- AUDIO (download-only: prefer sheet link; fallback to gTTS bytes) ----
             audio_url = get_audio_url(level, word)
@@ -5605,7 +5610,7 @@ if tab == "Vocab Trainer":
 
         if isinstance(tot, int) and idx >= tot:
             score = st.session_state.vt_score
-            words = [w for w, _ in (st.session_state.vt_list or [])]
+            words = [item[0] for item in (st.session_state.vt_list or [])]
             st.markdown(f"### 🏁 Done! You scored {score}/{tot}.")
             if not st.session_state.get("vt_saved", False):
                 if not st.session_state.get("vt_session_id"):
@@ -5724,6 +5729,9 @@ if tab == "Vocab Trainer":
 
             st.markdown(f"### {de}")
             if en: st.markdown(f"**Meaning:** {en}")
+            pron = str(top_row.get("Pronunciation", "") or "").strip()
+            if pron:
+                st.markdown(f"**Pronunciation:** {pron}")
 
             # Show first example sentence containing the word
             example_sentence = ""

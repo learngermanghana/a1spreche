@@ -36,6 +36,10 @@ def load_vocab_lists() -> Tuple[Dict[str, list], Dict[Tuple[str, str], Dict[str,
     df["Level"] = df["Level"].astype(str).str.strip()
     df["German"] = df["German"].astype(str).str.strip()
     df["English"] = df["English"].astype(str).str.strip()
+    has_pron = "Pronunciation" in df.columns
+    if not has_pron:
+        df["Pronunciation"] = ""
+    df["Pronunciation"] = df["Pronunciation"].astype(str).str.strip()
     df = df.dropna(subset=["Level", "German"])
 
     def pick(*names):
@@ -47,7 +51,15 @@ def load_vocab_lists() -> Tuple[Dict[str, list], Dict[Tuple[str, str], Dict[str,
     normal_col = pick("Audio (normal)", "Audio normal", "Audio_Normal", "Audio")
     slow_col = pick("Audio (slow)", "Audio slow", "Audio_Slow")
 
-    vocab_lists = {lvl: list(zip(grp["German"], grp["English"])) for lvl, grp in df.groupby("Level")}
+    if has_pron:
+        vocab_lists = {
+            lvl: list(zip(grp["German"], grp["English"], grp["Pronunciation"]))
+            for lvl, grp in df.groupby("Level")
+        }
+    else:
+        vocab_lists = {
+            lvl: list(zip(grp["German"], grp["English"])) for lvl, grp in df.groupby("Level")
+        }
     audio_urls: Dict[Tuple[str, str], Dict[str, str]] = {}
     for _, r in df.iterrows():
         key = (r["Level"], r["German"])
