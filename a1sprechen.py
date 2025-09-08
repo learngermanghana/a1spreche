@@ -3613,6 +3613,8 @@ if tab == "My Course":
                     background-color: #f1f5f9;
                     color: #0f172a;
                     font-family: 'Chalkboard', 'Chalkduster', 'Comic Sans MS', cursive;
+                    font-size: 1.1rem;
+                    line-height: 1.4;
                 }
                 </style>
                 """,
