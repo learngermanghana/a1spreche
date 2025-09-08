@@ -41,15 +41,15 @@
       background:radial-gradient(circle at 30% 30%, rgba(99,102,241,0.35), transparent 60%),
                  radial-gradient(circle at 70% 70%, rgba(14,165,233,0.35), transparent 60%);
     }
-    .shell{position:relative;max-width:1120px;margin:48px auto;padding:0 24px;z-index:1}
+    .shell{position:relative;max-width:1120px;margin:16px auto;padding:0 24px;z-index:1}
     .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px}
     .brand{display:flex;align-items:center;gap:12px}
     .badge{width:36px;height:36px;display:grid;place-items:center;background:conic-gradient(from 90deg,var(--primary),var(--accent));color:white;border-radius:10px;box-shadow:var(--shadow);font-weight:800;letter-spacing:.5px}
     .brand h1{margin:0;font-size:1.45rem;font-weight:800;background:linear-gradient(90deg,var(--primary),var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent}
     /* Single-column grid (login removed) */
     .grid{display:grid;grid-template-columns:1fr;gap:28px}
-    @media (max-width:600px){ .shell{margin:32px auto;padding:0 16px} .grid{gap:20px} .hero.card{padding:22px} .hero h2{font-size:1.75rem} }
-    @media (max-width:480px){ .shell{margin:24px auto;padding:0 12px} .header{flex-direction:column;align-items:flex-start;gap:12px} .brand h1{font-size:1.25rem} .hero h2{font-size:1.5rem} }
+    @media (max-width:600px){ .shell{margin:12px auto;padding:0 16px} .grid{gap:20px} .hero.card{padding:22px} .hero h2{font-size:1.75rem} }
+    @media (max-width:480px){ .shell{margin:8px auto;padding:0 12px} .header{flex-direction:column;align-items:flex-start;gap:12px} .brand h1{font-size:1.25rem} .hero h2{font-size:1.5rem} }
     .card{background:var(--card);backdrop-filter:saturate(140%) blur(10px);-webkit-backdrop-filter:saturate(140%) blur(10px);border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow)}
     .hero.card{padding:28px}
     .hero h2{margin:0 0 8px;font-size:2rem;color:#0ea5e9;letter-spacing:-.02em}
