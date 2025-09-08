@@ -1873,10 +1873,11 @@ if tab == "My Course":
         st.markdown(f"### {highlight_terms(title_txt, search_terms)} (Chapter {info['chapter']})", unsafe_allow_html=True)
         if info.get("grammar_topic"):
             st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
-        if info.get("goal"):
-            st.markdown(f"**🎯 Goal:**  {info['goal']}")
-        if info.get("instruction"):
-            st.markdown(f"**📝 Instruction:**  {info['instruction']}")
+        if info.get("goal") or info.get("instruction"):
+            st.info(
+                f"🎯 **Goal:** {info.get('goal','')}\n\n"
+                f"📝 **Instruction:** {info.get('instruction','')}"
+            )
 
         st.divider()
 
