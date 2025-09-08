@@ -455,12 +455,20 @@ def render_sidebar_published():
         _qp_set_safe(tab="My Course")
         st.session_state["need_rerun"] = True
 
+    def _go_dictionary():
+        st.session_state["nav_sel"] = "Vocab Trainer"
+        st.session_state["main_tab_select"] = "Vocab Trainer"
+        st.session_state["vocab_practice_subtab"] = "Dictionary"
+        _qp_set_safe(tab="Vocab Trainer")
+        st.session_state["need_rerun"] = True
+
     st.sidebar.markdown("## Quick access")
     st.sidebar.button("🏠 Dashboard",                use_container_width=True, on_click=_go, args=("Dashboard",))
     st.sidebar.button("📈 My Course",                use_container_width=True, on_click=_go, args=("My Course",))
     st.sidebar.button("📊 Results & Resources",      use_container_width=True, on_click=_go, args=("My Results and Resources",))
     st.sidebar.button("🗣️ Exams Mode & Custom Chat", use_container_width=True, on_click=_go, args=("Exams Mode & Custom Chat",))
     st.sidebar.button("📚 Vocab Trainer",            use_container_width=True, on_click=_go, args=("Vocab Trainer",))
+    st.sidebar.button("📗 Dictionary",              use_container_width=True, on_click=_go_dictionary)
     st.sidebar.button("✍️ Schreiben Trainer",        use_container_width=True, on_click=_go, args=("Schreiben Trainer",))
     st.sidebar.button("❓ Class Notes & Q&A",         use_container_width=True, on_click=_go_post_qna)
     st.sidebar.divider()
