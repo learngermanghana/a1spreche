@@ -1504,35 +1504,41 @@ if tab == "Dashboard":
                 )
 
     # ---------- Goethe exam & video ----------
-    with st.expander("⏳ Goethe Exam Countdown & Video of the Day", expanded=False):
-        from datetime import date
-        GOETHE_EXAM_DATES = {
-            "A1": (date(2025, 10, 13), 2850, None),
-            "A2": (date(2025, 10, 14), 2400, None),
-            "B1": (date(2025, 10, 15), 2750, 880),
-            "B2": (date(2025, 10, 16), 2500, 840),
-            "C1": (date(2025, 10, 17), 2450, 700),
-        }
-        level = (safe_get(student_row, "Level", "") or "").upper().replace(" ", "")
-        exam_info = GOETHE_EXAM_DATES.get(level)
+    GOETHE_EXAM_DATES = {
+        "A1": (date(2025, 10, 13), 2850, None),
+        "A2": (date(2025, 10, 14), 2400, None),
+        "B1": (date(2025, 10, 15), 2750, 880),
+        "B2": (date(2025, 10, 16), 2500, 840),
+        "C1": (date(2025, 10, 17), 2450, 700),
+    }
+    level = (safe_get(student_row, "Level", "") or "").upper().replace(" ", "")
+    exam_info = GOETHE_EXAM_DATES.get(level)
+    days_to_exam: Optional[int] = None
+    fee_text = ""
+    if exam_info:
+        exam_date, fee, module_fee = exam_info
+        days_to_exam = (exam_date - date.today()).days
+        fee_text = f"**Fee:** {format_cedis(fee)}"
+        if module_fee:
+            fee_text += f" &nbsp; | &nbsp; **Per Module:** {format_cedis(module_fee)}"
 
+    expander_title = (
+        f"⏳ Goethe Exam: {days_to_exam} days left" if days_to_exam is not None else "⏳ Goethe Exam"
+    )
+    st.caption(expander_title)
+    with st.expander(f"{expander_title} — Video of the Day", expanded=False):
         if exam_info:
-            exam_date, fee, module_fee = exam_info
-            days_to_exam = (exam_date - date.today()).days
-            fee_text = f"**Fee:** {format_cedis(fee)}"
-            if module_fee:
-                fee_text += f" &nbsp; | &nbsp; **Per Module:** {format_cedis(module_fee)}"
-            if days_to_exam > 0:
+            if days_to_exam is not None and days_to_exam > 0:
                 st.info(
-                    f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).  \n"
-                    f"{fee_text}  \n"
+                    f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).  \n",
+                    f"{fee_text}  \n",
                     "[Register online here](https://www.goethe.de/ins/gh/en/spr/prf.html)"
                 )
             elif days_to_exam == 0:
                 st.success("🚀 Exam is today! Good luck!")
             else:
                 st.error(
-                    f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.  \n"
+                    f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.  \n",
                     f"{fee_text}"
                 )
 
@@ -1551,7 +1557,7 @@ if tab == "Dashboard":
                     st.cache_data.clear()
                     st.session_state["need_rerun"] = True
                 st.caption(
-                    "Click 'Refresh videos' to clear cached playlist data and reload"
+                    "Click 'Refresh videos' to clear cached playlist data and reload",
                     " from YouTube if results look out of date."
                 )
                 try:
@@ -1571,7 +1577,6 @@ if tab == "Dashboard":
                 st.info("No playlist available for your level yet. Stay tuned!")
         else:
             st.warning("No exam date configured for your level.")
-
     st.divider()
 
     # ---------- Footer ----------
