@@ -5347,22 +5347,57 @@ if tab == "Exams Mode & Custom Chat":
 @st.cache_data
 def build_dict_df(levels):
     rows = []
-    for lvl in levels:
-        for de, en in VOCAB_LISTS.get(lvl, []):
-            rows.append({"Level": lvl, "German": de, "English": en, "Pronunciation": ""})
-    df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=["Level", "German", "English", "Pronunciation"])
+    sentence_map = {}
 
-    extra = []
+    # Collect sentences for each token in the sentence bank
     for lvl in levels:
         for item in SENTENCE_BANK.get(lvl, []):
+            sentence = item.get("target_de", "")
             for tok in item.get("tokens", []):
                 t = str(tok).strip()
                 if not t or t in [",", ".", "!", "?", ":", ";"]:
                     continue
-                if not ((df["German"] == t) & (df["Level"] == lvl)).any():
-                    extra.append({"Level": lvl, "German": t, "English": "", "Pronunciation": ""})
+                sentence_map.setdefault((lvl, t), sentence)
+
+    # Build initial rows from the vocab lists
+    for lvl in levels:
+        for de, en in VOCAB_LISTS.get(lvl, []):
+            sent = sentence_map.get((lvl, de), "")
+            rows.append(
+                {
+                    "Level": lvl,
+                    "German": de,
+                    "English": en,
+                    "Pronunciation": "",
+                    "Sentence": sent,
+                }
+            )
+
+    df = (
+        pd.DataFrame(rows)
+        if rows
+        else pd.DataFrame(
+            columns=["Level", "German", "English", "Pronunciation", "Sentence"]
+        )
+    )
+
+    # Add extra tokens that appear in the sentence bank but not in the vocab list
+    extra = []
+    for (lvl, t), sent in sentence_map.items():
+        if not ((df["German"] == t) & (df["Level"] == lvl)).any():
+            extra.append(
+                {
+                    "Level": lvl,
+                    "German": t,
+                    "English": "",
+                    "Pronunciation": "",
+                    "Sentence": sent,
+                }
+            )
     if extra:
         df = pd.concat([df, pd.DataFrame(extra)], ignore_index=True)
+
+    if not df.empty:
         df = df.drop_duplicates(subset=["Level", "German"]).reset_index(drop=True)
     return df
 
@@ -5687,6 +5722,16 @@ if tab == "Vocab Trainer":
 
             st.markdown(f"### {de}")
             if en: st.markdown(f"**Meaning:** {en}")
+
+            # Show first example sentence containing the word
+            example_sentence = ""
+            for item in SENTENCE_BANK.get(lvl, []):
+                tokens = [str(tok).strip().lower() for tok in item.get("tokens", [])]
+                if de.lower() in tokens:
+                    example_sentence = item.get("target_de") or " ".join(item.get("tokens", []))
+                    break
+            if example_sentence:
+                st.markdown(example_sentence)
 
             sheet_audio = get_audio_url(lvl, de)
             if sheet_audio:
