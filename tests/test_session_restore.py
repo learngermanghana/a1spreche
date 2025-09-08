@@ -20,6 +20,7 @@ from src.auth import (  # noqa: E402
     persist_session_client,
     get_session_client,
     clear_session_clients,
+    recover_session_from_qp_token,
 )
 
 cookie_manager = create_cookie_manager()
@@ -215,6 +216,32 @@ def test_logout_clears_cookies_and_revokes_token():
     assert cookie_manager.get("session_token") is None
     assert destroyed == ["tok123"]
     assert restore_session_from_cookie(cookie_manager) is None
+
+
+def test_token_query_param_recreates_cookies(monkeypatch):
+    """Missing cookies but ``?t=`` query param should recreate them."""
+    st.session_state.clear()
+    cookie_manager.store.clear()
+    clear_session_clients()
+    st.session_state["cookie_manager"] = cookie_manager
+    st.query_params.clear()
+    st.query_params["t"] = "tok123"
+
+    stub_sessions = types.SimpleNamespace(
+        validate_session_token=lambda tok, ua_hash="": {"student_code": "abc"}
+        if tok == "tok123"
+        else None
+    )
+    sys.modules["falowen.sessions"] = stub_sessions
+
+    monkeypatch.setattr(st, "rerun", lambda: None)
+
+    recover_session_from_qp_token()
+
+    assert cookie_manager.get("session_token") == "tok123"
+    assert cookie_manager.get("student_code") == "abc"
+    assert get_session_client("tok123") == "abc"
+    assert "t" not in st.query_params
 
 
 def test_relogin_replaces_session_and_clears_old_token():

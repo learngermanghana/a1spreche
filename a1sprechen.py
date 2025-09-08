@@ -64,6 +64,24 @@ st.set_page_config(
 # Load global CSS classes and variables
 inject_global_styles()
 
+# Attempt to recover session token from ``localStorage`` before auth checks
+components.html(
+    """
+    <script>
+    (function(){
+        const tok = window.localStorage.getItem('falowen_token');
+        const hasCookie = document.cookie.indexOf('session_token=') !== -1;
+        if (tok && !hasCookie && !window.location.search.includes('t=')) {
+            const url = new URL(window.location);
+            url.searchParams.set('t', tok);
+            window.location.replace(url.toString());
+        }
+    })();
+    </script>
+    """,
+    height=0,
+)
+
 
 def _reopen_sidebar() -> None:
     """Force the sidebar open and rerun the app."""
@@ -176,6 +194,7 @@ from src.auth import (
     clear_session,
     persist_session_client,
     restore_session_from_cookie,
+    recover_session_from_qp_token,
     reset_password_page,
 )
 from src.assignment_ui import (
@@ -560,6 +579,8 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 # ------------------------------------------------------------------------------
 bootstrap_state()
 seed_falowen_state_from_qp()
+
+recover_session_from_qp_token()
 
 
 restored = restore_session_from_cookie(
