@@ -5668,13 +5668,21 @@ if tab == "Vocab Trainer":
 
         # Build data from selected levels
         available_levels = sorted(VOCAB_LISTS.keys())
+        has_unknown = False
+        if "nan" in available_levels:
+            available_levels = [lvl for lvl in available_levels if lvl != "nan"]
+            available_levels.append("Unknown level")
+            has_unknown = True
+        if has_unknown:
+            st.info("Words without a level are listed under 'Unknown level'.")
         default_levels = [student_level_locked] if student_level_locked in available_levels else []
-        levels = st.multiselect(
+        levels_display = st.multiselect(
             "Select level(s)",
             available_levels,
             default=default_levels,
             key="dict_levels",
         )
+        levels = ["nan" if lvl == "Unknown level" else lvl for lvl in levels_display]
         df_dict = build_dict_df(levels)
         for c in ["Level","German","English","Pronunciation"]:
             if c not in df_dict.columns: df_dict[c] = ""
