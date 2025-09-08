@@ -5662,6 +5662,8 @@ if tab == "Vocab Trainer":
             else:
                 vocab_all = df_view["German"].astype(str).unique().tolist()
                 suggestions = difflib.get_close_matches(q, vocab_all, n=5, cutoff=0.72)
+                if not suggestions:
+                    st.info("No matches found.")
                 # Still show a card for the query itself
                 dummy = {"Level": student_level_locked, "German": q, "English": "", "Pronunciation": "", "g_norm": qn, "e_norm": ""}
                 df_view = pd.concat([df_view, pd.DataFrame([dummy])], ignore_index=True)
