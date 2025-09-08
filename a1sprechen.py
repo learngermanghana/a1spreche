@@ -3726,7 +3726,7 @@ if tab == "My Course":
                     f"*Comment:* {prev}",
                 )
                 save_draft_to_db(student_code, draft_key, "")
-                st.session_state[draft_key] = ""
+                st.session_state[f"__clear_comment_draft_{q_id}"] = True
                 st.session_state[last_val_key] = ""
                 st.session_state[last_ts_key] = time.time()
                 st.session_state[saved_flag_key] = False
@@ -3906,14 +3906,18 @@ if tab == "My Course":
                         st.session_state[last_ts_key] = time.time()
                         st.session_state[saved_flag_key] = bool(txt)
                         st.session_state[saved_at_key] = ts
+                    clear_flag = f"__clear_comment_draft_{q_id}"
+                    if st.session_state.pop(clear_flag, False):
+                        st.session_state[draft_key] = ""
                     current_text = st.session_state.get(draft_key, "")
-                    comment_text = st.text_input(
+                    comment_text = st.text_area(
                         f"Comment on Q{q_id}",
                         value=current_text,
                         key=draft_key,
                         placeholder="Write your comment…",
                         on_change=save_now,
                         args=(draft_key, student_code),
+                        height=80,
                     )
                     current_text = st.session_state.get(draft_key, "")
                     autosave_maybe(student_code, draft_key, current_text, min_secs=2.0, min_delta=12)
