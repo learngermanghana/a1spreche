@@ -49,35 +49,14 @@ register_health_route(app)
 
 ICON_PATH = Path(__file__).parent / "static/icons/falowen-512.png"
 
-# Ensure the sidebar starts visible on first load and remember user's choice
-if "sidebar_state" not in st.session_state:
-    st.session_state["sidebar_state"] = "expanded"
-_sb_state = st.session_state["sidebar_state"]
-
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
     page_icon=str(ICON_PATH),  # now uses official Falowen icon
     layout="wide",
-    initial_sidebar_state=_sb_state,
 )
 
 # Load global CSS classes and variables
 inject_global_styles()
-
-
-def _reopen_sidebar() -> None:
-    """Force the sidebar open and rerun the app."""
-    st.session_state["sidebar_state"] = "expanded"
-    st.session_state["need_rerun"] = True
-
-
-def _collapse_sidebar() -> None:
-    st.session_state["sidebar_state"] = "collapsed"
-    st.session_state["need_rerun"] = True
-
-
-if st.session_state.get("sidebar_state") == "collapsed":
-    st.button("☰ Menu", key="_sb_restore", on_click=_reopen_sidebar)
 
 
 # Ensure the latest lesson schedule is loaded
@@ -486,6 +465,17 @@ def render_sidebar_published():
     st.sidebar.button("❓ Class Notes & Q&A",         use_container_width=True, on_click=_go_post_qna)
     st.sidebar.divider()
 
+    st.sidebar.markdown("## Our Socials")
+    st.sidebar.markdown(
+        """
+- 📸 [Instagram](https://www.instagram.com/lleaghana/)
+- ▶️ [YouTube](https://www.youtube.com/@LLEAGhana)
+- 🎵 [TikTok](https://www.tiktok.com/@lleaghana)
+- 💼 [LinkedIn](https://www.linkedin.com/in/lleaghana/)
+        """
+    )
+    st.sidebar.divider()
+
     st.sidebar.markdown("## How-to & tips")
     with st.sidebar.expander("📚 Quick guide", expanded=False):
         st.markdown(
@@ -539,8 +529,6 @@ def render_sidebar_published():
 - ✉️ [About Us](https://register.falowen.app/#about-us)
         """
     )
-
-    st.sidebar.button("Hide menu", on_click=_collapse_sidebar)
 
 
 
