@@ -277,6 +277,19 @@ button[disabled] { opacity: .6; cursor: not-allowed; }
 
     .legal { margin-top: 12px; color: var(--muted); font-size: .85rem; line-height: 1.5; }
 
+    .quick-access {
+      margin-top: 24px;
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .quick-access a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
     /* Animations */
     [data-animate] { opacity: 0; transform: translateY(10px); animation: fadeUp .6s ease forwards; }
     [data-animate="2"] { animation-delay: .05s; }
@@ -393,6 +406,15 @@ button[disabled] { opacity: .6; cursor: not-allowed; }
         <p class="legal">By continuing, you agree to our <a href="#" style="color:var(--accent); text-decoration:none; font-weight:600">Terms</a> and <a href="#" style="color:var(--accent); text-decoration:none; font-weight:600">Privacy Policy</a>.</p>
       </aside>
     </div>
+    <nav class="quick-access" aria-label="Quick access">
+      <a href="https://www.learngermanghana.com/" target="_blank" rel="noopener noreferrer">LLEA</a>
+      <a href="https://www.falowen.app/" target="_blank" rel="noopener noreferrer">Falowen</a>
+      <a href="https://register.falowen.app/" target="_blank" rel="noopener noreferrer">Register</a>
+      <a href="https://www.instagram.com/lleaghana/" target="_blank" rel="noopener noreferrer">Instagram</a>
+      <a href="https://www.youtube.com/@LLEAGhana" target="_blank" rel="noopener noreferrer">YouTube</a>
+      <a href="https://www.tiktok.com/@lleaghana" target="_blank" rel="noopener noreferrer">TikTok</a>
+      <a href="https://www.linkedin.com/in/lleaghana/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+    </nav>
   </main>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
