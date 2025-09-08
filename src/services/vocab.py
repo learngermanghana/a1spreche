@@ -33,6 +33,9 @@ def load_vocab_lists() -> Tuple[Dict[str, list], Dict[Tuple[str, str], Dict[str,
         st.warning("Missing 'Level' column in your vocab sheet. Defaulting to 'A1'.")
         df["Level"] = "A1"
 
+    # Remove rows with missing Level or German before converting to strings.
+    df = df.dropna(subset=["Level", "German"])
+
     df["Level"] = df["Level"].astype(str).str.strip()
     df["German"] = df["German"].astype(str).str.strip()
     df["English"] = df["English"].astype(str).str.strip()
@@ -40,7 +43,6 @@ def load_vocab_lists() -> Tuple[Dict[str, list], Dict[Tuple[str, str], Dict[str,
     if not has_pron:
         df["Pronunciation"] = ""
     df["Pronunciation"] = df["Pronunciation"].astype(str).str.strip()
-    df = df.dropna(subset=["Level", "German"])
 
     def pick(*names):
         for n in names:
