@@ -710,6 +710,9 @@ def parse_contract_start(date_str: str):
 
 # ------------------------------- Footer -------------------------------
 FOOTER_LINKS = {
+    "Leave a Review": "https://g.page/r/YOUR_REVIEW_ID/review",
+    "Upcoming Classes": "https://www.learngermanghana.com/upcoming-classes",
+    "Registration": "https://register.falowen.app",
     "Terms of Service": "https://register.falowen.app/#terms-of-service",
     "Privacy Policy": "https://register.falowen.app/#privacy-policy",
     "Request Account Deletion": "https://script.google.com/macros/s/AKfycbwXrfiuKl65Va_B2Nr4dFnyLRW5z6wT5kAbCj6cNl1JxdOzWVKT_ZMwdh2pN_dbdFoy/exec",
