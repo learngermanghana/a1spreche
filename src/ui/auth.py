@@ -38,7 +38,49 @@ GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "GOCSPX-K7F-d8oy4_
 REDIRECT_URI = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowen.app/")
 
 
+def renew_session_if_needed() -> None:
+    """Refresh session cookie and mapping if a token is present."""
+    token = st.session_state.get("session_token")
+    if not token:
+        return
+
+    try:
+        from falowen.sessions import (
+            refresh_or_rotate_session_token,
+            validate_session_token,
+        )
+
+        data = validate_session_token(token) or {}
+        if not data:
+            return
+
+        new_token = refresh_or_rotate_session_token(token)
+    except Exception:
+        logging.exception("Session renewal failed")
+        return
+
+    if new_token and new_token != token:
+        st.session_state["session_token"] = new_token
+        token = new_token
+
+    student_code = st.session_state.get("student_code") or data.get("student_code", "")
+    persist_session_client(token, student_code)
+
+    cm = st.session_state.get("cookie_manager")
+    if cm:
+        set_session_token_cookie(
+            cm, token, expires=datetime.now(UTC) + timedelta(days=30)
+        )
+        try:
+            cm.save()
+        except Exception:
+            logging.exception("Cookie save failed")
+
+
 def render_signup_form() -> None:
+    _renew = globals().get("renew_session_if_needed")
+    if _renew:
+        _renew()
     with st.form("signup_form", clear_on_submit=False):
         new_name = st.text_input("Full Name", key="ca_name")
         new_email = st.text_input(
@@ -88,6 +130,9 @@ def render_signup_form() -> None:
 
 
 def render_login_form(login_id: str, login_pass: str) -> bool:
+    _renew = globals().get("renew_session_if_needed")
+    if _renew:
+        _renew()
     login_id = (login_id or "").strip().lower()
     login_pass = login_pass or ""
     if not (login_id and login_pass):
@@ -200,6 +245,9 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
 
 
 def render_forgot_password_panel() -> None:
+    _renew = globals().get("renew_session_if_needed")
+    if _renew:
+        _renew()
     st.markdown("##### Forgot password")
     email_for_reset = st.text_input("Registered email", key="reset_email")
     c3, c4 = st.columns([0.55, 0.45])
@@ -253,6 +301,9 @@ def render_forgot_password_panel() -> None:
 
 def render_returning_login_area() -> bool:
     """Email/Password login + optional forgot-password panel. No Google button here."""
+    _renew = globals().get("renew_session_if_needed")
+    if _renew:
+        _renew()
     with st.form("returning_login_form", clear_on_submit=False):
         st.markdown("#### Returning user login")
         login_id = st.text_input("Email or Student Code")
@@ -454,6 +505,9 @@ def render_google_oauth(return_url: bool = True) -> Optional[str]:
 
 def render_returning_login_form() -> bool:
     """Simplified returning-user login form used in tests."""
+    _renew = globals().get("renew_session_if_needed")
+    if _renew:
+        _renew()
     with st.form("returning_login_form", clear_on_submit=False):
         login_id = st.text_input("Email or Student Code")
         login_pass = st.text_input("Password", type="password")
