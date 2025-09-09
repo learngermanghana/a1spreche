@@ -603,7 +603,8 @@ if not st.session_state.get("logged_in", False):
 # Gate
 if not st.session_state.get("logged_in", False):
     login_page()
-    st.stop()
+    if not st.session_state.get("logged_in", False):
+        st.stop()
 
 # ==================== LOGGED IN ====================
 # Show header immediately after login on every page
