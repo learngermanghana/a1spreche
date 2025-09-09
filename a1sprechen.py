@@ -3370,12 +3370,29 @@ if tab == "My Course":
                 if df_students is None:
                     df_students = pd.DataFrame()
 
-                for col in ("ClassName", "Name", "Email", "Location"):
+                for col in (
+                    "ClassName",
+                    "Name",
+                    "Email",
+                    "Location",
+                    "StudentCode",
+                ):
                     if col not in df_students.columns:
                         df_students[col] = ""
-                    df_students[col] = df_students[col].fillna("").astype(str).str.strip()
+                    df_students[col] = (
+                        df_students[col].fillna("").astype(str).str.strip()
+                    )
 
                 same_class = df_students[df_students["ClassName"] == class_name].copy()
+                if not same_class.empty:
+                    def _about_for(code: str) -> str:
+                        """Fetch and truncate the student's bio."""
+                        about = load_student_profile(code or "")
+                        return textwrap.shorten(about, width=80, placeholder="…")
+
+                    same_class["About"] = same_class["StudentCode"].apply(
+                        _about_for
+                    )
                 _n = len(same_class)
                 st.markdown(
                     f"""
@@ -3390,7 +3407,9 @@ if tab == "My Course":
                     unsafe_allow_html=True,
                 )
 
-                cols_show = [c for c in ["Name", "Email", "Location"] if c in same_class.columns]
+                cols_show = [
+                    c for c in ["Name", "Email", "Location", "About"] if c in same_class.columns
+                ]
                 if not same_class.empty and cols_show:
                     st.dataframe(
                         same_class[cols_show].reset_index(drop=True),
