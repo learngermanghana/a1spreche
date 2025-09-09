@@ -3618,6 +3618,11 @@ if tab == "My Course":
 
                 editing = st.session_state.get(edit_key, False)
                 if editing:
+                    if st.session_state.get(ai_flag):
+                        with st.spinner("Correcting with AI..."):
+                            apply_profile_ai_correction(about_key)
+                        st.session_state[ai_flag] = False
+                        st.session_state.pop("need_rerun", None)
                     st.text_area("About me", key=about_key, height=300)
                 else:
                     st.markdown(st.session_state[about_key])
@@ -3626,12 +3631,6 @@ if tab == "My Course":
                     if st.button("Edit", disabled=not bool(student_code), key=_ukey("edit_profile")):
                         st.session_state[edit_key] = True
                 else:
-                    if st.session_state.get(ai_flag):
-                        with st.spinner("Correcting with AI..."):
-                            apply_profile_ai_correction(about_key)
-                        st.session_state[ai_flag] = False
-                        st.session_state["need_rerun"] = True
-
                     col1, col_ai, col2 = st.columns(3)
                     with col1:
                         if st.button("Save", key=_ukey("save_profile")):
