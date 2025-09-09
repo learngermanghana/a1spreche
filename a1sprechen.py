@@ -551,6 +551,7 @@ def render_sidebar_published():
         """
 - 👩‍🏫 [Tutors](https://www.learngermanghana.com/tutors)
 - 🗓️ [Upcoming Classes](https://www.learngermanghana.com/upcoming-classes)
+- 📰 [Blog](https://blog.falowen.app)
 - ✉️ [About Us](https://register.falowen.app/#about-us)
         """
     )
