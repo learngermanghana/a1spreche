@@ -3911,7 +3911,11 @@ if tab == "My Course":
                     ts = q.get("timestamp")
                     ts_label = _fmt_ts(ts)
                     pin_html = " 📌" if q.get("pinned") else ""
-                    topic_html = (f"<div style='font-size:1.1em;font-weight:600;color:#666;'>{q.get('topic','')}</div>" if q.get("topic") else "")
+                    topic_html = (
+                        f"<div style='font-weight:bold;color:#8d4de8;'>{q.get('topic','')}</div>"
+                        if q.get("topic")
+                        else ""
+                    )
                     content_html = format_post(q.get("content", "")).replace("\n", "<br>")
                     link_html = (
                         f"<div style='margin-top:4px;'><a href='{q.get('link')}' target='_blank'>{q.get('link')}</a></div>"
