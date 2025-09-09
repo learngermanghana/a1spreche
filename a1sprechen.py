@@ -889,6 +889,9 @@ FOOTER_LINKS = {
     "Privacy Policy": "https://register.falowen.app/#privacy-policy",
     "Request Account Deletion": "https://script.google.com/macros/s/AKfycbwXrfiuKl65Va_B2Nr4dFnyLRW5z6wT5kAbCj6cNl1JxdOzWVKT_ZMwdh2pN_dbdFoy/exec",
     "Contact": "https://register.falowen.app/#contact",
+    "Blog": "https://blog.falowen.app",
+    "About Us": "https://register.falowen.app/#about-us",
+    "Mission": "https://register.falowen.app/#mission",
 }
 
 def render_app_footer(links: dict):
