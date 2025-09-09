@@ -46,3 +46,15 @@ def test_refresh_with_toast_custom_msg(monkeypatch):
     toasts.refresh_with_toast("Updated!")
     mock_st.toast.assert_called_once_with("Updated!", icon="✅")
     assert mock_st.session_state["__refresh"] == 1
+
+
+def test_toast_once_suppresses_duplicates(monkeypatch):
+    mock_st = types.SimpleNamespace(toast=MagicMock(), session_state={})
+    monkeypatch.setattr(toasts, "st", mock_st)
+
+    toasts.toast_once("hi", "✅")
+    toasts.toast_once("hi", "✅")
+    toasts.toast_once("bye", "✅")
+
+    assert mock_st.toast.call_count == 2
+    assert mock_st.session_state["__recent_toasts__"] == {"hi", "bye"}
