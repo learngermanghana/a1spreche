@@ -3782,6 +3782,19 @@ if tab == "My Course":
                 paragraphs = [textwrap.fill(p, width=80) for p in text.split("\n\n")]
                 return "\n\n".join(paragraphs)
 
+            # ---- Prepare lesson choices ----
+            lesson_choices = []
+            try:
+                schedules = load_level_schedules()
+                level_sched = schedules.get(student_level, schedules.get("A1", []))
+                for item in level_sched:
+                    day = item.get("day")
+                    topic = item.get("topic")
+                    if day is not None and topic:
+                        lesson_choices.append(f"Day {day}: {topic}")
+            except Exception:
+                pass
+
             st.subheader("➕ Add a new post")
             st.info(
                 "Contribute to the forum. Scroll down to reply to a question or ask your own."
@@ -3791,6 +3804,12 @@ if tab == "My Course":
                 st.session_state["q_topic"] = ""
                 st.session_state["q_text"] = ""
                 st.session_state["q_link"] = ""
+                st.session_state["q_lesson"] = lesson_choices[0] if lesson_choices else ""
+            lesson = (
+                st.selectbox("Lesson", lesson_choices, key="q_lesson")
+                if lesson_choices
+                else st.text_input("Lesson", key="q_lesson")
+            )
             topic = st.text_input("Topic (optional)", key="q_topic")
             link = st.text_input("Link (optional)", key="q_link")
 
@@ -3818,6 +3837,7 @@ if tab == "My Course":
                         "asked_by_name": student_name,
                         "asked_by_code": student_code,
                         "timestamp": _dt.utcnow(),
+                        "lesson": lesson,
                         "topic": (topic or "").strip(),
                         "link": (link or "").strip(),
                         "pinned": False,
@@ -3931,10 +3951,16 @@ if tab == "My Course":
                         if q.get("link")
                         else ""
                     )
+                    lesson_html = (
+                        f"<div style='font-size:0.85rem;color:#555;'>📘 {q.get('lesson')}</div>"
+                        if q.get("lesson")
+                        else ""
+                    )
                     st.markdown(
                         f"<div style='padding:10px;background:#f8fafc;border:1px solid #ddd;border-radius:6px;margin:6px 0;font-size:1rem;line-height:1.5;'>"
                         f"<b>{q.get('asked_by_name','')}</b>{pin_html}"
                         f"<span style='color:#aaa;'> • {ts_label}</span>"
+                        f"{lesson_html}"
                         f"{topic_html}"
                         f"{content_html}"
                         f"{link_html}"
@@ -3947,9 +3973,11 @@ if tab == "My Course":
                             f"q_edit_text_{q_id}",
                             f"q_edit_topic_{q_id}",
                             f"q_edit_link_{q_id}",
+                            f"q_edit_lesson_{q_id}",
                             f"q_edit_text_input_{q_id}",
                             f"q_edit_topic_input_{q_id}",
                             f"q_edit_link_input_{q_id}",
+                            f"q_edit_lesson_input_{q_id}",
                         ]:
                             st.session_state.pop(_k, None)
 
@@ -3962,6 +3990,7 @@ if tab == "My Course":
                                 st.session_state[f"q_edit_text_{q_id}"] = q.get("content", "")
                                 st.session_state[f"q_edit_topic_{q_id}"] = q.get("topic", "")
                                 st.session_state[f"q_edit_link_{q_id}"] = q.get("link", "")
+                                st.session_state[f"q_edit_lesson_{q_id}"] = q.get("lesson", "")
                         with qc2:
                             if st.button("🗑️ Delete", key=f"q_del_btn_{q_id}"):
                                 try:
@@ -3986,6 +4015,24 @@ if tab == "My Course":
 
                         if st.session_state.get(f"q_editing_{q_id}", False):
                             with st.form(f"q_edit_form_{q_id}"):
+                                if lesson_choices:
+                                    current_lesson = st.session_state.get(f"q_edit_lesson_{q_id}", "")
+                                    try:
+                                        _idx = lesson_choices.index(current_lesson)
+                                    except ValueError:
+                                        _idx = 0
+                                    new_lesson = st.selectbox(
+                                        "Edit lesson",
+                                        lesson_choices,
+                                        index=_idx,
+                                        key=f"q_edit_lesson_input_{q_id}"
+                                    )
+                                else:
+                                    new_lesson = st.text_input(
+                                        "Edit lesson",
+                                        value=st.session_state.get(f"q_edit_lesson_{q_id}", ""),
+                                        key=f"q_edit_lesson_input_{q_id}"
+                                    )
                                 new_topic = st.text_input(
                                     "Edit topic (optional)",
                                     value=st.session_state.get(f"q_edit_topic_{q_id}", ""),
@@ -4011,6 +4058,7 @@ if tab == "My Course":
                                         "content": formatted_edit,
                                         "topic": (new_topic or "").strip(),
                                         "link": (new_link or "").strip(),
+                                        "lesson": new_lesson,
                                     })
                                     _notify_slack(
                                         f"✏️ *Class Board post edited* — {class_name}\n",
