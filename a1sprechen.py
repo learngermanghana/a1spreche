@@ -2791,8 +2791,7 @@ if tab == "My Course":
             [
                 "Calendar",
                 "Join on Zoom",
-                "Members",
-                "My Profile",
+                "Members & Profile",
                 "Class Notes & Q&A",
                 "Attendance",
             ],
@@ -3386,8 +3385,8 @@ if tab == "My Course":
                 else:
                     st.info("No attendance records found yet.")
 
-        # ===================== MEMBERS =====================
-        elif classroom_section == "Members":
+        # ===================== MEMBERS & PROFILE =====================
+        elif classroom_section == "Members & Profile":
             # Subtle hint banner
             st.markdown(
                 """
@@ -3460,8 +3459,8 @@ if tab == "My Course":
                 else:
                     st.info("No members found for this class yet.")
 
-        # ===================== MY PROFILE =====================
-        elif classroom_section == "My Profile":
+            # --- Profile section ---
+            st.markdown("---")
             with st.container():
                 st.markdown(
                     """
@@ -3472,7 +3471,7 @@ if tab == "My Course":
                         border-radius:12px;
                         margin: 6px 0 8px 0;
                         display:flex;align-items:center;gap:8px;">
-                      <span style="font-size:1.05rem;">👤 <b>My Profile</b></span>
+                      <span style="font-size:1.05rem;">👤 <b>Profile</b></span>
                     </div>
                     """,
                     unsafe_allow_html=True,
