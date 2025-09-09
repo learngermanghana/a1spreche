@@ -27,7 +27,7 @@ from src.data_loading import load_student_data
 from src.session_management import determine_level
 from src.ui_helpers import qp_get, qp_clear
 from src.services.contracts import contract_active
-from src.utils.toasts import refresh_with_toast, toast_ok
+from src.utils.toasts import refresh_with_toast, toast_ok, toast_err
 
 # Google OAuth configuration
 GOOGLE_CLIENT_ID = st.secrets.get(
@@ -57,6 +57,7 @@ def renew_session_if_needed() -> None:
         new_token = refresh_or_rotate_session_token(token)
     except Exception:
         logging.exception("Session renewal failed")
+        toast_err("Session renewal failed")
         return
 
     if new_token and new_token != token:
@@ -75,6 +76,7 @@ def renew_session_if_needed() -> None:
             cm.save()
         except Exception:
             logging.exception("Cookie save failed")
+            toast_err("Cookie save failed")
 
 
 def render_signup_form() -> None:
@@ -186,6 +188,7 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
             doc_ref.update({"password": new_hash})
     except Exception:
         logging.exception("Password hash upgrade failed")
+        toast_err("Login failed")
         ok = False
 
     if not ok:
@@ -199,6 +202,7 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
             destroy_session_token(prev_token)
         except Exception:
             logging.exception("Logout warning (revoke)")
+            toast_err("Logout failed")
 
     sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
     level = determine_level(student_row["StudentCode"], student_row)
@@ -231,6 +235,7 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
             cookie_manager.save()
         except Exception:
             logging.exception("Cookie save failed")
+            toast_err("Cookie save failed")
 
     from streamlit.components.v1 import html as _html
 
@@ -424,6 +429,7 @@ def _handle_google_oauth(code: str, state: str) -> None:
                 destroy_session_token(prev_token)
             except Exception:
                 logging.exception("Logout warning (revoke)")
+                toast_err("Logout failed")
 
         cookie_manager = st.session_state.get("cookie_manager")
         if cookie_manager:
@@ -459,6 +465,7 @@ def _handle_google_oauth(code: str, state: str) -> None:
                 cookie_manager.save()
             except Exception:
                 logging.exception("Cookie save failed")
+                toast_err("Cookie save failed")
         from streamlit.components.v1 import html as _html
 
         _html(
@@ -474,6 +481,7 @@ def _handle_google_oauth(code: str, state: str) -> None:
     except Exception as e:  # pragma: no cover - network errors
         logging.exception("Google OAuth error")
         st.error(f"Google OAuth error: {e}")
+        toast_err("Google OAuth error")
 
 
 def render_google_oauth(return_url: bool = True) -> Optional[str]:

@@ -13,7 +13,7 @@ import streamlit as st
 
 from falowen.sessions import db
 from src.firestore_utils import save_chat_draft_to_db, save_draft_to_db
-from src.utils.toasts import toast_ok
+from src.utils.toasts import toast_ok, toast_err
 
 
 def _draft_state_keys(draft_key: str) -> Tuple[str, str, str, str]:
@@ -135,7 +135,7 @@ def on_cb_subtab_change() -> None:
             try:
                 save_draft_to_db(code, key, st.session_state.get(key, ""))
             except Exception:
-                pass
+                toast_err("Draft save failed")
             last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(
                 key
             )
@@ -159,7 +159,7 @@ def on_cb_subtab_change() -> None:
                     st.session_state[saved_flag_key] = bool(text)
                     st.session_state[saved_at_key] = ts
         except Exception:
-            pass
+            toast_err("Draft load failed")
 
     st.session_state["__cb_subtab_prev"] = curr
 
