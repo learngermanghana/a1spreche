@@ -38,3 +38,11 @@ def test_refresh_with_toast(monkeypatch):
     toasts.refresh_with_toast()
     mock_st.toast.assert_called_once_with("Saved!", icon="✅")
     assert mock_st.session_state["__refresh"] == 1
+
+
+def test_refresh_with_toast_custom_msg(monkeypatch):
+    mock_st = types.SimpleNamespace(toast=MagicMock(), session_state={})
+    monkeypatch.setattr(toasts, "st", mock_st)
+    toasts.refresh_with_toast("Updated!")
+    mock_st.toast.assert_called_once_with("Updated!", icon="✅")
+    assert mock_st.session_state["__refresh"] == 1

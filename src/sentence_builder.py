@@ -158,7 +158,7 @@ def render_sentence_builder(student_code: str, student_level_locked: str) -> Non
                     disabled=selected,
                 ):
                     st.session_state.sb_selected_idx.append(i)
-                    refresh_with_toast()
+                    refresh_with_toast("Word added!")
 
     chosen_tokens = [
         st.session_state.sb_shuffled[i] for i in st.session_state.sb_selected_idx
@@ -172,7 +172,7 @@ def render_sentence_builder(student_code: str, student_level_locked: str) -> Non
             st.session_state.sb_selected_idx = []
             st.session_state.sb_feedback = ""
             st.session_state.sb_correct = None
-            refresh_with_toast()
+            refresh_with_toast("Cleared!")
     with b:
         if st.button("✅ Check"):
             target_sentence = st.session_state.sb_current.get("target_de", "").strip()
@@ -196,7 +196,7 @@ def render_sentence_builder(student_code: str, student_level_locked: str) -> Non
                 correct=correct,
                 tip=st.session_state.sb_current.get("hint_en", ""),
             )
-            refresh_with_toast()
+            refresh_with_toast("Attempt recorded!")
     with c:
         next_disabled = st.session_state.sb_correct is None
         if st.button("➡️ Next", disabled=next_disabled):
@@ -205,7 +205,7 @@ def render_sentence_builder(student_code: str, student_level_locked: str) -> Non
                     f"Session complete! Score: {st.session_state.sb_score}/{st.session_state.sb_total}"
                 )
             new_sentence()
-            refresh_with_toast()
+            refresh_with_toast("Next sentence!")
 
     if st.session_state.sb_feedback:
         (st.success if st.session_state.sb_correct else st.info)(

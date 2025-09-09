@@ -490,7 +490,7 @@ def render_results_and_resources_tab() -> None:
         if st.button("🔄 Refresh"):
             st.cache_data.clear()
             st.success("Cache cleared! Reloading…")
-            refresh_with_toast()
+            refresh_with_toast("Refreshed!")
 
     df_scores = fetch_scores(GOOGLE_SHEET_CSV)
     required_cols = {
