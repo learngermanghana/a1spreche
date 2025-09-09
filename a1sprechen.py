@@ -3517,7 +3517,7 @@ if tab == "My Course":
                     if st.button("Edit", disabled=not bool(student_code), key=_ukey("edit_profile")):
                         st.session_state[edit_key] = True
                 else:
-                    ai_flag = "profile_ai_busy"
+                    ai_flag = f"profile_ai_busy_{student_code}"
                     if st.session_state.get(ai_flag):
                         with st.spinner("Correcting with AI..."):
                             apply_profile_ai_correction(about_key)
@@ -3533,6 +3533,7 @@ if tab == "My Course":
                             except Exception:
                                 st.error("Failed to save profile.")
                             finally:
+                                st.session_state.pop(ai_flag, None)
                                 st.session_state[edit_key] = False
                     with col_ai:
                         if st.button(
@@ -3545,6 +3546,7 @@ if tab == "My Course":
                     with col2:
                         if st.button("Cancel", key=_ukey("cancel_profile")):
                             st.session_state[about_key] = load_student_profile(student_code)
+                            st.session_state.pop(ai_flag, None)
                             st.session_state[edit_key] = False
 
                 if not bool(student_code):
