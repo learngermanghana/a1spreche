@@ -112,11 +112,15 @@ from src.firestore_helpers import (
     fetch_latest,
 )
 from src.attendance_utils import load_attendance_records
+import src.ui_components as _ui_components
 from src.ui_components import (
     render_assignment_reminder,
     render_link,
     render_vocab_lookup,
 )
+
+prepare_audio_url = getattr(_ui_components, "prepare_audio_url", lambda url: url)
+render_audio_player = getattr(_ui_components, "render_audio_player", lambda *a, **k: None)
 from src.stats import (
     get_student_level,
     save_vocab_attempt,
@@ -5751,19 +5755,20 @@ if tab == "Vocab Trainer":
                 st.markdown(example_sentence)
 
             sheet_audio = get_audio_url(lvl, de)
+            sheet_audio = prepare_audio_url(sheet_audio) if sheet_audio else None
             if sheet_audio:
-                st.audio(sheet_audio, format="audio/mpeg")
+                render_audio_player(sheet_audio, verified=True)
                 st.markdown(f"[⬇️ Download / Open MP3]({sheet_audio})")
             else:
                 audio_bytes = _dict_tts_bytes_de(de)
                 if audio_bytes:
-                    st.audio(audio_bytes, format="audio/mpeg")
+                    render_audio_player(audio_bytes)
                     st.download_button(
                         "⬇️ Download MP3",
                         data=audio_bytes,
                         file_name=f"{de}.mp3",
                         mime="audio/mpeg",
-                        key=f"dl_{de}_{lvl}"
+                        key=f"dl_{de}_{lvl}",
                     )
                 else:
                     st.caption("Audio not available yet.")

@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
-import logging
+import base64
 import json
+import logging
+from typing import Optional, Union
+from uuid import uuid4
+from urllib.parse import urlparse, urlunparse
+
 import pandas as pd
+import requests
 import streamlit as st
 import streamlit.components.v1 as components
-from typing import Optional
 
 try:  # pragma: no cover - dependency might be missing in some environments
     from rapidfuzz import process
@@ -66,6 +71,56 @@ def render_link(label: str, url: str) -> None:
     """Render a bullet link."""
 
     st.markdown(f"- [{label}]({url})")
+
+
+def prepare_audio_url(url: str) -> Optional[str]:
+    """Ensure the audio URL uses HTTPS and returns ``audio/mpeg``."""
+
+    if not url:
+        return None
+    try:
+        parsed = urlparse(str(url))
+        if parsed.scheme not in {"http", "https"}:
+            return None
+        if parsed.scheme == "http":
+            parsed = parsed._replace(scheme="https")
+            url = urlunparse(parsed)
+        resp = requests.head(url, allow_redirects=True, timeout=5)
+        ctype = resp.headers.get("Content-Type", "")
+        if ctype.split(";")[0].strip().lower() != "audio/mpeg":
+            return None
+        return url
+    except Exception:  # pragma: no cover - best effort
+        logging.exception("Failed to verify audio URL")
+        return None
+
+
+def render_audio_player(source: Union[str, bytes], *, verified: bool = False) -> None:
+    """Render an HTML5 audio player with mobile-friendly attributes."""
+
+    if isinstance(source, (bytes, bytearray)):
+        b64 = base64.b64encode(source).decode()
+        url = f"data:audio/mpeg;base64,{b64}"
+    else:
+        url = source if verified else prepare_audio_url(source)
+        if not url:
+            st.markdown(f"[⬇️ Download MP3]({source})")
+            return
+
+    element_id = f"audio_{uuid4().hex}"
+    html = f"""
+    <audio id="{element_id}" controls preload="none" playsinline controlsList="nodownload" src="{url}"></audio>
+    <div id="{element_id}_dl" style="display:none">
+      <a href="{url}" download>Download MP3</a>
+    </div>
+    <script>
+    const audio = document.getElementById('{element_id}');
+    const dl = document.getElementById('{element_id}_dl');
+    audio.addEventListener('error', () => dl.style.display = 'block');
+    if (/iPad|iPhone|iPod/.test(navigator.userAgent)) dl.style.display = 'block';
+    </script>
+    """
+    components.html(html, height=80)
 
 
 def render_vocab_lookup(key: str) -> None:
@@ -136,8 +191,7 @@ def render_vocab_lookup(key: str) -> None:
             audio_url = row.get("Audio")
             if not audio_url or pd.isna(audio_url):
                 audio_url = row.get("Audio Link")
-            if not audio_url or pd.isna(audio_url):
-                audio_url = None
+            audio_url = prepare_audio_url(audio_url) if audio_url else None
 
             line = f"- **{word}** – {meaning}"
             if audio_url:
@@ -145,7 +199,7 @@ def render_vocab_lookup(key: str) -> None:
             st.markdown(line)
             if audio_url:
                 try:  # pragma: no cover - best effort on mobile browsers
-                    st.audio(audio_url)
+                    render_audio_player(audio_url, verified=True)
                 except Exception:
                     logging.exception("Failed to play audio")
 
