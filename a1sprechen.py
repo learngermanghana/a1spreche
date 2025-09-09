@@ -4057,11 +4057,17 @@ if tab == "My Course":
                         if q.get("link")
                         else ""
                     )
-                    lesson_html = (
-                        f"<div style='font-size:0.85rem;color:#555;'>📘 {q.get('lesson')}</div>"
-                        if q.get("lesson")
-                        else ""
-                    )
+                    lesson = q.get("lesson")
+                    if lesson:
+                        day_part = lesson.split(":")[0]
+                        day = day_part.split()[1] if len(day_part.split()) > 1 else ""
+                        course_link = f"?tab=My%20Course&day={day}"
+                        lesson_html = (
+                            f"<div style='font-size:1.1rem;font-weight:600;color:#0f172a;'>📘 {lesson} – "
+                            f"<a href='{course_link}' target='_blank'>View page</a></div>"
+                        )
+                    else:
+                        lesson_html = ""
                     st.markdown(
                         f"<div style='padding:10px;background:#f8fafc;border:1px solid #ddd;border-radius:6px;margin:6px 0;font-size:1rem;line-height:1.5;'>"
                         f"<b>{q.get('asked_by_name','')}</b>{pin_html}"
