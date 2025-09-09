@@ -82,7 +82,7 @@ from src.contracts import (
 )
 from src.services.contracts import contract_active
 from src.utils.currency import format_cedis
-from src.utils.toasts import toast_ok, refresh_with_toast
+from src.utils.toasts import toast_ok, refresh_with_toast, toast_once
 from src.firestore_utils import (
     _draft_doc_ref,
     load_chat_draft_from_db,
@@ -6071,7 +6071,7 @@ if tab == "Schreiben Trainer":
 
         if st.button("\U0001f4be Save Draft", key=f"save_draft_btn_{student_code}"):
             save_now(draft_key, student_code)
-            toast_ok("Draft saved!")
+            toast_once("Draft saved!", "✅")
         st.caption("Auto-saves every few seconds or click 'Save Draft' to save now.")
 
         def clear_feedback_and_start_new():
@@ -6609,7 +6609,7 @@ if tab == "Schreiben Trainer":
 
             if st.button("\U0001f4be Save Draft", key=f"save_prompt_draft_btn_{student_code}"):
                 save_now(draft_key, student_code)
-                toast_ok("Draft saved!")
+                toast_once("Draft saved!", "✅")
             st.caption("Auto-saves every few seconds or click 'Save Draft' to save now.")
 
             saved_at = st.session_state.get(f"{draft_key}_saved_at")
@@ -6735,7 +6735,7 @@ if tab == "Schreiben Trainer":
             if col_save.button("\U0001f4be Save Draft", key=ns("save_letter_draft_btn")):
                 st.session_state[letter_draft_key] = letter_draft
                 save_now(letter_draft_key, student_code)
-                toast_ok("Draft saved!")
+                toast_once("Draft saved!", "✅")
 
             if send:
                 user_input = st.session_state[draft_key].strip()

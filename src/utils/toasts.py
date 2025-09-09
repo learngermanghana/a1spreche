@@ -1,6 +1,34 @@
 import streamlit as st
 
 
+_RECENT_TOASTS_KEY = "__recent_toasts__"
+
+
+def _already_toasted(msg: str) -> bool:
+    shown: set[str] = st.session_state.setdefault(_RECENT_TOASTS_KEY, set())
+    if msg in shown:
+        return True
+    shown.add(msg)
+    return False
+
+
+def toast_once(msg: str, icon: str) -> None:
+    """Show a toast message only once per session.
+
+    The function keeps track of messages shown in ``st.session_state`` and
+    suppresses duplicates.
+
+    Parameters
+    ----------
+    msg:
+        The message to display.
+    icon:
+        The icon to display with the toast.
+    """
+    if not _already_toasted(msg):
+        st.toast(msg, icon=icon)
+
+
 def toast_ok(msg: str) -> None:
     """Show a success toast message.
 
