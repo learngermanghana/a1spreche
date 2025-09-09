@@ -3494,13 +3494,10 @@ if tab == "My Course":
                 st.session_state.setdefault(edit_key, False)
 
                 editing = st.session_state.get(edit_key, False)
-                disabled = not bool(student_code) or not editing
-                st.text_area(
-                    "About me",
-                    key=about_key,
-                    height=180,
-                    disabled=disabled,
-                )
+                if editing:
+                    st.text_area("About me", key=about_key, height=300)
+                else:
+                    st.markdown(st.session_state[about_key])
 
                 if not editing:
                     if st.button("Edit", disabled=not bool(student_code), key=_ukey("edit_profile")):
