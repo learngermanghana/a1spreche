@@ -339,6 +339,10 @@ def login_page():
       &nbsp;|&nbsp;
       <a href="https://www.learngermanghana.com/terms-of-service" target="_blank" rel="noopener">📜 Terms</a>
       &nbsp;|&nbsp;
+      <a href="https://script.google.com/macros/s/AKfycbwXrfiuKl65Va_B2Nr4dFnyLRW5z6wT5kAbCj6cNl1JxdOzWVKT_ZMwdh2pN_dbdFoy/exec" target="_blank" rel="noopener">🗑️ Request Account Deletion</a>
+      &nbsp;|&nbsp;
+      <a href="https://blog.falowen.app" target="_blank" rel="noopener">📰 Blog</a>
+      &nbsp;|&nbsp;
       <a href="https://www.learngermanghana.com/contact-us"       target="_blank" rel="noopener">✉️ Contact</a>
     </div>
     """, unsafe_allow_html=True)

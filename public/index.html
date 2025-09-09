@@ -290,6 +290,26 @@ button[disabled] { opacity: .6; cursor: not-allowed; }
       font-weight: 600;
     }
 
+    .app-footer {
+      margin-top: 18px;
+      padding: 16px 14px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: .95rem;
+    }
+    .app-footer a {
+      text-decoration: none;
+      font-weight: 700;
+      color: inherit;
+    }
+    .app-footer .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      justify-content: center;
+    }
+    @media (max-width:640px) { .app-footer { padding: 14px 10px; } }
+
     /* Animations */
     [data-animate] { opacity: 0; transform: translateY(10px); animation: fadeUp .6s ease forwards; }
     [data-animate="2"] { animation-delay: .05s; }
@@ -414,12 +434,18 @@ button[disabled] { opacity: .6; cursor: not-allowed; }
       <a href="https://www.youtube.com/@LLEAGhana" target="_blank" rel="noopener noreferrer">YouTube</a>
       <a href="https://www.tiktok.com/@lleaghana" target="_blank" rel="noopener noreferrer">TikTok</a>
       <a href="https://www.linkedin.com/in/lleaghana/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
-      <a href="https://blog.falowen.app" target="_blank" rel="noopener noreferrer">Blog</a>
-      <a href="https://script.google.com/macros/s/AKfycbwXrfiuKl65Va_B2Nr4dFnyLRW5z6wT5kAbCj6cNl1JxdOzWVKT_ZMwdh2pN_dbdFoy/exec" target="_blank" rel="noopener noreferrer">Request Account Deletion</a>
       <a href="https://register.falowen.app/#about-us" target="_blank" rel="noopener noreferrer">About Us</a>
     </nav>
   </main>
-    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <footer class="app-footer">
+    <div class="row">
+      <a href="https://register.falowen.app/#terms-of-service" target="_blank" rel="noopener noreferrer">Terms of Service</a> |
+      <a href="https://register.falowen.app/#privacy-policy" target="_blank" rel="noopener noreferrer">Privacy Policy</a> |
+      <a href="https://register.falowen.app/#about-us" target="_blank" rel="noopener noreferrer">About Us</a>
+    </div>
+    <div style="margin-top:6px;font-size:.9rem;">© 2024 Falowen</div>
+  </footer>
 
           <script>
         // Password toggle
