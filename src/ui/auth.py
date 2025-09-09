@@ -27,7 +27,7 @@ from src.data_loading import load_student_data
 from src.session_management import determine_level
 from src.ui_helpers import qp_get, qp_clear
 from src.services.contracts import contract_active
-from src.utils.toasts import refresh_with_toast
+from src.utils.toasts import refresh_with_toast, toast_ok
 
 # Google OAuth configuration
 GOOGLE_CLIENT_ID = st.secrets.get(
@@ -240,7 +240,7 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     )
 
     st.success(f"Welcome, {student_row['Name']}!")
-    st.toast(f"Welcome, {student_row['Name']}!", icon="✅")
+    toast_ok(f"Welcome, {student_row['Name']}!")
     return True
 
 
