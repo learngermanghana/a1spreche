@@ -2,6 +2,7 @@
 import calendar
 import difflib
 import hashlib
+import html
 import io
 import json
 import math
@@ -596,6 +597,67 @@ def apply_profile_ai_correction(about_key: str) -> None:
     except Exception as e:
         logging.exception("Profile AI correction error")
         st.error(f"AI correction failed: {e}")
+
+
+def apply_status_ai_correction(text: str) -> Tuple[str, str]:
+    """Return an AI-improved version of *text* and a brief explanation."""
+    if not text.strip():
+        return text, ""
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a helpful assistant that improves a student's forum post. "
+                        "Return a JSON object with keys 'improved' for the corrected post "
+                        "and 'explanation' for a short explanation of the changes."
+                    ),
+                },
+                {"role": "user", "content": text},
+            ],
+            temperature=0,
+            max_tokens=400,
+        )
+        raw = resp.choices[0].message.content or ""
+        try:
+            data = json.loads(raw)
+            improved = (data.get("improved") or "").strip()
+            explanation = (data.get("explanation") or "").strip()
+        except Exception:
+            improved = raw.strip()
+            explanation = ""
+        return improved, explanation
+    except Exception as e:
+        logging.exception("Status AI correction error")
+        st.error(f"AI correction failed: {e}")
+        return text, ""
+
+
+def diff_with_markers(original: str, corrected: str) -> str:
+    """Generate HTML diff using <mark> tags for additions and deletions."""
+    diff_lines = difflib.unified_diff(
+        original.splitlines(),
+        corrected.splitlines(),
+        lineterm="",
+    )
+    html_lines = ["<pre>"]
+    for line in diff_lines:
+        if line.startswith(("---", "+++", "@@")):
+            continue
+        if line.startswith("+"):
+            html_lines.append(
+                f"<mark style='background-color:#d4fcbc'>+ {html.escape(line[1:])}</mark>"
+            )
+        elif line.startswith("-"):
+            html_lines.append(
+                f"<mark style='background-color:#ffbdbd'>- {html.escape(line[1:])}</mark>"
+            )
+        else:
+            html_lines.append(html.escape(line))
+    html_lines.append("</pre>")
+    return "\n".join(html_lines)
 
 
 # ------------------------------------------------------------------------------
@@ -3805,6 +3867,9 @@ if tab == "My Course":
                 st.session_state["q_text"] = ""
                 st.session_state["q_link"] = ""
                 st.session_state["q_lesson"] = lesson_choices[0] if lesson_choices else ""
+                st.session_state.pop("q_ai_suggestion", None)
+                st.session_state.pop("q_ai_explanation", None)
+                st.session_state.pop("q_ai_diff", None)
             lesson = (
                 st.selectbox("Lesson", lesson_choices, key="q_lesson")
                 if lesson_choices
@@ -3827,7 +3892,48 @@ if tab == "My Course":
                 """,
                 unsafe_allow_html=True,
             )
-            new_q = st.text_area("Your content", key="q_text", height=160)
+            ai_flag = "__q_ai_busy"
+            if st.session_state.get(ai_flag):
+                with st.spinner("Correcting with AI..."):
+                    original = st.session_state.get("q_text", "")
+                    improved, explanation = apply_status_ai_correction(original)
+                    st.session_state["q_ai_suggestion"] = improved
+                    st.session_state["q_ai_explanation"] = explanation
+                    st.session_state["q_ai_diff"] = diff_with_markers(original, improved)
+                st.session_state[ai_flag] = False
+                st.session_state["need_rerun"] = True
+
+            ta_col, ai_col = st.columns([3, 1])
+            with ta_col:
+                new_q = st.text_area("Your content", key="q_text", height=160)
+            with ai_col:
+                if st.button(
+                    "✨ Correct with AI",
+                    key="qna_ai_correct",
+                    disabled=st.session_state.get(ai_flag, False),
+                ):
+                    st.session_state[ai_flag] = True
+                    st.session_state["need_rerun"] = True
+
+            if st.session_state.get("q_ai_diff"):
+                st.markdown(st.session_state["q_ai_diff"], unsafe_allow_html=True)
+                st.markdown("**Why these changes?**")
+                st.markdown(st.session_state.get("q_ai_explanation", ""))
+                acc_col, rej_col = st.columns(2)
+                with acc_col:
+                    if st.button("Accept", key="q_ai_accept"):
+                        st.session_state["q_text"] = st.session_state.get("q_ai_suggestion", "")
+                        st.session_state.pop("q_ai_suggestion", None)
+                        st.session_state.pop("q_ai_explanation", None)
+                        st.session_state.pop("q_ai_diff", None)
+                        st.session_state["need_rerun"] = True
+                with rej_col:
+                    if st.button("Reject", key="q_ai_reject"):
+                        st.session_state.pop("q_ai_suggestion", None)
+                        st.session_state.pop("q_ai_explanation", None)
+                        st.session_state.pop("q_ai_diff", None)
+                        st.session_state["need_rerun"] = True
+
             if st.button("Post", key="qna_post_question"):
                 formatted_q = format_post(new_q)
                 if formatted_q:
