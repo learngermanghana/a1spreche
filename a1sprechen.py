@@ -94,7 +94,6 @@ from src.firestore_utils import (
     fetch_attendance_summary,
     load_student_profile,
     save_student_profile,
-    delete_student_profile,
 )
 from src.draft_management import (
     _draft_state_keys,
@@ -3525,7 +3524,7 @@ if tab == "My Course":
                         st.session_state[ai_flag] = False
                         st.session_state["need_rerun"] = True
 
-                    col1, col_ai, col2, col3 = st.columns(4)
+                    col1, col_ai, col2 = st.columns(3)
                     with col1:
                         if st.button("Save", key=_ukey("save_profile")):
                             try:
@@ -3547,16 +3546,6 @@ if tab == "My Course":
                         if st.button("Cancel", key=_ukey("cancel_profile")):
                             st.session_state[about_key] = load_student_profile(student_code)
                             st.session_state[edit_key] = False
-                    with col3:
-                        if st.button("Delete", key=_ukey("delete_profile")):
-                            try:
-                                delete_student_profile(student_code)
-                                st.session_state[about_key] = ""
-                                st.success("Profile deleted.")
-                            except Exception:
-                                st.error("Failed to delete profile.")
-                            finally:
-                                st.session_state[edit_key] = False
 
                 if not bool(student_code):
                     st.info("Enter your student code to edit your profile.")
