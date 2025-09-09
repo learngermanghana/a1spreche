@@ -99,6 +99,13 @@ def format_record(doc_id: str, data: Dict[str, Any], student_code: str) -> Tuple
 
 try:  # Firestore client is optional in test environments
     from falowen.sessions import db  # pragma: no cover - runtime side effect
+    try:
+        # Touch the ``students`` collection to ensure it is available.  This
+        # avoids surprising ``AttributeError`` if Firestore was partially
+        # initialised but the collection is missing.  No network call is made.
+        db.collection("students")
+    except Exception:  # pragma: no cover - Firestore may be unavailable
+        pass
 except Exception:  # pragma: no cover - Firestore may be unavailable
     db = None  # type: ignore
 
@@ -197,6 +204,39 @@ def load_chat_draft_from_db(code: str, conv_key: str) -> str:
         logging.exception(
             "Failed to load chat draft for %s/%s: %s", code, conv_key, exc
         )
+    return ""
+
+
+def save_student_profile(code: str, about: str) -> None:
+    """Persist a student's profile information."""
+
+    if db is None:
+        return
+    if not code:
+        return
+    ref = db.collection("students").document(code)
+    payload = {
+        "about": about or "",
+        "updated_at": firestore.SERVER_TIMESTAMP,
+    }
+    try:
+        ref.set(payload, merge=True)
+    except Exception as exc:  # pragma: no cover - runtime depends on Firestore
+        logging.warning("Failed to save student profile for %s: %s", code, exc)
+
+
+def load_student_profile(code: str) -> str:
+    """Return the stored 'about' text for ``code``."""
+
+    if db is None:
+        return ""
+    try:
+        snap = db.collection("students").document(code).get()
+        if snap.exists:
+            data = snap.to_dict() or {}
+            return data.get("about", "") or ""
+    except Exception as exc:  # pragma: no cover - runtime depends on Firestore
+        logging.exception("Failed to load student profile for %s: %s", code, exc)
     return ""
 
 
