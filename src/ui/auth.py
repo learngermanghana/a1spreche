@@ -468,7 +468,7 @@ def _handle_google_oauth(code: str, state: str) -> None:
 
         qp_clear()
         st.success(f"Welcome, {student_row['Name']}!")
-        refresh_with_toast()
+        refresh_with_toast("Logged in!")
         st.session_state["need_rerun"] = True
 
     except Exception as e:  # pragma: no cover - network errors

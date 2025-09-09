@@ -45,12 +45,17 @@ def toast_info(msg: str) -> None:
     st.toast(msg, icon="ℹ️")
 
 
-def refresh_with_toast() -> None:
+def refresh_with_toast(msg: str = "Saved!") -> None:
     """Increment ``__refresh`` and show a saved toast.
 
     This helper centralises the common pattern of bumping the
     ``__refresh`` counter in ``st.session_state`` to trigger a
     rerender and informing the user that their action was saved.
+
+    Parameters
+    ----------
+    msg:
+        The message to display in the success toast. Defaults to ``"Saved!"``.
     """
     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-    toast_ok("Saved!")
+    toast_ok(msg)
