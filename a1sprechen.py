@@ -94,6 +94,7 @@ from src.firestore_utils import (
     fetch_attendance_summary,
     load_student_profile,
     save_student_profile,
+    delete_student_profile,
 )
 from src.draft_management import (
     _draft_state_keys,
@@ -3448,6 +3449,7 @@ if tab == "My Course":
                 student_code = (st.session_state.get("student_code", "") or "").strip()
                 loaded_key = "profile_loaded_code"
                 about_key = "profile_about"
+                edit_key = "profile_editing"
                 if (
                     student_code
                     and (
@@ -3459,17 +3461,47 @@ if tab == "My Course":
                     st.session_state[loaded_key] = student_code
                 if not student_code:
                     st.session_state.setdefault(about_key, "")
-                disabled = not bool(student_code)
+                st.session_state.setdefault(edit_key, False)
+
+                editing = st.session_state.get(edit_key, False)
+                disabled = not bool(student_code) or not editing
                 st.text_area(
                     "About me",
                     key=about_key,
                     height=180,
                     disabled=disabled,
                 )
-                if st.button("Save Profile", disabled=disabled, key=_ukey("save_profile")):
-                    save_student_profile(student_code, st.session_state.get(about_key, ""))
-                    st.success("Profile saved.")
-                if disabled:
+
+                if not editing:
+                    if st.button("Edit", disabled=not bool(student_code), key=_ukey("edit_profile")):
+                        st.session_state[edit_key] = True
+                else:
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        if st.button("Save", key=_ukey("save_profile")):
+                            try:
+                                save_student_profile(student_code, st.session_state.get(about_key, ""))
+                                st.success("Profile saved.")
+                            except Exception:
+                                st.error("Failed to save profile.")
+                            finally:
+                                st.session_state[edit_key] = False
+                    with col2:
+                        if st.button("Cancel", key=_ukey("cancel_profile")):
+                            st.session_state[about_key] = load_student_profile(student_code)
+                            st.session_state[edit_key] = False
+                    with col3:
+                        if st.button("Delete", key=_ukey("delete_profile")):
+                            try:
+                                delete_student_profile(student_code)
+                                st.session_state[about_key] = ""
+                                st.success("Profile deleted.")
+                            except Exception:
+                                st.error("Failed to delete profile.")
+                            finally:
+                                st.session_state[edit_key] = False
+
+                if not bool(student_code):
                     st.info("Enter your student code to edit your profile.")
 
         # ===================== JOIN =====================
