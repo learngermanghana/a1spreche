@@ -4309,19 +4309,6 @@ if tab == "My Course":
                     clear_flag = f"__clear_comment_draft_{q_id}"
                     if st.session_state.pop(clear_flag, False):
                         st.session_state[draft_key] = ""
-                    current_text = st.session_state.get(draft_key, "")
-                    comment_text = st.text_area(
-                        f"Comment on Q{q_id}",
-                        value=current_text,
-                        key=draft_key,
-                        placeholder="Write your comment…",
-                        on_change=save_now,
-                        args=(draft_key, student_code),
-                        height=80,
-                    )
-                    current_text = st.session_state.get(draft_key, "")
-                    autosave_maybe(student_code, draft_key, current_text, min_secs=2.0, min_delta=12)
-
                     def apply_ai_correction(q_id: str, draft_key: str, current_text: str) -> None:
                         if not current_text.strip():
                             return
@@ -4353,9 +4340,30 @@ if tab == "My Course":
                             st.session_state[draft_key] = ai_text
                             save_ai_response(q_id, ai_text, flagged)
 
-                    send_col, ai_col = st.columns([1, 1])
                     send_flag = f"q_comment_busy_{q_id}"
                     ai_flag = f"q_ai_busy_{q_id}"
+
+                    current_text = st.session_state.get(draft_key, "")
+                    if st.session_state.get(ai_flag):
+                        with st.spinner("Correcting with AI..."):
+                            apply_ai_correction(q_id, draft_key, current_text)
+                        st.session_state[ai_flag] = False
+                        st.session_state["need_rerun"] = True
+                        current_text = st.session_state.get(draft_key, "")
+
+                    comment_text = st.text_area(
+                        f"Comment on Q{q_id}",
+                        value=current_text,
+                        key=draft_key,
+                        placeholder="Write your comment…",
+                        on_change=save_now,
+                        args=(draft_key, student_code),
+                        height=80,
+                    )
+                    current_text = st.session_state.get(draft_key, "")
+                    autosave_maybe(student_code, draft_key, current_text, min_secs=2.0, min_delta=12)
+
+                    send_col, ai_col = st.columns([1, 1])
 
                     with send_col:
                         if st.session_state.get(send_flag):
@@ -4384,12 +4392,6 @@ if tab == "My Course":
                             st.session_state["need_rerun"] = True
 
                     with ai_col:
-                        if st.session_state.get(ai_flag):
-                            with st.spinner("Correcting with AI..."):
-                                apply_ai_correction(q_id, draft_key, current_text)
-                            st.session_state[ai_flag] = False
-                            st.session_state["need_rerun"] = True
-
                         if st.button(
                             "✨ Correct with AI",
                             key=f"q_ai_btn_{q_id}",
