@@ -1503,7 +1503,7 @@ if tab == "Dashboard":
                     unsafe_allow_html=True,
                 )
 
-    # ---------- Goethe exam & video ----------
+    # ---------- Goethe exam ----------
     GOETHE_EXAM_DATES = {
         "A1": (date(2025, 10, 13), 2850, None),
         "A2": (date(2025, 10, 14), 2400, None),
@@ -1526,7 +1526,7 @@ if tab == "Dashboard":
         f"⏳ Goethe Exam: {days_to_exam} days left" if days_to_exam is not None else "⏳ Goethe Exam"
     )
     st.caption(expander_title)
-    with st.expander(f"{expander_title} — Video of the Day", expanded=False):
+    with st.expander(expander_title, expanded=False):
         if exam_info:
             if days_to_exam is not None and days_to_exam > 0:
                 st.info(
@@ -1552,33 +1552,6 @@ if tab == "Dashboard":
                     "No exam advice available for your level."
                 )
             )
-
-            playlist_ids = get_playlist_ids_for_level(level)
-            fetch_videos = fetch_youtube_playlist_videos
-            playlist_id = random.choice(playlist_ids) if playlist_ids else None
-            if playlist_id:
-                if st.button("🔄 Refresh videos", key=f"refresh_vod_{level}"):
-                    st.cache_data.clear()
-                    st.session_state["need_rerun"] = True
-                st.caption(
-                    "Click 'Refresh videos' to clear cached playlist data and reload",
-                    " from YouTube if results look out of date."
-                )
-                try:
-                    video_list = fetch_videos(playlist_id)
-                except Exception:
-                    video_list = []
-                if video_list:
-                    pick = date.today().toordinal() % len(video_list)
-                    video = video_list[pick]
-                    st.markdown(
-                        f"**🎬 Video of the Day for {level}: {video.get('title','')}**"
-                    )
-                    st.video(video.get('url',''))
-                else:
-                    st.info("No videos found for your level’s playlist. Check back soon!")
-            else:
-                st.info("No playlist available for your level yet. Stay tuned!")
         else:
             st.warning("No exam date configured for your level.")
     st.divider()
@@ -2204,8 +2177,7 @@ if tab == "My Course":
                     st.cache_data.clear()
                     st.session_state["need_rerun"] = True
                 st.caption(
-                    "Click 'Refresh videos' to clear cached playlist data and reload"
-                    " from YouTube if results look out of date."
+                    "Click 'Refresh videos' to clear cached playlist data and reload from YouTube if results look out of date."
                 )
                 try:
                     video_list = fetch_videos(playlist_id)
