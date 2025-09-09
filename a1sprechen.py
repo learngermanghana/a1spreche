@@ -3427,9 +3427,8 @@ if tab == "My Course":
                 same_class = df_students[df_students["ClassName"] == class_name].copy()
                 if not same_class.empty:
                     def _about_for(code: str) -> str:
-                        """Fetch and truncate the student's bio."""
-                        about = load_student_profile(code or "")
-                        return textwrap.shorten(about, width=80, placeholder="…")
+                        """Fetch the student's bio."""
+                        return load_student_profile(code or "")
 
                     same_class["About"] = same_class["StudentCode"].apply(
                         _about_for
@@ -3452,11 +3451,26 @@ if tab == "My Course":
                     c for c in ["Name", "Email", "Location", "About"] if c in same_class.columns
                 ]
                 if not same_class.empty and cols_show:
-                    st.dataframe(
-                        same_class[cols_show].reset_index(drop=True),
-                        use_container_width=True,
-                        hide_index=True,
-                    )
+                    for _, row in same_class[cols_show].reset_index(drop=True).iterrows():
+                        name = row.get("Name", "")
+                        email = row.get("Email", "")
+                        location = row.get("Location", "")
+                        about = row.get("About", "")
+
+                        contact = " | ".join(
+                            [part for part in [email, location] if part]
+                        )
+
+                        st.markdown(
+                            f"""
+                            <div style="width:100%;padding:8px 0;border-bottom:1px solid #e5e7eb;">
+                                <div style="font-weight:600;color:#0f172a;">{name}</div>
+                                <div style="font-size:.9rem;color:#475569;">{contact}</div>
+                                <div style="margin-top:4px;">{about}</div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
                 else:
                     st.info("No members found for this class yet.")
 
