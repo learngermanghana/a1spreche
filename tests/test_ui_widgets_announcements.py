@@ -82,3 +82,34 @@ def test_render_announcements_once_skips_when_hash_matches(monkeypatch):
     at = AppTest.from_function(app)
     at.run()
     render_mock.assert_not_called()
+
+
+def test_render_announcements_once_renders_feed_data(monkeypatch):
+    import importlib
+
+    importlib.reload(ui_widgets)
+    captured = {}
+
+    def fake_html(html, *_, **__):
+        captured["html"] = html
+
+    monkeypatch.setattr(ui_widgets, "components", SimpleNamespace(html=fake_html))
+
+    def app():
+        import streamlit as st
+        from src import ui_widgets as uw
+
+        data = [
+            {
+                "title": "Blog Post",
+                "body": "Summary",
+                "href": "https://example.com/post",
+            }
+        ]
+        uw.render_announcements_once(data, dashboard_active=True)
+
+    at = AppTest.from_function(app)
+    at.run()
+    assert "Blog Post" in captured["html"]
+    assert "Summary" in captured["html"]
+    assert "https://example.com/post" in captured["html"]
