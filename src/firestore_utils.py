@@ -225,6 +225,20 @@ def save_student_profile(code: str, about: str) -> None:
         logging.warning("Failed to save student profile for %s: %s", code, exc)
 
 
+def delete_student_profile(code: str) -> None:
+    """Remove the ``about`` field for ``code``'s profile."""
+
+    if db is None:
+        return
+    if not code:
+        return
+    ref = db.collection("students").document(code)
+    try:
+        ref.set({"about": firestore.DELETE_FIELD}, merge=True)
+    except Exception as exc:  # pragma: no cover - runtime depends on Firestore
+        logging.warning("Failed to delete student profile for %s: %s", code, exc)
+
+
 def load_student_profile(code: str) -> str:
     """Return the stored 'about' text for ``code``."""
 
