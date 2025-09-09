@@ -1530,9 +1530,13 @@ if tab == "Dashboard":
         if exam_info:
             if days_to_exam is not None and days_to_exam > 0:
                 st.info(
-                    f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).  \n",
-                    f"{fee_text}  \n",
-                    "[Register online here](https://www.goethe.de/ins/gh/en/spr/prf.html)"
+                    "\n".join(
+                        [
+                            f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).",
+                            fee_text,
+                            "[Register online here](https://www.goethe.de/ins/gh/en/spr/prf.html)",
+                        ]
+                    )
                 )
             elif days_to_exam == 0:
                 st.success("🚀 Exam is today! Good luck!")
