@@ -453,6 +453,14 @@ def render_sidebar_published():
         _qp_set_safe(tab=tab_name)
         st.session_state["need_rerun"] = True
 
+    def _go_zoom_class():
+        st.session_state["nav_sel"] = "My Course"
+        st.session_state["main_tab_select"] = "My Course"
+        st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
+        st.session_state["classroom_page"] = "Join on Zoom"
+        _qp_set_safe(tab="My Course")
+        st.session_state["need_rerun"] = True
+
     def _go_post_qna():
         st.session_state["nav_sel"] = "My Course"
         st.session_state["main_tab_select"] = "My Course"
@@ -476,6 +484,7 @@ def render_sidebar_published():
     st.sidebar.button("📚 Vocab Trainer",            use_container_width=True, on_click=_go, args=("Vocab Trainer",))
     st.sidebar.button("📗 Dictionary",              use_container_width=True, on_click=_go_dictionary)
     st.sidebar.button("✍️ Schreiben Trainer",        use_container_width=True, on_click=_go, args=("Schreiben Trainer",))
+    st.sidebar.button("🎥 Join on Zoom",             use_container_width=True, on_click=_go_zoom_class)
     st.sidebar.button("❓ Class Notes & Q&A",         use_container_width=True, on_click=_go_post_qna)
     st.sidebar.divider()
 
