@@ -594,8 +594,9 @@ def apply_profile_ai_correction(about_key: str) -> None:
         ai_text = (resp.choices[0].message.content or "").strip()
         if ai_text:
             st.session_state[about_key] = ai_text
-    except Exception:
-        st.error("AI correction failed.")
+    except Exception as e:
+        logging.exception("Profile AI correction error")
+        st.error(f"AI correction failed: {e}")
 
 
 # ------------------------------------------------------------------------------
