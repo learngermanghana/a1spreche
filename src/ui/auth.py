@@ -240,7 +240,7 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     )
 
     st.success(f"Welcome, {student_row['Name']}!")
-    refresh_with_toast()
+    st.toast(f"Welcome, {student_row['Name']}!", icon="✅")
     return True
 
 
