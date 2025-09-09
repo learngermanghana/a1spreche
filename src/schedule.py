@@ -150,7 +150,7 @@ Submitting Work
             "schreiben_sprechen": {
                 "video": "",
                 "youtube_link": "",
-                "workbook_link": "https://drive.google.com/file/d/1ojXvizvJz_qGes7I39pjdhnmlul7xhxB/view?usp=sharing"
+                "workbook_link": "https://drive.google.com/file/d/1-fDUBzfJ4n-fukM9ROPx-dSC7g9gamEb/view?usp=sharing"
             }
         },
         # DAY 6
