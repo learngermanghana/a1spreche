@@ -567,6 +567,37 @@ os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
+def apply_profile_ai_correction(about_key: str) -> None:
+    """Use OpenAI to correct and enhance the user's profile biography."""
+    current_text = st.session_state.get(about_key, "")
+    if not current_text.strip():
+        return
+    if not OPENAI_API_KEY:
+        st.error("Missing OpenAI API key.")
+        return
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a helpful assistant that corrects and enhances a student's biography. "
+                        "Return only the improved biography."
+                    ),
+                },
+                {"role": "user", "content": current_text},
+            ],
+            temperature=0,
+            max_tokens=300,
+        )
+        ai_text = (resp.choices[0].message.content or "").strip()
+        if ai_text:
+            st.session_state[about_key] = ai_text
+    except Exception:
+        st.error("AI correction failed.")
+
+
 # ------------------------------------------------------------------------------
 # Seed state from query params / restore session / reset-link path / go to login
 # ------------------------------------------------------------------------------
@@ -3476,7 +3507,14 @@ if tab == "My Course":
                     if st.button("Edit", disabled=not bool(student_code), key=_ukey("edit_profile")):
                         st.session_state[edit_key] = True
                 else:
-                    col1, col2, col3 = st.columns(3)
+                    ai_flag = "profile_ai_busy"
+                    if st.session_state.get(ai_flag):
+                        with st.spinner("Correcting with AI..."):
+                            apply_profile_ai_correction(about_key)
+                        st.session_state[ai_flag] = False
+                        st.session_state["need_rerun"] = True
+
+                    col1, col_ai, col2, col3 = st.columns(4)
                     with col1:
                         if st.button("Save", key=_ukey("save_profile")):
                             try:
@@ -3486,6 +3524,14 @@ if tab == "My Course":
                                 st.error("Failed to save profile.")
                             finally:
                                 st.session_state[edit_key] = False
+                    with col_ai:
+                        if st.button(
+                            "✨ Correct with AI",
+                            key=_ukey("ai_profile"),
+                            disabled=st.session_state.get(ai_flag, False),
+                        ):
+                            st.session_state[ai_flag] = True
+                            st.session_state["need_rerun"] = True
                     with col2:
                         if st.button("Cancel", key=_ukey("cancel_profile")):
                             st.session_state[about_key] = load_student_profile(student_code)
