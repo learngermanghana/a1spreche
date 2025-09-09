@@ -23,6 +23,28 @@ def toast_err(msg: str) -> None:
     st.toast(msg, icon="❌")
 
 
+def toast_warn(msg: str) -> None:
+    """Show a warning toast message.
+
+    Parameters
+    ----------
+    msg:
+        The message to display.
+    """
+    st.toast(msg, icon="⚠️")
+
+
+def toast_info(msg: str) -> None:
+    """Show an informational toast message.
+
+    Parameters
+    ----------
+    msg:
+        The message to display.
+    """
+    st.toast(msg, icon="ℹ️")
+
+
 def refresh_with_toast() -> None:
     """Increment ``__refresh`` and show a saved toast.
 
