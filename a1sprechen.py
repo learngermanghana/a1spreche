@@ -3494,6 +3494,7 @@ if tab == "My Course":
                 loaded_key = "profile_loaded_code"
                 about_key = "profile_about"
                 edit_key = "profile_editing"
+                cancel_profile_key = "profile_cancel"
                 if (
                     student_code
                     and (
@@ -3506,6 +3507,16 @@ if tab == "My Course":
                 if not student_code:
                     st.session_state.setdefault(about_key, "")
                 st.session_state.setdefault(edit_key, False)
+                st.session_state.setdefault(cancel_profile_key, False)
+
+                ai_flag = f"profile_ai_busy_{student_code}"
+                if st.session_state.get(cancel_profile_key):
+                    st.session_state[about_key] = (
+                        load_student_profile(student_code) if student_code else ""
+                    )
+                    st.session_state.pop(ai_flag, None)
+                    st.session_state[edit_key] = False
+                    st.session_state[cancel_profile_key] = False
 
                 editing = st.session_state.get(edit_key, False)
                 if editing:
@@ -3517,7 +3528,6 @@ if tab == "My Course":
                     if st.button("Edit", disabled=not bool(student_code), key=_ukey("edit_profile")):
                         st.session_state[edit_key] = True
                 else:
-                    ai_flag = f"profile_ai_busy_{student_code}"
                     if st.session_state.get(ai_flag):
                         with st.spinner("Correcting with AI..."):
                             apply_profile_ai_correction(about_key)
@@ -3545,9 +3555,8 @@ if tab == "My Course":
                             st.session_state["need_rerun"] = True
                     with col2:
                         if st.button("Cancel", key=_ukey("cancel_profile")):
-                            st.session_state[about_key] = load_student_profile(student_code)
-                            st.session_state.pop(ai_flag, None)
-                            st.session_state[edit_key] = False
+                            st.session_state[cancel_profile_key] = True
+                            st.rerun()
 
                 if not bool(student_code):
                     st.info("Enter your student code to edit your profile.")
