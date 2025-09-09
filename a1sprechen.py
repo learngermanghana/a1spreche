@@ -40,6 +40,7 @@ from flask import Flask
 from auth import auth_bp
 from src.routes.health import register_health_route
 from src.group_schedules import load_group_schedules
+from src.blog_feed import fetch_blog_feed
 import src.schedule as _schedule
 load_level_schedules = _schedule.load_level_schedules
 refresh_level_schedules = getattr(_schedule, "refresh_level_schedules", lambda: None)
@@ -758,13 +759,14 @@ inject_notice_css()
 render_sidebar_published()
 
 # Announcements (render once)
-announcements = [
+_fallback_announcements = [
     {"title": "Quick Access Menu", "body": "Use the left sidebar for quick access to lessons, tools, and resources.", "tag": "New"},
     {"title": "Download Receipts & Results", "body": "Grab your receipt, results, and enrollment letter under **My Results & Resources**.", "tag": "New"},
     {"title": "Account Deletion Requests", "body": "You can now request account deletion from your account settings.", "tag": "Info"},
     {"title": "Refresh Session Fix", "body": "Frequent refresh session prompts have been resolved for smoother navigation.", "tag": "Update"},
     {"title": "Attendance Now Being Marked", "body": "Find attendance under My Course ➜ Classroom/Attendance. Telegram notifications are available.", "tag": "New"},
 ]
+announcements = fetch_blog_feed() or _fallback_announcements
 
 st.markdown("---")
 st.markdown("**You’re logged in.** Continue to your lessons and tools from the navigation.")
