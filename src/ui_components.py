@@ -8,6 +8,7 @@ import logging
 from typing import Optional, Union
 from uuid import uuid4
 from urllib.parse import urlparse, urlunparse
+import re
 
 import pandas as pd
 import requests
@@ -106,6 +107,24 @@ def render_audio_player(source: Union[str, bytes], *, verified: bool = False) ->
         if not url:
             st.markdown(f"[⬇️ Download MP3]({source})")
             return
+    ua = ""
+    is_ios = False
+    try:  # pragma: no cover - environment dependent
+        from streamlit.runtime.scriptrunner import get_script_run_ctx  # type: ignore
+
+        ctx = get_script_run_ctx()
+        if ctx and getattr(ctx, "session_info", None):
+            client = getattr(ctx.session_info, "client", None)
+            ua = getattr(client, "user_agent", "") if client else ""
+            if ua:
+                is_ios = re.search(r"iPad|iPhone|iPod", ua) is not None
+    except Exception:
+        is_ios = False
+
+    if is_ios:
+        st.caption(
+            "ℹ️ iPhone and iPad browsers may not play audio inline. Tap the download link to listen."
+        )
 
     element_id = f"audio_{uuid4().hex}"
     html = f"""
