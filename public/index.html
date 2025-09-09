@@ -433,26 +433,28 @@ button[disabled] { opacity: .6; cursor: not-allowed; }
 
         // Accessibility-friendly submit handling
         const loginBtn = document.getElementById('loginBtn');
-        if (loginBtn) {
-          loginBtn.addEventListener('click', () => {
-            const form = loginBtn.closest('form') || document;
-            if (!loginBtn.hasAttribute('data-busy')) {
-              loginBtn.setAttribute('data-busy', '1');
-              loginBtn.disabled = true;
-              const prevText = loginBtn.innerText;
-              loginBtn.setAttribute('data-prev', prevText);
-              loginBtn.innerText = 'Signing in…';
-              // Re-enable after 8s safety timeout in case of network issues
-              setTimeout(() => {
-                if (loginBtn.disabled) {
-                  loginBtn.disabled = false;
-                    loginBtn.innerText = loginBtn.getAttribute('data-prev') || 'Sign in';
-                  loginBtn.removeAttribute('data-busy');
-                }
-              }, 8000);
-            }
+        const loginForm = loginBtn?.closest('form');
+        loginForm?.addEventListener('submit', (e) => {
+          if (loginBtn.hasAttribute('data-busy')) {
+            e.preventDefault();
+            return;
+          }
+          loginBtn.setAttribute('data-busy', '1');
+          const prevText = loginBtn.innerText;
+          loginBtn.setAttribute('data-prev', prevText);
+          setTimeout(() => {
+            loginBtn.disabled = true;
+            loginBtn.innerText = 'Signing in…';
+            // Re-enable after 8s safety timeout in case of network issues
+            setTimeout(() => {
+              if (loginBtn.disabled) {
+                loginBtn.disabled = false;
+                loginBtn.innerText = loginBtn.getAttribute('data-prev') || 'Sign in';
+                loginBtn.removeAttribute('data-busy');
+              }
+            }, 8000);
           });
-        }
+        });
 
         const toast = document.getElementById('toast');
         function showToast(message) {
