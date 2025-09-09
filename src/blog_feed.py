@@ -20,7 +20,7 @@ def fetch_blog_feed(limit: int = 5) -> List[Dict[str, str]]:
         A list of dictionaries each containing ``title``, ``body`` and ``href``.
         Returns an empty list on any error.
     """
-    feed_url = "https://blog.falowen.app/feed.xml"
+    feed_url = "https://blog.falowen.app/feed/"
     try:
         resp = requests.get(feed_url, timeout=10)
         resp.raise_for_status()
