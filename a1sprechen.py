@@ -92,6 +92,8 @@ from src.firestore_utils import (
     save_draft_to_db,
     save_ai_response,
     fetch_attendance_summary,
+    load_student_profile,
+    save_student_profile,
 )
 from src.draft_management import (
     _draft_state_keys,
@@ -2745,7 +2747,14 @@ if tab == "My Course":
 
         classroom_section = st.radio(
             "Classroom section",
-            ["Calendar", "Join on Zoom", "Members", "Class Notes & Q&A", "Attendance"],
+            [
+                "Calendar",
+                "Join on Zoom",
+                "Members",
+                "My Profile",
+                "Class Notes & Q&A",
+                "Attendance",
+            ],
             horizontal=True,
             key="classroom_page",
             on_change=on_classroom_page_change,
@@ -3390,7 +3399,50 @@ if tab == "My Course":
                     )
                 else:
                     st.info("No members found for this class yet.")
-#
+
+        # ===================== MY PROFILE =====================
+        elif classroom_section == "My Profile":
+            with st.container():
+                st.markdown(
+                    """
+                    <div style="
+                        padding:10px 12px;
+                        background:#f0f9ff;
+                        border:1px solid #bae6fd;
+                        border-radius:12px;
+                        margin: 6px 0 8px 0;
+                        display:flex;align-items:center;gap:8px;">
+                      <span style="font-size:1.05rem;">👤 <b>My Profile</b></span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                student_code = (st.session_state.get("student_code", "") or "").strip()
+                loaded_key = "profile_loaded_code"
+                about_key = "profile_about"
+                if (
+                    student_code
+                    and (
+                        st.session_state.get(loaded_key) != student_code
+                        or about_key not in st.session_state
+                    )
+                ):
+                    st.session_state[about_key] = load_student_profile(student_code)
+                    st.session_state[loaded_key] = student_code
+                if not student_code:
+                    st.session_state.setdefault(about_key, "")
+                disabled = not bool(student_code)
+                st.text_area(
+                    "About me",
+                    key=about_key,
+                    height=180,
+                    disabled=disabled,
+                )
+                if st.button("Save Profile", disabled=disabled, key=_ukey("save_profile")):
+                    save_student_profile(student_code, st.session_state.get(about_key, ""))
+                    st.success("Profile saved.")
+                if disabled:
+                    st.info("Enter your student code to edit your profile.")
 
         # ===================== JOIN =====================
         elif classroom_section == "Join on Zoom":
