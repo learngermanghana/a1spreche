@@ -635,6 +635,42 @@ def apply_status_ai_correction(text: str) -> Tuple[str, str]:
         return text, ""
 
 
+def apply_note_ai_correction(text: str) -> Tuple[str, str]:
+    """Return an AI-improved version of a learning note and an explanation."""
+    if not text.strip():
+        return text, ""
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a helpful assistant that improves a student's learning note. "
+                        "Return a JSON object with keys 'improved' for the corrected note "
+                        "and 'explanation' for a short explanation of the changes."
+                    ),
+                },
+                {"role": "user", "content": text},
+            ],
+            temperature=0,
+            max_tokens=400,
+        )
+        raw = resp.choices[0].message.content or ""
+        try:
+            data = json.loads(raw)
+            improved = (data.get("improved") or "").strip()
+            explanation = (data.get("explanation") or "").strip()
+        except Exception:
+            improved = raw.strip()
+            explanation = ""
+        return improved, explanation
+    except Exception as e:
+        logging.exception("Learning note AI correction error")
+        st.error(f"AI correction failed: {e}")
+        return text, ""
+
+
 def diff_with_markers(original: str, corrected: str) -> str:
     """Generate HTML diff using <mark> tags for additions and deletions."""
     diff_lines = difflib.unified_diff(
@@ -4407,7 +4443,7 @@ if tab == "My Course":
 
             st.markdown("#### ✍️ Create a new note or update an old one")
 
-            with st.form("note_form", clear_on_submit=not editing):
+            with st.form("note_form", clear_on_submit=False):
                 st.session_state.setdefault("learning_note_title", title)
                 st.session_state.setdefault("learning_note_tag", tag)
                 st.session_state.setdefault("learning_note_draft", text)
@@ -4423,22 +4459,64 @@ if tab == "My Course":
                     max_chars=20,
                     key="learning_note_tag",
                 )
-                st.text_area(
-                    "Your Note",
-                    height=200,
-                    max_chars=3000,
-                    key="learning_note_draft",
-                )
-                
+                ta_col, ai_col = st.columns([3, 1])
+                with ta_col:
+                    st.text_area(
+                        "Your Note",
+                        height=200,
+                        max_chars=3000,
+                        key="learning_note_draft",
+                    )
+                with ai_col:
+                    ai_btn = st.form_submit_button("✨ Correct with AI")
+
                 col1, col2 = st.columns(2)
                 save_btn = col1.form_submit_button("Save")
                 cancel_btn = editing and col2.form_submit_button("❌ Cancel Edit")
                 if save_btn:
                     autosave_learning_note(student_code, key_notes)
+                    if not editing:
+                        for k in [
+                            "learning_note_title",
+                            "learning_note_tag",
+                            "learning_note_draft",
+                            "learning_note_last_saved",
+                        ]:
+                            st.session_state[k] = ""
                 if st.session_state.get("learning_note_last_saved"):
                     st.caption(
                         f"Last saved {st.session_state['learning_note_last_saved']} UTC"
-                    )            
+                    )
+
+            if ai_btn:
+                with st.spinner("Correcting with AI..."):
+                    original = st.session_state.get("learning_note_draft", "")
+                    improved, explanation = apply_note_ai_correction(original)
+                    st.session_state["note_ai_suggestion"] = improved
+                    st.session_state["note_ai_explanation"] = explanation
+                    st.session_state["note_ai_diff"] = diff_with_markers(original, improved)
+                st.session_state["need_rerun"] = True
+
+            if st.session_state.get("note_ai_diff"):
+                st.markdown(st.session_state["note_ai_diff"], unsafe_allow_html=True)
+                st.markdown("**Why these changes?**")
+                st.markdown(st.session_state.get("note_ai_explanation", ""))
+                acc_col, rej_col = st.columns(2)
+                with acc_col:
+                    if st.button("Accept", key="note_ai_accept"):
+                        st.session_state["learning_note_draft"] = st.session_state.get(
+                            "note_ai_suggestion", ""
+                        )
+                        st.session_state.pop("note_ai_suggestion", None)
+                        st.session_state.pop("note_ai_explanation", None)
+                        st.session_state.pop("note_ai_diff", None)
+                        st.session_state["need_rerun"] = True
+                with rej_col:
+                    if st.button("Reject", key="note_ai_reject"):
+                        st.session_state.pop("note_ai_suggestion", None)
+                        st.session_state.pop("note_ai_explanation", None)
+                        st.session_state.pop("note_ai_diff", None)
+                        st.session_state["need_rerun"] = True
 
             if cancel_btn:
 
