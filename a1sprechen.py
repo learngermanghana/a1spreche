@@ -4392,7 +4392,7 @@ if tab == "My Course":
                     if note.get("tag"):
                         st.caption(f"🏷️ Tag: {note['tag']}")
                     st.markdown(
-                        f"<div style='margin-top:-5px; margin-bottom:6px; font-size:1.08rem; line-height:1.7;'>{note['text']}</div>",
+                        f"<div style='margin-top:-5px; margin-bottom:6px; font-size:1.08rem; line-height:1.7;'>{note['text'].replace('\n', '<br>')}</div>",
                         unsafe_allow_html=True)
                     st.caption(f"🕒 {note.get('updated',note.get('created',''))}")
 
