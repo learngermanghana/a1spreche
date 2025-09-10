@@ -340,6 +340,14 @@ def login_page():
       <a href="https://www.learngermanghana.com/terms-of-service" target="_blank" rel="noopener">📜 Terms</a>
       &nbsp;|&nbsp;
       <a href="https://www.learngermanghana.com/contact-us"       target="_blank" rel="noopener">✉️ Contact</a>
+      &nbsp;|&nbsp;
+      <a href="https://www.learngermanghana.com/blog"             target="_blank" rel="noopener">📰 Blog</a>
+      &nbsp;|&nbsp;
+      <a href="https://register.falowen.app"                      target="_blank" rel="noopener">📝 Register</a>
+      &nbsp;|&nbsp;
+      <a href="https://www.falowen.app/about-us"                 target="_blank" rel="noopener">ℹ️ About Us</a>
+      &nbsp;|&nbsp;
+      <a href="https://www.falowen.app/delete"                   target="_blank" rel="noopener">🗑️ Delete Page</a>
     </div>
     """, unsafe_allow_html=True)
 
