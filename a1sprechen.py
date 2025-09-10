@@ -341,13 +341,13 @@ def login_page():
       &nbsp;|&nbsp;
       <a href="https://www.learngermanghana.com/contact-us"       target="_blank" rel="noopener">✉️ Contact</a>
       &nbsp;|&nbsp;
-      <a href="https://www.learngermanghana.com/blog"             target="_blank" rel="noopener">📰 Blog</a>
-      &nbsp;|&nbsp;
       <a href="https://register.falowen.app"                      target="_blank" rel="noopener">📝 Register</a>
       &nbsp;|&nbsp;
-      <a href="https://www.falowen.app/about-us"                 target="_blank" rel="noopener">ℹ️ About Us</a>
+      <a href="https://register.falowen.app/#about-us"            target="_blank" rel="noopener">ℹ️ About Us</a>
       &nbsp;|&nbsp;
-      <a href="https://www.falowen.app/delete"                   target="_blank" rel="noopener">🗑️ Delete Page</a>
+      <a href="https://script.google.com/macros/s/AKfycbwXrfiuKl65Va_B2Nr4dFnyLRW5z6wT5kAbCj6cNl1JxdOzWVKT_ZMwdh2pN_dbdFoy/exec" target="_blank" rel="noopener">🗑️ Delete Page</a>
+      &nbsp;|&nbsp;
+      <a href="https://blog.falowen.app/"                         target="_blank" rel="noopener">📰 Blog</a>
     </div>
     """, unsafe_allow_html=True)
 
@@ -893,11 +893,15 @@ def _dict_tts_bytes_de(text: str) -> Optional[bytes]:
 
 # ------------------------------- Footer -------------------------------
 FOOTER_LINKS = {
-    "Tutors": "https://register.falowen.app/#tutors",
-    "Upcoming Classes": "https://register.falowen.app/#upcoming-classes",
-    "Privacy": "https://register.falowen.app/#privacy-policy",
-    "Terms": "https://register.falowen.app/#terms-of-service",
-    "Contact": "https://register.falowen.app/#contact",
+    "👩‍🏫 Tutors": "https://www.learngermanghana.com/tutors",
+    "🗓️ Upcoming Classes": "https://www.learngermanghana.com/upcoming-classes",
+    "🔒 Privacy": "https://www.learngermanghana.com/privacy-policy",
+    "📜 Terms": "https://www.learngermanghana.com/terms-of-service",
+    "✉️ Contact": "https://www.learngermanghana.com/contact-us",
+    "📝 Register": "https://register.falowen.app",
+    "ℹ️ About Us": "https://register.falowen.app/#about-us",
+    "🗑️ Delete Page": "https://script.google.com/macros/s/AKfycbwXrfiuKl65Va_B2Nr4dFnyLRW5z6wT5kAbCj6cNl1JxdOzWVKT_ZMwdh2pN_dbdFoy/exec",
+    "📰 Blog": "https://blog.falowen.app/",
 }
 
 def render_app_footer(links: dict):
