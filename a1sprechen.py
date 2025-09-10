@@ -3574,6 +3574,7 @@ if tab == "My Course":
                         )
                 else:
                     st.info("No members found for this class yet.")
+            st.info("Scroll down to update your profile description.")
 
             # --- Profile section ---
             st.markdown("---")
