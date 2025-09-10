@@ -119,7 +119,7 @@ button[disabled] { opacity: .6; cursor: not-allowed; }
     .shell {
       position: relative;
       max-width: 1120px;
-      margin: 16px auto;
+      margin: 48px auto;
       padding: 0 24px;
       z-index: 1;
     }
@@ -277,28 +277,6 @@ button[disabled] { opacity: .6; cursor: not-allowed; }
 
     .legal { margin-top: 12px; color: var(--muted); font-size: .85rem; line-height: 1.5; }
 
-
-    .app-footer {
-      margin-top: 18px;
-      padding: 16px 14px;
-      border-top: 1px solid var(--border);
-      color: var(--muted);
-      font-size: .95rem;
-    }
-    .app-footer a {
-      text-decoration: none;
-      font-weight: 700;
-      color: inherit;
-    }
-    .app-footer .row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 14px;
-    }
-    @media (max-width: 640px) {
-      .app-footer { padding: 14px 10px; }
-    }
-
     /* Animations */
     [data-animate] { opacity: 0; transform: translateY(10px); animation: fadeUp .6s ease forwards; }
     [data-animate="2"] { animation-delay: .05s; }
@@ -414,16 +392,9 @@ button[disabled] { opacity: .6; cursor: not-allowed; }
         </form>
         <p class="legal">By continuing, you agree to our <a href="#" style="color:var(--accent); text-decoration:none; font-weight:600">Terms</a> and <a href="#" style="color:var(--accent); text-decoration:none; font-weight:600">Privacy Policy</a>.</p>
       </aside>
-      <section class="steps card" data-animate>
-        <ol>
-          <li><strong>Sign in</strong> – Use your student code or email — or the Google button above.</li>
-          <li><strong>Learn &amp; submit</strong> – Watch lessons, practice vocab, and submit assignments in the Course Book.</li>
-          <li><strong>Get results</strong> – You’ll get an email when marked. Check Results &amp; Resources for feedback.</li>
-        </ol>
-      </section>
     </div>
   </main>
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
           <script>
         // Password toggle
@@ -440,28 +411,26 @@ button[disabled] { opacity: .6; cursor: not-allowed; }
 
         // Accessibility-friendly submit handling
         const loginBtn = document.getElementById('loginBtn');
-        const loginForm = loginBtn?.closest('form');
-        loginForm?.addEventListener('submit', (e) => {
-          if (loginBtn.hasAttribute('data-busy')) {
-            e.preventDefault();
-            return;
-          }
-          loginBtn.setAttribute('data-busy', '1');
-          const prevText = loginBtn.innerText;
-          loginBtn.setAttribute('data-prev', prevText);
-          setTimeout(() => {
-            loginBtn.disabled = true;
-            loginBtn.innerText = 'Signing in…';
-            // Re-enable after 8s safety timeout in case of network issues
-            setTimeout(() => {
-              if (loginBtn.disabled) {
-                loginBtn.disabled = false;
-                loginBtn.innerText = loginBtn.getAttribute('data-prev') || 'Sign in';
-                loginBtn.removeAttribute('data-busy');
-              }
-            }, 8000);
+        if (loginBtn) {
+          loginBtn.addEventListener('click', () => {
+            const form = loginBtn.closest('form') || document;
+            if (!loginBtn.hasAttribute('data-busy')) {
+              loginBtn.setAttribute('data-busy', '1');
+              loginBtn.disabled = true;
+              const prevText = loginBtn.innerText;
+              loginBtn.setAttribute('data-prev', prevText);
+              loginBtn.innerText = 'Signing in…';
+              // Re-enable after 8s safety timeout in case of network issues
+              setTimeout(() => {
+                if (loginBtn.disabled) {
+                  loginBtn.disabled = false;
+                    loginBtn.innerText = loginBtn.getAttribute('data-prev') || 'Sign in';
+                  loginBtn.removeAttribute('data-busy');
+                }
+              }, 8000);
+            }
           });
-        });
+        }
 
         const toast = document.getElementById('toast');
         function showToast(message) {
@@ -485,18 +454,6 @@ button[disabled] { opacity: .6; cursor: not-allowed; }
           showToast('SSO coming soon');
         });
       </script>
-  <footer class="app-footer">
-    <div class="row">
-      <a href="#tutors">👩‍🏫 Tutors</a> |
-      <a href="#classes">🗓️ Upcoming Classes</a> |
-      <a href="#blog">📖 Blog</a> |
-      <a href="#delete-account">🗑️ Request Account Deletion</a> |
-      <a href="#privacy">🔒 Privacy</a> |
-      <a href="#terms">📜 Terms</a> |
-      <a href="#contact">✉️ Contact</a>
-    </div>
-    <div style="margin-top:6px;font-size:.9rem;">© 2025 Learn Language Education Academy • Accra, Ghana</div>
-    <div style="margin-top:4px;font-size:.9rem;">Need help? <a href="mailto:#">Email</a> • <a href="#whatsapp">WhatsApp</a></div>
-  </footer>
 </body>
 </html>
+
