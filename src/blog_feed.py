@@ -42,6 +42,8 @@ def fetch_blog_feed(limit: int = 5) -> List[Dict[str, str]]:
             break
         title = (row.get("Topic") or "").strip()
         href = (row.get("Link") or "").strip()
+        if not title or not href:
+            continue
         body = (row.get("Body") or row.get("Description") or "").strip()
         item: Dict[str, str] = {"title": title, "href": href}
         if body:
