@@ -6440,6 +6440,9 @@ if tab == "Schreiben Trainer":
                 options,
                 key=f"practice_prompt_{student_code}",
             )
+            st.markdown(
+                "**[German Writing Rules](https://drive.google.com/file/d/1o7_ez3WSNgpgxU_nEtp6EO1PXDyi3K3b/view?usp=sharing)**",
+            )
             prompt = next((p for p in prompts if p["Thema"] == selected_theme), None)
             if prompt:
                 st.markdown(f"### ✉️ {prompt['Thema']}")
