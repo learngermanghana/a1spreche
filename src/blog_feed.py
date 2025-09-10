@@ -1,4 +1,5 @@
-import xml.etree.ElementTree as ET
+import csv
+from io import StringIO
 from typing import List, Dict
 
 import requests
@@ -20,7 +21,10 @@ def fetch_blog_feed(limit: int = 5) -> List[Dict[str, str]]:
         A list of dictionaries each containing ``title``, ``body`` and ``href``.
         Returns an empty list on any error.
     """
-    feed_url = "https://blog.falowen.app/feed/"
+    feed_url = (
+        "https://docs.google.com/spreadsheets/"
+        "d/1EnVuN1RgSjC0CiBM-I5QVMKhpqgveBO1u6JLmdVhA4A/export?format=csv&gid=0"
+    )
     try:
         resp = requests.get(feed_url, timeout=10)
         resp.raise_for_status()
@@ -28,48 +32,19 @@ def fetch_blog_feed(limit: int = 5) -> List[Dict[str, str]]:
         return []
 
     try:
-        root = ET.fromstring(resp.content)
-    except ET.ParseError:
+        reader = csv.DictReader(StringIO(resp.content.decode("utf-8")))
+    except Exception:
         return []
 
     items: List[Dict[str, str]] = []
-    ns = {
-        "atom": "http://www.w3.org/2005/Atom",
-        "content": "http://purl.org/rss/1.0/modules/content/",
-    }
-
-    if root.tag.endswith("feed"):
-        entries = root.findall("atom:entry", ns)
-        for entry in entries[:limit]:
-            title_el = entry.find("atom:title", ns)
-            content_el = entry.find("atom:content", ns) or entry.find("atom:summary", ns)
-            link_el = entry.find("atom:link", ns)
-            items.append(
-                {
-                    "title": title_el.text if title_el is not None else "",
-                    "body": content_el.text if content_el is not None else "",
-                    "href": link_el.get("href") if link_el is not None else None,
-                }
-            )
-    else:
-        channel = root.find("channel")
-        if channel is None:
-            return []
-        for entry in channel.findall("item")[:limit]:
-            title_el = entry.find("title")
-            link_el = entry.find("link")
-            desc_el = entry.find("description")
-            content_el = entry.find("content:encoded", ns)
-            body = ""
-            if content_el is not None and content_el.text:
-                body = content_el.text
-            elif desc_el is not None and desc_el.text:
-                body = desc_el.text
-            items.append(
-                {
-                    "title": title_el.text if title_el is not None else "",
-                    "body": body,
-                    "href": link_el.text if link_el is not None else None,
-                }
-            )
+    for row in reader:
+        if len(items) >= min(limit, 5):
+            break
+        title = (row.get("Topic") or "").strip()
+        href = (row.get("Link") or "").strip()
+        body = (row.get("Body") or row.get("Description") or "").strip()
+        item: Dict[str, str] = {"title": title, "href": href}
+        if body:
+            item["body"] = body
+        items.append(item)
     return items

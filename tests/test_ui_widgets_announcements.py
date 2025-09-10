@@ -5,7 +5,6 @@ import hashlib
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-import pytest
 from streamlit.testing.v1 import AppTest
 
 # Allow importing from src
@@ -44,7 +43,7 @@ def test_render_announcements_fallback_without_banner(monkeypatch):
     monkeypatch.setattr(ui_widgets, "components", SimpleNamespace(html=failing_html))
     monkeypatch.setattr(ui_widgets.st, "markdown", fake_markdown)
     ui_widgets.render_announcements([{"title": "t", "body": "b"}])
-    assert outputs == ["**t** — b"]
+    assert outputs == ["**t** — b", "Visit [blog.falowen.app](https://blog.falowen.app) for more."]
     assert all(BANNER not in o for o in outputs)
 
 
