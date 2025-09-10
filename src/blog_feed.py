@@ -36,15 +36,18 @@ def fetch_blog_feed(limit: int = 5) -> List[Dict[str, str]]:
     except Exception:
         return []
 
+    # Normalize headers to be case-insensitive and whitespace tolerant
+    reader.fieldnames = [fn.strip().lower() for fn in reader.fieldnames or []]
+
     items: List[Dict[str, str]] = []
     for row in reader:
         if len(items) >= min(limit, 5):
             break
-        title = (row.get("Topic") or "").strip()
-        href = (row.get("Link") or "").strip()
+        title = (row.get("topic") or "").strip()
+        href = (row.get("link") or "").strip()
         if not title or not href:
             continue
-        body = (row.get("Body") or row.get("Description") or "").strip()
+        body = (row.get("body") or row.get("description") or "").strip()
         item: Dict[str, str] = {"title": title, "href": href}
         if body:
             item["body"] = body
