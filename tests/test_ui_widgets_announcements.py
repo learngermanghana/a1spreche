@@ -23,9 +23,11 @@ def test_render_announcements_without_banner(monkeypatch):
         captured["html"] = html
 
     monkeypatch.setattr(ui_widgets, "components", SimpleNamespace(html=fake_html))
-    ui_widgets.render_announcements([{"title": "t", "body": "b"}])
+    ui_widgets.render_announcements([{"title": "t", "body": "b", "href": "https://xmpl"}])
+    assert "📣 Blog Updates." in captured["html"]
     assert "t" in captured["html"]
     assert "b" in captured["html"]
+    assert "Read more." in captured["html"]
     assert BANNER not in captured["html"]
 
 
@@ -65,6 +67,23 @@ def test_render_announcements_empty(monkeypatch):
     assert info_msgs == ["📣 No new updates to show."]
     assert "html" not in called
     assert all(BANNER not in m for m in info_msgs)
+
+
+def test_render_announcements_footer_has_blog_link(monkeypatch):
+    import importlib
+    importlib.reload(ui_widgets)
+    footers = []
+
+    def fake_html(*_, **__):
+        return None
+
+    def fake_markdown(msg, *_, **__):
+        footers.append(msg)
+
+    monkeypatch.setattr(ui_widgets, "components", SimpleNamespace(html=fake_html))
+    monkeypatch.setattr(ui_widgets.st, "markdown", fake_markdown)
+    ui_widgets.render_announcements([{"title": "t"}])
+    assert footers == ["Visit [blog.falowen.app](https://blog.falowen.app) for more."]
 
 def test_render_announcements_once_skips_when_hash_matches(monkeypatch):
     render_mock = MagicMock()
