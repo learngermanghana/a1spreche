@@ -19,6 +19,20 @@ def test_fetch_blog_feed_maps_topic_and_link(monkeypatch):
     assert "body" not in items[0]
 
 
+def test_fetch_blog_feed_handles_lowercase_headers(monkeypatch):
+    csv_data = "topic,link,body\nTest,http://example.com,Desc\n"
+
+    def fake_get(url, timeout=10):
+        return types.SimpleNamespace(content=csv_data.encode("utf-8"), raise_for_status=lambda: None)
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    fetch_blog_feed.clear()
+    items = fetch_blog_feed(limit=1)
+    assert items[0]["title"] == "Test"
+    assert items[0]["href"] == "http://example.com"
+    assert items[0]["body"] == "Desc"
+
+
 def test_fetch_blog_feed_skips_empty_rows(monkeypatch):
     csv_data = "Topic,Link\nValid,http://example.com\n,\nAnother,http://example.org\n"
 
