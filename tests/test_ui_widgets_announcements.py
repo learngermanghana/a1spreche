@@ -23,11 +23,15 @@ def test_render_announcements_without_banner(monkeypatch):
         captured["html"] = html
 
     monkeypatch.setattr(ui_widgets, "components", SimpleNamespace(html=fake_html))
-    ui_widgets.render_announcements([{"title": "t", "body": "b", "href": "https://xmpl"}])
+    ui_widgets.render_announcements([
+        {"title": "t", "body": "b", "href": "https://xmpl"},
+        {"title": "t2"},
+    ])
     assert "📣 Blog Updates." in captured["html"]
     assert "t" in captured["html"]
     assert "b" in captured["html"]
     assert "Read more." in captured["html"]
+    assert "setInterval" in captured["html"]
     assert BANNER not in captured["html"]
 
 

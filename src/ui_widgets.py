@@ -178,6 +178,7 @@ def render_announcements(announcements: list) -> None:
       const actionEl= document.getElementById('ann_action');
       const dotsWrap= document.getElementById('ann_dots');
       let i = 0;
+      let timer;
       function setActiveDot(idx){ [...dotsWrap.children].forEach((d,j)=> d.setAttribute('aria-current', j===idx ? 'true':'false')); }
       function render(idx){
         const c = data[idx] || {};
@@ -188,16 +189,22 @@ def render_announcements(announcements: list) -> None:
           actionEl.textContent=''; actionEl.appendChild(link); actionEl.style.display=''; } else { actionEl.textContent=''; actionEl.style.display='none'; }
         setActiveDot(idx);
       }
+      function restartTimer(){
+        if (data.length <= 1) return;
+        clearInterval(timer);
+        timer = setInterval(()=>{ i = (i + 1) % data.length; render(i); }, 5000);
+      }
       function bindQuick(el, handler){
-        el.addEventListener('click', handler);
-        el.addEventListener('pointerdown', (e)=>{ if(e.pointerType!=='mouse'){ e.preventDefault(); handler(); }});
+        el.addEventListener('click', ()=>{ handler(); restartTimer(); });
+        el.addEventListener('pointerdown', (e)=>{ if(e.pointerType!=='mouse'){ e.preventDefault(); handler(); restartTimer(); }});
       }
 
       data.forEach((_, idx)=>{ const b=document.createElement('button'); b.className='ann-dot'; b.type='button'; b.setAttribute('role','tab');
         b.setAttribute('aria-label','Slide '+(idx+1)); b.setAttribute('tabindex','0'); bindQuick(b, ()=>{ i=idx; render(i); });
-        b.addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '||e.key==='Spacebar'){ e.preventDefault(); i=idx; render(i); }});
+        b.addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '||e.key==='Spacebar'){ e.preventDefault(); i=idx; render(i); restartTimer(); }});
         dotsWrap.appendChild(b); });
       render(i);
+      if (data.length > 1) { timer = setInterval(()=>{ i = (i + 1) % data.length; render(i); }, 5000); }
     </script>
     """
     try:
