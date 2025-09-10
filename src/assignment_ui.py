@@ -990,12 +990,6 @@ def render_results_and_resources_tab() -> None:
 
     elif rr_page == "Resources":
         st.subheader("Useful Resources")
-        st.markdown(
-            """
-**[German Writing Rules](https://drive.google.com/file/d/1o7_ez3WSNgpgxU_nEtp6EO1PXDyi3K3b/view?usp=sharing)**
-Tips and grammar rules for better writing.
-            """
-        )
 
 
 __all__ = [
