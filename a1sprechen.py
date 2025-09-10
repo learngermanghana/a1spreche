@@ -6462,6 +6462,10 @@ if tab == "Schreiben Trainer":
         daily_so_far = get_schreiben_usage(student_code)
         st.markdown(f"**Daily usage:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}")
 
+        st.markdown(
+            "**[German Writing Rules](https://drive.google.com/file/d/1o7_ez3WSNgpgxU_nEtp6EO1PXDyi3K3b/view?usp=sharing)**",
+        )
+
         try:
             _ = _wkey
         except NameError:
@@ -6840,6 +6844,9 @@ if tab == "Schreiben Trainer":
             save_now(ns("chat_draft"), student_code)
             st.session_state.pop(ns("reset_coach"))
 
+        st.markdown(
+            "**[German Writing Rules](https://drive.google.com/file/d/1o7_ez3WSNgpgxU_nEtp6EO1PXDyi3K3b/view?usp=sharing)**",
+        )
 
         LETTER_COACH_PROMPTS = {
             "A1": (
