@@ -885,13 +885,11 @@ def _dict_tts_bytes_de(text: str) -> Optional[bytes]:
 
 # ------------------------------- Footer -------------------------------
 FOOTER_LINKS = {
-    "Terms of Service": "https://register.falowen.app/#terms-of-service",
-    "Privacy Policy": "https://register.falowen.app/#privacy-policy",
-    "Request Account Deletion": "https://script.google.com/macros/s/AKfycbwXrfiuKl65Va_B2Nr4dFnyLRW5z6wT5kAbCj6cNl1JxdOzWVKT_ZMwdh2pN_dbdFoy/exec",
+    "Tutors": "https://register.falowen.app/#tutors",
+    "Upcoming Classes": "https://register.falowen.app/#upcoming-classes",
+    "Privacy": "https://register.falowen.app/#privacy-policy",
+    "Terms": "https://register.falowen.app/#terms-of-service",
     "Contact": "https://register.falowen.app/#contact",
-    "Blog": "https://blog.falowen.app",
-    "About Us": "https://register.falowen.app/#about-us",
-    "Mission": "https://register.falowen.app/#mission",
 }
 
 def render_app_footer(links: dict):
@@ -913,7 +911,7 @@ def render_app_footer(links: dict):
           <div class="row">
             {" | ".join(parts)}
           </div>
-          <div style="margin-top:6px;font-size:.9rem;">© {date.today().year} Falowen</div>
+          <div style="margin-top:6px;font-size:.9rem;">© 2025 Learn Language Education Academy • Accra, Ghana – Need help? Email • WhatsApp</div>
         </div>
         """,
         unsafe_allow_html=True
