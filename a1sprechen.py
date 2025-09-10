@@ -341,13 +341,13 @@ def login_page():
       &nbsp;|&nbsp;
       <a href="https://www.learngermanghana.com/contact-us"       target="_blank" rel="noopener">✉️ Contact</a>
       &nbsp;|&nbsp;
-      <a href="https://www.learngermanghana.com/blog"             target="_blank" rel="noopener">📰 Blog</a>
-      &nbsp;|&nbsp;
       <a href="https://register.falowen.app"                      target="_blank" rel="noopener">📝 Register</a>
       &nbsp;|&nbsp;
-      <a href="https://www.falowen.app/about-us"                 target="_blank" rel="noopener">ℹ️ About Us</a>
+      <a href="https://register.falowen.app/#about-us"            target="_blank" rel="noopener">ℹ️ About Us</a>
       &nbsp;|&nbsp;
-      <a href="https://www.falowen.app/delete"                   target="_blank" rel="noopener">🗑️ Delete Page</a>
+      <a href="https://script.google.com/macros/s/AKfycbwXrfiuKl65Va_B2Nr4dFnyLRW5z6wT5kAbCj6cNl1JxdOzWVKT_ZMwdh2pN_dbdFoy/exec" target="_blank" rel="noopener">🗑️ Delete Page</a>
+      &nbsp;|&nbsp;
+      <a href="https://blog.falowen.app/"                         target="_blank" rel="noopener">📰 Blog</a>
     </div>
     """, unsafe_allow_html=True)
 
