@@ -160,7 +160,7 @@ def render_announcements(announcements: list) -> None:
       .ann-dot[aria-current="true"]{background:var(--brand);opacity:1;transform:scale(1.22);box-shadow:0 0 0 4px var(--ring)}
     </style>
     <div class="page-wrap">
-      <div class="ann-title">📣 New Updates</div>
+      <div class="ann-title">📣 Blog Updates.</div>
       <div class="ann-shell" id="ann_shell" aria-live="polite">
         <div id="ann_card">
           <div class="ann-heading"><span class="ann-chip" id="ann_tag" style="display:none;"></span><span id="ann_title"></span></div>
@@ -182,9 +182,9 @@ def render_announcements(announcements: list) -> None:
       function render(idx){
         const c = data[idx] || {};
         titleEl.textContent = c.title || '';
-        bodyEl.textContent  = c.body  || '';
+        if (c.body){ bodyEl.textContent = c.body; bodyEl.style.display=''; } else { bodyEl.textContent=''; bodyEl.style.display='none'; }
         if (c.tag){ tagEl.textContent = c.tag; tagEl.style.display=''; } else { tagEl.style.display='none'; }
-        if (c.href){ const link = document.createElement('a'); link.href = c.href; link.target = '_blank'; link.rel='noopener'; link.textContent='Open';
+        if (c.href){ const link = document.createElement('a'); link.href = c.href; link.target = '_blank'; link.rel='noopener'; link.textContent='Read more.';
           actionEl.textContent=''; actionEl.appendChild(link); actionEl.style.display=''; } else { actionEl.textContent=''; actionEl.style.display='none'; }
         setActiveDot(idx);
       }
@@ -208,7 +208,11 @@ def render_announcements(announcements: list) -> None:
         )
     except TypeError:
         for a in announcements:
-            st.markdown(f"**{a.get('title','')}** — {a.get('body','')}")
+            text = f"**{a.get('title','')}**"
+            if a.get('body'):
+                text += f" — {a.get('body','')}"
+            st.markdown(text)
+    st.markdown("Visit [blog.falowen.app](https://blog.falowen.app) for more.")
 
 
 def render_announcements_once(data: list, dashboard_active: bool) -> None:
