@@ -4576,9 +4576,12 @@ if tab == "My Course":
                     filtered = []
                     st.markdown('<div style="height:10px"></div>', unsafe_allow_html=True)
                     for n in notes:
-                        if (search_term.lower() in n.get("title","").lower() or 
-                            search_term.lower() in n.get("tag","").lower() or 
-                            search_term.lower() in n.get("text","").lower()):
+                        if (
+                            search_term.lower() in n.get("title", "").lower()
+                            or search_term.lower() in n.get("tag", "").lower()
+                            or search_term.lower() in n.get("text", "").lower()
+                            or search_term.lower() in n.get("lesson", "").lower()
+                        ):
                             filtered.append(n)
                     notes_to_show = filtered
                     if not filtered:
@@ -4592,6 +4595,8 @@ if tab == "My Course":
                     note_text = f"Title: {n.get('title','')}\n"
                     if n.get('tag'):
                         note_text += f"Tag: {n['tag']}\n"
+                    if n.get("lesson"):
+                        note_text += f"Lesson: {n['lesson']}\n"
                     note_text += n.get('text','') + "\n"
                     note_text += f"Date: {n.get('updated', n.get('created',''))}\n"
                     note_text += "-"*32 + "\n"
@@ -4628,6 +4633,8 @@ if tab == "My Course":
                         doc.add_heading(note.get('title','(No Title)'), level=1)
                         if note.get("tag"):
                             doc.add_paragraph(f"Tag: {note.get('tag','')}")
+                        if note.get("lesson"):
+                            doc.add_paragraph(f"Lesson: {note.get('lesson','')}")
                         doc.add_paragraph(note.get('text', ''))
                         doc.add_paragraph(f"Date: {note.get('created', note.get('updated',''))}")
                         doc.add_paragraph('-' * 40)
@@ -4656,6 +4663,8 @@ if tab == "My Course":
                         f"</div>", unsafe_allow_html=True)
                     if note.get("tag"):
                         st.caption(f"🏷️ Tag: {note['tag']}")
+                    if note.get("lesson"):
+                        st.caption(f"📘 Lesson: {note['lesson']}")
                     st.markdown(
                         f"<div style='margin-top:-5px; margin-bottom:6px; font-size:1.08rem; line-height:1.7;'>{note['text'].replace('\n', '<br>')}</div>",
                         unsafe_allow_html=True)
@@ -4668,6 +4677,8 @@ if tab == "My Course":
                         txt_note = f"Title: {note.get('title','')}\n"
                         if note.get('tag'):
                             txt_note += f"Tag: {note['tag']}\n"
+                        if note.get("lesson"):
+                            txt_note += f"Lesson: {note['lesson']}\n"
                         txt_note += note.get('text', '') + "\n"
                         txt_note += f"Date: {note.get('updated', note.get('created',''))}\n"
                         st.download_button(
@@ -4693,6 +4704,8 @@ if tab == "My Course":
                         doc_single.add_heading(note.get('title','(No Title)'), level=1)
                         if note.get("tag"):
                             doc_single.add_paragraph(f"Tag: {note.get('tag','')}")
+                        if note.get("lesson"):
+                            doc_single.add_paragraph(f"Lesson: {note.get('lesson','')}")
                         doc_single.add_paragraph(note.get('text', ''))
                         doc_single.add_paragraph(f"Date: {note.get('updated', note.get('created',''))}")
                         single_docx_io = io.BytesIO()
