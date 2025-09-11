@@ -71,6 +71,8 @@ def generate_notes_pdf(
         pdf.set_font("DejaVu", "", 11)
         if n.get("tag"):
             pdf.cell(0, 8, clean_for_pdf(f"Tag: {n['tag']}"), ln=1)
+        if n.get("lesson"):
+            pdf.cell(0, 8, clean_for_pdf(f"Lesson: {n['lesson']}"), ln=1)
         pdf.set_font("DejaVu", "", 12)
         for line in n.get("text", "").split("\n"):
             pdf.multi_cell(0, 7, clean_for_pdf(line))
@@ -104,6 +106,8 @@ def generate_single_note_pdf(
     pdf_note.set_font("DejaVu", "", 12)
     if note.get("tag"):
         pdf_note.cell(0, 8, clean_for_pdf(f"Tag: {note.get('tag','')}"), ln=1)
+    if note.get("lesson"):
+        pdf_note.cell(0, 8, clean_for_pdf(f"Lesson: {note.get('lesson','')}"), ln=1)
     for line in note.get("text", "").split("\n"):
         pdf_note.multi_cell(0, 7, clean_for_pdf(line))
     pdf_note.ln(1)
