@@ -4459,8 +4459,17 @@ if tab == "My Course":
                 st.info(f"You're adding a note for **{title}** ({tag}).")
 
             st.markdown("#### ✍️ Create a new note or update an old one")
+            if st.session_state.pop("reset_note_form", False):
+                for k in [
+                    "learning_note_title",
+                    "learning_note_tag",
+                    "learning_note_draft",
+                    "learning_note_last_saved",
+                    "learning_note_lesson",
+                ]:
+                    st.session_state.pop(k, None)
 
-            with st.form("note_form", clear_on_submit=False):
+            with st.form("note_form", clear_on_submit=True):
                 st.session_state.setdefault("learning_note_title", title)
                 st.session_state.setdefault("learning_note_tag", tag)
                 st.session_state.setdefault("learning_note_draft", text)
@@ -4502,14 +4511,8 @@ if tab == "My Course":
                 if save_btn:
                     autosave_learning_note(student_code, key_notes)
                     if not editing:
-                        for k in [
-                            "learning_note_title",
-                            "learning_note_tag",
-                            "learning_note_draft",
-                            "learning_note_last_saved",
-                        ]:
-                            st.session_state[k] = ""
-                        st.session_state.pop("learning_note_lesson", None)
+                        st.session_state["reset_note_form"] = True
+                        st.session_state["need_rerun"] = True
                 if st.session_state.get("learning_note_last_saved"):
                     st.caption(
                         f"Last saved {st.session_state['learning_note_last_saved']} UTC"
