@@ -21,7 +21,7 @@ from datetime import datetime
 from datetime import datetime as _dt
 from uuid import uuid4
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, List
 from functools import lru_cache
 
 # ==== Third-Party Packages ====
@@ -5182,16 +5182,33 @@ def build_custom_chat_prompt(level, student_code=None):
     return ""
 
 # ================= SESSION DEFAULTS (reuse your falowen_* keys) =================
-FINAL_FEEDBACK_MESSAGE = (
-    "Great job! You've completed six questions. Keep practicing and see you next time!"
-)
+
+
+def generate_summary(messages: List[str]) -> str:
+    """Summarize student responses using the OpenAI chat API."""
+    prompt = (
+        "Summarize the following student responses into about 60 words suitable for a presentation."
+    )
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": "\n\n".join(messages)},
+            ],
+            temperature=0.7,
+        )
+        return (resp.choices[0].message.content or "").strip()
+    except Exception as exc:
+        logging.exception("Summary generation error: %s", exc)
+        return ""
 
 
 def increment_turn_count_and_maybe_close(is_exam: bool) -> bool:
-    """Increment the custom chat turn counter and append final feedback if needed.
+    """Increment the turn counter and append a summary if the limit is reached.
 
     Returns True when the chat has reached the 6-turn limit in custom chat mode
-    and a final feedback message was appended. For exam mode the counter is not
+    and a summary message was appended. For exam mode the counter is not
     incremented and the function always returns False.
     """
 
@@ -5203,8 +5220,14 @@ def increment_turn_count_and_maybe_close(is_exam: bool) -> bool:
     )
 
     if st.session_state["falowen_turn_count"] >= 6:
+        user_msgs = [
+            m.get("content", "")
+            for m in st.session_state.get("falowen_messages", [])
+            if m.get("role") == "user"
+        ]
+        summary = generate_summary(user_msgs)
         st.session_state["falowen_messages"].append(
-            {"role": "assistant", "content": FINAL_FEEDBACK_MESSAGE}
+            {"role": "assistant", "content": summary}
         )
         return True
 
