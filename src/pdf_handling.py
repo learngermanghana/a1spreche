@@ -111,26 +111,40 @@ def generate_single_note_pdf(
     if FPDF is None:  # pragma: no cover - dependency missing
         return b""
 
-    class SingleNotePDF(FPDF):
-        def header(self) -> None:  # pragma: no cover - layout only
-            self.set_font("DejaVu", "", 13)
-            self.cell(0, 10, clean_for_pdf(note.get("title", "Note")), ln=True, align="C")
-            self.ln(2)
+    def _build_pdf(n: Dict[str, Any]) -> "FPDF":
+        class SingleNotePDF(FPDF):
+            def header(self) -> None:  # pragma: no cover - layout only
+                self.set_font("DejaVu", "", 13)
+                self.cell(0, 10, clean_for_pdf(n.get("title", "Note")), ln=True, align="C")
+                self.ln(2)
 
-    pdf_note = SingleNotePDF()
-    pdf_note.add_font("DejaVu", "", font_path, uni=True)
-    pdf_note.add_page()
-    pdf_note.set_font("DejaVu", "", 12)
-    if note.get("tag"):
-        pdf_note.cell(0, 8, clean_for_pdf(f"Tag: {note.get('tag','')}"), ln=1)
-    if note.get("lesson"):
-        pdf_note.cell(0, 8, clean_for_pdf(f"Lesson: {note.get('lesson','')}"), ln=1)
-    for line in note.get("text", "").split("\n"):
-        pdf_note.multi_cell(0, 7, clean_for_pdf(line))
-    pdf_note.ln(1)
-    pdf_note.set_font("DejaVu", "", 11)
-    pdf_note.cell(0, 8, clean_for_pdf(f"Date: {note.get('updated', note.get('created',''))}"), ln=1)
-    return pdf_note.output(dest="S").encode("latin1", "replace")
+        pdf_note = SingleNotePDF()
+        pdf_note.add_font("DejaVu", "", font_path, uni=True)
+        pdf_note.add_page()
+        pdf_note.set_font("DejaVu", "", 12)
+        if n.get("tag"):
+            pdf_note.cell(0, 8, clean_for_pdf(f"Tag: {n.get('tag','')}"), ln=1)
+        if n.get("lesson"):
+            pdf_note.cell(0, 8, clean_for_pdf(f"Lesson: {n.get('lesson','')}"), ln=1)
+        for line in n.get("text", "").split("\n"):
+            pdf_note.multi_cell(0, 7, clean_for_pdf(line))
+        pdf_note.ln(1)
+        pdf_note.set_font("DejaVu", "", 11)
+        pdf_note.cell(0, 8, clean_for_pdf(f"Date: {n.get('updated', n.get('created',''))}"), ln=1)
+        return pdf_note
+
+    pdf_note = _build_pdf(note)
+    try:
+        return pdf_note.output(dest="S").encode("latin1", "replace")
+    except IndexError:
+        cleaned: Dict[str, Any] = {}
+        for k, v in note.items():
+            if isinstance(v, str):
+                v = v.encode("utf-8", "ignore").decode("utf-8")
+                v = v.encode("latin1", "ignore").decode("latin1")
+            cleaned[k] = v
+        pdf_note = _build_pdf(cleaned)
+        return pdf_note.output(dest="S").encode("latin1", "replace")
 
 
 def generate_chat_pdf(messages: List[Dict[str, Any]]) -> bytes:
