@@ -4442,6 +4442,19 @@ if tab == "My Course":
             else:
                 title, tag, text = "", "", ""
 
+            student_level = st.session_state.get("student_level", "A1")
+            lesson_choices = []
+            try:
+                schedules = load_level_schedules()
+                level_sched = schedules.get(student_level, schedules.get("A1", []))
+                for item in level_sched:
+                    day = item.get("day")
+                    topic = item.get("topic")
+                    if day is not None and topic:
+                        lesson_choices.append(f"Day {day}: {topic}")
+            except Exception:
+                pass
+
             if title and tag:
                 st.info(f"You're adding a note for **{title}** ({tag}).")
 
@@ -4452,6 +4465,15 @@ if tab == "My Course":
                 st.session_state.setdefault("learning_note_tag", tag)
                 st.session_state.setdefault("learning_note_draft", text)
                 st.session_state.setdefault("learning_note_last_saved", None)
+                st.session_state.setdefault(
+                    "learning_note_lesson",
+                    st.session_state.get(
+                        "edit_note_lesson",
+                        lesson_choices[0] if lesson_choices else "",
+                    ),
+                )
+
+                st.selectbox("Lesson", lesson_choices, key="learning_note_lesson")
 
                 st.text_input(
                     "Note Title",
@@ -4487,6 +4509,7 @@ if tab == "My Course":
                             "learning_note_last_saved",
                         ]:
                             st.session_state[k] = ""
+                        st.session_state.pop("learning_note_lesson", None)
                 if st.session_state.get("learning_note_last_saved"):
                     st.caption(
                         f"Last saved {st.session_state['learning_note_last_saved']} UTC"
@@ -4529,9 +4552,11 @@ if tab == "My Course":
                     "edit_note_title",
                     "edit_note_text",
                     "edit_note_tag",
+                    "edit_note_lesson",
                     "learning_note_title",
                     "learning_note_tag",
                     "learning_note_draft",
+                    "learning_note_lesson",
                     "learning_note_last_saved",
                 ]:
                     if k in st.session_state:
@@ -4687,6 +4712,7 @@ if tab == "My Course":
                             st.session_state["edit_note_title"] = note["title"]
                             st.session_state["edit_note_text"] = note["text"]
                             st.session_state["edit_note_tag"] = note.get("tag", "")
+                            st.session_state["edit_note_lesson"] = note.get("lesson", "")
                             st.session_state["switch_to_edit_note"] = True
                             refresh_with_toast()
                     with cols[1]:

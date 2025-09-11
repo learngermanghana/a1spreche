@@ -99,11 +99,13 @@ def autosave_learning_note(student_code: str, key_notes: str) -> None:
     draft = st.session_state.get("learning_note_draft", "")
     title = st.session_state.get("learning_note_title", "")
     tag = st.session_state.get("learning_note_tag", "")
+    lesson = st.session_state.get("learning_note_lesson", "")
     ts = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     note = {
         "title": title.strip().title(),
         "tag": tag.strip().title(),
+        "lesson": lesson,
         "text": draft.strip(),
         "pinned": False,
         "created": ts,
@@ -114,6 +116,8 @@ def autosave_learning_note(student_code: str, key_notes: str) -> None:
         existing = notes[idx]
         note["pinned"] = existing.get("pinned", False)
         note["created"] = existing.get("created", ts)
+        if not lesson:
+            note["lesson"] = existing.get("lesson", "")
         notes[idx] = note
     else:
         notes.insert(0, note)
