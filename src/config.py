@@ -60,12 +60,14 @@ def get_cookie_manager() -> EncryptedCookieManager:
             "Using built-in fallback cookie password (set `cookie_password` or `COOKIE_PASSWORD` for production)."
         )
 
-    return st.session_state.setdefault(
-        "cookie_manager",
-        bootstrap_cookie_manager(
+    cookie_manager = st.session_state.get("cookie_manager")
+    if cookie_manager is None:
+        cookie_manager = bootstrap_cookie_manager(
             EncryptedCookieManager(password=cookie_password, prefix="falowen")
-        ),
-    )
+        )
+        st.session_state["cookie_manager"] = cookie_manager
+
+    return cookie_manager
 
 
 __all__ = ["get_cookie_manager", "SB_SESSION_TARGET"]
