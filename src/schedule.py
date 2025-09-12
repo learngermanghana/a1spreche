@@ -1460,10 +1460,10 @@ Nächste Schritte:
   • **Schreibtrainer** mit typischen Prüfungsthemen  
   • **Custom Chat** für zusätzliche Übung  
 
-📌 Hinweis: Dein Zugang zu deinem Tutor bleibt bis zum Ende deines Vertrags aktiv.  
-⭐ Wenn dir der Kurs gefallen hat, hinterlasse uns bitte eine [positive Bewertung auf Google](https://g.page/r/Cdogveq3Hy69EBE/review).  
+ Hinweis: Dein Zugang zu deinem Tutor bleibt bis zum Ende deines Vertrags aktiv.  
+ Wenn dir der Kurs gefallen hat, hinterlasse uns bitte eine [positive Bewertung auf Google](https://g.page/r/Cdogveq3Hy69EBE/review).  
 
-Wir wünschen dir weiterhin viel Erfolg auf deinem Sprachlernweg! 🚀
+Wir wünschen dir weiterhin viel Erfolg auf deinem Sprachlernweg! 
             """,
             "grammar_topic": None,
             "assignment": False,
