@@ -483,6 +483,22 @@ def _handle_google_oauth(code: str, state: str) -> None:
                 "student_level": level,
             }
         )
+        cm = get_cookie_manager()
+        token = st.session_state.get("session_token")
+        if token:
+            cm.set(
+                COOKIE_NAME,
+                token,
+                expires=30,
+                key=COOKIE_NAME,
+                secure=True,
+                samesite="Lax",
+            )
+            try:
+                cm.save()
+            except Exception:
+                pass
+            st.session_state["logged_in"] = True
         if cookie_manager:
             set_student_code_cookie(
                 cookie_manager,
