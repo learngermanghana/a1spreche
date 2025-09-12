@@ -10,9 +10,11 @@ import secrets
 import urllib.parse
 import logging
 import requests
+import html  # noqa: F401
 
 import bcrypt
 import streamlit as st
+from extra_streamlit_components import CookieManager
 
 from falowen.email_utils import send_reset_email, build_gas_reset_link
 from falowen.sessions import create_session_token, destroy_session_token
@@ -28,6 +30,21 @@ from src.session_management import determine_level
 from src.ui_helpers import qp_get, qp_clear
 from src.services.contracts import contract_active
 from src.utils.toasts import refresh_with_toast, toast_ok, toast_err
+
+# Session cookie helpers
+COOKIE_NAME = "falowen_session"
+
+
+def get_cookie_manager() -> CookieManager:
+    return CookieManager()
+
+
+def read_session_cookie_into_state() -> None:
+    cm = get_cookie_manager()
+    token_in_state = st.session_state.get("session_token")
+    token_in_cookie = cm.get(COOKIE_NAME)
+    if token_in_cookie and token_in_cookie != token_in_state:
+        st.session_state["session_token"] = token_in_cookie
 
 # Google OAuth configuration
 GOOGLE_CLIENT_ID = st.secrets.get(
@@ -536,4 +553,5 @@ __all__ = [
     "render_signup_request_banner",
     "render_google_oauth",
     "render_returning_login_form",
+    "read_session_cookie_into_state",
 ]
