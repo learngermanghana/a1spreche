@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+import requests
 
 class DummyCtx:
     def __enter__(self):
@@ -61,8 +62,29 @@ def test_announcements_render_for_logged_out_and_after_signup():
     fetch_mock.assert_called_once()
     render_mock.assert_called_once_with([{'title': 't'}])
 
-    fetch_mock.reset_mock()
+
+def test_announcements_body_sanitized(monkeypatch):
+    login_page, fetch_mock, render_mock = run_login_page()
+    xml_data = """
+    <rss><channel>
+      <item>
+        <title>T</title>
+        <link>http://example.com</link>
+        <description>Hello <b>World</b><style>p{color:red}</style></description>
+      </item>
+    </channel></rss>
+    """
+
+    def fake_get(url, timeout=10):
+        return types.SimpleNamespace(text=xml_data, raise_for_status=lambda: None)
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    from src.blog_feed import fetch_blog_feed
+    fetch_blog_feed.clear()
+    login_page.__globals__["fetch_blog_feed"] = fetch_blog_feed
     render_mock.reset_mock()
     login_page()
-    fetch_mock.assert_called_once()
-    render_mock.assert_called_once_with([{'title': 't'}])
+    render_mock.assert_called_once()
+    body = render_mock.call_args[0][0][0].get("body")
+    assert body == "Hello World"
+    assert "style" not in body

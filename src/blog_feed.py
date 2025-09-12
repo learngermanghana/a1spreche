@@ -54,7 +54,10 @@ def fetch_blog_feed(limit: int | None = None) -> List[Dict[str, str]]:
             or row.find("summary")
             or row.find("content:encoded")
         )
-        body = body_tag.text.strip() if body_tag and body_tag.text else ""
+        body_html = body_tag.decode_contents() if body_tag and body_tag.text else ""
+        body = ""
+        if body_html:
+            body = BeautifulSoup(body_html, "html.parser").get_text(" ", strip=True)
 
         item: Dict[str, str] = {"title": title, "href": href}
         if body:
