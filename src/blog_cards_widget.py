@@ -1,7 +1,15 @@
 from __future__ import annotations
 from typing import List, Dict
+from bs4 import BeautifulSoup
 import streamlit as st
 import streamlit.components.v1 as components
+
+
+def strip_html(s: str) -> str:
+    try:
+        return BeautifulSoup(s or "", "html.parser").get_text(" ", strip=True)
+    except Exception:
+        return s or ""
 
 
 def render_blog_cards(items: List[Dict[str, str]], height: int = 380) -> None:
@@ -19,7 +27,9 @@ def render_blog_cards(items: List[Dict[str, str]], height: int = 380) -> None:
     for it in items:
         title = esc(it.get("title", ""))
         href = esc(it.get("href", "#"))
-        body = esc(it.get("body", ""))
+        raw_body = it.get("body", "")
+        clean_body = strip_html(raw_body)
+        body = esc(clean_body[:220])
         img = it.get("image") or ""
         img_html = f'<img class="card-img" src="{esc(img)}" alt="">' if img else ""
         cards.append(f"""
