@@ -185,10 +185,15 @@ def render_announcements(announcements: list) -> None:
       function render(idx){
         const c = data[idx] || {};
         titleEl.textContent = c.title || '';
-        if (c.body){ const tmp=document.createElement('div'); tmp.innerHTML=c.body; bodyEl.textContent=tmp.textContent||''; bodyEl.style.display=''; } else { bodyEl.textContent=''; bodyEl.style.display='none'; }
+        if (c.body){
+          const tmp=document.createElement('div'); tmp.innerHTML=c.body;
+          let text=(tmp.textContent||'').trim();
+          if (text.length>120){ text=text.slice(0,120).trimEnd()+'…'; }
+          bodyEl.textContent=text; bodyEl.style.display='';
+        } else { bodyEl.textContent=''; bodyEl.style.display='none'; }
         if (c.tag){ tagEl.textContent = c.tag; tagEl.style.display=''; } else { tagEl.style.display='none'; }
-        if (c.href){ const link = document.createElement('a'); link.href = c.href; link.target = '_blank'; link.rel='noopener'; link.textContent='Read more.';
-          actionEl.textContent=''; actionEl.appendChild(link); actionEl.style.display=''; } else { actionEl.textContent=''; actionEl.style.display='none'; }
+        const link = document.createElement('a'); link.target = '_blank'; link.rel='noopener'; link.textContent='Read more'; link.href = c.href || '#';
+        actionEl.textContent=''; actionEl.appendChild(link); actionEl.style.display = c.href ? '' : 'none';
         setActiveDot(idx);
       }
       function restartTimer(){
