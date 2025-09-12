@@ -32,7 +32,6 @@ def _get_og_image(page_url: str) -> Optional[str]:
         return None
     try:
         s = BeautifulSoup(html, "html.parser")
-        # Preference order: og:image, twitter:image, og:image:secure_url
         for selector, attr in [
             ('meta[property="og:image"]', "content"),
             ('meta[name="twitter:image"]', "content"),
@@ -105,8 +104,9 @@ def fetch_blog_feed(limit: Optional[int] = None) -> List[Dict[str, str]]:
         if limit is not None and len(items) >= limit:
             break
 
-        # Title
-        title = (row.find_text("title") or "").strip()
+        # Title (FIXED: use find(...).get_text instead of find_text)
+        title_tag = row.find("title")
+        title = title_tag.get_text(strip=True) if title_tag else ""
 
         # Link (RSS <link> text, Atom <link href="..."> or <link rel="alternate" ...>)
         href = ""
@@ -126,7 +126,6 @@ def fetch_blog_feed(limit: Optional[int] = None) -> List[Dict[str, str]]:
         for tag_name in ("description", "content:encoded", "content", "summary"):
             t = row.find(tag_name)
             if t:
-                # Use inner HTML if available
                 content = t.decode_contents() if t else ""
                 if content:
                     body_html = content
@@ -135,7 +134,6 @@ def fetch_blog_feed(limit: Optional[int] = None) -> List[Dict[str, str]]:
         body = ""
         if body_html:
             soup_body = BeautifulSoup(body_html, "html.parser")
-            # Drop <style>/<script>
             for t in soup_body(["style", "script"]):
                 t.decompose()
             # Remove leading templating noise if present
@@ -144,7 +142,6 @@ def fetch_blog_feed(limit: Optional[int] = None) -> List[Dict[str, str]]:
                     element.extract()
                 else:
                     break
-            # Convert to clean text
             body = soup_body.get_text(" ", strip=True)
 
         # --- Image detection ---
@@ -186,11 +183,9 @@ def fetch_blog_feed(limit: Optional[int] = None) -> List[Dict[str, str]]:
         if image_url:
             if image_url.startswith("//"):
                 image_url = "https:" + image_url
-            # Basic sanitization (no data: URIs etc.)
             if not re.match(r"^https?://", image_url, flags=re.I):
                 image_url = None
 
-        # Build item
         item: Dict[str, str] = {"title": title, "href": href}
         if body:
             item["body"] = body
