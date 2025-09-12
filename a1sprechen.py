@@ -147,6 +147,7 @@ from src.ui.auth import (
     render_google_oauth,
     render_returning_login_form,
 )
+from src.ui.auth import read_session_cookie_into_state, renew_session_if_needed
 from src.ui.login import render_falowen_login
 from src.services.vocab import VOCAB_LISTS, AUDIO_URLS, get_audio_url
 from src.schreiben import (
@@ -285,6 +286,12 @@ def calc_blog_height(num_posts: int) -> int:
 
 
 def login_page():
+    try:
+        read_session_cookie_into_state()
+        renew_session_if_needed()
+    except Exception:
+        pass
+
     # 1) Get Google auth URL (also completes flow if ?code=...)
     auth_url = render_google_oauth(return_url=True) or ""
 
