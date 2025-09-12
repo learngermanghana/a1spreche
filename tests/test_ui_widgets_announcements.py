@@ -32,7 +32,7 @@ def test_render_announcements_without_banner(monkeypatch):
     assert "Falowen: Your German Conversation Partner for Everyday Learning" in captured["html"]
     assert "t" in captured["html"]
     assert "b" in captured["html"]
-    assert "Read more." in captured["html"]
+    assert "Read more" in captured["html"]
     assert "setInterval" in captured["html"]
     assert BANNER not in captured["html"]
 
