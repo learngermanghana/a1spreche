@@ -41,7 +41,8 @@ def fetch_blog_feed(limit: Optional[int] = None) -> List[Dict[str, str]]:
             break
 
         # Title
-        title = (row.find_text("title") or "").strip()
+        title_tag = row.find("title")
+        title = title_tag.get_text(strip=True) if title_tag else ""
 
         # Link (Atom often uses <link rel="alternate" href="..."/>)
         href = ""
