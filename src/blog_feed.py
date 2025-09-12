@@ -9,15 +9,21 @@ import requests
 from bs4 import BeautifulSoup, NavigableString  # type: ignore
 import streamlit as st
 
-
 FEED_URL = "https://blog.falowen.app/feed.xml"
 
+# ----------------------------
+# Small cached HTTP helpers
+# ----------------------------
 
 @st.cache_data(ttl=60 * 60, show_spinner=False)
 def _get(url: str) -> Optional[str]:
-    """Small cached GET to reduce network churn."""
+    """Cached HTTP GET that returns response text or None."""
     try:
-        r = requests.get(url, timeout=10, headers={"User-Agent": "FalowenDashboard/1.0"})
+        r = requests.get(
+            url,
+            timeout=10,
+            headers={"User-Agent": "FalowenDashboard/1.0 (+https://falowen.app)"},
+        )
         r.raise_for_status()
         return r.text
     except Exception:
@@ -25,25 +31,43 @@ def _get(url: str) -> Optional[str]:
 
 
 @st.cache_data(ttl=24 * 60 * 60, show_spinner=False)
-def _get_og_image(page_url: str) -> Optional[str]:
-    """Try to fetch Open Graph / Twitter image from an article page."""
+def _get_og_meta(page_url: str) -> Dict[str, str]:
+    """
+    Fetch Open Graph / Twitter meta from an article page.
+    Returns a dict that can include 'image' and 'description'.
+    """
     html = _get(page_url)
+    meta: Dict[str, str] = {}
     if not html:
-        return None
+        return meta
     try:
         s = BeautifulSoup(html, "html.parser")
-        for selector, attr in [
-            ('meta[property="og:image"]', "content"),
-            ('meta[name="twitter:image"]', "content"),
-            ('meta[property="og:image:secure_url"]', "content"),
-        ]:
-            tag = s.select_one(selector)
-            if tag and tag.get(attr):
-                return tag.get(attr)  # type: ignore[return-value]
-    except Exception:
-        return None
-    return None
 
+        def pick(sel: str) -> str:
+            t = s.select_one(sel)
+            return (t.get("content") or "").strip() if t and t.get("content") else ""
+
+        # Image
+        meta["image"] = (
+            pick('meta[property="og:image"]')
+            or pick('meta[name="twitter:image"]')
+            or pick('meta[property="og:image:secure_url"]')
+        )
+
+        # Description
+        meta["description"] = (
+            pick('meta[property="og:description"]')
+            or pick('meta[name="description"]')
+            or pick('meta[name="twitter:description"]')
+        )
+    except Exception:
+        pass
+    return meta
+
+
+# ----------------------------
+# Parsing helpers
+# ----------------------------
 
 def _first_img_src_from_html(html: str) -> Optional[str]:
     try:
@@ -58,8 +82,8 @@ def _first_img_src_from_html(html: str) -> Optional[str]:
 
 
 def _prefer_bigger_url(tags) -> Optional[str]:
-    """Pick URL from a list of media/enclosure-like tags, prefer with size hints."""
-    picked = None
+    """Pick URL from media/enclosure-like tags, preferring larger width*height."""
+    picked: Optional[str] = None
     picked_area = -1
     for t in tags:
         url = (t.get("url") or t.get("href") or "").strip()
@@ -77,38 +101,41 @@ def _prefer_bigger_url(tags) -> Optional[str]:
     return picked
 
 
+# ----------------------------
+# Public API
+# ----------------------------
+
 @st.cache_data(ttl=60 * 60, show_spinner=False)
 def fetch_blog_feed(limit: Optional[int] = None) -> List[Dict[str, str]]:
     """
-    Fetch and parse the blog XML/Atom feed, including thumbnail images.
+    Fetch and parse the blog RSS/Atom feed, including thumbnail images.
 
     Returns a list of items with keys:
       - "title": str
       - "href": str
-      - "body"?: str   (plain text, HTML stripped)
-      - "image"?: str  (absolute URL)
+      - "body"?: str         (plain text; HTML stripped)
+      - "image"?: str        (absolute URL)
     """
     text = _get(FEED_URL)
     if not text:
         return []
 
-    # Try strict XML first, fall back to permissive HTML parser.
+    # Parse as XML if possible; fall back to HTML parser for lenient parsing
     try:
         soup = BeautifulSoup(text, "xml")
     except Exception:
         soup = BeautifulSoup(text, "html.parser")
 
-    raw_items = soup.find_all(["item", "entry"])
     items: List[Dict[str, str]] = []
-    for row in raw_items:
+    for row in soup.find_all(["item", "entry"]):
         if limit is not None and len(items) >= limit:
             break
 
-        # Title (FIXED: use find(...).get_text instead of find_text)
+        # Title
         title_tag = row.find("title")
         title = title_tag.get_text(strip=True) if title_tag else ""
 
-        # Link (RSS <link> text, Atom <link href="..."> or <link rel="alternate" ...>)
+        # Link (RSS <link>text or Atom <link href="..."> / <link rel="alternate">)
         href = ""
         link_tag = row.find("link")
         if link_tag:
@@ -119,14 +146,15 @@ def fetch_blog_feed(limit: Optional[int] = None) -> List[Dict[str, str]]:
                 href = (alt.get("href") or "").strip()
 
         if not title or not href:
+            # Skip incomplete entries
             continue
 
-        # Body/summary (prefer richer content if present)
+        # Body/summary: prefer richer fields first
         body_html = ""
-        for tag_name in ("description", "content:encoded", "content", "summary"):
+        for tag_name in ("content:encoded", "content", "summary", "description"):
             t = row.find(tag_name)
             if t:
-                content = t.decode_contents() if t else ""
+                content = t.decode_contents()
                 if content:
                     body_html = content
                     break
@@ -134,6 +162,7 @@ def fetch_blog_feed(limit: Optional[int] = None) -> List[Dict[str, str]]:
         body = ""
         if body_html:
             soup_body = BeautifulSoup(body_html, "html.parser")
+            # Drop <style>/<script>
             for t in soup_body(["style", "script"]):
                 t.decompose()
             # Remove leading templating noise if present
@@ -142,17 +171,18 @@ def fetch_blog_feed(limit: Optional[int] = None) -> List[Dict[str, str]]:
                     element.extract()
                 else:
                     break
+            # Convert to clean text
             body = soup_body.get_text(" ", strip=True)
 
         # --- Image detection ---
         image_url: Optional[str] = None
 
-        # 1) media:content or media:thumbnail (YouTube/WordPress etc.)
+        # 1) media:content / media:thumbnail / media:group
         media_tags = row.find_all(["media:content", "media:thumbnail", "media:group"])
         if media_tags:
             image_url = _prefer_bigger_url(media_tags)
 
-        # 2) enclosure with image type
+        # 2) <enclosure type="image/*">
         if not image_url:
             for enc in row.find_all("enclosure"):
                 if (enc.get("type") or "").startswith("image/"):
@@ -160,7 +190,7 @@ def fetch_blog_feed(limit: Optional[int] = None) -> List[Dict[str, str]]:
                     if image_url:
                         break
 
-        # 3) <image>, <thumbnail>, or custom tags
+        # 3) <image>/<thumbnail>/<figure>
         if not image_url:
             candidates = []
             for name in ("image", "thumbnail", "figure"):
@@ -171,21 +201,30 @@ def fetch_blog_feed(limit: Optional[int] = None) -> List[Dict[str, str]]:
             if candidates:
                 image_url = candidates[0]
 
-        # 4) First <img> in body HTML
+        # 4) First <img> inside body HTML
         if not image_url and body_html:
             image_url = _first_img_src_from_html(body_html)
 
-        # 5) Fallback: fetch OG image from article page (best-effort)
-        if not image_url:
-            image_url = _get_og_image(href)
+        # 5) Fallback to OG meta (image + description)
+        og_meta: Optional[Dict[str, str]] = None
+        if not image_url or not body:
+            og_meta = _get_og_meta(href)
+
+        if not image_url and og_meta and og_meta.get("image"):
+            image_url = og_meta["image"]
+
+        if not body and og_meta and og_meta.get("description"):
+            body = og_meta["description"].strip()
 
         # Normalize/validate image URL
         if image_url:
             if image_url.startswith("//"):
                 image_url = "https:" + image_url
+            # accept only http/https
             if not re.match(r"^https?://", image_url, flags=re.I):
                 image_url = None
 
+        # Build item
         item: Dict[str, str] = {"title": title, "href": href}
         if body:
             item["body"] = body
