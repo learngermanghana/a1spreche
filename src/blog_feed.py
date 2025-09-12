@@ -1,5 +1,3 @@
-import csv
-from io import StringIO
 from typing import List, Dict
 
 import requests
@@ -8,7 +6,7 @@ import streamlit as st
 
 @st.cache_data(ttl=3600)
 def fetch_blog_feed(limit: int = 5) -> List[Dict[str, str]]:
-    """Fetch and parse the Falowen blog feed.
+    """Fetch and parse the Falowen blog JSON feed.
 
     Parameters
     ----------
@@ -21,33 +19,40 @@ def fetch_blog_feed(limit: int = 5) -> List[Dict[str, str]]:
         A list of dictionaries each containing ``title``, ``body`` and ``href``.
         Returns an empty list on any error.
     """
-    feed_url = (
-        "https://docs.google.com/spreadsheets/"
-        "d/1EnVuN1RgSjC0CiBM-I5QVMKhpqgveBO1u6JLmdVhA4A/export?format=csv&gid=0"
-    )
+    feed_url = "https://blog.falowen.app/feed.json"
     try:
         resp = requests.get(feed_url, timeout=10)
         resp.raise_for_status()
+        data = resp.json()
     except Exception:
         return []
 
-    try:
-        reader = csv.DictReader(StringIO(resp.content.decode("utf-8")))
-    except Exception:
+    raw_items = data.get("items") if isinstance(data, dict) else []
+    if not isinstance(raw_items, list):
         return []
-
-    # Normalize headers to be case-insensitive and whitespace tolerant
-    reader.fieldnames = [fn.strip().lower() for fn in reader.fieldnames or []]
 
     items: List[Dict[str, str]] = []
-    for row in reader:
+    for row in raw_items:
         if len(items) >= min(limit, 5):
             break
-        title = (row.get("topic") or "").strip()
-        href = (row.get("link") or "").strip()
+        title = (row.get("title") or "").strip()
+        href = (
+            row.get("url")
+            or row.get("external_url")
+            or row.get("link")
+            or row.get("href")
+            or ""
+        ).strip()
         if not title or not href:
             continue
-        body = (row.get("body") or row.get("description") or "").strip()
+        body = (
+            row.get("content_text")
+            or row.get("content_html")
+            or row.get("summary")
+            or row.get("description")
+            or ""
+        )
+        body = body.strip() if isinstance(body, str) else ""
         item: Dict[str, str] = {"title": title, "href": href}
         if body:
             item["body"] = body

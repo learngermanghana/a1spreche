@@ -524,7 +524,7 @@ def render_sidebar_published():
     with st.sidebar.expander("🧭 Dashboard tabs, explained", expanded=False):
         st.markdown(
             """
-- **Dashboard:** Overview (streak, next lesson, missed, leaderboard, announcements).
+- **Dashboard:** Overview (streak, next lesson, missed, leaderboard, new posts).
 - **My Course:** Lessons, materials, and submission flow.
 - **Results & Resources:** Marks, feedback, downloadable resources.
 - **Exams Mode & Custom Chat:** Exam-style drills + targeted AI practice.
@@ -766,8 +766,8 @@ inject_notice_css()
 # Sidebar (no logout; logout lives in the header)
 render_sidebar_published()
 
-# Announcements (render once)
-announcements = fetch_blog_feed()
+# New posts (render once)
+new_posts = fetch_blog_feed()
 
 st.markdown("---")
 st.markdown("**You’re logged in.** Continue to your lessons and tools from the navigation.")
@@ -1032,7 +1032,7 @@ try:
 except Exception as e:
     st.warning(f"Navigation init issue: {e}. Falling back to Dashboard.")
     tab = "Dashboard"
-render_announcements_once(announcements, tab == "Dashboard")
+render_announcements_once(new_posts, tab == "Dashboard")
 
 
 # =========================================================

@@ -1,15 +1,14 @@
 import types
-
 import requests
 
 from src.blog_feed import fetch_blog_feed
 
 
-def test_fetch_blog_feed_maps_topic_and_link(monkeypatch):
-    csv_data = "Topic,Link\nTest,http://example.com\n"
+def test_fetch_blog_feed_maps_title_and_url(monkeypatch):
+    json_data = {"items": [{"title": "Test", "url": "http://example.com"}]}
 
     def fake_get(url, timeout=10):
-        return types.SimpleNamespace(content=csv_data.encode("utf-8"), raise_for_status=lambda: None)
+        return types.SimpleNamespace(json=lambda: json_data, raise_for_status=lambda: None)
 
     monkeypatch.setattr(requests, "get", fake_get)
     fetch_blog_feed.clear()
@@ -19,11 +18,19 @@ def test_fetch_blog_feed_maps_topic_and_link(monkeypatch):
     assert "body" not in items[0]
 
 
-def test_fetch_blog_feed_handles_lowercase_headers(monkeypatch):
-    csv_data = "topic,link,body\nTest,http://example.com,Desc\n"
+def test_fetch_blog_feed_parses_description(monkeypatch):
+    json_data = {
+        "items": [
+            {
+                "title": "Test",
+                "url": "http://example.com",
+                "summary": "Desc",
+            }
+        ]
+    }
 
     def fake_get(url, timeout=10):
-        return types.SimpleNamespace(content=csv_data.encode("utf-8"), raise_for_status=lambda: None)
+        return types.SimpleNamespace(json=lambda: json_data, raise_for_status=lambda: None)
 
     monkeypatch.setattr(requests, "get", fake_get)
     fetch_blog_feed.clear()
@@ -33,11 +40,18 @@ def test_fetch_blog_feed_handles_lowercase_headers(monkeypatch):
     assert items[0]["body"] == "Desc"
 
 
-def test_fetch_blog_feed_skips_empty_rows(monkeypatch):
-    csv_data = "Topic,Link\nValid,http://example.com\n,\nAnother,http://example.org\n"
+def test_fetch_blog_feed_skips_items_missing_fields(monkeypatch):
+    json_data = {
+        "items": [
+            {"title": "Valid", "url": "http://example.com"},
+            {"title": "No URL"},
+            {"url": "http://example.org"},
+            {"title": "Another", "url": "http://example.org"},
+        ]
+    }
 
     def fake_get(url, timeout=10):
-        return types.SimpleNamespace(content=csv_data.encode("utf-8"), raise_for_status=lambda: None)
+        return types.SimpleNamespace(json=lambda: json_data, raise_for_status=lambda: None)
 
     monkeypatch.setattr(requests, "get", fake_get)
     fetch_blog_feed.clear()

@@ -160,7 +160,7 @@ def render_announcements(announcements: list) -> None:
       .ann-dot[aria-current="true"]{background:var(--brand);opacity:1;transform:scale(1.22);box-shadow:0 0 0 4px var(--ring)}
     </style>
     <div class="page-wrap">
-      <div class="ann-title">📣 Blog Updates.</div>
+      <div class="ann-title">📣 New posts.</div>
       <div class="ann-shell" id="ann_shell" aria-live="polite">
         <div id="ann_card">
           <div class="ann-heading"><span class="ann-chip" id="ann_tag" style="display:none;"></span><span id="ann_title"></span></div>
