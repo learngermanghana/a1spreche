@@ -70,7 +70,7 @@ def test_announcements_body_sanitized(monkeypatch):
       <item>
         <title>T</title>
         <link>http://example.com</link>
-        <description>Hello <b>World</b><style>p{color:red}</style></description>
+        <description>p{color:red} body{margin:0}<p>Hello <b>World</b></p></description>
       </item>
     </channel></rss>
     """
@@ -87,4 +87,5 @@ def test_announcements_body_sanitized(monkeypatch):
     render_mock.assert_called_once()
     body = render_mock.call_args[0][0][0].get("body")
     assert body == "Hello World"
-    assert "style" not in body
+    assert "p{color:red}" not in body
+    assert "body{margin:0}" not in body
