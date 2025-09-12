@@ -58,10 +58,8 @@ def renew_session_if_needed() -> None:
             "falowen.sessions",
             fromlist=["refresh_or_rotate_session_token", "validate_session_token"],
         )
-        validate_session_token = getattr(sess_module, "validate_session_token")
-        refresh_or_rotate_session_token = getattr(
-            sess_module, "refresh_or_rotate_session_token"
-        )
+        validate_session_token = sess_module.validate_session_token
+        refresh_or_rotate_session_token = sess_module.refresh_or_rotate_session_token
         data = validate_session_token(token) or {}
         if not data:
             return
@@ -86,8 +84,7 @@ def renew_session_if_needed() -> None:
         try:
             cm.save()
         except Exception:
-            logging.exception("Cookie save failed")
-            toast_err("Cookie save failed")
+            logging.debug("Cookie save failed", exc_info=True)
 
 
 def render_signup_form() -> None:
@@ -243,8 +240,7 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
         try:
             cm.save()
         except Exception:
-            logging.exception("Cookie save failed")
-            toast_err("Cookie save failed")
+            logging.debug("Cookie save failed", exc_info=True)
         st.session_state["logged_in"] = True
     persist_session_client(sess_token, student_row["StudentCode"])
 
