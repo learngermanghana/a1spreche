@@ -68,7 +68,6 @@ _DEFAULT_COOKIE_KW = {
     "httponly": True,
     "secure": True,
     "samesite": "Lax",
-    "path": "/",
     "domain": ".falowen.app",  # make sure you always serve from https://www.falowen.app
 }
 
@@ -103,7 +102,6 @@ def _cm_set(cm: MutableMapping[str, Any] | Any, key: str, value: Any, **kwargs: 
             except Exception:
                 # Final fallback: set value only
                 setter(key, value)
-        _cm_save(cm)
         return
 
     # Mapping fallback (tests)
@@ -131,7 +129,6 @@ def clear_session(cm: MutableMapping[str, Any] | Any) -> None:
         if callable(deleter):
             deleter("student_code")
             deleter("session_token")
-            _cm_save(cm)
             return
     except Exception:
         pass
@@ -149,7 +146,6 @@ def clear_session(cm: MutableMapping[str, Any] | Any) -> None:
             del cm["session_token"]  # type: ignore[index]
         except Exception:
             pass
-    _cm_save(cm)
 
 # --------------------------------------------------------------------
 # Session token registry (in-memory)

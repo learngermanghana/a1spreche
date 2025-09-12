@@ -14,7 +14,7 @@ import html  # noqa: F401
 
 import bcrypt
 import streamlit as st
-from extra_streamlit_components import CookieManager
+from src.config import get_cookie_manager
 
 from falowen.email_utils import send_reset_email, build_gas_reset_link
 from falowen.sessions import create_session_token, destroy_session_token
@@ -33,10 +33,6 @@ from src.utils.toasts import refresh_with_toast, toast_ok, toast_err
 
 # Session cookie helpers
 COOKIE_NAME = "falowen_session"
-
-
-def get_cookie_manager() -> CookieManager:
-    return CookieManager()
 
 
 def read_session_cookie_into_state() -> None:
