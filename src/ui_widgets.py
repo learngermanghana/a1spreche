@@ -151,6 +151,7 @@ def render_announcements(announcements: list) -> None:
       .ann-title{font-weight:800;font-size:1.05rem;line-height:1.2; padding-left:12px;border-left:5px solid var(--brand);margin:0 0 6px 0;color:var(--text);}
       .ann-shell{border-radius:14px;border:1px solid var(--shell-border);background:var(--card);box-shadow:0 6px 18px rgba(2,6,23,.12);padding:12px 14px;overflow:hidden;}
       .ann-heading{display:flex;align-items:center;gap:10px;margin:0 0 6px 0;font-weight:800;color:var(--text);}
+      .ann-heading a{color:var(--text);text-decoration:none;}
       .ann-chip{font-size:.78rem;font-weight:800;text-transform:uppercase;background:var(--chip-bg);color:var(--chip-fg);padding:4px 9px;border-radius:999px;border:1px solid var(--shell-border);}
       .ann-body{color:var(--muted);margin:0;line-height:1.55;font-size:1rem}
       .ann-actions{margin-top:8px}
@@ -165,7 +166,7 @@ def render_announcements(announcements: list) -> None:
       <p class="ann-tagline">Falowen: Your German Conversation Partner for Everyday Learning</p>
       <div class="ann-shell" id="ann_shell" aria-live="polite">
         <div id="ann_card">
-          <div class="ann-heading"><span class="ann-chip" id="ann_tag" style="display:none;"></span><span id="ann_title"></span></div>
+          <div class="ann-heading"><span class="ann-chip" id="ann_tag" style="display:none;"></span><a id="ann_link" href="#"><span id="ann_title"></span></a></div>
           <p class="ann-body" id="ann_body">loading…</p>
           <div class="ann-actions" id="ann_action" style="display:none;"></div>
         </div>
@@ -178,6 +179,7 @@ def render_announcements(announcements: list) -> None:
       const bodyEl  = document.getElementById('ann_body');
       const tagEl   = document.getElementById('ann_tag');
       const actionEl= document.getElementById('ann_action');
+      const linkEl = document.getElementById('ann_link');
       const dotsWrap= document.getElementById('ann_dots');
       let i = 0;
       let timer;
@@ -185,6 +187,9 @@ def render_announcements(announcements: list) -> None:
       function render(idx){
         const c = data[idx] || {};
         titleEl.textContent = c.title || '';
+        linkEl.href = c.href || '#';
+        linkEl.target = '_blank';
+        linkEl.rel = 'noopener';
         if (c.body){
           const tmp=document.createElement('div'); tmp.innerHTML=c.body;
           let text=(tmp.textContent||'').trim();
