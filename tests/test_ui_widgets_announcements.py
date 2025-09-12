@@ -33,6 +33,7 @@ def test_render_announcements_without_banner(monkeypatch):
     assert "t" in captured["html"]
     assert "b" in captured["html"]
     assert "Read more" in captured["html"]
+    assert 'id="ann_link"' in captured["html"]
     assert "setInterval" in captured["html"]
     assert BANNER not in captured["html"]
 
