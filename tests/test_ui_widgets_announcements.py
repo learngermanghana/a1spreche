@@ -12,6 +12,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 from src import ui_widgets
 
 BANNER = "www.falowen.app – your German conversational partner"
+HEADING = "📣 Falowen blog updates"
 
 
 def test_render_announcements_without_banner(monkeypatch):
@@ -27,7 +28,7 @@ def test_render_announcements_without_banner(monkeypatch):
         {"title": "t", "body": "b", "href": "https://xmpl"},
         {"title": "t2"},
     ])
-    assert "📣 Falowen blog updates" in captured["html"]
+    assert HEADING in captured["html"]
     assert "Falowen: Your German Conversation Partner for Everyday Learning" in captured["html"]
     assert "t" in captured["html"]
     assert "b" in captured["html"]
