@@ -41,6 +41,7 @@ from auth import auth_bp
 from src.routes.health import register_health_route
 from src.group_schedules import load_group_schedules
 from src.blog_feed import fetch_blog_feed
+from src.blog_cards_widget import render_blog_cards
 import src.schedule as _schedule
 load_level_schedules = _schedule.load_level_schedules
 refresh_level_schedules = getattr(_schedule, "refresh_level_schedules", lambda: None)
@@ -185,7 +186,6 @@ from src.youtube import (
 from src.ui_widgets import (
     render_google_brand_button_once,
     render_announcements_once,
-    render_announcements,
 )
 from src.logout import do_logout
 from src.pdf_handling import (
@@ -331,9 +331,11 @@ def login_page():
         """, unsafe_allow_html=True)
 
     # Blog posts / announcements
-    blog_posts = fetch_blog_feed()
+    blog_posts = [p for p in fetch_blog_feed() if p.get("image")]
     if blog_posts:
-        render_announcements(blog_posts)
+        st.markdown("---")
+        with st.container():
+            render_blog_cards(blog_posts)
 
     # Footer links
     st.markdown("""
