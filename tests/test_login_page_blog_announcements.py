@@ -33,6 +33,7 @@ def make_streamlit_stub():
     def columns(n):
         return [DummyCtx() for _ in range(n)]
     st.columns = columns
+    st.divider = MagicMock()
     return st
 
 

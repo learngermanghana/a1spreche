@@ -253,6 +253,7 @@ def login_page():
 
     # 2) Branded hero (Google button suppressed inside the template)
     render_falowen_login(auth_url, show_google_in_hero=False)
+    st.divider()
 
     # 3) Returning user section (Google CTA below the form)
     login_success = render_returning_login_area()
