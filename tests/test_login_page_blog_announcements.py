@@ -30,23 +30,28 @@ def make_streamlit_stub():
     def markdown(text, *args, **kwargs):
         outputs.append(text)
 
+    def columns(spec, *args, **kwargs):
+        n = spec if isinstance(spec, int) else len(spec)
+        return [DummyCtx() for _ in range(n)]
+
     st = types.SimpleNamespace(
         session_state={},
         markdown=markdown,
         info=lambda *a, **k: None,
         tabs=lambda labels: (DummyCtx(), DummyCtx()),
-        columns=lambda n: [DummyCtx() for _ in range(n)],
+        columns=columns,
         divider=lambda: None,
         container=lambda: DummyCtx(),
     )
     return st, outputs
 
 
-def test_login_page_shows_three_titles_and_read_more():
+def test_login_page_renders_blog_cards_and_link():
     login_page, ns = load_login_page()
     st, outputs = make_streamlit_stub()
     posts = [{"title": f"title-{i}", "href": f"u{i}"} for i in range(5)]
     fetch_mock = MagicMock(return_value=posts)
+    render_cards_mock = MagicMock()
     ns.update(
         {
             "st": st,
@@ -57,15 +62,14 @@ def test_login_page_shows_three_titles_and_read_more():
             "render_signup_form": MagicMock(),
             "render_google_brand_button_once": MagicMock(),
             "fetch_blog_feed": fetch_mock,
+            "render_blog_cards": render_cards_mock,
         }
     )
     login_page.__globals__.update(ns)
     login_page()
     fetch_mock.assert_called_once()
-    title_lines = [o for o in outputs if "title-" in o]
-    assert len(title_lines) == 3
-    assert "title-0" in title_lines[0]
-    assert "title-1" in title_lines[1]
-    assert "title-2" in title_lines[2]
+    render_cards_mock.assert_called_once()
+    assert render_cards_mock.call_args[0][0] == posts[:3]
+    assert any("Falowen Blog" in o for o in outputs)
     assert any("Read more" in o for o in outputs)
 
