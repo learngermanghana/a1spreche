@@ -772,7 +772,7 @@ inject_notice_css()
 # Sidebar (no logout; logout lives in the header)
 render_sidebar_published()
 
-# New posts (render once)
+# Falowen blog updates (render once)
 new_posts = fetch_blog_feed()
 
 st.markdown("---")
