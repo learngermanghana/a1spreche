@@ -1,17 +1,18 @@
 from typing import List, Dict
 
 import requests
+from bs4 import BeautifulSoup
 import streamlit as st
 
 
 @st.cache_data(ttl=3600)
-def fetch_blog_feed(limit: int = 5) -> List[Dict[str, str]]:
-    """Fetch and parse the Falowen blog JSON feed.
+def fetch_blog_feed(limit: int | None = None) -> List[Dict[str, str]]:
+    """Fetch and parse the Falowen blog XML feed.
 
     Parameters
     ----------
-    limit: int
-        Maximum number of recent items to return.
+    limit: int | None
+        Maximum number of recent items to return. ``None`` returns all items.
 
     Returns
     -------
@@ -19,42 +20,45 @@ def fetch_blog_feed(limit: int = 5) -> List[Dict[str, str]]:
         A list of dictionaries each containing ``title``, ``body`` and ``href``.
         Returns an empty list on any error.
     """
-    feed_url = "https://blog.falowen.app/feed.json"
+    feed_url = "https://blog.falowen.app/feed.xml"
     try:
         resp = requests.get(feed_url, timeout=10)
         resp.raise_for_status()
-        data = resp.json()
+        soup = BeautifulSoup(resp.text, "xml")
     except Exception:
         return []
 
-    raw_items = data.get("items") if isinstance(data, dict) else []
-    if not isinstance(raw_items, list):
-        return []
-
+    raw_items = soup.find_all(["item", "entry"])
     items: List[Dict[str, str]] = []
     for row in raw_items:
-        if len(items) >= min(limit, 5):
+        if limit is not None and len(items) >= limit:
             break
-        title = (row.get("title") or "").strip()
-        href = (
-            row.get("url")
-            or row.get("external_url")
-            or row.get("link")
-            or row.get("href")
-            or ""
-        ).strip()
+
+        title_tag = row.find("title")
+        title = title_tag.text.strip() if title_tag and title_tag.text else ""
+
+        link_tag = row.find("link")
+        href = ""
+        if link_tag:
+            if link_tag.has_attr("href"):
+                href = link_tag["href"].strip()
+            elif link_tag.text:
+                href = link_tag.text.strip()
+
         if not title or not href:
             continue
-        body = (
-            row.get("content_text")
-            or row.get("content_html")
-            or row.get("summary")
-            or row.get("description")
-            or ""
+
+        body_tag = (
+            row.find("description")
+            or row.find("content")
+            or row.find("summary")
+            or row.find("content:encoded")
         )
-        body = body.strip() if isinstance(body, str) else ""
+        body = body_tag.text.strip() if body_tag and body_tag.text else ""
+
         item: Dict[str, str] = {"title": title, "href": href}
         if body:
             item["body"] = body
         items.append(item)
+
     return items
