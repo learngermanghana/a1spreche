@@ -1,23 +1,21 @@
 
 from __future__ import annotations
-from typing import List, Dict, Optional
+from typing import List, Dict
 
 import streamlit as st
 import streamlit.components.v1 as components
 
 
-def render_blog_cards(items: List[Dict[str, str]], height: int = 360) -> None:
+def render_blog_cards(items: List[Dict[str, str]], height: int = 380) -> None:
     """Render a responsive card grid with optional images for each blog post.
 
-    Each item should have: title, href, optional body, optional image.
+    Each item: title, href, optional body, optional image.
     """
     if not items:
         st.info("No blog posts available right now.")
         return
 
-    # Build the card HTML
     def esc(s: str) -> str:
-        # Minimal escaping for HTML attr/text contexts
         return (
             s.replace("&", "&amp;")
             .replace("<", "&lt;")
@@ -48,21 +46,28 @@ def render_blog_cards(items: List[Dict[str, str]], height: int = 360) -> None:
         )
 
     html = f"""
-    <div class="falowen-blog-wrap">
-      {''.join(card_html)}
+    <div class="falowen-blog-outer">
+      <div class="falowen-blog-wrap">
+        {''.join(card_html)}
+      </div>
     </div>
     <style>
+      .falowen-blog-outer {{
+        max-width: 1120px;
+        margin: 0 auto;
+        width: 100%;
+        padding: 0 8px;
+      }}
       .falowen-blog-wrap {{
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
         gap: 16px;
         width: 100%;
-        padding: 6px 2px;
       }}
       .blog-card {{
         display: flex;
         flex-direction: column;
-        background: rgba(255,255,255,0.9);
+        background: rgba(255,255,255,0.96);
         border-radius: 16px;
         text-decoration: none;
         border: 1px solid rgba(0,0,0,0.06);
@@ -95,7 +100,7 @@ def render_blog_cards(items: List[Dict[str, str]], height: int = 360) -> None:
         font-size: 15px;
         line-height: 1.2;
         margin-bottom: 6px;
-        color: #0f172a; /* slate-900 */
+        color: #0f172a;
         display: -webkit-box;
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
@@ -105,7 +110,7 @@ def render_blog_cards(items: List[Dict[str, str]], height: int = 360) -> None:
       }}
       .card-body {{
         font-size: 13px;
-        color: #475569; /* slate-600 */
+        color: #475569;
         display: -webkit-box;
         -webkit-line-clamp: 3;
         -webkit-box-orient: vertical;
