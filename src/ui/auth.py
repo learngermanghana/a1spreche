@@ -31,14 +31,10 @@ from src.ui_helpers import qp_get, qp_clear
 from src.services.contracts import contract_active
 from src.utils.toasts import refresh_with_toast, toast_ok, toast_err
 
-# Session cookie helpers
-COOKIE_NAME = "falowen_session"
-
-
 def read_session_cookie_into_state() -> None:
     cm = get_cookie_manager()
     token_in_state = st.session_state.get("session_token")
-    token_in_cookie = cm.get(COOKIE_NAME)
+    token_in_cookie = cm.get("session_token")
     if token_in_cookie and token_in_cookie != token_in_state:
         st.session_state["session_token"] = token_in_cookie
 
@@ -58,15 +54,17 @@ def renew_session_if_needed() -> None:
         return
 
     try:
-        from falowen.sessions import (
-            refresh_or_rotate_session_token,
-            validate_session_token,
+        sess_module = __import__(
+            "falowen.sessions",
+            fromlist=["refresh_or_rotate_session_token", "validate_session_token"],
         )
-
+        validate_session_token = getattr(sess_module, "validate_session_token")
+        refresh_or_rotate_session_token = getattr(
+            sess_module, "refresh_or_rotate_session_token"
+        )
         data = validate_session_token(token) or {}
         if not data:
             return
-
         new_token = refresh_or_rotate_session_token(token)
     except Exception:
         logging.exception("Session renewal failed")
@@ -236,35 +234,19 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     cm = get_cookie_manager()
     token = st.session_state.get("session_token")
     if token:
-        cm.set(
-            COOKIE_NAME,
-            token,
-            expires=30,
-            key=COOKIE_NAME,
-            secure=True,
-            samesite="Lax",
+        set_session_token_cookie(
+            cm, token, expires=datetime.now(UTC) + timedelta(days=30)
+        )
+        set_student_code_cookie(
+            cm, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180)
         )
         try:
             cm.save()
         except Exception:
-            pass
-        st.session_state["logged_in"] = True
-    if cookie_manager:
-        set_student_code_cookie(
-            cookie_manager,
-            student_row["StudentCode"],
-            expires=datetime.now(UTC) + timedelta(days=180),
-        )
-    persist_session_client(sess_token, student_row["StudentCode"])
-    if cookie_manager:
-        set_session_token_cookie(
-            cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30)
-        )
-        try:
-            cookie_manager.save()
-        except Exception:
             logging.exception("Cookie save failed")
             toast_err("Cookie save failed")
+        st.session_state["logged_in"] = True
+    persist_session_client(sess_token, student_row["StudentCode"])
 
     from streamlit.components.v1 import html as _html
 
@@ -482,35 +464,19 @@ def _handle_google_oauth(code: str, state: str) -> None:
         cm = get_cookie_manager()
         token = st.session_state.get("session_token")
         if token:
-            cm.set(
-                COOKIE_NAME,
-                token,
-                expires=30,
-                key=COOKIE_NAME,
-                secure=True,
-                samesite="Lax",
+            set_session_token_cookie(
+                cm, token, expires=datetime.now(UTC) + timedelta(days=30)
+            )
+            set_student_code_cookie(
+                cm, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180)
             )
             try:
                 cm.save()
             except Exception:
-                pass
-            st.session_state["logged_in"] = True
-        if cookie_manager:
-            set_student_code_cookie(
-                cookie_manager,
-                student_row["StudentCode"],
-                expires=datetime.now(UTC) + timedelta(days=180),
-            )
-        persist_session_client(sess_token, student_row["StudentCode"])
-        if cookie_manager:
-            set_session_token_cookie(
-                cookie_manager, sess_token, expires=datetime.now(UTC) + timedelta(days=30)
-            )
-            try:
-                cookie_manager.save()
-            except Exception:
                 logging.exception("Cookie save failed")
                 toast_err("Cookie save failed")
+            st.session_state["logged_in"] = True
+        persist_session_client(sess_token, student_row["StudentCode"])
         from streamlit.components.v1 import html as _html
 
         _html(
