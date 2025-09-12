@@ -96,3 +96,11 @@ st.markdown(
 
 Extend `src/styles.py` with additional variables or classes and reuse them across
 components.
+
+## Blog Feed
+
+The dashboard displays new posts pulled from a JSON feed at
+`https://blog.falowen.app/feed.json`. The `fetch_blog_feed` helper in
+`src/blog_feed.py` downloads the feed, caches the result for an hour, and
+returns a list of dictionaries containing the post title, description, and
+link.
