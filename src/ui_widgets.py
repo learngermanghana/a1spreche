@@ -158,9 +158,11 @@ def render_announcements(announcements: list) -> None:
       .ann-dots{display:flex;gap:12px;justify-content:center;margin-top:12px}
       .ann-dot{width:11px;height:11px;border-radius:999px;background:#9ca3af;opacity:.9;transform:scale(.95);border:none;cursor:pointer;touch-action:manipulation;}
       .ann-dot[aria-current="true"]{background:var(--brand);opacity:1;transform:scale(1.22);box-shadow:0 0 0 4px var(--ring)}
+      .ann-tagline{margin:0 0 10px 0;color:var(--muted);font-size:.9rem}
     </style>
     <div class="page-wrap">
-      <div class="ann-title">📣 New posts.</div>
+      <div class="ann-title">📣 Falowen blog updates</div>
+      <p class="ann-tagline">Falowen: Your German Conversation Partner for Everyday Learning</p>
       <div class="ann-shell" id="ann_shell" aria-live="polite">
         <div id="ann_card">
           <div class="ann-heading"><span class="ann-chip" id="ann_tag" style="display:none;"></span><span id="ann_title"></span></div>
