@@ -56,4 +56,4 @@ def test_downloads_option_rendered_when_no_scores(monkeypatch):
 
     assignment_ui.render_results_and_resources_tab()
 
-    assert calls[0] == ["Downloads", "Resources"]
+    assert calls[0] == ["Downloads"]

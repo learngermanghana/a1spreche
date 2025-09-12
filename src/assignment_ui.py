@@ -519,7 +519,7 @@ def render_results_and_resources_tab() -> None:
         df_display = df_lvl.copy()
         total = completed = 0
         avg_score = best_score = 0.0
-        sections = ["Downloads", "Resources"]
+        sections = ["Downloads"]
     else:
         df_user = df_user.copy()
         df_user["level"] = df_user["level"].astype(str).str.upper().str.strip()
@@ -549,7 +549,6 @@ def render_results_and_resources_tab() -> None:
             "Badges",
             "Missed & Next",
             "Downloads",
-            "Resources",
         ]
 
     if ("rr_page" not in st.session_state) or (
@@ -987,9 +986,6 @@ def render_results_and_resources_tab() -> None:
                 else:
                     st.info("No attendance data available.")
 
-
-    elif rr_page == "Resources":
-        st.subheader("Useful Resources")
 
 
 __all__ = [
