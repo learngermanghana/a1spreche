@@ -90,3 +90,24 @@ def test_fetch_blog_feed_handles_error(monkeypatch):
     monkeypatch.setattr(requests, "get", boom)
     fetch_blog_feed.clear()
     assert fetch_blog_feed() == []
+
+
+def test_fetch_blog_feed_strips_html(monkeypatch):
+    xml_data = """
+    <rss><channel>
+      <item>
+        <title>T</title>
+        <link>http://example.com</link>
+        <description><p>Hello <b>World</b><style>p{color:red}</style>!</p></description>
+      </item>
+    </channel></rss>
+    """
+
+    def fake_get(url, timeout=10):
+        return types.SimpleNamespace(text=xml_data, raise_for_status=lambda: None)
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    fetch_blog_feed.clear()
+    items = fetch_blog_feed(limit=1)
+    assert items[0]["body"] == "Hello World !"
+    assert "style" not in items[0]["body"]
