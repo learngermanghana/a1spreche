@@ -247,6 +247,37 @@ def inject_notice_css():
 # ------------------------------------------------------------------------------
 # Sign up / Login / Forgot password
 # ------------------------------------------------------------------------------
+
+
+def calc_blog_height(num_posts: int) -> int:
+    """Return the container height needed for a blog card grid.
+
+    Each card occupies roughly ``312px`` in height and rows are separated by a
+    ``16px`` gap.  The function computes the minimum height necessary to show
+    all posts without leaving excessive blank space.
+
+    Parameters
+    ----------
+    num_posts: int
+        Number of blog posts to display.
+
+    Returns
+    -------
+    int
+        Height in pixels for the blog card container.
+    """
+
+    CARD_HEIGHT = 312
+    ROW_GAP = 16
+    CARDS_PER_ROW = 3
+
+    if num_posts <= 0:
+        return 0
+
+    rows = math.ceil(num_posts / CARDS_PER_ROW)
+    return CARD_HEIGHT * rows + ROW_GAP * (rows - 1)
+
+
 def login_page():
     # 1) Get Google auth URL (also completes flow if ?code=...)
     auth_url = render_google_oauth(return_url=True) or ""
@@ -338,7 +369,8 @@ def login_page():
             '<h2 style="text-align:center;">Falowen Blog</h2>',
             unsafe_allow_html=True,
         )
-        render_blog_cards(blog_posts, height=380)
+        height = globals().get("calc_blog_height", lambda n: 380)(len(blog_posts))
+        render_blog_cards(blog_posts, height=height)
         st.markdown(
             '<div style="text-align:center;margin-top:8px;">'
             '<a href="https://blog.falowen.app/" target="_blank" rel="noopener">Read more</a>'
