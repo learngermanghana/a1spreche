@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 import requests
+from src.blog_feed import _get
 
 class DummyCtx:
     def __enter__(self):
@@ -34,6 +35,9 @@ def make_streamlit_stub():
         return [DummyCtx() for _ in range(n)]
     st.columns = columns
     st.divider = MagicMock()
+    def container():
+        return DummyCtx()
+    st.container = container
     return st
 
 
@@ -49,19 +53,19 @@ def run_login_page():
         'render_signup_form': MagicMock(),
         'render_google_brand_button_once': MagicMock(),
     })
-    fetch_mock = MagicMock(return_value=[{'title': 't'}])
+    fetch_mock = MagicMock(return_value=[{'title': 't', 'image': 'i'}])
     render_mock = MagicMock()
     ns['fetch_blog_feed'] = fetch_mock
-    ns['render_announcements'] = render_mock
+    ns['render_blog_cards'] = render_mock
     login_page.__globals__.update(ns)
     return login_page, fetch_mock, render_mock
 
 
-def test_announcements_render_for_logged_out_and_after_signup():
+def test_blog_cards_render_for_logged_out_and_after_signup():
     login_page, fetch_mock, render_mock = run_login_page()
     login_page()
     fetch_mock.assert_called_once()
-    render_mock.assert_called_once_with([{'title': 't'}])
+    render_mock.assert_called_once_with([{'title': 't', 'image': 'i'}])
 
 
 def test_announcements_body_sanitized(monkeypatch):
@@ -72,16 +76,17 @@ def test_announcements_body_sanitized(monkeypatch):
         <title>T</title>
         <link>http://example.com</link>
         <description>p{color:red} body{margin:0}<p>Hello <b>World</b></p></description>
+        <image>http://example.com/img.png</image>
       </item>
     </channel></rss>
     """
 
-    def fake_get(url, timeout=10):
+    def fake_get(url, timeout=10, headers=None):
         return types.SimpleNamespace(text=xml_data, raise_for_status=lambda: None)
 
     monkeypatch.setattr(requests, "get", fake_get)
     from src.blog_feed import fetch_blog_feed
-    fetch_blog_feed.clear()
+    fetch_blog_feed.clear(); _get.clear()
     login_page.__globals__["fetch_blog_feed"] = fetch_blog_feed
     render_mock.reset_mock()
     login_page()

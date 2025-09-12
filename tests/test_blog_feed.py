@@ -1,7 +1,7 @@
 import types
 import requests
 
-from src.blog_feed import fetch_blog_feed
+from src.blog_feed import fetch_blog_feed, _get
 
 
 def test_fetch_blog_feed_maps_title_and_url(monkeypatch):
@@ -14,11 +14,11 @@ def test_fetch_blog_feed_maps_title_and_url(monkeypatch):
     </channel></rss>
     """
 
-    def fake_get(url, timeout=10):
+    def fake_get(url, timeout=10, headers=None):
         return types.SimpleNamespace(text=xml_data, raise_for_status=lambda: None)
 
     monkeypatch.setattr(requests, "get", fake_get)
-    fetch_blog_feed.clear()
+    fetch_blog_feed.clear(); _get.clear()
     items = fetch_blog_feed(limit=1)
     assert items[0]["title"] == "Test"
     assert items[0]["href"] == "http://example.com"
@@ -36,11 +36,11 @@ def test_fetch_blog_feed_parses_description(monkeypatch):
     </channel></rss>
     """
 
-    def fake_get(url, timeout=10):
+    def fake_get(url, timeout=10, headers=None):
         return types.SimpleNamespace(text=xml_data, raise_for_status=lambda: None)
 
     monkeypatch.setattr(requests, "get", fake_get)
-    fetch_blog_feed.clear()
+    fetch_blog_feed.clear(); _get.clear()
     items = fetch_blog_feed(limit=1)
     assert items[0]["title"] == "Test"
     assert items[0]["href"] == "http://example.com"
@@ -57,11 +57,11 @@ def test_fetch_blog_feed_skips_items_missing_fields(monkeypatch):
     </channel></rss>
     """
 
-    def fake_get(url, timeout=10):
+    def fake_get(url, timeout=10, headers=None):
         return types.SimpleNamespace(text=xml_data, raise_for_status=lambda: None)
 
     monkeypatch.setattr(requests, "get", fake_get)
-    fetch_blog_feed.clear()
+    fetch_blog_feed.clear(); _get.clear()
     items = fetch_blog_feed()
     assert len(items) == 2
     assert items[0]["title"] == "Valid"
@@ -74,11 +74,11 @@ def test_fetch_blog_feed_no_limit(monkeypatch):
     )
     xml_data = f"<rss><channel>{xml_items}</channel></rss>"
 
-    def fake_get(url, timeout=10):
+    def fake_get(url, timeout=10, headers=None):
         return types.SimpleNamespace(text=xml_data, raise_for_status=lambda: None)
 
     monkeypatch.setattr(requests, "get", fake_get)
-    fetch_blog_feed.clear()
+    fetch_blog_feed.clear(); _get.clear()
     items = fetch_blog_feed()
     assert len(items) == 7
 
@@ -88,7 +88,7 @@ def test_fetch_blog_feed_handles_error(monkeypatch):
         raise RuntimeError("nope")
 
     monkeypatch.setattr(requests, "get", boom)
-    fetch_blog_feed.clear()
+    fetch_blog_feed.clear(); _get.clear()
     assert fetch_blog_feed() == []
 
 
@@ -103,11 +103,11 @@ def test_fetch_blog_feed_strips_html(monkeypatch):
     </channel></rss>
     """
 
-    def fake_get(url, timeout=10):
+    def fake_get(url, timeout=10, headers=None):
         return types.SimpleNamespace(text=xml_data, raise_for_status=lambda: None)
 
     monkeypatch.setattr(requests, "get", fake_get)
-    fetch_blog_feed.clear()
+    fetch_blog_feed.clear(); _get.clear()
     items = fetch_blog_feed(limit=1)
     assert items[0]["body"] == "Hello World !"
     assert "p{color:red}" not in items[0]["body"]
