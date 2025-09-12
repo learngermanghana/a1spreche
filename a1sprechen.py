@@ -41,7 +41,6 @@ from auth import auth_bp
 from src.routes.health import register_health_route
 from src.group_schedules import load_group_schedules
 from src.blog_feed import fetch_blog_feed
-from src.blog_cards_widget import render_blog_cards
 import src.schedule as _schedule
 load_level_schedules = _schedule.load_level_schedules
 refresh_level_schedules = getattr(_schedule, "refresh_level_schedules", lambda: None)
@@ -331,11 +330,23 @@ def login_page():
         """, unsafe_allow_html=True)
 
     # Blog posts / announcements
-    blog_posts = [p for p in fetch_blog_feed() if p.get("image")]
+    blog_posts = fetch_blog_feed()[:3]
     if blog_posts:
         st.markdown("---")
         with st.container():
-            render_blog_cards(blog_posts)
+            for post in blog_posts:
+                title = post.get("title", "")
+                href = post.get("href")
+                if href:
+                    st.markdown(f"- [{title}]({href})")
+                else:
+                    st.markdown(f"- {title}")
+            st.markdown(
+                '<div style="text-align:center;margin-top:8px;">'
+                '<a href="https://blog.falowen.app/" target="_blank" rel="noopener">Read more</a>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
 
     # Footer links
     st.markdown("""
