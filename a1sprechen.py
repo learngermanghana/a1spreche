@@ -61,6 +61,12 @@ st.set_page_config(
 # Load global CSS classes and variables
 inject_global_styles()
 
+st.markdown("""
+<style>
+html, body { overscroll-behavior-y: none; }
+</style>
+""", unsafe_allow_html=True)
+
 
 # Ensure the latest lesson schedule is loaded
 if "level_schedules_initialized" not in st.session_state:
@@ -289,10 +295,24 @@ def login_page():
     # 3) Returning user section (Google CTA below the form)
     login_success = render_returning_login_area()
     render_google_brand_button_once(auth_url, center=True)
-    if login_success:
+
+    # Guard: only schedule the post-login rerun once, and clear URL params first
+    def _run_once(key: str) -> bool:
+        if st.session_state.get(key):
+            return False
+        st.session_state[key] = True
+        return True
+
+    if login_success and _run_once("post_login_rerun"):
+        try:
+            # Remove any lingering query params like ?code=... from OAuth/deeplinks
+            for k in list(st.query_params.keys()):
+                st.query_params[k] = ""
+        except Exception:
+            pass
         st.session_state["need_rerun"] = True
 
-    # 4) Explanation banner + tabs
+    # 4) Explanation banner + tabs (keep your existing content below)
     render_signup_request_banner()
     tab2, tab3 = st.tabs(["🧾 Sign Up (Approved)", "📝 Request Access"])
     with tab2:
@@ -312,8 +332,9 @@ def login_page():
               </div>
             </div>
             """,
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
+
 
     # (Optional) help/links/steps/footer blocks can follow...
 
@@ -7493,4 +7514,7 @@ if tab == "Schreiben Trainer":
 
 
 if st.session_state.pop("need_rerun", False):
+    # Mark done so we don't schedule again
+    st.session_state["post_login_rerun"] = True
     st.rerun()
+
