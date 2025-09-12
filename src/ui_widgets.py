@@ -222,8 +222,10 @@ def render_announcements(announcements: list) -> None:
         )
     except TypeError:
         for a in announcements:
-            text = f"**{a.get('title','')}**"
-            if a.get('body'):
+            href = a.get("href")
+            title = a.get("title", "")
+            text = f"[**{title}**]({href})" if href else f"**{title}**"
+            if a.get("body"):
                 text += f" — {a.get('body','')}"
             st.markdown(text)
     st.markdown("Visit [blog.falowen.app](https://blog.falowen.app) for more.")

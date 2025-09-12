@@ -50,8 +50,13 @@ def test_render_announcements_fallback_without_banner(monkeypatch):
 
     monkeypatch.setattr(ui_widgets, "components", SimpleNamespace(html=failing_html))
     monkeypatch.setattr(ui_widgets.st, "markdown", fake_markdown)
-    ui_widgets.render_announcements([{"title": "t", "body": "b"}])
-    assert outputs == ["**t** — b", "Visit [blog.falowen.app](https://blog.falowen.app) for more."]
+    ui_widgets.render_announcements(
+        [{"title": "t", "body": "b", "href": "https://xmpl"}]
+    )
+    assert outputs == [
+        "[**t**](https://xmpl) — b",
+        "Visit [blog.falowen.app](https://blog.falowen.app) for more.",
+    ]
     assert all(BANNER not in o for o in outputs)
 
 
