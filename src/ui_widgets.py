@@ -147,7 +147,7 @@ def render_announcements(announcements: list) -> None:
       @media (prefers-color-scheme: dark){
         :root{ --text:#e5e7eb; --muted:#cbd5e1; --card:#111827; --chip-bg:#1f2937; --chip-fg:#e5e7eb; --link:#93c5fd; --shell-border: rgba(148,163,184,.25); }
       }
-      .page-wrap{max-width:1100px;margin:0 auto;padding:0 10px;}
+      .ann-wrap{max-width:1100px;margin:0 auto;padding:0 10px;}
       .ann-title{font-weight:800;font-size:1.05rem;line-height:1.2; padding-left:12px;border-left:5px solid var(--brand);margin:0 0 6px 0;color:var(--text);}
       .ann-shell{border-radius:14px;border:1px solid var(--shell-border);background:var(--card);box-shadow:0 6px 18px rgba(2,6,23,.12);padding:12px 14px;overflow:hidden;}
       .ann-heading{display:flex;align-items:center;gap:10px;margin:0 0 6px 0;font-weight:800;color:var(--text);}
@@ -160,7 +160,7 @@ def render_announcements(announcements: list) -> None:
       .ann-dot[aria-current="true"]{background:var(--brand);opacity:1;transform:scale(1.22);box-shadow:0 0 0 4px var(--ring)}
       .ann-tagline{margin:0 0 10px 0;color:var(--muted);font-size:.9rem}
     </style>
-    <div class="page-wrap">
+    <div class="ann-wrap">
       <div class="ann-title">📣 Falowen blog updates</div>
       <p class="ann-tagline">Falowen: Your German Conversation Partner for Everyday Learning</p>
       <div class="ann-shell" id="ann_shell" aria-live="polite">
@@ -217,7 +217,7 @@ def render_announcements(announcements: list) -> None:
     try:
         components.html(
             _html.replace("__DATA__", json.dumps(announcements, ensure_ascii=False)),
-            height=220,
+            height=240,
             scrolling=False,
         )
     except TypeError:
