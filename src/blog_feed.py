@@ -1,7 +1,7 @@
 from typing import List, Dict
 
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 import streamlit as st
 
 
@@ -57,7 +57,15 @@ def fetch_blog_feed(limit: int | None = None) -> List[Dict[str, str]]:
         body_html = body_tag.decode_contents() if body_tag and body_tag.text else ""
         body = ""
         if body_html:
-            body = BeautifulSoup(body_html, "html.parser").get_text(" ", strip=True)
+            soup_body = BeautifulSoup(body_html, "html.parser")
+            for t in soup_body(["style", "script"]):
+                t.decompose()
+            for element in list(soup_body.contents):
+                if isinstance(element, NavigableString) and "{" in element and "}" in element:
+                    element.extract()
+                else:
+                    break
+            body = soup_body.get_text(" ", strip=True)
 
         item: Dict[str, str] = {"title": title, "href": href}
         if body:

@@ -98,7 +98,7 @@ def test_fetch_blog_feed_strips_html(monkeypatch):
       <item>
         <title>T</title>
         <link>http://example.com</link>
-        <description><p>Hello <b>World</b><style>p{color:red}</style>!</p></description>
+        <description>p{color:red} body{margin:0}<p>Hello <b>World</b><style>p{color:red}</style><script>alert(1)</script>!</p></description>
       </item>
     </channel></rss>
     """
@@ -110,4 +110,5 @@ def test_fetch_blog_feed_strips_html(monkeypatch):
     fetch_blog_feed.clear()
     items = fetch_blog_feed(limit=1)
     assert items[0]["body"] == "Hello World !"
-    assert "style" not in items[0]["body"]
+    assert "p{color:red}" not in items[0]["body"]
+    assert "alert" not in items[0]["body"]
