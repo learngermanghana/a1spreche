@@ -341,9 +341,9 @@ def login_page():
       &nbsp;|&nbsp;
       <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank" rel="noopener">🗓️ Upcoming Classes</a>
       &nbsp;|&nbsp;
-      <a href="https://www.learngermanghana.com/privacy-policy"   target="_blank" rel="noopener">🔒 Privacy</a>
+      <a href="https://register.falowen.app/#privacy-policy"      target="_blank" rel="noopener">🔒 Privacy</a>
       &nbsp;|&nbsp;
-      <a href="https://www.learngermanghana.com/terms-of-service" target="_blank" rel="noopener">📜 Terms</a>
+      <a href="https://register.falowen.app/#terms-of-service"    target="_blank" rel="noopener">📜 Terms</a>
       &nbsp;|&nbsp;
       <a href="https://www.learngermanghana.com/contact-us"       target="_blank" rel="noopener">✉️ Contact</a>
       &nbsp;|&nbsp;
@@ -893,8 +893,8 @@ def _dict_tts_bytes_de(text: str) -> Optional[bytes]:
 FOOTER_LINKS = {
     "👩‍🏫 Tutors": "https://www.learngermanghana.com/tutors",
     "🗓️ Upcoming Classes": "https://www.learngermanghana.com/upcoming-classes",
-    "🔒 Privacy": "https://www.learngermanghana.com/privacy-policy",
-    "📜 Terms": "https://www.learngermanghana.com/terms-of-service",
+    "🔒 Privacy": "https://register.falowen.app/#privacy-policy",
+    "📜 Terms": "https://register.falowen.app/#terms-of-service",
     "✉️ Contact": "https://www.learngermanghana.com/contact-us",
     "📝 Register": "https://register.falowen.app",
     "ℹ️ About Us": "https://register.falowen.app/#about-us",
