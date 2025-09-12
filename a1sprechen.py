@@ -850,6 +850,19 @@ new_posts = fetch_blog_feed()
 st.markdown("---")
 st.markdown("**You’re logged in.** Continue to your lessons and tools from the navigation.")
 
+# --- Auth bootstrap: rehydrate from cookie on hard refresh (runs before any routing) ---
+from src.ui.auth import read_session_cookie_into_state, renew_session_if_needed
+
+def _bootstrap_auth() -> None:
+    try:
+        # Copy token from cookie -> st.session_state and validate/renew
+        read_session_cookie_into_state()
+        renew_session_if_needed()
+    except Exception:
+        # Keep UI resilient even if auth backend is momentarily unavailable
+        pass
+
+_bootstrap_auth()
 
 
 # =========================================================
