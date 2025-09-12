@@ -185,6 +185,7 @@ from src.youtube import (
 from src.ui_widgets import (
     render_google_brand_button_once,
     render_announcements_once,
+    render_announcements,
 )
 from src.logout import do_logout
 from src.pdf_handling import (
@@ -327,6 +328,11 @@ def login_page():
         <h3 style="margin:0 0 4px 0;">3️⃣ Get results</h3>
         <p style="margin:0;">You’ll get an <b>email when marked</b>. Check <b>Results & Resources</b> for feedback.</p>
         """, unsafe_allow_html=True)
+
+    # Blog posts / announcements
+    blog_posts = fetch_blog_feed()
+    if blog_posts:
+        render_announcements(blog_posts)
 
     # Footer links
     st.markdown("""
