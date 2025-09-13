@@ -2120,13 +2120,16 @@ if tab == "My Course":
         if info.get("goal") or info.get("instruction"):
             st.info(
                 f"🎯 **Goal:** {info.get('goal','')}\n\n"
-                f"📝 **Instruction:** {info.get('instruction','')}"
+                f"📝 **Instruction:** {info.get('instruction','')}\n\n"
+                "Check the group discussion for this chapter and class notes."
             )
-            b1, b2 = st.columns(2)
-            with b1:
-                st.button("💬 Class Board", key=f"go_board_{info['chapter']}", on_click=_go_class_thread, args=(info["chapter"],), use_container_width=True)
-            with b2:
-                st.button("❓ Class Notes & Q&A", key=f"go_qna_{info['chapter']}", on_click=_go_class_thread, args=(info["chapter"],), use_container_width=True)
+            st.button(
+                "💬 Class Discussion & Notes",
+                key=f"go_discussion_{info['chapter']}",
+                on_click=_go_class_thread,
+                args=(info["chapter"],),
+                use_container_width=True,
+            )
 
         st.divider()
 
