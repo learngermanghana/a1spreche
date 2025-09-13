@@ -15,7 +15,7 @@ import requests
 import streamlit as st
 from fpdf import FPDF
 
-from .assignment import linkify_html, _clean_link, _is_http_url
+from .assignment import linkify_html
 from .schedule import get_level_schedules as _get_level_schedules
 # ``load_school_logo`` is defined below; import shared PDF helpers here.
 from .pdf_utils import make_qr_code, clean_for_pdf
@@ -582,16 +582,9 @@ def render_results_and_resources_tab() -> None:
         latest = df_display.head(5)
         for _, row in latest.iterrows():
             perf = score_label_fmt(row["score"])
-            ref_link = _clean_link(row.get("link"))
-            if _is_http_url(ref_link):
-                title_html = (
-                    f'<a href="{ref_link}" target="_blank" rel="noopener" '
-                    f'style="font-size:1.05em;font-weight:600;">{row["assignment"]}</a>'
-                )
-            else:
-                title_html = (
-                    f'<span style="font-size:1.05em;font-weight:600;">{row["assignment"]}</span>'
-                )
+            title_html = (
+                f'<span style="font-size:1.05em;font-weight:600;">{row["assignment"]}</span>'
+            )
             st.markdown(
                 f"""
                 <div style="margin-bottom: 12px;">
@@ -611,20 +604,14 @@ def render_results_and_resources_tab() -> None:
         for _, row in df_display[base_cols].iterrows():
             perf = score_label_fmt(row["score"])
             comment_html = linkify_html(row["comments"])
-            ref_link = _clean_link(row.get("link"))
-            link_valid = _is_http_url(ref_link)
-            show_ref = link_valid and pd.notna(
-                pd.to_numeric(row["score"], errors="coerce")
+            ref_link = (row.get("link") or "").strip()
+            show_ref = (
+                ref_link.startswith("http")
+                and pd.notna(pd.to_numeric(row["score"], errors="coerce"))
             )
-            if link_valid:
-                title_html = (
-                    f'<a href="{ref_link}" target="_blank" rel="noopener" '
-                    f'style="font-size:1.05em;font-weight:600;">{row["assignment"]}</a>'
-                )
-            else:
-                title_html = (
-                    f'<span style="font-size:1.05em;font-weight:600;">{row["assignment"]}</span>'
-                )
+            title_html = (
+                f'<span style="font-size:1.05em;font-weight:600;">{row["assignment"]}</span>'
+            )
 
             st.markdown(
                 f"""
