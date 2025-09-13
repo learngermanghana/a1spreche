@@ -35,6 +35,35 @@ def full_lesson_title(lesson: dict) -> str:
         f"(Chapter {lesson.get('chapter', '')})"
     )
 
+
+def format_topic_with_chapter(topic: str, chapter: str) -> str:
+    """Return topic with chapter numbers appended if needed.
+
+    Underscores in ``chapter`` are converted to a human readable list (e.g.
+    ``"12.1_12.2"`` becomes ``"12.1 and 12.2"``).  If the resulting chapter
+    string already appears in ``topic``, the topic is returned unchanged to
+    avoid duplication.
+    """
+
+    topic = topic.strip() if isinstance(topic, str) else ""
+    chapter = chapter.strip() if isinstance(chapter, str) else ""
+    if not chapter:
+        return topic
+
+    parts = [p.strip() for p in chapter.split("_") if p.strip()]
+    if not parts:
+        return topic
+    if len(parts) == 1:
+        chapter_text = parts[0]
+    elif len(parts) == 2:
+        chapter_text = " and ".join(parts)
+    else:
+        chapter_text = ", ".join(parts[:-1]) + f" and {parts[-1]}"
+
+    if chapter_text in topic:
+        return topic
+    return f"{topic} {chapter_text}".strip()
+
 def get_a1_schedule():
     schedule = [
         # DAY 0
