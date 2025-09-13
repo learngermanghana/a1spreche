@@ -2318,6 +2318,12 @@ if tab == "My Course":
                         for ex in _as_list(extras):
                             st.markdown(f"- [🔗 Extra]({ex})")
 
+            # Student Info: link to class discussion + notes
+            st.info(
+                f"[Click here to read the group discussion for this chapter]"
+                f"({CLASS_DISCUSSION_LINK_TMPL.format(info=info)}) — includes class notes and Q&A."
+            )
+
             # ---------- YOUR WORK (tolerant across levels; embeds each video at most once) ----------
             st.markdown("### 🧪 Your Work")
             seen_videos = set()
