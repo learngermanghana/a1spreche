@@ -22,6 +22,19 @@ def _strip_topic_chapter(schedule: list[dict]) -> list[dict]:
             item["topic"] = re.sub(pattern, "", topic).strip()
     return schedule
 
+
+def full_lesson_title(lesson: dict) -> str:
+    """Return the full lesson title for display.
+
+    The format is ``"Day X: Topic (Chapter Y)"`` so callers can present a
+    concise, duplication-free summary in the UI.
+    """
+
+    return (
+        f"Day {lesson.get('day', '?')}: {lesson.get('topic', '')} "
+        f"(Chapter {lesson.get('chapter', '')})"
+    )
+
 def get_a1_schedule():
     schedule = [
         # DAY 0
