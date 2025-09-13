@@ -850,19 +850,6 @@ new_posts = fetch_blog_feed()
 st.markdown("---")
 st.markdown("**You’re logged in.** Continue to your lessons and tools from the navigation.")
 
-# --- Auth bootstrap: rehydrate from cookie on hard refresh (runs before any routing) ---
-from src.ui.auth import read_session_cookie_into_state, renew_session_if_needed
-
-def _bootstrap_auth() -> None:
-    try:
-        # Copy token from cookie -> st.session_state and validate/renew
-        read_session_cookie_into_state()
-        renew_session_if_needed()
-    except Exception:
-        # Keep UI resilient even if auth backend is momentarily unavailable
-        pass
-
-_bootstrap_auth()
 
 
 # =========================================================
@@ -1295,37 +1282,44 @@ if tab == "Dashboard":
     )
 
 
-    # dashboard cards will be rendered below
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown("### 🏅 Assignment Streak")
-        st.markdown(f"{_streak_line}", unsafe_allow_html=True)
-        st.markdown(f"<div class='sub'>{_goal_line}</div>", unsafe_allow_html=True)
-    with col2:
-        st.markdown("### 🗣️ Vocab of the Day")
-        st.markdown(f"{_vocab_chip}", unsafe_allow_html=True)
-        st.markdown(f"<div class='sub'>{_vocab_sub}</div>", unsafe_allow_html=True)
-    with col3:
-        st.markdown("### 🏆 Leaderboard")
-        st.markdown(f"{_lead_chip}", unsafe_allow_html=True)
-        st.markdown(f"<div class='sub'>{_rank_text}</div>", unsafe_allow_html=True)
 
-    col4, col5, col6 = st.columns(3)
-    with col4:
-        st.markdown("### 📚 Missed Assignments")
-        st.markdown(f"{_missed_chip}", unsafe_allow_html=True)
-        st.markdown(f"<div class='sub'>{_missed_preview}</div>", unsafe_allow_html=True)
-        for _m in _missed_list:
-            st.markdown(f"- {_m}")
-    with col5:
-        st.markdown("### ⏭️ Next Assignment")
-        st.markdown(f"{_next_chip}", unsafe_allow_html=True)
-        st.markdown(f"<div class='sub'>{_next_sub}</div>", unsafe_allow_html=True)
-    with col6:
-        st.markdown("### 🕛 Attendance")
-        st.markdown(f"{_attendance_chip}", unsafe_allow_html=True)
-        st.markdown("<div class='sub'></div>", unsafe_allow_html=True)
-
+    st.markdown(
+        f"""
+        <div class="minirow">
+          <div class="minicard">
+            <h4>🏅 Assignment Streak</h4>
+            <div>{_streak_line}</div>
+            <div class="sub">{_goal_line}</div>
+          </div>
+          <div class="minicard">
+            <h4>🗣️ Vocab of the Day</h4>
+            <div>{_vocab_chip}</div>
+            <div class="sub">{_vocab_sub}</div>
+          </div>
+          <div class="minicard">
+            <h4>🏆 Leaderboard</h4>
+            <div>{_lead_chip}</div>
+            <div class="sub">{_rank_text}</div>
+          </div>
+          <div class="minicard">
+            <h4>📚 Missed Assignments</h4>
+            <div>{_missed_chip}</div>
+            <div class="sub">{_missed_preview}</div>
+          </div>
+          <div class="minicard">
+            <h4>⏭️ Next Assignment</h4>
+            <div>{_next_chip}</div>
+            <div class="sub">{_next_sub}</div>
+          </div>
+          <div class="minicard">
+            <h4>🕛 Attendance</h4>
+            <div>{_attendance_chip}</div>
+            <div class="sub"></div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
     st.button("View attendance", on_click=_go_attendance)
     st.divider()
 
@@ -2076,21 +2070,10 @@ if tab == "My Course":
             idx = matches[sel][0]
         else:
             st.markdown("<span style='font-weight:700; font-size:1rem;'>Choose your lesson/day:</span>", unsafe_allow_html=True)
-            target_day = st.session_state.pop("coursebook_target_day", None)
-            default_idx = 0
-            if target_day is not None:
-                for i, d in enumerate(schedule):
-                    if d.get("day") == target_day:
-                        default_idx = i
-                        break
-            else:
-                default_idx = st.session_state.get("coursebook_lesson_idx", 0)
             idx = st.selectbox(
                 "Lesson selection",
                 list(range(len(schedule))),
-                format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']} {schedule[i]['chapter']}".strip(),
-                index=default_idx,
-                key="coursebook_lesson_idx",
+                format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}",
                 label_visibility="collapsed",
             )
 
@@ -2106,68 +2089,14 @@ if tab == "My Course":
 
         # ---- Lesson info ----
         info = schedule[idx]
-        title_txt = f"Day {info['day']}: {info['topic']} {info['chapter']}".strip()
-        st.markdown(
-            f"### {highlight_terms(title_txt, search_terms)}",
-            unsafe_allow_html=True,
-        )
+        title_txt = f"Day {info['day']}: {info['topic']}"
+        st.markdown(f"### {highlight_terms(title_txt, search_terms)} (Chapter {info['chapter']})", unsafe_allow_html=True)
         if info.get("grammar_topic"):
             st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
-        def _go_class_thread(chapter: str) -> None:
-            st.session_state["nav_sel"] = "My Course"
-            st.session_state["main_tab_select"] = "My Course"
-            st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
-            st.session_state["classroom_page"] = "Class Notes & Q&A"
-
-            search = str(chapter)
-            has_posts = False
-            _db = globals().get("db")
-            if _db is not None:
-                try:
-                    board_base = (
-                        _db.collection("class_board")
-                        .document(student_level)
-                        .collection("classes")
-                        .document(class_name)
-                        .collection("posts")
-                    )
-                    q_docs = list(board_base.stream())
-                    search_l = search.lower()
-                    for _d in q_docs:
-                        q = _d.to_dict() or {}
-                        if (
-                            search_l in str(q.get("lesson", "")).lower()
-                            or search_l in str(q.get("topic", "")).lower()
-                            or search_l in str(q.get("content", "")).lower()
-                        ):
-                            has_posts = True
-                            break
-                except Exception:
-                    has_posts = False
-            if has_posts:
-                st.session_state["q_search"] = search
-            else:
-                st.session_state["q_search"] = ""
-                st.session_state["q_search_warning"] = (
-                    f"No posts yet for chapter {chapter}. Showing all discussions."
-                )
-            try:
-                st.query_params["tab"] = "My Course"
-            except Exception:
-                pass
-            st.session_state["need_rerun"] = True
         if info.get("goal") or info.get("instruction"):
             st.info(
                 f"🎯 **Goal:** {info.get('goal','')}\n\n"
-                f"📝 **Instruction:** {info.get('instruction','')}\n\n"
-                "Check the group discussion for this chapter and class notes."
-            )
-            st.button(
-                "💬 Class Discussion & Notes",
-                key=f"go_discussion_{info['chapter']}",
-                on_click=_go_class_thread,
-                args=(info["chapter"],),
-                use_container_width=True,
+                f"📝 **Instruction:** {info.get('instruction','')}"
             )
 
         st.divider()
@@ -2321,8 +2250,7 @@ if tab == "My Course":
                         st.markdown('<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.', unsafe_allow_html=True)
                     if part.get('workbook_link'):
                         st.markdown(f"- [📒 Workbook (Assignment)]({part['workbook_link']})")
-                        title = _schedule.full_lesson_title(day_info)
-                        with st.expander(f"📖 Dictionary – {title}"):
+                        with st.expander("📖 Dictionary"):
                             render_vocab_lookup(f"{key}-{idx_part}")
                         render_assignment_reminder()
                     extras = part.get('extra_resources')
@@ -2352,8 +2280,7 @@ if tab == "My Course":
                     showed = True
                 if info.get("workbook_link"):
                     st.markdown(f"- [📒 Workbook (Assignment)]({info['workbook_link']})")
-                    title = _schedule.full_lesson_title(info)
-                    with st.expander(f"📖 Dictionary – {title}"):
+                    with st.expander("📖 Dictionary"):
                         render_vocab_lookup(f"fallback-{info.get('day', '')}")
                     render_assignment_reminder()
                     showed = True
@@ -4153,10 +4080,6 @@ if tab == "My Course":
             with colsc:
                 if st.button("↻ Refresh", key="qna_refresh"):
                     refresh_with_toast()
-
-            _msg = st.session_state.pop("q_search_warning", None)
-            if _msg:
-                st.info(_msg)
 
             try:
                 try:
