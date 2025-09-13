@@ -5,6 +5,7 @@ from pathlib import Path
 def test_lesson_includes_class_discussion_button():
     src = Path("a1sprechen.py").read_text(encoding="utf-8")
     assert "CLASS_DISCUSSION_LABEL" in src
+    assert "CLASS_DISCUSSION_ANCHOR" in src
     tree = ast.parse(src)
     found = False
 

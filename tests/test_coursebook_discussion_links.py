@@ -6,3 +6,4 @@ def test_coursebook_discussion_link_present():
     assert "Class Discussion & Notes" in src
     assert "go_discussion_{chapter}" in src
     assert "Check the group discussion for this chapter and class notes." in src
+    assert "#classnotes" in src

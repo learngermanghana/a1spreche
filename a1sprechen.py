@@ -1044,6 +1044,7 @@ if "build_course_day_link" not in globals():
 # Strings used for course discussion links
 CLASS_DISCUSSION_LABEL = "Class Discussion & Notes"
 CLASS_DISCUSSION_LINK_TMPL = "go_discussion_{chapter}"
+CLASS_DISCUSSION_ANCHOR = "#classnotes"
 CLASS_DISCUSSION_PROMPT = "Check the group discussion for this chapter and class notes."
 
 
@@ -1075,6 +1076,7 @@ def _go_class_thread(topic: str) -> None:
         st.session_state["q_search_warning"] = True
     else:
         st.session_state["q_search"] = topic
+    st.session_state["__scroll_to_classnotes"] = True
 # --- Nav dropdown (mobile-friendly, simple text) ---
 def render_dropdown_nav():
     tabs = [
@@ -2183,10 +2185,11 @@ if tab == "My Course":
                 1 for _ in board_base.where("chapter", "==", chapter).stream()
             )
             link_key = CLASS_DISCUSSION_LINK_TMPL.format(chapter=chapter)
+            link_url = f"{link_key}{CLASS_DISCUSSION_ANCHOR}"
             count_txt = f" ({post_count})" if post_count else ""
             st.info(
                 f"📣 For group practice and class notes: "
-                f"[{CLASS_DISCUSSION_LABEL}{count_txt}]({link_key})"
+                f"[{CLASS_DISCUSSION_LABEL}{count_txt}]({link_url})"
             )
             st.button(
                 CLASS_DISCUSSION_LABEL,
@@ -2380,7 +2383,7 @@ if tab == "My Course":
             if chapter:
                 st.info(
                     f"[{CLASS_DISCUSSION_PROMPT}]"
-                    f"({CLASS_DISCUSSION_LINK_TMPL.format(chapter=chapter)})"
+                    f"({CLASS_DISCUSSION_LINK_TMPL.format(chapter=chapter)}{CLASS_DISCUSSION_ANCHOR})"
                 )
             else:
                 st.warning("Missing chapter for discussion board.")
@@ -3965,6 +3968,12 @@ if tab == "My Course":
 
         # ===================== Class Board =====================
         elif classroom_section == "Class Notes & Q&A":
+            st.markdown("<div id='classnotes'></div>", unsafe_allow_html=True)
+            if st.session_state.pop("__scroll_to_classnotes", False):
+                st.markdown(
+                    "<script>window.location.hash='classnotes';</script>",
+                    unsafe_allow_html=True,
+                )
             board_base = (
                 db.collection("class_board")
                 .document(student_level)
