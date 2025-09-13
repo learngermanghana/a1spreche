@@ -296,7 +296,15 @@ def get_assignment_summary(
         chapter_field = lesson.get("chapter", "")
         lesson_nums = _extract_all_nums(chapter_field)
         day = lesson.get("day", "")
-        has_assignment = lesson.get("assignment", False)
+        lesen_horen = lesson.get("lesen_hören", [])
+        if isinstance(lesen_horen, dict):
+            lh_items = [lesen_horen]
+        elif isinstance(lesen_horen, list):
+            lh_items = [item for item in lesen_horen if isinstance(item, dict)]
+        else:
+            lh_items = []
+        nested_assignment = any(item.get("assignment", False) for item in lh_items)
+        has_assignment = lesson.get("assignment", False) or nested_assignment
         for chap_num in lesson_nums:
             if has_assignment and chap_num < last_num and chap_num not in completed_nums:
                 skipped_assignments.append(
