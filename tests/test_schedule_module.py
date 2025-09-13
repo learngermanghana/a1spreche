@@ -5,6 +5,7 @@ from src.schedule import (
     get_a2_schedule,
     get_b1_schedule,
     get_b2_schedule,
+    full_lesson_title,
 )
 
 
@@ -37,3 +38,12 @@ def test_get_b2_schedule_has_day0():
     schedule = get_b2_schedule()
     assert schedule[0]["day"] == 0
     assert schedule[0]["topic"] == "Tutorial – Course Overview"
+
+
+def test_day15_title_normalized():
+    schedules = load_level_schedules()
+    day15 = next(d for d in schedules["A2"] if d["day"] == 15)
+    assert (
+        full_lesson_title(day15)
+        == "Day 15: Mein Lieblingssport (Chapter 6.15)"
+    )
