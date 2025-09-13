@@ -2111,7 +2111,39 @@ if tab == "My Course":
             st.session_state["main_tab_select"] = "My Course"
             st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
             st.session_state["classroom_page"] = "Class Notes & Q&A"
-            st.session_state["q_search"] = str(chapter)
+
+            search = str(chapter)
+            has_posts = False
+            _db = globals().get("db")
+            if _db is not None:
+                try:
+                    board_base = (
+                        _db.collection("class_board")
+                        .document(student_level)
+                        .collection("classes")
+                        .document(class_name)
+                        .collection("posts")
+                    )
+                    q_docs = list(board_base.stream())
+                    search_l = search.lower()
+                    for _d in q_docs:
+                        q = _d.to_dict() or {}
+                        if (
+                            search_l in str(q.get("lesson", "")).lower()
+                            or search_l in str(q.get("topic", "")).lower()
+                            or search_l in str(q.get("content", "")).lower()
+                        ):
+                            has_posts = True
+                            break
+                except Exception:
+                    has_posts = False
+            if has_posts:
+                st.session_state["q_search"] = search
+            else:
+                st.session_state["q_search"] = ""
+                st.session_state["q_search_warning"] = (
+                    f"No posts yet for chapter {chapter}. Showing all discussions."
+                )
             try:
                 st.query_params["tab"] = "My Course"
             except Exception:
@@ -4112,6 +4144,10 @@ if tab == "My Course":
             with colsc:
                 if st.button("↻ Refresh", key="qna_refresh"):
                     refresh_with_toast()
+
+            _msg = st.session_state.pop("q_search_warning", None)
+            if _msg:
+                st.info(_msg)
 
             try:
                 try:
