@@ -6,8 +6,11 @@ import streamlit as st
 # Shared CSS variables and utility classes
 GLOBAL_CSS = """
 :root {
-  --google-blue: #1a73e8;
-  --text-light: #ffffff;
+  --color-background: #f3f7fb;
+  --color-text: #1a2340;
+  --color-primary: #25317e;
+  --color-accent: #6366f1;
+  --color-primary-shadow: rgba(37,49,126,0.25);
 }
 
 .flex-center {
@@ -31,9 +34,9 @@ GLOBAL_CSS = """
 }
 
 .btn-google {
-  background: var(--google-blue);
-  color: var(--text-light);
-  box-shadow: 0 2px 8px rgba(26,115,232,.25);
+  background: var(--color-primary);
+  color: var(--color-background);
+  box-shadow: 0 2px 8px var(--color-primary-shadow);
   padding: 10px 18px;
   font-size: 15px;
 }
