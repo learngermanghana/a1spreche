@@ -79,11 +79,18 @@ def test_go_class_thread_clears_search_when_no_posts():
     fn("9")
     assert st.session_state.get("q_search") == ""
     assert "q_search_warning" in st.session_state
+    assert st.session_state.get("q_search_count") == 0
+    assert st.session_state.get("coursebook_subtab") == "🧑‍🏫 Classroom"
 
 
 def test_go_class_thread_keeps_search_when_posts_exist():
-    posts = {"p1": {"lesson": "Day 1: Topic", "topic": "9", "content": ""}}
+    posts = {
+        "p1": {"lesson": "Day 1: Topic", "topic": "9", "content": ""},
+        "p2": {"lesson": "Day 2: Other", "topic": "8", "content": ""},
+    }
     fn, st, db = setup_env(posts)
     fn("9")
     assert st.session_state.get("q_search") == "9"
     assert "q_search_warning" not in st.session_state
+    assert st.session_state.get("q_search_count") == 1
+    assert st.session_state.get("coursebook_subtab") == "🧑‍🏫 Classroom"
