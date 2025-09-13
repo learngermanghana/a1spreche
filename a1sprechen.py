@@ -45,6 +45,7 @@ from src.blog_cards_widget import render_blog_cards
 import src.schedule as _schedule
 load_level_schedules = _schedule.load_level_schedules
 refresh_level_schedules = getattr(_schedule, "refresh_level_schedules", lambda: None)
+format_topic_with_chapter = _schedule.format_topic_with_chapter
 
 app = Flask(__name__)
 app.register_blueprint(auth_bp)
@@ -2086,7 +2087,10 @@ if tab == "My Course":
             idx = st.selectbox(
                 "Lesson selection",
                 list(range(len(schedule))),
-                format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}",
+                format_func=lambda i: (
+                    f"Day {schedule[i]['day']} - "
+                    f"{format_topic_with_chapter(schedule[i]['topic'], schedule[i]['chapter'])}"
+                ),
                 label_visibility="collapsed",
             )
 
@@ -2102,8 +2106,14 @@ if tab == "My Course":
 
         # ---- Lesson info ----
         info = schedule[idx]
-        title_txt = f"Day {info['day']}: {info['topic']}"
-        st.markdown(f"### {highlight_terms(title_txt, search_terms)} (Chapter {info['chapter']})", unsafe_allow_html=True)
+        title_txt = (
+            f"Day {info['day']}: "
+            f"{format_topic_with_chapter(info['topic'], info['chapter'])}"
+        )
+        st.markdown(
+            f"### {highlight_terms(title_txt, search_terms)}",
+            unsafe_allow_html=True,
+        )
         if info.get("grammar_topic"):
             st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
         def _go_class_thread(chapter: str) -> None:
