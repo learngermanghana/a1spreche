@@ -1027,6 +1027,46 @@ if "_qp_set" not in globals():
         except Exception:
             # If browser doesn't allow URL changes, just skip
             pass
+
+if "build_course_day_link" not in globals():
+    def build_course_day_link(day: int | str, tab: str = "My Course") -> str:
+        """Return a link to a specific Course Book day."""
+        try:
+            day_val = int(day)
+        except Exception:
+            day_val = day
+        try:
+            tab_q = _urllib.quote(tab)
+        except Exception:
+            tab_q = tab
+        return f"?tab={tab_q}&day={day_val}"
+
+# Strings used for course discussion links
+CLASS_DISCUSSION_LABEL = "Class Discussion & Notes"
+CLASS_DISCUSSION_LINK_TMPL = "go_discussion_{info['chapter']}"
+CLASS_DISCUSSION_PROMPT = "Check the group discussion for this chapter and class notes."
+
+
+def _go_class_thread(topic: str) -> None:
+    """Navigate to the class discussion thread.
+
+    If no posts exist, clear the search term and set a warning flag. Otherwise,
+    retain the search term so the user can continue browsing relevant posts.
+    """
+
+    board_base = (
+        db.collection("class_board")
+        .document(student_level)
+        .collection("classes")
+        .document(class_name)
+        .collection("posts")
+    )
+    posts = list(board_base.stream())
+    if not posts:
+        st.session_state["q_search"] = ""
+        st.session_state["q_search_warning"] = True
+    else:
+        st.session_state["q_search"] = topic
 # --- Nav dropdown (mobile-friendly, simple text) ---
 def render_dropdown_nav():
     tabs = [
@@ -2070,9 +2110,21 @@ if tab == "My Course":
             idx = matches[sel][0]
         else:
             st.markdown("<span style='font-weight:700; font-size:1rem;'>Choose your lesson/day:</span>", unsafe_allow_html=True)
+            qp_day = _qp_get_first("day", "")
+            default_idx = 0
+            if schedule:
+                try:
+                    day_val = int(qp_day)
+                    min_day = schedule[0]["day"]
+                    max_day = schedule[-1]["day"]
+                    day_val = max(min_day, min(day_val, max_day))
+                    default_idx = next((i for i, d in enumerate(schedule) if d["day"] == day_val), 0)
+                except Exception:
+                    pass
             idx = st.selectbox(
                 "Lesson selection",
                 list(range(len(schedule))),
+                index=default_idx,
                 format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}",
                 label_visibility="collapsed",
             )
@@ -4171,7 +4223,7 @@ if tab == "My Course":
                     if lesson:
                         day_part = lesson.split(":")[0]
                         day = day_part.split()[1] if len(day_part.split()) > 1 else ""
-                        course_link = f"?tab=My%20Course&day={day}"
+                        course_link = build_course_day_link(day)
                         lesson_html = (
                             f"<div style='font-size:1.1rem;font-weight:600;color:#0f172a;'>📘 {lesson} – "
                             f"<a href='{course_link}' target='_blank'>View page</a></div>"
