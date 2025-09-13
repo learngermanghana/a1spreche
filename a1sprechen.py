@@ -2106,11 +2106,27 @@ if tab == "My Course":
         st.markdown(f"### {highlight_terms(title_txt, search_terms)} (Chapter {info['chapter']})", unsafe_allow_html=True)
         if info.get("grammar_topic"):
             st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
+        def _go_class_thread(chapter: str) -> None:
+            st.session_state["nav_sel"] = "My Course"
+            st.session_state["main_tab_select"] = "My Course"
+            st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
+            st.session_state["classroom_page"] = "Class Notes & Q&A"
+            st.session_state["q_search"] = str(chapter)
+            try:
+                st.query_params["tab"] = "My Course"
+            except Exception:
+                pass
+            st.session_state["need_rerun"] = True
         if info.get("goal") or info.get("instruction"):
             st.info(
                 f"🎯 **Goal:** {info.get('goal','')}\n\n"
                 f"📝 **Instruction:** {info.get('instruction','')}"
             )
+            b1, b2 = st.columns(2)
+            with b1:
+                st.button("💬 Class Board", key=f"go_board_{info['chapter']}", on_click=_go_class_thread, args=(info["chapter"],), use_container_width=True)
+            with b2:
+                st.button("❓ Class Notes & Q&A", key=f"go_qna_{info['chapter']}", on_click=_go_class_thread, args=(info["chapter"],), use_container_width=True)
 
         st.divider()
 
