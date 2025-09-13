@@ -1,10 +1,29 @@
 """Course schedule utilities."""
 from __future__ import annotations
 
+import re
 import streamlit as st
 
+
+def _strip_topic_chapter(schedule: list[dict]) -> list[dict]:
+    """Remove trailing chapter references from lesson topics.
+
+    Some schedule entries duplicate the chapter number in the ``topic`` field
+    (e.g. ``"Mein Lieblingssport 6.15"`` with ``chapter="6.15"``).  The UI
+    already displays the chapter separately, so keep the chapter number solely
+    in the ``chapter`` field and ensure ``topic`` only holds the lesson name.
+    """
+
+    for item in schedule:
+        topic = item.get("topic")
+        chapter = item.get("chapter")
+        if isinstance(topic, str) and isinstance(chapter, str) and chapter:
+            pattern = rf"\s*{re.escape(chapter)}$"
+            item["topic"] = re.sub(pattern, "", topic).strip()
+    return schedule
+
 def get_a1_schedule():
-    return [
+    schedule = [
         # DAY 0
         {
             "day": 0,
@@ -511,10 +530,11 @@ Use:
             }
         }
     ]
+    return _strip_topic_chapter(schedule)
 
 
 def get_a2_schedule():
-    return [
+    schedule = [
         # DAY 0 - TUTORIAL
         {
             "day": 0,
@@ -994,10 +1014,11 @@ Use:
             }
         },
     ]
+    return _strip_topic_chapter(schedule)
 
 
 def get_b1_schedule():
-    return [
+    schedule = [
         # DAY 0 - TUTORIAL
         {
             "day": 0,
@@ -1475,11 +1496,12 @@ Wir wünschen dir weiterhin viel Erfolg auf deinem Sprachlernweg!
             }
         },
     ]
+    return _strip_topic_chapter(schedule)
 
 
 
 def get_b2_schedule():
-    return [
+    schedule = [
         # DAY 0 - TUTORIAL
         {
             "day": 0,
@@ -1864,12 +1886,12 @@ Good luck and viel Erfolg on your language journey!
             "grammar_topic": ""
         }
     ]
-
+    return _strip_topic_chapter(schedule)
 
 
 # === C1 Schedule Template ===
 def get_c1_schedule():
-    return [
+    schedule = [
         {
             "day": 1,
             "topic": "C1 Welcome & Orientation",
@@ -1892,7 +1914,7 @@ def get_c1_schedule():
         }
         # You can add more C1 lessons here in the future
     ]
-
+    return _strip_topic_chapter(schedule)
 
 # --- Cache level schedules with TTL for periodic refresh ---
 @st.cache_data(ttl=86400)
