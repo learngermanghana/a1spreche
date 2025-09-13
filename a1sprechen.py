@@ -1296,43 +1296,63 @@ if tab == "Dashboard":
 
 
 
-    st.markdown(
-        f"""
-        <div class="minirow">
-          <div class="minicard">
-            <h4>🏅 Assignment Streak</h4>
-            <div>{_streak_line}</div>
-            <div class="sub">{_goal_line}</div>
-          </div>
-          <div class="minicard">
-            <h4>🗣️ Vocab of the Day</h4>
-            <div>{_vocab_chip}</div>
-            <div class="sub">{_vocab_sub}</div>
-          </div>
-          <div class="minicard">
-            <h4>🏆 Leaderboard</h4>
-            <div>{_lead_chip}</div>
-            <div class="sub">{_rank_text}</div>
-          </div>
-          <div class="minicard">
-            <h4>📚 Missed Assignments</h4>
-            <div>{_missed_chip}</div>
-            <div class="sub">{_missed_preview}</div>
-          </div>
-          <div class="minicard">
-            <h4>⏭️ Next Assignment</h4>
-            <div>{_next_chip}</div>
-            <div class="sub">{_next_sub}</div>
-          </div>
-          <div class="minicard">
-            <h4>🕛 Attendance</h4>
-            <div>{_attendance_chip}</div>
-            <div class="sub"></div>
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    # dashboard cards will be rendered below
+    def _go_coursebook_lesson(day: int) -> None:
+        st.session_state["nav_sel"] = "My Course"
+        st.session_state["main_tab_select"] = "My Course"
+        st.session_state["coursebook_subtab"] = "📘 Course Book"
+        st.session_state["coursebook_page"] = "Assignment"
+        st.session_state["coursebook_target_day"] = day
+        st.experimental_rerun()
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown("### 🏅 Assignment Streak")
+        st.markdown(f"{_streak_line}", unsafe_allow_html=True)
+        st.markdown(f"<div class='sub'>{_goal_line}</div>", unsafe_allow_html=True)
+    with col2:
+        st.markdown("### 🗣️ Vocab of the Day")
+        st.markdown(f"{_vocab_chip}", unsafe_allow_html=True)
+        st.markdown(f"<div class='sub'>{_vocab_sub}</div>", unsafe_allow_html=True)
+    with col3:
+        st.markdown("### 🏆 Leaderboard")
+        st.markdown(f"{_lead_chip}", unsafe_allow_html=True)
+        st.markdown(f"<div class='sub'>{_rank_text}</div>", unsafe_allow_html=True)
+
+    col4, col5, col6 = st.columns(3)
+    with col4:
+        st.markdown("### 📚 Missed Assignments")
+        st.markdown(f"{_missed_chip}", unsafe_allow_html=True)
+        st.markdown(f"<div class='sub'>{_missed_preview}</div>", unsafe_allow_html=True)
+        for _m in _missed_list:
+            m = re.search(r"Day (\d+)", _m)
+            if m:
+                day = int(m.group(1))
+                st.button(
+                    f"Go to Day {day}",
+                    key=f"go_day_{day}",
+                    on_click=_go_coursebook_lesson,
+                    args=(day,),
+                    use_container_width=True,
+                )
+    with col5:
+        st.markdown("### ⏭️ Next Assignment")
+        st.markdown(f"{_next_chip}", unsafe_allow_html=True)
+        st.markdown(f"<div class='sub'>{_next_sub}</div>", unsafe_allow_html=True)
+        if _next_lesson:
+            day = _next_lesson.get("day")
+            st.button(
+                f"Go to Day {day}",
+                key=f"go_day_{day}_next",
+                on_click=_go_coursebook_lesson,
+                args=(day,),
+                use_container_width=True,
+            )
+    with col6:
+        st.markdown("### 🕛 Attendance")
+        st.markdown(f"{_attendance_chip}", unsafe_allow_html=True)
+        st.markdown("<div class='sub'></div>", unsafe_allow_html=True)
+
     st.button("View attendance", on_click=_go_attendance)
     st.divider()
 
@@ -2083,10 +2103,21 @@ if tab == "My Course":
             idx = matches[sel][0]
         else:
             st.markdown("<span style='font-weight:700; font-size:1rem;'>Choose your lesson/day:</span>", unsafe_allow_html=True)
+            target_day = st.session_state.pop("coursebook_target_day", None)
+            default_idx = 0
+            if target_day is not None:
+                for i, d in enumerate(schedule):
+                    if d.get("day") == target_day:
+                        default_idx = i
+                        break
+            else:
+                default_idx = st.session_state.get("coursebook_lesson_idx", 0)
             idx = st.selectbox(
                 "Lesson selection",
                 list(range(len(schedule))),
                 format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']} {schedule[i]['chapter']}".strip(),
+                index=default_idx,
+                key="coursebook_lesson_idx",
                 label_visibility="collapsed",
             )
 
