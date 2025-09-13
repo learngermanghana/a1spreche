@@ -2379,8 +2379,8 @@ if tab == "My Course":
             chapter = info.get("chapter")
             if chapter:
                 st.info(
-                    f"[Click here to read the group discussion for this chapter]"
-                    f"({CLASS_DISCUSSION_LINK_TMPL.format(chapter=chapter)}) — includes class notes and Q&A."
+                    f"[{CLASS_DISCUSSION_PROMPT}]"
+                    f"({CLASS_DISCUSSION_LINK_TMPL.format(chapter=chapter)})"
                 )
             else:
                 st.warning("Missing chapter for discussion board.")
