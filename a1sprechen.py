@@ -2192,11 +2192,10 @@ if tab == "My Course":
                 1 for _ in board_base.where("chapter", "==", chapter).stream()
             )
             link_key = CLASS_DISCUSSION_LINK_TMPL.format(chapter=chapter)
-            link_url = f"{link_key}{CLASS_DISCUSSION_ANCHOR}"
             count_txt = f" ({post_count})" if post_count else ""
             st.info(
                 f"📣 {CLASS_DISCUSSION_PROMPT} "
-                f"[{CLASS_DISCUSSION_LABEL}{count_txt}]({link_url}). "
+                f"{CLASS_DISCUSSION_LABEL}{count_txt}. "
                 f"{CLASS_DISCUSSION_REMINDER}"
             )
             st.button(
@@ -2385,21 +2384,6 @@ if tab == "My Course":
                     if extras:
                         for ex in _as_list(extras):
                             st.markdown(f"- [🔗 Extra]({ex})")
-
-            # Student Info: link to class discussion + notes
-            chapter = info.get("chapter")
-            if chapter:
-                link = (
-                    f"{CLASS_DISCUSSION_LINK_TMPL.format(chapter=chapter)}"
-                    f"{CLASS_DISCUSSION_ANCHOR}"
-                )
-                st.info(
-                    f"📣 {CLASS_DISCUSSION_PROMPT} "
-                    f"[{CLASS_DISCUSSION_LABEL}]({link}). "
-                    f"{CLASS_DISCUSSION_REMINDER}"
-                )
-            else:
-                st.warning("Missing chapter for discussion board.")
 
             # ---------- YOUR WORK (tolerant across levels; embeds each video at most once) ----------
             st.markdown("### 🧪 Your Work")
