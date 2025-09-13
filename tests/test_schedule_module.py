@@ -53,6 +53,7 @@ def test_day15_title_normalized():
 def test_day6_coursebook_entry():
     schedule = get_a1_schedule()
     day6 = next(d for d in schedule if d["day"] == 6)
+
     label = (
         f"Day {day6['day']} - "
         f"{format_topic_with_chapter(day6['topic'], day6['chapter'])}"
@@ -68,3 +69,4 @@ def test_day18_coursebook_entry_without_duplication():
         f"{format_topic_with_chapter(day18['topic'], day18['chapter'])}"
     )
     assert label == "Day 18 - Lesen & Hören 12.1 and 12.2"
+

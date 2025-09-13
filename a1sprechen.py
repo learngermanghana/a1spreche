@@ -2087,10 +2087,12 @@ if tab == "My Course":
             idx = st.selectbox(
                 "Lesson selection",
                 list(range(len(schedule))),
+
                 format_func=lambda i: (
                     f"Day {schedule[i]['day']} - "
                     f"{format_topic_with_chapter(schedule[i]['topic'], schedule[i]['chapter'])}"
                 ),
+
                 label_visibility="collapsed",
             )
 
@@ -2106,10 +2108,12 @@ if tab == "My Course":
 
         # ---- Lesson info ----
         info = schedule[idx]
+
         title_txt = (
             f"Day {info['day']}: "
             f"{format_topic_with_chapter(info['topic'], info['chapter'])}"
         )
+
         st.markdown(
             f"### {highlight_terms(title_txt, search_terms)}",
             unsafe_allow_html=True,
