@@ -2159,6 +2159,32 @@ if tab == "My Course":
                 f"📝 **Instruction:** {info.get('instruction','')}"
             )
 
+        # ---- Class discussion count & link ----
+        board_base = (
+            db.collection("class_board")
+            .document(student_level)
+            .collection("classes")
+            .document(class_name)
+            .collection("posts")
+        )
+        post_count = sum(
+            1 for _ in board_base.where("chapter", "==", info["chapter"]).stream()
+        )
+        link_key = CLASS_DISCUSSION_LINK_TMPL.format(info=info)
+        count_txt = f" ({post_count})" if post_count else ""
+        st.info(
+            f"📣 For group practice and class notes: "
+            f"[{CLASS_DISCUSSION_LABEL}{count_txt}]({link_key})"
+        )
+        st.button(
+            CLASS_DISCUSSION_LABEL,
+            key=link_key,
+            on_click=_go_class_thread,
+            args=(info["chapter"],),
+        )
+        if post_count == 0:
+            st.caption("No posts yet. Clicking will show the full board.")
+
         st.divider()
 
         # ---------- mini-tabs inside Course Book ----------
