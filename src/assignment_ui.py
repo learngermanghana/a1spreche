@@ -582,10 +582,20 @@ def render_results_and_resources_tab() -> None:
         latest = df_display.head(5)
         for _, row in latest.iterrows():
             perf = score_label_fmt(row["score"])
+            ref_link = _clean_link(row.get("link"))
+            if _is_http_url(ref_link):
+                title_html = (
+                    f'<a href="{ref_link}" target="_blank" rel="noopener" '
+                    f'style="font-size:1.05em;font-weight:600;">{row["assignment"]}</a>'
+                )
+            else:
+                title_html = (
+                    f'<span style="font-size:1.05em;font-weight:600;">{row["assignment"]}</span>'
+                )
             st.markdown(
                 f"""
                 <div style="margin-bottom: 12px;">
-                    <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span><br>
+                    {title_html}<br>
                     Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span>
                     | Date: {row['date']}
                 </div>
@@ -602,14 +612,24 @@ def render_results_and_resources_tab() -> None:
             perf = score_label_fmt(row["score"])
             comment_html = linkify_html(row["comments"])
             ref_link = _clean_link(row.get("link"))
-            show_ref = bool(ref_link) and _is_http_url(ref_link) and pd.notna(
+            link_valid = _is_http_url(ref_link)
+            show_ref = link_valid and pd.notna(
                 pd.to_numeric(row["score"], errors="coerce")
             )
+            if link_valid:
+                title_html = (
+                    f'<a href="{ref_link}" target="_blank" rel="noopener" '
+                    f'style="font-size:1.05em;font-weight:600;">{row["assignment"]}</a>'
+                )
+            else:
+                title_html = (
+                    f'<span style="font-size:1.05em;font-weight:600;">{row["assignment"]}</span>'
+                )
 
             st.markdown(
                 f"""
                 <div style="margin-bottom: 18px;">
-                    <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span><br>
+                    {title_html}<br>
                     Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span>
                     | Date: {row['date']}<br>
                     <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
