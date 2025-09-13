@@ -2135,7 +2135,7 @@ if tab == "My Course":
                 "Lesson selection",
                 list(range(len(schedule))),
                 index=default_idx,
-                format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}",
+                format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']} (Chapter {schedule[i].get('chapter', '?')})",
                 label_visibility="collapsed",
             )
 

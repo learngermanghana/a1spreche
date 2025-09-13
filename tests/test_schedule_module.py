@@ -52,5 +52,5 @@ def test_day15_title_normalized():
 def test_day6_coursebook_entry():
     schedule = get_a1_schedule()
     day6 = next(d for d in schedule if d["day"] == 6)
-    label = f"Day {day6['day']} - {day6['topic']} {day6['chapter']}".strip()
-    assert label == "Day 6 - Schreiben & Sprechen 2.3"
+    label = f"Day {day6['day']} - {day6['topic']} (Chapter {day6.get('chapter', '?')})"
+    assert label == "Day 6 - Schreiben & Sprechen (Chapter 2.3)"
