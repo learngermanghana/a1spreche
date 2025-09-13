@@ -1043,7 +1043,7 @@ if "build_course_day_link" not in globals():
 
 # Strings used for course discussion links
 CLASS_DISCUSSION_LABEL = "Class Discussion & Notes"
-CLASS_DISCUSSION_LINK_TMPL = "go_discussion_{info['chapter']}"
+CLASS_DISCUSSION_LINK_TMPL = "go_discussion_{chapter}"
 CLASS_DISCUSSION_PROMPT = "Check the group discussion for this chapter and class notes."
 
 
@@ -2166,30 +2166,34 @@ if tab == "My Course":
         if not class_name:
             st.warning("Missing class name for discussion board.")
         else:
-            board_base = (
-                db.collection("class_board")
-                .document(student_level)
-                .collection("classes")
-                .document(class_name)
-                .collection("posts")
-            )
-            post_count = sum(
-                1 for _ in board_base.where("chapter", "==", info["chapter"]).stream()
-            )
-            link_key = CLASS_DISCUSSION_LINK_TMPL.format(info=info)
-            count_txt = f" ({post_count})" if post_count else ""
-            st.info(
-                f"📣 For group practice and class notes: "
-                f"[{CLASS_DISCUSSION_LABEL}{count_txt}]({link_key})"
-            )
-            st.button(
-                CLASS_DISCUSSION_LABEL,
-                key=link_key,
-                on_click=_go_class_thread,
-                args=(info["chapter"],),
-            )
-            if post_count == 0:
-                st.caption("No posts yet. Clicking will show the full board.")
+            chapter = info.get("chapter")
+            if not chapter:
+                st.warning("Missing chapter for discussion board.")
+            else:
+                board_base = (
+                    db.collection("class_board")
+                    .document(student_level)
+                    .collection("classes")
+                    .document(class_name)
+                    .collection("posts")
+                )
+                post_count = sum(
+                    1 for _ in board_base.where("chapter", "==", chapter).stream()
+                )
+                link_key = CLASS_DISCUSSION_LINK_TMPL.format(chapter=chapter)
+                count_txt = f" ({post_count})" if post_count else ""
+                st.info(
+                    f"📣 For group practice and class notes: "
+                    f"[{CLASS_DISCUSSION_LABEL}{count_txt}]({link_key})"
+                )
+                st.button(
+                    CLASS_DISCUSSION_LABEL,
+                    key=link_key,
+                    on_click=_go_class_thread,
+                    args=(info["chapter"],),
+                )
+                if post_count == 0:
+                    st.caption("No posts yet. Clicking will show the full board.")
 
         st.divider()
 
@@ -2370,10 +2374,14 @@ if tab == "My Course":
                             st.markdown(f"- [🔗 Extra]({ex})")
 
             # Student Info: link to class discussion + notes
-            st.info(
-                f"[Click here to read the group discussion for this chapter]"
-                f"({CLASS_DISCUSSION_LINK_TMPL.format(info=info)}) — includes class notes and Q&A."
-            )
+            chapter = info.get("chapter")
+            if chapter:
+                st.info(
+                    f"[Click here to read the group discussion for this chapter]"
+                    f"({CLASS_DISCUSSION_LINK_TMPL.format(chapter=chapter)}) — includes class notes and Q&A."
+                )
+            else:
+                st.warning("Missing chapter for discussion board.")
 
             # ---------- YOUR WORK (tolerant across levels; embeds each video at most once) ----------
             st.markdown("### 🧪 Your Work")
