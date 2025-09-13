@@ -1045,7 +1045,11 @@ if "build_course_day_link" not in globals():
 CLASS_DISCUSSION_LABEL = "Class Discussion & Notes"
 CLASS_DISCUSSION_LINK_TMPL = "go_discussion_{chapter}"
 CLASS_DISCUSSION_ANCHOR = "#classnotes"
-CLASS_DISCUSSION_PROMPT = "Check the group discussion for this chapter and class notes."
+CLASS_DISCUSSION_PROMPT = "Discussion for this class can be found at"
+CLASS_DISCUSSION_REMINDER = (
+    "Your recorded lecture, grammar book, and workbook are saved below. "
+    "Class notes are additional and cover discussions from class."
+)
 
 
 def _go_class_thread(topic: str) -> None:
@@ -2188,8 +2192,9 @@ if tab == "My Course":
             link_url = f"{link_key}{CLASS_DISCUSSION_ANCHOR}"
             count_txt = f" ({post_count})" if post_count else ""
             st.info(
-                f"📣 For group practice and class notes: "
-                f"[{CLASS_DISCUSSION_LABEL}{count_txt}]({link_url})"
+                f"📣 {CLASS_DISCUSSION_PROMPT} "
+                f"[{CLASS_DISCUSSION_LABEL}{count_txt}]({link_url}). "
+                f"{CLASS_DISCUSSION_REMINDER}"
             )
             st.button(
                 CLASS_DISCUSSION_LABEL,
@@ -2381,9 +2386,14 @@ if tab == "My Course":
             # Student Info: link to class discussion + notes
             chapter = info.get("chapter")
             if chapter:
+                link = (
+                    f"{CLASS_DISCUSSION_LINK_TMPL.format(chapter=chapter)}"
+                    f"{CLASS_DISCUSSION_ANCHOR}"
+                )
                 st.info(
-                    f"[{CLASS_DISCUSSION_PROMPT}]"
-                    f"({CLASS_DISCUSSION_LINK_TMPL.format(chapter=chapter)}{CLASS_DISCUSSION_ANCHOR})"
+                    f"📣 {CLASS_DISCUSSION_PROMPT} "
+                    f"[{CLASS_DISCUSSION_LABEL}]({link}). "
+                    f"{CLASS_DISCUSSION_REMINDER}"
                 )
             else:
                 st.warning("Missing chapter for discussion board.")
