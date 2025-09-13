@@ -1061,8 +1061,16 @@ def _go_class_thread(topic: str) -> None:
         .document(class_name)
         .collection("posts")
     )
-    posts = list(board_base.stream())
-    if not posts:
+    posts = [
+        snap
+        for snap in board_base.stream()
+        if snap.to_dict().get("topic") == topic
+        or snap.to_dict().get("chapter") == topic
+    ]
+    count = len(posts)
+    st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
+    st.session_state["q_search_count"] = count
+    if count == 0:
         st.session_state["q_search"] = ""
         st.session_state["q_search_warning"] = True
     else:
