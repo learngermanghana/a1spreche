@@ -259,10 +259,20 @@ def get_assignment_summary(
     def _extract_all_nums(chapter_str: str):
         parts = re.split(r"[_\s,;]+", str(chapter_str))
         nums = []
+        base_int: int | None = None
         for part in parts:
             m = re.search(r"\d+(?:\.\d+)?", part)
-            if m:
-                nums.append(float(m.group()))
+            if not m:
+                continue
+            token = m.group()
+            if "." in token:
+                nums.append(float(token))
+                base_int = int(token.split(".")[0])
+            else:
+                if base_int is not None:
+                    nums.append(float(f"{base_int}.{token}"))
+                else:
+                    nums.append(float(token))
         return nums
 
     def _extract_max_num(chapter: str):
