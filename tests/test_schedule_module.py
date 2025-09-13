@@ -47,3 +47,10 @@ def test_day15_title_normalized():
         full_lesson_title(day15)
         == "Day 15: Mein Lieblingssport (Chapter 6.15)"
     )
+
+
+def test_day6_coursebook_entry():
+    schedule = get_a1_schedule()
+    day6 = next(d for d in schedule if d["day"] == 6)
+    label = f"Day {day6['day']} - {day6['topic']} {day6['chapter']}".strip()
+    assert label == "Day 6 - Schreiben & Sprechen 2.3"

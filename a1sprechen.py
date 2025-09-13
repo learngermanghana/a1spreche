@@ -2086,7 +2086,7 @@ if tab == "My Course":
             idx = st.selectbox(
                 "Lesson selection",
                 list(range(len(schedule))),
-                format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}",
+                format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']} {schedule[i]['chapter']}".strip(),
                 label_visibility="collapsed",
             )
 
@@ -2102,8 +2102,11 @@ if tab == "My Course":
 
         # ---- Lesson info ----
         info = schedule[idx]
-        title_txt = f"Day {info['day']}: {info['topic']}"
-        st.markdown(f"### {highlight_terms(title_txt, search_terms)} (Chapter {info['chapter']})", unsafe_allow_html=True)
+        title_txt = f"Day {info['day']}: {info['topic']} {info['chapter']}".strip()
+        st.markdown(
+            f"### {highlight_terms(title_txt, search_terms)}",
+            unsafe_allow_html=True,
+        )
         if info.get("grammar_topic"):
             st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
         def _go_class_thread(chapter: str) -> None:
