@@ -1322,6 +1322,9 @@ if tab == "Dashboard":
         )
         _next_chip = f"<span class='pill pill-purple'>{_next_title}</span>"
         _next_sub = _next_lesson.get("goal", "")
+    elif _missed_list:
+        _next_chip = "<span class='pill pill-amber'>Finish missed work</span>"
+        _next_sub = "Complete skipped assignments first"
     else:
         _next_chip = "<span class='pill pill-green'>All caught up</span>"
         _next_sub = ""
