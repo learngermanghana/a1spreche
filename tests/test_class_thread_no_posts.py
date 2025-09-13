@@ -81,6 +81,7 @@ def test_go_class_thread_clears_search_when_no_posts():
     assert "q_search_warning" in st.session_state
     assert st.session_state.get("q_search_count") == 0
     assert st.session_state.get("coursebook_subtab") == "🧑‍🏫 Classroom"
+    assert st.session_state.get("classroom_page") == "Class Notes & Q&A"
 
 
 def test_go_class_thread_keeps_search_when_posts_exist():
@@ -94,3 +95,4 @@ def test_go_class_thread_keeps_search_when_posts_exist():
     assert "q_search_warning" not in st.session_state
     assert st.session_state.get("q_search_count") == 1
     assert st.session_state.get("coursebook_subtab") == "🧑‍🏫 Classroom"
+    assert st.session_state.get("classroom_page") == "Class Notes & Q&A"
