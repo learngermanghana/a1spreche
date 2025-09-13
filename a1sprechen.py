@@ -1074,6 +1074,7 @@ def _go_class_thread(topic: str) -> None:
     ]
     count = len(posts)
     st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
+    st.session_state["classroom_page"] = "Class Notes & Q&A"
     st.session_state["q_search_count"] = count
     if count == 0:
         st.session_state["q_search"] = ""
