@@ -12,7 +12,7 @@ def linkify_html(text: str | float | None) -> str:
     s = html.escape(s)
     s = re.sub(
         r'(https?://[^\s<]+[^\s<.,!?;:])',
-        r'<a href="\1" target="_blank" rel="noopener">\1</a>',
+        r'<a href="\1" target="_blank" rel="noopener noreferrer">\1</a>',
         s,
     )
     return s

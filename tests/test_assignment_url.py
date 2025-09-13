@@ -13,6 +13,7 @@ def test_linkify_html_converts_urls() -> None:
     result = linkify_html(text)
     assert '<a href="http://example.com"' in result
     assert 'target="_blank"' in result
+    assert 'rel="noopener noreferrer"' in result
     assert html.escape("<b>bold</b>") in linkify_html("<b>bold</b>")
 
 
