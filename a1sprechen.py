@@ -2318,28 +2318,47 @@ if tab == "My Course":
                 content = day_info.get(key)
                 if not content:
                     return
-                items = content if isinstance(content, list) else [content]
+
+                if isinstance(content, dict):
+                    items = [content]
+                elif isinstance(content, list):
+                    items = [c for c in content if isinstance(c, dict)]
+                    if len(items) != len(content):
+                        logging.warning("Expected dict elements in '%s' list, skipping non-dict entries", key)
+                else:
+                    logging.warning("Expected dict or list for '%s', got %s", key, type(content).__name__)
+                    return
+
                 st.markdown(f"#### {icon} {title}")
                 for idx_part, part in enumerate(items):
+                    chapter = part.get('chapter', '')
+                    video = part.get('video')
+                    youtube_link = part.get('youtube_link')
+                    grammarbook_link = part.get('grammarbook_link')
+                    workbook_link = part.get('workbook_link')
+                    extras = part.get('extra_resources')
+
                     if len(items) > 1:
-                        st.markdown(f"###### {icon} Part {idx_part+1} of {len(items)}: Chapter {part.get('chapter','')}")
+                        st.markdown(f"###### {icon} Part {idx_part+1} of {len(items)}: Chapter {chapter}")
                     # videos (embed once)
-                    for maybe_vid in [part.get("video"), part.get("youtube_link")]:
+                    for maybe_vid in [video, youtube_link]:
                         if _is_url(maybe_vid):
                             cid = _canon_video(maybe_vid)
                             if cid not in seen_videos:
                                 st.markdown(f"[▶️ Watch on YouTube]({maybe_vid})")
                                 seen_videos.add(cid)
                     # links/resources inline
-                    if part.get('grammarbook_link'):
-                        st.markdown(f"- [📘 Grammar Book (Notes)]({part['grammarbook_link']})")
-                        st.markdown('<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.', unsafe_allow_html=True)
-                    if part.get('workbook_link'):
-                        st.markdown(f"- [📒 Workbook (Assignment)]({part['workbook_link']})")
+                    if grammarbook_link:
+                        st.markdown(f"- [📘 Grammar Book (Notes)]({grammarbook_link})")
+                        st.markdown(
+                            '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
+                            unsafe_allow_html=True,
+                        )
+                    if workbook_link:
+                        st.markdown(f"- [📒 Workbook (Assignment)]({workbook_link})")
                         with st.expander("📖 Dictionary"):
                             render_vocab_lookup(f"{key}-{idx_part}")
                         render_assignment_reminder()
-                    extras = part.get('extra_resources')
                     if extras:
                         for ex in _as_list(extras):
                             st.markdown(f"- [🔗 Extra]({ex})")
