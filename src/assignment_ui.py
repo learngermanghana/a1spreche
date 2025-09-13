@@ -41,20 +41,51 @@ WATERMARK_URL = os.getenv(
 # ---------------------------------------------------------------------------
 
 @st.cache_data(ttl=600)
-def _load_assignment_scores_cached() -> pd.DataFrame:
+def _load_assignment_scores_cached(force_refresh: bool = False) -> pd.DataFrame:
+    """Fetch assignment scores from the Google Sheet.
+
+    Parameters
+    ----------
+    force_refresh: bool, optional
+        When ``True`` the Streamlit data cache is cleared before fetching the
+        scores.
+    """
+
+    if force_refresh:
+        try:
+            st.cache_data.clear()
+        except Exception:  # pragma: no cover - best effort
+            pass
+
     SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
-    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
-    df = pd.read_csv(url, dtype=str)
+    url = (
+        f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
+    )
+    try:  # pragma: no cover - network
+        df = pd.read_csv(url, dtype=str)
+    except Exception:
+        return pd.DataFrame()
     df.columns = df.columns.str.strip().str.lower()
     for col in df.columns:
         df[col] = df[col].astype(str).str.strip()
     return df
 
 
-def load_assignment_scores() -> pd.DataFrame:
-    """Return assignment scores DataFrame cached in session state."""
-    if "assignment_scores_df" not in st.session_state:
-        st.session_state["assignment_scores_df"] = _load_assignment_scores_cached()
+def load_assignment_scores(force_refresh: bool = False) -> pd.DataFrame:
+    """Return assignment scores ``DataFrame`` cached in session state.
+
+    Parameters
+    ----------
+    force_refresh: bool, optional
+        When ``True`` cached data is cleared and the sheet is fetched again.
+    """
+
+    if force_refresh:
+        st.session_state.pop("assignment_scores_df", None)
+    if "assignment_scores_df" not in st.session_state or force_refresh:
+        st.session_state["assignment_scores_df"] = _load_assignment_scores_cached(
+            force_refresh=force_refresh
+        )
     return st.session_state["assignment_scores_df"]
 
 
@@ -112,6 +143,23 @@ def _results_csv_url() -> str:
     except Exception:
         pass
     return "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
+
+
+def _sheet_last_updated(sheet_id: str) -> str:
+    """Return the sheet's last updated timestamp string.
+
+    This uses the public worksheets feed which exposes an ``updated`` field
+    without requiring authentication.  On failure an empty string is returned.
+    """
+
+    url = f"https://spreadsheets.google.com/feeds/worksheets/{sheet_id}/public/basic?alt=json"
+    try:  # pragma: no cover - network
+        resp = requests.get(url, timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get("feed", {}).get("updated", "")
+    except Exception:
+        return ""
 
 
 @st.cache_data(ttl=600)
@@ -484,14 +532,40 @@ def render_results_and_resources_tab() -> None:
     st.divider()
 
     GOOGLE_SHEET_CSV = _results_csv_url()
+    sheet_id_match = re.search(r"/d/([\w-]+)/", GOOGLE_SHEET_CSV)
+    sheet_id = sheet_id_match.group(1) if sheet_id_match else ""
+
+    # Automatic refresh polling
+    refresh_count = 0
+    auto_func = getattr(st, "autorefresh", None)
+    if callable(auto_func):  # pragma: no cover - UI dependent
+        try:
+            refresh_count = auto_func(interval=60_000, limit=None, key="rr_auto_refresh")
+        except Exception:
+            refresh_count = 0
+
+    refresh_triggered = False
+    prev_count = st.session_state.get("rr_auto_refresh")
+    if refresh_count != prev_count:
+        st.session_state["rr_auto_refresh"] = refresh_count
+        refresh_triggered = True
+
+    last_updated = _sheet_last_updated(sheet_id)
+    prev_updated = st.session_state.get("assign_sheet_updated")
+    if last_updated and last_updated != prev_updated:
+        st.session_state["assign_sheet_updated"] = last_updated
+        refresh_triggered = True
 
     top_cols = st.columns([1, 1, 2])
     with top_cols[0]:
         if st.button("🔄 Refresh"):
-            st.cache_data.clear()
+            refresh_triggered = True
             st.success("Cache cleared! Reloading…")
             refresh_with_toast("Refreshed!")
 
+    df_assignments = None
+    if refresh_triggered:
+        df_assignments = load_assignment_scores(force_refresh=True)
     df_scores = fetch_scores(GOOGLE_SHEET_CSV)
     required_cols = {
         "student_code",
@@ -668,7 +742,9 @@ def render_results_and_resources_tab() -> None:
     elif rr_page == "Missed & Next":
         st.subheader("Missed Assignments & Next Recommendation")
 
-        summary = get_assignment_summary(code_key, level)
+        summary = get_assignment_summary(
+            code_key, level, scores_df=df_assignments
+        )
         skipped_assignments = summary.get("missed", [])
         next_assignment = summary.get("next")
         completed_level = not skipped_assignments and next_assignment is None
