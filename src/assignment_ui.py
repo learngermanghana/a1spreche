@@ -255,7 +255,6 @@ def get_assignment_summary(
                     f"Day {day}: Chapter {chapter_field} – {lesson.get('topic','')}"
                 )
                 break
-
     def _is_recommendable(lesson: dict) -> bool:
         topic = str(lesson.get("topic", "")).lower()
         return not ("schreiben" in topic and "sprechen" in topic)
@@ -268,13 +267,14 @@ def get_assignment_summary(
     last_num2 = max(completed_chapters) if completed_chapters else 0.0
 
     next_assignment = None
-    for lesson in schedule:
-        chap_num = _extract_max_num(lesson.get("chapter", ""))
-        if not _is_recommendable(lesson):
-            continue
-        if chap_num and chap_num > last_num2:
-            next_assignment = lesson
-            break
+    if not skipped_assignments:
+        for lesson in schedule:
+            chap_num = _extract_max_num(lesson.get("chapter", ""))
+            if not _is_recommendable(lesson):
+                continue
+            if chap_num and chap_num > last_num2:
+                next_assignment = lesson
+                break
 
     return {"missed": skipped_assignments, "next": next_assignment}
 
@@ -708,7 +708,7 @@ def render_results_and_resources_tab() -> None:
                     f"{level}. Your completion certificate will be emailed to you."
                 )
             else:
-                st.success("🎉 You’re up to date!")
+                st.info("Complete your missed assignments before moving on.")
 
     elif rr_page == "Downloads":
         st.subheader("Downloads")
