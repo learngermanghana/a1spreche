@@ -1295,16 +1295,7 @@ if tab == "Dashboard":
     )
 
 
-
     # dashboard cards will be rendered below
-    def _go_coursebook_lesson(day: int) -> None:
-        st.session_state["nav_sel"] = "My Course"
-        st.session_state["main_tab_select"] = "My Course"
-        st.session_state["coursebook_subtab"] = "📘 Course Book"
-        st.session_state["coursebook_page"] = "Assignment"
-        st.session_state["coursebook_target_day"] = day
-        st.experimental_rerun()
-
     col1, col2, col3 = st.columns(3)
     with col1:
         st.markdown("### 🏅 Assignment Streak")
@@ -1325,29 +1316,11 @@ if tab == "Dashboard":
         st.markdown(f"{_missed_chip}", unsafe_allow_html=True)
         st.markdown(f"<div class='sub'>{_missed_preview}</div>", unsafe_allow_html=True)
         for _m in _missed_list:
-            m = re.search(r"Day (\d+)", _m)
-            if m:
-                day = int(m.group(1))
-                st.button(
-                    f"Go to Day {day}",
-                    key=f"go_day_{day}",
-                    on_click=_go_coursebook_lesson,
-                    args=(day,),
-                    use_container_width=True,
-                )
+            st.markdown(f"- {_m}")
     with col5:
         st.markdown("### ⏭️ Next Assignment")
         st.markdown(f"{_next_chip}", unsafe_allow_html=True)
         st.markdown(f"<div class='sub'>{_next_sub}</div>", unsafe_allow_html=True)
-        if _next_lesson:
-            day = _next_lesson.get("day")
-            st.button(
-                f"Go to Day {day}",
-                key=f"go_day_{day}_next",
-                on_click=_go_coursebook_lesson,
-                args=(day,),
-                use_container_width=True,
-            )
     with col6:
         st.markdown("### 🕛 Attendance")
         st.markdown(f"{_attendance_chip}", unsafe_allow_html=True)
