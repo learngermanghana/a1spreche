@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 from typing import List, Dict, Optional
+import logging
 import re
 
 import requests
@@ -26,7 +27,8 @@ def _get(url: str) -> Optional[str]:
         )
         r.raise_for_status()
         return r.text
-    except Exception:
+    except Exception as exc:
+        logging.exception("Failed to fetch %s: %s", url, exc)
         return None
 
 
