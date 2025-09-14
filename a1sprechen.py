@@ -275,6 +275,15 @@ def calc_blog_height(num_posts: int) -> int:
 
 
 def login_page():
+    # Ensure base session fields exist and are hydrated before rendering.
+    bootstrap_state()
+    seed_falowen_state_from_qp()
+    bootstrap_session_from_qp()
+    ensure_student_level()
+
+    if st.session_state.get("logged_in", False):
+        render_logged_in_topbar()
+
     try:
         renew_session_if_needed()
     except Exception:
@@ -777,6 +786,7 @@ def dashboard_page() -> None:
     bootstrap_state()
     seed_falowen_state_from_qp()
     bootstrap_session_from_qp()
+    ensure_student_level()
 
     # If visiting with password-reset token
     if not st.session_state.get("logged_in", False):
