@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any, Protocol
 
 import pandas as pd
@@ -17,12 +18,27 @@ class CookieLike(Protocol):
     ready: Any  # may be bool or callable returning bool
 
 
-def bootstrap_cookie_manager(cm: CookieLike) -> CookieLike:
-    """Return the cookie manager instance and gate on readiness if available."""
+def bootstrap_cookie_manager(
+    cm: CookieLike, attempts: int = 5, delay: float = 0.1
+) -> CookieLike:
+    """Return the cookie manager instance and gate on readiness if available.
+
+    Some cookie controllers expose a ``ready`` attribute that signals when
+    client-side cookies have been synchronised.  To give such controllers time
+    to initialise, this helper polls the ``ready`` attribute up to ``attempts``
+    times, sleeping ``delay`` seconds between checks.  If the controller never
+    reports readiness, ``st.stop()`` is invoked to halt the app.
+    """
+
     ready_attr = getattr(cm, "ready", None)
     if ready_attr is not None:
-        ready = ready_attr() if callable(ready_attr) else bool(ready_attr)
-        if not ready:
+        for _ in range(attempts):
+            ready_attr = getattr(cm, "ready", ready_attr)
+            ready = ready_attr() if callable(ready_attr) else bool(ready_attr)
+            if ready:
+                break
+            time.sleep(delay)
+        else:
             st.stop()
     return cm
 
