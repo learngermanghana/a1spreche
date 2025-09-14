@@ -10,21 +10,10 @@
 | Accent     | `#6366f1` |
 
 ## Deployment
-
-Set the cookie encryption password either in Streamlit secrets or via an environment variable. The password **must be a long, random value** (32+ characters) – short phrases are insecure:
-
-```
-[secrets]
-cookie_password = "<strong-secret>"
-```
-
-or
-
-```
-export COOKIE_PASSWORD=<strong-secret>
-```
-
-This value is required for secure cookie management. If it is omitted the app falls back to a built-in password intended only for tests and logs a warning. Never rely on the fallback in production.
+The app uses `streamlit-cookies-controller` to persist session and student-code
+cookies. The controller transparently handles encryption and browser synchronisation,
+so no cookie password or additional environment configuration is required. Simply
+deploy the app and the controller will manage cookies automatically.
 
 ### Refresh token storage
 
