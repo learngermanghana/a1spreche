@@ -1130,6 +1130,7 @@ render_announcements_once(fetch_blog_feed(), tab == "Dashboard")
 # ===================== Dashboard =========================
 # =========================================================
 if tab == "Dashboard":
+    render_sidebar_published()
     def _go_attendance() -> None:
         st.session_state["nav_sel"] = "My Course"
         st.session_state["main_tab_select"] = "My Course"
@@ -1939,6 +1940,7 @@ RESOURCE_LABELS = {
 
 # ---- Firestore Helpers ----
 if tab == "My Course":
+    render_sidebar_published()
     # === HANDLE ALL SWITCHING *BEFORE* ANY WIDGET ===
     # Jump flags set by buttons elsewhere
     if st.session_state.get("__go_classroom"):
@@ -4928,6 +4930,7 @@ if tab == "My Course":
 
 # =========================== MY RESULTS & RESOURCES ===========================
 if tab == "My Results and Resources":
+    render_sidebar_published()
     render_results_and_resources_tab()
 
 # ================================
@@ -5421,6 +5424,7 @@ for key, val in default_state.items():
         st.session_state[key] = val
 
 if tab == "Exams Mode & Custom Chat":
+    render_sidebar_published()
     st.markdown(
         '''
         <div style="padding: 8px 12px; background: #28a745; color: #fff; border-radius: 6px;
@@ -6088,6 +6092,7 @@ def is_correct_answer(user_input: str, answer: str) -> bool:
 # TAB: Vocab Trainer (locked by Level)
 # ================================
 if tab == "Vocab Trainer":
+    render_sidebar_published()
     # --- Who is this? ---
     student_code = st.session_state.get("student_code", "demo001")
 
@@ -6572,6 +6577,7 @@ def get_level_from_code(student_code):
 #Maincode for me
 
 if tab == "Schreiben Trainer":
+    render_sidebar_published()
     st.markdown(
         '''
         <div style="
