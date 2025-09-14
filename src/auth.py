@@ -7,6 +7,12 @@ from datetime import datetime, timedelta, timezone
 from threading import Lock
 from typing import Any, Callable, Optional
 from collections.abc import MutableMapping
+from types import SimpleNamespace
+
+try:  # pragma: no cover - streamlit isn't always available during tests
+    import streamlit as st
+except Exception:  # pragma: no cover
+    st = SimpleNamespace(session_state={}, query_params={})
 
 # --------------------------------------------------------------------
 # Minimal cookie manager for tests (in-memory)
@@ -183,16 +189,32 @@ class _SessionStore:
         with self._lock:
             self._store.clear()
 
-_session_store = _SessionStore()
+
+def get_session_store(st_module=st) -> _SessionStore:
+    """Return the per-session ``_SessionStore`` from ``st.session_state``."""
+    ss = st_module.session_state
+    store = ss.get("_session_store")
+    if store is None:
+        store = _SessionStore()
+        ss["_session_store"] = store
+    return store
+
 
 def persist_session_client(token: str, student_code: str) -> None:  # pragma: no cover
-    _session_store.set(token, student_code)
+    get_session_store().set(token, student_code)
+
 
 def get_session_client(token: str) -> str | None:  # pragma: no cover
-    return _session_store.get(token)
+    return get_session_store().get(token)
+
 
 def clear_session_clients() -> None:  # pragma: no cover
-    _session_store.clear()
+    ss = getattr(st, "session_state", None)
+    if ss is None:
+        return
+    store = ss.pop("_session_store", None)
+    if store is not None:
+        store.clear()
 
 def bootstrap_cookies(cm: SimpleCookieManager) -> SimpleCookieManager:
     return cm
