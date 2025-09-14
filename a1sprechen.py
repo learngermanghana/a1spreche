@@ -43,6 +43,19 @@ from src.group_schedules import load_group_schedules
 from src.blog_feed import fetch_blog_feed
 from src.blog_cards_widget import render_blog_cards
 import src.schedule as _schedule
+def hide_streamlit_header() -> None:
+    st.markdown(
+        """
+        <style>
+            header[data-testid="stHeader"] {display: none;}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+hide_streamlit_header()
+
 load_level_schedules = _schedule.load_level_schedules
 refresh_level_schedules = getattr(_schedule, "refresh_level_schedules", lambda: None)
 
