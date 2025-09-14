@@ -74,6 +74,19 @@ st.set_page_config(
 # Load global CSS classes and variables
 inject_global_styles()
 
+st.markdown(
+    """
+    <style>
+        .header-logo {display:flex;justify-content:center;margin-bottom:1rem;}
+        .header-logo img {height:40px;}
+    </style>
+    <div class="header-logo">
+        <img src="static/icons/falowen-512.png" alt="Falowen" />
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 st.markdown("""
 <style>
 html, body { overscroll-behavior-y: none; }
