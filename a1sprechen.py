@@ -43,6 +43,8 @@ from src.group_schedules import load_group_schedules
 from src.blog_feed import fetch_blog_feed
 from src.blog_cards_widget import render_blog_cards
 import src.schedule as _schedule
+
+
 def hide_streamlit_header() -> None:
     st.markdown(
         """
@@ -54,8 +56,6 @@ def hide_streamlit_header() -> None:
     )
 
 
-hide_streamlit_header()
-
 load_level_schedules = _schedule.load_level_schedules
 refresh_level_schedules = getattr(_schedule, "refresh_level_schedules", lambda: None)
 
@@ -64,35 +64,6 @@ app.register_blueprint(auth_bp)
 register_health_route(app)
 
 ICON_PATH = Path(__file__).parent / "static/icons/falowen-512.png"
-
-st.set_page_config(
-    page_title="Falowen – Your German Conversation Partner",
-    page_icon=str(ICON_PATH),  # now uses official Falowen icon
-    layout="wide",
-)
-
-# Load global CSS classes and variables
-inject_global_styles()
-
-st.markdown(
-    """
-    <style>
-        .header-logo {display:flex;justify-content:center;margin-bottom:1rem;}
-        .header-logo img {height:40px;}
-    </style>
-    <div class="header-logo">
-        <img src="static/icons/falowen-512.png" alt="Falowen" />
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
-st.markdown("""
-<style>
-html, body { overscroll-behavior-y: none; }
-</style>
-""", unsafe_allow_html=True)
-
 
 # Ensure the latest lesson schedule is loaded
 if "level_schedules_initialized" not in st.session_state:
@@ -802,40 +773,43 @@ def diff_with_markers(original: str, corrected: str) -> str:
 # ------------------------------------------------------------------------------
 # Seed state from query params / restore session / reset-link path / go to login
 # ------------------------------------------------------------------------------
-bootstrap_state()
-seed_falowen_state_from_qp()
-bootstrap_session_from_qp()
+def dashboard_page() -> None:
+    bootstrap_state()
+    seed_falowen_state_from_qp()
+    bootstrap_session_from_qp()
 
-# If visiting with password-reset token
-if not st.session_state.get("logged_in", False):
-    tok = st.query_params.get("token")
-    if isinstance(tok, list):
-        tok = tok[0] if tok else None
-    if tok:
-        reset_password_page(tok)
-        st.stop()
-
-# Gate
-if not st.session_state.get("logged_in", False):
-    login_page()
+    # If visiting with password-reset token
     if not st.session_state.get("logged_in", False):
-        st.stop()
+        tok = st.query_params.get("token")
+        if isinstance(tok, list):
+            tok = tok[0] if tok else None
+        if tok:
+            reset_password_page(tok)
+            st.stop()
 
-# ==================== LOGGED IN ====================
-# Show header immediately after login on every page
-render_logged_in_topbar()
+    # Gate
+    if not st.session_state.get("logged_in", False):
+        login_page()
+        if not st.session_state.get("logged_in", False):
+            st.stop()
 
-# Theme bits (chips etc.)
-inject_notice_css()
+    # ==================== LOGGED IN ====================
+    # Show header immediately after login on every page
+    render_logged_in_topbar()
 
-# Sidebar (no logout; logout lives in the header)
-render_sidebar_published()
+    # Theme bits (chips etc.)
+    inject_notice_css()
 
-# Falowen blog updates (render once)
-new_posts = fetch_blog_feed()
+    # Sidebar (no logout; logout lives in the header)
+    render_sidebar_published()
 
-st.markdown("---")
-st.markdown("**You’re logged in.** Continue to your lessons and tools from the navigation.")
+    # Falowen blog updates (render once)
+    new_posts = fetch_blog_feed()
+
+    st.markdown("---")
+    st.markdown("**You’re logged in.** Continue to your lessons and tools from the navigation.")
+
+    _maybe_rerun()
 
 
 
@@ -7641,8 +7615,9 @@ if tab == "Schreiben Trainer":
 
 
 
-if st.session_state.pop("need_rerun", False):
-    # Mark done so we don't schedule again
-    st.session_state["post_login_rerun"] = True
-    st.rerun()
+def _maybe_rerun() -> None:
+    if st.session_state.pop("need_rerun", False):
+        # Mark done so we don't schedule again
+        st.session_state["post_login_rerun"] = True
+        st.rerun()
 
