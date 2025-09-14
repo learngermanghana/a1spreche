@@ -803,9 +803,6 @@ def dashboard_page() -> None:
     # Sidebar (no logout; logout lives in the header)
     render_sidebar_published()
 
-    # Falowen blog updates (render once)
-    new_posts = fetch_blog_feed()
-
     st.markdown("---")
     st.markdown("**You’re logged in.** Continue to your lessons and tools from the navigation.")
 
@@ -1126,7 +1123,7 @@ try:
 except Exception as e:
     st.warning(f"Navigation init issue: {e}. Falling back to Dashboard.")
     tab = "Dashboard"
-render_announcements_once(new_posts, tab == "Dashboard")
+render_announcements_once(fetch_blog_feed(), tab == "Dashboard")
 
 
 # =========================================================
