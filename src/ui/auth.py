@@ -126,9 +126,13 @@ def render_signup_form() -> None:
 
     doc_ref = st.session_state.get("db", None)
     if doc_ref is None:
-        from falowen.sessions import db as _db
+        try:
+            from falowen.sessions import get_db as _get_db
+        except Exception:  # fall back to stubbed db
+            from falowen.sessions import db as _db  # type: ignore
 
-        doc_ref = _db
+            _get_db = lambda: _db  # type: ignore
+        doc_ref = _get_db()
     doc_ref = doc_ref.collection("students").document(new_code)
     if doc_ref.get().exists:
         st.error("An account with this student code already exists. Please log in instead.")
@@ -173,8 +177,14 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
         st.error("Outstanding balance past due. Contact the office.")
         return False
 
-    from falowen.sessions import db  # avoid heavy import at module load
+    try:
+        from falowen.sessions import get_db  # avoid heavy import at module load
+    except Exception:  # pragma: no cover - stubbed sessions
+        from falowen.sessions import db  # type: ignore
 
+        get_db = lambda: db  # type: ignore
+
+    db = get_db()
     doc_ref = db.collection("students").document(student_row["StudentCode"])
     doc = doc_ref.get()
     if not doc.exists:
@@ -281,8 +291,14 @@ def render_forgot_password_panel() -> None:
             st.error("Please enter your email.")
         else:
             e = email_for_reset.lower().strip()
-            from falowen.sessions import db  # local import
+            try:
+                from falowen.sessions import get_db  # local import
+            except Exception:  # pragma: no cover - stubbed sessions
+                from falowen.sessions import db  # type: ignore
 
+                get_db = lambda: db  # type: ignore
+
+            db = get_db()
             user_query = db.collection("students").where("email", "==", e).get()
             if not user_query:
                 user_query = db.collection("students").where("Email", "==", e).get()

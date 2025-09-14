@@ -14,9 +14,16 @@ import logging
 from .firestore_utils import format_record
 
 try:  # Firestore client is optional in test environments
-    from falowen.sessions import db  # pragma: no cover - runtime side effect
+    from falowen.sessions import get_db  # pragma: no cover - runtime side effect
 except Exception:  # pragma: no cover - Firestore may be unavailable
-    db = None  # type: ignore
+    def get_db():  # type: ignore
+        return None
+
+db = None  # type: ignore
+
+
+def _get_db():
+    return db if db is not None else get_db()
 
 
 def load_attendance_records(
@@ -33,6 +40,7 @@ def load_attendance_records(
     ``([], 0, 0.0)``.
     """
 
+    db = _get_db()
     if db is None:
         return [], 0, 0.0
 

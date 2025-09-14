@@ -11,7 +11,17 @@ from typing import Tuple
 
 import streamlit as st
 
-from falowen.sessions import db
+try:
+    from falowen.sessions import get_db
+except Exception:  # pragma: no cover - fallback if sessions stubbed
+    def get_db():  # type: ignore
+        return None
+
+db = None  # type: ignore
+
+
+def _get_db():
+    return db if db is not None else get_db()
 from src.firestore_utils import save_chat_draft_to_db, save_draft_to_db
 from src.utils.toasts import toast_ok, toast_err
 
@@ -82,12 +92,14 @@ def autosave_maybe(
 
 
 def load_notes_from_db(student_code):
+    db = _get_db()
     ref = db.collection("learning_notes").document(student_code)
     doc = ref.get()
     return doc.to_dict().get("notes", []) if doc.exists else []
 
 
 def save_notes_to_db(student_code, notes):
+    db = _get_db()
     ref = db.collection("learning_notes").document(student_code)
     ref.set({"notes": notes}, merge=True)
 
@@ -148,6 +160,7 @@ def on_cb_subtab_change() -> None:
 
     elif curr == "🧑‍🏫 Classroom" and prev != "🧑‍🏫 Classroom":
         try:
+            db = _get_db()
             lessons = db.collection("drafts_v2").document(code).collection("lessons")
             for doc in lessons.stream():
                 if doc.id.startswith("classroom_reply_draft_"):

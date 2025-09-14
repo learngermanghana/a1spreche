@@ -98,16 +98,16 @@ def format_record(doc_id: str, data: Dict[str, Any], student_code: str) -> Tuple
     return {"session": label, "present": present}, session_hours
 
 try:  # Firestore client is optional in test environments
-    from falowen.sessions import db  # pragma: no cover - runtime side effect
-    try:
-        # Touch the ``students`` collection to ensure it is available.  This
-        # avoids surprising ``AttributeError`` if Firestore was partially
-        # initialised but the collection is missing.  No network call is made.
-        db.collection("students")
-    except Exception:  # pragma: no cover - Firestore may be unavailable
-        pass
+    from falowen.sessions import get_db  # pragma: no cover - runtime side effect
 except Exception:  # pragma: no cover - Firestore may be unavailable
-    db = None  # type: ignore
+    def get_db():  # type: ignore
+        return None
+
+db = None  # type: ignore
+
+
+def _get_db():
+    return db if db is not None else get_db()
 
 
 def _extract_level_and_lesson(field_key: str) -> Tuple[str, str]:
@@ -126,6 +126,7 @@ def _extract_level_and_lesson(field_key: str) -> Tuple[str, str]:
 def _draft_doc_ref(level: str, lesson_key: str, code: str):
     """Return the Firestore document reference for a given draft."""
 
+    db = _get_db()
     if db is None:
         return None
     return (
@@ -141,6 +142,7 @@ def _draft_doc_ref(level: str, lesson_key: str, code: str):
 def save_draft_to_db(code: str, field_key: str, text: str) -> None:
     """Persist the given ``text`` as a draft for ``code``/``field_key``."""
 
+    db = _get_db()
     if db is None:
         return
     if text is None:
@@ -173,6 +175,7 @@ def load_draft_from_db(code: str, field_key: str) -> str:
 def save_chat_draft_to_db(code: str, conv_key: str, text: str) -> None:
     """Persist an unsent chat draft for the given conversation."""
 
+    db = _get_db()
     if db is None:
         return
     ref = db.collection("falowen_chats").document(code)
@@ -192,6 +195,7 @@ def save_chat_draft_to_db(code: str, conv_key: str, text: str) -> None:
 def load_chat_draft_from_db(code: str, conv_key: str) -> str:
     """Retrieve any saved chat draft for the conversation."""
 
+    db = _get_db()
     if db is None:
         return ""
     try:
@@ -210,6 +214,7 @@ def load_chat_draft_from_db(code: str, conv_key: str) -> str:
 def save_student_profile(code: str, about: str) -> None:
     """Persist a student's profile information."""
 
+    db = _get_db()
     if db is None:
         return
     if not code:
@@ -228,6 +233,7 @@ def save_student_profile(code: str, about: str) -> None:
 def delete_student_profile(code: str) -> None:
     """Remove the ``about`` field for ``code``'s profile."""
 
+    db = _get_db()
     if db is None:
         return
     if not code:
@@ -242,6 +248,7 @@ def delete_student_profile(code: str) -> None:
 def load_student_profile(code: str) -> str:
     """Return the stored 'about' text for ``code``."""
 
+    db = _get_db()
     if db is None:
         return ""
     try:
@@ -256,7 +263,7 @@ def load_student_profile(code: str) -> str:
 
 def load_draft_meta_from_db(code: str, field_key: str) -> Tuple[str, Optional[datetime]]:
     """Return ``(text, updated_at)`` for the requested draft."""
-
+    db = _get_db()
     if db is None:
         return "", None
     level, lesson_key = _extract_level_and_lesson(field_key)
@@ -312,6 +319,7 @@ def load_draft_meta_from_db(code: str, field_key: str) -> Tuple[str, Optional[da
 def save_ai_answer(post_id: str, ai_text: str, flagged: bool = False) -> None:
     """Attach an AI-generated suggestion to the post."""
 
+    db = _get_db()
     if db is None:
         return
     ref = db.collection("qa_posts").document(post_id)
@@ -330,6 +338,7 @@ def save_ai_answer(post_id: str, ai_text: str, flagged: bool = False) -> None:
 def save_ai_response(post_id: str, ai_text: str, flagged: bool = False) -> None:
     """Attach an AI-generated reply suggestion to the post."""
 
+    db = _get_db()
     if db is None:
         return
     ref = db.collection("qa_posts").document(post_id)
@@ -352,6 +361,7 @@ def save_response(post_id: str, text: str, responder_code: str) -> None:
     includes the ``responder_code`` and server timestamp.
     """
 
+    db = _get_db()
     if db is None:
         return
     ref = db.collection("qa_posts").document(post_id)
@@ -379,6 +389,7 @@ def fetch_attendance_summary(student_code: str, class_name: str) -> tuple[int, f
     occurs, ``(0, 0.0)`` is returned.
     """
 
+    db = _get_db()
     if db is None:
         return 0, 0.0
 
