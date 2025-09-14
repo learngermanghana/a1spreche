@@ -106,6 +106,9 @@ def save_notes_to_db(student_code, notes):
 
 def autosave_learning_note(student_code: str, key_notes: str) -> None:
     """Autosave the current learning note draft to Firestore."""
+    if not student_code:
+        st.error("Student code is required.")
+        return
     notes = st.session_state.get(key_notes, [])
     idx = st.session_state.get("edit_note_idx")
     draft = st.session_state.get("learning_note_draft", "")

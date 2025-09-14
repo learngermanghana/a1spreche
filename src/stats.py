@@ -72,15 +72,12 @@ def load_student_levels():
     code_col = next((c for c in code_col_candidates if c in df.columns), None)
     level_col = next((c for c in level_col_candidates if c in df.columns), None)
     if code_col is None or level_col is None:
-        st.error(
+        msg = (
             f"Roster is missing required columns. Found: {list(df.columns)}; "
             f"need one of {code_col_candidates} and one of {level_col_candidates}."
         )
-        df["__dummy_code__"] = "demo001"
-        df["__dummy_level__"] = "A1"
-        return df.rename(
-            columns={"__dummy_code__": "student_code", "__dummy_level__": "level"}
-        )
+        st.error(msg)
+        raise ValueError(msg)
 
     df = df.rename(columns={code_col: "student_code", level_col: "level"})
     return df
