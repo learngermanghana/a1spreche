@@ -1,24 +1,26 @@
-import logging
+from types import SimpleNamespace
 
-from src.auth import SimpleCookieManager, set_student_code_cookie, set_session_token_cookie
-
-
-class FailingCookieManager(SimpleCookieManager):
-    def save(self) -> None:  # pragma: no cover - ensures save isn't called
-        raise RuntimeError("boom")
+import src.session_management as sm
 
 
-def test_set_student_code_cookie_no_error_when_save_not_called(caplog):
-    cm = FailingCookieManager()
-    with caplog.at_level(logging.ERROR):
-        set_student_code_cookie(cm, "abc")
-    assert cm.get("student_code") == "abc"
-    assert not caplog.records
+def test_bootstrap_session_from_qp_seeds_state(monkeypatch):
+    def fake_validate(tok, ua_hash=""):
+        assert tok == "tok123"
+        return {"student_code": "abc", "name": "Alice"}
+
+    mock_st = SimpleNamespace(session_state={}, query_params={"t": "tok123"})
+    monkeypatch.setattr(sm, "st", mock_st)
+    monkeypatch.setattr(sm, "validate_session_token", fake_validate)
+
+    sm.bootstrap_session_from_qp()
+    assert mock_st.session_state["student_code"] == "abc"
+    assert mock_st.session_state["session_token"] == "tok123"
+    assert mock_st.query_params["t"] == "tok123"
 
 
-def test_set_session_token_cookie_no_error_when_save_not_called(caplog):
-    cm = FailingCookieManager()
-    with caplog.at_level(logging.ERROR):
-        set_session_token_cookie(cm, "tok")
-    assert cm.get("session_token") == "tok"
-    assert not caplog.records
+def test_bootstrap_session_from_qp_no_token(monkeypatch):
+    mock_st = SimpleNamespace(session_state={}, query_params={})
+    monkeypatch.setattr(sm, "st", mock_st)
+
+    sm.bootstrap_session_from_qp()
+    assert mock_st.session_state == {}

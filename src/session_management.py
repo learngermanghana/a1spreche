@@ -8,6 +8,7 @@ from typing import Any, Protocol
 
 import pandas as pd
 import streamlit as st
+from falowen.sessions import validate_session_token
 
 from src.stats import get_student_level
 
@@ -62,6 +63,35 @@ def bootstrap_state() -> None:
         st.session_state.setdefault(k, v)
 
 
+def bootstrap_session_from_qp() -> None:
+    """Seed ``st.session_state`` using a ``?t=`` query parameter if present."""
+    tok: Any = st.query_params.get("t")
+    if isinstance(tok, list):
+        tok = tok[0] if tok else None
+    if not tok:
+        return
+
+    try:
+        data = validate_session_token(tok, ua_hash=st.session_state.get("__ua_hash", "")) or {}
+    except Exception:  # pragma: no cover - validation errors
+        logging.exception("Session token validation failed")
+        return
+
+    sc = data.get("student_code", "") if isinstance(data, dict) else ""
+    if not sc:
+        return
+
+    st.session_state.update(
+        {
+            "student_code": sc,
+            "session_token": tok,
+            "student_name": data.get("name", ""),
+            "logged_in": True,
+        }
+    )
+    st.query_params["t"] = tok
+
+
 def determine_level(sc: str, row: Any) -> str:
     """Resolve a student's level from a row or fallback helper."""
     level = ""
@@ -90,6 +120,7 @@ def ensure_student_level() -> str:
 __all__ = [
     "bootstrap_cookie_manager",
     "bootstrap_state",
+    "bootstrap_session_from_qp",
     "determine_level",
     "ensure_student_level",
     "CookieLike",

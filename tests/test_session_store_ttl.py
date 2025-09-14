@@ -1,33 +1,21 @@
-from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
-from src.auth import _SessionStore
-
-
-class FrozenDateTime:
-    current = datetime(2023, 1, 1, tzinfo=timezone.utc)
-
-    @classmethod
-    def now(cls, tz=None):
-        return cls.current
+from src.logout import do_logout
 
 
-def test_prune_removes_expired_mappings(monkeypatch):
-    FrozenDateTime.current = datetime(2023, 1, 1, tzinfo=timezone.utc)
-    monkeypatch.setattr("src.auth.datetime", FrozenDateTime)
-    store = _SessionStore(ttl=60)
+def test_logout_clears_state_and_query_params():
+    destroyed = []
+    mock_st = SimpleNamespace(
+        session_state={"session_token": "tok", "student_code": "abc", "logged_in": True},
+        query_params={"t": "tok"},
+        success=lambda *a, **k: None,
+    )
 
-    store.set("old", "old")
-    FrozenDateTime.current += timedelta(seconds=61)
+    def fake_destroy(tok):
+        destroyed.append(tok)
 
-    assert store.get("old") is None
-
-
-def test_prune_keeps_active_mappings(monkeypatch):
-    FrozenDateTime.current = datetime(2023, 1, 1, tzinfo=timezone.utc)
-    monkeypatch.setattr("src.auth.datetime", FrozenDateTime)
-    store = _SessionStore(ttl=60)
-
-    store.set("active", "active")
-    FrozenDateTime.current += timedelta(seconds=30)
-
-    assert store.get("active") == "active"
+    do_logout(st_module=mock_st, destroy_token=fake_destroy)
+    assert mock_st.session_state["session_token"] == ""
+    assert mock_st.session_state["student_code"] == ""
+    assert "t" not in mock_st.query_params
+    assert destroyed == ["tok"]

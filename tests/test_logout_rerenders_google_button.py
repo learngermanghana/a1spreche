@@ -39,7 +39,7 @@ def test_logout_rerenders_components():
     ui_widgets.render_announcements.reset_mock()
     mock_components.html.reset_mock()
     mock_st.markdown.reset_mock()
-    do_logout({}, st_module=mock_st, destroy_token=MagicMock(), clear_session_fn=MagicMock(), logger=types.SimpleNamespace(exception=MagicMock()))
+    do_logout(st_module=mock_st, destroy_token=MagicMock(), logger=types.SimpleNamespace(exception=MagicMock()))
     assert "_ann_hash" not in mock_st.session_state
     assert "_google_cta_rendered" not in mock_st.session_state
     assert "__google_btn_rendered::primary" not in mock_st.session_state
@@ -60,20 +60,4 @@ def test_logout_rerenders_components():
     ui_widgets.render_google_signin_once("https://auth.example")
     mock_components.html.assert_called_once()
     
-    assert mock_st.session_state.get("need_rerun") is True
-
-
-def test_logout_saves_cookie_changes():
-    mock_st = types.SimpleNamespace(session_state={}, success=MagicMock())
-    cookie_manager = types.SimpleNamespace(save=MagicMock())
-    clear_session = MagicMock()
-    do_logout(
-        cookie_manager,
-        st_module=mock_st,
-        destroy_token=MagicMock(),
-        clear_session_fn=clear_session,
-        logger=types.SimpleNamespace(exception=MagicMock()),
-    )
-    clear_session.assert_called_once_with(cookie_manager)
-    cookie_manager.save.assert_called_once()
     assert mock_st.session_state.get("need_rerun") is True

@@ -222,112 +222,6 @@ def bootstrap_cookies(cm: SimpleCookieManager) -> SimpleCookieManager:
 # --------------------------------------------------------------------
 # Cookie-based session restoration
 # --------------------------------------------------------------------
-def restore_session_from_cookie(
-    cm: SimpleCookieManager | Any,
-    loader: Callable[[], Any] | None = None,
-    contract_validator: Callable[[str, Any], bool] | None = None,
-) -> Optional[dict[str, Any]]:
-    """Attempt to restore a user session from cookies."""
-    student_code = None
-    session_token = None
-
-    # Prefer CookieManager.get; fall back to mapping
-    getter = getattr(cm, "get", None)
-    if callable(getter):
-        student_code = getter("student_code")
-        session_token = getter("session_token")
-    else:
-        try:
-            student_code = cm.get("student_code")  # type: ignore[attr-defined]
-            session_token = cm.get("session_token")  # type: ignore[attr-defined]
-        except Exception:
-            try:
-                student_code = cm["student_code"]  # type: ignore[index]
-                session_token = cm["session_token"]  # type: ignore[index]
-            except Exception:
-                pass
-
-    if not student_code or not session_token:
-        return None
-
-    # Best-effort user-agent hash
-    ua_hash = ""
-    try:  # pragma: no cover - environment dependent
-        import streamlit as st  # type: ignore
-        ua_hash = st.session_state.get("__ua_hash", "") or ""
-        if not ua_hash:
-            try:
-                from streamlit.runtime.scriptrunner import get_script_run_ctx  # type: ignore
-                import hashlib
-                ctx = get_script_run_ctx()
-                if ctx and getattr(ctx, "session_info", None):
-                    client = getattr(ctx.session_info, "client", None)
-                    ua = getattr(client, "user_agent", "") if client else ""
-                    if ua:
-                        ua_hash = hashlib.sha256(ua.encode("utf-8")).hexdigest()
-            except Exception:
-                ua_hash = ""
-    except Exception:
-        ua_hash = ""
-
-    # Validate the token
-    from falowen.sessions import validate_session_token
-
-    session_data = validate_session_token(session_token, ua_hash=ua_hash)
-    if not session_data or session_data.get("student_code") != student_code:
-        clear_session(cm)
-        return None
-
-    # Test safety: if validator returns a *different* student_code, do NOT restore
-    if isinstance(session_data, dict):
-        sc = session_data.get("student_code")
-        if sc and sc != student_code:
-            clear_session(cm)
-            return None
-
-    data = loader() if loader else None
-    if contract_validator and not contract_validator(student_code, data):
-        clear_session(cm)
-        return None
-
-    return {
-        "student_code": student_code,
-        "session_token": session_token,
-        "data": data,
-        "restored_at": datetime.now(timezone.utc),
-    }
-
-def recover_session_from_qp_token() -> None:  # pragma: no cover - network
-    """Recreate cookies from ``?t=`` query parameter if present."""
-    try:
-        import streamlit as st
-    except Exception:  # pragma: no cover
-        return
-
-    tok = st.query_params.get("t")
-    if isinstance(tok, list):
-        tok = tok[0] if tok else None
-    if not tok:
-        return
-
-    from falowen.sessions import validate_session_token
-
-    session_data = validate_session_token(tok, ua_hash=st.session_state.get("__ua_hash", ""))
-    student_code = session_data.get("student_code") if isinstance(session_data, dict) else None
-
-    cm = st.session_state.get("cookie_manager")
-    if cm is not None and student_code:
-        persist_session_client(tok, student_code)
-        set_student_code_cookie(
-            cm, student_code, expires=datetime.now(timezone.utc) + timedelta(days=180)
-        )
-        set_session_token_cookie(
-            cm, tok, expires=datetime.now(timezone.utc) + timedelta(days=30)
-        )
-
-    if "t" in st.query_params:
-        del st.query_params["t"]
-    st.rerun()
 
 def reset_password_page(token: str) -> None:  # pragma: no cover
     """Placeholder for the password reset flow."""
@@ -343,7 +237,5 @@ __all__ = [
     "get_session_client",
     "clear_session_clients",
     "bootstrap_cookies",
-    "restore_session_from_cookie",
-    "recover_session_from_qp_token",
     "reset_password_page",
 ]
