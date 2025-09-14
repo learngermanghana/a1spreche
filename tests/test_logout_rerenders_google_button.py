@@ -8,6 +8,7 @@ from src.logout import do_logout
 def test_logout_rerenders_components():
     mock_st = types.SimpleNamespace(
         session_state={},
+        query_params={},
         success=MagicMock(),
         markdown=MagicMock(),
         link_button=MagicMock(),

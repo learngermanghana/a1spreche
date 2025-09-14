@@ -8,6 +8,8 @@ from src.auth import st, clear_session_clients, get_session_client
 stub_sessions = types.SimpleNamespace(
     refresh_or_rotate_session_token=lambda tok: tok,
     validate_session_token=lambda tok, ua_hash="": {"student_code": "abc"},
+    create_session_token=lambda *args, **kwargs: "tok",
+    destroy_session_token=lambda tok: None,
 )
 sys.modules["falowen.sessions"] = stub_sessions
 

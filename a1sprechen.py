@@ -278,6 +278,17 @@ def calc_blog_height(num_posts: int) -> int:
 
 
 def login_page():
+    if st.session_state.get("logged_in"):
+        try:
+            render_logged_in_topbar()
+        except Exception:
+            pass
+        try:
+            ensure_student_level()
+        except Exception:
+            pass
+        return
+
     try:
         renew_session_if_needed()
     except Exception:
@@ -487,6 +498,21 @@ def render_logged_in_topbar():
 # ------------------------------------------------------------------------------
 # Level-aware welcome video (YouTube) used in the sidebar (IDs can be added later)
 # ------------------------------------------------------------------------------
+def dashboard_page():
+    """Render the dashboard for logged-in users."""
+    if not st.session_state.get("logged_in"):
+        login_page()
+        return
+    try:
+        render_logged_in_topbar()
+    except Exception:
+        pass
+    try:
+        ensure_student_level()
+    except Exception:
+        pass
+
+
 def render_level_welcome_video(level: str | None):
     level = (level or "").strip().upper() or "A1"
     YT_WELCOME = {"A1":"", "A2":"", "B1":"", "B2":"", "C1":"", "C2":""}  # fill IDs later
@@ -1990,11 +2016,14 @@ if tab == "My Course":
         prev = st.session_state.get("cb_prev_subtab")
         curr = st.session_state.get("coursebook_subtab")
         if prev == "📒 Learning Notes":
-            code = st.session_state.get("student_code", "demo001")
-            notes_key = f"notes_{code}"
-            notes = st.session_state.get(notes_key)
-            if notes is not None:
-                save_notes_to_db(code, notes)
+            code = st.session_state.get("student_code", "") or ""
+            if not code:
+                st.error("Student code is required.")
+            else:
+                notes_key = f"notes_{code}"
+                notes = st.session_state.get(notes_key)
+                if notes is not None:
+                    save_notes_to_db(code, notes)
         elif prev == "🧑‍🏫 Classroom":
             code = (
                 st.session_state.get("student_code")
@@ -4583,7 +4612,10 @@ if tab == "My Course":
             </div>
         """, unsafe_allow_html=True)
 
-        student_code = st.session_state.get("student_code", "demo001")
+        student_code = st.session_state.get("student_code", "") or ""
+        if not student_code:
+            st.error("Student code is required to view notes.")
+            st.stop()
         key_notes = f"notes_{student_code}"
 
         if key_notes not in st.session_state:
@@ -6092,7 +6124,10 @@ def is_correct_answer(user_input: str, answer: str) -> bool:
 # ================================
 if tab == "Vocab Trainer":
     # --- Who is this? ---
-    student_code = st.session_state.get("student_code", "demo001")
+    student_code = st.session_state.get("student_code", "") or ""
+    if not student_code:
+        st.error("Student code is required to access the vocab trainer.")
+        st.stop()
 
     # --- Lock the level from your Sheet/profile ---
     student_level_locked = (

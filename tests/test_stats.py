@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+import pytest
 import src.stats as stats
 
 
@@ -133,6 +134,17 @@ def test_load_student_levels_handles_failure(monkeypatch):
     assert warnings  # warning was emitted
     assert list(df.columns) == ["student_code", "level"]
     assert df.empty
+
+
+def test_load_student_levels_raises_when_columns_missing(monkeypatch):
+    df = stats.pd.DataFrame({"wrong": []})
+    monkeypatch.setattr(stats.pd, "read_csv", lambda url: df)
+    errors = []
+    monkeypatch.setattr(stats.st, "error", lambda msg: errors.append(msg))
+    stats.load_student_levels.clear()
+    with pytest.raises(ValueError):
+        stats.load_student_levels()
+    assert errors
 
 def test_get_student_level_returns_none_when_missing(monkeypatch):
     df = stats.pd.DataFrame({"student_code": ["x"], "level": ["B1"]})
