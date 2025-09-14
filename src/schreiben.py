@@ -16,9 +16,16 @@ from google.cloud.firestore_v1 import FieldFilter
 from firebase_admin import firestore
 
 try:  # Firestore may be unavailable in tests
-    from falowen.sessions import db  # pragma: no cover - runtime side effect
+    from falowen.sessions import get_db  # pragma: no cover - runtime side effect
 except Exception:  # pragma: no cover - handle missing Firestore gracefully
-    db = None  # type: ignore
+    def get_db():  # type: ignore
+        return None
+
+db = None  # type: ignore
+
+
+def _get_db():
+    return db if db is not None else get_db()
 
 
 # ---------------------------------------------------------------------------
@@ -32,6 +39,7 @@ def update_schreiben_stats(student_code: str) -> None:
     if not student_code:
         st.warning("No student code provided; skipping stats update.")
         return
+    db = _get_db()
     if db is None:
         st.warning("Firestore not initialized; skipping stats update.")
         return
@@ -95,6 +103,7 @@ def get_schreiben_stats(student_code: str):
     if not student_code:
         st.warning("No student code provided; cannot load stats.")
         return default_stats
+    db = _get_db()
     if db is None:
         st.warning("Firestore not initialized; cannot load stats.")
         return default_stats
@@ -141,6 +150,7 @@ def save_submission(
     if not student_code:
         st.warning("No student code provided; submission not saved.")
         return
+    db = _get_db()
     if db is None:
         st.warning("Firestore not initialized; submission not saved.")
         return
@@ -168,6 +178,7 @@ def save_schreiben_feedback(student_code: str, feedback: str, letter: str) -> No
     if not student_code:
         st.warning("No student code provided; feedback not saved.")
         return
+    db = _get_db()
     if db is None:
         st.warning("Firestore not initialized; feedback not saved.")
         return
@@ -189,6 +200,7 @@ def load_schreiben_feedback(student_code: str) -> Tuple[str, str]:
     if not student_code:
         st.warning("No student code provided; feedback not loaded.")
         return "", ""
+    db = _get_db()
     if db is None:
         st.warning("Firestore not initialized; feedback not loaded.")
         return "", ""
@@ -206,6 +218,7 @@ def delete_schreiben_feedback(student_code: str) -> None:
     if not student_code:
         st.warning("No student code provided; feedback not cleared.")
         return
+    db = _get_db()
     if db is None:
         st.warning("Firestore not initialized; feedback not cleared.")
         return

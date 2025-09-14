@@ -10,7 +10,17 @@ from typing import Any, Dict, Optional
 from firebase_admin import firestore
 from google.cloud.firestore_v1 import FieldFilter
 
-from falowen.sessions import db
+try:  # Firestore may be unavailable in tests
+    from falowen.sessions import get_db
+except Exception:  # pragma: no cover - missing sessions stub
+    def get_db():  # type: ignore
+        return None
+
+db = None  # type: ignore
+
+
+def _get_db():
+    return db if db is not None else get_db()
 from src.firestore_utils import load_draft_meta_from_db
 
 
@@ -28,6 +38,7 @@ def lock_id(level: str, code: str, lesson_key: str) -> str:
 
 def has_existing_submission(level: str, code: str, lesson_key: str) -> bool:
     """True if a submission exists for this (level, code, lesson_key)."""
+    db = _get_db()
     posts_ref = db.collection("submissions").document(level).collection("posts")
     try:
         q = (
@@ -52,6 +63,7 @@ def has_existing_submission(level: str, code: str, lesson_key: str) -> bool:
 
 def acquire_lock(level: str, code: str, lesson_key: str) -> bool:
     """Create a lock doc; if it already exists, treat as locked."""
+    db = _get_db()
     ref = db.collection("submission_locks").document(lock_id(level, code, lesson_key))
     try:
         ref.create(
@@ -86,6 +98,7 @@ def is_locked(level: str, code: str, lesson_key: str) -> bool:
     """Treat either an existing submission OR a lock doc as 'locked'."""
     if has_existing_submission(level, code, lesson_key):
         return True
+    db = _get_db()
     try:
         ref = db.collection("submission_locks").document(lock_id(level, code, lesson_key))
         return ref.get().exists
@@ -126,6 +139,7 @@ def resolve_current_content(level: str, code: str, lesson_key: str, draft_key: s
 
 def fetch_latest(level: str, code: str, lesson_key: str) -> Optional[Dict[str, Any]]:
     """Fetch the most recent submission for this user/lesson (or ``None``)."""
+    db = _get_db()
     posts_ref = db.collection("submissions").document(level).collection("posts")
     try:
         docs = (

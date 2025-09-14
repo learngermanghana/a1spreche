@@ -14,9 +14,12 @@ import pandas as pd
 import streamlit as st
 
 try:  # Firestore access is optional in tests
-    from falowen.sessions import db  # pragma: no cover - runtime side effect
+    from falowen.sessions import get_db  # pragma: no cover - runtime side effect
 except Exception:  # pragma: no cover - Firestore may be unavailable
-    db = None  # type: ignore
+    def get_db():  # type: ignore
+        return None
+
+db = None  # type: ignore
 
 # Maximum number of vocab practice attempts to retain per student
 MAX_HISTORY = 100
@@ -30,7 +33,10 @@ MAX_HISTORY = 100
 def _get_db():
     """Return the Firestore client if initialised, otherwise ``None``."""
 
-    return db  # may be ``None``
+    try:
+        return db if db is not None else get_db()
+    except Exception:
+        return None
 
 
 # ---------------------------------------------------------------------------

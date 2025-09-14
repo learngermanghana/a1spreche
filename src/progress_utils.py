@@ -12,14 +12,21 @@ import logging
 import streamlit as st
 
 try:  # Firestore is optional in certain environments
-    from firebase_admin import firestore  # type: ignore
-    from falowen.sessions import db  # pragma: no cover - side effect import
+    from falowen.sessions import get_db
 except Exception:  # pragma: no cover - Firestore may be unavailable
-    db = None  # type: ignore
+    def get_db():  # type: ignore
+        return None
+
+db = None  # type: ignore
+
+
+def _get_db():
+    return db if db is not None else get_db()
 
 
 def _progress_doc_ref(student_code: str):
     """Return the Firestore document reference for the student's progress."""
+    db = _get_db()
     if db is None:
         return None
     return db.collection("falowen_progress").document(student_code)
