@@ -1,7 +1,7 @@
 """Application configuration utilities.
 
 This module centralises setup for shared resources such as the
-:class:`EncryptedCookieManager`.  ``a1sprechen.py`` previously embedded
+:class:`CookieController`.  ``a1sprechen.py`` previously embedded
 this logic directly which made the main script rather unwieldy.  Moving
 it here allows tests and other modules to import the initialised cookie
 manager without pulling in the whole application.
@@ -9,12 +9,10 @@ manager without pulling in the whole application.
 
 from __future__ import annotations
 
-import hashlib
-import logging
 import os
 
 import streamlit as st
-from streamlit_cookies_manager import EncryptedCookieManager
+from streamlit_cookies_controller import CookieController
 
 from .session_management import bootstrap_cookie_manager
 
@@ -27,44 +25,17 @@ SB_SESSION_TARGET = int(os.environ.get("SB_SESSION_TARGET", 5))
 # Cookie manager bootstrap
 # ---------------------------------------------------------------------------
 
-# IMPORTANT: use a long, random phrase (>= 32 chars) in production.  The
-# repository contains a short fallback purely so tests can run without
-# secrets configured.
-_HARDCODED_COOKIE_PASSPHRASE = os.environ.get(
-    "FALOWEN_COOKIE_FALLBACK", "Felix029"
-)
 
-# Hash the passphrase so the raw value isn't stored directly.
-_FALLBACK_COOKIE_PASSWORD = hashlib.sha256(
-    _HARDCODED_COOKIE_PASSPHRASE.encode("utf-8")
-).hexdigest()
+def get_cookie_manager() -> CookieController:
+    """Return an initialised :class:`CookieController` instance.
 
-
-def get_cookie_manager() -> EncryptedCookieManager:
-    """Return an initialised :class:`EncryptedCookieManager` instance.
-
-    The password is resolved from ``st.secrets`` or environment variables
-    with a deterministic fallback suitable for development and tests.
-    The returned manager is wrapped by ``bootstrap_cookie_manager`` so
+    The returned controller is wrapped by ``bootstrap_cookie_manager`` so
     that downstream code receives the same type regardless of environment.
     """
 
-    cookie_password = (
-        st.secrets.get("cookie_password", None)
-        or os.environ.get("COOKIE_PASSWORD")
-        or _FALLBACK_COOKIE_PASSWORD
-    )
-
-    if cookie_password == _FALLBACK_COOKIE_PASSWORD:
-        logging.warning(
-            "Using built-in fallback cookie password (set `cookie_password` or `COOKIE_PASSWORD` for production)."
-        )
-
     cookie_manager = st.session_state.get("cookie_manager")
     if cookie_manager is None:
-        cookie_manager = bootstrap_cookie_manager(
-            EncryptedCookieManager(password=cookie_password, prefix="falowen")
-        )
+        cookie_manager = bootstrap_cookie_manager(CookieController())
         st.session_state["cookie_manager"] = cookie_manager
 
     return cookie_manager
