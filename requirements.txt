@@ -18,5 +18,4 @@ pytest==8.4.1
 rapidfuzz==3.13.0
 flake8==7.1.1
 extra-streamlit-components>=0.1.63
-beautifulsoup4>=4.12
 rich==14.1.0
