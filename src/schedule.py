@@ -138,6 +138,7 @@ Submitting Work
             ),
             "grammar_topic": "German Pronouns",
             "schreiben_sprechen": {
+                "chapter": "1.1",
                 "video": "https://youtu.be/hEe6rs0lkRg",
                 "youtube_link": "https://youtu.be/hEe6rs0lkRg",
                 "workbook_link": "https://drive.google.com/file/d/1GXWzy3cvbl_goP4-ymFuYDtX4X23D70j/view?usp=sharing",
@@ -251,10 +252,11 @@ Submitting Work
         {
             "day": 10,
             "topic": "Lesen & Hören 6 and Schreiben & Sprechen 2.4",
-            "chapter": "6_2.4",
+            "chapter": "6",
             "goal": "Understand Possessive Determiners and its usage in connection with nouns",
-            "instruction": "The assignment is the lesen and horen chapter 6 but you must also go through schreiben and sprechnen 2.4 for full understanding",         
+            "instruction": "The assignment is the lesen and horen chapter 6 but you must also go through schreiben and sprechnen 2.4 for full understanding",
             "lesen_hören": {
+                "chapter": "6",
                 "video": "https://youtu.be/SXwDqcwrR3k",
                 "youtube_link": "https://youtu.be/SXwDqcwrR3k",
                 "grammarbook_link": "https://drive.google.com/file/d/1Fy4bKhaHHb4ahS2xIumrLtuqdQ0YAFB4/view?usp=sharing",
@@ -262,6 +264,7 @@ Submitting Work
                 "workbook_link": "https://drive.google.com/file/d/1Da1iw54oAqoaY-UIw6oyIn8tsDmIi1YR/view?usp=sharing"
             },
             "schreiben_sprechen": {
+                "chapter": "2.4",
                 "video": "https://youtu.be/lw9SsojpKf8",
                 "youtube_link": "https://youtu.be/lw9SsojpKf8",
                 "workbook_link": "https://drive.google.com/file/d/1GbIc44ToWh2upnHv6eX3ZjFrvnf4fcEM/view?usp=sharing",
@@ -412,6 +415,7 @@ Submitting Work
                 }
             ],
             "schreiben_sprechen": {
+                "chapter": "12.2",
                 "video": "https://youtu.be/xVyYo7upDGo",
                 "youtube_link": "https://youtu.be/xVyYo7upDGo",
                 "assignment": False,
