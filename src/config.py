@@ -9,10 +9,33 @@ manager without pulling in the whole application.
 
 from __future__ import annotations
 
+import logging
 import os
 
 import streamlit as st
-from streamlit_cookies_controller import CookieController
+
+try:  # pragma: no cover - import guarded for missing optional dependency
+    from streamlit_cookies_controller import CookieController
+except ImportError:  # pragma: no cover - executed when dependency missing
+    logging.warning(
+        "streamlit-cookies-controller not installed; using in-memory cookie"
+        " manager. Install with `pip install streamlit-cookies-controller`"
+        " for full functionality."
+    )
+
+    class CookieController(dict):
+        """Minimal in-memory fallback for :class:`CookieController`."""
+
+        ready = True
+
+        def set(self, key: str, value: object, **kwargs: object) -> None:
+            self[key] = value
+
+        def delete(self, key: str) -> None:  # pragma: no cover - simple
+            self.pop(key, None)
+
+        def save(self) -> None:  # pragma: no cover - no-op for fallback
+            return None
 
 from .session_management import bootstrap_cookie_manager
 
