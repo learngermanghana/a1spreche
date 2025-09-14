@@ -714,7 +714,14 @@ def render_results_and_resources_tab() -> None:
         for _, row in df_display[base_cols].iterrows():
             perf = score_label_fmt(row["score"])
             comment_html = linkify_html(row["comments"])
-            ref_link = (row.get("link") or "").strip()
+            # Some row objects (e.g. namedtuples or lists) may not implement
+            # ``get``.  Access the value defensively so we always end up with a
+            # string and gracefully handle missing keys.
+            if hasattr(row, "__contains__") and "link" in row:
+                link_val = row["link"]
+                ref_link = str(link_val).strip() if pd.notna(link_val) else ""
+            else:
+                ref_link = ""
             show_ref = (
                 ref_link.startswith("http")
                 and pd.notna(pd.to_numeric(row["score"], errors="coerce"))
