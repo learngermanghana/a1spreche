@@ -26,6 +26,20 @@ export COOKIE_PASSWORD=<strong-secret>
 
 This value is required for secure cookie management. If it is omitted the app falls back to a built-in password intended only for tests and logs a warning. Never rely on the fallback in production.
 
+### Refresh token storage
+
+Authentication refresh tokens are persisted in a small SQLite database. The
+database path can be configured via the `REFRESH_DB_PATH` environment variable;
+it defaults to `refresh_tokens.db` in the project root. Initialize the database
+table with:
+
+```bash
+python scripts/init_refresh_db.py
+```
+
+This creates a `refresh_tokens` table mapping `user_id` to the latest issued
+refresh token.
+
 ## Usage
 
 

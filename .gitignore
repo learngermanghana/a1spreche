@@ -2,3 +2,6 @@
 # Ignore Xcode user data
 **/*.xcworkspace/xcuserdata/
 **/*.xcodeproj/xcuserdata/
+
+# Local SQLite databases
+*.db
