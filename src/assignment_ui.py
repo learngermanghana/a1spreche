@@ -308,7 +308,7 @@ def get_assignment_summary(
         lesson_chapters: list[float] = []
         if lesson.get("assignment", False):
             lesson_chapters.extend(_extract_all_nums(chapter_field))
-        for key in ("lesen_hören", "schreiben_sprechen"):
+        for key in ("lesen_hören",):
             items = lesson.get(key, [])
             if isinstance(items, dict):
                 items = [items]
@@ -325,13 +325,11 @@ def get_assignment_summary(
                 )
                 break
     def _is_recommendable(lesson: dict) -> bool:
-        """Return ``True`` when the lesson should be recommended.
+        """Return ``True`` when the lesson has an assignment.
 
-        A lesson is considered *not* recommendable only if its
-        ``schreiben_sprechen`` component has ``assignment=True`` and there are
-        no assignments in any other component (top-level ``assignment`` or
-        ``lesen_hören``).  This ensures reading/listening assignments are still
-        recommended even when the topic mentions writing or speaking.
+        A lesson is recommendable only if the top-level ``assignment`` flag or
+        any entry in ``lesen_hören`` has ``assignment=True``. Schreib/Sprechen
+        sections no longer carry assignments and are ignored entirely.
         """
 
         def _has_assignment(value) -> bool:
@@ -341,11 +339,9 @@ def get_assignment_summary(
                 return bool(value.get("assignment", False))
             return bool(value)
 
-        ss_has = _has_assignment(lesson.get("schreiben_sprechen", []))
-        other_has = _has_assignment(lesson.get("assignment", False)) or _has_assignment(
+        return _has_assignment(lesson.get("assignment", False)) or _has_assignment(
             lesson.get("lesen_hören", [])
         )
-        return not (ss_has and not other_has)
 
     completed_chapters = []
     for a in df["assignment"]:
