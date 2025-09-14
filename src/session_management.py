@@ -8,7 +8,15 @@ from typing import Any, Protocol
 
 import pandas as pd
 import streamlit as st
-from falowen.sessions import validate_session_token
+try:  # pragma: no cover - dependency optional
+    from falowen.sessions import validate_session_token
+except ImportError:  # pragma: no cover - fallback for missing dependency
+    def validate_session_token(*_: Any, **__: Any) -> dict:
+        """Fallback when ``falowen`` is not installed."""
+        logging.warning(
+            "falowen.sessions.validate_session_token is unavailable; returning empty dict"
+        )
+        return {}
 
 from src.stats import get_student_level
 
@@ -72,12 +80,18 @@ def bootstrap_session_from_qp() -> None:
         return
 
     try:
-        data = validate_session_token(tok, ua_hash=st.session_state.get("__ua_hash", "")) or {}
+        data = validate_session_token(
+            tok, ua_hash=st.session_state.get("__ua_hash", "")
+        )
     except Exception:  # pragma: no cover - validation errors
         logging.exception("Session token validation failed")
         return
 
-    sc = data.get("student_code", "") if isinstance(data, dict) else ""
+    if not isinstance(data, dict):
+        logging.warning("Session token validator returned non-dict data")
+        return
+
+    sc = data.get("student_code", "")
     if not sc:
         return
 
