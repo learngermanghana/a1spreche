@@ -304,19 +304,22 @@ def get_assignment_summary(
     skipped_assignments = []
     for lesson in schedule:
         chapter_field = lesson.get("chapter", "")
-        lesson_nums = _extract_all_nums(chapter_field)
         day = lesson.get("day", "")
-        lesen_horen = lesson.get("lesen_hören", [])
-        if isinstance(lesen_horen, dict):
-            lh_items = [lesen_horen]
-        elif isinstance(lesen_horen, list):
-            lh_items = [item for item in lesen_horen if isinstance(item, dict)]
-        else:
-            lh_items = []
-        nested_assignment = any(item.get("assignment", False) for item in lh_items)
-        has_assignment = lesson.get("assignment", False) or nested_assignment
-        for chap_num in lesson_nums:
-            if has_assignment and chap_num < last_num and chap_num not in completed_nums:
+        lesson_chapters: list[float] = []
+        if lesson.get("assignment", False):
+            lesson_chapters.extend(_extract_all_nums(chapter_field))
+        for key in ("lesen_hören", "schreiben_sprechen"):
+            items = lesson.get(key, [])
+            if isinstance(items, dict):
+                items = [items]
+            elif not isinstance(items, list):
+                items = []
+            for item in (
+                i for i in items if isinstance(i, dict) and i.get("assignment", False)
+            ):
+                lesson_chapters.extend(_extract_all_nums(item.get("chapter", "")))
+        for chap_num in lesson_chapters:
+            if chap_num < last_num and chap_num not in completed_nums:
                 skipped_assignments.append(
                     f"Day {day}: Chapter {chapter_field} – {lesson.get('topic','')}"
                 )
