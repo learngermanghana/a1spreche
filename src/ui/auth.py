@@ -14,16 +14,9 @@ import html  # noqa: F401
 
 import bcrypt
 import streamlit as st
-from src.config import get_cookie_manager
-
 from falowen.email_utils import send_reset_email, build_gas_reset_link
 from falowen.sessions import create_session_token, destroy_session_token
-from src.auth import (
-    set_student_code_cookie,
-    set_session_token_cookie,
-    clear_session,
-    persist_session_client,
-)
+from src.auth import persist_session_client
 from src.contracts import is_contract_expired
 from src.data_loading import load_student_data
 from src.session_management import determine_level
@@ -31,12 +24,6 @@ from src.ui_helpers import qp_get, qp_clear
 from src.services.contracts import contract_active
 from src.utils.toasts import refresh_with_toast, toast_ok, toast_err
 
-def read_session_cookie_into_state() -> None:
-    cm = get_cookie_manager()
-    token_in_state = st.session_state.get("session_token")
-    token_in_cookie = cm.get("session_token")
-    if token_in_cookie and token_in_cookie != token_in_state:
-        st.session_state["session_token"] = token_in_cookie
 
 # Google OAuth configuration
 GOOGLE_CLIENT_ID = st.secrets.get(
@@ -48,7 +35,7 @@ REDIRECT_URI = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowen.app/")
 
 
 def renew_session_if_needed() -> None:
-    """Refresh session cookie and mapping if a token is present."""
+    """Refresh session token and keep query parameters in sync."""
     token = st.session_state.get("session_token")
     if not token:
         return
@@ -71,20 +58,12 @@ def renew_session_if_needed() -> None:
 
     if new_token and new_token != token:
         st.session_state["session_token"] = new_token
+        st.query_params["t"] = new_token
         token = new_token
 
     student_code = st.session_state.get("student_code") or data.get("student_code", "")
     persist_session_client(token, student_code)
-
-    cm = st.session_state.get("cookie_manager")
-    if cm:
-        set_session_token_cookie(
-            cm, token, expires=datetime.now(UTC) + timedelta(days=30)
-        )
-        try:
-            cm.save()
-        except Exception:
-            logging.debug("Cookie save failed", exc_info=True)
+    st.query_params["t"] = token
 
 
 def render_signup_form() -> None:
@@ -225,9 +204,6 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
     level = determine_level(student_row["StudentCode"], student_row)
 
-    cookie_manager = st.session_state.get("cookie_manager")
-    if cookie_manager:
-        clear_session(cookie_manager)
     st.session_state.update(
         {
             "logged_in": True,
@@ -238,20 +214,7 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
             "student_level": level,
         }
     )
-    cm = get_cookie_manager()
-    token = st.session_state.get("session_token")
-    if token:
-        set_session_token_cookie(
-            cm, token, expires=datetime.now(UTC) + timedelta(days=30)
-        )
-        set_student_code_cookie(
-            cm, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180)
-        )
-        try:
-            cm.save()
-        except Exception:
-            logging.debug("Cookie save failed", exc_info=True)
-        st.session_state["logged_in"] = True
+    st.query_params["t"] = sess_token
     persist_session_client(sess_token, student_row["StudentCode"])
 
     from streamlit.components.v1 import html as _html
@@ -454,10 +417,6 @@ def _handle_google_oauth(code: str, state: str) -> None:
                 logging.exception("Logout warning (revoke)")
                 toast_err("Logout failed")
 
-        cookie_manager = st.session_state.get("cookie_manager")
-        if cookie_manager:
-            clear_session(cookie_manager)
-
         sess_token = create_session_token(
             student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash
         )
@@ -473,21 +432,7 @@ def _handle_google_oauth(code: str, state: str) -> None:
                 "student_level": level,
             }
         )
-        cm = get_cookie_manager()
-        token = st.session_state.get("session_token")
-        if token:
-            set_session_token_cookie(
-                cm, token, expires=datetime.now(UTC) + timedelta(days=30)
-            )
-            set_student_code_cookie(
-                cm, student_row["StudentCode"], expires=datetime.now(UTC) + timedelta(days=180)
-            )
-            try:
-                cm.save()
-            except Exception:
-                logging.exception("Cookie save failed")
-                toast_err("Cookie save failed")
-            st.session_state["logged_in"] = True
+        st.query_params["t"] = sess_token
         persist_session_client(sess_token, student_row["StudentCode"])
         from streamlit.components.v1 import html as _html
 
@@ -559,5 +504,4 @@ __all__ = [
     "render_signup_request_banner",
     "render_google_oauth",
     "render_returning_login_form",
-    "read_session_cookie_into_state",
 ]

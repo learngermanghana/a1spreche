@@ -147,7 +147,7 @@ from src.ui.auth import (
     render_google_oauth,
     render_returning_login_form,
 )
-from src.ui.auth import read_session_cookie_into_state, renew_session_if_needed
+from src.ui.auth import renew_session_if_needed
 from src.ui.login import render_falowen_login
 from src.services.vocab import VOCAB_LISTS, AUDIO_URLS, get_audio_url
 from src.schreiben import (
@@ -166,11 +166,7 @@ from src.ui_helpers import (
     filter_matches,
 )
 from src.auth import (
-    set_student_code_cookie,
-    set_session_token_cookie,
-    clear_session,
     persist_session_client,
-    restore_session_from_cookie,
     reset_password_page,
 )
 from src.assignment_ui import (
@@ -182,9 +178,10 @@ from src.session_management import (
     bootstrap_state,
     determine_level,
     ensure_student_level,
+    bootstrap_session_from_qp,
 )
 from src.sentence_bank import SENTENCE_BANK
-from src.config import get_cookie_manager, SB_SESSION_TARGET
+from src.config import SB_SESSION_TARGET
 from src.data_loading import load_student_data
 from src.youtube import (
     get_playlist_ids_for_level,
@@ -202,11 +199,6 @@ from src.pdf_handling import (
     generate_chat_pdf,
 )
 from src.sentence_builder import render_sentence_builder
-
-# ------------------------------------------------------------------------------
-# Cookie manager
-# ------------------------------------------------------------------------------
-st.session_state.setdefault("cookie_manager", get_cookie_manager())
 
 # ------------------------------------------------------------------------------
 # Google OAuth (Gmail sign-in) — single-source, no duplicate buttons
@@ -287,7 +279,6 @@ def calc_blog_height(num_posts: int) -> int:
 
 def login_page():
     try:
-        read_session_cookie_into_state()
         renew_session_if_needed()
     except Exception:
         pass
@@ -480,13 +471,12 @@ def render_logged_in_topbar():
                 unsafe_allow_html=True
             )
         with c2:
-            cm = st.session_state["cookie_manager"]
             st.button(
                 "Log out",
                 key="logout_global",
                 type="primary",
                 use_container_width=True,
-                on_click=lambda cm=cm: do_logout(cm),
+                on_click=do_logout,
             )
 
     level_key = (level or "").strip().upper()
@@ -788,36 +778,7 @@ def diff_with_markers(original: str, corrected: str) -> str:
 # ------------------------------------------------------------------------------
 bootstrap_state()
 seed_falowen_state_from_qp()
-
-
-restored = restore_session_from_cookie(
-    st.session_state["cookie_manager"],
-    load_student_data,
-    contract_active,
-)
-if restored is not None and not st.session_state.get("logged_in", False):
-    sc_cookie = restored["student_code"]
-    token = restored["session_token"]
-    roster = restored.get("data")
-    match = (
-        roster[roster["StudentCode"].str.lower() == sc_cookie.lower()]
-        if roster is not None and "StudentCode" in roster.columns
-        else pd.DataFrame()
-    )
-    if match.empty:
-        clear_session(st.session_state["cookie_manager"])
-        st.warning("Session expired. Please log in again.")
-    else:
-        row = match.iloc[0]
-        level = determine_level(sc_cookie, row)
-        st.session_state.update({
-            "logged_in": True,
-            "student_code": sc_cookie,
-            "student_name": row.get("Name", ""),
-            "student_row": dict(row) if isinstance(row, pd.Series) else {},
-            "session_token": token,
-            "student_level": level,
-        })
+bootstrap_session_from_qp()
 
 # If visiting with password-reset token
 if not st.session_state.get("logged_in", False):

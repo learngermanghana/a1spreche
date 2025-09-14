@@ -7,21 +7,15 @@ from typing import Any, Callable
 import streamlit as st
 
 from falowen.sessions import destroy_session_token
-from src.auth import clear_session, create_cookie_manager
 
 
 def do_logout(
-    cookie_manager: Any | None = None,
     *,
     st_module: Any = st,
     destroy_token: Callable[[str], None] = destroy_session_token,
-    clear_session_fn: Callable[[Any], None] = clear_session,
-    create_cookie_manager_fn: Callable[[], Any] = create_cookie_manager,
     logger: Any = logging,
 ) -> None:
-    """Clear session information and cookies for the current user."""
-    if cookie_manager is None:
-        cookie_manager = create_cookie_manager_fn()
+    """Clear session information and revoke the current session token."""
     try:
         prev_token = st_module.session_state.get("session_token", "")
         if prev_token:
@@ -29,13 +23,9 @@ def do_logout(
                 destroy_token(prev_token)
             except Exception:
                 logger.exception("Token revoke failed on logout")
-        clear_session_fn(cookie_manager)
-        try:
-            cookie_manager.save()
-        except Exception:
-            logger.exception("Cookie save failed")
     except Exception:
-        logger.exception("Cookie/session clear failed")
+        logger.exception("Token revoke failed on logout")
+
     st_module.session_state.update(
         {
             "logged_in": False,
@@ -46,6 +36,7 @@ def do_logout(
             "student_level": "",
         }
     )
+    st_module.query_params.pop("t", None)
     st_module.session_state.pop("_google_btn_rendered", None)
     st_module.session_state.pop("_google_cta_rendered", None)
     st_module.session_state.pop("_ann_hash", None)
