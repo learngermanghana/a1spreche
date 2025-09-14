@@ -43,19 +43,6 @@ from src.group_schedules import load_group_schedules
 from src.blog_feed import fetch_blog_feed
 from src.blog_cards_widget import render_blog_cards
 import src.schedule as _schedule
-
-
-def hide_streamlit_header() -> None:
-    st.markdown(
-        """
-        <style>
-            header[data-testid="stHeader"] {display: none;}
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
 load_level_schedules = _schedule.load_level_schedules
 refresh_level_schedules = getattr(_schedule, "refresh_level_schedules", lambda: None)
 
@@ -64,6 +51,22 @@ app.register_blueprint(auth_bp)
 register_health_route(app)
 
 ICON_PATH = Path(__file__).parent / "static/icons/falowen-512.png"
+
+st.set_page_config(
+    page_title="Falowen – Your German Conversation Partner",
+    page_icon=str(ICON_PATH),  # now uses official Falowen icon
+    layout="wide",
+)
+
+# Load global CSS classes and variables
+inject_global_styles()
+
+st.markdown("""
+<style>
+html, body { overscroll-behavior-y: none; }
+</style>
+""", unsafe_allow_html=True)
+
 
 # Ensure the latest lesson schedule is loaded
 if "level_schedules_initialized" not in st.session_state:
@@ -275,15 +278,6 @@ def calc_blog_height(num_posts: int) -> int:
 
 
 def login_page():
-    # Ensure base session fields exist and are hydrated before rendering.
-    bootstrap_state()
-    seed_falowen_state_from_qp()
-    bootstrap_session_from_qp()
-    ensure_student_level()
-
-    if st.session_state.get("logged_in", False):
-        render_logged_in_topbar()
-
     try:
         renew_session_if_needed()
     except Exception:
@@ -782,41 +776,40 @@ def diff_with_markers(original: str, corrected: str) -> str:
 # ------------------------------------------------------------------------------
 # Seed state from query params / restore session / reset-link path / go to login
 # ------------------------------------------------------------------------------
-def dashboard_page() -> None:
-    bootstrap_state()
-    seed_falowen_state_from_qp()
-    bootstrap_session_from_qp()
-    ensure_student_level()
+bootstrap_state()
+seed_falowen_state_from_qp()
+bootstrap_session_from_qp()
 
-    # If visiting with password-reset token
+# If visiting with password-reset token
+if not st.session_state.get("logged_in", False):
+    tok = st.query_params.get("token")
+    if isinstance(tok, list):
+        tok = tok[0] if tok else None
+    if tok:
+        reset_password_page(tok)
+        st.stop()
+
+# Gate
+if not st.session_state.get("logged_in", False):
+    login_page()
     if not st.session_state.get("logged_in", False):
-        tok = st.query_params.get("token")
-        if isinstance(tok, list):
-            tok = tok[0] if tok else None
-        if tok:
-            reset_password_page(tok)
-            st.stop()
+        st.stop()
 
-    # Gate
-    if not st.session_state.get("logged_in", False):
-        login_page()
-        if not st.session_state.get("logged_in", False):
-            st.stop()
+# ==================== LOGGED IN ====================
+# Show header immediately after login on every page
+render_logged_in_topbar()
 
-    # ==================== LOGGED IN ====================
-    # Show header immediately after login on every page
-    render_logged_in_topbar()
+# Theme bits (chips etc.)
+inject_notice_css()
 
-    # Theme bits (chips etc.)
-    inject_notice_css()
+# Sidebar (no logout; logout lives in the header)
+render_sidebar_published()
 
-    # Sidebar (no logout; logout lives in the header)
-    render_sidebar_published()
+# Falowen blog updates (render once)
+new_posts = fetch_blog_feed()
 
-    st.markdown("---")
-    st.markdown("**You’re logged in.** Continue to your lessons and tools from the navigation.")
-
-    _maybe_rerun()
+st.markdown("---")
+st.markdown("**You’re logged in.** Continue to your lessons and tools from the navigation.")
 
 
 
@@ -1133,14 +1126,13 @@ try:
 except Exception as e:
     st.warning(f"Navigation init issue: {e}. Falling back to Dashboard.")
     tab = "Dashboard"
-render_announcements_once(fetch_blog_feed(), tab == "Dashboard")
+render_announcements_once(new_posts, tab == "Dashboard")
 
 
 # =========================================================
 # ===================== Dashboard =========================
 # =========================================================
 if tab == "Dashboard":
-    render_sidebar_published()
     def _go_attendance() -> None:
         st.session_state["nav_sel"] = "My Course"
         st.session_state["main_tab_select"] = "My Course"
@@ -1950,7 +1942,6 @@ RESOURCE_LABELS = {
 
 # ---- Firestore Helpers ----
 if tab == "My Course":
-    render_sidebar_published()
     # === HANDLE ALL SWITCHING *BEFORE* ANY WIDGET ===
     # Jump flags set by buttons elsewhere
     if st.session_state.get("__go_classroom"):
@@ -4940,7 +4931,6 @@ if tab == "My Course":
 
 # =========================== MY RESULTS & RESOURCES ===========================
 if tab == "My Results and Resources":
-    render_sidebar_published()
     render_results_and_resources_tab()
 
 # ================================
@@ -5434,7 +5424,6 @@ for key, val in default_state.items():
         st.session_state[key] = val
 
 if tab == "Exams Mode & Custom Chat":
-    render_sidebar_published()
     st.markdown(
         '''
         <div style="padding: 8px 12px; background: #28a745; color: #fff; border-radius: 6px;
@@ -6102,7 +6091,6 @@ def is_correct_answer(user_input: str, answer: str) -> bool:
 # TAB: Vocab Trainer (locked by Level)
 # ================================
 if tab == "Vocab Trainer":
-    render_sidebar_published()
     # --- Who is this? ---
     student_code = st.session_state.get("student_code", "demo001")
 
@@ -6587,7 +6575,6 @@ def get_level_from_code(student_code):
 #Maincode for me
 
 if tab == "Schreiben Trainer":
-    render_sidebar_published()
     st.markdown(
         '''
         <div style="
@@ -7628,9 +7615,8 @@ if tab == "Schreiben Trainer":
 
 
 
-def _maybe_rerun() -> None:
-    if st.session_state.pop("need_rerun", False):
-        # Mark done so we don't schedule again
-        st.session_state["post_login_rerun"] = True
-        st.rerun()
+if st.session_state.pop("need_rerun", False):
+    # Mark done so we don't schedule again
+    st.session_state["post_login_rerun"] = True
+    st.rerun()
 
