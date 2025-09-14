@@ -4,6 +4,8 @@ from flask import Blueprint, request, jsonify, make_response
 import os
 import jwt
 import uuid
+import sqlite3
+from pathlib import Path
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
@@ -31,14 +33,55 @@ def _set_cookie(resp, token: str):
     resp.set_cookie(COOKIE_NAME, token, **kwargs)
     return resp
 
-# --- Simple in-memory user store and JWT helpers ---
+# --- JWT helpers and refresh-token persistence ---
 JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret")
 JWT_ALG = "HS256"
 ACCESS_TTL = 3600
 
-USERS = {
-    "u": {"password": "pw", "refresh": None},
-}
+# Demo credentials (in lieu of a real user database)
+USER_PASSWORDS = {"u": "pw"}
+
+# SQLite-backed refresh token store
+_BASE_DIR = Path(__file__).resolve().parent
+REFRESH_DB_PATH = os.getenv("REFRESH_DB_PATH", str(_BASE_DIR / "refresh_tokens.db"))
+
+
+def _with_db(fn):
+    """Utility decorator to handle connection lifecycle."""
+    def wrapper(*args, **kwargs):
+        conn = sqlite3.connect(REFRESH_DB_PATH)
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS refresh_tokens (user_id TEXT PRIMARY KEY, token TEXT)"
+        )
+        try:
+            result = fn(conn, *args, **kwargs)
+            conn.commit()
+            return result
+        finally:
+            conn.close()
+
+    return wrapper
+
+
+@_with_db
+def _store_refresh(conn: sqlite3.Connection, user_id: str, token: str) -> None:
+    conn.execute(
+        "REPLACE INTO refresh_tokens(user_id, token) VALUES (?, ?)",
+        (user_id, token),
+    )
+
+
+@_with_db
+def _fetch_refresh(conn: sqlite3.Connection, user_id: str) -> str | None:
+    row = conn.execute(
+        "SELECT token FROM refresh_tokens WHERE user_id = ?", (user_id,)
+    ).fetchone()
+    return row[0] if row else None
+
+
+@_with_db
+def _delete_refresh(conn: sqlite3.Connection, user_id: str) -> None:
+    conn.execute("DELETE FROM refresh_tokens WHERE user_id = ?", (user_id,))
 
 
 def _issue_access(user_id: str) -> str:
@@ -55,7 +98,7 @@ def _issue_refresh(user_id: str) -> str:
         "jti": uuid.uuid4().hex,
     }
     token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
-    USERS.setdefault(user_id, {}).update({"refresh": token})
+    _store_refresh(user_id, token)
     return token
 
 
@@ -69,11 +112,9 @@ def _get_user_from_refresh(token: str) -> str | None:
     except jwt.PyJWTError:
         return None
 
-    stored = USERS.get(user_id, {}).get("refresh")
+    stored = _fetch_refresh(user_id)
     if stored != token:
-        # Revoke mismatched token
-        if user_id in USERS:
-            USERS[user_id]["refresh"] = None
+        _delete_refresh(user_id)
         return None
     return user_id
 # ------------------------------------------------------------
@@ -83,7 +124,7 @@ def login():
     data = request.get_json(silent=True) or {}
     user_id = data.get("user_id") or data.get("email")
     password = data.get("password") or data.get("pw")
-    if not user_id or user_id not in USERS or USERS[user_id]["password"] != password:
+    if not user_id or user_id not in USER_PASSWORDS or USER_PASSWORDS[user_id] != password:
         return jsonify(error="invalid credentials"), 401
 
     access = _issue_access(user_id)
@@ -125,8 +166,8 @@ def logout():
     rt = request.cookies.get(COOKIE_NAME)
     if rt:
         uid = _get_user_from_refresh(rt)
-        if uid and uid in USERS:
-            USERS[uid]["refresh"] = None
+        if uid:
+            _delete_refresh(uid)
 
     resp = make_response("", 204)
     # Clear cookie with the same attributes we set
