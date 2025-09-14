@@ -72,3 +72,55 @@ def test_skipped_detection_includes_nested_assignments(monkeypatch):
 
     summary = assignment_ui.get_assignment_summary("s1", "A1", df)
     assert summary["missed"] == ["Day 2: Chapter 1.5 – Ch1.5"]
+
+
+def test_next_assignment_skips_pure_schreiben_sprechen(monkeypatch):
+    schedule = [
+        {"day": 1, "chapter": "1.0", "assignment": True, "topic": "Ch1"},
+        {
+            "day": 2,
+            "chapter": "1.5",
+            "topic": "Schreiben und Sprechen",
+            "schreiben_sprechen": [{"chapter": "1.5", "assignment": True}],
+        },
+        {"day": 3, "chapter": "2.0", "assignment": True, "topic": "Ch2"},
+    ]
+    df = pd.DataFrame(
+        {
+            "studentcode": ["s1"],
+            "assignment": ["1.0"],
+            "level": ["A1"],
+            "score": ["90"],
+            "date": ["2024-01-01"],
+        }
+    )
+    monkeypatch.setattr(assignment_ui, "_get_level_schedules", lambda: {"A1": schedule})
+
+    summary = assignment_ui.get_assignment_summary("s1", "A1", df)
+    assert summary["next"]["day"] == 3
+
+
+def test_next_assignment_includes_reading_even_with_schreiben_topic(monkeypatch):
+    schedule = [
+        {"day": 1, "chapter": "1.0", "assignment": True, "topic": "Ch1"},
+        {
+            "day": 2,
+            "chapter": "1.5",
+            "topic": "Schreiben und Sprechen",
+            "lesen_hören": [{"chapter": "1.5", "assignment": True}],
+        },
+        {"day": 3, "chapter": "2.0", "assignment": True, "topic": "Ch2"},
+    ]
+    df = pd.DataFrame(
+        {
+            "studentcode": ["s1"],
+            "assignment": ["1.0"],
+            "level": ["A1"],
+            "score": ["90"],
+            "date": ["2024-01-01"],
+        }
+    )
+    monkeypatch.setattr(assignment_ui, "_get_level_schedules", lambda: {"A1": schedule})
+
+    summary = assignment_ui.get_assignment_summary("s1", "A1", df)
+    assert summary["next"]["day"] == 2
