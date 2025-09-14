@@ -12,14 +12,18 @@ from src.stats import get_student_level
 
 
 class CookieLike(Protocol):
-    def ready(self) -> bool: ...
+    """Minimal protocol representing cookie managers used in the app."""
+
+    ready: Any  # may be bool or callable returning bool
 
 
 def bootstrap_cookie_manager(cm: CookieLike) -> CookieLike:
     """Return the cookie manager instance and gate on readiness if available."""
-    ready_fn = getattr(cm, "ready", None)
-    if callable(ready_fn) and not bool(ready_fn()):
-        st.stop()
+    ready_attr = getattr(cm, "ready", None)
+    if ready_attr is not None:
+        ready = ready_attr() if callable(ready_attr) else bool(ready_attr)
+        if not ready:
+            st.stop()
     return cm
 
 
@@ -50,7 +54,7 @@ def determine_level(sc: str, row: Any) -> str:
     if not level and sc:
         try:
             level = get_student_level(sc) or ""
-        except Exception as exc:  # pragma: no cover - defensive
+        except Exception:  # pragma: no cover - defensive
             logging.exception("Failed to look up student level")
             level = ""
     return str(level or "").strip()
