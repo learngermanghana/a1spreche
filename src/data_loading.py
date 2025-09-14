@@ -68,6 +68,19 @@ def _load_student_data_cached() -> Optional[pd.DataFrame]:
         raise
 
     df.columns = df.columns.str.strip().str.replace(" ", "")
+
+    # Normalize common variants of the class name column so downstream
+    # components can reliably access ``ClassName`` regardless of how the
+    # roster labels it.  Some spreadsheets use ``Class`` or a lowercase
+    # ``classname``; unify these to ``ClassName``.
+    lower_cols = {c.lower(): c for c in df.columns}
+    if "classname" in lower_cols and lower_cols["classname"] != "ClassName":
+        df.rename(columns={lower_cols["classname"]: "ClassName"}, inplace=True)
+    elif "class" in lower_cols and "classname" not in lower_cols:
+        df.rename(columns={lower_cols["class"]: "ClassName"}, inplace=True)
+    elif "classroom" in lower_cols and "classname" not in lower_cols:
+        df.rename(columns={lower_cols["classroom"]: "ClassName"}, inplace=True)
+
     for col in df.columns:
         s = df[col]
         df[col] = s.where(s.isna(), s.astype(str).str.strip())
