@@ -2,15 +2,11 @@ import sys
 import types
 
 import pandas as pd
-import streamlit as st
-
+import pytest
 from src.contracts import is_contract_expired
 
-# Stub ``falowen.sessions`` before importing ``src.auth`` to avoid network calls.
-stub_sessions = types.SimpleNamespace(validate_session_token=lambda *a, **k: None)
-sys.modules.setdefault("falowen.sessions", stub_sessions)
-
-from src.auth import (  # noqa: E402
+from src.auth import (
+    st,
     create_cookie_manager,
     set_student_code_cookie,
     set_session_token_cookie,
@@ -22,8 +18,18 @@ from src.auth import (  # noqa: E402
     clear_session_clients,
     recover_session_from_qp_token,
 )
+# Stub ``falowen.sessions`` before importing ``src.auth`` to avoid network calls.
+stub_sessions = types.SimpleNamespace(validate_session_token=lambda *a, **k: None)
+sys.modules.setdefault("falowen.sessions", stub_sessions)
 
 cookie_manager = create_cookie_manager()
+
+
+@pytest.fixture(autouse=True)
+def _reset_session(monkeypatch):
+    monkeypatch.setattr(st, "session_state", {})
+    monkeypatch.setattr(st, "query_params", {})
+    clear_session_clients()
 
 def test_cookies_keep_user_logged_in_after_reload():
     """User with valid cookies should remain logged in after a reload."""

@@ -1,10 +1,11 @@
 import threading
 
-from src.auth import persist_session_client, get_session_client, clear_session_clients
+from src.auth import st, persist_session_client, get_session_client, clear_session_clients
 
 
-def test_session_store_thread_safety():
+def test_session_store_thread_safety(monkeypatch):
     """Concurrent writes and reads should be thread safe."""
+    monkeypatch.setattr(st, "session_state", {})
     clear_session_clients()
     tokens = [f"tok{i}" for i in range(100)]
 

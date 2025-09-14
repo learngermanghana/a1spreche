@@ -3,7 +3,8 @@ import types
 import logging
 from datetime import datetime, timedelta, UTC
 
-import streamlit as st
+import pytest
+from src.auth import st
 
 # Stub falowen.sessions before importing module under test
 stub_sessions = types.SimpleNamespace(
@@ -23,8 +24,9 @@ from src.auth import (  # noqa: E402
 from src.ui.auth import renew_session_if_needed  # noqa: E402
 
 
-def setup_function(function):
-    st.session_state.clear()
+@pytest.fixture(autouse=True)
+def _reset_session(monkeypatch):
+    monkeypatch.setattr(st, "session_state", {})
     clear_session_clients()
 
 
