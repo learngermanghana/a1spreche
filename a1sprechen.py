@@ -67,6 +67,16 @@ html, body { overscroll-behavior-y: none; }
 </style>
 """, unsafe_allow_html=True)
 
+st.markdown(
+    """
+    <style>
+        div[data-testid="stSidebarNav"] {display: none;}
+        div[data-testid="stSidebarHeader"] {display: none;}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 
 # Ensure the latest lesson schedule is loaded
 if "level_schedules_initialized" not in st.session_state:
