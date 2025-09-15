@@ -13,13 +13,13 @@ import pandas as pd
 import requests
 import streamlit as st
 
-from .youtube import (
+from .youtube import (  # noqa: F401
     DEFAULT_PLAYLIST_LEVEL,
     YOUTUBE_API_KEY,
     YOUTUBE_PLAYLIST_IDS,
     get_playlist_ids_for_level,
     fetch_youtube_playlist_videos,
-)  # noqa: F401
+)
 
 
 # ------------------------------------------------------------------------------
@@ -71,15 +71,35 @@ def _load_student_data_cached() -> Optional[pd.DataFrame]:
 
     # Normalize common variants of the class name column so downstream
     # components can reliably access ``ClassName`` regardless of how the
-    # roster labels it.  Some spreadsheets use ``Class`` or a lowercase
-    # ``classname``; unify these to ``ClassName``.
+    # roster labels it.  Accept a broader set of aliases often seen in
+    # spreadsheets so callers don't need to handle these variants.
     lower_cols = {c.lower(): c for c in df.columns}
+    classname_aliases = [
+        "classname",
+        "class",
+        "classroom",
+        "class_name",
+        "group",
+        "groupname",
+        "group_name",
+        "course",
+        "coursename",
+        "course_name",
+    ]
     if "classname" in lower_cols and lower_cols["classname"] != "ClassName":
         df.rename(columns={lower_cols["classname"]: "ClassName"}, inplace=True)
-    elif "class" in lower_cols and "classname" not in lower_cols:
-        df.rename(columns={lower_cols["class"]: "ClassName"}, inplace=True)
-    elif "classroom" in lower_cols and "classname" not in lower_cols:
-        df.rename(columns={lower_cols["classroom"]: "ClassName"}, inplace=True)
+    elif "classname" not in lower_cols:
+        for alias in classname_aliases:
+            if alias in lower_cols:
+                df.rename(columns={lower_cols[alias]: "ClassName"}, inplace=True)
+                break
+
+    if "ClassName" not in df.columns:
+        supported = ", ".join(["ClassName"] + classname_aliases)
+        raise ValueError(
+            "Student roster is missing a 'ClassName' column. "
+            f"Supported column names: {supported}"
+        )
 
     for col in df.columns:
         s = df[col]
