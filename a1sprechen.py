@@ -1208,7 +1208,8 @@ if tab == "Dashboard":
         if student_code and not df_students.empty and "StudentCode" in df_students.columns:
             try:
                 matches = df_students[
-                    df_students["StudentCode"].astype(str).str.lower() == student_code
+                    df_students["StudentCode"].astype(str).str.strip().str.lower()
+                    == student_code
                 ]
                 if not matches.empty:
                     student_row = matches.iloc[0].to_dict()
@@ -1258,7 +1259,9 @@ if tab == "Dashboard":
     _df_level = _df_level[_df_level['completed'] >= _min_assignments]
     _df_level = _df_level.sort_values(['total_score', 'completed'], ascending=[False, False]).reset_index(drop=True)
     _df_level['Rank'] = _df_level.index + 1
-    _your_row = _df_level[_df_level['studentcode'].str.lower() == _student_code.lower()]
+    _your_row = _df_level[
+        _df_level['studentcode'].astype(str).str.strip().str.lower() == _student_code
+    ]
     _total_students = len(_df_level)
 
     _streak_line = (

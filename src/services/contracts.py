@@ -20,7 +20,12 @@ def contract_active(student_code: str, roster: Optional[pd.DataFrame]) -> bool:
     """
     if roster is None or "StudentCode" not in roster.columns:
         return True
-    match = roster[roster["StudentCode"].str.lower() == student_code.lower()]
+
+    normalized_code = str(student_code or "").strip().lower()
+    roster_codes = (
+        roster["StudentCode"].astype(str).str.strip().str.lower()
+    )
+    match = roster[roster_codes == normalized_code]
     if match.empty:
         return True
     row = match.iloc[0]

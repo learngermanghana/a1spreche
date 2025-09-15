@@ -12,6 +12,18 @@ def test_contract_inactive_when_expired():
     assert contract_active("abc", df) is False
 
 
+def test_contract_lookup_ignores_case_and_whitespace():
+    df = pd.DataFrame(
+        [
+            {
+                "StudentCode": " AbC ",
+                "ContractEnd": "2020-01-01",
+            }
+        ]
+    )
+    assert contract_active("abc", df) is False
+
+
 def test_contract_inactive_when_balance_over_30_days():
     start = (pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=40)).strftime("%Y-%m-%d")
     end = (pd.Timestamp.now(tz="UTC") + pd.Timedelta(days=20)).strftime("%Y-%m-%d")
