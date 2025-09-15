@@ -92,13 +92,32 @@ def render_signup_form() -> None:
         st.error("Password must be at least 8 characters.")
         return
 
+    logger_module = globals().get("logging")
+    if logger_module is None:
+        import logging as _logging
+
+        logger_module = _logging
+    log_debug = getattr(logger_module, "debug", lambda *args, **kwargs: None)
+
     df = load_student_data()
+    roster_rows = len(df.index) if df is not None else 0
+    log_debug(
+        "Signup roster fetch returned %d rows while verifying student code '%s'",
+        roster_rows,
+        new_code,
+    )
     if df is None:
         st.error("Student roster unavailable. Please try again later.")
         return
     df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
     df["Email"] = df["Email"].str.lower().str.strip()
     valid = df[(df["StudentCode"] == new_code) & (df["Email"] == new_email)]
+    log_debug(
+        "Signup lookup for student code '%s' found=%s (matches=%d)",
+        new_code,
+        not valid.empty,
+        int(valid.shape[0]),
+    )
     if valid.empty:
         st.error("Your code/email aren’t registered. Use 'Request Access' first.")
         return
@@ -133,7 +152,20 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
         st.error("Please enter both email and password.")
         return False
 
+    logger_module = globals().get("logging")
+    if logger_module is None:
+        import logging as _logging
+
+        logger_module = _logging
+    log_debug = getattr(logger_module, "debug", lambda *args, **kwargs: None)
+
     df = load_student_data()
+    roster_rows = len(df.index) if df is not None else 0
+    log_debug(
+        "Login roster fetch returned %d rows while searching for identifier '%s'",
+        roster_rows,
+        login_id,
+    )
     if df is None:
         st.error("Student roster unavailable. Please try again later.")
         return False
@@ -141,6 +173,12 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
     df["Email"] = df["Email"].str.lower().str.strip()
     lookup = df[(df["StudentCode"] == login_id) | (df["Email"] == login_id)]
+    log_debug(
+        "Login lookup for identifier '%s' found=%s (matches=%d)",
+        login_id,
+        not lookup.empty,
+        int(lookup.shape[0]),
+    )
     if lookup.empty:
         st.error("No matching student code or email found.")
         return False
@@ -151,6 +189,11 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     # Convert the pandas Series to a plain dict so the entire row can be
     # persisted in ``st.session_state`` without losing any fields.
     student_row = lookup.iloc[0].to_dict()
+    log_debug(
+        "Login identifier '%s' resolved to student code '%s'",
+        login_id,
+        student_row.get("StudentCode", ""),
+    )
     if is_contract_expired(student_row):
         st.error("Your contract has expired. Contact the office.")
         return False

@@ -107,3 +107,30 @@ The dashboard displays new posts pulled from a JSON feed at
 `src/blog_feed.py` downloads the feed, caches the result for an hour, and
 returns a list of dictionaries containing the post title, description, and
 link.
+
+## Debug Logging
+
+Enable debug logging when you need deeper insight into roster lookups or
+authentication flows:
+
+1. Run Streamlit with debug logging locally:
+
+   ```bash
+   streamlit run a1sprechen.py --logger.level=debug
+   ```
+
+2. Alternatively, set the configuration in a `.streamlit/config.toml` file or
+   via environment variable for deployed environments:
+
+   ```toml
+   # .streamlit/config.toml
+   [logger]
+   level = "debug"
+   ```
+
+   ```bash
+   export STREAMLIT_LOG_LEVEL=debug
+   ```
+
+The debug logs include the student code used for roster lookups, the number of
+rows returned from the roster, and whether a matching row was found.
