@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import subprocess
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
@@ -57,7 +57,7 @@ def last_modified(path: str) -> str:
         return result.split("T")[0]
     except subprocess.CalledProcessError:
         # Fallback to current date if file is not tracked.
-        return datetime.utcnow().date().isoformat()
+        return datetime.now(UTC).date().isoformat()
 
 
 def generate_sitemap(destination: Path) -> None:
