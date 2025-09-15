@@ -142,16 +142,21 @@ def render_audio_player(source: Union[str, bytes], *, verified: bool = False) ->
     components.html(html, height=80)
 
 
-def render_vocab_lookup(key: str) -> None:
+def render_vocab_lookup(key: str, context_label: Optional[str] = None) -> None:
     """Render a small vocabulary lookup widget.
 
     Parameters
     ----------
     key:
         Unique key so Streamlit state doesn't clash across lessons.
+    context_label:
+        Optional label providing context (e.g. lesson info) for the lookup.
     """
 
-    st.markdown("#### 📖 Mini Dictionary")
+    header = "#### 📖 Mini Dictionary"
+    if context_label:
+        header += f" – {context_label}"
+    st.markdown(header)
     st.caption("Search words from this assignment")
 
     translate_caption = (
