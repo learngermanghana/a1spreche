@@ -2178,11 +2178,7 @@ if tab == "My Course":
         student_row = st.session_state.get("student_row") or {}
         class_name = str(student_row.get("ClassName", "")).strip()
 
-        if not class_name:
-            st.warning("Missing class name for discussion board.")
-        elif not chapter:
-            st.warning("Missing chapter for discussion board.")
-        else:
+        if class_name and chapter:
             board_base = (
                 db.collection("class_board")
                 .document(student_level)
@@ -2208,6 +2204,13 @@ if tab == "My Course":
             )
             if post_count == 0:
                 st.caption("No posts yet. Clicking will show the full board.")
+        elif not class_name:
+            st.info(
+                "This class discussion board is unavailable. "
+                "Please contact support to add your class to the roster."
+            )
+        else:
+            st.warning("Missing chapter for discussion board.")
 
         st.divider()
 
