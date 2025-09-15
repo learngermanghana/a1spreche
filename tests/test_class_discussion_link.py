@@ -23,7 +23,7 @@ def test_lesson_includes_class_discussion_button():
                 args_kw = next((kw.value for kw in node.keywords if kw.arg == "args"), None)
                 if (
                     isinstance(on_click, ast.Name)
-                    and on_click.id == "_go_class_thread"
+                    and on_click.id == "go_class_thread"
                     and isinstance(args_kw, ast.Tuple)
                     and len(args_kw.elts) == 1
                 ):
