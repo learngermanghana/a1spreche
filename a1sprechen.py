@@ -4094,7 +4094,7 @@ if tab == "My Course":
                     day = item.get("day")
                     topic = item.get("topic")
                     if day is not None and topic:
-                        lesson_choices.append(f"Day {day}: {topic}")
+                        lesson_choices.append(_schedule.full_lesson_title(item))
             except Exception:
                 pass
 
