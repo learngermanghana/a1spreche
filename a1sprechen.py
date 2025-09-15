@@ -35,6 +35,14 @@ from google.cloud.firestore_v1 import FieldFilter
 from firebase_admin import firestore  # Firebase
 from openai import OpenAI
 from src.styles import inject_global_styles
+from src.discussion_board import (
+    CLASS_DISCUSSION_LABEL,
+    CLASS_DISCUSSION_LINK_TMPL,
+    CLASS_DISCUSSION_ANCHOR,
+    CLASS_DISCUSSION_PROMPT,
+    CLASS_DISCUSSION_REMINDER,
+    go_class_thread,
+)
 
 from flask import Flask
 from auth import auth_bp
@@ -148,6 +156,14 @@ from src.stats import (
     vocab_attempt_exists,
 )
 from src.stats_ui import render_vocab_stats, render_schreiben_stats
+from src.schreiben import (
+    highlight_feedback,
+    get_schreiben_usage,
+    inc_schreiben_usage,
+    save_letter_coach_progress,
+    load_letter_coach_progress,
+    get_level_from_code,
+)
 from src.ui.auth import (
     render_signup_form,
     render_login_form,
@@ -1038,47 +1054,6 @@ if "build_course_day_link" not in globals():
             tab_q = tab
         return f"?tab={tab_q}&day={day_val}"
 
-# Strings used for course discussion links
-CLASS_DISCUSSION_LABEL = "Class Discussion & Notes"
-CLASS_DISCUSSION_LINK_TMPL = "go_discussion_{chapter}"
-CLASS_DISCUSSION_ANCHOR = "#classnotes"
-CLASS_DISCUSSION_PROMPT = "Discussion for this class can be found at"
-CLASS_DISCUSSION_REMINDER = (
-    "Your recorded lecture, grammar book, and workbook are saved below. "
-    "Class notes are additional and cover discussions from class."
-)
-
-
-def _go_class_thread(topic: str) -> None:
-    """Navigate to the class discussion thread.
-
-    If no posts exist, clear the search term and set a warning flag. Otherwise,
-    retain the search term so the user can continue browsing relevant posts.
-    """
-
-    board_base = (
-        db.collection("class_board")
-        .document(student_level)
-        .collection("classes")
-        .document(class_name)
-        .collection("posts")
-    )
-    posts = [
-        snap
-        for snap in board_base.stream()
-        if snap.to_dict().get("topic") == topic
-        or snap.to_dict().get("chapter") == topic
-    ]
-    count = len(posts)
-    st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
-    st.session_state["classroom_page"] = "Class Notes & Q&A"
-    st.session_state["q_search_count"] = count
-    if count == 0:
-        st.session_state["q_search"] = ""
-        st.session_state["q_search_warning"] = True
-    else:
-        st.session_state["q_search"] = topic
-    st.session_state["__scroll_to_classnotes"] = True
 # --- Nav dropdown (mobile-friendly, simple text) ---
 def render_dropdown_nav():
     tabs = [
@@ -2199,7 +2174,7 @@ if tab == "My Course":
             st.button(
                 CLASS_DISCUSSION_LABEL,
                 key=link_key,
-                on_click=_go_class_thread,
+                on_click=go_class_thread,
                 args=(chapter,),
             )
             if post_count == 0:
@@ -6488,135 +6463,6 @@ if tab == "Vocab Trainer":
 
 
 
-
-# ===== Schreiben =====
-
-# -- Feedback HTML Highlight Helper --
-highlight_words = ["correct", "should", "mistake", "improve", "tip"]
-
-def highlight_feedback(text: str) -> str:
-    # 1) Highlight “[correct]…[/correct]” spans in green
-    text = re.sub(
-        r"\[correct\](.+?)\[/correct\]",
-        r"<span style="
-        r"'background-color:#d4edda;"
-        r"color:#155724;"
-        r"border-radius:4px;"
-        r"padding:2px 6px;"
-        r"margin:0 2px;"
-        r"font-weight:600;'"
-        r">\1</span>",
-        text,
-        flags=re.DOTALL
-    )
-
-    # 2) Highlight “[wrong]…[/wrong]” spans in red with strikethrough
-    text = re.sub(
-        r"\[wrong\](.+?)\[/wrong\]",
-        r"<span style="
-        r"'background-color:#f8d7da;"
-        r"color:#721c24;"
-        r"border-radius:4px;"
-        r"padding:2px 6px;"
-        r"margin:0 2px;"
-        r"text-decoration:line-through;"
-        r"font-weight:600;'"
-        r">\1</span>",
-        text,
-        flags=re.DOTALL
-    )
-
-    # 3) Bold keywords
-    def repl_kw(m):
-        return f"<strong style='color:#d63384'>{m.group(1)}</strong>"
-    pattern = r"\b(" + "|".join(map(re.escape, highlight_words)) + r")\b"
-    text = re.sub(pattern, repl_kw, text, flags=re.IGNORECASE)
-
-    # 4) Restyle the final breakdown block as a simple, transparent list
-    def _format_breakdown(m):
-        lines = [line.strip() for line in m.group(0).splitlines() if line.strip()]
-        items = "".join(f"<li style='margin-bottom:4px'>{line}</li>" for line in lines)
-        return (
-            "<ul style='margin:8px 0 12px 1em;"
-            "padding:0;"
-            "list-style:disc inside;"
-            "font-size:0.95em;'>"
-            f"{items}"
-            "</ul>"
-        )
-
-    text = re.sub(
-        r"(Grammar:.*?\nVocabulary:.*?\nSpelling:.*?\nStructure:.*)",
-        _format_breakdown,
-        text,
-        flags=re.DOTALL
-    )
-
-    return text
-
-# -- Firestore-only: Usage Limit (Daily Mark My Letter) --
-def get_schreiben_usage(student_code):
-    today = str(date.today())
-    doc = db.collection("schreiben_usage").document(f"{student_code}_{today}").get()
-    return doc.to_dict().get("count", 0) if doc.exists else 0
-
-
-def inc_schreiben_usage(student_code):
-    today = str(date.today())
-    doc_ref = db.collection("schreiben_usage").document(f"{student_code}_{today}")
-    try:
-        doc = doc_ref.get()
-        if doc.exists:
-            doc_ref.update({"count": firestore.Increment(1)})
-        else:
-            doc_ref.set({"student_code": student_code, "date": today, "count": 1})
-    except Exception as exc:
-        st.error(f"Failed to increment Schreiben usage: {exc}")
-
-# -- Firestore: Save/load Letter Coach progress --
-def save_letter_coach_progress(student_code, level, prompt, chat):
-    try:
-        doc_ref = db.collection("letter_coach_progress").document(student_code)
-        doc_ref.set({
-            "student_code": student_code,
-            "level": level,
-            "prompt": prompt,
-            "chat": chat,
-            "date": firestore.SERVER_TIMESTAMP
-        })
-    except Exception as exc:
-        st.error(f"Failed to save Letter Coach progress: {exc}")
-
-def load_letter_coach_progress(student_code):
-    doc = db.collection("letter_coach_progress").document(student_code).get()
-    if doc.exists:
-        data = doc.to_dict()
-        return data.get("prompt", ""), data.get("chat", [])
-    else:
-        return "", []
-
-
-# --- Helper: Get level from Google Sheet (public CSV) ---
-
-SHEET_URL = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/export?format=csv"
-
-@st.cache_data(ttl=300)
-def load_sheet():
-    return pd.read_csv(SHEET_URL)
-
-def get_level_from_code(student_code):
-    df = load_sheet()
-    student_code = str(student_code).strip().lower()
-    # Make sure 'StudentCode' column exists and is lowercase
-    if "StudentCode" not in df.columns:
-        df.columns = [c.strip() for c in df.columns]
-    if "StudentCode" in df.columns:
-        matches = df[df["StudentCode"].astype(str).str.strip().str.lower() == student_code]
-        if not matches.empty:
-            # Handles NaN, empty cells
-            level = matches.iloc[0]["Level"]
-            return str(level).strip().upper() if pd.notna(level) else "A1"
-    return "A1"
 
 
 

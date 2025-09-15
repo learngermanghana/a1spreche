@@ -1,5 +1,4 @@
-import ast
-from pathlib import Path
+from src.discussion_board import go_class_thread
 
 
 class DummySnap:
@@ -44,23 +43,6 @@ class DummyStreamlit:
         self.query_params = {}
 
 
-def load_go_class_thread():
-    src = Path("a1sprechen.py").read_text(encoding="utf-8")
-    mod = ast.parse(src)
-    target = None
-    class Finder(ast.NodeVisitor):
-        def visit_FunctionDef(self, node):
-            nonlocal target
-            if node.name == "_go_class_thread":
-                target = node
-            self.generic_visit(node)
-    Finder().visit(mod)
-    module_ast = ast.Module(body=[target], type_ignores=[])
-    code = compile(module_ast, "a1sprechen.py", "exec")
-    glb = {}
-    exec(code, glb)
-    return glb["_go_class_thread"]
-
 
 def setup_env(posts=None):
     db = DummyDB()
@@ -69,14 +51,15 @@ def setup_env(posts=None):
         for pid, data in posts.items():
             base.document(pid).set(data)
     st = DummyStreamlit()
-    fn = load_go_class_thread()
-    fn.__globals__.update({"db": db, "st": st, "student_level": "A1", "class_name": "ClassA"})
+    st.session_state.update({"student_level": "A1", "student_row": {"ClassName": "ClassA"}})
+    go_class_thread.__globals__["st"] = st
+    fn = go_class_thread
     return fn, st, db
 
 
 def test_go_class_thread_clears_search_when_no_posts():
     fn, st, db = setup_env()
-    fn("9")
+    fn("9", db=db)
     assert st.session_state.get("q_search") == ""
     assert "q_search_warning" in st.session_state
     assert st.session_state.get("q_search_count") == 0
@@ -90,7 +73,7 @@ def test_go_class_thread_keeps_search_when_posts_exist():
         "p2": {"lesson": "Day 2: Other", "topic": "8", "content": ""},
     }
     fn, st, db = setup_env(posts)
-    fn("9")
+    fn("9", db=db)
     assert st.session_state.get("q_search") == "9"
     assert "q_search_warning" not in st.session_state
     assert st.session_state.get("q_search_count") == 1

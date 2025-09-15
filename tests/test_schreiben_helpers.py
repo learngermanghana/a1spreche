@@ -84,3 +84,19 @@ def test_save_submission_valid(helpers):
     assert data["passed"] is False
     assert data["level"] == "A1"
     assert data["letter"] == "text"
+
+
+def test_get_schreiben_usage(helpers):
+    doc = helpers.db.collection.return_value.document.return_value.get.return_value
+    doc.exists = True
+    doc.to_dict.return_value = {"count": 3}
+    assert helpers.get_schreiben_usage("abc") == 3
+    helpers.db.collection.assert_called_with("schreiben_usage")
+
+
+def test_inc_schreiben_usage_updates_or_creates(helpers):
+    doc = helpers.db.collection.return_value.document.return_value.get.return_value
+    doc.exists = False
+    helpers.inc_schreiben_usage("abc")
+    helpers.db.collection.return_value.document.return_value.get.assert_called_once()
+    helpers.db.collection.return_value.document.return_value.set.assert_called_once()

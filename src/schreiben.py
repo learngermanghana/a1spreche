@@ -7,8 +7,11 @@ extracted into their own module for easier reuse and testing.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional, Tuple
+
+import re
+import pandas as pd
 
 import streamlit as st
 from google.api_core.exceptions import GoogleAPICallError
@@ -28,6 +31,161 @@ def _get_db():
     return db if db is not None else get_db()
 
 
+# ---------------------------------------------------------------------------
+# Feedback highlighting
+# ---------------------------------------------------------------------------
+
+highlight_words = ["correct", "should", "mistake", "improve", "tip"]
+
+
+def highlight_feedback(text: str) -> str:
+    """Return HTML with common feedback tags highlighted."""
+
+    # Highlight ``[correct]`` spans in green
+    text = re.sub(
+        r"\[correct\](.+?)\[/correct\]",
+        (
+            "<span style='background-color:#d4edda;color:#155724;"
+            "border-radius:4px;padding:2px 6px;margin:0 2px;font-weight:600;'>"
+            r"\1</span>"
+        ),
+        text,
+        flags=re.DOTALL,
+    )
+
+    # Highlight ``[wrong]`` spans in red with strikethrough
+    text = re.sub(
+        r"\[wrong\](.+?)\[/wrong\]",
+        (
+            "<span style='background-color:#f8d7da;color:#721c24;"
+            "text-decoration:line-through;border-radius:4px;padding:2px 6px;"
+            "margin:0 2px;font-weight:600;'>" r"\1</span>"
+        ),
+        text,
+        flags=re.DOTALL,
+    )
+
+    # Highlight common keywords
+    for word in highlight_words:
+        text = re.sub(
+            rf"\b({word})\b",
+            r"<span style='background-color:#fff3cd;padding:0 4px;"
+            "border-radius:4px;'>\1</span>",
+            text,
+            flags=re.IGNORECASE,
+        )
+
+    return text
+
+
+# ---------------------------------------------------------------------------
+# Usage tracking for Mark My Letter
+# ---------------------------------------------------------------------------
+
+def get_schreiben_usage(student_code: str) -> int:
+    """Return today's Mark My Letter usage count for ``student_code``."""
+
+    if not student_code:
+        st.warning("No student code provided; usage unavailable.")
+        return 0
+    db = _get_db()
+    if db is None:
+        st.warning("Firestore not initialized; usage unavailable.")
+        return 0
+    today = str(date.today())
+    doc = db.collection("schreiben_usage").document(f"{student_code}_{today}").get()
+    return doc.to_dict().get("count", 0) if doc.exists else 0
+
+
+def inc_schreiben_usage(student_code: str) -> None:
+    """Increment today's Mark My Letter usage for ``student_code``."""
+
+    if not student_code:
+        st.warning("No student code provided; cannot increment usage.")
+        return
+    db = _get_db()
+    if db is None:
+        st.warning("Firestore not initialized; cannot increment usage.")
+        return
+    today = str(date.today())
+    doc_ref = db.collection("schreiben_usage").document(f"{student_code}_{today}")
+    try:
+        doc = doc_ref.get()
+        if doc.exists:
+            doc_ref.update({"count": firestore.Increment(1)})
+        else:
+            doc_ref.set({"student_code": student_code, "date": today, "count": 1})
+    except Exception as exc:  # pragma: no cover - network failure
+        st.error(f"Failed to increment Schreiben usage: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# Letter Coach progress helpers
+# ---------------------------------------------------------------------------
+
+def save_letter_coach_progress(student_code: str, level: str, prompt: str, chat):
+    """Persist Letter Coach progress for a student."""
+
+    db = _get_db()
+    if db is None:
+        st.warning("Firestore not initialized; progress not saved.")
+        return
+    try:
+        db.collection("letter_coach_progress").document(student_code).set(
+            {
+                "student_code": student_code,
+                "level": level,
+                "prompt": prompt,
+                "chat": chat,
+                "date": firestore.SERVER_TIMESTAMP,
+            }
+        )
+    except Exception as exc:  # pragma: no cover - network failure
+        st.error(f"Failed to save Letter Coach progress: {exc}")
+
+
+def load_letter_coach_progress(student_code: str):
+    """Load Letter Coach progress for ``student_code``."""
+
+    db = _get_db()
+    if db is None:
+        st.warning("Firestore not initialized; cannot load progress.")
+        return "", []
+    doc = db.collection("letter_coach_progress").document(student_code).get()
+    if doc.exists:
+        data = doc.to_dict()
+        return data.get("prompt", ""), data.get("chat", [])
+    return "", []
+
+
+# ---------------------------------------------------------------------------
+# Level detection via Google Sheet
+# ---------------------------------------------------------------------------
+
+SHEET_URL = (
+    "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-"
+    "TC1yhPS7ZG6nzZVTt1U/export?format=csv"
+)
+
+
+@st.cache_data(ttl=300)
+def load_sheet():  # pragma: no cover - caching behaviour not tested
+    return pd.read_csv(SHEET_URL)
+
+
+def get_level_from_code(student_code: str) -> str:
+    """Look up a student's level from the shared Google Sheet."""
+
+    df = load_sheet()
+    student_code = str(student_code).strip().lower()
+    if "StudentCode" not in df.columns:
+        df.columns = [c.strip() for c in df.columns]
+    if "StudentCode" in df.columns:
+        matches = df[df["StudentCode"].astype(str).str.strip().str.lower() == student_code]
+        if not matches.empty:
+            level = matches.iloc[0]["Level"]
+            return str(level).strip().upper() if pd.notna(level) else "A1"
+    return "A1"
 # ---------------------------------------------------------------------------
 # Schreiben stats helpers
 # ---------------------------------------------------------------------------
