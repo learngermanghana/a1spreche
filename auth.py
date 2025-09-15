@@ -1,5 +1,5 @@
 # auth.py
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from flask import Blueprint, request, jsonify, make_response
 import os
 import jwt
@@ -85,7 +85,7 @@ def _delete_refresh(conn: sqlite3.Connection, user_id: str) -> None:
 
 
 def _issue_access(user_id: str) -> str:
-    payload = {"sub": user_id, "exp": datetime.utcnow() + timedelta(seconds=ACCESS_TTL)}
+    payload = {"sub": user_id, "exp": datetime.now(UTC) + timedelta(seconds=ACCESS_TTL)}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
 
 
@@ -93,8 +93,8 @@ def _issue_refresh(user_id: str) -> str:
     payload = {
         "sub": user_id,
         "type": "refresh",
-        "exp": datetime.utcnow() + timedelta(seconds=MAX_AGE),
-        "iat": datetime.utcnow(),
+        "exp": datetime.now(UTC) + timedelta(seconds=MAX_AGE),
+        "iat": datetime.now(UTC),
         "jti": uuid.uuid4().hex,
     }
     token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)

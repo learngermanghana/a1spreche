@@ -465,10 +465,10 @@ def login_page():
     </div>
     """, unsafe_allow_html=True)
 
-    from datetime import datetime as _dt_now
+    from datetime import UTC, datetime as _dt_now
     st.markdown(f"""
     <div class="page-wrap" style="text-align:center;color:#64748b; margin-bottom:16px;">
-      © {_dt_now.utcnow().year} Learn Language Education Academy • Accra, Ghana<br>
+      © {_dt_now.now(UTC).year} Learn Language Education Academy • Accra, Ghana<br>
       Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> •
       <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>
     </div>
@@ -4220,7 +4220,7 @@ if tab == "My Course":
                         "content": formatted_q,
                         "asked_by_name": student_name,
                         "asked_by_code": student_code,
-                        "timestamp": _dt.utcnow(),
+                        "timestamp": _dt.now(UTC),
                         "lesson": lesson,
                         "topic": (topic or "").strip(),
                         "link": (link or "").strip(),
@@ -4232,7 +4232,7 @@ if tab == "My Course":
                     _notify_slack(
                         f"📝 *New Class Board post* — {class_name}{topic_tag}\n",
                         f"*From:* {student_name} ({student_code})\n",
-                        f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n",
+                        f"*When:* {_dt.now(UTC).strftime('%Y-%m-%d %H:%M')} UTC\n",
                         f"*Content:* {preview}"
                     )
                     st.session_state["__clear_q_form"] = True
@@ -4393,7 +4393,7 @@ if tab == "My Course":
                                 _notify_slack(
                                     f"🗑️ *Class Board post deleted* — {class_name}\n"
                                     f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
-                                    f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+                                    f"*When:* {_dt.now(UTC).strftime('%Y-%m-%d %H:%M')} UTC"
                                 )
                                 st.success("Post deleted.")
                                 refresh_with_toast()
@@ -4453,7 +4453,7 @@ if tab == "My Course":
                                     _notify_slack(
                                         f"✏️ *Class Board post edited* — {class_name}\n",
                                         f"*By:* {student_name} ({student_code}) • QID: {q_id}\n",
-                                        f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n",
+                                        f"*When:* {_dt.now(UTC).strftime('%Y-%m-%d %H:%M')} UTC\n",
                                         f"*New:* {(formatted_edit[:180] + '…') if len(formatted_edit) > 180 else formatted_edit}",
                                     )
                                     st.session_state[f"q_editing_{q_id}"] = False
