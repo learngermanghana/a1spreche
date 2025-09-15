@@ -858,6 +858,7 @@ def render_results_and_resources_tab() -> None:
                 def __init__(self, *args, **kwargs):
                     super().__init__(*args, **kwargs)
                     self.add_font("DejaVu", "", "font/DejaVuSans.ttf", uni=True)
+                    self.add_font("DejaVu", "B", "font/DejaVuSans-Bold.ttf", uni=True)
                 def header(self):
                     logo_path = load_school_logo()
                     if logo_path:
