@@ -2371,7 +2371,10 @@ if tab == "My Course":
                     if workbook_link:
                         st.markdown(f"- [📒 Workbook (Assignment)]({workbook_link})")
                         with st.expander("📖 Dictionary"):
-                            render_vocab_lookup(f"{key}-{idx_part}")
+                            render_vocab_lookup(
+                                f"{key}-{idx_part}",
+                                f"Day {day_info.get('day')} Chapter {chapter}",
+                            )
                         render_assignment_reminder()
                     if extras:
                         for ex in _as_list(extras):
@@ -2400,7 +2403,10 @@ if tab == "My Course":
                 if info.get("workbook_link"):
                     st.markdown(f"- [📒 Workbook (Assignment)]({info['workbook_link']})")
                     with st.expander("📖 Dictionary"):
-                        render_vocab_lookup(f"fallback-{info.get('day', '')}")
+                        render_vocab_lookup(
+                            f"fallback-{info.get('day', '')}",
+                            f"Day {info.get('day')} Chapter {info.get('chapter', '')}",
+                        )
                     render_assignment_reminder()
                     showed = True
                 for ex in _as_list(info.get("extra_resources")):
