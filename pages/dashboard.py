@@ -8,10 +8,9 @@ st.set_page_config(
 )
 
 from src.styles import inject_global_styles
-from a1sprechen import hide_streamlit_header, hide_sidebar, dashboard_page
+from a1sprechen import hide_streamlit_header, dashboard_page
 
 hide_streamlit_header()
-hide_sidebar()
 inject_global_styles()
 st.markdown(
     """

@@ -69,25 +69,14 @@ st.set_page_config(
 # Load global CSS classes and variables
 inject_global_styles()
 
-st.markdown("""
+st.markdown(
+    """
 <style>
 html, body { overscroll-behavior-y: none; }
 </style>
-""", unsafe_allow_html=True)
-
-
-def hide_sidebar() -> None:
-    """Hide Streamlit's sidebar for pages where it isn't needed."""
-    st.markdown(
-        """
-        <style>
-            div[data-testid="stSidebarNav"] {display: none;}
-            div[data-testid="stSidebarHeader"] {display: none;}
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
+""",
+    unsafe_allow_html=True,
+)
 
 
 # Ensure the latest lesson schedule is loaded
@@ -318,10 +307,6 @@ def login_page():
         except Exception:
             pass
         return
-
-    hide_fn = globals().get("hide_sidebar")
-    if callable(hide_fn):
-        hide_fn()
 
     try:
         renew_session_if_needed()
