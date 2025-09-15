@@ -2349,7 +2349,11 @@ if tab == "My Course":
                     extras = part.get('extra_resources')
 
                     if len(items) > 1:
-                        st.markdown(f"###### {icon} Part {idx_part+1} of {len(items)}: Chapter {chapter}")
+                        st.markdown(
+                            f"###### {icon} Part {idx_part+1} of {len(items)}: Chapter {chapter}"
+                        )
+                    else:
+                        st.markdown(f"###### {icon} Chapter {chapter}")
                     # videos (embed once)
                     for maybe_vid in [video, youtube_link]:
                         if _is_url(maybe_vid):
