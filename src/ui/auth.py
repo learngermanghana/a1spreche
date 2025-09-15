@@ -14,6 +14,7 @@ import html  # noqa: F401
 
 import bcrypt
 import streamlit as st
+from google.cloud.firestore_v1 import FieldFilter
 from falowen.email_utils import send_reset_email, build_gas_reset_link
 from falowen.sessions import create_session_token, destroy_session_token
 from src.auth import persist_session_client
@@ -310,9 +311,13 @@ def render_forgot_password_panel() -> None:
                     return db
 
             db = get_db()
-            user_query = db.collection("students").where("email", "==", e).get()
+            user_query = db.collection("students").where(
+                filter=FieldFilter("email", "==", e)
+            ).get()
             if not user_query:
-                user_query = db.collection("students").where("Email", "==", e).get()
+                user_query = db.collection("students").where(
+                    filter=FieldFilter("Email", "==", e)
+                ).get()
             if not user_query:
                 st.error("No account found with that email.")
             else:
