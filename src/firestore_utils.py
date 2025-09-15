@@ -1,5 +1,11 @@
 """Firestore-related helper functions for the a1spreche app.
 
+Roster data is sourced from the CSV roster during login and is stored in
+``st.session_state['student_row']``.  The helpers in this module only deal
+with dynamic data such as submissions, drafts, attendance records or chat
+profiles and never query Firestore for static roster metadata like class names
+or levels.
+
 This module centralises Firestore draft and chat helpers so they can be
 re-used outside the monolithic :mod:`a1sprechen` module.
 """

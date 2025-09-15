@@ -110,7 +110,8 @@ def render_signup_form() -> None:
         except Exception:  # fall back to stubbed db
             from falowen.sessions import db as _db  # type: ignore
 
-            _get_db = lambda: _db  # type: ignore
+            def _get_db() -> object:  # type: ignore
+                return _db
         doc_ref = _get_db()
     doc_ref = doc_ref.collection("students").document(new_code)
     if doc_ref.get().exists:
@@ -147,7 +148,9 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
         st.error("Multiple matching accounts found. Please contact the office.")
         return False
 
-    student_row = lookup.iloc[0]
+    # Convert the pandas Series to a plain dict so the entire row can be
+    # persisted in ``st.session_state`` without losing any fields.
+    student_row = lookup.iloc[0].to_dict()
     if is_contract_expired(student_row):
         st.error("Your contract has expired. Contact the office.")
         return False
@@ -161,7 +164,8 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     except Exception:  # pragma: no cover - stubbed sessions
         from falowen.sessions import db  # type: ignore
 
-        get_db = lambda: db  # type: ignore
+        def get_db() -> object:  # type: ignore
+            return db
 
     db = get_db()
     doc_ref = db.collection("students").document(student_row["StudentCode"])
@@ -207,7 +211,7 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     st.session_state.update(
         {
             "logged_in": True,
-            "student_row": dict(student_row),
+            "student_row": student_row,
             "student_code": student_row["StudentCode"],
             "student_name": student_row["Name"],
             "session_token": sess_token,
@@ -259,7 +263,8 @@ def render_forgot_password_panel() -> None:
             except Exception:  # pragma: no cover - stubbed sessions
                 from falowen.sessions import db  # type: ignore
 
-                get_db = lambda: db  # type: ignore
+                def get_db() -> object:  # type: ignore
+                    return db
 
             db = get_db()
             user_query = db.collection("students").where("email", "==", e).get()
@@ -403,7 +408,9 @@ def _handle_google_oauth(code: str, state: str) -> None:
             st.error("No student account found for that Google email.")
             return
 
-        student_row = match.iloc[0]
+        # Use a plain dict for the student data so we can persist it in
+        # ``st.session_state`` for downstream coursebook/calendar loaders.
+        student_row = match.iloc[0].to_dict()
         if is_contract_expired(student_row):
             st.error("Your contract has expired. Contact the office.")
             return
@@ -425,7 +432,7 @@ def _handle_google_oauth(code: str, state: str) -> None:
         st.session_state.update(
             {
                 "logged_in": True,
-                "student_row": student_row.to_dict(),
+                "student_row": student_row,
                 "student_code": student_row["StudentCode"],
                 "student_name": student_row["Name"],
                 "session_token": sess_token,

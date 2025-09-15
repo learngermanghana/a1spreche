@@ -1200,27 +1200,28 @@ if tab == "Dashboard":
     inject_notice_css()
 
     # ---------- Ensure we have a student row ----------
-    load_student_data_fn = globals().get("load_student_data")
-    if load_student_data_fn is None:
-        def load_student_data_fn():
-            return pd.DataFrame(columns=["StudentCode"])
+    student_row = st.session_state.get("student_row", {}) or {}
+    if not student_row:
+        # Fallback: load roster CSV and locate the student by code.
+        load_student_data_fn = globals().get("load_student_data")
+        if load_student_data_fn is None:
+            def load_student_data_fn():
+                return pd.DataFrame(columns=["StudentCode"])
 
-    df_students = load_student_data_fn()
-    if df_students is None:
-        df_students = pd.DataFrame(columns=["StudentCode"])
-    student_code = (st.session_state.get("student_code", "") or "").strip().lower()
-
-    student_row = {}
-    if student_code and not df_students.empty and "StudentCode" in df_students.columns:
-        try:
-            matches = df_students[df_students["StudentCode"].astype(str).str.lower() == student_code]
-            if not matches.empty:
-                student_row = matches.iloc[0].to_dict()
-        except Exception:
-            pass
-
-    if (not student_row) and isinstance(st.session_state.get("student_row"), dict) and st.session_state["student_row"]:
-        student_row = st.session_state["student_row"]
+        df_students = load_student_data_fn()
+        if df_students is None:
+            df_students = pd.DataFrame(columns=["StudentCode"])
+        student_code = (st.session_state.get("student_code", "") or "").strip().lower()
+        if student_code and not df_students.empty and "StudentCode" in df_students.columns:
+            try:
+                matches = df_students[
+                    df_students["StudentCode"].astype(str).str.lower() == student_code
+                ]
+                if not matches.empty:
+                    student_row = matches.iloc[0].to_dict()
+                    st.session_state["student_row"] = student_row
+            except Exception:
+                pass
 
     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
