@@ -728,8 +728,6 @@ render_logged_in_topbar()
 # Theme bits (chips etc.)
 inject_notice_css()
 
-# Sidebar (no logout; logout lives in the header)
-render_sidebar_published()
 
 # Falowen blog updates (render once)
 new_posts = fetch_blog_feed()
