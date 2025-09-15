@@ -210,10 +210,10 @@ Submitting Work
             "grammar_topic": "Fragen nach dem Preis; gern/lieber/mögen (Talking about price and preferences)",
             "assignment": True,
             "lesen_hören": {
-                "video": "https://youtu.be/1KBamvsKWz8",
-                "youtube_link": "https://youtu.be/1KBamvsKWz8",
-                "grammarbook_link": "https://drive.google.com/file/d/1sCE5y8FVctySejSVNm9lrTG3slIucxqY/view?usp=sharing",
-                "workbook_link": "https://drive.google.com/file/d/1lL4yrZLMtKLnNuVTC2Sg_ayfkUZfIuak/view?usp=sharing"
+                "video": "https://youtu.be/Ioq0_bNJ1bE",
+                "youtube_link": "https://youtu.be/Ioq0_bNJ1bE",
+                "grammarbook_link": "https://drive.google.com/file/d/1U7uNx3nhyAwOLXLNYZKZP2-Ie_LoL4hu/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1W5GCdtp-NzSQWMz_ir7uQSKJc3F4LGPb/view?usp=sharing"
             }
         },
         # DAY 8
