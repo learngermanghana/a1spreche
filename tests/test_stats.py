@@ -153,6 +153,13 @@ def test_get_student_level_returns_none_when_missing(monkeypatch):
     assert level is None
 
 
+def test_get_student_level_matches_mixed_case(monkeypatch):
+    df = stats.pd.DataFrame({"student_code": [" AbC "], "level": [" b1 "]})
+    monkeypatch.setattr(stats, "load_student_levels", lambda: df)
+    level = stats.get_student_level("aBc", default=None)
+    assert level == "B1"
+
+
 def test_get_student_level_handles_load_failure(monkeypatch):
     def boom():
         raise OSError("fail")
