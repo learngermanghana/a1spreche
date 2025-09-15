@@ -58,7 +58,7 @@ def test_single_dict():
     render_section_any, st = _load_render_section_any()
     day_info = {"lesen": {"chapter": "1"}}
     render_section_any(day_info, "lesen", "Lesen", "📖", set())
-    assert st.markdowns == ["#### 📖 Lesen"]
+    assert st.markdowns == ["#### 📖 Lesen", "###### 📖 Chapter 1"]
 
 
 def test_list_of_dicts_with_invalid(caplog):
