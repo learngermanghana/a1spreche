@@ -2207,7 +2207,10 @@ if tab == "My Course":
                 .collection("posts")
             )
             post_count = sum(
-                1 for _ in board_base.where("chapter", "==", chapter).stream()
+                1
+                for _ in board_base.where(
+                    filter=FieldFilter("chapter", "==", chapter)
+                ).stream()
             )
             link_key = CLASS_DISCUSSION_LINK_TMPL.format(chapter=chapter)
             count_txt = f" ({post_count})" if post_count else ""
