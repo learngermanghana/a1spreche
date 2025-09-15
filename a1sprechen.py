@@ -69,14 +69,25 @@ st.set_page_config(
 # Load global CSS classes and variables
 inject_global_styles()
 
-st.markdown(
-    """
+st.markdown("""
 <style>
 html, body { overscroll-behavior-y: none; }
 </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
+
+
+def hide_sidebar() -> None:
+    """Hide Streamlit's sidebar for pages where it isn't needed."""
+    st.markdown(
+        """
+        <style>
+            div[data-testid="stSidebarNav"] {display: none;}
+            div[data-testid="stSidebarHeader"] {display: none;}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
 
 
 # Ensure the latest lesson schedule is loaded
@@ -307,6 +318,10 @@ def login_page():
         except Exception:
             pass
         return
+
+    hide_fn = globals().get("hide_sidebar")
+    if callable(hide_fn):
+        hide_fn()
 
     try:
         renew_session_if_needed()
@@ -556,6 +571,125 @@ def render_level_welcome_video(level: str | None):
     )
 
 
+# ------------------------------------------------------------------------------
+# Sidebar (publish-ready)
+# ------------------------------------------------------------------------------
+def render_sidebar_published():
+    def _qp_set_safe(**kwargs):
+        if "_qp_set" in globals():
+            try: _qp_set(**kwargs); return
+            except Exception: pass
+        try:
+            for k, v in kwargs.items():
+                st.query_params[k] = "" if v is None else str(v)
+        except Exception:
+            pass
+
+    def _go(tab_name: str):
+        st.session_state["nav_sel"] = tab_name
+        st.session_state["main_tab_select"] = tab_name
+        _qp_set_safe(tab=tab_name)
+        st.session_state["need_rerun"] = True
+
+    def _go_zoom_class():
+        st.session_state["nav_sel"] = "My Course"
+        st.session_state["main_tab_select"] = "My Course"
+        st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
+        st.session_state["classroom_page"] = "Join on Zoom"
+        _qp_set_safe(tab="My Course")
+        st.session_state["need_rerun"] = True
+
+    def _go_post_qna():
+        st.session_state["nav_sel"] = "My Course"
+        st.session_state["main_tab_select"] = "My Course"
+        st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
+        st.session_state["classroom_page"] = "Class Notes & Q&A"
+        _qp_set_safe(tab="My Course")
+        st.session_state["need_rerun"] = True
+
+    def _go_dictionary():
+        st.session_state["nav_sel"] = "Vocab Trainer"
+        st.session_state["main_tab_select"] = "Vocab Trainer"
+        st.session_state["vocab_practice_subtab"] = "Dictionary"
+        _qp_set_safe(tab="Vocab Trainer")
+        st.session_state["need_rerun"] = True
+    if st.session_state.get("logged_in", False):
+        st.sidebar.markdown("## Quick access")
+        st.sidebar.button("🏠 Dashboard",                use_container_width=True, on_click=_go, args=("Dashboard",))
+        st.sidebar.button("📈 My Course",                use_container_width=True, on_click=_go, args=("My Course",))
+        st.sidebar.button("📊 Results & Resources",      use_container_width=True, on_click=_go, args=("My Results and Resources",))
+        st.sidebar.button("🗣️ Exams Mode & Custom Chat", use_container_width=True, on_click=_go, args=("Exams Mode & Custom Chat",))
+        st.sidebar.button("📚 Vocab Trainer",            use_container_width=True, on_click=_go, args=("Vocab Trainer",))
+        st.sidebar.button("📗 Dictionary",              use_container_width=True, on_click=_go_dictionary)
+        st.sidebar.button("✍️ Schreiben Trainer",        use_container_width=True, on_click=_go, args=("Schreiben Trainer",))
+        st.sidebar.button("🎥 Join on Zoom",             use_container_width=True, on_click=_go_zoom_class)
+        st.sidebar.button("❓ Class Notes & Q&A",         use_container_width=True, on_click=_go_post_qna)
+        st.sidebar.divider()
+
+        st.sidebar.markdown("## Our Socials")
+        st.sidebar.markdown(
+            """
+- 📸 [Instagram](https://www.instagram.com/lleaghana/)
+- ▶️ [YouTube](https://www.youtube.com/@LLEAGhana)
+- 🎵 [TikTok](https://www.tiktok.com/@lleaghana)
+- 💼 [LinkedIn](https://www.linkedin.com/in/lleaghana/)
+            """
+        )
+        st.sidebar.divider()
+
+        st.sidebar.markdown("## How-to & tips")
+        with st.sidebar.expander("📚 Quick guide", expanded=False):
+            st.markdown(
+                """
+- **Submit work:** My Course → Submit → **Confirm & Submit** (locks after submission).
+- **Check feedback:** **Results & Resources** shows marks, comments, downloads.
+- **Practice speaking:** **Tools → Sprechen** for instant pronunciation feedback.
+- **Build vocab:** **Vocab Trainer** for daily words & review cycles.
+- **Track progress:** **Dashboard** shows streaks, next lesson, and missed items.
+                """
+            )
+
+        with st.sidebar.expander("🧭 Dashboard tabs, explained", expanded=False):
+            st.markdown(
+                """
+- **Dashboard:** Overview (streak, next lesson, missed, leaderboard, new posts).
+- **My Course:** Lessons, materials, and submission flow.
+- **Results & Resources:** Marks, feedback, downloadable resources.
+- **Exams Mode & Custom Chat:** Exam-style drills + targeted AI practice.
+- **Vocab Trainer:** Daily picks, spaced review, stats.
+- **Schreiben Trainer:** Structured writing with iterative feedback.
+                """
+            )
+
+        with st.sidebar.expander("🔔 Telegram notifications", expanded=False):
+            st.markdown(
+                """
+- [Open the Falowen bot](https://t.me/falowenbot) and tap **Start**
+- Register: `/register <student_code>` (e.g. `/register kwame202`)
+- To deactivate: send `/stop`
+                """
+            )
+
+        st.sidebar.divider()
+
+        st.sidebar.markdown("## Support")
+        st.sidebar.markdown(
+            """
+- 📱 [WhatsApp](https://api.whatsapp.com/send?phone=233205706589)
+- ✉️ [Email](mailto:learngermanghana@gmail.com)
+- 🐞 [Report an issue](mailto:learngermanghana@gmail.com?subject=Falowen%20Bug%20Report)
+            """
+        )
+
+        st.sidebar.markdown("## Resources")
+        st.sidebar.markdown(
+            """
+- 👩‍🏫 [Tutors](https://www.learngermanghana.com/tutors)
+- 🗓️ [Upcoming Classes](https://www.learngermanghana.com/upcoming-classes)
+- 📰 [Blog](https://blog.falowen.app)
+- ✉️ [About Us](https://register.falowen.app/#about-us)
+            """
+        )
 
 
 
@@ -728,6 +862,8 @@ render_logged_in_topbar()
 # Theme bits (chips etc.)
 inject_notice_css()
 
+# Sidebar (no logout; logout lives in the header)
+render_sidebar_published()
 
 # Falowen blog updates (render once)
 new_posts = fetch_blog_feed()
