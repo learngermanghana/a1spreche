@@ -74,6 +74,224 @@ def _load_assignment_scores_cached(force_refresh: bool = False) -> pd.DataFrame:
     )
     return pd.read_csv(url)
 
+
+def load_assignment_scores(force_refresh: bool = False) -> pd.DataFrame:
+    """Public wrapper around :func:`_load_assignment_scores_cached`."""
+
+    return _load_assignment_scores_cached(force_refresh=force_refresh)
+
+
+def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> dict:
+    """Summarize assignment progress for a student at a given level."""
+
+    schedules = _get_level_schedules() or {}
+    schedule = (
+        schedules.get(level)
+        or schedules.get((level or "").upper())
+        or schedules.get((level or "").title())
+        or []
+    )
+
+    def _extract_all_nums(chapter_str: str) -> list[float]:
+        text = "" if chapter_str is None else str(chapter_str)
+        if not text:
+            return []
+        numbers: list[float] = []
+        base_prefix: str | None = None
+        decimal_len = 0
+        for match in re.finditer(r"\d+(?:\.\d+)?", text):
+            token = match.group()
+            if "." in token:
+                integer_part, decimal_part = token.split(".", 1)
+                base_prefix = integer_part
+                decimal_len = len(decimal_part)
+                numbers.append(float(f"{integer_part}.{decimal_part}"))
+            else:
+                plain = token.lstrip("0") or "0"
+                if (
+                    base_prefix is not None
+                    and decimal_len
+                    and plain.isdigit()
+                    and len(plain) <= decimal_len
+                ):
+                    combined = f"{base_prefix}.{plain.zfill(decimal_len)}"
+                    numbers.append(float(combined))
+                else:
+                    numbers.append(float(token))
+                    base_prefix = None
+                    decimal_len = 0
+        return numbers
+
+    def _numbers_from_source(value: object) -> list[float]:
+        if value is None:
+            return []
+        text = str(value).strip()
+        if not text:
+            return []
+        return _extract_all_nums(text)
+
+    def _collect_section_numbers(section: object, fallback: object) -> list[float]:
+        numbers: list[float] = []
+        if isinstance(section, dict):
+            if section.get("assignment"):
+                numbers.extend(_numbers_from_source(section.get("chapter", fallback)))
+        elif isinstance(section, list):
+            for item in section:
+                if isinstance(item, dict) and item.get("assignment"):
+                    numbers.extend(_numbers_from_source(item.get("chapter", fallback)))
+        return numbers
+
+    def _chapter_strings(lesson: dict) -> list[str]:
+        chapters: list[str] = []
+
+        def _maybe_add(value: object) -> None:
+            if value is None:
+                return
+            text = str(value).strip()
+            if text:
+                chapters.append(text)
+
+        _maybe_add(lesson.get("chapter"))
+        for section_name in ("lesen_hören", "schreiben_sprechen"):
+            section = lesson.get(section_name)
+            if isinstance(section, dict):
+                _maybe_add(section.get("chapter"))
+            elif isinstance(section, list):
+                for item in section:
+                    if isinstance(item, dict):
+                        _maybe_add(item.get("chapter"))
+        return chapters
+
+    student_norm = (student_code or "").strip().casefold()
+    level_norm = (level or "").strip().casefold()
+
+    completed_nums: set[float] = set()
+    if isinstance(df, pd.DataFrame) and not df.empty:
+        required_columns = {"studentcode", "assignment", "level"}
+        if required_columns.issubset(df.columns):
+            student_series = (
+                df["studentcode"].astype(str).str.strip().str.casefold()
+            )
+            level_series = df["level"].astype(str).str.strip().str.casefold()
+            mask = (student_series == student_norm) & (level_series == level_norm)
+            if mask.any():
+                for value in df.loc[mask, "assignment"]:
+                    if pd.isna(value):
+                        continue
+                    text = str(value).strip()
+                    if not text:
+                        continue
+                    for num in _extract_all_nums(text):
+                        completed_nums.add(num)
+
+    def _to_int(value: object) -> int | None:
+        try:
+            return int(value) if value is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    lessons_info: list[dict[str, object]] = []
+
+    for lesson in schedule:
+        if not isinstance(lesson, dict):
+            continue
+
+        topic_value = lesson.get("topic")
+        topic = str(topic_value) if topic_value is not None else ""
+        if topic and "goethe" in topic.casefold():
+            continue
+
+        chapter_candidates = _chapter_strings(lesson)
+        chapter_display = chapter_candidates[0] if chapter_candidates else ""
+        if any(
+            cand.strip().startswith("14.") or cand.strip() == "14"
+            for cand in chapter_candidates
+        ):
+            continue
+
+        general_nums = (
+            _numbers_from_source(lesson.get("chapter")) if lesson.get("assignment") else []
+        )
+        reading_nums = _collect_section_numbers(lesson.get("lesen_hören"), lesson.get("chapter"))
+        writing_nums = _collect_section_numbers(
+            lesson.get("schreiben_sprechen"), lesson.get("chapter")
+        )
+
+        has_reading = bool(general_nums or reading_nums)
+        has_writing = bool(writing_nums)
+        if not has_reading and has_writing:
+            continue
+
+        seen: set[float] = set()
+        relevant_nums: list[float] = []
+        for num in general_nums + reading_nums + writing_nums:
+            if num not in seen:
+                seen.add(num)
+                relevant_nums.append(num)
+
+        if not relevant_nums:
+            continue
+
+        lessons_info.append(
+            {
+                "day": lesson.get("day"),
+                "day_int": _to_int(lesson.get("day")),
+                "chapter": chapter_display,
+                "topic": topic,
+                "goal": lesson.get("goal"),
+                "relevant_nums": relevant_nums,
+            }
+        )
+
+    for info in lessons_info:
+        info["completed"] = all(num in completed_nums for num in info["relevant_nums"])
+
+    completed_day_ints = [
+        info["day_int"]
+        for info in lessons_info
+        if info["day_int"] is not None and info.get("completed")
+    ]
+    max_completed_day = max(completed_day_ints) if completed_day_ints else None
+
+    def _format_line(info: dict[str, object]) -> str:
+        day_value = info.get("day")
+        day_display = day_value if day_value is not None else "?"
+        line = f"Day {day_display}:"
+        chapter_text = info.get("chapter") or ""
+        topic_text = info.get("topic") or ""
+        if chapter_text:
+            line += f" Chapter {chapter_text}"
+        if topic_text:
+            line += f" – {topic_text}"
+        return line
+
+    missed: list[str] = []
+    next_assignment: dict | None = None
+
+    for info in lessons_info:
+        if info.get("completed"):
+            continue
+
+        if next_assignment is None:
+            day_int = info.get("day_int")
+            day_value = info.get("day")
+            next_assignment = {
+                "day": day_int if day_int is not None else (day_value if day_value is not None else "?"),
+                "chapter": info.get("chapter"),
+                "topic": info.get("topic"),
+                "goal": info.get("goal"),
+            }
+
+        day_int = info.get("day_int")
+        if (
+            max_completed_day is not None
+            and day_int is not None
+            and day_int <= max_completed_day
+        ):
+            missed.append(_format_line(info))
+
+    return {"missed": missed, "next": next_assignment}
+
 # ---------------------------------------------------------------------------
 # Helpers used elsewhere in the module (stubs shown here for completeness)
 # ---------------------------------------------------------------------------
