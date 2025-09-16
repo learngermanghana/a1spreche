@@ -72,7 +72,28 @@ def _load_assignment_scores_cached(force_refresh: bool = False) -> pd.DataFrame:
     url = (
         f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
     )
-    return pd.read_csv(url)
+    df = pd.read_csv(url)
+
+    # Normalize column headers immediately for downstream lookups.
+    df.columns = [str(col).strip().lower() for col in df.columns]
+
+    # Consolidate common student-code aliases.
+    alias_map = {
+        "student_code": "studentcode",
+        "student code": "studentcode",
+    }
+    df = df.rename(columns={k: v for k, v in alias_map.items() if k in df.columns})
+
+    required_columns = {"assignment", "level", "score"}
+    missing_columns = sorted(required_columns - set(df.columns))
+    if missing_columns:
+        missing_str = ", ".join(missing_columns)
+        raise ValueError(
+            "Assignment scores data is missing the required column(s): "
+            f"{missing_str}. Please update the sheet to include them."
+        )
+
+    return df
 
 
 def load_assignment_scores(force_refresh: bool = False) -> pd.DataFrame:
@@ -1040,6 +1061,7 @@ def render_results_and_resources_tab() -> None:
     # ------- Enrollment Letter -------
     elif choice == "Enrollment Letter":
         st.markdown("**Enrollment letter**")
+
         outstanding_balance = _row_money(
             "Balance", "OutstandingBalance", "BalanceDue", default=0.0
         )
@@ -1049,10 +1071,12 @@ def render_results_and_resources_tab() -> None:
             )
             lookup_code_norm = lookup_code.strip().casefold() if lookup_code else ""
             if lookup_code_norm:
+
                 try:
                     roster_df = load_student_data()
                 except Exception:
                     roster_df = None
+
                 if (
                     isinstance(roster_df, pd.DataFrame)
                     and not roster_df.empty
@@ -1090,6 +1114,7 @@ def render_results_and_resources_tab() -> None:
             st.info(
                 "Please settle the outstanding balance before requesting an enrollment letter."
             )
+
             return
         name_val = _row_str("Name", "StudentName", default=_session_str("student_name", "Student"))
         level_raw = _row_str("Level", default=_session_str("student_level", ""))

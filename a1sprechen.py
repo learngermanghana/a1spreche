@@ -76,6 +76,95 @@ html, body { overscroll-behavior-y: none; }
 """, unsafe_allow_html=True)
 
 
+def _safe_str(v, default: str = "") -> str:
+    if v is None:
+        return default
+    if isinstance(v, float):
+        try:
+            if math.isnan(v):
+                return default
+        except Exception:
+            pass
+    s = str(v).strip()
+    return "" if s.lower() in ("nan", "none") else s
+
+
+def _safe_upper(v, default: str = "") -> str:
+    s = _safe_str(v, default)
+    return s.upper() if s else default
+
+
+def _build_missing_code_link(
+    name: str = "",
+    *,
+    level: str = "",
+    lesson_info: Optional[Dict[str, Any]] = None,
+) -> str:
+    display_name = _safe_str(name, "Student") or "Student"
+    level_text = _safe_upper(level, "")
+    lesson = lesson_info or {}
+
+    day = _safe_str(lesson.get("day"))
+    chapter = _safe_str(lesson.get("chapter"))
+    topic = _safe_str(lesson.get("topic"))
+
+    subject_parts: List[str] = []
+    if level_text:
+        subject_parts.append(f"Level {level_text}")
+    if day:
+        subject_parts.append(f"Day {day}")
+    if chapter:
+        subject_parts.append(f"Chapter {chapter}")
+
+    subject = f"{display_name} - Missing student code"
+    if subject_parts:
+        subject = f"{subject} ({' • '.join(subject_parts)})"
+
+    lesson_line_parts: List[str] = []
+    if day:
+        lesson_line_parts.append(f"Day {day}")
+    if chapter:
+        lesson_line_parts.append(f"Chapter {chapter}")
+    if topic:
+        lesson_line_parts.append(f"Topic: {topic}")
+
+    body_lines: List[str] = [
+        "Hello Learn German Ghana team,",
+        "",
+        "I couldn't find my student code in Falowen.",
+        "",
+        f"Name: {display_name}",
+    ]
+    if level_text:
+        body_lines.append(f"Level: {level_text}")
+    if lesson_line_parts:
+        body_lines.append("Lesson: " + " • ".join(lesson_line_parts))
+    body_lines.extend(["", "My work (paste below):", ""])
+
+    body = "\n".join(body_lines)
+    return (
+        "mailto:learngermanghana@gmail.com"
+        f"?subject={quote_plus(subject)}&body={quote_plus(body)}"
+    )
+
+
+def _show_missing_code_warning(
+    name: str = "",
+    *,
+    level: str = "",
+    lesson_info: Optional[Dict[str, Any]] = None,
+) -> None:
+    mailto_link = _build_missing_code_link(
+        name=name,
+        level=level,
+        lesson_info=lesson_info,
+    )
+    st.warning(
+        "We couldn't find your student code. Try refreshing the page, "
+        f"or [email us]({mailto_link}) and paste your work."
+    )
+
+
 def hide_sidebar() -> None:
     """Hide Streamlit's sidebar for pages where it isn't needed."""
     st.markdown(
@@ -2608,7 +2697,10 @@ if tab == "My Course":
                 )
             lesson_key = lesson_key_build(student_level, info['day'], info['chapter'])
             chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
-            name = st.text_input("Name", value=name_default)
+
+            name = st.text_input("Name", value=student_row.get('Name', ''))
+            email = st.text_input("Email", value=student_row.get('Email', ''))
+
 
             draft_key = f"draft_{lesson_key}"
             st.session_state["coursebook_draft_key"] = draft_key
@@ -2899,6 +2991,7 @@ if tab == "My Course":
                         payload = {
                             "student_code": code,
                             "student_name": name or "Student",
+                            "student_email": email,
                             "level": student_level,
                             "day": info["day"],
                             "chapter": chapter_name,
@@ -3061,91 +3154,6 @@ if tab == "My Course":
             import streamlit.components.v1 as components
         except Exception:
             components = None
-
-        def _safe_str(v, default: str = "") -> str:
-            if v is None:
-                return default
-            if isinstance(v, float):
-                try:
-                    if math.isnan(v):
-                        return default
-                except Exception:
-                    pass
-            s = str(v).strip()
-            return "" if s.lower() in ("nan", "none") else s
-
-        def _safe_upper(v, default: str = "") -> str:
-            s = _safe_str(v, default)
-            return s.upper() if s else default
-
-        def _build_missing_code_link(
-            name: str = "",
-            *,
-            level: str = "",
-            lesson_info: Optional[Dict[str, Any]] = None,
-        ) -> str:
-            display_name = _safe_str(name, "Student") or "Student"
-            level_text = _safe_upper(level, "")
-            lesson = lesson_info or {}
-
-            day = _safe_str(lesson.get("day"))
-            chapter = _safe_str(lesson.get("chapter"))
-            topic = _safe_str(lesson.get("topic"))
-
-            subject_parts: List[str] = []
-            if level_text:
-                subject_parts.append(f"Level {level_text}")
-            if day:
-                subject_parts.append(f"Day {day}")
-            if chapter:
-                subject_parts.append(f"Chapter {chapter}")
-
-            subject = f"{display_name} - Missing student code"
-            if subject_parts:
-                subject = f"{subject} ({' • '.join(subject_parts)})"
-
-            lesson_line_parts: List[str] = []
-            if day:
-                lesson_line_parts.append(f"Day {day}")
-            if chapter:
-                lesson_line_parts.append(f"Chapter {chapter}")
-            if topic:
-                lesson_line_parts.append(f"Topic: {topic}")
-
-            body_lines: List[str] = [
-                "Hello Learn German Ghana team,",
-                "",
-                "I couldn't find my student code in Falowen.",
-                "",
-                f"Name: {display_name}",
-            ]
-            if level_text:
-                body_lines.append(f"Level: {level_text}")
-            if lesson_line_parts:
-                body_lines.append("Lesson: " + " • ".join(lesson_line_parts))
-            body_lines.extend(["", "My work (paste below):", ""])
-
-            body = "\n".join(body_lines)
-            return (
-                "mailto:learngermanghana@gmail.com"
-                f"?subject={quote_plus(subject)}&body={quote_plus(body)}"
-            )
-
-        def _show_missing_code_warning(
-            name: str = "",
-            *,
-            level: str = "",
-            lesson_info: Optional[Dict[str, Any]] = None,
-        ) -> None:
-            mailto_link = _build_missing_code_link(
-                name=name,
-                level=level,
-                lesson_info=lesson_info,
-            )
-            st.warning(
-                "We couldn't find your student code. Try refreshing the page, "
-                f"or [email us]({mailto_link}) and paste your work."
-            )
 
         student_row   = st.session_state.get("student_row") or {}
         student_code  = _safe_str(student_row.get("StudentCode"), "demo001")
