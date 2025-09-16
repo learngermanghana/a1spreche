@@ -81,6 +81,12 @@ def load_assignment_scores(force_refresh: bool = False) -> pd.DataFrame:
     return _load_assignment_scores_cached(force_refresh=force_refresh)
 
 
+def fetch_scores(*_args, **_kwargs) -> pd.DataFrame:
+    """Compatibility shim so tests can monkeypatch score fetching."""
+
+    return load_assignment_scores()
+
+
 def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> dict:
     """Summarize assignment progress for a student at a given level."""
 
@@ -551,6 +557,43 @@ def render_results_and_resources_tab() -> None:
 
     # ... (omitted: upstream UI and data prep code)
 
+    student_row_state = st.session_state.get("student_row")
+    if not isinstance(student_row_state, dict) or not student_row_state:
+        student_code_raw = st.session_state.get("student_code", "")
+        student_code = str(student_code_raw or "").strip()
+        if not student_code and "code_key" in globals():
+            try:
+                student_code = str(globals().get("code_key", "") or "").strip()
+            except Exception:
+                student_code = ""
+        if student_code:
+            try:
+                roster_df = load_student_data()
+            except Exception:
+                roster_df = None
+            else:
+                if (
+                    isinstance(roster_df, pd.DataFrame)
+                    and not roster_df.empty
+                    and "StudentCode" in roster_df.columns
+                ):
+                    norm_codes = (
+                        roster_df["StudentCode"].astype(str).str.strip().str.lower()
+                    )
+                    sc_norm = student_code.lower()
+                    matches = roster_df[norm_codes == sc_norm]
+                    if not matches.empty:
+                        row_series = matches.iloc[0]
+                        try:
+                            row_series = row_series.where(pd.notna(row_series), None)
+                        except Exception:
+                            pass
+                        student_row_state = row_series.to_dict()
+                        st.session_state["student_row"] = student_row_state
+    student_row = st.session_state.get("student_row")
+    if not isinstance(student_row, dict):
+        student_row = {}
+
     choice = st.selectbox(
         "Select a download", ["Results PDF", "Enrollment Letter", "Receipt", "Attendance PDF"]
     )
@@ -561,6 +604,71 @@ def render_results_and_resources_tab() -> None:
             return float(s) if s not in ("", "nan", "None") else 0.0
         except Exception:
             return 0.0
+
+    def _session_str(key: str, default: str = "") -> str:
+        value = st.session_state.get(key)
+        if value is None:
+            return default
+        text = str(value).strip()
+        return text if text else default
+
+    def _row_str(*keys: str, default: str = "") -> str:
+        for key in keys:
+            if not key or not isinstance(student_row, dict):
+                continue
+            value = student_row.get(key)
+            if value is None:
+                continue
+            try:
+                if pd.isna(value):
+                    continue
+            except Exception:
+                pass
+            text = str(value).strip()
+            if text and text.lower() != "nan":
+                return text
+        return default
+
+    def _normalize_date_str(value: object, default: str = "") -> str:
+        if value is None:
+            return default
+        try:
+            if pd.isna(value):
+                return default
+        except Exception:
+            pass
+        text = str(value).strip()
+        if not text:
+            return default
+        try:
+            dt = pd.to_datetime(text, errors="coerce")
+        except Exception:
+            dt = pd.NaT
+        if pd.isna(dt):
+            return text
+        return dt.strftime("%Y-%m-%d")
+
+    def _row_money(*keys: str, default: float = 0.0) -> float:
+        for key in keys:
+            if not key or not isinstance(student_row, dict):
+                continue
+            if key not in student_row:
+                continue
+            raw = student_row.get(key)
+            if raw is None:
+                continue
+            try:
+                if pd.isna(raw):
+                    continue
+            except Exception:
+                pass
+            if isinstance(raw, str) and not raw.strip():
+                continue
+            try:
+                return _read_money(raw)
+            except Exception:
+                continue
+        return default
 
     # ------- Results PDF -------
     if choice == "Results PDF":
@@ -621,15 +729,28 @@ def render_results_and_resources_tab() -> None:
             pdf.add_page()
 
             pdf.set_font("DejaVu", "", 12)
-            # `df_user`, `student_name`, `code_key`, `level`, `total`, `completed`, `avg_score`,
-            # `best_score`, `df_display`, and `score_label_fmt` are expected from upstream code.
-            try:
-                shown_name = df_user.name.iloc[0]  # type: ignore[name-defined]
-            except Exception:
-                shown_name = (student_name if 'student_name' in globals() else "Student")  # type: ignore[name-defined]
+            # `df_user`, `total`, `completed`, `avg_score`, `best_score`, `df_display`, and
+            # `score_label_fmt` are expected from upstream code.
+            shown_name = _row_str("Name", "StudentName")
+            if not shown_name:
+                try:
+                    shown_name = df_user.name.iloc[0]  # type: ignore[name-defined]
+                except Exception:
+                    shown_name = _session_str("student_name", "Student")
 
-            code_val = (code_key if 'code_key' in globals() else "-")  # type: ignore[name-defined]
-            level_val = (level if 'level' in globals() else "-")      # type: ignore[name-defined]
+            raw_code = _row_str("StudentCode")
+            if raw_code:
+                code_val = raw_code.upper()
+            else:
+                fallback_code = _session_str("student_code", "-")
+                code_val = fallback_code.upper() if fallback_code else "-"
+
+            raw_level = _row_str("Level")
+            if raw_level:
+                level_val = raw_level.upper()
+            else:
+                fallback_level = _session_str("student_level", "-")
+                level_val = fallback_level.upper() if fallback_level else "-"
 
             pdf.cell(0, 8, t(f"Name: {shown_name}"), ln=1)
             pdf.cell(0, 8, t(f"Code: {code_val}     Level: {level_val}"), ln=1)
@@ -678,15 +799,19 @@ def render_results_and_resources_tab() -> None:
             pdf.set_fill_color(255, 255, 255)
 
             pdf_bytes = pdf.output(dest="S").encode("latin1", "replace")
+            file_code = code_val if code_val and code_val != "-" else "student"
+            file_level = level_val if level_val and level_val != "-" else "level"
+            file_stem = f"{file_code}_results_{file_level}".replace(" ", "_")
+            file_name = f"{file_stem}.pdf"
             st.download_button(
                 label="Download Results PDF",
                 data=pdf_bytes,
-                file_name=f"{code_val}_results_{level_val}.pdf",
+                file_name=file_name,
                 mime="application/pdf",
             )
             b64 = _b64.b64encode(pdf_bytes).decode()
             st.markdown(
-                f'<a href="data:application/pdf;base64,{b64}" download="{code_val}_results_{level_val}.pdf" '
+                f'<a href="data:application/pdf;base64,{b64}" download="{file_name}" '
                 f'style="font-size:1.1em;font-weight:600;color:#2563eb;">📥 Click here to download results PDF (manual)</a>',
                 unsafe_allow_html=True,
             )
@@ -695,32 +820,142 @@ def render_results_and_resources_tab() -> None:
     # ------- Enrollment Letter -------
     elif choice == "Enrollment Letter":
         st.markdown("**Enrollment letter**")
-        with st.form("enroll_form"):
-            nm = st.text_input("Student name", (student_name if 'student_name' in globals() else ""))  # type: ignore[name-defined]
-            lvl = st.text_input("Level", (level if 'level' in globals() else ""))  # type: ignore[name-defined]
-            start = st.date_input("Enrollment start", value=pd.Timestamp.today()).strftime("%Y-%m-%d")
-            end = st.date_input("Enrollment end", value=pd.Timestamp.today() + pd.Timedelta(days=90)).strftime("%Y-%m-%d")
-            submitted = st.form_submit_button("⬇️ Create & Download Enrollment Letter")
-        if submitted:
-            pdf_bytes = generate_enrollment_letter_pdf(nm, lvl, start, end)
-            st.download_button("Download Enrollment Letter PDF", data=pdf_bytes, file_name=f"{nm}_enrollment_letter.pdf", mime="application/pdf")
+        name_val = _row_str("Name", "StudentName", default=_session_str("student_name", "Student"))
+        level_raw = _row_str("Level", default=_session_str("student_level", ""))
+        level_display = level_raw.upper() if level_raw else "-"
+
+        start_candidate = None
+        for key in ["ContractStart", "StartDate", "ContractBegin", "Start", "Begin", "EnrollDate"]:
+            candidate = student_row.get(key) if isinstance(student_row, dict) else None
+            if candidate in (None, ""):
+                continue
+            try:
+                if pd.isna(candidate):
+                    continue
+            except Exception:
+                pass
+            start_candidate = candidate
+            break
+        start_val = _normalize_date_str(start_candidate, default="")
+        if not start_val:
+            start_val = pd.Timestamp.today().strftime("%Y-%m-%d")
+
+        end_candidate = None
+        for key in ["ContractEnd", "EndDate", "ContractFinish", "End"]:
+            candidate = student_row.get(key) if isinstance(student_row, dict) else None
+            if candidate in (None, ""):
+                continue
+            try:
+                if pd.isna(candidate):
+                    continue
+            except Exception:
+                pass
+            end_candidate = candidate
+            break
+        end_val = _normalize_date_str(end_candidate, default="")
+        if not end_val:
+            try:
+                start_dt = pd.to_datetime(start_val, errors="coerce")
+            except Exception:
+                start_dt = pd.NaT
+            if not pd.isna(start_dt):
+                end_val = (start_dt + pd.Timedelta(days=90)).strftime("%Y-%m-%d")
+            else:
+                end_val = (pd.Timestamp.today() + pd.Timedelta(days=90)).strftime("%Y-%m-%d")
+
+        st.text_input("Student name", value=name_val, disabled=True)
+        st.text_input("Level", value=level_display, disabled=True)
+        st.text_input("Enrollment start", value=start_val, disabled=True)
+        st.text_input("Enrollment end", value=end_val, disabled=True)
+
+        if st.button("Generate Enrollment Letter"):
+            pdf_bytes = generate_enrollment_letter_pdf(name_val, level_display, start_val, end_val)
+            file_stub = (name_val or "student").strip().replace(" ", "_") or "student"
+            st.download_button(
+                "Download Enrollment Letter PDF",
+                data=pdf_bytes,
+                file_name=f"{file_stub}_enrollment_letter.pdf",
+                mime="application/pdf",
+            )
 
     # ------- Receipt -------
     elif choice == "Receipt":
         st.markdown("**Payment receipt**")
-        # Upstream code should provide these values; keep form for safety.
-        with st.form("receipt_form"):
-            nm = st.text_input("Student name", (student_name if 'student_name' in globals() else ""))  # type: ignore[name-defined]
-            lvl = st.text_input("Level", (level if 'level' in globals() else ""))  # type: ignore[name-defined]
-            code_val = st.text_input("Student Code", (code_key if 'code_key' in globals() else ""))  # type: ignore[name-defined]
-            start = st.text_input("Contract start", "YYYY-MM-DD")
-            paid_amt = st.number_input("Amount Paid", min_value=0.0, step=1.0)
-            bal_amt = st.number_input("Balance", min_value=0.0, step=1.0)
-            rdate = st.text_input("Date", pd.Timestamp.now().strftime("%Y-%m-%d"))
-            submitted = st.form_submit_button("⬇️ Create & Download Receipt")
-        if submitted:
-            pdf_bytes = generate_receipt_pdf(nm, lvl, code_val, start, paid_amt, bal_amt, rdate)
-            st.download_button("Download Receipt PDF", data=pdf_bytes, file_name=f"{code_val}_receipt.pdf", mime="application/pdf")
+        name_val = _row_str("Name", "StudentName", default=_session_str("student_name", "Student"))
+        level_raw = _row_str("Level", default=_session_str("student_level", ""))
+        level_display = level_raw.upper() if level_raw else "-"
+        code_raw = _row_str("StudentCode", default=_session_str("student_code", ""))
+        code_display = code_raw.upper() if code_raw else "-"
+
+        start_candidate = None
+        for key in ["ContractStart", "StartDate", "ContractBegin", "Start", "Begin"]:
+            candidate = student_row.get(key) if isinstance(student_row, dict) else None
+            if candidate in (None, ""):
+                continue
+            try:
+                if pd.isna(candidate):
+                    continue
+            except Exception:
+                pass
+            start_candidate = candidate
+            break
+        contract_start = _normalize_date_str(start_candidate, default="")
+        if not contract_start:
+            contract_start = pd.Timestamp.today().strftime("%Y-%m-%d")
+
+        paid_amt = _row_money(
+            "LastPaymentAmount",
+            "AmountPaid",
+            "AmountPaidGHS",
+            "AmountPaidToDate",
+            "PaidAmount",
+            "Paid",
+            default=0.0,
+        )
+        balance_amt = _row_money("Balance", "OutstandingBalance", "BalanceDue", default=0.0)
+
+        receipt_candidate = None
+        for key in ["LastPaymentDate", "PaymentDate", "ReceiptDate", "LastPayment", "Date"]:
+            candidate = student_row.get(key) if isinstance(student_row, dict) else None
+            if candidate in (None, ""):
+                continue
+            try:
+                if pd.isna(candidate):
+                    continue
+            except Exception:
+                pass
+            receipt_candidate = candidate
+            break
+        receipt_date = _normalize_date_str(receipt_candidate, default="")
+        if not receipt_date:
+            receipt_date = pd.Timestamp.now().strftime("%Y-%m-%d")
+
+        st.text_input("Student name", value=name_val, disabled=True)
+        st.text_input("Level", value=level_display, disabled=True)
+        st.text_input("Student Code", value=code_display, disabled=True)
+        st.text_input("Contract start", value=contract_start, disabled=True)
+        st.text_input("Amount Paid", value=format_cedis(paid_amt), disabled=True)
+        st.text_input("Balance", value=format_cedis(balance_amt), disabled=True)
+        st.text_input("Date", value=receipt_date, disabled=True)
+
+        if st.button("Generate Receipt"):
+            pdf_bytes = generate_receipt_pdf(
+                name_val,
+                level_display,
+                code_display,
+                contract_start,
+                paid_amt,
+                balance_amt,
+                receipt_date,
+            )
+            receipt_stub = code_display if code_display and code_display != "-" else "student"
+            receipt_stub = receipt_stub.replace(" ", "_") or "student"
+            st.download_button(
+                "Download Receipt PDF",
+                data=pdf_bytes,
+                file_name=f"{receipt_stub}_receipt.pdf",
+                mime="application/pdf",
+            )
 
     # ------- Attendance PDF -------
     elif choice == "Attendance PDF":
