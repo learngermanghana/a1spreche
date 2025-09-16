@@ -113,7 +113,12 @@ def load_assignment_scores(force_refresh: bool = False) -> pd.DataFrame:
 def fetch_scores(*_args, **_kwargs) -> pd.DataFrame:
     """Compatibility shim so tests can monkeypatch score fetching."""
 
-    return load_assignment_scores()
+    force_refresh = bool(_kwargs.pop("force_refresh", False))
+    if _args:
+        first_arg = _args[0]
+        if isinstance(first_arg, dict) and not force_refresh:
+            force_refresh = bool(first_arg.get("force_refresh", False))
+    return load_assignment_scores(force_refresh=force_refresh)
 
 
 def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> dict:
@@ -591,6 +596,11 @@ def render_results_and_resources_tab() -> None:
 
     # ... (omitted: upstream UI and data prep code)
 
+    force_refresh = False
+    if st.button("🔄 Refresh scores"):
+        refresh_with_toast("Refreshing scores…")
+        force_refresh = True
+
     student_row_state = st.session_state.get("student_row")
     if not isinstance(student_row_state, dict) or not student_row_state:
         student_code_raw = st.session_state.get("student_code", "")
@@ -705,10 +715,17 @@ def render_results_and_resources_tab() -> None:
     selected_level = _row_str("Level", default=_session_str("student_level", "")).strip()
 
     fetch_payload = {"student_code": selected_code, "level": selected_level}
+    if force_refresh:
+        fetch_payload["force_refresh"] = True
     try:
-        df_scores_raw = fetch_scores(student_code=selected_code, level=selected_level)
+        df_scores_raw = fetch_scores(**fetch_payload)
     except TypeError as exc:  # compat with simple lambda replacements in tests
-        if "student_code" in str(exc) or "level" in str(exc):
+        message = str(exc)
+        if (
+            "student_code" in message
+            or "level" in message
+            or "force_refresh" in message
+        ):
             df_scores_raw = fetch_scores(fetch_payload)
         else:  # pragma: no cover - propagate unexpected type errors
             raise
