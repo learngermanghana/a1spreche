@@ -94,6 +94,24 @@ def _safe_upper(v, default: str = "") -> str:
     return s.upper() if s else default
 
 
+def _resolve_class_name(
+    raw_value: Any,
+    *,
+    level: str = "",
+    default_suffix: str = "General",
+) -> Tuple[str, str]:
+    """Return ``(clean, resolved)`` class labels.
+
+    ``clean`` is the sanitized class name treating "nan"/"None" as empty while
+    ``resolved`` falls back to ``"{LEVEL} {default_suffix}"`` when available.
+    """
+
+    clean = _safe_str(raw_value)
+    level_key = _safe_upper(level, "")
+    fallback = f"{level_key} {default_suffix}".strip() if level_key else ""
+    return clean, clean or fallback
+
+
 def _build_missing_code_link(
     name: str = "",
     *,
@@ -1436,11 +1454,15 @@ if tab == "Dashboard":
     else:
         _next_chip = "<span class='pill pill-green'>All caught up</span>"
         _next_sub = ""
-    _class_name = str(safe_get(student_row, "ClassName", "")).strip()
+    _class_name_clean, _class_name_lookup = _resolve_class_name(
+        safe_get(student_row, "ClassName", ""),
+        level=_level,
+    )
     _att_sessions, _att_hours = (0, 0.0)
-    if _class_name and _student_code_raw:
+    if _class_name_lookup and _student_code_raw:
         _att_sessions, _att_hours = fetch_attendance_summary(
-            _student_code_raw, _class_name
+            _student_code_raw,
+            _class_name_lookup,
         )
     _attendance_chip = (
         f"<span class='pill pill-purple'>{_att_sessions} sessions • {_att_hours:.1f}h</span>"
@@ -1492,7 +1514,8 @@ if tab == "Dashboard":
     name = safe_get(student_row, "Name")
     level = safe_get(student_row, "Level", "")
     code  = safe_get(student_row, "StudentCode", "")
-    class_name = safe_get(student_row, "ClassName", "")
+    _class_raw = safe_get(student_row, "ClassName", "")
+    _, class_name = _resolve_class_name(_class_raw, level=level)
     try:
         bal_val = float(str(safe_get(student_row, "Balance", 0)).replace(",", "").strip() or 0)
     except Exception:
@@ -1758,8 +1781,13 @@ if tab == "Dashboard":
         GROUP_SCHEDULES = load_group_schedules()
 
         from datetime import datetime as _dt_local, timedelta as _td_local
-        class_name = str(safe_get(student_row, "ClassName", "")).strip()
-        class_schedule = GROUP_SCHEDULES.get(class_name)
+        student_level_val = st.session_state.get("student_level", "")
+        class_name_clean, class_name_lookup = _resolve_class_name(
+            safe_get(student_row, "ClassName", ""),
+            level=student_level_val,
+        )
+        class_name_display = class_name_clean or class_name_lookup
+        class_schedule = GROUP_SCHEDULES.get(class_name_lookup)
         week_days = [
             "Monday",
             "Tuesday",
@@ -1770,7 +1798,7 @@ if tab == "Dashboard":
             "Sunday",
         ]
 
-        if not class_name or not class_schedule:
+        if not class_name_lookup or not class_schedule:
             st.info("🚩 Your class is not set yet. Please contact your teacher or the office.")
         else:
             days = class_schedule.get("days", [])
@@ -1819,7 +1847,9 @@ if tab == "Dashboard":
 
             if after_end:
                 end_str = end_date_obj.strftime('%d %b %Y') if end_date_obj else end_dt
-                st.error(f"❌ Your class ({class_name}) ended on {end_str}. Please contact the office for next steps.")
+                st.error(
+                    f"❌ Your class ({class_name_display}) ended on {end_str}. Please contact the office for next steps."
+                )
             else:
                 if upcoming_sessions:
                     items = []
@@ -2285,14 +2315,17 @@ if tab == "My Course":
 
         # ---- Class discussion count & link ----
         student_row = st.session_state.get("student_row") or {}
-        class_name = str(student_row.get("ClassName", "")).strip()
+        _class_name_clean, class_name_lookup = _resolve_class_name(
+            student_row.get("ClassName", ""),
+            level=student_level,
+        )
 
-        if class_name and chapter:
+        if class_name_lookup and chapter:
             board_base = (
                 db.collection("class_board")
                 .document(student_level)
                 .collection("classes")
-                .document(class_name)
+                .document(class_name_lookup)
                 .collection("posts")
             )
             post_count = sum(
@@ -2308,15 +2341,29 @@ if tab == "My Course":
                 f"{CLASS_DISCUSSION_LABEL}{count_txt}. "
                 f"{CLASS_DISCUSSION_REMINDER}"
             )
+
+            def _launch_class_thread(chap: str) -> None:
+                current_row = st.session_state.get("student_row") or {}
+                if isinstance(current_row, dict):
+                    updated_row = dict(current_row)
+                else:
+                    try:
+                        updated_row = dict(current_row)
+                    except Exception:
+                        updated_row = {}
+                updated_row["ClassName"] = class_name_lookup
+                st.session_state["student_row"] = updated_row
+                go_class_thread(chap)
+
             st.button(
                 CLASS_DISCUSSION_LABEL,
                 key=link_key,
-                on_click=go_class_thread,
+                on_click=_launch_class_thread,
                 args=(chapter,),
             )
             if post_count == 0:
                 st.caption("No posts yet. Clicking will show the full board.")
-        elif not class_name:
+        elif not class_name_lookup:
             st.info(
                 "This class discussion board is unavailable. "
                 "Please contact support to add your class to the roster."
