@@ -2,6 +2,7 @@ import ast
 import types
 from pathlib import Path
 from datetime import UTC
+import logging
 import pandas as pd
 
 from src.contracts import is_contract_expired
@@ -22,6 +23,8 @@ def _load_login_func():
     mod.UTC = UTC
     mod.is_contract_expired = is_contract_expired
     mod.contract_active = contract_active
+    mod.logging = logging
+    mod.renew_session_if_needed = lambda: None
 
     errors: list[str] = []
 
