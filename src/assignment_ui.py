@@ -704,6 +704,31 @@ def render_results_and_resources_tab() -> None:
     if not isinstance(df_scores_raw, pd.DataFrame):
         df_scores_raw = pd.DataFrame()
 
+    assignment_summary: dict[str, object] = {"missed": [], "next": None}
+    try:
+        summary_candidate = get_assignment_summary(
+            selected_code,
+            selected_level,
+            df_scores_raw,
+        )
+    except Exception:
+        summary_candidate = None
+    if isinstance(summary_candidate, dict):
+        missed_candidate = summary_candidate.get("missed")
+        if isinstance(missed_candidate, (list, tuple, set)):
+            missed_list = list(missed_candidate)
+        elif isinstance(missed_candidate, str):
+            missed_list = [missed_candidate]
+        elif missed_candidate is None:
+            missed_list = []
+        else:
+            missed_list = [missed_candidate]
+
+        assignment_summary = {
+            "missed": missed_list,
+            "next": summary_candidate.get("next"),
+        }
+
     df_scores = df_scores_raw.copy()
     if not df_scores.empty:
         normalized_cols = {}
@@ -921,21 +946,9 @@ def render_results_and_resources_tab() -> None:
     else:
         display_records = []
 
-    top_result: dict[str, object] | None = None
-    for record in display_records:
-        numeric_value = _coerce_score_value(record.get("score"))
-        if numeric_value is None:
-            continue
-        previous_best = float(top_result.get("score", float("-inf"))) if top_result else float("-inf")
-        if numeric_value > previous_best:
-            top_result = {
-                "assignment": record.get("assignment"),
-                "score": float(numeric_value),
-                "raw": record.get("score"),
-            }
+    overview_tab, missed_tab, feedback_tab, achievements_tab, downloads_tab = st.tabs(
+        ["Overview", "Missed & Next", "Feedback", "Achievements", "Downloads"]
 
-    overview_tab, feedback_tab, achievements_tab, downloads_tab = st.tabs(
-        ["Overview", "Feedback", "Achievements", "Downloads"]
     )
 
     with overview_tab:
@@ -949,6 +962,52 @@ def render_results_and_resources_tab() -> None:
             st.write(df_display)
         else:
             st.info("No assignment data available yet.")
+
+    with missed_tab:
+        st.subheader("Missed & Next")
+
+        missed_raw = assignment_summary.get("missed")
+        if isinstance(missed_raw, (list, tuple, set)):
+            missed_assignments = [
+                str(item).strip() for item in missed_raw if str(item).strip()
+            ]
+        elif isinstance(missed_raw, str):
+            missed_assignments = [missed_raw.strip()] if missed_raw.strip() else []
+        else:
+            missed_assignments = []
+
+        next_candidate = assignment_summary.get("next")
+        next_assignment = next_candidate if isinstance(next_candidate, dict) else None
+
+        if next_assignment:
+            day_text = _clean_text(next_assignment.get("day"))
+            chapter_text = _clean_text(next_assignment.get("chapter"))
+            topic_text = _clean_text(next_assignment.get("topic"))
+            goal_text = _clean_text(next_assignment.get("goal"))
+
+            descriptor_parts: list[str] = []
+            if day_text:
+                descriptor_parts.append(
+                    day_text
+                    if day_text.casefold().startswith("day ")
+                    else f"Day {day_text}"
+                )
+            if chapter_text:
+                descriptor_parts.append(f"Chapter {chapter_text}")
+            if topic_text:
+                descriptor_parts.append(topic_text)
+            descriptor = " — ".join(descriptor_parts) if descriptor_parts else "Next lesson"
+
+            highlight_lines = [f"Recommended next lesson: **{descriptor}**"]
+            if goal_text:
+                highlight_lines.append(f"**Goal:** {goal_text}")
+            st.success("\n\n".join(highlight_lines))
+
+        if missed_assignments:
+            st.markdown("**Missed assignments to review:**")
+            st.markdown("\n".join(f"- {item}" for item in missed_assignments))
+        else:
+            st.info("You\u2019re on track! No missed assignments to catch up on.")
 
     with feedback_tab:
         st.subheader("Personalized feedback")
