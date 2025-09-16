@@ -160,8 +160,8 @@ def _show_missing_code_warning(
         lesson_info=lesson_info,
     )
     st.warning(
-        "We couldn't find your student code. Try refreshing the page, "
-        f"or [email us]({mailto_link}) and paste your work."
+        "We couldn't find your student code. Enter it to continue, "
+        f"or [email us]({mailto_link}) and paste your work if you still can't locate it."
     )
 
 
@@ -2687,406 +2687,429 @@ if tab == "My Course":
                 unsafe_allow_html=True
             )
 
-            code = student_row.get('StudentCode', 'demo001')
+            code = _safe_str(student_row.get("StudentCode"), "demo001")
             name_default = _safe_str(student_row.get('Name'))
-            if code == "demo001":
+            missing_code = (not code) or (code.lower() == "demo001")
+
+            code_input_key = "submit_student_code_input"
+            if missing_code:
                 _show_missing_code_warning(
                     name=name_default,
                     level=student_level,
                     lesson_info=info,
                 )
-            lesson_key = lesson_key_build(student_level, info['day'], info['chapter'])
-            chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
+                manual_value = st.text_input(
+                    "Enter your student code to continue",
+                    value=st.session_state.get(code_input_key, ""),
+                    key=code_input_key,
+                    placeholder="e.g. KWAME123",
+                    help="This appears on your student ID card or welcome email.",
+                )
+                entered_code = _safe_str(manual_value)
+                if entered_code and entered_code.lower() != "demo001":
+                    code = _safe_upper(entered_code)
+                    missing_code = False
+                    updated_row = dict(student_row)
+                    updated_row["StudentCode"] = code
+                    st.session_state["student_row"] = updated_row
+                    st.session_state["student_code"] = code
+                    st.session_state[code_input_key] = code
+                    student_row = updated_row
+                    st.success("Student code saved. You can now submit your work.")
 
-            name = st.text_input("Name", value=student_row.get('Name', ''))
-            email = st.text_input("Email", value=student_row.get('Email', ''))
+            if not missing_code:
+                lesson_key = lesson_key_build(student_level, info['day'], info['chapter'])
+                st.session_state["student_code"] = code
+                chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
+
+                name = st.text_input("Name", value=student_row.get('Name', ''))
+                email = st.text_input("Email", value=student_row.get('Email', ''))
 
 
-            draft_key = f"draft_{lesson_key}"
-            st.session_state["coursebook_draft_key"] = draft_key
-            db_locked = is_locked(student_level, code, lesson_key)
-            locked_key = f"{lesson_key}_locked"
-            if db_locked:
-                st.session_state[locked_key] = True
-            locked = db_locked or st.session_state.get(locked_key, False)
-            submit_in_progress_key = f"{lesson_key}_submit_in_progress"
+                draft_key = f"draft_{lesson_key}"
+                st.session_state["coursebook_draft_key"] = draft_key
+                db_locked = is_locked(student_level, code, lesson_key)
+                locked_key = f"{lesson_key}_locked"
+                if db_locked:
+                    st.session_state[locked_key] = True
+                locked = db_locked or st.session_state.get(locked_key, False)
+                submit_in_progress_key = f"{lesson_key}_submit_in_progress"
 
-            # ---------- save previous lesson on switch + force hydrate for this one ----------
-            prev_active_key = st.session_state.get("__active_draft_key")
-            if prev_active_key and prev_active_key != draft_key:
-                try:
-                    prev_text = st.session_state.get(prev_active_key, "")
-                    save_draft_to_db(code, prev_active_key, prev_text)
-                except Exception:
-                    pass  # never block UI
-                # ensure the newly selected lesson re-hydrates from cloud
-                st.session_state.pop(f"{draft_key}__hydrated_v2", None)
-            st.session_state["__active_draft_key"] = draft_key
+                # ---------- save previous lesson on switch + force hydrate for this one ----------
+                prev_active_key = st.session_state.get("__active_draft_key")
+                if prev_active_key and prev_active_key != draft_key:
+                    try:
+                        prev_text = st.session_state.get(prev_active_key, "")
+                        save_draft_to_db(code, prev_active_key, prev_text)
+                    except Exception:
+                        pass  # never block UI
+                    # ensure the newly selected lesson re-hydrates from cloud
+                    st.session_state.pop(f"{draft_key}__hydrated_v2", None)
+                st.session_state["__active_draft_key"] = draft_key
 
-            # ---------- Decide what to show (guarded hydration) ----------
-            pending_key      = f"{draft_key}__pending_reload"
-            pending_text_key = f"{draft_key}__reload_text"
-            pending_ts_key   = f"{draft_key}__reload_ts"
-            hydrated_key     = f"{draft_key}__hydrated_v2"  # only hydrate once per lesson
+                # ---------- Decide what to show (guarded hydration) ----------
+                pending_key      = f"{draft_key}__pending_reload"
+                pending_text_key = f"{draft_key}__reload_text"
+                pending_ts_key   = f"{draft_key}__reload_ts"
+                hydrated_key     = f"{draft_key}__hydrated_v2"  # only hydrate once per lesson
 
-            last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
+                last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
 
-            # 1) If a forced reload was requested, apply it BEFORE widget creation
-            if st.session_state.get(pending_key):
-                cloud_text = st.session_state.pop(pending_text_key, "")
-                cloud_ts   = st.session_state.pop(pending_ts_key, None)
-                st.session_state[pending_key] = False
+                # 1) If a forced reload was requested, apply it BEFORE widget creation
+                if st.session_state.get(pending_key):
+                    cloud_text = st.session_state.pop(pending_text_key, "")
+                    cloud_ts   = st.session_state.pop(pending_ts_key, None)
+                    st.session_state[pending_key] = False
 
-                st.session_state[draft_key]      = cloud_text or ""
-                st.session_state[last_val_key]   = st.session_state[draft_key]
-                st.session_state[last_ts_key]    = time.time()
-                st.session_state[saved_flag_key] = True
-                st.session_state[saved_at_key]   = (cloud_ts or datetime.now(_timezone.utc))
-                st.session_state[hydrated_key]   = True
-
-                try:
-                    when = (cloud_ts.strftime('%Y-%m-%d %H:%M') + " UTC") if cloud_ts else "now"
-                except Exception:
-                    when = "now"
-                st.info(f"Reloaded cloud draft (saved {when}).")
-
-            else:
-                # 2) If a SUBMISSION exists, always enforce it (locked) on every run
-                latest = fetch_latest(student_level, code, lesson_key)
-                if latest and (latest.get("answer", "") is not None):
-                    sub_txt = latest.get("answer", "") or ""
-                    sub_ts  = latest.get("updated_at")
-
-                    st.session_state[draft_key]      = sub_txt
-                    st.session_state[last_val_key]   = sub_txt
+                    st.session_state[draft_key]      = cloud_text or ""
+                    st.session_state[last_val_key]   = st.session_state[draft_key]
                     st.session_state[last_ts_key]    = time.time()
                     st.session_state[saved_flag_key] = True
-                    st.session_state[saved_at_key]   = (sub_ts or datetime.now(_timezone.utc))
-                    st.session_state[locked_key]     = True
+                    st.session_state[saved_at_key]   = (cloud_ts or datetime.now(_timezone.utc))
                     st.session_state[hydrated_key]   = True
-                    locked = True  # enforce read-only
 
-                    when = f"{sub_ts.strftime('%Y-%m-%d %H:%M')} UTC" if sub_ts else ""
-                    st.success(f"Showing your submitted answer. {('Updated ' + when) if when else ''}")
+                    try:
+                        when = (cloud_ts.strftime('%Y-%m-%d %H:%M') + " UTC") if cloud_ts else "now"
+                    except Exception:
+                        when = "now"
+                    st.info(f"Reloaded cloud draft (saved {when}).")
 
                 else:
-                    # 3) No submission → hydrate ONCE from cloud; after that, never clobber local typing
-                    if not st.session_state.get(hydrated_key, False):
-                        cloud_text, cloud_ts = load_draft_meta_from_db(code, draft_key)
-                        if cloud_text is not None:
-                            st.session_state[draft_key]      = cloud_text or ""
-                            st.session_state[last_val_key]   = st.session_state[draft_key]
-                            st.session_state[last_ts_key]    = time.time()
-                            st.session_state[saved_flag_key] = True
-                            st.session_state[saved_at_key]   = (cloud_ts or datetime.now(_timezone.utc))
-                        else:
-                            st.session_state.setdefault(draft_key, "")
-                            st.session_state.setdefault(last_val_key, "")
-                            st.session_state.setdefault(last_ts_key, time.time())
-                            st.session_state.setdefault(saved_flag_key, False)
-                            st.session_state.setdefault(saved_at_key, None)
+                    # 2) If a SUBMISSION exists, always enforce it (locked) on every run
+                    latest = fetch_latest(student_level, code, lesson_key)
+                    if latest and (latest.get("answer", "") is not None):
+                        sub_txt = latest.get("answer", "") or ""
+                        sub_ts  = latest.get("updated_at")
 
-                        st.session_state[hydrated_key] = True
+                        st.session_state[draft_key]      = sub_txt
+                        st.session_state[last_val_key]   = sub_txt
+                        st.session_state[last_ts_key]    = time.time()
+                        st.session_state[saved_flag_key] = True
+                        st.session_state[saved_at_key]   = (sub_ts or datetime.now(_timezone.utc))
+                        st.session_state[locked_key]     = True
+                        st.session_state[hydrated_key]   = True
+                        locked = True  # enforce read-only
 
-                        if cloud_text:
-                            when = f"{cloud_ts.strftime('%Y-%m-%d %H:%M')} UTC" if cloud_ts else ""
-                            st.info(f"💾 Restored your saved draft. {('Last saved ' + when) if when else ''}")
-                        else:
-                            st.caption("Start typing your answer.")
+                        when = f"{sub_ts.strftime('%Y-%m-%d %H:%M')} UTC" if sub_ts else ""
+                        st.success(f"Showing your submitted answer. {('Updated ' + when) if when else ''}")
+
                     else:
-                        # If 'hydrated' but local is empty, pull cloud once
-                        if not st.session_state.get(draft_key, "") and not locked:
-                            ctext, cts = load_draft_meta_from_db(code, draft_key)
-                            if ctext:
-                                st.session_state[draft_key]      = ctext
-                                st.session_state[last_val_key]   = ctext
+                        # 3) No submission → hydrate ONCE from cloud; after that, never clobber local typing
+                        if not st.session_state.get(hydrated_key, False):
+                            cloud_text, cloud_ts = load_draft_meta_from_db(code, draft_key)
+                            if cloud_text is not None:
+                                st.session_state[draft_key]      = cloud_text or ""
+                                st.session_state[last_val_key]   = st.session_state[draft_key]
                                 st.session_state[last_ts_key]    = time.time()
                                 st.session_state[saved_flag_key] = True
-                                st.session_state[saved_at_key]   = (cts or datetime.now(_timezone.utc))
-
-            st.subheader("✍️ Your Answer")
-
-            if locked:
-                st.warning("This box is locked because you have already submitted your work.")
-                needs_resubmit = st.session_state.get(f"{lesson_key}__needs_resubmit")
-                if needs_resubmit is None:
-                    answer_text = st.session_state.get(draft_key, "").strip()
-                    MIN_WORDS = 20
-                    needs_resubmit = len(answer_text.split()) < MIN_WORDS
-                if needs_resubmit:
-
-                    resubmit_body = (
-                        "Paste your revised work here.\n\n"
-                        f"Name: {name or ''}\n"
-                        f"Student Code: {code or ''}\n"
-                        f"Assignment number: {info['day']}"
-                    )
-                    resubmit_link = (
-                        "mailto:learngermanghana@gmail.com"
-                        "?subject=Assignment%20Resubmission"
-                        f"&body={_urllib.quote(resubmit_body)}"
-                    )
-                    st.markdown(
-                        f"""
-                        <div class="resubmit-box">
-                          <p>Need to resubmit?</p>
-                          <a href="{resubmit_link}">
-
-                            Resubmit via email
-                          </a>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    st.markdown(
-                        """
-                        <style>
-                          .resubmit-box {
-                            margin-top: 1rem;
-                            padding: 1rem;
-                            background: #fff3cd;
-                            border-left: 4px solid #ffa726;
-                            border-radius: 8px;
-                          }
-                          .resubmit-box a { color: #d97706; font-weight: 600; }
-                        </style>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                
-            # ---------- Editor (save on blur + debounce) ----------
-            st.text_area(
-                "Type all your answers here",
-                height=500,
-                key=draft_key,              # value already hydrated in st.session_state[draft_key]
-                on_change=save_now,         # guaranteed save on blur/change
-                args=(draft_key, code),
-                disabled=locked,
-                help="Autosaves on blur and in the background while you type."
-            )
-
-            # Debounced autosave (safe so empty first-render won't wipe a non-empty cloud draft)
-            current_text = st.session_state.get(draft_key, "")
-            last_val = st.session_state.get(last_val_key, "")
-            if not locked and (current_text.strip() or not last_val.strip()):
-                autosave_maybe(code, draft_key, current_text, min_secs=2.0, min_delta=12, locked=locked)
-
-            # ---------- Manual save + last saved time + safe reload ----------
-            csave1, csave2, csave3 = st.columns([1, 1, 1])
-
-            with csave1:
-                if st.button("💾 Save Draft now", disabled=locked):
-                    save_draft_to_db(code, draft_key, current_text)
-                    st.session_state[last_val_key]   = current_text
-                    st.session_state[last_ts_key]    = time.time()
-                    st.session_state[saved_flag_key] = True
-                    st.session_state[saved_at_key]   = datetime.now(_timezone.utc)
-                    st.success("Draft saved.")
-
-            with csave2:
-                ts = st.session_state.get(saved_at_key)
-                if ts:
-                    st.caption("Last saved: " + ts.strftime("%Y-%m-%d %H:%M") + " UTC")
-                else:
-                    st.caption("No local save yet")
-
-            with csave3:
-                # Current draft text
-                draft_txt = st.session_state.get(draft_key, "") or ""
-
-                # Last-saved timestamp (for header)
-                _, _, _, saved_at_key = _draft_state_keys(draft_key)
-                ts = st.session_state.get(saved_at_key)
-                when = (
-                    ts.astimezone(_timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-                    if ts else datetime.now(_timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-                )
-
-                # Strip any previous backup header the student may have pasted back
-                def _strip_old_header(txt: str) -> str:
-                    if not txt:
-                        return ""
-                    # Remove ONE leading “Falowen — Draft Backup … ======” block if present
-                    pattern = r"(?s)\AFalowen\s+—\s+Draft\s+Backup.*?\n[-=]{8,}\n\n"
-                    return re.sub(pattern, "", txt, count=1)
-
-                clean_body = (_strip_old_header(draft_txt).rstrip() + "\n")
-
-                # Build a simple, single header
-                header_lines = [
-                    "Falowen — Draft Backup",
-                    f"Level: {student_level}  •  Day: {info['day']}  •  Chapter: {info.get('chapter','')}",
-                    f"Student: {name}  •  Code: {code}",
-                    f"Saved (UTC): {when}",
-                    "=" * 56,
-                    ""  # blank line before body
-                ]
-                header = "\n".join(header_lines)
-
-                # Safe filename
-                safe_chapter = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(info.get("chapter", "")))
-                fname = f"falowen_draft_{student_level}_day{info['day']}_{safe_chapter}.txt"
-
-                st.download_button(
-                    "⬇️ Download draft (TXT)",
-                    data=(header + clean_body).encode("utf-8"),
-                    file_name=fname,
-                    mime="text/plain",
-                    help="Save a clean backup of your current draft"
-                )
-
-            with st.expander("📌 How to Submit", expanded=False):
-                st.markdown(f"""
-                    1) Check you’re on the correct page: **Level {student_level} • Day {info['day']} • Chapter {info['chapter']}**.  
-                    2) Tick the two confirmations below.  
-                    3) Click **Confirm & Submit**.  
-                    4) Your box will lock (read-only).  
-                    _You’ll get an **email** when it’s marked. See **Results & Resources** for scores & feedback._
-                """)
-
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.markdown("#### 🧾 Finalize")
-                confirm_final = st.checkbox(
-                    f"I confirm this is my complete work for Level {student_level} • Day {info['day']} • Chapter {info['chapter']}.",
-                    key=f"confirm_final_{lesson_key}",
-                    disabled=locked
-                )
-                confirm_lock = st.checkbox(
-                    "I understand it will be locked after I submit.",
-                    key=f"confirm_lock_{lesson_key}",
-                    disabled=locked
-                )
-                can_submit = (confirm_final and confirm_lock and (not locked))
-
-                submit_in_progress = st.session_state.get(submit_in_progress_key, False)
-
-                if st.button(
-                    "✅ Confirm & Submit",
-                    type="primary",
-                    disabled=(not can_submit) or submit_in_progress,
-                ):
-                    st.session_state[submit_in_progress_key] = True
-                    
-                    try:
-
-                        # 1) Try to acquire the lock first
-                        got_lock = acquire_lock(student_level, code, lesson_key)
-
-                        # If lock exists already, check whether a submission exists; if yes, reflect lock and rerun.
-                        if not got_lock:
-                            if has_existing_submission(student_level, code, lesson_key):
-                                st.session_state[locked_key] = True
-                                st.warning("You have already submitted this assignment. It is locked.")
-                                refresh_with_toast()
+                                st.session_state[saved_at_key]   = (cloud_ts or datetime.now(_timezone.utc))
                             else:
-                                st.info("Found an old lock without a submission — recovering and submitting now…")
+                                st.session_state.setdefault(draft_key, "")
+                                st.session_state.setdefault(last_val_key, "")
+                                st.session_state.setdefault(last_ts_key, time.time())
+                                st.session_state.setdefault(saved_flag_key, False)
+                                st.session_state.setdefault(saved_at_key, None)
 
-                        posts_ref = db.collection("submissions").document(student_level).collection("posts")
+                            st.session_state[hydrated_key] = True
 
-                        # 2) Pre-create doc (avoids add() tuple-order mismatch)
-                        doc_ref = posts_ref.document()  # auto-ID now available
-                        short_ref = f"{doc_ref.id[:8].upper()}-{info['day']}"
+                            if cloud_text:
+                                when = f"{cloud_ts.strftime('%Y-%m-%d %H:%M')} UTC" if cloud_ts else ""
+                                st.info(f"💾 Restored your saved draft. {('Last saved ' + when) if when else ''}")
+                            else:
+                                st.caption("Start typing your answer.")
+                        else:
+                            # If 'hydrated' but local is empty, pull cloud once
+                            if not st.session_state.get(draft_key, "") and not locked:
+                                ctext, cts = load_draft_meta_from_db(code, draft_key)
+                                if ctext:
+                                    st.session_state[draft_key]      = ctext
+                                    st.session_state[last_val_key]   = ctext
+                                    st.session_state[last_ts_key]    = time.time()
+                                    st.session_state[saved_flag_key] = True
+                                    st.session_state[saved_at_key]   = (cts or datetime.now(_timezone.utc))
 
-                        payload = {
-                            "student_code": code,
-                            "student_name": name or "Student",
-                            "student_email": email,
-                            "level": student_level,
-                            "day": info["day"],
-                            "chapter": chapter_name,
-                            "lesson_key": lesson_key,
-                            "answer": (st.session_state.get(draft_key, "") or "").strip(),
-                            "status": "submitted",
-                            "receipt": short_ref,  # persist receipt immediately
-                            "created_at": firestore.SERVER_TIMESTAMP,
-                            "updated_at": firestore.SERVER_TIMESTAMP,
-                            "version": 1,
-                        }
+                st.subheader("✍️ Your Answer")
 
-                        saved_ok = False
+                if locked:
+                    st.warning("This box is locked because you have already submitted your work.")
+                    needs_resubmit = st.session_state.get(f"{lesson_key}__needs_resubmit")
+                    if needs_resubmit is None:
+                        answer_text = st.session_state.get(draft_key, "").strip()
+                        MIN_WORDS = 20
+                        needs_resubmit = len(answer_text.split()) < MIN_WORDS
+                    if needs_resubmit:
 
-                        # Archive the draft so it won't rehydrate again (drafts_v2)
+                        resubmit_body = (
+                            "Paste your revised work here.\n\n"
+                            f"Name: {name or ''}\n"
+                            f"Student Code: {code or ''}\n"
+                            f"Assignment number: {info['day']}"
+                        )
+                        resubmit_link = (
+                            "mailto:learngermanghana@gmail.com"
+                            "?subject=Assignment%20Resubmission"
+                            f"&body={_urllib.quote(resubmit_body)}"
+                        )
+                        st.markdown(
+                            f"""
+                            <div class="resubmit-box">
+                              <p>Need to resubmit?</p>
+                              <a href="{resubmit_link}">
+
+                                Resubmit via email
+                              </a>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+                        st.markdown(
+                            """
+                            <style>
+                              .resubmit-box {
+                                margin-top: 1rem;
+                                padding: 1rem;
+                                background: #fff3cd;
+                                border-left: 4px solid #ffa726;
+                                border-radius: 8px;
+                              }
+                              .resubmit-box a { color: #d97706; font-weight: 600; }
+                            </style>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+                    
+                # ---------- Editor (save on blur + debounce) ----------
+                st.text_area(
+                    "Type all your answers here",
+                    height=500,
+                    key=draft_key,              # value already hydrated in st.session_state[draft_key]
+                    on_change=save_now,         # guaranteed save on blur/change
+                    args=(draft_key, code),
+                    disabled=locked,
+                    help="Autosaves on blur and in the background while you type."
+                )
+
+                # Debounced autosave (safe so empty first-render won't wipe a non-empty cloud draft)
+                current_text = st.session_state.get(draft_key, "")
+                last_val = st.session_state.get(last_val_key, "")
+                if not locked and (current_text.strip() or not last_val.strip()):
+                    autosave_maybe(code, draft_key, current_text, min_secs=2.0, min_delta=12, locked=locked)
+
+                # ---------- Manual save + last saved time + safe reload ----------
+                csave1, csave2, csave3 = st.columns([1, 1, 1])
+
+                with csave1:
+                    if st.button("💾 Save Draft now", disabled=locked):
+                        save_draft_to_db(code, draft_key, current_text)
+                        st.session_state[last_val_key]   = current_text
+                        st.session_state[last_ts_key]    = time.time()
+                        st.session_state[saved_flag_key] = True
+                        st.session_state[saved_at_key]   = datetime.now(_timezone.utc)
+                        st.success("Draft saved.")
+
+                with csave2:
+                    ts = st.session_state.get(saved_at_key)
+                    if ts:
+                        st.caption("Last saved: " + ts.strftime("%Y-%m-%d %H:%M") + " UTC")
+                    else:
+                        st.caption("No local save yet")
+
+                with csave3:
+                    # Current draft text
+                    draft_txt = st.session_state.get(draft_key, "") or ""
+
+                    # Last-saved timestamp (for header)
+                    _, _, _, saved_at_key = _draft_state_keys(draft_key)
+                    ts = st.session_state.get(saved_at_key)
+                    when = (
+                        ts.astimezone(_timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+                        if ts else datetime.now(_timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+                    )
+
+                    # Strip any previous backup header the student may have pasted back
+                    def _strip_old_header(txt: str) -> str:
+                        if not txt:
+                            return ""
+                        # Remove ONE leading “Falowen — Draft Backup … ======” block if present
+                        pattern = r"(?s)\AFalowen\s+—\s+Draft\s+Backup.*?\n[-=]{8,}\n\n"
+                        return re.sub(pattern, "", txt, count=1)
+
+                    clean_body = (_strip_old_header(draft_txt).rstrip() + "\n")
+
+                    # Build a simple, single header
+                    header_lines = [
+                        "Falowen — Draft Backup",
+                        f"Level: {student_level}  •  Day: {info['day']}  •  Chapter: {info.get('chapter','')}",
+                        f"Student: {name}  •  Code: {code}",
+                        f"Saved (UTC): {when}",
+                        "=" * 56,
+                        ""  # blank line before body
+                    ]
+                    header = "\n".join(header_lines)
+
+                    # Safe filename
+                    safe_chapter = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(info.get("chapter", "")))
+                    fname = f"falowen_draft_{student_level}_day{info['day']}_{safe_chapter}.txt"
+
+                    st.download_button(
+                        "⬇️ Download draft (TXT)",
+                        data=(header + clean_body).encode("utf-8"),
+                        file_name=fname,
+                        mime="text/plain",
+                        help="Save a clean backup of your current draft"
+                    )
+
+                with st.expander("📌 How to Submit", expanded=False):
+                    st.markdown(f"""
+                        1) Check you’re on the correct page: **Level {student_level} • Day {info['day']} • Chapter {info['chapter']}**.  
+                        2) Tick the two confirmations below.  
+                        3) Click **Confirm & Submit**.  
+                        4) Your box will lock (read-only).  
+                        _You’ll get an **email** when it’s marked. See **Results & Resources** for scores & feedback._
+                    """)
+
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.markdown("#### 🧾 Finalize")
+                    confirm_final = st.checkbox(
+                        f"I confirm this is my complete work for Level {student_level} • Day {info['day']} • Chapter {info['chapter']}.",
+                        key=f"confirm_final_{lesson_key}",
+                        disabled=locked
+                    )
+                    confirm_lock = st.checkbox(
+                        "I understand it will be locked after I submit.",
+                        key=f"confirm_lock_{lesson_key}",
+                        disabled=locked
+                    )
+                    can_submit = (confirm_final and confirm_lock and (not locked))
+
+                    submit_in_progress = st.session_state.get(submit_in_progress_key, False)
+
+                    if st.button(
+                        "✅ Confirm & Submit",
+                        type="primary",
+                        disabled=(not can_submit) or submit_in_progress,
+                    ):
+                        st.session_state[submit_in_progress_key] = True
+                        
                         try:
 
-                            doc_ref.set(payload)  # write the submission
-                            saved_ok = True
-                            st.caption(f"Saved to: `{doc_ref.path}`")  # optional debug
-                        except Exception as e:
-                            st.error(f"Could not save submission: {e}")
+                            # 1) Try to acquire the lock first
+                            got_lock = acquire_lock(student_level, code, lesson_key)
 
-                        if saved_ok:
-                            # 3) Success: lock UI, remember receipt, archive draft, notify, rerun
-                            st.session_state[locked_key] = True
-                            st.session_state[f"{lesson_key}__receipt"] = short_ref
+                            # If lock exists already, check whether a submission exists; if yes, reflect lock and rerun.
+                            if not got_lock:
+                                if has_existing_submission(student_level, code, lesson_key):
+                                    st.session_state[locked_key] = True
+                                    st.warning("You have already submitted this assignment. It is locked.")
+                                    refresh_with_toast()
+                                else:
+                                    st.info("Found an old lock without a submission — recovering and submitting now…")
 
-                            st.success("Submitted! Your work has been sent to your tutor.")
-                            st.caption(
-                                f"Receipt: `{short_ref}` • You’ll be emailed when it’s marked. "
-                                "See **Results & Resources** for scores & feedback."
-                            )
-                            row = st.session_state.get("student_row") or {}
-                            tg_subscribed = bool(
-                                row.get("TelegramChatID")
-                                or row.get("telegram_chat_id")
-                                or row.get("Telegram")
-                                or row.get("telegram")
-                            )
-                            if not tg_subscribed:
-                                try:
-                                    tg_subscribed = has_telegram_subscription(code)
-                                except Exception:
-                                    tg_subscribed = False
-                            if tg_subscribed:
-                                st.info("You'll also receive a Telegram notification when your score is posted.")
-                            else:
-                                with st.expander("🔔 Subscribe to Telegram notifications", expanded=False):
-                                    st.markdown(
-                                        f"""1. [Open the Falowen bot](https://t.me/falowenbot) and tap **Start**\n2. Register: `/register {code}`\n3. To deactivate: send `/stop`"""
-                                    )
-                            answer_text = st.session_state.get(draft_key, "").strip()
-                            MIN_WORDS = 20
+                            posts_ref = db.collection("submissions").document(student_level).collection("posts")
 
-                            st.session_state[f"{lesson_key}__needs_resubmit"] = (
-                                len(answer_text.split()) < MIN_WORDS
-                            )
+                            # 2) Pre-create doc (avoids add() tuple-order mismatch)
+                            doc_ref = posts_ref.document()  # auto-ID now available
+                            short_ref = f"{doc_ref.id[:8].upper()}-{info['day']}"
 
+                            payload = {
+                                "student_code": code,
+                                "student_name": name or "Student",
+                                "student_email": email,
+                                "level": student_level,
+                                "day": info["day"],
+                                "chapter": chapter_name,
+                                "lesson_key": lesson_key,
+                                "answer": (st.session_state.get(draft_key, "") or "").strip(),
+                                "status": "submitted",
+                                "receipt": short_ref,  # persist receipt immediately
+                                "created_at": firestore.SERVER_TIMESTAMP,
+                                "updated_at": firestore.SERVER_TIMESTAMP,
+                                "version": 1,
+                            }
+
+                            saved_ok = False
 
                             # Archive the draft so it won't rehydrate again (drafts_v2)
                             try:
-                                _draft_doc_ref(student_level, lesson_key, code).set(
-                                    {"status": "submitted", "archived_at": firestore.SERVER_TIMESTAMP}, merge=True
+
+                                doc_ref.set(payload)  # write the submission
+                                saved_ok = True
+                                st.caption(f"Saved to: `{doc_ref.path}`")  # optional debug
+                            except Exception as e:
+                                st.error(f"Could not save submission: {e}")
+
+                            if saved_ok:
+                                # 3) Success: lock UI, remember receipt, archive draft, notify, rerun
+                                st.session_state[locked_key] = True
+                                st.session_state[f"{lesson_key}__receipt"] = short_ref
+
+                                st.success("Submitted! Your work has been sent to your tutor.")
+                                st.caption(
+                                    f"Receipt: `{short_ref}` • You’ll be emailed when it’s marked. "
+                                    "See **Results & Resources** for scores & feedback."
                                 )
-                            except Exception:
-                                pass
+                                row = st.session_state.get("student_row") or {}
+                                tg_subscribed = bool(
+                                    row.get("TelegramChatID")
+                                    or row.get("telegram_chat_id")
+                                    or row.get("Telegram")
+                                    or row.get("telegram")
+                                )
+                                if not tg_subscribed:
+                                    try:
+                                        tg_subscribed = has_telegram_subscription(code)
+                                    except Exception:
+                                        tg_subscribed = False
+                                if tg_subscribed:
+                                    st.info("You'll also receive a Telegram notification when your score is posted.")
+                                else:
+                                    with st.expander("🔔 Subscribe to Telegram notifications", expanded=False):
+                                        st.markdown(
+                                            f"""1. [Open the Falowen bot](https://t.me/falowenbot) and tap **Start**\n2. Register: `/register {code}`\n3. To deactivate: send `/stop`"""
+                                        )
+                                answer_text = st.session_state.get(draft_key, "").strip()
+                                MIN_WORDS = 20
 
-                            # Notify Slack (best-effort)
-                            webhook = get_slack_webhook()
-                            if webhook:
-                                notify_slack_submission(
-                                    webhook_url=webhook,
-                                    student_name=name or "Student",
-                                    student_code=code,
-                                    level=student_level,
-                                    day=info["day"],
-                                    chapter=chapter_name,
-                                    receipt=short_ref,
-                                    preview=st.session_state.get(draft_key, "")
+                                st.session_state[f"{lesson_key}__needs_resubmit"] = (
+                                    len(answer_text.split()) < MIN_WORDS
                                 )
 
-                            # Rerun so hydration path immediately shows locked view
-                            refresh_with_toast()
-                        else:
-                            # 4) Failure: remove the lock doc so student can retry cleanly
-                            try:
-                                db.collection("submission_locks").document(lock_id(student_level, code, lesson_key)).delete()
-                            except Exception:
-                                pass
-                            st.warning("Submission not saved. Please fix the issue and try again.")
-                    finally:
-                        st.session_state[submit_in_progress_key] = False
-                        st.markdown("**The End**")
 
+                                # Archive the draft so it won't rehydrate again (drafts_v2)
+                                try:
+                                    _draft_doc_ref(student_level, lesson_key, code).set(
+                                        {"status": "submitted", "archived_at": firestore.SERVER_TIMESTAMP}, merge=True
+                                    )
+                                except Exception:
+                                    pass
+
+                                # Notify Slack (best-effort)
+                                webhook = get_slack_webhook()
+                                if webhook:
+                                    notify_slack_submission(
+                                        webhook_url=webhook,
+                                        student_name=name or "Student",
+                                        student_code=code,
+                                        level=student_level,
+                                        day=info["day"],
+                                        chapter=chapter_name,
+                                        receipt=short_ref,
+                                        preview=st.session_state.get(draft_key, "")
+                                    )
+
+                                # Rerun so hydration path immediately shows locked view
+                                refresh_with_toast()
+                            else:
+                                # 4) Failure: remove the lock doc so student can retry cleanly
+                                try:
+                                    db.collection("submission_locks").document(lock_id(student_level, code, lesson_key)).delete()
+                                except Exception:
+                                    pass
+                                st.warning("Submission not saved. Please fix the issue and try again.")
+                        finally:
+                            st.session_state[submit_in_progress_key] = False
+                            st.markdown("**The End**")
 
 
 
