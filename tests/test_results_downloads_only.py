@@ -11,7 +11,12 @@ def test_downloads_option_rendered_when_no_scores(monkeypatch):
     st.session_state.update({
         "student_code": "abc",
         "student_name": "Alice",
-        "student_row": {"StudentCode": "abc", "Name": "Alice", "Level": "A1"},
+        "student_row": {
+            "StudentCode": "abc",
+            "Name": "Alice",
+            "Level": "A1",
+            "Email": "alice@example.com",
+        },
     })
 
     df = pd.DataFrame(

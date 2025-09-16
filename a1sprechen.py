@@ -2608,7 +2608,10 @@ if tab == "My Course":
                 )
             lesson_key = lesson_key_build(student_level, info['day'], info['chapter'])
             chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
-            name = st.text_input("Name", value=name_default)
+
+            name = st.text_input("Name", value=student_row.get('Name', ''))
+            email = st.text_input("Email", value=student_row.get('Email', ''))
+
 
             draft_key = f"draft_{lesson_key}"
             st.session_state["coursebook_draft_key"] = draft_key
@@ -2899,6 +2902,7 @@ if tab == "My Course":
                         payload = {
                             "student_code": code,
                             "student_name": name or "Student",
+                            "student_email": email,
                             "level": student_level,
                             "day": info["day"],
                             "chapter": chapter_name,
