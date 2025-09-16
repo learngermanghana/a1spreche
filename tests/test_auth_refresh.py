@@ -1,3 +1,5 @@
+import json
+import os
 from http.cookies import SimpleCookie
 from email.utils import parsedate_to_datetime
 import time
@@ -6,12 +8,23 @@ from flask import Flask
 from importlib import reload
 import sys
 from pathlib import Path
+from werkzeug.security import generate_password_hash
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 import auth
 
 
+TEST_SECRET = "test-secret"
+TEST_HASHES = {"u": generate_password_hash("pw")}
+
+
+def _configure_env() -> None:
+    os.environ["JWT_SECRET"] = TEST_SECRET
+    os.environ["AUTH_USER_CREDENTIALS"] = json.dumps(TEST_HASHES)
+
+
 def create_app():
+    _configure_env()
     reload(auth)
     app = Flask(__name__)
     app.register_blueprint(auth.auth_bp)
