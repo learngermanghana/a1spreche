@@ -72,7 +72,28 @@ def _load_assignment_scores_cached(force_refresh: bool = False) -> pd.DataFrame:
     url = (
         f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
     )
-    return pd.read_csv(url)
+    df = pd.read_csv(url)
+
+    # Normalize column headers immediately for downstream lookups.
+    df.columns = [str(col).strip().lower() for col in df.columns]
+
+    # Consolidate common student-code aliases.
+    alias_map = {
+        "student_code": "studentcode",
+        "student code": "studentcode",
+    }
+    df = df.rename(columns={k: v for k, v in alias_map.items() if k in df.columns})
+
+    required_columns = {"assignment", "level", "score"}
+    missing_columns = sorted(required_columns - set(df.columns))
+    if missing_columns:
+        missing_str = ", ".join(missing_columns)
+        raise ValueError(
+            "Assignment scores data is missing the required column(s): "
+            f"{missing_str}. Please update the sheet to include them."
+        )
+
+    return df
 
 
 def load_assignment_scores(force_refresh: bool = False) -> pd.DataFrame:
