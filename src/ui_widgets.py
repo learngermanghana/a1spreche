@@ -193,7 +193,7 @@ def render_announcements(announcements: list) -> None:
         if (c.body){
           const tmp=document.createElement('div'); tmp.innerHTML=c.body;
           let text=(tmp.textContent||'').trim();
-          if (text.length>120){ text=text.slice(0,120).trimEnd()+'…'; }
+          if (text.length>80){ text=text.slice(0,80).trimEnd()+'…'; }
           bodyEl.textContent=text; bodyEl.style.display='';
         } else { bodyEl.textContent=''; bodyEl.style.display='none'; }
         if (c.tag){ tagEl.textContent = c.tag; tagEl.style.display=''; } else { tagEl.style.display='none'; }
