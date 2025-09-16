@@ -4345,7 +4345,7 @@ if tab == "My Course":
                         course_link = build_course_day_link(day)
                         lesson_html = (
                             f"<div style='font-size:1.1rem;font-weight:600;color:#0f172a;'>📘 {lesson} – "
-                            f"<a href='{course_link}' target='_blank'>View page</a></div>"
+                            f"<a href='{course_link}'>View page</a></div>"
                         )
                     else:
                         lesson_html = ""
