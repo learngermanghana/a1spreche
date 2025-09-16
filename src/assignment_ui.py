@@ -615,12 +615,6 @@ def render_results_and_resources_tab() -> None:
     if not isinstance(student_row, dict):
         student_row = {}
 
-    choice = st.radio(
-        "Select a download",
-        ["Results PDF", "Enrollment Letter", "Receipt", "Attendance PDF"],
-        horizontal=True,
-    )
-
     def _read_money(x):
         try:
             s = str(x).replace(",", "").replace(" ", "").strip()
@@ -918,416 +912,496 @@ def render_results_and_resources_tab() -> None:
         display_value = cleaned_text or _display_from_numeric(numeric_value)
         return f"{prefix} ({display_value})"
 
-    # ------- Results PDF -------
-    if choice == "Results PDF":
-        st.markdown("**Results summary PDF**")
-        COL_ASSN_W, COL_SCORE_W, COL_DATE_W = 45, 18, 30
-        PAGE_WIDTH, MARGIN = 210, 10
-        FEEDBACK_W = PAGE_WIDTH - 2 * MARGIN - (COL_ASSN_W + COL_SCORE_W + COL_DATE_W)
+    avg_display_fmt = f"{avg_score:.1f}%" if completed else "N/A"
+    best_display_fmt = f"{best_score:.0f}%" if completed else "N/A"
 
-        class PDFReport(FPDF):
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, **kwargs)
-                cfg = _load_pdf_fonts(self)
-                self._pdf_font_family = cfg.family
-                self._text = cfg.transform
-                self._dejavu_bold_available = cfg.bold_available
+    display_records: list[dict[str, object]]
+    if isinstance(df_display, pd.DataFrame) and not df_display.empty:
+        display_records = df_display.to_dict(orient="records")
+    else:
+        display_records = []
 
-            # Ensure callers can request DejaVu while still honoring fallback logic
-            def set_font(self, family, style="", size=0):  # type: ignore[override]
-                if family == "DejaVu":
-                    family = self._pdf_font_family
-                    if self._pdf_font_family == "DejaVu" and style == "B" and not self._dejavu_bold_available:
-                        style = ""
-                    if style == "I":  # avoid italics with DejaVu in pyfpdf
-                        style = ""
-                return super().set_font(family, style, size)
+    overview_tab, feedback_tab, achievements_tab, downloads_tab = st.tabs(
+        ["Overview", "Feedback", "Achievements", "Downloads"]
+    )
 
-            def header(self):
-                try:
-                    logo_path = load_school_logo()  # type: ignore[name-defined]
-                except Exception:
-                    logo_path = None
-                if logo_path:
-                    try:
-                        self.image(logo_path, 10, 8, 30)
-                    except Exception:
-                        pass
-                    self.ln(20)
-                else:
-                    self.ln(28)
-                self.set_font("DejaVu", "B", 16)
-                self.cell(0, 12, self._text("Learn Language Education Academy"), ln=1, align="C")
-                self.ln(3)
-
-            def footer(self):
-                self.set_y(-15)
-                self.set_font("DejaVu", "", 9)
-                self.set_text_color(120, 120, 120)
-                footer_text = self._text(
-                    f"Learn Language Education Academy — Results generated on {pd.Timestamp.now():%d.%m.%Y}"
-                )
-                self.cell(0, 8, footer_text, 0, 0, "C")
-                self.set_text_color(0, 0, 0)
-                self.alias_nb_pages()
-
-        if st.button("⬇️ Create & Download Results PDF"):
-            pdf = PDFReport()
-            t = pdf._text
-            pdf.add_page()
-
-            pdf.set_font("DejaVu", "", 12)
-            shown_name = _row_str("Name", "StudentName")
-            if not shown_name:
-                try:
-                    shown_name = df_user.name.iloc[0]  # type: ignore[name-defined]
-                except Exception:
-                    shown_name = _session_str("student_name", "Student")
-
-            raw_code = _row_str("StudentCode")
-            if raw_code:
-                code_val = raw_code.upper()
-            else:
-                fallback_code = _session_str("student_code", "-")
-                code_val = fallback_code.upper() if fallback_code else "-"
-
-            raw_level = _row_str("Level")
-            if raw_level:
-                level_val = raw_level.upper()
-            else:
-                fallback_level = _session_str("student_level", "-")
-                level_val = fallback_level.upper() if fallback_level else "-"
-
-            pdf.cell(0, 8, t(f"Name: {shown_name}"), ln=1)
-            pdf.cell(0, 8, t(f"Code: {code_val}     Level: {level_val}"), ln=1)
-            pdf.cell(0, 8, t(f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"), ln=1)
-            pdf.ln(5)
-
-            # Summary
-            pdf.set_font("DejaVu", "B", 13)
-            pdf.cell(0, 10, t("Summary Metrics"), ln=1)
-            pdf.set_font("DejaVu", "", 11)
-            avg_display = f"{avg_score:.1f}" if completed else "N/A"
-            best_display = f"{best_score:.0f}" if completed else "N/A"
-            summary_line = (
-                f"Total: {total}   Completed: {completed}   Avg: {avg_display}   Best: {best_display}"
-            )
-            pdf.cell(0, 8, t(summary_line), ln=1)
-            pdf.ln(6)
-
-            # Table header
-            pdf.set_font("DejaVu", "B", 11)
-            pdf.cell(COL_ASSN_W, 8, t("Assignment"), 1, 0, "C")
-            pdf.cell(COL_SCORE_W, 8, t("Score"), 1, 0, "C")
-            pdf.cell(COL_DATE_W, 8, t("Date"), 1, 0, "C")
-            pdf.cell(FEEDBACK_W, 8, t("Feedback"), 1, 1, "C")
-
-            # Rows
-            pdf.set_font("DejaVu", "", 10)
-            pdf.set_fill_color(240, 240, 240)
-            row_fill = False
-            rows_iter = df_display.iterrows() if isinstance(df_display, pd.DataFrame) else []
-            for _, row in rows_iter:  # type: ignore[misc]
-                assn = t(str(row.get("assignment", "")))
-                score_txt = t(str(row.get("score", "")))
-                date_txt = t(str(row.get("date", "")))
-                label = t(score_label_fmt(row.get("score", None), plain=True))
-                pdf.cell(COL_ASSN_W, 8, assn, 1, 0, "L", row_fill)
-                pdf.cell(COL_SCORE_W, 8, score_txt, 1, 0, "C", row_fill)
-                pdf.cell(COL_DATE_W, 8, date_txt, 1, 0, "C", row_fill)
-                pdf.multi_cell(FEEDBACK_W, 8, label, 1, "C", row_fill)
-                row_fill = not row_fill
-            pdf.set_fill_color(255, 255, 255)
-
-            pdf_bytes = pdf.output(dest="S").encode("latin1", "replace")
-            file_code = code_val if code_val and code_val != "-" else "student"
-            file_level = level_val if level_val and level_val != "-" else "level"
-            file_stem = f"{file_code}_results_{file_level}".replace(" ", "_")
-            file_name = f"{file_stem}.pdf"
-            st.download_button(
-                label="Download Results PDF",
-                data=pdf_bytes,
-                file_name=file_name,
-                mime="application/pdf",
-            )
-            b64 = _b64.b64encode(pdf_bytes).decode()
-            st.markdown(
-                f'<a href="data:application/pdf;base64,{b64}" download="{file_name}" '
-                f'style="font-size:1.1em;font-weight:600;color:#2563eb;">📥 Click here to download results PDF (manual)</a>',
-                unsafe_allow_html=True,
-            )
-            st.info("If the button does not work, right-click the blue link above and choose 'Save link as...'")
-
-    # ------- Enrollment Letter -------
-    elif choice == "Enrollment Letter":
-        st.markdown("**Enrollment letter**")
-
-        outstanding_balance = _row_money(
-            "Balance", "OutstandingBalance", "BalanceDue", default=0.0
-        )
-        if outstanding_balance <= 0:
-            lookup_code = selected_code or _row_str(
-                "StudentCode", default=_session_str("student_code", "")
-            )
-            lookup_code_norm = lookup_code.strip().casefold() if lookup_code else ""
-            if lookup_code_norm:
-
-                try:
-                    roster_df = load_student_data()
-                except Exception:
-                    roster_df = None
-
-                if (
-                    isinstance(roster_df, pd.DataFrame)
-                    and not roster_df.empty
-                    and "StudentCode" in roster_df.columns
-                ):
-                    roster_norm = (
-                        roster_df["StudentCode"].astype(str).str.strip().str.casefold()
-                    )
-                    matches = roster_df[roster_norm == lookup_code_norm]
-                    if not matches.empty:
-                        roster_row = matches.iloc[0]
-                        for key in ["Balance", "OutstandingBalance", "BalanceDue"]:
-                            if key not in roster_row:
-                                continue
-                            candidate = roster_row.get(key)
-                            if candidate in (None, ""):
-                                continue
-                            try:
-                                if pd.isna(candidate):
-                                    continue
-                            except Exception:
-                                pass
-                            candidate_val = _read_money(candidate)
-                            if candidate_val > outstanding_balance:
-                                outstanding_balance = candidate_val
-                                try:
-                                    if isinstance(student_row, dict):
-                                        student_row[key] = candidate
-                                        st.session_state.setdefault("student_row", {})[key] = candidate
-                                except Exception:
-                                    pass
-                                break
-        if outstanding_balance > 0:
-            st.error("Outstanding balance…")
-            st.info(
-                "Please settle the outstanding balance before requesting an enrollment letter."
-            )
-
-            return
-        name_val = _row_str("Name", "StudentName", default=_session_str("student_name", "Student"))
-        level_raw = _row_str("Level", default=_session_str("student_level", ""))
-        level_display = level_raw.upper() if level_raw else "-"
-
-        start_candidate = None
-        for key in ["ContractStart", "StartDate", "ContractBegin", "Start", "Begin", "EnrollDate"]:
-            candidate = student_row.get(key) if isinstance(student_row, dict) else None
-            if candidate in (None, ""):
-                continue
-            try:
-                if pd.isna(candidate):
-                    continue
-            except Exception:
-                pass
-            start_candidate = candidate
-            break
-        start_val = _normalize_date_str(start_candidate, default="")
-        if not start_val:
-            start_val = pd.Timestamp.today().strftime("%Y-%m-%d")
-
-        end_candidate = None
-        for key in ["ContractEnd", "EndDate", "ContractFinish", "End"]:
-            candidate = student_row.get(key) if isinstance(student_row, dict) else None
-            if candidate in (None, ""):
-                continue
-            try:
-                if pd.isna(candidate):
-                    continue
-            except Exception:
-                pass
-            end_candidate = candidate
-            break
-        end_val = _normalize_date_str(end_candidate, default="")
-        if not end_val:
-            try:
-                start_dt = pd.to_datetime(start_val, errors="coerce")
-            except Exception:
-                start_dt = pd.NaT
-            if not pd.isna(start_dt):
-                end_val = (start_dt + pd.Timedelta(days=90)).strftime("%Y-%m-%d")
-            else:
-                end_val = (pd.Timestamp.today() + pd.Timedelta(days=90)).strftime("%Y-%m-%d")
-
-        st.text_input("Student name", value=name_val, disabled=True)
-        st.text_input("Level", value=level_display, disabled=True)
-        st.text_input("Enrollment start", value=start_val, disabled=True)
-        st.text_input("Enrollment end", value=end_val, disabled=True)
-
-        if st.button("Generate Enrollment Letter"):
-            pdf_bytes = generate_enrollment_letter_pdf(name_val, level_display, start_val, end_val)
-            file_stub = (name_val or "student").strip().replace(" ", "_") or "student"
-            st.download_button(
-                "Download Enrollment Letter PDF",
-                data=pdf_bytes,
-                file_name=f"{file_stub}_enrollment_letter.pdf",
-                mime="application/pdf",
-            )
-
-    # ------- Receipt -------
-    elif choice == "Receipt":
-        st.markdown("**Payment receipt**")
-        name_val = _row_str("Name", "StudentName", default=_session_str("student_name", "Student"))
-        level_raw = _row_str("Level", default=_session_str("student_level", ""))
-        level_display = level_raw.upper() if level_raw else "-"
-        code_raw = _row_str("StudentCode", default=_session_str("student_code", ""))
-        code_display = code_raw.upper() if code_raw else "-"
-
-        start_candidate = None
-        for key in ["ContractStart", "StartDate", "ContractBegin", "Start", "Begin"]:
-            candidate = student_row.get(key) if isinstance(student_row, dict) else None
-            if candidate in (None, ""):
-                continue
-            try:
-                if pd.isna(candidate):
-                    continue
-            except Exception:
-                pass
-            start_candidate = candidate
-            break
-        contract_start = _normalize_date_str(start_candidate, default="")
-        if not contract_start:
-            contract_start = pd.Timestamp.today().strftime("%Y-%m-%d")
-
-        paid_amt = _row_money(
-            "LastPaymentAmount",
-            "AmountPaid",
-            "AmountPaidGHS",
-            "AmountPaidToDate",
-            "PaidAmount",
-            "Paid",
-            default=0.0,
-        )
-        balance_amt = _row_money("Balance", "OutstandingBalance", "BalanceDue", default=0.0)
-
-        receipt_candidate = None
-        for key in ["LastPaymentDate", "PaymentDate", "ReceiptDate", "LastPayment", "Date"]:
-            candidate = student_row.get(key) if isinstance(student_row, dict) else None
-            if candidate in (None, ""):
-                continue
-            try:
-                if pd.isna(candidate):
-                    continue
-            except Exception:
-                pass
-            receipt_candidate = candidate
-            break
-        receipt_date = _normalize_date_str(receipt_candidate, default="")
-        if not receipt_date:
-            receipt_date = pd.Timestamp.now().strftime("%Y-%m-%d")
-
-        st.text_input("Student name", value=name_val, disabled=True)
-        st.text_input("Level", value=level_display, disabled=True)
-        st.text_input("Student Code", value=code_display, disabled=True)
-        st.text_input("Contract start", value=contract_start, disabled=True)
-        st.text_input("Amount Paid", value=format_cedis(paid_amt), disabled=True)
-        st.text_input("Balance", value=format_cedis(balance_amt), disabled=True)
-        st.text_input("Date", value=receipt_date, disabled=True)
-
-        if st.button("Generate Receipt"):
-            pdf_bytes = generate_receipt_pdf(
-                name_val,
-                level_display,
-                code_display,
-                contract_start,
-                paid_amt,
-                balance_amt,
-                receipt_date,
-            )
-            receipt_stub = code_display if code_display and code_display != "-" else "student"
-            receipt_stub = receipt_stub.replace(" ", "_") or "student"
-            st.download_button(
-                "Download Receipt PDF",
-                data=pdf_bytes,
-                file_name=f"{receipt_stub}_receipt.pdf",
-                mime="application/pdf",
-            )
-
-    # ------- Attendance PDF -------
-    elif choice == "Attendance PDF":
-        class_name = st.session_state.get("student_row", {}).get("ClassName")
-        student_code = (st.session_state.get("student_row", {}).get("StudentCode")
-                        or (code_key if 'code_key' in globals() else None))  # type: ignore[name-defined]
-        if not class_name or not student_code:
-            st.info("No attendance data available.")
+    with overview_tab:
+        st.subheader("Progress overview")
+        st.write(f"Total assignments: {total}")
+        st.write(f"Completed assignments: {completed}")
+        st.write(f"Average score: {avg_display_fmt}")
+        st.write(f"Best score: {best_display_fmt}")
+        if display_records:
+            st.write("Assignment summary:")
+            st.write(df_display)
         else:
-            records, _sessions, _hours = load_attendance_records(student_code, class_name)
-            if records:
-                df_att = pd.DataFrame(records)
-                df_att["Present"] = df_att["present"].map(lambda x: "Yes" if x else "No")
+            st.info("No assignment data available yet.")
 
-                pdf = FPDF()
+    with feedback_tab:
+        st.subheader("Personalized feedback")
+        if not display_records:
+            st.info("No feedback available yet.")
+        else:
+            for idx, record in enumerate(display_records):
+                assignment_name = str(record.get("assignment") or "Assignment")
+                st.markdown(f"**{assignment_name}**")
+                st.write(score_label_fmt(record.get("score")))
+                date_value = record.get("date")
+                if date_value:
+                    st.write(f"Date: {date_value}")
+                if idx < len(display_records) - 1:
+                    st.markdown("---")
+
+    with achievements_tab:
+        st.subheader("Achievements")
+        if not completed:
+            st.info("Complete your first assignment to unlock achievements.")
+        else:
+            st.write(f"Completed assignments: {completed} / {total}")
+            st.write(f"Average score: {avg_display_fmt}")
+            st.write(f"Best score: {best_display_fmt}")
+
+            top_result: dict[str, object] | None = None
+            for record in display_records:
+                numeric_value = _coerce_score_value(record.get("score"))
+                if numeric_value is None:
+                    continue
+                if (
+                    top_result is None
+                    or numeric_value > float(top_result.get("score", float("-inf")))
+                ):
+                    top_result = {
+                        "assignment": record.get("assignment"),
+                        "score": float(numeric_value),
+                        "raw": record.get("score"),
+                    }
+
+            if top_result is not None:
+                assignment_display = str(top_result.get("assignment") or "Assignment")
+                st.write(
+                    f"Top performance: **{assignment_display}** — "
+                    f"{score_label_fmt(top_result.get('raw'))}"
+                )
+            else:
+                st.info("Scores will appear once assignments have been graded.")
+
+    with downloads_tab:
+        choice = st.radio(
+            "Select a download",
+            ["Results PDF", "Enrollment Letter", "Receipt", "Attendance PDF"],
+            horizontal=True,
+        )
+
+        # ------- Results PDF -------
+        if choice == "Results PDF":
+            st.markdown("**Results summary PDF**")
+            COL_ASSN_W, COL_SCORE_W, COL_DATE_W = 45, 18, 30
+            PAGE_WIDTH, MARGIN = 210, 10
+            FEEDBACK_W = PAGE_WIDTH - 2 * MARGIN - (COL_ASSN_W + COL_SCORE_W + COL_DATE_W)
+
+            class PDFReport(FPDF):
+                def __init__(self, *args, **kwargs):
+                    super().__init__(*args, **kwargs)
+                    cfg = _load_pdf_fonts(self)
+                    self._pdf_font_family = cfg.family
+                    self._text = cfg.transform
+                    self._dejavu_bold_available = cfg.bold_available
+
+                # Ensure callers can request DejaVu while still honoring fallback logic
+                def set_font(self, family, style="", size=0):  # type: ignore[override]
+                    if family == "DejaVu":
+                        family = self._pdf_font_family
+                        if self._pdf_font_family == "DejaVu" and style == "B" and not self._dejavu_bold_available:
+                            style = ""
+                        if style == "I":  # avoid italics with DejaVu in pyfpdf
+                            style = ""
+                    return super().set_font(family, style, size)
+
+                def header(self):
+                    try:
+                        logo_path = load_school_logo()  # type: ignore[name-defined]
+                    except Exception:
+                        logo_path = None
+                    if logo_path:
+                        try:
+                            self.image(logo_path, 10, 8, 30)
+                        except Exception:
+                            pass
+                        self.ln(20)
+                    else:
+                        self.ln(28)
+                    self.set_font("DejaVu", "B", 16)
+                    self.cell(0, 12, self._text("Learn Language Education Academy"), ln=1, align="C")
+                    self.ln(3)
+
+                def footer(self):
+                    self.set_y(-15)
+                    self.set_font("DejaVu", "", 9)
+                    self.set_text_color(120, 120, 120)
+                    footer_text = self._text(
+                        f"Learn Language Education Academy — Results generated on {pd.Timestamp.now():%d.%m.%Y}"
+                    )
+                    self.cell(0, 8, footer_text, 0, 0, "C")
+                    self.set_text_color(0, 0, 0)
+                    self.alias_nb_pages()
+
+            if st.button("⬇️ Create & Download Results PDF"):
+                pdf = PDFReport()
+                t = pdf._text
                 pdf.add_page()
-                font_cfg = _load_pdf_fonts(pdf)
 
-                def _set_font(style: str = "", size: int = 12) -> None:
-                    chosen_style = style
-                    if font_cfg.family == "DejaVu" and style == "B" and not font_cfg.bold_available:
-                        chosen_style = ""
-                    pdf.set_font(font_cfg.family, chosen_style, size)
+                pdf.set_font("DejaVu", "", 12)
+                shown_name = _row_str("Name", "StudentName")
+                if not shown_name:
+                    try:
+                        shown_name = df_user.name.iloc[0]  # type: ignore[name-defined]
+                    except Exception:
+                        shown_name = _session_str("student_name", "Student")
 
-                t = font_cfg.transform
+                raw_code = _row_str("StudentCode")
+                if raw_code:
+                    code_val = raw_code.upper()
+                else:
+                    fallback_code = _session_str("student_code", "-")
+                    code_val = fallback_code.upper() if fallback_code else "-"
 
-                _set_font("B", 14)
-                disp_name = (st.session_state.get("student_row", {}).get("Name")
-                             or (student_name if 'student_name' in globals() else 'Student'))  # type: ignore[name-defined]
-                pdf.cell(0, 10, t(f"Attendance for {disp_name}"), ln=1, align="C")
-                _set_font(size=11)
-                pdf.cell(0, 8, t(f"Class: {class_name}"), ln=1)
-                pdf.ln(4)
+                raw_level = _row_str("Level")
+                if raw_level:
+                    level_val = raw_level.upper()
+                else:
+                    fallback_level = _session_str("student_level", "-")
+                    level_val = fallback_level.upper() if fallback_level else "-"
 
-                _set_font("B", 11)
-                pdf.cell(120, 8, t("Session"), 1, 0, "C")
-                pdf.cell(40, 8, t("Present"), 1, 1, "C")
-                _set_font(size=10)
+                pdf.cell(0, 8, t(f"Name: {shown_name}"), ln=1)
+                pdf.cell(0, 8, t(f"Code: {code_val}     Level: {level_val}"), ln=1)
+                pdf.cell(0, 8, t(f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"), ln=1)
+                pdf.ln(5)
 
-                max_session_width = 120
-                ellipsis = "..."
+                # Summary
+                pdf.set_font("DejaVu", "B", 13)
+                pdf.cell(0, 10, t("Summary Metrics"), ln=1)
+                pdf.set_font("DejaVu", "", 11)
+                avg_display = f"{avg_score:.1f}" if completed else "N/A"
+                best_display = f"{best_score:.0f}" if completed else "N/A"
+                summary_line = (
+                    f"Total: {total}   Completed: {completed}   Avg: {avg_display}   Best: {best_display}"
+                )
+                pdf.cell(0, 8, t(summary_line), ln=1)
+                pdf.ln(6)
 
-                def _shorten_session_text(raw: object) -> str:
-                    base_text = t(str(raw or ""))
-                    if pdf.get_string_width(base_text) <= max_session_width:
-                        return base_text
+                # Table header
+                pdf.set_font("DejaVu", "B", 11)
+                pdf.cell(COL_ASSN_W, 8, t("Assignment"), 1, 0, "C")
+                pdf.cell(COL_SCORE_W, 8, t("Score"), 1, 0, "C")
+                pdf.cell(COL_DATE_W, 8, t("Date"), 1, 0, "C")
+                pdf.cell(FEEDBACK_W, 8, t("Feedback"), 1, 1, "C")
 
-                    ellipsis_width = pdf.get_string_width(ellipsis)
-                    available_width = max_session_width - ellipsis_width
-                    if available_width <= 0:
-                        return ellipsis if ellipsis_width <= max_session_width else ""
-
-                    shortened = base_text
-                    while shortened and pdf.get_string_width(shortened) > available_width:
-                        shortened = shortened[:-1]
-                    shortened = shortened.rstrip()
-                    if not shortened:
-                        return ellipsis
-
-                    candidate = f"{shortened}{ellipsis}"
-                    while shortened and pdf.get_string_width(candidate) > max_session_width:
-                        shortened = shortened[:-1].rstrip()
-                        candidate = f"{shortened}{ellipsis}" if shortened else ellipsis
-                    return candidate
-
-                for _, row in df_att.iterrows():
-                    session_text = _shorten_session_text(row.get("session", ""))
-                    pdf.cell(120, 8, session_text, 1, 0, "L")
-                    pdf.cell(40, 8, t(row.get("Present", "")), 1, 1, "C")
+                # Rows
+                pdf.set_font("DejaVu", "", 10)
+                pdf.set_fill_color(240, 240, 240)
+                row_fill = False
+                rows_iter = df_display.iterrows() if isinstance(df_display, pd.DataFrame) else []
+                for _, row in rows_iter:  # type: ignore[misc]
+                    assn = t(str(row.get("assignment", "")))
+                    score_txt = t(str(row.get("score", "")))
+                    date_txt = t(str(row.get("date", "")))
+                    label = t(score_label_fmt(row.get("score", None), plain=True))
+                    pdf.cell(COL_ASSN_W, 8, assn, 1, 0, "L", row_fill)
+                    pdf.cell(COL_SCORE_W, 8, score_txt, 1, 0, "C", row_fill)
+                    pdf.cell(COL_DATE_W, 8, date_txt, 1, 0, "C", row_fill)
+                    pdf.multi_cell(FEEDBACK_W, 8, label, 1, "C", row_fill)
+                    row_fill = not row_fill
+                pdf.set_fill_color(255, 255, 255)
 
                 pdf_bytes = pdf.output(dest="S").encode("latin1", "replace")
+                file_code = code_val if code_val and code_val != "-" else "student"
+                file_level = level_val if level_val and level_val != "-" else "level"
+                file_stem = f"{file_code}_results_{file_level}".replace(" ", "_")
+                file_name = f"{file_stem}.pdf"
                 st.download_button(
-                    "Download Attendance PDF",
+                    label="Download Results PDF",
                     data=pdf_bytes,
-                    file_name=f"{student_code}_attendance.pdf",
+                    file_name=file_name,
                     mime="application/pdf",
                 )
+                b64 = _b64.b64encode(pdf_bytes).decode()
+                st.markdown(
+                    f'<a href="data:application/pdf;base64,{b64}" download="{file_name}" '
+                    f'style="font-size:1.1em;font-weight:600;color:#2563eb;">📥 Click here to download results PDF (manual)</a>',
+                    unsafe_allow_html=True,
+                )
+                st.info("If the button does not work, right-click the blue link above and choose 'Save link as...'")
+
+        # ------- Enrollment Letter -------
+        elif choice == "Enrollment Letter":
+            st.markdown("**Enrollment letter**")
+
+            outstanding_balance = _row_money(
+                "Balance", "OutstandingBalance", "BalanceDue", default=0.0
+            )
+            if outstanding_balance <= 0:
+                lookup_code = selected_code or _row_str(
+                    "StudentCode", default=_session_str("student_code", "")
+                )
+                lookup_code_norm = lookup_code.strip().casefold() if lookup_code else ""
+                if lookup_code_norm:
+
+                    try:
+                        roster_df = load_student_data()
+                    except Exception:
+                        roster_df = None
+
+                    if (
+                        isinstance(roster_df, pd.DataFrame)
+                        and not roster_df.empty
+                        and "StudentCode" in roster_df.columns
+                    ):
+                        roster_norm = (
+                            roster_df["StudentCode"].astype(str).str.strip().str.casefold()
+                        )
+                        matches = roster_df[roster_norm == lookup_code_norm]
+                        if not matches.empty:
+                            roster_row = matches.iloc[0]
+                            for key in ["Balance", "OutstandingBalance", "BalanceDue"]:
+                                if key not in roster_row:
+                                    continue
+                                candidate = roster_row.get(key)
+                                if candidate in (None, ""):
+                                    continue
+                                try:
+                                    if pd.isna(candidate):
+                                        continue
+                                except Exception:
+                                    pass
+                                candidate_val = _read_money(candidate)
+                                if candidate_val > outstanding_balance:
+                                    outstanding_balance = candidate_val
+                                    try:
+                                        if isinstance(student_row, dict):
+                                            student_row[key] = candidate
+                                            st.session_state.setdefault("student_row", {})[key] = candidate
+                                    except Exception:
+                                        pass
+                                    break
+            if outstanding_balance > 0:
+                st.error("Outstanding balance…")
+                st.info(
+                    "Please settle the outstanding balance before requesting an enrollment letter."
+                )
+
+                return
+            name_val = _row_str("Name", "StudentName", default=_session_str("student_name", "Student"))
+            level_raw = _row_str("Level", default=_session_str("student_level", ""))
+            level_display = level_raw.upper() if level_raw else "-"
+
+            start_candidate = None
+            for key in ["ContractStart", "StartDate", "ContractBegin", "Start", "Begin", "EnrollDate"]:
+                candidate = student_row.get(key) if isinstance(student_row, dict) else None
+                if candidate in (None, ""):
+                    continue
+                try:
+                    if pd.isna(candidate):
+                        continue
+                except Exception:
+                    pass
+                start_candidate = candidate
+                break
+            start_val = _normalize_date_str(start_candidate, default="")
+            if not start_val:
+                start_val = pd.Timestamp.today().strftime("%Y-%m-%d")
+
+            end_candidate = None
+            for key in ["ContractEnd", "EndDate", "ContractFinish", "End"]:
+                candidate = student_row.get(key) if isinstance(student_row, dict) else None
+                if candidate in (None, ""):
+                    continue
+                try:
+                    if pd.isna(candidate):
+                        continue
+                except Exception:
+                    pass
+                end_candidate = candidate
+                break
+            end_val = _normalize_date_str(end_candidate, default="")
+            if not end_val:
+                try:
+                    start_dt = pd.to_datetime(start_val, errors="coerce")
+                except Exception:
+                    start_dt = pd.NaT
+                if not pd.isna(start_dt):
+                    end_val = (start_dt + pd.Timedelta(days=90)).strftime("%Y-%m-%d")
+                else:
+                    end_val = (pd.Timestamp.today() + pd.Timedelta(days=90)).strftime("%Y-%m-%d")
+
+            st.text_input("Student name", value=name_val, disabled=True)
+            st.text_input("Level", value=level_display, disabled=True)
+            st.text_input("Enrollment start", value=start_val, disabled=True)
+            st.text_input("Enrollment end", value=end_val, disabled=True)
+
+            if st.button("Generate Enrollment Letter"):
+                pdf_bytes = generate_enrollment_letter_pdf(name_val, level_display, start_val, end_val)
+                file_stub = (name_val or "student").strip().replace(" ", "_") or "student"
+                st.download_button(
+                    "Download Enrollment Letter PDF",
+                    data=pdf_bytes,
+                    file_name=f"{file_stub}_enrollment_letter.pdf",
+                    mime="application/pdf",
+                )
+
+        # ------- Receipt -------
+        elif choice == "Receipt":
+            st.markdown("**Payment receipt**")
+            name_val = _row_str("Name", "StudentName", default=_session_str("student_name", "Student"))
+            level_raw = _row_str("Level", default=_session_str("student_level", ""))
+            level_display = level_raw.upper() if level_raw else "-"
+            code_raw = _row_str("StudentCode", default=_session_str("student_code", ""))
+            code_display = code_raw.upper() if code_raw else "-"
+
+            start_candidate = None
+            for key in ["ContractStart", "StartDate", "ContractBegin", "Start", "Begin"]:
+                candidate = student_row.get(key) if isinstance(student_row, dict) else None
+                if candidate in (None, ""):
+                    continue
+                try:
+                    if pd.isna(candidate):
+                        continue
+                except Exception:
+                    pass
+                start_candidate = candidate
+                break
+            contract_start = _normalize_date_str(start_candidate, default="")
+            if not contract_start:
+                contract_start = pd.Timestamp.today().strftime("%Y-%m-%d")
+
+            paid_amt = _row_money(
+                "LastPaymentAmount",
+                "AmountPaid",
+                "AmountPaidGHS",
+                "AmountPaidToDate",
+                "PaidAmount",
+                "Paid",
+                default=0.0,
+            )
+            balance_amt = _row_money("Balance", "OutstandingBalance", "BalanceDue", default=0.0)
+
+            receipt_candidate = None
+            for key in ["LastPaymentDate", "PaymentDate", "ReceiptDate", "LastPayment", "Date"]:
+                candidate = student_row.get(key) if isinstance(student_row, dict) else None
+                if candidate in (None, ""):
+                    continue
+                try:
+                    if pd.isna(candidate):
+                        continue
+                except Exception:
+                    pass
+                receipt_candidate = candidate
+                break
+            receipt_date = _normalize_date_str(receipt_candidate, default="")
+            if not receipt_date:
+                receipt_date = pd.Timestamp.now().strftime("%Y-%m-%d")
+
+            st.text_input("Student name", value=name_val, disabled=True)
+            st.text_input("Level", value=level_display, disabled=True)
+            st.text_input("Student Code", value=code_display, disabled=True)
+            st.text_input("Contract start", value=contract_start, disabled=True)
+            st.text_input("Amount Paid", value=format_cedis(paid_amt), disabled=True)
+            st.text_input("Balance", value=format_cedis(balance_amt), disabled=True)
+            st.text_input("Date", value=receipt_date, disabled=True)
+
+            if st.button("Generate Receipt"):
+                pdf_bytes = generate_receipt_pdf(
+                    name_val,
+                    level_display,
+                    code_display,
+                    contract_start,
+                    paid_amt,
+                    balance_amt,
+                    receipt_date,
+                )
+                receipt_stub = code_display if code_display and code_display != "-" else "student"
+                receipt_stub = receipt_stub.replace(" ", "_") or "student"
+                st.download_button(
+                    "Download Receipt PDF",
+                    data=pdf_bytes,
+                    file_name=f"{receipt_stub}_receipt.pdf",
+                    mime="application/pdf",
+                )
+
+        # ------- Attendance PDF -------
+        elif choice == "Attendance PDF":
+            class_name = st.session_state.get("student_row", {}).get("ClassName")
+            student_code = (st.session_state.get("student_row", {}).get("StudentCode")
+                            or (code_key if 'code_key' in globals() else None))  # type: ignore[name-defined]
+            if not class_name or not student_code:
+                st.info("No attendance data available.")
             else:
-                st.info("No attendance records found for this student/class.")
+                records, _sessions, _hours = load_attendance_records(student_code, class_name)
+                if records:
+                    df_att = pd.DataFrame(records)
+                    df_att["Present"] = df_att["present"].map(lambda x: "Yes" if x else "No")
+
+                    pdf = FPDF()
+                    pdf.add_page()
+                    font_cfg = _load_pdf_fonts(pdf)
+
+                    def _set_font(style: str = "", size: int = 12) -> None:
+                        chosen_style = style
+                        if font_cfg.family == "DejaVu" and style == "B" and not font_cfg.bold_available:
+                            chosen_style = ""
+                        pdf.set_font(font_cfg.family, chosen_style, size)
+
+                    t = font_cfg.transform
+
+                    _set_font("B", 14)
+                    disp_name = (st.session_state.get("student_row", {}).get("Name")
+                                 or (student_name if 'student_name' in globals() else 'Student'))  # type: ignore[name-defined]
+                    pdf.cell(0, 10, t(f"Attendance for {disp_name}"), ln=1, align="C")
+                    _set_font(size=11)
+                    pdf.cell(0, 8, t(f"Class: {class_name}"), ln=1)
+                    pdf.ln(4)
+
+                    _set_font("B", 11)
+                    pdf.cell(120, 8, t("Session"), 1, 0, "C")
+                    pdf.cell(40, 8, t("Present"), 1, 1, "C")
+                    _set_font(size=10)
+
+                    max_session_width = 120
+                    ellipsis = "..."
+
+                    def _shorten_session_text(raw: object) -> str:
+                        base_text = t(str(raw or ""))
+                        if pdf.get_string_width(base_text) <= max_session_width:
+                            return base_text
+
+                        ellipsis_width = pdf.get_string_width(ellipsis)
+                        available_width = max_session_width - ellipsis_width
+                        if available_width <= 0:
+                            return ellipsis if ellipsis_width <= max_session_width else ""
+
+                        shortened = base_text
+                        while shortened and pdf.get_string_width(shortened) > available_width:
+                            shortened = shortened[:-1]
+                        shortened = shortened.rstrip()
+                        if not shortened:
+                            return ellipsis
+
+                        candidate = f"{shortened}{ellipsis}"
+                        while shortened and pdf.get_string_width(candidate) > max_session_width:
+                            shortened = shortened[:-1].rstrip()
+                            candidate = f"{shortened}{ellipsis}" if shortened else ellipsis
+                        return candidate
+
+                    for _, row in df_att.iterrows():
+                        session_text = _shorten_session_text(row.get("session", ""))
+                        pdf.cell(120, 8, session_text, 1, 0, "L")
+                        pdf.cell(40, 8, t(row.get("Present", "")), 1, 1, "C")
+
+                    pdf_bytes = pdf.output(dest="S").encode("latin1", "replace")
+                    st.download_button(
+                        "Download Attendance PDF",
+                        data=pdf_bytes,
+                        file_name=f"{student_code}_attendance.pdf",
+                        mime="application/pdf",
+                    )
+                else:
+                    st.info("No attendance records found for this student/class.")
