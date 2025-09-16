@@ -68,9 +68,8 @@ def renew_session_if_needed() -> None:
 
 
 def render_signup_form() -> None:
-    _renew = globals().get("renew_session_if_needed")
-    if _renew:
-        _renew()
+    renew_session_if_needed()
+    logger = logging.getLogger(__name__)
     with st.form("signup_form", clear_on_submit=False):
         new_name = st.text_input("Full Name", key="ca_name")
         new_email = st.text_input(
@@ -93,16 +92,9 @@ def render_signup_form() -> None:
         st.error("Password must be at least 8 characters.")
         return
 
-    logger_module = globals().get("logging")
-    if logger_module is None:
-        import logging as _logging
-
-        logger_module = _logging
-    log_debug = getattr(logger_module, "debug", lambda *args, **kwargs: None)
-
     df = load_student_data()
     roster_rows = len(df.index) if df is not None else 0
-    log_debug(
+    logger.debug(
         "Signup roster fetch returned %d rows while verifying student code '%s'",
         roster_rows,
         new_code,
@@ -113,7 +105,7 @@ def render_signup_form() -> None:
     df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
     df["Email"] = df["Email"].str.lower().str.strip()
     valid = df[(df["StudentCode"] == new_code) & (df["Email"] == new_email)]
-    log_debug(
+    logger.debug(
         "Signup lookup for student code '%s' found=%s (matches=%d)",
         new_code,
         not valid.empty,
@@ -144,25 +136,18 @@ def render_signup_form() -> None:
 
 
 def render_login_form(login_id: str, login_pass: str) -> bool:
-    _renew = globals().get("renew_session_if_needed")
-    if _renew:
-        _renew()
+    renew_session_if_needed()
     login_id = (login_id or "").strip().lower()
     login_pass = login_pass or ""
     if not (login_id and login_pass):
         st.error("Please enter both email and password.")
         return False
 
-    logger_module = globals().get("logging")
-    if logger_module is None:
-        import logging as _logging
-
-        logger_module = _logging
-    log_debug = getattr(logger_module, "debug", lambda *args, **kwargs: None)
+    logger = logging.getLogger(__name__)
 
     df = load_student_data()
     roster_rows = len(df.index) if df is not None else 0
-    log_debug(
+    logger.debug(
         "Login roster fetch returned %d rows while searching for identifier '%s'",
         roster_rows,
         login_id,
@@ -174,7 +159,7 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
     df["Email"] = df["Email"].str.lower().str.strip()
     lookup = df[(df["StudentCode"] == login_id) | (df["Email"] == login_id)]
-    log_debug(
+    logger.debug(
         "Login lookup for identifier '%s' found=%s (matches=%d)",
         login_id,
         not lookup.empty,
@@ -190,7 +175,7 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     # Convert the pandas Series to a plain dict so the entire row can be
     # persisted in ``st.session_state`` without losing any fields.
     student_row = lookup.iloc[0].to_dict()
-    log_debug(
+    logger.debug(
         "Login identifier '%s' resolved to student code '%s'",
         login_id,
         student_row.get("StudentCode", ""),
@@ -278,9 +263,7 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
 
 
 def render_forgot_password_panel() -> None:
-    _renew = globals().get("renew_session_if_needed")
-    if _renew:
-        _renew()
+    renew_session_if_needed()
     st.markdown("##### Forgot password")
     email_for_reset = st.text_input("Registered email", key="reset_email")
     c3, c4 = st.columns([0.55, 0.45])
@@ -345,9 +328,7 @@ def render_forgot_password_panel() -> None:
 
 def render_returning_login_area() -> bool:
     """Email/Password login + optional forgot-password panel. No Google button here."""
-    _renew = globals().get("renew_session_if_needed")
-    if _renew:
-        _renew()
+    renew_session_if_needed()
     with st.form("returning_login_form", clear_on_submit=False):
         st.markdown("#### Returning user login")
         login_id = st.text_input("Email or Student Code")
@@ -536,9 +517,7 @@ def render_google_oauth(return_url: bool = True) -> Optional[str]:
 
 def render_returning_login_form() -> bool:
     """Simplified returning-user login form used in tests."""
-    _renew = globals().get("renew_session_if_needed")
-    if _renew:
-        _renew()
+    renew_session_if_needed()
     with st.form("returning_login_form", clear_on_submit=False):
         login_id = st.text_input("Email or Student Code")
         login_pass = st.text_input("Password", type="password")
