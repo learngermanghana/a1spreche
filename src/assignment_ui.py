@@ -1076,8 +1076,8 @@ def render_results_and_resources_tab() -> None:
 
         average_badges: list[dict[str, object]] = []
         for title, emoji, threshold in (
-            ("Gold Badge", "🥇", 90.0),
-            ("Silver Badge", "🥈", 75.0),
+            ("Gold Badge", "🥇", 80.0),
+            ("Silver Badge", "🥈", 70.0),
             ("Bronze Badge", "🥉", 60.0),
         ):
             earned = completed > 0 and avg_for_badges >= threshold
@@ -1107,7 +1107,7 @@ def render_results_and_resources_tab() -> None:
                 }
             )
 
-        star_threshold = 95.0
+        star_threshold = 85.0
         star_earned = completed > 0 and best_for_badges >= star_threshold
         if total == 0:
             star_locked_detail = (
