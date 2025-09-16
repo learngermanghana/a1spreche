@@ -594,8 +594,10 @@ def render_results_and_resources_tab() -> None:
     if not isinstance(student_row, dict):
         student_row = {}
 
-    choice = st.selectbox(
-        "Select a download", ["Results PDF", "Enrollment Letter", "Receipt", "Attendance PDF"]
+    choice = st.radio(
+        "Select a download",
+        ["Results PDF", "Enrollment Letter", "Receipt", "Attendance PDF"],
+        horizontal=True,
     )
 
     def _read_money(x):

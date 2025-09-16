@@ -49,11 +49,18 @@ def test_downloads_option_rendered_when_no_scores(monkeypatch):
     calls = []
 
     def fake_radio(label, options, *args, **kwargs):
-        calls.append(options)
+        calls.append({"options": options, "kwargs": kwargs})
         return options[-1]
 
     monkeypatch.setattr(st, "radio", fake_radio)
 
     assignment_ui.render_results_and_resources_tab()
 
-    assert calls[0] == ["Downloads"]
+    expected_options = [
+        "Results PDF",
+        "Enrollment Letter",
+        "Receipt",
+        "Attendance PDF",
+    ]
+    assert calls[0]["options"] == expected_options
+    assert calls[0]["kwargs"].get("horizontal") is True

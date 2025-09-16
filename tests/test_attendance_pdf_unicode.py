@@ -57,7 +57,7 @@ def test_attendance_pdf_truncates_long_session_names(monkeypatch):
         lambda code, class_name: (records, [], 0),
     )
     monkeypatch.setattr(st, "markdown", lambda *a, **k: None)
-    monkeypatch.setattr(st, "selectbox", lambda *a, **k: "Attendance PDF")
+    monkeypatch.setattr(st, "radio", lambda *a, **k: "Attendance PDF")
     monkeypatch.setattr(st, "info", lambda *a, **k: None)
 
     captured_download: dict[str, object] = {}
