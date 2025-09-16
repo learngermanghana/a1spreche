@@ -2599,6 +2599,11 @@ if tab == "My Course":
             )
 
             code = student_row.get('StudentCode', 'demo001')
+            if code == "demo001":
+                st.warning(
+                    "We couldn't find your student code. "
+                    "Try refreshing the page, or [email us](mailto:learngermanghana@gmail.com) for help."
+                )
             lesson_key = lesson_key_build(student_level, info['day'], info['chapter'])
             chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
             name = st.text_input("Name", value=student_row.get('Name', ''))
@@ -3073,6 +3078,11 @@ if tab == "My Course":
 
         student_row   = st.session_state.get("student_row") or {}
         student_code  = _safe_str(student_row.get("StudentCode"), "demo001")
+        if student_code == "demo001":
+            st.warning(
+                "We couldn't find your student code. "
+                "Try refreshing the page, or [email us](mailto:learngermanghana@gmail.com) for help."
+            )
         student_name  = _safe_str(student_row.get("Name"), "Student")
         student_level = _safe_upper(student_row.get("Level"), "A1")
         class_name    = _safe_str(student_row.get("ClassName")) or f"{student_level} General"
