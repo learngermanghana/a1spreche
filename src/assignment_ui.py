@@ -693,6 +693,231 @@ def render_results_and_resources_tab() -> None:
                 continue
         return default
 
+    # ------- Assignment score data prep -------
+    selected_code = _row_str("StudentCode", default=_session_str("student_code", "")).strip()
+    selected_level = _row_str("Level", default=_session_str("student_level", "")).strip()
+
+    fetch_payload = {"student_code": selected_code, "level": selected_level}
+    try:
+        df_scores_raw = fetch_scores(student_code=selected_code, level=selected_level)
+    except TypeError as exc:  # compat with simple lambda replacements in tests
+        if "student_code" in str(exc) or "level" in str(exc):
+            df_scores_raw = fetch_scores(fetch_payload)
+        else:  # pragma: no cover - propagate unexpected type errors
+            raise
+    except Exception:
+        df_scores_raw = pd.DataFrame()
+    if not isinstance(df_scores_raw, pd.DataFrame):
+        df_scores_raw = pd.DataFrame()
+
+    df_scores = df_scores_raw.copy()
+    if not df_scores.empty:
+        normalized_cols = {}
+        for col in df_scores.columns:
+            col_key = re.sub(r"[^0-9a-z]+", "_", str(col).strip().lower())
+            col_key = re.sub(r"_+", "_", col_key).strip("_")
+            normalized_cols[col] = col_key
+        df_scores.rename(columns=normalized_cols, inplace=True)
+    else:
+        df_scores = pd.DataFrame()
+
+    def _first_series(df: pd.DataFrame, candidates: list[str]) -> pd.Series | None:
+        for candidate in candidates:
+            if candidate in df.columns:
+                return df[candidate]
+        return None
+
+    def _clean_text(value: object) -> str:
+        if value is None:
+            return ""
+        try:
+            if pd.isna(value):
+                return ""
+        except Exception:
+            pass
+        text = str(value).strip()
+        return "" if not text or text.lower() == "nan" else text
+
+    def _coerce_score_value(value: object) -> float | None:
+        text = _clean_text(value)
+        if not text:
+            return None
+        normalized = text.replace(",", "")
+        frac_match = re.match(r"^\s*(-?\d+(?:\.\d+)?)\s*/\s*(-?\d+(?:\.\d+)?)\s*$", normalized)
+        if frac_match:
+            try:
+                numerator = float(frac_match.group(1))
+                denominator = float(frac_match.group(2))
+            except ValueError:
+                return None
+            if denominator == 0:
+                return None
+            ratio = numerator / denominator
+            return ratio * 100.0 if 0 <= ratio <= 1 else numerator
+        percent_match = re.search(r"-?\d+(?:\.\d+)?(?=%)", normalized)
+        if percent_match:
+            try:
+                return float(percent_match.group())
+            except ValueError:
+                return None
+        number_match = re.search(r"-?\d+(?:\.\d+)?", normalized)
+        if number_match:
+            try:
+                value_num = float(number_match.group())
+            except ValueError:
+                return None
+            if 0 <= value_num <= 1 and "%" not in normalized:
+                return value_num * 100.0
+            return value_num
+        return None
+
+    def _display_from_numeric(val: float) -> str:
+        if pd.isna(val):
+            return ""
+        if 0 <= val <= 1:
+            return f"{val:.0%}"
+        if 0 <= val <= 100:
+            return f"{val:.0f}%"
+        return f"{val:.0f}"
+
+    def _format_date_value(value: object) -> str:
+        text = _clean_text(value)
+        if not text:
+            return ""
+        try:
+            parsed = pd.to_datetime(text, errors="coerce")
+        except Exception:
+            parsed = pd.NaT
+        if pd.isna(parsed):
+            return text
+        return parsed.strftime("%Y-%m-%d")
+
+    student_code_norm = selected_code.casefold() if selected_code else ""
+    student_level_norm = selected_level.casefold() if selected_level else ""
+
+    df_user = df_scores.iloc[0:0].copy() if isinstance(df_scores, pd.DataFrame) else pd.DataFrame()
+    if isinstance(df_scores, pd.DataFrame) and not df_scores.empty and student_code_norm:
+        mask = pd.Series(True, index=df_scores.index, dtype=bool)
+        code_series = _first_series(df_scores, ["student_code", "studentcode", "code"])
+        if code_series is not None:
+            code_norm = code_series.astype(str).str.strip().str.casefold()
+            mask &= code_norm == student_code_norm
+        else:
+            mask &= False
+        if student_level_norm:
+            level_series = _first_series(
+                df_scores,
+                ["level", "student_level", "class_level", "lvl"],
+            )
+            if level_series is not None:
+                level_norm = level_series.astype(str).str.strip().str.casefold()
+                mask &= level_norm == student_level_norm
+        if mask.any():
+            df_user = df_scores.loc[mask].copy()
+        else:
+            df_user = df_scores.iloc[0:0].copy()
+
+    total = int(df_user.shape[0]) if isinstance(df_user, pd.DataFrame) else 0
+    completed = 0
+    avg_score = 0.0
+    best_score = 0.0
+    df_display = pd.DataFrame(columns=["assignment", "score", "date"])
+
+    if isinstance(df_user, pd.DataFrame) and not df_user.empty:
+        assignment_series = _first_series(
+            df_user,
+            [
+                "assignment",
+                "assignment_name",
+                "assignmenttitle",
+                "task",
+                "chapter",
+                "lesson",
+            ],
+        )
+        score_series = _first_series(
+            df_user,
+            ["score", "grade", "points", "result", "marks", "percentage"],
+        )
+        date_series = _first_series(
+            df_user,
+            [
+                "date",
+                "submission_date",
+                "submitted",
+                "submitted_on",
+                "completed_on",
+                "timestamp",
+            ],
+        )
+
+        if assignment_series is not None:
+            assignment_display = assignment_series.map(_clean_text)
+        else:
+            assignment_display = pd.Series(
+                [""] * len(df_user), index=df_user.index, dtype=object
+            )
+
+        if score_series is not None:
+            score_display = score_series.map(_clean_text)
+            numeric_series = pd.to_numeric(
+                score_series.map(_coerce_score_value), errors="coerce"
+            )
+            score_display = score_display.where(
+                score_display.astype(bool),
+                numeric_series.map(_display_from_numeric),
+            )
+        else:
+            score_display = pd.Series(
+                [""] * len(df_user), index=df_user.index, dtype=object
+            )
+            numeric_series = pd.Series(
+                [float("nan")] * len(df_user), index=df_user.index
+            )
+
+        if date_series is not None:
+            date_display = date_series.map(_format_date_value)
+        else:
+            date_display = pd.Series(
+                [""] * len(df_user), index=df_user.index, dtype=object
+            )
+
+        df_display = pd.DataFrame(
+            {
+                "assignment": assignment_display.astype(str),
+                "score": score_display.astype(str),
+                "date": date_display.astype(str),
+            }
+        ).reset_index(drop=True)
+
+        numeric_nonnull = numeric_series.dropna()
+        completed = int(numeric_nonnull.count())
+        if completed:
+            avg_score = float(numeric_nonnull.mean())
+            best_score = float(numeric_nonnull.max())
+            if pd.isna(avg_score):
+                avg_score = 0.0
+            if pd.isna(best_score):
+                best_score = 0.0
+
+    def score_label_fmt(score_value: object, plain: bool = False) -> str:
+        cleaned_text = _clean_text(score_value)
+        numeric_value = _coerce_score_value(score_value)
+        if numeric_value is None:
+            return "Not completed yet" if plain else "⏳ Not completed yet"
+        if plain:
+            return cleaned_text or _display_from_numeric(numeric_value)
+        if numeric_value >= 90:
+            prefix = "🌟 Excellent work"
+        elif numeric_value >= 75:
+            prefix = "✅ Great job"
+        elif numeric_value >= 60:
+            prefix = "👍 Keep going"
+        else:
+            prefix = "⚠️ Needs improvement"
+        display_value = cleaned_text or _display_from_numeric(numeric_value)
+        return f"{prefix} ({display_value})"
+
     # ------- Results PDF -------
     if choice == "Results PDF":
         st.markdown("**Results summary PDF**")
@@ -752,8 +977,6 @@ def render_results_and_resources_tab() -> None:
             pdf.add_page()
 
             pdf.set_font("DejaVu", "", 12)
-            # `df_user`, `total`, `completed`, `avg_score`, `best_score`, `df_display`, and
-            # `score_label_fmt` are expected from upstream code.
             shown_name = _row_str("Name", "StudentName")
             if not shown_name:
                 try:
@@ -784,11 +1007,12 @@ def render_results_and_resources_tab() -> None:
             pdf.set_font("DejaVu", "B", 13)
             pdf.cell(0, 10, t("Summary Metrics"), ln=1)
             pdf.set_font("DejaVu", "", 11)
-            total_val = (total if 'total' in globals() else 0)               # type: ignore[name-defined]
-            completed_val = (completed if 'completed' in globals() else 0)   # type: ignore[name-defined]
-            avg_val = (avg_score if 'avg_score' in globals() else 0.0)       # type: ignore[name-defined]
-            best_val = (best_score if 'best_score' in globals() else 0.0)     # type: ignore[name-defined]
-            pdf.cell(0, 8, t(f"Total: {total_val}   Completed: {completed_val}   Avg: {avg_val:.1f}   Best: {best_val:.0f}"), ln=1)
+            avg_display = f"{avg_score:.1f}" if completed else "N/A"
+            best_display = f"{best_score:.0f}" if completed else "N/A"
+            summary_line = (
+                f"Total: {total}   Completed: {completed}   Avg: {avg_display}   Best: {best_display}"
+            )
+            pdf.cell(0, 8, t(summary_line), ln=1)
             pdf.ln(6)
 
             # Table header
@@ -802,18 +1026,12 @@ def render_results_and_resources_tab() -> None:
             pdf.set_font("DejaVu", "", 10)
             pdf.set_fill_color(240, 240, 240)
             row_fill = False
-            try:
-                rows_iter = df_display.iterrows()  # type: ignore[name-defined]
-            except Exception:
-                rows_iter = []  # type: ignore[assignment]
+            rows_iter = df_display.iterrows() if isinstance(df_display, pd.DataFrame) else []
             for _, row in rows_iter:  # type: ignore[misc]
                 assn = t(str(row.get("assignment", "")))
                 score_txt = t(str(row.get("score", "")))
                 date_txt = t(str(row.get("date", "")))
-                try:
-                    label = t(score_label_fmt(row.get("score", None), plain=True))  # type: ignore[name-defined]
-                except Exception:
-                    label = t("")
+                label = t(score_label_fmt(row.get("score", None), plain=True))
                 pdf.cell(COL_ASSN_W, 8, assn, 1, 0, "L", row_fill)
                 pdf.cell(COL_SCORE_W, 8, score_txt, 1, 0, "C", row_fill)
                 pdf.cell(COL_DATE_W, 8, date_txt, 1, 0, "C", row_fill)
@@ -844,44 +1062,59 @@ def render_results_and_resources_tab() -> None:
     elif choice == "Enrollment Letter":
         st.markdown("**Enrollment letter**")
 
-        balance_amt = _row_money("Balance", "OutstandingBalance", "BalanceDue", default=0.0)
+        outstanding_balance = _row_money(
+            "Balance", "OutstandingBalance", "BalanceDue", default=0.0
+        )
+        if outstanding_balance <= 0:
+            lookup_code = selected_code or _row_str(
+                "StudentCode", default=_session_str("student_code", "")
+            )
+            lookup_code_norm = lookup_code.strip().casefold() if lookup_code else ""
+            if lookup_code_norm:
 
-        if balance_amt <= 0:
-            code_lookup = _row_str("StudentCode", default=_session_str("student_code", ""))
-            code_lookup = code_lookup.strip() if code_lookup else ""
-
-            if code_lookup:
                 try:
                     roster_df = load_student_data()
                 except Exception:
                     roster_df = None
-                else:
-                    if (
-                        isinstance(roster_df, pd.DataFrame)
-                        and not roster_df.empty
-                        and "StudentCode" in roster_df.columns
-                    ):
-                        norm_codes = roster_df["StudentCode"].astype(str).str.strip().str.lower()
-                        matches = roster_df[norm_codes == code_lookup.lower()]
-                        if not matches.empty:
-                            row_series = matches.iloc[0]
-                            for key in ("Balance", "OutstandingBalance", "BalanceDue"):
-                                if key in row_series:
-                                    value = row_series.get(key)
-                                    try:
-                                        maybe = _read_money(value)
-                                    except Exception:
-                                        continue
-                                    if maybe > 0:
-                                        balance_amt = maybe
-                                        if isinstance(student_row, dict) and key not in student_row:
-                                            student_row[key] = value
-                                            st.session_state["student_row"] = student_row
-                                        break
 
-        if balance_amt > 0:
+                if (
+                    isinstance(roster_df, pd.DataFrame)
+                    and not roster_df.empty
+                    and "StudentCode" in roster_df.columns
+                ):
+                    roster_norm = (
+                        roster_df["StudentCode"].astype(str).str.strip().str.casefold()
+                    )
+                    matches = roster_df[roster_norm == lookup_code_norm]
+                    if not matches.empty:
+                        roster_row = matches.iloc[0]
+                        for key in ["Balance", "OutstandingBalance", "BalanceDue"]:
+                            if key not in roster_row:
+                                continue
+                            candidate = roster_row.get(key)
+                            if candidate in (None, ""):
+                                continue
+                            try:
+                                if pd.isna(candidate):
+                                    continue
+                            except Exception:
+                                pass
+                            candidate_val = _read_money(candidate)
+                            if candidate_val > outstanding_balance:
+                                outstanding_balance = candidate_val
+                                try:
+                                    if isinstance(student_row, dict):
+                                        student_row[key] = candidate
+                                        st.session_state.setdefault("student_row", {})[key] = candidate
+                                except Exception:
+                                    pass
+                                break
+        if outstanding_balance > 0:
             st.error("Outstanding balance…")
-            st.info("Please clear your outstanding balance before requesting this letter.")
+            st.info(
+                "Please settle the outstanding balance before requesting an enrollment letter."
+            )
+
             return
         name_val = _row_str("Name", "StudentName", default=_session_str("student_name", "Student"))
         level_raw = _row_str("Level", default=_session_str("student_level", ""))
