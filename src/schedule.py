@@ -226,8 +226,8 @@ Submitting Work
             "grammar_topic": "schon mal, noch nie; irregular verbs; personal pronouns",
             "assignment": True,
             "lesen_hören": {
-                "video": "https://youtu.be/ZMXz-q5JXh0",
-                "youtube_link": "https://youtu.be/ZMXz-q5JXh0",
+                "video": "https://youtu.be/0HjCQKxMl5Q",
+                "youtube_link": "https://youtu.be/0HjCQKxMl5Q",
                 "grammarbook_link": "https://drive.google.com/file/d/1obsYT3dP3qT-i06SjXmqRzCT2pNoJJZp/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1woXksV9sTZ_8huXa8yf6QUQ8aUXPxVug/view?usp=sharing"
             }
