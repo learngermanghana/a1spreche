@@ -51,7 +51,15 @@ def setup_env(posts=None):
         for pid, data in posts.items():
             base.document(pid).set(data)
     st = DummyStreamlit()
-    st.session_state.update({"student_level": "A1", "student_row": {"ClassName": "ClassA"}})
+    st.session_state.update(
+        {
+            "student_level": "A1",
+            "student_row": {
+                "ClassName": "ClassA",
+                "Email": "classa@example.com",
+            },
+        }
+    )
     go_class_thread.__globals__["st"] = st
     fn = go_class_thread
     return fn, st, db

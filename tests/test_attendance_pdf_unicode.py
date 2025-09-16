@@ -44,6 +44,7 @@ def test_attendance_pdf_truncates_long_session_names(monkeypatch):
                 "ClassName": "Level 1",
                 "StudentCode": "ABC123",
                 "Name": "Alice",
+                "Email": "alice@example.com",
             }
         }
     )

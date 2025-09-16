@@ -822,6 +822,46 @@ def render_results_and_resources_tab() -> None:
     # ------- Enrollment Letter -------
     elif choice == "Enrollment Letter":
         st.markdown("**Enrollment letter**")
+
+        balance_amt = _row_money("Balance", "OutstandingBalance", "BalanceDue", default=0.0)
+
+        if balance_amt <= 0:
+            code_lookup = _row_str("StudentCode", default=_session_str("student_code", ""))
+            code_lookup = code_lookup.strip() if code_lookup else ""
+
+            if code_lookup:
+                try:
+                    roster_df = load_student_data()
+                except Exception:
+                    roster_df = None
+                else:
+                    if (
+                        isinstance(roster_df, pd.DataFrame)
+                        and not roster_df.empty
+                        and "StudentCode" in roster_df.columns
+                    ):
+                        norm_codes = roster_df["StudentCode"].astype(str).str.strip().str.lower()
+                        matches = roster_df[norm_codes == code_lookup.lower()]
+                        if not matches.empty:
+                            row_series = matches.iloc[0]
+                            for key in ("Balance", "OutstandingBalance", "BalanceDue"):
+                                if key in row_series:
+                                    value = row_series.get(key)
+                                    try:
+                                        maybe = _read_money(value)
+                                    except Exception:
+                                        continue
+                                    if maybe > 0:
+                                        balance_amt = maybe
+                                        if isinstance(student_row, dict) and key not in student_row:
+                                            student_row[key] = value
+                                            st.session_state["student_row"] = student_row
+                                        break
+
+        if balance_amt > 0:
+            st.error("Outstanding balance…")
+            st.info("Please clear your outstanding balance before requesting this letter.")
+            return
         name_val = _row_str("Name", "StudentName", default=_session_str("student_name", "Student"))
         level_raw = _row_str("Level", default=_session_str("student_level", ""))
         level_display = level_raw.upper() if level_raw else "-"

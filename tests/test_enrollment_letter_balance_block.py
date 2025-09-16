@@ -9,7 +9,13 @@ def test_enrollment_letter_blocked_with_outstanding_balance(monkeypatch):
     st.session_state.update({
         "student_code": "abc",
         "student_name": "Alice",
-        "student_row": {"StudentCode": "abc", "Name": "Alice", "Level": "A1"},
+        "student_row": {
+            "StudentCode": "abc",
+            "Name": "Alice",
+            "Level": "A1",
+            "Email": "alice@example.com",
+            "Balance": "10",
+        },
     })
 
     # No scores for this student so Downloads page is available
