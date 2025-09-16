@@ -6,6 +6,7 @@ bundled DejaVu fonts are unavailable.
 """
 from __future__ import annotations
 
+import html
 import base64 as _b64
 import io
 import os
@@ -840,8 +841,12 @@ def render_results_and_resources_tab() -> None:
     completed = 0
     avg_score = 0.0
     best_score = 0.0
-    df_display = pd.DataFrame(columns=["assignment", "score", "date"])
+
     top_result: dict[str, object] | None = None
+    df_display = pd.DataFrame(
+        columns=["assignment", "score", "date", "feedback", "answer_link"]
+    )
+
 
     if isinstance(df_user, pd.DataFrame) and not df_user.empty:
         assignment_series = _first_series(
@@ -868,6 +873,35 @@ def render_results_and_resources_tab() -> None:
                 "submitted_on",
                 "completed_on",
                 "timestamp",
+            ],
+        )
+        feedback_series = _first_series(
+            df_user,
+            [
+                "feedback",
+                "feedback_text",
+                "feedbackbody",
+                "feedback_body",
+                "comment",
+                "comments",
+                "notes",
+                "remarks",
+                "remark",
+            ],
+        )
+        answer_series = _first_series(
+            df_user,
+            [
+                "answer_link",
+                "answer",
+                "answers",
+                "assignment_link",
+                "attachment",
+                "attachments",
+                "resource",
+                "resource_link",
+                "resources",
+                "link",
             ],
         )
 
@@ -902,11 +936,21 @@ def render_results_and_resources_tab() -> None:
                 [""] * len(df_user), index=df_user.index, dtype=object
             )
 
+        def _series_to_text(series: pd.Series | None) -> pd.Series:
+            if series is None:
+                return pd.Series([""] * len(df_user), index=df_user.index, dtype=object)
+            return series.map(_clean_text)
+
+        feedback_display = _series_to_text(feedback_series)
+        answer_display = _series_to_text(answer_series)
+
         df_display = pd.DataFrame(
             {
                 "assignment": assignment_display.astype(str),
                 "score": score_display.astype(str),
                 "date": date_display.astype(str),
+                "feedback": feedback_display.astype(str),
+                "answer_link": answer_display.astype(str),
             }
         ).reset_index(drop=True)
 
@@ -940,6 +984,25 @@ def render_results_and_resources_tab() -> None:
                 avg_score = 0.0
             if pd.isna(best_score):
                 best_score = 0.0
+
+            try:
+                top_idx = numeric_series.idxmax(skipna=True)
+            except (ValueError, TypeError):
+                top_idx = None
+            if top_idx in numeric_series.index:
+                assignment_value = (
+                    assignment_display.loc[top_idx]
+                    if top_idx in assignment_display.index
+                    else ""
+                )
+                if score_series is not None and top_idx in score_series.index:
+                    raw_value = score_series.loc[top_idx]
+                else:
+                    raw_value = score_display.loc[top_idx]
+                top_result = {
+                    "assignment": _clean_text(assignment_value),
+                    "raw": raw_value,
+                }
 
     def score_label_fmt(score_value: object, plain: bool = False) -> str:
         cleaned_text = _clean_text(score_value)
@@ -1036,6 +1099,48 @@ def render_results_and_resources_tab() -> None:
         if not display_records:
             st.info("No feedback available yet.")
         else:
+            def _extract_record_text(
+                record_dict: dict[str, object],
+                preferred_keys: tuple[str, ...],
+                keyword_tokens: tuple[str, ...],
+            ) -> str:
+                for key in preferred_keys:
+                    if key in record_dict:
+                        text = _clean_text(record_dict.get(key))
+                        if text:
+                            return text
+                for key, value in record_dict.items():
+                    key_lower = str(key).lower()
+                    if any(token in key_lower for token in keyword_tokens):
+                        text = _clean_text(value)
+                        if text:
+                            return text
+                return ""
+
+            def _linkified_html(text: str) -> str:
+                return linkify_html(text).replace("\n", "<br />")
+
+            feedback_keys = (
+                "feedback",
+                "comment",
+                "comments",
+                "notes",
+                "remarks",
+                "remark",
+            )
+            feedback_tokens = ("feedback", "comment", "note", "remark")
+            answer_keys = (
+                "answer_link",
+                "answers",
+                "answer",
+                "attachment",
+                "attachments",
+                "resource",
+                "resource_link",
+                "link",
+            )
+            answer_tokens = ("answer", "attachment", "resource", "link")
+
             for idx, record in enumerate(display_records):
                 assignment_name = str(record.get("assignment") or "Assignment")
                 st.markdown(f"**{assignment_name}**")
@@ -1043,6 +1148,52 @@ def render_results_and_resources_tab() -> None:
                 date_value = record.get("date")
                 if date_value:
                     st.write(f"Date: {date_value}")
+
+                seen_texts: set[str] = set()
+
+                feedback_text = _extract_record_text(record, feedback_keys, feedback_tokens)
+                if feedback_text:
+                    seen_texts.add(feedback_text)
+                    st.markdown(
+                        f"<div style='margin-top:4px;'>{_linkified_html(feedback_text)}</div>",
+                        unsafe_allow_html=True,
+                    )
+
+                answer_text = _extract_record_text(record, answer_keys, answer_tokens)
+                fallback_refs: list[tuple[str, str]] = []
+                if not answer_text and isinstance(student_row, dict) and student_row:
+                    seen_values = set(seen_texts)
+                    for key, raw_value in student_row.items():
+                        if raw_value is None:
+                            continue
+                        key_lower = str(key).lower()
+                        if "answer" not in key_lower and "feedback" not in key_lower:
+                            continue
+                        text_value = _clean_text(raw_value)
+                        if not text_value or text_value in seen_values:
+                            continue
+                        seen_values.add(text_value)
+                        fallback_refs.append((str(key), text_value))
+
+                if answer_text:
+                    st.markdown(
+                        "<div style='margin-top:4px;'><strong>Resources:</strong> "
+                        f"{_linkified_html(answer_text)}</div>",
+                        unsafe_allow_html=True,
+                    )
+                elif fallback_refs:
+                    st.markdown(
+                        "<div style='margin-top:4px;'><strong>Resources:</strong></div>",
+                        unsafe_allow_html=True,
+                    )
+                    for label, text_value in fallback_refs:
+                        label_text = html.escape(str(label).strip() or "Reference")
+                        st.markdown(
+                            "<div style='margin-left:12px;'>• <strong>"
+                            f"{label_text}:</strong> {_linkified_html(text_value)}</div>",
+                            unsafe_allow_html=True,
+                        )
+
                 if idx < len(display_records) - 1:
                     st.markdown("---")
 
