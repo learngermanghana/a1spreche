@@ -15,7 +15,7 @@ import time
 import textwrap
 import urllib.parse
 import urllib.parse as _urllib
-from urllib.parse import urlsplit, parse_qs, urlparse
+from urllib.parse import urlsplit, parse_qs, urlparse, quote_plus
 from datetime import date, timedelta, timezone as _timezone, UTC
 from datetime import datetime
 from datetime import datetime as _dt
@@ -2599,14 +2599,16 @@ if tab == "My Course":
             )
 
             code = student_row.get('StudentCode', 'demo001')
+            name_default = _safe_str(student_row.get('Name'))
             if code == "demo001":
-                st.warning(
-                    "We couldn't find your student code. "
-                    "Try refreshing the page, or [email us](mailto:learngermanghana@gmail.com) for help."
+                _show_missing_code_warning(
+                    name=name_default,
+                    level=student_level,
+                    lesson_info=info,
                 )
             lesson_key = lesson_key_build(student_level, info['day'], info['chapter'])
             chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
-            name = st.text_input("Name", value=student_row.get('Name', ''))
+            name = st.text_input("Name", value=name_default)
 
             draft_key = f"draft_{lesson_key}"
             st.session_state["coursebook_draft_key"] = draft_key
@@ -3076,15 +3078,81 @@ if tab == "My Course":
             s = _safe_str(v, default)
             return s.upper() if s else default
 
+        def _build_missing_code_link(
+            name: str = "",
+            *,
+            level: str = "",
+            lesson_info: Optional[Dict[str, Any]] = None,
+        ) -> str:
+            display_name = _safe_str(name, "Student") or "Student"
+            level_text = _safe_upper(level, "")
+            lesson = lesson_info or {}
+
+            day = _safe_str(lesson.get("day"))
+            chapter = _safe_str(lesson.get("chapter"))
+            topic = _safe_str(lesson.get("topic"))
+
+            subject_parts: List[str] = []
+            if level_text:
+                subject_parts.append(f"Level {level_text}")
+            if day:
+                subject_parts.append(f"Day {day}")
+            if chapter:
+                subject_parts.append(f"Chapter {chapter}")
+
+            subject = f"{display_name} - Missing student code"
+            if subject_parts:
+                subject = f"{subject} ({' • '.join(subject_parts)})"
+
+            lesson_line_parts: List[str] = []
+            if day:
+                lesson_line_parts.append(f"Day {day}")
+            if chapter:
+                lesson_line_parts.append(f"Chapter {chapter}")
+            if topic:
+                lesson_line_parts.append(f"Topic: {topic}")
+
+            body_lines: List[str] = [
+                "Hello Learn German Ghana team,",
+                "",
+                "I couldn't find my student code in Falowen.",
+                "",
+                f"Name: {display_name}",
+            ]
+            if level_text:
+                body_lines.append(f"Level: {level_text}")
+            if lesson_line_parts:
+                body_lines.append("Lesson: " + " • ".join(lesson_line_parts))
+            body_lines.extend(["", "My work (paste below):", ""])
+
+            body = "\n".join(body_lines)
+            return (
+                "mailto:learngermanghana@gmail.com"
+                f"?subject={quote_plus(subject)}&body={quote_plus(body)}"
+            )
+
+        def _show_missing_code_warning(
+            name: str = "",
+            *,
+            level: str = "",
+            lesson_info: Optional[Dict[str, Any]] = None,
+        ) -> None:
+            mailto_link = _build_missing_code_link(
+                name=name,
+                level=level,
+                lesson_info=lesson_info,
+            )
+            st.warning(
+                "We couldn't find your student code. Try refreshing the page, "
+                f"or [email us]({mailto_link}) and paste your work."
+            )
+
         student_row   = st.session_state.get("student_row") or {}
         student_code  = _safe_str(student_row.get("StudentCode"), "demo001")
-        if student_code == "demo001":
-            st.warning(
-                "We couldn't find your student code. "
-                "Try refreshing the page, or [email us](mailto:learngermanghana@gmail.com) for help."
-            )
         student_name  = _safe_str(student_row.get("Name"), "Student")
         student_level = _safe_upper(student_row.get("Level"), "A1")
+        if student_code == "demo001":
+            _show_missing_code_warning(name=student_name, level=student_level)
         class_name    = _safe_str(student_row.get("ClassName")) or f"{student_level} General"
 
         ADMINS = set()
