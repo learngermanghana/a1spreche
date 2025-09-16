@@ -948,6 +948,7 @@ def render_results_and_resources_tab() -> None:
 
     overview_tab, missed_tab, feedback_tab, achievements_tab, downloads_tab = st.tabs(
         ["Overview", "Missed & Next", "Feedback", "Achievements", "Downloads"]
+
     )
 
     with overview_tab:
@@ -1025,36 +1026,124 @@ def render_results_and_resources_tab() -> None:
 
     with achievements_tab:
         st.subheader("Achievements")
-        if not completed:
-            st.info("Complete your first assignment to unlock achievements.")
+        st.write(f"Completed assignments: {completed} / {total}")
+        st.write(f"Average score: {avg_display_fmt}")
+        st.write(f"Best score: {best_display_fmt}")
+
+        avg_for_badges = avg_score if completed else 0.0
+        best_for_badges = best_score if completed else 0.0
+
+        trophy_earned = bool(total and completed and completed >= total)
+        if total:
+            trophy_locked_detail = f"Complete every assignment ({completed}/{total} done)."
+            if not completed:
+                trophy_locked_detail += " Start with your first submission to get underway."
         else:
-            st.write(f"Completed assignments: {completed} / {total}")
-            st.write(f"Average score: {avg_display_fmt}")
-            st.write(f"Best score: {best_display_fmt}")
+            trophy_locked_detail = (
+                "Assignments will appear soon—complete each one to claim this trophy."
+            )
+        trophy_badge = {
+            "emoji": "🏆",
+            "title": "Completion Trophy",
+            "earned": trophy_earned,
+            "earned_detail": (
+                f"You completed all {total} assignments!" if trophy_earned else ""
+            ),
+            "locked_detail": trophy_locked_detail,
+        }
 
-            top_result: dict[str, object] | None = None
-            for record in display_records:
-                numeric_value = _coerce_score_value(record.get("score"))
-                if numeric_value is None:
-                    continue
-                if (
-                    top_result is None
-                    or numeric_value > float(top_result.get("score", float("-inf")))
-                ):
-                    top_result = {
-                        "assignment": record.get("assignment"),
-                        "score": float(numeric_value),
-                        "raw": record.get("score"),
-                    }
-
-            if top_result is not None:
-                assignment_display = str(top_result.get("assignment") or "Assignment")
-                st.write(
-                    f"Top performance: **{assignment_display}** — "
-                    f"{score_label_fmt(top_result.get('raw'))}"
+        average_badges: list[dict[str, object]] = []
+        for title, emoji, threshold in (
+            ("Gold Badge", "🥇", 90.0),
+            ("Silver Badge", "🥈", 75.0),
+            ("Bronze Badge", "🥉", 60.0),
+        ):
+            earned = completed > 0 and avg_for_badges >= threshold
+            if total == 0:
+                locked_detail = (
+                    f"Assignments will appear soon—aim for a {threshold:.0f}% "
+                    "average to earn this badge."
+                )
+            elif completed == 0:
+                locked_detail = (
+                    f"Complete and score assignments to reach the {threshold:.0f}% "
+                    "average goal."
                 )
             else:
-                st.info("Scores will appear once assignments have been graded.")
+                locked_detail = (
+                    f"Raise your average to {threshold:.0f}% (currently {avg_display_fmt})."
+                )
+            average_badges.append(
+                {
+                    "emoji": emoji,
+                    "title": title,
+                    "earned": earned,
+                    "earned_detail": (
+                        f"Average score {avg_score:.1f}% meets the {threshold:.0f}% goal."
+                    ),
+                    "locked_detail": locked_detail,
+                }
+            )
+
+        star_threshold = 95.0
+        star_earned = completed > 0 and best_for_badges >= star_threshold
+        if total == 0:
+            star_locked_detail = (
+                "Assignments will appear soon—aim for a standout score to shine."
+            )
+        elif completed == 0:
+            star_locked_detail = (
+                f"Once you submit an assignment, aim for at least {star_threshold:.0f}% "
+                "to shine."
+            )
+        else:
+            star_locked_detail = (
+                f"Aim for {star_threshold:.0f}% on a single assignment (best so far: "
+                f"{best_display_fmt})."
+            )
+        star_badge = {
+            "emoji": "🌟",
+            "title": "Star Performer",
+            "earned": star_earned,
+            "earned_detail": f"Best assignment score {best_score:.0f}% shows your star power!",
+            "locked_detail": star_locked_detail,
+        }
+
+        badge_states = [trophy_badge, *average_badges, star_badge]
+
+        for badge in badge_states:
+            status_icon = "✅" if badge["earned"] else "🔒"
+            detail = badge["earned_detail"] if badge["earned"] else badge["locked_detail"]
+            # ``detail`` can legitimately be empty when the badge is earned, so fall back to
+            # the locked description to avoid leaving a blank summary for celebratory states.
+            if badge["earned"] and not detail:
+                detail = badge["locked_detail"]
+            st.markdown(
+                f"{status_icon} {badge['emoji']} **{badge['title']}** — {detail}".strip()
+            )
+
+        any_earned = any(badge["earned"] for badge in badge_states)
+        if not any_earned:
+            if total == 0:
+                st.info(
+                    "Assignments will appear soon. Once grades arrive, you'll see these "
+                    "achievements light up."
+                )
+            elif completed == 0:
+                st.info("Complete your first assignment to start unlocking achievements.")
+            else:
+                st.info("Keep going—higher scores will unlock your next badge.")
+
+        if top_result is not None:
+            st.markdown("---")
+            assignment_display = str(top_result.get("assignment") or "Assignment")
+            st.write(
+                f"Top performance: **{assignment_display}** — "
+                f"{score_label_fmt(top_result.get('raw'))}"
+            )
+        elif total and completed:
+            st.markdown("---")
+            st.info("Scores will appear once assignments have been graded.")
 
     with downloads_tab:
         choice = st.radio(
