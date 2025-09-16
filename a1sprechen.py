@@ -2713,7 +2713,6 @@ if tab == "My Course":
                     updated_row["StudentCode"] = code
                     st.session_state["student_row"] = updated_row
                     st.session_state["student_code"] = code
-                    st.session_state[code_input_key] = code
                     student_row = updated_row
                     st.success("Student code saved. You can now submit your work.")
 
