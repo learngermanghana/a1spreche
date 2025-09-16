@@ -841,6 +841,7 @@ def render_results_and_resources_tab() -> None:
     avg_score = 0.0
     best_score = 0.0
     df_display = pd.DataFrame(columns=["assignment", "score", "date"])
+    top_result: dict[str, object] | None = None
 
     if isinstance(df_user, pd.DataFrame) and not df_user.empty:
         assignment_series = _first_series(
@@ -910,6 +911,27 @@ def render_results_and_resources_tab() -> None:
         ).reset_index(drop=True)
 
         numeric_nonnull = numeric_series.dropna()
+        if not numeric_nonnull.empty:
+            try:
+                best_index = numeric_nonnull.idxmax()
+            except ValueError:
+                best_index = None
+            if best_index is not None and best_index in numeric_series.index:
+                assignment_value = _clean_text(assignment_display.get(best_index))
+                raw_value: object | None = None
+                if score_series is not None and best_index in score_series.index:
+                    raw_value = score_series.get(best_index)
+                    try:
+                        if pd.isna(raw_value):
+                            raw_value = None
+                    except Exception:
+                        pass
+                if raw_value is None:
+                    raw_value = numeric_series.get(best_index)
+                top_result = {
+                    "assignment": assignment_value,
+                    "raw": raw_value,
+                }
         completed = int(numeric_nonnull.count())
         if completed:
             avg_score = float(numeric_nonnull.mean())
@@ -1141,7 +1163,7 @@ def render_results_and_resources_tab() -> None:
                 f"Top performance: **{assignment_display}** — "
                 f"{score_label_fmt(top_result.get('raw'))}"
             )
-        elif total and completed:
+        elif total and not completed:
             st.markdown("---")
             st.info("Scores will appear once assignments have been graded.")
 
