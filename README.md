@@ -11,9 +11,35 @@
 
 ## Deployment
 The app uses `streamlit-cookies-controller` to persist session and student-code
-cookies. The controller transparently handles encryption and browser synchronisation,
-so no cookie password or additional environment configuration is required. Simply
-deploy the app and the controller will manage cookies automatically.
+cookies. The controller transparently handles encryption and browser
+synchronisation.
+
+### Authentication configuration
+
+- Set the `JWT_SECRET` environment variable. A fallback development value is
+  used when running locally, but deploying with the default secret raises a
+  runtime error. Pick a long, random string for production.
+- Provide user login credentials via one of the following environment
+  variables:
+  - `AUTH_USER_CREDENTIALS`: JSON mapping of login identifiers to hashed
+    passwords.
+  - `AUTH_USER_CREDENTIALS_FILE`: Path to a JSON file with the same structure.
+
+  Hash passwords before storing them. The Flask helper can generate suitable
+  hashes:
+
+  ```bash
+  python - <<'PY'
+  from werkzeug.security import generate_password_hash
+  print(generate_password_hash("super-secret-password"))
+  PY
+  ```
+
+  Store the resulting string in the JSON payload, for example:
+
+  ```json
+  {"admin@example.com": "pbkdf2:sha256:600000$..."}
+  ```
 
 ### Refresh token storage
 
