@@ -47,6 +47,13 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 REGULAR_FONT_PATH = os.path.join(BASE_DIR, "font", "DejaVuSans.ttf")
 BOLD_FONT_PATH = os.path.join(BASE_DIR, "font", "DejaVuSans-Bold.ttf")
 
+# Expected assignment counts for each level. Values here take precedence over
+# schedule-derived counts so we can present authoritative targets even when
+# schedule heuristics skip practice-only entries.
+LEVEL_ASSIGNMENT_TARGET_OVERRIDES: dict[str, int] = {
+    "A1": 19,
+}
+
 # ---------------------------------------------------------------------------
 # Data loaders
 # ---------------------------------------------------------------------------
@@ -218,6 +225,7 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
             return None
 
     lessons_info: list[dict[str, object]] = []
+    assignment_identifiers: set[float] = set()
 
     for lesson in schedule:
         if not isinstance(lesson, dict):
@@ -259,6 +267,8 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
         if not relevant_nums:
             continue
 
+        assignment_identifiers.update(relevant_nums)
+
         lessons_info.append(
             {
                 "day": lesson.get("day"),
@@ -279,6 +289,8 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
         if info["day_int"] is not None and info.get("completed")
     ]
     max_completed_day = max(completed_day_ints) if completed_day_ints else None
+
+    target_total = len(assignment_identifiers)
 
     def _format_line(info: dict[str, object]) -> str:
         day_value = info.get("day")
@@ -317,7 +329,7 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
         ):
             missed.append(_format_line(info))
 
-    return {"missed": missed, "next": next_assignment}
+    return {"missed": missed, "next": next_assignment, "target": target_total}
 
 # ---------------------------------------------------------------------------
 # Helpers used elsewhere in the module (stubs shown here for completeness)
@@ -704,7 +716,7 @@ def render_results_and_resources_tab() -> None:
     if not isinstance(df_scores_raw, pd.DataFrame):
         df_scores_raw = pd.DataFrame()
 
-    assignment_summary: dict[str, object] = {"missed": [], "next": None}
+    assignment_summary: dict[str, object] = {"missed": [], "next": None, "target": 0}
     try:
         summary_candidate = get_assignment_summary(
             selected_code,
@@ -724,10 +736,23 @@ def render_results_and_resources_tab() -> None:
         else:
             missed_list = [missed_candidate]
 
+        target_candidate = summary_candidate.get("target")
+        try:
+            target_value = int(target_candidate) if target_candidate is not None else 0
+        except (TypeError, ValueError):
+            target_value = 0
+
         assignment_summary = {
             "missed": missed_list,
             "next": summary_candidate.get("next"),
+            "target": target_value,
         }
+
+    if selected_level:
+        override_key = selected_level.strip().upper()
+        override_value = LEVEL_ASSIGNMENT_TARGET_OVERRIDES.get(override_key)
+        if override_value:
+            assignment_summary["target"] = override_value
 
     df_scores = df_scores_raw.copy()
     if not df_scores.empty:
@@ -836,7 +861,11 @@ def render_results_and_resources_tab() -> None:
         else:
             df_user = df_scores.iloc[0:0].copy()
 
-    total = int(df_user.shape[0]) if isinstance(df_user, pd.DataFrame) else 0
+    target_value = assignment_summary.get("target")
+    try:
+        total_target = int(target_value) if target_value is not None else 0
+    except (TypeError, ValueError):
+        total_target = 0
     completed = 0
     avg_score = 0.0
     best_score = 0.0
@@ -975,8 +1004,9 @@ def render_results_and_resources_tab() -> None:
 
     with overview_tab:
         st.subheader("Progress overview")
-        st.write(f"Total assignments: {total}")
-        st.write(f"Completed assignments: {completed}")
+        st.write(f"Total assignments: {total_target}")
+        completed_summary = f"{completed} / {total_target}" if total_target else str(completed)
+        st.write(f"Completed assignments: {completed_summary}")
         st.write(f"Average score: {avg_display_fmt}")
         st.write(f"Best score: {best_display_fmt}")
         if display_records:
@@ -1048,16 +1078,19 @@ def render_results_and_resources_tab() -> None:
 
     with achievements_tab:
         st.subheader("Achievements")
-        st.write(f"Completed assignments: {completed} / {total}")
+        completed_summary = (
+            f"{completed} / {total_target}" if total_target else str(completed)
+        )
+        st.write(f"Completed assignments: {completed_summary}")
         st.write(f"Average score: {avg_display_fmt}")
         st.write(f"Best score: {best_display_fmt}")
 
         avg_for_badges = avg_score if completed else 0.0
         best_for_badges = best_score if completed else 0.0
 
-        trophy_earned = bool(total and completed and completed >= total)
-        if total:
-            trophy_locked_detail = f"Complete every assignment ({completed}/{total} done)."
+        trophy_earned = bool(total_target and completed and completed >= total_target)
+        if total_target:
+            trophy_locked_detail = f"Complete every assignment ({completed}/{total_target} done)."
             if not completed:
                 trophy_locked_detail += " Start with your first submission to get underway."
         else:
@@ -1069,7 +1102,7 @@ def render_results_and_resources_tab() -> None:
             "title": "Completion Trophy",
             "earned": trophy_earned,
             "earned_detail": (
-                f"You completed all {total} assignments!" if trophy_earned else ""
+                f"You completed all {total_target} assignments!" if trophy_earned else ""
             ),
             "locked_detail": trophy_locked_detail,
         }
@@ -1081,7 +1114,7 @@ def render_results_and_resources_tab() -> None:
             ("Bronze Badge", "🥉", 60.0),
         ):
             earned = completed > 0 and avg_for_badges >= threshold
-            if total == 0:
+            if total_target == 0:
                 locked_detail = (
                     f"Assignments will appear soon—aim for a {threshold:.0f}% "
                     "average to earn this badge."
@@ -1109,7 +1142,7 @@ def render_results_and_resources_tab() -> None:
 
         star_threshold = 95.0
         star_earned = completed > 0 and best_for_badges >= star_threshold
-        if total == 0:
+        if total_target == 0:
             star_locked_detail = (
                 "Assignments will appear soon—aim for a standout score to shine."
             )
@@ -1146,7 +1179,7 @@ def render_results_and_resources_tab() -> None:
 
         any_earned = any(badge["earned"] for badge in badge_states)
         if not any_earned:
-            if total == 0:
+            if total_target == 0:
                 st.info(
                     "Assignments will appear soon. Once grades arrive, you'll see these "
                     "achievements light up."
@@ -1163,7 +1196,7 @@ def render_results_and_resources_tab() -> None:
                 f"Top performance: **{assignment_display}** — "
                 f"{score_label_fmt(top_result.get('raw'))}"
             )
-        elif total and not completed:
+        elif total_target and not completed:
             st.markdown("---")
             st.info("Scores will appear once assignments have been graded.")
 
@@ -1266,7 +1299,7 @@ def render_results_and_resources_tab() -> None:
                 avg_display = f"{avg_score:.1f}" if completed else "N/A"
                 best_display = f"{best_score:.0f}" if completed else "N/A"
                 summary_line = (
-                    f"Total: {total}   Completed: {completed}   Avg: {avg_display}   Best: {best_display}"
+                    f"Target: {total_target}   Completed: {completed}   Avg: {avg_display}   Best: {best_display}"
                 )
                 pdf.cell(0, 8, t(summary_line), ln=1)
                 pdf.ln(6)
