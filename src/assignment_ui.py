@@ -994,8 +994,36 @@ def render_results_and_resources_tab() -> None:
                 pdf.cell(120, 8, t("Session"), 1, 0, "C")
                 pdf.cell(40, 8, t("Present"), 1, 1, "C")
                 _set_font(size=10)
+
+                max_session_width = 120
+                ellipsis = "..."
+
+                def _shorten_session_text(raw: object) -> str:
+                    base_text = t(str(raw or ""))
+                    if pdf.get_string_width(base_text) <= max_session_width:
+                        return base_text
+
+                    ellipsis_width = pdf.get_string_width(ellipsis)
+                    available_width = max_session_width - ellipsis_width
+                    if available_width <= 0:
+                        return ellipsis if ellipsis_width <= max_session_width else ""
+
+                    shortened = base_text
+                    while shortened and pdf.get_string_width(shortened) > available_width:
+                        shortened = shortened[:-1]
+                    shortened = shortened.rstrip()
+                    if not shortened:
+                        return ellipsis
+
+                    candidate = f"{shortened}{ellipsis}"
+                    while shortened and pdf.get_string_width(candidate) > max_session_width:
+                        shortened = shortened[:-1].rstrip()
+                        candidate = f"{shortened}{ellipsis}" if shortened else ellipsis
+                    return candidate
+
                 for _, row in df_att.iterrows():
-                    pdf.cell(120, 8, t(str(row.get("session", ""))), 1, 0, "L")
+                    session_text = _shorten_session_text(row.get("session", ""))
+                    pdf.cell(120, 8, session_text, 1, 0, "L")
                     pdf.cell(40, 8, t(row.get("Present", "")), 1, 1, "C")
 
                 pdf_bytes = pdf.output(dest="S").encode("latin1", "replace")
