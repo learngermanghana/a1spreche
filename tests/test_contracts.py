@@ -1,11 +1,45 @@
+import ast
 import sys
 from pathlib import Path
-from datetime import datetime, UTC, timedelta
+from datetime import date, datetime, UTC, timedelta
+from typing import Any
 
 import pandas as pd
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from src.contracts import parse_contract_end, add_months, months_between, is_contract_expired
+
+
+def _load_contract_date_helpers():
+    src_path = Path(__file__).resolve().parents[1] / "a1sprechen.py"
+    source = src_path.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename="a1sprechen.py")
+
+    wanted = {
+        "CONTRACT_DATE_FORMATS",
+        "_parse_contract_date_value",
+        "parse_contract_start",
+        "_compute_finish_date_estimates",
+    }
+    nodes: list[Any] = []
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            if any(isinstance(t, ast.Name) and t.id == "CONTRACT_DATE_FORMATS" for t in node.targets):
+                nodes.append(node)
+        elif isinstance(node, ast.FunctionDef) and node.name in wanted:
+            nodes.append(node)
+
+    module = ast.Module(body=nodes, type_ignores=[])
+    glb = {
+        "Any": Any,
+        "datetime": datetime,
+        "UTC": UTC,
+        "timedelta": timedelta,
+        "date": date,
+    }
+    exec(compile(module, "a1sprechen.py", "exec"), glb)
+    return glb["parse_contract_start"], glb["_compute_finish_date_estimates"]
+
 
 def test_parse_contract_end_formats():
     expected = datetime(2023, 5, 1)
@@ -17,6 +51,33 @@ def test_parse_contract_end_formats():
     assert parse_contract_end("31/05/2023") == datetime(2023, 5, 31)
     assert parse_contract_end("invalid") is None
     assert parse_contract_end("") is None
+
+
+def test_parse_contract_start_handles_extended_formats():
+    parse_contract_start, _ = _load_contract_date_helpers()
+    expected = datetime(2023, 5, 1)
+    assert parse_contract_start("01.05.2023") == expected
+    assert parse_contract_start("01.05.2023 00:00:00") == expected
+    assert parse_contract_start("2023-05-01 07:30:00") == datetime(2023, 5, 1, 7, 30)
+    assert parse_contract_start("2023-05-01T07:30:00") == datetime(2023, 5, 1, 7, 30)
+    assert parse_contract_start("2023-05-01T07:30:00Z") == datetime(2023, 5, 1, 7, 30)
+
+
+def test_course_overview_estimates_available_for_new_start_formats():
+    parse_contract_start, compute_finish = _load_contract_date_helpers()
+    total_lessons = 6
+    start = datetime(2023, 5, 1).date()
+
+    iso_estimates = compute_finish("2023-05-01T00:00:00", total_lessons, parse_contract_start)
+    dot_estimates = compute_finish("01.05.2023", total_lessons, parse_contract_start)
+    iso_z_estimates = compute_finish("2023-05-01T00:00:00Z", total_lessons, parse_contract_start)
+
+    assert iso_estimates is not None
+    assert dot_estimates == iso_estimates
+    assert iso_z_estimates == iso_estimates
+    assert iso_estimates[3] == start + timedelta(weeks=(total_lessons + 2) // 3)
+    assert iso_estimates[2] == start + timedelta(weeks=(total_lessons + 1) // 2)
+    assert iso_estimates[1] == start + timedelta(weeks=total_lessons)
 
 
 def test_add_months_and_months_between():

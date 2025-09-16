@@ -1037,21 +1037,110 @@ def load_reviews():
         st.session_state["reviews_df"] = _load_reviews_cached()
     return st.session_state["reviews_df"]
 
-def parse_contract_start(date_str: str):
+CONTRACT_DATE_FORMATS = (
+    "%Y-%m-%d",
+    "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%dT%H:%M:%S",
+    "%m/%d/%Y",
+    "%d.%m.%y",
+    "%d.%m.%Y",
+    "%d/%m/%Y",
+    "%d-%m-%Y",
+)
 
-    """Parse a contract start date in multiple common formats.
 
-    Mirrors the formats used by the fallback date parser so that contract
-    start dates are handled consistently across the application.
-    """
-    if not date_str or str(date_str).strip().lower() in ("nan", "none", ""):
-        return None
-    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):
+def _parse_contract_date_value(date_str: Any):
+    """Return a naive ``datetime`` for *date_str* or ``None`` if parsing fails."""
+
+    if isinstance(date_str, datetime):
+        dt = date_str
+        if dt.tzinfo is not None:
+            return dt.astimezone(UTC).replace(tzinfo=None)
+        return dt
+
+    if hasattr(date_str, "to_pydatetime"):
         try:
-            return datetime.strptime(date_str, fmt)
+            converted = date_str.to_pydatetime()
+        except Exception:
+            converted = None
+        if converted is not None:
+            return _parse_contract_date_value(converted)
+
+    text = "" if date_str is None else str(date_str).strip()
+    if not text or text.lower() in ("nan", "none"):
+        return None
+
+    iso_candidate = text.replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(iso_candidate)
+    except ValueError:
+        parsed = None
+    if parsed is not None:
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(UTC).replace(tzinfo=None)
+        return parsed
+
+    trimmed = text[:-1].strip() if text.endswith("Z") else text
+    for fmt in CONTRACT_DATE_FORMATS:
+        try:
+            return datetime.strptime(trimmed, fmt)
         except ValueError:
             continue
+
+    for sep in (" ", "T"):
+        if sep in trimmed:
+            base = trimmed.split(sep, 1)[0].strip()
+            if base and base != trimmed:
+                return _parse_contract_date_value(base)
+
     return None
+
+
+def parse_contract_start(date_str: Any):
+
+    """Parse a contract start date across common and ISO timestamp formats."""
+
+    return _parse_contract_date_value(date_str)
+
+
+def _compute_finish_date_estimates(start_str: Any, total_lessons: Any, parse_start_fn):
+    """Return projected completion dates keyed by weekly study frequency."""
+
+    try:
+        total = int(total_lessons)
+    except (TypeError, ValueError):
+        return None
+
+    if total <= 0:
+        return None
+
+    parse_fn = parse_start_fn if callable(parse_start_fn) else parse_contract_start
+    try:
+        parsed = parse_fn(start_str)
+    except Exception:
+        parsed = None
+
+    if not parsed:
+        return None
+
+    if isinstance(parsed, datetime):
+        start_date = parsed.date()
+    elif isinstance(parsed, date):
+        start_date = parsed
+    elif hasattr(parsed, "date"):
+        start_date = parsed.date()
+    else:
+        return None
+
+    weeks_three = (total + 2) // 3
+    weeks_two = (total + 1) // 2
+    weeks_one = total
+
+    return {
+        3: start_date + timedelta(weeks=weeks_three),
+        2: start_date + timedelta(weeks=weeks_two),
+        1: start_date + timedelta(weeks=weeks_one),
+    }
 
 
 def _dict_tts_bytes_de(text: str) -> Optional[bytes]:
@@ -1262,11 +1351,7 @@ if tab == "Dashboard":
 
     # Fallback parsers if globals not present
     def _fallback_parse_date(s):
-        fmts = ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y")
-        for f in fmts:
-            try: return datetime.strptime(str(s).strip(), f)
-            except Exception: pass
-        return None
+        return _parse_contract_date_value(s)
 
     def _fallback_add_months(dt, n):
         y = dt.year + (dt.month - 1 + n) // 12
@@ -2368,20 +2453,13 @@ if tab == "My Course":
                 parse_start = (
                     globals().get("parse_contract_start_fn")
                     or globals().get("parse_contract_start")
-                 )
-                start_date = None
-                if start_str and parse_start:
-                    _parsed = parse_start(start_str)
-                    if _parsed:
-                        start_date = _parsed.date() if hasattr(_parsed, "date") else _parsed
+                )
+                estimates = _compute_finish_date_estimates(start_str, total, parse_start)
 
-                if start_date and total:
-                    weeks_three = (total + 2) // 3
-                    weeks_two   = (total + 1) // 2
-                    weeks_one   = total
-                    end_three = start_date + timedelta(weeks=weeks_three)
-                    end_two   = start_date + timedelta(weeks=weeks_two)
-                    end_one   = start_date + timedelta(weeks=weeks_one)
+                if estimates:
+                    end_three = estimates[3]
+                    end_two   = estimates[2]
+                    end_one   = estimates[1]
                     _, content = st.columns([3, 7])
                     with content:
                         st.success(f"If you complete **three sessions per week**, you will finish by **{end_three.strftime('%A, %d %B %Y')}**.")
