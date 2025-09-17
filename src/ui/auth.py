@@ -75,6 +75,43 @@ def _normalize_roster(df):
     return df
 
 
+def _refresh_logged_in_student_row(student_row: dict | None = None) -> None:
+    """Force-refresh the roster and update the cached ``student_row`` once."""
+
+    roster_flag = st.session_state.setdefault("roster_refreshed", True)
+    refresh_needed = st.session_state.setdefault("roster_refresh_needed", False)
+    if roster_flag and not refresh_needed:
+        return
+
+    student_row = student_row or st.session_state.get("student_row") or {}
+    if not student_row:
+        st.session_state["roster_refreshed"] = True
+        st.session_state["roster_refresh_needed"] = False
+        return
+
+    df = load_student_data(force_refresh=True)
+    if df is None:
+        st.session_state["roster_refreshed"] = True
+        st.session_state["roster_refresh_needed"] = False
+        return
+
+    df = _normalize_roster(df)
+    code = (student_row.get("StudentCode") or "").strip().lower()
+    email = (student_row.get("Email") or "").strip().lower()
+
+    refreshed_lookup = df.iloc[0:0]
+    if code and "StudentCode" in df.columns:
+        refreshed_lookup = df[df["StudentCode"] == code]
+    if refreshed_lookup.empty and email and "Email" in df.columns:
+        refreshed_lookup = df[df["Email"] == email]
+
+    if not refreshed_lookup.empty:
+        st.session_state["student_row"] = refreshed_lookup.iloc[0].to_dict()
+
+    st.session_state["roster_refreshed"] = True
+    st.session_state["roster_refresh_needed"] = False
+
+
 def render_signup_form() -> None:
     renew_session_if_needed()
     logger = logging.getLogger(__name__)
@@ -299,6 +336,10 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
     )
     st.query_params["t"] = sess_token
     persist_session_client(sess_token, student_row["StudentCode"])
+
+    st.session_state["roster_refresh_needed"] = True
+    st.session_state["roster_refreshed"] = False
+    _refresh_logged_in_student_row(student_row)
 
     from streamlit.components.v1 import html as _html
 
@@ -532,6 +573,10 @@ def _handle_google_oauth(code: str, state: str) -> None:
         )
         st.query_params["t"] = sess_token
         persist_session_client(sess_token, student_row["StudentCode"])
+
+        st.session_state["roster_refresh_needed"] = True
+        st.session_state["roster_refreshed"] = False
+        _refresh_logged_in_student_row(student_row)
         from streamlit.components.v1 import html as _html
 
         _html(
