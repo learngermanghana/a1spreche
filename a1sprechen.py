@@ -2515,7 +2515,11 @@ if tab == "My Course":
                 else:
                     _, content = st.columns([3, 7])
                     with content:
-                        st.warning("❓ Start date missing or invalid. Please update your contract start date.")
+                        st.warning(
+                            "❓ We couldn't load your finish date estimates. Try scrolling up, "
+                            "switching to a different tab and back, or logging out and logging "
+                            "in again. If the problem persists, please contact administration."
+                        )
 
         # ASSIGNMENT (activities + resources; tolerant across A1–C1)
         elif coursebook_section == "Assignment":
