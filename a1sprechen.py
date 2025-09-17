@@ -207,6 +207,7 @@ if "level_schedules_initialized" not in st.session_state:
 
 # --- Falowen modules ---
 from falowen.email_utils import send_reset_email, build_gas_reset_link
+import falowen.sessions as _falowen_sessions
 from falowen.sessions import (
     db,
     create_session_token,
@@ -2294,8 +2295,52 @@ if tab == "My Course":
         on_change=on_cb_subtab_change,
     )
 
+    # ---------- DB (Firestore) bootstrap ----------
+    def _get_db():
+        global db
+        existing = (
+            db
+            or getattr(_falowen_sessions, "db", None)
+            or getattr(_falowen_sessions, "_db_client", None)
+        )
+        if existing is not None:
+            _falowen_sessions.db = existing
+            if hasattr(_falowen_sessions, "_db_client"):
+                _falowen_sessions._db_client = existing
+            db = existing
+            return existing
+        # Try Firebase Admin SDK first (firestore.client())
+        client = None
+        try:
+            import firebase_admin
+            from firebase_admin import firestore as fbfs
 
-       # === COURSE BOOK SUBTAB (mini-tabs inside) ===
+            if not firebase_admin._apps:
+                firebase_admin.initialize_app()
+            client = fbfs.client()
+        except Exception:
+            client = None
+        if client is None:
+            try:
+                from google.cloud import firestore as gcf
+
+                client = gcf.Client()
+            except Exception:
+                st.error(
+                    "Firestore client isn't configured. Provide Firebase Admin creds or set GOOGLE_APPLICATION_CREDENTIALS.",
+                    icon="🛑",
+                )
+                raise
+        _falowen_sessions.db = client
+        if hasattr(_falowen_sessions, "_db_client"):
+            _falowen_sessions._db_client = client
+        db = client
+        return client
+
+    db = _get_db()
+
+
+    # === COURSE BOOK SUBTAB (mini-tabs inside) ===
     if cb_subtab == "📘 Course Book":
         from datetime import date, timedelta  # needed inside this branch
 
@@ -3263,34 +3308,6 @@ if tab == "My Course":
             unsafe_allow_html=True
         )
         st.divider()
-
-        # ---------- DB (Firestore) bootstrap ----------
-        def _get_db():
-            # Use existing global if present
-            _existing = globals().get("db")
-            if _existing is not None:
-                return _existing
-            # Try Firebase Admin SDK first (firestore.client())
-            try:
-                import firebase_admin
-                from firebase_admin import firestore as fbfs
-                if not firebase_admin._apps:
-                    firebase_admin.initialize_app()
-                return fbfs.client()
-            except Exception:
-                pass
-            # Fallback to Google Cloud Firestore (firestore.Client())
-            try:
-                from google.cloud import firestore as gcf
-                return gcf.Client()
-            except Exception:
-                st.error(
-                    "Firestore client isn't configured. Provide Firebase Admin creds or set GOOGLE_APPLICATION_CREDENTIALS.",
-                    icon="🛑",
-                )
-                raise
-
-        db = _get_db()
 
         # ---------- Shared helpers & imports used across tabs ----------
         import math
