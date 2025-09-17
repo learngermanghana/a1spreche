@@ -178,8 +178,10 @@ def _show_missing_code_warning(
         lesson_info=lesson_info,
     )
     st.warning(
-        "We couldn't find your student code. Enter it to continue, "
-        f"or [email us]({mailto_link}) and paste your work if you still can't locate it."
+        "We couldn't find your student code. Try switching to another tab and back, "
+        "or logging out and back in if it doesn't load automatically. You can "
+        "manually enter your student code in the field below. If it still isn't "
+        f"recognized, [email us]({mailto_link}) and paste your work so the administration can assist."
     )
 
 
