@@ -38,6 +38,7 @@ def test_refresh_with_toast(monkeypatch):
     toasts.refresh_with_toast()
     mock_st.toast.assert_called_once_with("Saved!", icon="✅")
     assert mock_st.session_state["__refresh"] == 1
+    assert mock_st.session_state["need_rerun"] is True
 
 
 def test_refresh_with_toast_custom_msg(monkeypatch):
@@ -46,6 +47,7 @@ def test_refresh_with_toast_custom_msg(monkeypatch):
     toasts.refresh_with_toast("Updated!")
     mock_st.toast.assert_called_once_with("Updated!", icon="✅")
     assert mock_st.session_state["__refresh"] == 1
+    assert mock_st.session_state["need_rerun"] is True
 
 
 def test_toast_once_suppresses_duplicates(monkeypatch):
