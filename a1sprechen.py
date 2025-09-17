@@ -2451,9 +2451,10 @@ if tab == "My Course":
             if post_count == 0:
                 st.caption("No posts yet. Clicking will show the full board.")
         elif not class_name_lookup:
-            st.info(
-                "This class discussion board is unavailable. "
-                "Please contact support to add your class to the roster."
+            st.error(
+                "This class discussion board is unavailable. Select another "
+                "classroom tab and return, or log out and back in to refresh "
+                "your roster."
             )
         else:
             st.warning("Missing chapter for discussion board.")
