@@ -137,12 +137,17 @@ def _load_student_data_cached() -> Optional[pd.DataFrame]:
     return df
 
 
-def load_student_data() -> Optional[pd.DataFrame]:
+def load_student_data(force_refresh: bool = False) -> Optional[pd.DataFrame]:
     """Load student roster.
 
     Returns ``None`` if the roster contains no usable rows. Any errors during
     loading are propagated to the caller.
     """
+    if force_refresh:
+        try:
+            _load_student_data_cached.clear()
+        except Exception:
+            logging.exception("Unable to clear cached student roster")
     return _load_student_data_cached()
 
 

@@ -67,6 +67,14 @@ def renew_session_if_needed() -> None:
     st.query_params["t"] = token
 
 
+def _normalize_roster(df):
+    if "StudentCode" in df.columns:
+        df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+    if "Email" in df.columns:
+        df["Email"] = df["Email"].str.lower().str.strip()
+    return df
+
+
 def render_signup_form() -> None:
     renew_session_if_needed()
     logger = logging.getLogger(__name__)
@@ -100,10 +108,18 @@ def render_signup_form() -> None:
         new_code,
     )
     if df is None:
+        logger.debug("Signup roster missing; forcing refresh for '%s'", new_code)
+        df = load_student_data(force_refresh=True)
+        roster_rows = len(df.index) if df is not None else 0
+        logger.debug(
+            "Signup roster refresh returned %d rows for student code '%s'",
+            roster_rows,
+            new_code,
+        )
+    if df is None:
         st.error("Student roster unavailable. Please try again later.")
         return
-    df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-    df["Email"] = df["Email"].str.lower().str.strip()
+    df = _normalize_roster(df)
     valid = df[(df["StudentCode"] == new_code) & (df["Email"] == new_email)]
     logger.debug(
         "Signup lookup for student code '%s' found=%s (matches=%d)",
@@ -111,6 +127,19 @@ def render_signup_form() -> None:
         not valid.empty,
         int(valid.shape[0]),
     )
+    if valid.empty:
+        logger.debug("Signup miss for '%s'; refreshing roster", new_code)
+        df = load_student_data(force_refresh=True)
+        if df is None:
+            st.error("Student roster unavailable. Please try again later.")
+            return
+        df = _normalize_roster(df)
+        valid = df[(df["StudentCode"] == new_code) & (df["Email"] == new_email)]
+        logger.debug(
+            "Signup roster refresh lookup for '%s' matches=%d",
+            new_code,
+            int(valid.shape[0]),
+        )
     if valid.empty:
         st.error("Your code/email aren’t registered. Use 'Request Access' first.")
         return
@@ -153,11 +182,19 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
         login_id,
     )
     if df is None:
+        logger.debug("Login roster missing; forcing refresh for '%s'", login_id)
+        df = load_student_data(force_refresh=True)
+        roster_rows = len(df.index) if df is not None else 0
+        logger.debug(
+            "Login roster refresh returned %d rows for '%s'",
+            roster_rows,
+            login_id,
+        )
+    if df is None:
         st.error("Student roster unavailable. Please try again later.")
         return False
 
-    df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-    df["Email"] = df["Email"].str.lower().str.strip()
+    df = _normalize_roster(df)
     lookup = df[(df["StudentCode"] == login_id) | (df["Email"] == login_id)]
     logger.debug(
         "Login lookup for identifier '%s' found=%s (matches=%d)",
@@ -165,6 +202,19 @@ def render_login_form(login_id: str, login_pass: str) -> bool:
         not lookup.empty,
         int(lookup.shape[0]),
     )
+    if lookup.empty:
+        logger.debug("Login miss for '%s'; refreshing roster", login_id)
+        df = load_student_data(force_refresh=True)
+        if df is None:
+            st.error("Student roster unavailable. Please try again later.")
+            return False
+        df = _normalize_roster(df)
+        lookup = df[(df["StudentCode"] == login_id) | (df["Email"] == login_id)]
+        logger.debug(
+            "Login roster refresh lookup for '%s' matches=%d",
+            login_id,
+            int(lookup.shape[0]),
+        )
     if lookup.empty:
         st.error("No matching student code or email found.")
         return False
@@ -388,11 +438,15 @@ def render_signup_request_banner() -> None:
 
 
 def _handle_google_oauth(code: str, state: str) -> None:
+    logger = logging.getLogger(__name__)
     df = load_student_data()
+    if df is None:
+        logger.debug("OAuth roster missing; forcing refresh")
+        df = load_student_data(force_refresh=True)
     if df is None:
         st.error("Student roster unavailable. Please try again later.")
         return
-    df["Email"] = df["Email"].str.lower().str.strip()
+    df = _normalize_roster(df)
     try:
         if st.session_state.get("_oauth_state") and state != st.session_state["_oauth_state"]:
             st.error("OAuth state mismatch. Please try again.")
@@ -433,6 +487,14 @@ def _handle_google_oauth(code: str, state: str) -> None:
 
         email = (userinfo.get("email") or "").lower().strip()
         match = df[df["Email"] == email]
+        if match.empty:
+            logger.debug("OAuth miss for '%s'; refreshing roster", email)
+            df = load_student_data(force_refresh=True)
+            if df is None:
+                st.error("Student roster unavailable. Please try again later.")
+                return
+            df = _normalize_roster(df)
+            match = df[df["Email"] == email]
         if match.empty:
             st.error("No student account found for that Google email.")
             return
