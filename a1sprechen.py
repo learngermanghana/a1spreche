@@ -4380,7 +4380,9 @@ if tab == "My Course":
 
             st.subheader("➕ Add a new post")
             st.info(
-                "Contribute to the forum. Scroll down to reply to a question or ask your own."
+                "Decide whether you're responding to a classmate or posting your own question. "
+                "If you're responding, scroll down to find the existing question and reply there. "
+                "When you want to post a new question, use the text box below."
             )
             if st.session_state.get("__clear_q_form"):
                 st.session_state.pop("__clear_q_form", None)
