@@ -86,4 +86,5 @@ def refresh_with_toast(msg: str = "Saved!") -> None:
         The message to display in the success toast. Defaults to ``"Saved!"``.
     """
     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+    st.session_state["need_rerun"] = True
     toast_ok(msg)
