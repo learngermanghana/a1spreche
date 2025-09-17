@@ -92,7 +92,7 @@ Submitting Work
             "lesen_hören": {
                 "video": "https://youtu.be/bK1HEZEaTVM",
                 "youtube_link": "https://youtu.be/bK1HEZEaTVM",
-                "grammarbook_link": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/view?usp=sharing",
+                "grammarbook_link": "https://drive.google.com/file/d/10UPl4n5FzukSDiTIlcM-WjmNuJGz9OgL/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/view?usp=sharing"
             }
         },
