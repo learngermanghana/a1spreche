@@ -12,10 +12,22 @@ from src.services.contracts import contract_active
 def _load_login_func():
     src_path = Path(__file__).resolve().parents[1] / "src/ui/auth.py"
     mod_ast = ast.parse(src_path.read_text())
-    func_node = next(
-        n for n in mod_ast.body if isinstance(n, ast.FunctionDef) and n.name == "render_login_form"
-    )
-    temp_module = ast.Module(body=[func_node], type_ignores=[])
+    func_node = None
+    helper_node = None
+    for node in mod_ast.body:
+        if isinstance(node, ast.FunctionDef) and node.name == "render_login_form":
+            func_node = node
+        if isinstance(node, ast.FunctionDef) and node.name == "_normalize_roster":
+            helper_node = node
+
+    if func_node is None:
+        raise AssertionError("render_login_form not found in auth module")
+
+    module_body = []
+    if helper_node is not None:
+        module_body.append(helper_node)
+    temp_module = ast.Module(body=module_body + [func_node], type_ignores=[])
+    ast.fix_missing_locations(temp_module)
     code = compile(temp_module, filename="auth.py", mode="exec")
 
     mod = types.ModuleType("login_test_module")
@@ -51,6 +63,8 @@ def _load_login_func():
     mod.load_student_data = lambda: df
 
     exec(code, mod.__dict__)
+    if "_normalize_roster" not in mod.__dict__:
+        mod._normalize_roster = lambda df: df
     return mod.render_login_form, errors
 
 
