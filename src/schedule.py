@@ -90,8 +90,8 @@ Submitting Work
             "grammar_topic": "Formal and Informal Greetings",
             "assignment": True,
             "lesen_hören": {
-                "video": "https://youtu.be/bK1HEZEaTVM",
-                "youtube_link": "https://youtu.be/bK1HEZEaTVM",
+                "video": "https://youtu.be/RLZBnQxAUt8",
+                "youtube_link": "https://youtu.be/RLZBnQxAUt8",
                 "grammarbook_link": "https://drive.google.com/file/d/10UPl4n5FzukSDiTIlcM-WjmNuJGz9OgL/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/view?usp=sharing"
             }
