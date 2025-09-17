@@ -6,12 +6,13 @@ bundled DejaVu fonts are unavailable.
 """
 from __future__ import annotations
 
-import html
 import base64 as _b64
+import html
 import io
 import os
 import re
 import tempfile
+import time
 from datetime import date
 from typing import Callable, NamedTuple
 
@@ -77,9 +78,12 @@ def _load_assignment_scores_cached(force_refresh: bool = False) -> pd.DataFrame:
             pass
 
     SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
-    url = (
+    base_url = (
         f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
     )
+    cache_buster = int(time.time()) if force_refresh else int(time.time() // 60)
+    sep = "&" if "?" in base_url else "?"
+    url = f"{base_url}{sep}cb={cache_buster}"
     df = pd.read_csv(url)
 
     # Normalize column headers immediately for downstream lookups.
