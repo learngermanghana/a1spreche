@@ -199,6 +199,85 @@ def hide_sidebar() -> None:
 
 
 
+def ensure_student_row(*, stop_if_missing: bool = False) -> Dict[str, Any]:
+    """Ensure ``st.session_state['student_row']`` is populated from the roster."""
+
+    student_row = st.session_state.get("student_row", {}) or {}
+    if not student_row:
+        load_student_data_fn = globals().get("load_student_data")
+        if load_student_data_fn is None:
+
+            def load_student_data_fn():
+                return pd.DataFrame(columns=["StudentCode"])
+
+        student_code = (st.session_state.get("student_code", "") or "").strip().lower()
+        logging.debug("Attempting roster lookup for student code '%s'", student_code)
+
+        try:
+            df_students = load_student_data_fn()
+        except Exception as exc:
+            logging.debug(
+                "Roster fetch raised while looking for student code '%s': %s",
+                student_code,
+                exc,
+            )
+            df_students = pd.DataFrame(columns=["StudentCode"])
+
+        if df_students is None:
+            logging.debug(
+                "Roster fetch returned no data while looking for student code '%s'",
+                student_code,
+            )
+            df_students = pd.DataFrame(columns=["StudentCode"])
+        else:
+            try:
+                row_count = len(df_students)
+            except Exception:
+                row_count = 0
+            logging.debug(
+                "Roster fetch returned %d rows while looking for student code '%s'",
+                row_count,
+                student_code,
+            )
+
+        if not student_code:
+            logging.debug("No student code available in session for roster lookup")
+        elif isinstance(df_students, pd.DataFrame) and not df_students.empty and "StudentCode" in df_students.columns:
+            try:
+                matches = df_students[
+                    df_students["StudentCode"].astype(str).str.strip().str.lower()
+                    == student_code
+                ]
+                match_count = int(matches.shape[0])
+                logging.debug(
+                    "Roster lookup for student code '%s' found=%s (matches=%d)",
+                    student_code,
+                    match_count > 0,
+                    match_count,
+                )
+                if match_count > 0:
+                    student_row = matches.iloc[0].to_dict()
+                    st.session_state["student_row"] = student_row
+            except Exception as exc:
+                logging.debug(
+                    "Roster lookup failed for student code '%s': %s",
+                    student_code,
+                    exc,
+                )
+        else:
+            logging.debug(
+                "Roster lookup for student code '%s' skipped because roster is empty or missing StudentCode column",
+                student_code,
+            )
+
+    student_row = st.session_state.get("student_row", {}) or {}
+    if stop_if_missing and not student_row:
+        st.info("🚩 No student selected.")
+        st.stop()
+
+    return student_row
+
+
 # Ensure the latest lesson schedule is loaded
 if "level_schedules_initialized" not in st.session_state:
     refresh_level_schedules()
@@ -966,6 +1045,9 @@ if not st.session_state.get("logged_in", False):
         st.stop()
 
 # ==================== LOGGED IN ====================
+# Ensure the roster row is available for downstream tabs
+ensure_student_row()
+
 # Show header immediately after login on every page
 render_logged_in_topbar()
 
@@ -1388,70 +1470,10 @@ if tab == "Dashboard":
     inject_notice_css()
 
     # ---------- Ensure we have a student row ----------
-    student_row = st.session_state.get("student_row", {}) or {}
-    if not student_row:
-        # Fallback: load roster CSV and locate the student by code.
-        load_student_data_fn = globals().get("load_student_data")
-        if load_student_data_fn is None:
-
-            def load_student_data_fn():
-                return pd.DataFrame(columns=["StudentCode"])
-
-        student_code = (st.session_state.get("student_code", "") or "").strip().lower()
-        logging.debug("Attempting roster lookup for student code '%s'", student_code)
-        df_students = load_student_data_fn()
-        if df_students is None:
-            logging.debug(
-                "Roster fetch returned no data while looking for student code '%s'",
-                student_code,
-            )
-            df_students = pd.DataFrame(columns=["StudentCode"])
-        else:
-            try:
-                row_count = len(df_students)
-            except Exception:
-                row_count = 0
-            logging.debug(
-                "Roster fetch returned %d rows while looking for student code '%s'",
-                row_count,
-                student_code,
-            )
-        if not student_code:
-            logging.debug("No student code available in session for roster lookup")
-        elif not df_students.empty and "StudentCode" in df_students.columns:
-            try:
-                matches = df_students[
-                    df_students["StudentCode"].astype(str).str.strip().str.lower()
-                    == student_code
-                ]
-                match_count = int(matches.shape[0])
-                logging.debug(
-                    "Roster lookup for student code '%s' found=%s (matches=%d)",
-                    student_code,
-                    match_count > 0,
-                    match_count,
-                )
-                if match_count > 0:
-                    student_row = matches.iloc[0].to_dict()
-                    st.session_state["student_row"] = student_row
-            except Exception as exc:
-                logging.debug(
-                    "Roster lookup failed for student code '%s': %s",
-                    student_code,
-                    exc,
-                )
-        else:
-            logging.debug(
-                "Roster lookup for student code '%s' skipped because roster is empty or missing StudentCode column",
-                student_code,
-            )
+    student_row = ensure_student_row(stop_if_missing=True)
 
     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
-    if not student_row:
-        st.info("🚩 No student selected.")
-        st.stop()
-        
     st.divider()
     # ---------- 3) Motivation mini-cards (streak / vocab / leaderboard) ----------
     _student_code_raw = (st.session_state.get("student_code", "") or "").strip()
