@@ -75,7 +75,7 @@ def test_downloads_option_rendered_when_no_scores(monkeypatch):
 
     assert tabs_calls == [["Overview", "Missed & Next", "Feedback", "Achievements", "Downloads"]]
     expected_options = [
-        "Results PDF",
+        "Transcript PDF",
         "Enrollment Letter",
         "Receipt",
         "Attendance PDF",

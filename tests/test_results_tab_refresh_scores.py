@@ -96,7 +96,7 @@ def test_refresh_button_forces_reload(monkeypatch):
 
     monkeypatch.setattr(st, "tabs", fake_tabs)
 
-    monkeypatch.setattr(st, "radio", lambda *_a, **_k: "Results PDF")
+    monkeypatch.setattr(st, "radio", lambda *_a, **_k: "Transcript PDF")
 
     assignment_ui.render_results_and_resources_tab()
 
