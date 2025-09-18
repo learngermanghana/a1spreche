@@ -846,6 +846,27 @@ def render_results_and_resources_tab() -> None:
             return f"{val:.0f}%"
         return f"{val:.0f}"
 
+    PASS_MARK = 60.0
+
+    def _score_status_details(
+        numeric_value: float | None,
+    ) -> tuple[str, str, str]:
+        """Return status details for a score as (emoji, label text, table text)."""
+
+        if numeric_value is None:
+            return "⏳", "Not completed yet", "Not completed"
+        try:
+            numeric_float = float(numeric_value)
+        except (TypeError, ValueError):
+            return "⏳", "Not completed yet", "Not completed"
+        if pd.isna(numeric_float):
+            return "⏳", "Not completed yet", "Not completed"
+
+        passed = numeric_float >= PASS_MARK
+        status_text = "Passed" if passed else "Failed"
+        emoji = "✅" if passed else "❌"
+        return emoji, status_text, status_text
+
     def _format_date_value(value: object) -> str:
         text = _clean_text(value)
         if not text:
@@ -894,7 +915,7 @@ def render_results_and_resources_tab() -> None:
 
     top_result: dict[str, object] | None = None
     df_display = pd.DataFrame(
-        columns=["assignment", "score", "date", "feedback", "answer_link"]
+        columns=["assignment", "score", "status", "date", "feedback", "answer_link"]
     )
 
 
@@ -979,6 +1000,10 @@ def render_results_and_resources_tab() -> None:
                 [float("nan")] * len(df_user), index=df_user.index
             )
 
+        status_display = numeric_series.apply(
+            lambda val: _score_status_details(val)[2]
+        )
+
         if date_series is not None:
             date_display = date_series.map(_format_date_value)
         else:
@@ -998,6 +1023,7 @@ def render_results_and_resources_tab() -> None:
             {
                 "assignment": assignment_display.astype(str),
                 "score": score_display.astype(str),
+                "status": status_display.astype(str),
                 "date": date_display.astype(str),
                 "feedback": feedback_display.astype(str),
                 "answer_link": answer_display.astype(str),
@@ -1057,20 +1083,14 @@ def render_results_and_resources_tab() -> None:
     def score_label_fmt(score_value: object, plain: bool = False) -> str:
         cleaned_text = _clean_text(score_value)
         numeric_value = _coerce_score_value(score_value)
+        emoji, status_text, _ = _score_status_details(numeric_value)
+
         if numeric_value is None:
-            return "Not completed yet" if plain else "⏳ Not completed yet"
-        if plain:
-            return cleaned_text or _display_from_numeric(numeric_value)
-        if numeric_value >= 90:
-            prefix = "🌟 Excellent work"
-        elif numeric_value >= 75:
-            prefix = "✅ Great job"
-        elif numeric_value >= 60:
-            prefix = "👍 Keep going"
-        else:
-            prefix = "⚠️ Needs improvement"
+            return status_text if plain else f"{emoji} {status_text}"
+
         display_value = cleaned_text or _display_from_numeric(numeric_value)
-        return f"{prefix} ({display_value})"
+        detail = f"{status_text} ({display_value})" if display_value else status_text
+        return detail if plain else f"{emoji} {detail}"
 
     avg_display_fmt = f"{avg_score:.1f}%" if completed else "N/A"
     best_display_fmt = f"{best_score:.0f}%" if completed else "N/A"
