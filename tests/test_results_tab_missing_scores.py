@@ -54,7 +54,7 @@ def test_results_tab_handles_missing_scores(monkeypatch):
     monkeypatch.setattr(st, "error", lambda *a, **k: None)
     monkeypatch.setattr(st, "write", lambda *a, **k: None)
     monkeypatch.setattr(st, "subheader", lambda *a, **k: None)
-    monkeypatch.setattr(st, "radio", lambda *a, **k: "Results PDF")
+    monkeypatch.setattr(st, "radio", lambda *a, **k: "Transcript PDF")
     monkeypatch.setattr(st, "download_button", lambda *a, **k: None)
     monkeypatch.setattr(
         st,

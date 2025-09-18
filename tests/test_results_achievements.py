@@ -74,7 +74,7 @@ def test_results_tab_awards_gold_and_star(monkeypatch):
     monkeypatch.setattr(
         st, "tabs", lambda labels, *a, **k: [DummyTab(label) for label in labels]
     )
-    monkeypatch.setattr(st, "radio", lambda *a, **k: "Results PDF")
+    monkeypatch.setattr(st, "radio", lambda *a, **k: "Transcript PDF")
 
     achievements_output: list[str] = []
 

@@ -1,4 +1,5 @@
 import re
+import re
 import types
 import zlib
 
@@ -27,6 +28,7 @@ def test_results_pdf_contains_student_scores(monkeypatch):
                 "StudentCode": "abc123",
                 "Name": "Alice Example",
                 "Level": "B1",
+                "ClassName": "Evening A",
                 "Email": "alice@example.com",
             },
         }
@@ -42,30 +44,6 @@ def test_results_pdf_contains_student_scores(monkeypatch):
         }
     )
     monkeypatch.setattr(assignment_ui, "fetch_scores", lambda *_a, **_k: df_scores)
-
-    df_display = pd.DataFrame(
-        {
-            "assignment": ["Assignment 1"],
-            "score": ["95"],
-            "date": ["2024-01-01"],
-        }
-    )
-    monkeypatch.setattr(assignment_ui, "df_display", df_display, raising=False)
-    monkeypatch.setattr(
-        assignment_ui,
-        "df_user",
-        pd.DataFrame({"name": ["Alice Example"]}),
-        raising=False,
-    )
-    monkeypatch.setattr(assignment_ui, "total", 1, raising=False)
-    monkeypatch.setattr(assignment_ui, "completed", 1, raising=False)
-    monkeypatch.setattr(assignment_ui, "avg_score", 95.0, raising=False)
-    monkeypatch.setattr(assignment_ui, "best_score", 95.0, raising=False)
-
-    def fake_score_label(score, plain=False):
-        return f"Score {score}"
-
-    monkeypatch.setattr(assignment_ui, "score_label_fmt", fake_score_label, raising=False)
     monkeypatch.setattr(assignment_ui, "load_school_logo", lambda: None, raising=False)
 
     monkeypatch.setattr(st, "markdown", lambda *a, **k: None)
@@ -80,10 +58,10 @@ def test_results_pdf_contains_student_scores(monkeypatch):
     monkeypatch.setattr(st, "secrets", {})
     monkeypatch.setattr(st, "stop", lambda *a, **k: (_ for _ in ()).throw(AssertionError("stop called")))
 
-    monkeypatch.setattr(st, "radio", lambda *a, **k: "Results PDF")
+    monkeypatch.setattr(st, "radio", lambda *a, **k: "Transcript PDF")
 
     def fake_button(label, *args, **kwargs):
-        return label == "⬇️ Create & Download Results PDF"
+        return label == "⬇️ Create & Download Transcript PDF"
 
     monkeypatch.setattr(st, "button", fake_button)
 
@@ -112,3 +90,6 @@ def test_results_pdf_contains_student_scores(monkeypatch):
 
     assert "Assignment 1".encode("utf-16-be") in extracted
     assert "95".encode("utf-16-be") in extracted
+    assert "Tries".encode("utf-16-be") in extracted
+    assert "Try 1".encode("utf-16-be") in extracted
+    assert "Class:".encode("utf-16-be") in extracted

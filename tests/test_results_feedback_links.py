@@ -80,7 +80,7 @@ def test_feedback_tab_shows_feedback_and_roster_links(monkeypatch):
     monkeypatch.setattr(st, "error", lambda *a, **k: None)
     monkeypatch.setattr(st, "button", lambda *a, **k: False)
     monkeypatch.setattr(st, "download_button", lambda *a, **k: None)
-    monkeypatch.setattr(st, "radio", lambda *a, **k: "Results PDF")
+    monkeypatch.setattr(st, "radio", lambda *a, **k: "Transcript PDF")
     monkeypatch.setattr(st, "cache_data", types.SimpleNamespace(clear=lambda: None))
     monkeypatch.setattr(st, "secrets", {})
     monkeypatch.setattr(

@@ -14,7 +14,7 @@ import re
 import tempfile
 import time
 from datetime import date
-from typing import Callable, NamedTuple
+from typing import Callable, NamedTuple, Sequence
 
 import pandas as pd
 import requests
@@ -55,6 +55,269 @@ BOLD_FONT_PATH = os.path.join(BASE_DIR, "font", "DejaVuSans-Bold.ttf")
 LEVEL_ASSIGNMENT_TARGET_OVERRIDES: dict[str, int] = {
     "A1": 19,
 }
+
+PASS_MARK = 60.0
+
+
+def _first_series(df: pd.DataFrame, candidates: Sequence[str]) -> pd.Series | None:
+    for candidate in candidates:
+        if candidate in df.columns:
+            return df[candidate]
+    return None
+
+
+def _clean_text(value: object) -> str:
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except Exception:
+        pass
+    text = str(value).strip()
+    return "" if not text or text.lower() == "nan" else text
+
+
+def _coerce_score_value(value: object) -> float | None:
+    text = _clean_text(value)
+    if not text:
+        return None
+    normalized = text.replace(",", "")
+    frac_match = re.match(r"^\s*(-?\d+(?:\.\d+)?)\s*/\s*(-?\d+(?:\.\d+)?)\s*$", normalized)
+    if frac_match:
+        try:
+            numerator = float(frac_match.group(1))
+            denominator = float(frac_match.group(2))
+        except ValueError:
+            return None
+        if denominator == 0:
+            return None
+        ratio = numerator / denominator
+        return ratio * 100.0 if 0 <= ratio <= 1 else numerator
+    percent_match = re.search(r"-?\d+(?:\.\d+)?(?=%)", normalized)
+    if percent_match:
+        try:
+            return float(percent_match.group())
+        except ValueError:
+            return None
+    number_match = re.search(r"-?\d+(?:\.\d+)?", normalized)
+    if number_match:
+        try:
+            value_num = float(number_match.group())
+        except ValueError:
+            return None
+        if 0 <= value_num <= 1 and "%" not in normalized:
+            return value_num * 100.0
+        return value_num
+    return None
+
+
+def _display_from_numeric(val: float) -> str:
+    if pd.isna(val):
+        return ""
+    if 0 <= val <= 1:
+        return f"{val:.0%}"
+    if 0 <= val <= 100:
+        return f"{val:.0f}%"
+    return f"{val:.0f}"
+
+
+def _score_status_details(numeric_value: float | None) -> tuple[str, str, str]:
+    """Return status details for a score as (emoji, label text, table text)."""
+
+    if numeric_value is None:
+        return "⏳", "Not completed yet", "Not completed"
+    try:
+        numeric_float = float(numeric_value)
+    except (TypeError, ValueError):
+        return "⏳", "Not completed yet", "Not completed"
+    if pd.isna(numeric_float):
+        return "⏳", "Not completed yet", "Not completed"
+
+    passed = numeric_float >= PASS_MARK
+    status_text = "Passed" if passed else "Failed"
+    emoji = "✅" if passed else "❌"
+    return emoji, status_text, status_text
+
+
+def _format_date_value(value: object) -> str:
+    text = _clean_text(value)
+    if not text:
+        return ""
+    try:
+        parsed = pd.to_datetime(text, errors="coerce")
+    except Exception:
+        parsed = pd.NaT
+    if pd.isna(parsed):
+        return text
+    return parsed.strftime("%Y-%m-%d")
+
+
+def _assignment_key(text: str, fallback: str) -> str:
+    base = re.sub(r"[^0-9a-z]+", "-", text.casefold())
+    base = re.sub(r"-+", "-", base).strip("-")
+    return base or fallback
+
+
+def summarize_assignment_attempts(df_user: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate repeated attempts into a single row per assignment."""
+
+    summary_columns = [
+        "assignment",
+        "assignment_key",
+        "score_raw",
+        "score_display",
+        "score_numeric",
+        "status",
+        "date_raw",
+        "date_norm",
+        "feedback",
+        "answer_link",
+        "attempts",
+    ]
+
+    if not isinstance(df_user, pd.DataFrame) or df_user.empty:
+        return pd.DataFrame(columns=summary_columns)
+
+    assignment_series = _first_series(
+        df_user,
+        [
+            "assignment",
+            "assignment_name",
+            "assignmenttitle",
+            "task",
+            "chapter",
+            "lesson",
+        ],
+    )
+    score_series = _first_series(
+        df_user,
+        ["score", "grade", "points", "result", "marks", "percentage"],
+    )
+    date_series = _first_series(
+        df_user,
+        [
+            "date",
+            "submission_date",
+            "submitted",
+            "submitted_on",
+            "completed_on",
+            "timestamp",
+        ],
+    )
+    feedback_series = _first_series(
+        df_user,
+        [
+            "feedback",
+            "feedback_text",
+            "feedbackbody",
+            "feedback_body",
+            "comment",
+            "comments",
+            "notes",
+            "remarks",
+            "remark",
+        ],
+    )
+    answer_series = _first_series(
+        df_user,
+        [
+            "answer_link",
+            "answer",
+            "answers",
+            "assignment_link",
+            "attachment",
+            "attachments",
+            "resource",
+            "resource_link",
+            "resources",
+            "link",
+        ],
+    )
+
+    index = df_user.index
+    total_rows = len(df_user)
+    assignment_display = (
+        assignment_series.map(_clean_text)
+        if assignment_series is not None
+        else pd.Series([""] * total_rows, index=index, dtype=object)
+    )
+    score_raw = (
+        score_series
+        if score_series is not None
+        else pd.Series([None] * total_rows, index=index, dtype=object)
+    )
+    score_clean = score_raw.map(_clean_text)
+    numeric_series = score_raw.map(_coerce_score_value)
+    score_display = score_clean.where(
+        score_clean.astype(bool), numeric_series.map(_display_from_numeric)
+    ).fillna("")
+    status_display = numeric_series.apply(lambda val: _score_status_details(val)[2])
+
+    date_raw_series = (
+        date_series
+        if date_series is not None
+        else pd.Series([None] * total_rows, index=index, dtype=object)
+    )
+    date_raw = date_raw_series.map(_clean_text)
+    date_norm = date_raw_series.map(_format_date_value)
+    date_value = pd.to_datetime(date_raw_series, errors="coerce")
+
+    def _series_to_text(series: pd.Series | None) -> pd.Series:
+        if series is None:
+            return pd.Series([""] * total_rows, index=index, dtype=object)
+        return series.map(_clean_text)
+
+    feedback_display = _series_to_text(feedback_series)
+    answer_display = _series_to_text(answer_series)
+
+    assignment_keys = [
+        _assignment_key(label, fallback=f"_row_{pos}")
+        for pos, label in enumerate(assignment_display)
+    ]
+
+    df_prepared = pd.DataFrame(
+        {
+            "assignment": assignment_display.astype(str),
+            "assignment_key": assignment_keys,
+            "score_raw": score_raw,
+            "score_display": score_display.astype(str),
+            "score_numeric": pd.to_numeric(numeric_series, errors="coerce"),
+            "status": status_display.astype(str),
+            "date_raw": date_raw.astype(str),
+            "date_norm": date_norm.astype(str),
+            "date_value": date_value,
+            "feedback": feedback_display.astype(str),
+            "answer_link": answer_display.astype(str),
+            "attempt_order": pd.RangeIndex(start=0, stop=total_rows),
+        },
+        index=index,
+    )
+
+    records: list[pd.Series] = []
+    for _, group in df_prepared.groupby("assignment_key", sort=False):
+        group_sorted = group.assign(
+            _score_sort=group["score_numeric"].fillna(float("-inf")),
+            _has_date=group["date_value"].notna().astype(int),
+            _date_sort=group["date_value"].fillna(pd.Timestamp.min),
+        ).sort_values(
+            by=["_score_sort", "_has_date", "_date_sort", "attempt_order"],
+            ascending=[False, False, False, False],
+        )
+        chosen = group_sorted.iloc[0].copy()
+        chosen["attempts"] = int(len(group))
+        records.append(chosen.drop(labels=["_score_sort", "_has_date", "_date_sort"], errors="ignore"))
+
+    if not records:
+        return pd.DataFrame(columns=summary_columns)
+
+    result = pd.DataFrame(records)
+    if "attempt_order" in result.columns:
+        result = result.drop(columns=["attempt_order"], errors="ignore")
+    if "date_value" in result.columns:
+        result = result.drop(columns=["date_value"], errors="ignore")
+
+    return result.reindex(columns=summary_columns)
 
 # ---------------------------------------------------------------------------
 # Data loaders
@@ -787,98 +1050,6 @@ def render_results_and_resources_tab() -> None:
     else:
         df_scores = pd.DataFrame()
 
-    def _first_series(df: pd.DataFrame, candidates: list[str]) -> pd.Series | None:
-        for candidate in candidates:
-            if candidate in df.columns:
-                return df[candidate]
-        return None
-
-    def _clean_text(value: object) -> str:
-        if value is None:
-            return ""
-        try:
-            if pd.isna(value):
-                return ""
-        except Exception:
-            pass
-        text = str(value).strip()
-        return "" if not text or text.lower() == "nan" else text
-
-    def _coerce_score_value(value: object) -> float | None:
-        text = _clean_text(value)
-        if not text:
-            return None
-        normalized = text.replace(",", "")
-        frac_match = re.match(r"^\s*(-?\d+(?:\.\d+)?)\s*/\s*(-?\d+(?:\.\d+)?)\s*$", normalized)
-        if frac_match:
-            try:
-                numerator = float(frac_match.group(1))
-                denominator = float(frac_match.group(2))
-            except ValueError:
-                return None
-            if denominator == 0:
-                return None
-            ratio = numerator / denominator
-            return ratio * 100.0 if 0 <= ratio <= 1 else numerator
-        percent_match = re.search(r"-?\d+(?:\.\d+)?(?=%)", normalized)
-        if percent_match:
-            try:
-                return float(percent_match.group())
-            except ValueError:
-                return None
-        number_match = re.search(r"-?\d+(?:\.\d+)?", normalized)
-        if number_match:
-            try:
-                value_num = float(number_match.group())
-            except ValueError:
-                return None
-            if 0 <= value_num <= 1 and "%" not in normalized:
-                return value_num * 100.0
-            return value_num
-        return None
-
-    def _display_from_numeric(val: float) -> str:
-        if pd.isna(val):
-            return ""
-        if 0 <= val <= 1:
-            return f"{val:.0%}"
-        if 0 <= val <= 100:
-            return f"{val:.0f}%"
-        return f"{val:.0f}"
-
-    PASS_MARK = 60.0
-
-    def _score_status_details(
-        numeric_value: float | None,
-    ) -> tuple[str, str, str]:
-        """Return status details for a score as (emoji, label text, table text)."""
-
-        if numeric_value is None:
-            return "⏳", "Not completed yet", "Not completed"
-        try:
-            numeric_float = float(numeric_value)
-        except (TypeError, ValueError):
-            return "⏳", "Not completed yet", "Not completed"
-        if pd.isna(numeric_float):
-            return "⏳", "Not completed yet", "Not completed"
-
-        passed = numeric_float >= PASS_MARK
-        status_text = "Passed" if passed else "Failed"
-        emoji = "✅" if passed else "❌"
-        return emoji, status_text, status_text
-
-    def _format_date_value(value: object) -> str:
-        text = _clean_text(value)
-        if not text:
-            return ""
-        try:
-            parsed = pd.to_datetime(text, errors="coerce")
-        except Exception:
-            parsed = pd.NaT
-        if pd.isna(parsed):
-            return text
-        return parsed.strftime("%Y-%m-%d")
-
     student_code_norm = selected_code.casefold() if selected_code else ""
     student_level_norm = selected_level.casefold() if selected_level else ""
 
@@ -909,195 +1080,98 @@ def render_results_and_resources_tab() -> None:
         total_target = int(target_value) if target_value is not None else 0
     except (TypeError, ValueError):
         total_target = 0
-    completed = 0
-    avg_score = 0.0
-    best_score = 0.0
+
+    df_summary = summarize_assignment_attempts(df_user)
+
+    numeric_series = (
+        pd.to_numeric(df_summary["score_numeric"], errors="coerce")
+        if "score_numeric" in df_summary.columns
+        else pd.Series(dtype=float)
+    )
+    numeric_nonnull = numeric_series.dropna()
+
+    completed = int(numeric_nonnull.count())
+    avg_score = float(numeric_nonnull.mean()) if not numeric_nonnull.empty else 0.0
+    best_score = float(numeric_nonnull.max()) if not numeric_nonnull.empty else 0.0
+    if pd.isna(avg_score):
+        avg_score = 0.0
+    if pd.isna(best_score):
+        best_score = 0.0
 
     top_result: dict[str, object] | None = None
-    df_display = pd.DataFrame(
-        columns=["assignment", "score", "status", "date", "feedback", "answer_link"]
-    )
-
-
-    if isinstance(df_user, pd.DataFrame) and not df_user.empty:
-        assignment_series = _first_series(
-            df_user,
-            [
-                "assignment",
-                "assignment_name",
-                "assignmenttitle",
-                "task",
-                "chapter",
-                "lesson",
-            ],
-        )
-        score_series = _first_series(
-            df_user,
-            ["score", "grade", "points", "result", "marks", "percentage"],
-        )
-        date_series = _first_series(
-            df_user,
-            [
-                "date",
-                "submission_date",
-                "submitted",
-                "submitted_on",
-                "completed_on",
-                "timestamp",
-            ],
-        )
-        feedback_series = _first_series(
-            df_user,
-            [
-                "feedback",
-                "feedback_text",
-                "feedbackbody",
-                "feedback_body",
-                "comment",
-                "comments",
-                "notes",
-                "remarks",
-                "remark",
-            ],
-        )
-        answer_series = _first_series(
-            df_user,
-            [
-                "answer_link",
-                "answer",
-                "answers",
-                "assignment_link",
-                "attachment",
-                "attachments",
-                "resource",
-                "resource_link",
-                "resources",
-                "link",
-            ],
-        )
-
-        if assignment_series is not None:
-            assignment_display = assignment_series.map(_clean_text)
-        else:
-            assignment_display = pd.Series(
-                [""] * len(df_user), index=df_user.index, dtype=object
-            )
-
-        if score_series is not None:
-            score_display = score_series.map(_clean_text)
-            numeric_series = pd.to_numeric(
-                score_series.map(_coerce_score_value), errors="coerce"
-            )
-            score_display = score_display.where(
-                score_display.astype(bool),
-                numeric_series.map(_display_from_numeric),
-            )
-        else:
-            score_display = pd.Series(
-                [""] * len(df_user), index=df_user.index, dtype=object
-            )
-            numeric_series = pd.Series(
-                [float("nan")] * len(df_user), index=df_user.index
-            )
-
-        status_display = numeric_series.apply(
-            lambda val: _score_status_details(val)[2]
-        )
-
-        if date_series is not None:
-            date_display = date_series.map(_format_date_value)
-        else:
-            date_display = pd.Series(
-                [""] * len(df_user), index=df_user.index, dtype=object
-            )
-
-        def _series_to_text(series: pd.Series | None) -> pd.Series:
-            if series is None:
-                return pd.Series([""] * len(df_user), index=df_user.index, dtype=object)
-            return series.map(_clean_text)
-
-        feedback_display = _series_to_text(feedback_series)
-        answer_display = _series_to_text(answer_series)
-
-        df_display = pd.DataFrame(
-            {
-                "assignment": assignment_display.astype(str),
-                "score": score_display.astype(str),
-                "status": status_display.astype(str),
-                "date": date_display.astype(str),
-                "feedback": feedback_display.astype(str),
-                "answer_link": answer_display.astype(str),
+    if not numeric_nonnull.empty:
+        try:
+            top_idx = numeric_series.idxmax(skipna=True)
+        except (ValueError, TypeError):
+            top_idx = None
+        if top_idx in df_summary.index:
+            top_row = df_summary.loc[top_idx]
+            raw_score = top_row.get("score_raw")
+            if raw_score in (None, ""):
+                raw_score = top_row.get("score_display")
+            top_result = {
+                "assignment": str(top_row.get("assignment") or ""),
+                "raw": raw_score,
+                "attempts": int(top_row.get("attempts") or 0),
             }
-        ).reset_index(drop=True)
 
-        numeric_nonnull = numeric_series.dropna()
-        if not numeric_nonnull.empty:
-            try:
-                best_index = numeric_nonnull.idxmax()
-            except ValueError:
-                best_index = None
-            if best_index is not None and best_index in numeric_series.index:
-                assignment_value = _clean_text(assignment_display.get(best_index))
-                raw_value: object | None = None
-                if score_series is not None and best_index in score_series.index:
-                    raw_value = score_series.get(best_index)
-                    try:
-                        if pd.isna(raw_value):
-                            raw_value = None
-                    except Exception:
-                        pass
-                if raw_value is None:
-                    raw_value = numeric_series.get(best_index)
-                top_result = {
-                    "assignment": assignment_value,
-                    "raw": raw_value,
-                }
-        completed = int(numeric_nonnull.count())
-        if completed:
-            avg_score = float(numeric_nonnull.mean())
-            best_score = float(numeric_nonnull.max())
-            if pd.isna(avg_score):
-                avg_score = 0.0
-            if pd.isna(best_score):
-                best_score = 0.0
-
-            try:
-                top_idx = numeric_series.idxmax(skipna=True)
-            except (ValueError, TypeError):
-                top_idx = None
-            if top_idx in numeric_series.index:
-                assignment_value = (
-                    assignment_display.loc[top_idx]
-                    if top_idx in assignment_display.index
-                    else ""
-                )
-                if score_series is not None and top_idx in score_series.index:
-                    raw_value = score_series.loc[top_idx]
-                else:
-                    raw_value = score_display.loc[top_idx]
-                top_result = {
-                    "assignment": _clean_text(assignment_value),
-                    "raw": raw_value,
-                }
-
-    def score_label_fmt(score_value: object, plain: bool = False) -> str:
+    def score_label_fmt(
+        score_value: object, plain: bool = False, attempts: int | None = None
+    ) -> str:
         cleaned_text = _clean_text(score_value)
         numeric_value = _coerce_score_value(score_value)
         emoji, status_text, _ = _score_status_details(numeric_value)
 
         if numeric_value is None:
-            return status_text if plain else f"{emoji} {status_text}"
+            detail = cleaned_text or status_text
+        else:
+            display_value = cleaned_text or _display_from_numeric(numeric_value)
+            detail = f"{status_text} ({display_value})" if display_value else status_text
 
-        display_value = cleaned_text or _display_from_numeric(numeric_value)
-        detail = f"{status_text} ({display_value})" if display_value else status_text
+        if attempts and attempts > 0:
+            detail = f"{detail} (Try {attempts})"
+
         return detail if plain else f"{emoji} {detail}"
 
     avg_display_fmt = f"{avg_score:.1f}%" if completed else "N/A"
     best_display_fmt = f"{best_score:.0f}%" if completed else "N/A"
 
+    if not df_summary.empty:
+        df_display = (
+            df_summary.rename(
+                columns={
+                    "score_display": "score",
+                    "date_norm": "date",
+                    "attempts": "tries",
+                }
+            )[
+                [
+                    "assignment",
+                    "score",
+                    "tries",
+                    "status",
+                    "date",
+                    "feedback",
+                    "answer_link",
+                ]
+            ]
+        )
+    else:
+        df_display = pd.DataFrame(
+            columns=[
+                "assignment",
+                "score",
+                "tries",
+                "status",
+                "date",
+                "feedback",
+                "answer_link",
+            ]
+        )
+
     display_records: list[dict[str, object]]
-    if isinstance(df_display, pd.DataFrame) and not df_display.empty:
-        display_records = df_display.to_dict(orient="records")
+    if not df_summary.empty:
+        display_records = df_summary.to_dict(orient="records")
     else:
         display_records = []
 
@@ -1215,8 +1289,12 @@ def render_results_and_resources_tab() -> None:
             for idx, record in enumerate(display_records):
                 assignment_name = str(record.get("assignment") or "Assignment")
                 st.markdown(f"**{assignment_name}**")
-                st.write(score_label_fmt(record.get("score")))
-                date_value = record.get("date")
+                attempts_val = int(record.get("attempts") or 0)
+                score_value = record.get("score_raw")
+                if score_value in (None, ""):
+                    score_value = record.get("score_display")
+                st.write(score_label_fmt(score_value, attempts=attempts_val))
+                date_value = record.get("date_norm") or record.get("date_raw")
                 if date_value:
                     st.write(f"Date: {date_value}")
 
@@ -1384,9 +1462,10 @@ def render_results_and_resources_tab() -> None:
         if top_result is not None:
             st.markdown("---")
             assignment_display = str(top_result.get("assignment") or "Assignment")
+            attempts_val = int(top_result.get("attempts") or 0)
             st.write(
                 f"Top performance: **{assignment_display}** — "
-                f"{score_label_fmt(top_result.get('raw'))}"
+                f"{score_label_fmt(top_result.get('raw'), attempts=attempts_val)}"
             )
         elif total_target and not completed:
             st.markdown("---")
@@ -1395,16 +1474,20 @@ def render_results_and_resources_tab() -> None:
     with downloads_tab:
         choice = st.radio(
             "Select a download",
-            ["Results PDF", "Enrollment Letter", "Receipt", "Attendance PDF"],
+            ["Transcript PDF", "Enrollment Letter", "Receipt", "Attendance PDF"],
             horizontal=True,
         )
 
-        # ------- Results PDF -------
-        if choice == "Results PDF":
-            st.markdown("**Results summary PDF**")
-            COL_ASSN_W, COL_SCORE_W, COL_DATE_W = 45, 18, 30
+        # ------- Transcript PDF -------
+        if choice == "Transcript PDF":
+            st.markdown("**Transcript summary PDF**")
+            COL_ASSN_W, COL_SCORE_W, COL_TRIES_W, COL_DATE_W = 50, 22, 16, 28
             PAGE_WIDTH, MARGIN = 210, 10
-            FEEDBACK_W = PAGE_WIDTH - 2 * MARGIN - (COL_ASSN_W + COL_SCORE_W + COL_DATE_W)
+            FEEDBACK_W = (
+                PAGE_WIDTH
+                - 2 * MARGIN
+                - (COL_ASSN_W + COL_SCORE_W + COL_TRIES_W + COL_DATE_W)
+            )
 
             class PDFReport(FPDF):
                 def __init__(self, *args, **kwargs):
@@ -1446,13 +1529,13 @@ def render_results_and_resources_tab() -> None:
                     self.set_font("DejaVu", "", 9)
                     self.set_text_color(120, 120, 120)
                     footer_text = self._text(
-                        f"Learn Language Education Academy — Results generated on {pd.Timestamp.now():%d.%m.%Y}"
+                        f"Learn Language Education Academy — Transcript generated on {pd.Timestamp.now():%d.%m.%Y}"
                     )
                     self.cell(0, 8, footer_text, 0, 0, "C")
                     self.set_text_color(0, 0, 0)
                     self.alias_nb_pages()
 
-            if st.button("⬇️ Create & Download Results PDF"):
+            if st.button("⬇️ Create & Download Transcript PDF"):
                 pdf = PDFReport()
                 t = pdf._text
                 pdf.add_page()
@@ -1479,9 +1562,12 @@ def render_results_and_resources_tab() -> None:
                     fallback_level = _session_str("student_level", "-")
                     level_val = fallback_level.upper() if fallback_level else "-"
 
+                class_display = _row_str("ClassName", "Class", default="-") or "-"
+                today_str = date.today().strftime("%Y-%m-%d")
+
                 pdf.cell(0, 8, t(f"Name: {shown_name}"), ln=1)
                 pdf.cell(0, 8, t(f"Code: {code_val}     Level: {level_val}"), ln=1)
-                pdf.cell(0, 8, t(f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"), ln=1)
+                pdf.cell(0, 8, t(f"Class: {class_display}     Date: {today_str}"), ln=1)
                 pdf.ln(5)
 
                 # Summary
@@ -1500,6 +1586,7 @@ def render_results_and_resources_tab() -> None:
                 pdf.set_font("DejaVu", "B", 11)
                 pdf.cell(COL_ASSN_W, 8, t("Assignment"), 1, 0, "C")
                 pdf.cell(COL_SCORE_W, 8, t("Score"), 1, 0, "C")
+                pdf.cell(COL_TRIES_W, 8, t("Tries"), 1, 0, "C")
                 pdf.cell(COL_DATE_W, 8, t("Date"), 1, 0, "C")
                 pdf.cell(FEEDBACK_W, 8, t("Feedback"), 1, 1, "C")
 
@@ -1507,14 +1594,26 @@ def render_results_and_resources_tab() -> None:
                 pdf.set_font("DejaVu", "", 10)
                 pdf.set_fill_color(240, 240, 240)
                 row_fill = False
-                rows_iter = df_display.iterrows() if isinstance(df_display, pd.DataFrame) else []
+                rows_iter = df_summary.iterrows() if not df_summary.empty else []
                 for _, row in rows_iter:  # type: ignore[misc]
                     assn = t(str(row.get("assignment", "")))
-                    score_txt = t(str(row.get("score", "")))
-                    date_txt = t(str(row.get("date", "")))
-                    label = t(score_label_fmt(row.get("score", None), plain=True))
+                    score_txt = t(str(row.get("score_display", "")))
+                    tries_txt = t(str(row.get("attempts", "")))
+                    date_txt = t(str(row.get("date_norm", "")))
+                    attempts_val = int(row.get("attempts") or 0)
+                    score_value = row.get("score_raw")
+                    if score_value in (None, ""):
+                        score_value = row.get("score_display")
+                    label = t(
+                        score_label_fmt(
+                            score_value,
+                            plain=True,
+                            attempts=attempts_val,
+                        )
+                    )
                     pdf.cell(COL_ASSN_W, 8, assn, 1, 0, "L", row_fill)
                     pdf.cell(COL_SCORE_W, 8, score_txt, 1, 0, "C", row_fill)
+                    pdf.cell(COL_TRIES_W, 8, tries_txt, 1, 0, "C", row_fill)
                     pdf.cell(COL_DATE_W, 8, date_txt, 1, 0, "C", row_fill)
                     pdf.multi_cell(FEEDBACK_W, 8, label, 1, "C", row_fill)
                     row_fill = not row_fill
@@ -1523,18 +1622,18 @@ def render_results_and_resources_tab() -> None:
                 pdf_bytes = pdf.output(dest="S").encode("latin1", "replace")
                 file_code = code_val if code_val and code_val != "-" else "student"
                 file_level = level_val if level_val and level_val != "-" else "level"
-                file_stem = f"{file_code}_results_{file_level}".replace(" ", "_")
+                file_stem = f"{file_code}_transcript_{file_level}".replace(" ", "_")
                 file_name = f"{file_stem}.pdf"
                 st.download_button(
-                    label="Download Results PDF",
+                    label="Download Transcript PDF",
                     data=pdf_bytes,
                     file_name=file_name,
                     mime="application/pdf",
                 )
                 b64 = _b64.b64encode(pdf_bytes).decode()
                 st.markdown(
-                    f'<a href="data:application/pdf;base64,{b64}" download="{file_name}" '
-                    f'style="font-size:1.1em;font-weight:600;color:#2563eb;">📥 Click here to download results PDF (manual)</a>',
+                    f"<a href\"data:application/pdf;base64,{b64}\" download=\"{file_name}\" "
+                    f"style=\"font-size:1.1em;font-weight:600;color:#2563eb;\">📥 Click here to download transcript PDF (manual)</a>",
                     unsafe_allow_html=True,
                 )
                 st.info("If the button does not work, right-click the blue link above and choose 'Save link as...'")
