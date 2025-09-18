@@ -1632,7 +1632,7 @@ def render_results_and_resources_tab() -> None:
                 )
                 b64 = _b64.b64encode(pdf_bytes).decode()
                 st.markdown(
-                    f"<a href\"data:application/pdf;base64,{b64}\" download=\"{file_name}\" "
+                    f"<a href=\"data:application/pdf;base64,{b64}\" download=\"{file_name}\" "
                     f"style=\"font-size:1.1em;font-weight:600;color:#2563eb;\">📥 Click here to download transcript PDF (manual)</a>",
                     unsafe_allow_html=True,
                 )
