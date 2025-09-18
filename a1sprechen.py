@@ -1542,7 +1542,23 @@ if tab == "Dashboard":
         _lead_chip = "<span class='pill pill-amber'>Not ranked yet</span>"
 
     _summary = get_assignment_summary(_student_code, _level, _df_assign)
-    _missed_list = _summary.get("missed", [])
+
+    _missed_raw = _summary.get("missed", [])
+    if isinstance(_missed_raw, (list, tuple, set)):
+        _missed_list = [str(item).strip() for item in _missed_raw if str(item).strip()]
+    elif isinstance(_missed_raw, str):
+        _missed_list = [_missed_raw.strip()] if _missed_raw.strip() else []
+    else:
+        _missed_list = []
+
+    _failed_raw = _summary.get("failed", [])
+    if isinstance(_failed_raw, (list, tuple, set)):
+        _failed_list = [str(item).strip() for item in _failed_raw if str(item).strip()]
+    elif isinstance(_failed_raw, str):
+        _failed_list = [_failed_raw.strip()] if _failed_raw.strip() else []
+    else:
+        _failed_list = []
+
     _next_lesson = _summary.get("next")
 
     if _missed_list:
@@ -1552,7 +1568,13 @@ if tab == "Dashboard":
         _missed_chip = "<span class='pill pill-green'>None</span>"
         _missed_preview = "You're on track"
 
-    if _next_lesson:
+    if _failed_list:
+        _next_chip = "<span class='pill pill-amber'>Rework failed assignment</span>"
+        if len(_failed_list) == 1:
+            _next_sub = _failed_list[0]
+        else:
+            _next_sub = f"{_failed_list[0]} (+{len(_failed_list) - 1} more)"
+    elif _next_lesson:
         _next_title = (
             f"Day {_next_lesson.get('day','?')}: {_next_lesson.get('chapter','?')} – {_next_lesson.get('topic','')}"
         )

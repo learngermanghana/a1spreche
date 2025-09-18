@@ -473,23 +473,60 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
     level_norm = (level or "").strip().casefold()
 
     completed_nums: set[float] = set()
+    failed_attempt_nums: set[float] = set()
     if isinstance(df, pd.DataFrame) and not df.empty:
         required_columns = {"studentcode", "assignment", "level"}
         if required_columns.issubset(df.columns):
+            normalized_columns = {
+                str(column).strip().casefold(): column for column in df.columns
+            }
+            score_column_name: str | None = None
+            for candidate in ("score", "grade", "points", "result", "marks", "percentage"):
+                lookup = normalized_columns.get(candidate)
+                if lookup is not None:
+                    score_column_name = lookup
+                    break
+
             student_series = (
                 df["studentcode"].astype(str).str.strip().str.casefold()
             )
             level_series = df["level"].astype(str).str.strip().str.casefold()
             mask = (student_series == student_norm) & (level_series == level_norm)
             if mask.any():
-                for value in df.loc[mask, "assignment"]:
-                    if pd.isna(value):
+                highest_scores: dict[float, float] = {}
+                filtered_df = df.loc[mask]
+                for _, row in filtered_df.iterrows():
+                    assignment_value = row.get("assignment")
+                    if pd.isna(assignment_value):
                         continue
-                    text = str(value).strip()
+                    text = str(assignment_value).strip()
                     if not text:
                         continue
-                    for num in _extract_all_nums(text):
-                        completed_nums.add(num)
+                    numbers = _extract_all_nums(text)
+                    if not numbers:
+                        continue
+
+                    numeric_score: float | None = None
+                    if score_column_name is not None:
+                        numeric_score = _coerce_score_value(row.get(score_column_name))
+                        if numeric_score is not None:
+                            try:
+                                numeric_score = float(numeric_score)
+                            except (TypeError, ValueError):
+                                numeric_score = None
+                    if numeric_score is None or pd.isna(numeric_score):
+                        continue
+
+                    for num in numbers:
+                        previous_best = highest_scores.get(num)
+                        if previous_best is None or numeric_score > previous_best:
+                            highest_scores[num] = numeric_score
+
+                for identifier, best_score in highest_scores.items():
+                    if best_score >= PASS_MARK:
+                        completed_nums.add(identifier)
+                    else:
+                        failed_attempt_nums.add(identifier)
 
     def _to_int(value: object) -> int | None:
         try:
@@ -553,8 +590,20 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
             }
         )
 
+    failed_identifiers_set: set[float] = set()
     for info in lessons_info:
-        info["completed"] = all(num in completed_nums for num in info["relevant_nums"])
+        relevant_nums = info["relevant_nums"]
+        needs_rework = any(num in failed_attempt_nums for num in relevant_nums)
+        info["needs_rework"] = needs_rework
+        if needs_rework:
+            info["completed"] = False
+            for num in relevant_nums:
+                if num in failed_attempt_nums:
+                    failed_identifiers_set.add(num)
+        else:
+            info["completed"] = all(num in completed_nums for num in relevant_nums)
+
+    blocked_for_rework = any(info.get("needs_rework") for info in lessons_info)
 
     completed_day_ints = [
         info["day_int"]
@@ -584,16 +633,6 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
         if info.get("completed"):
             continue
 
-        if next_assignment is None:
-            day_int = info.get("day_int")
-            day_value = info.get("day")
-            next_assignment = {
-                "day": day_int if day_int is not None else (day_value if day_value is not None else "?"),
-                "chapter": info.get("chapter"),
-                "topic": info.get("topic"),
-                "goal": info.get("goal"),
-            }
-
         day_int = info.get("day_int")
         if (
             max_completed_day is not None
@@ -602,7 +641,28 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
         ):
             missed.append(_format_line(info))
 
-    return {"missed": missed, "next": next_assignment, "target": target_total}
+        if blocked_for_rework:
+            continue
+
+        if next_assignment is None:
+            day_value = info.get("day")
+            next_assignment = {
+                "day": day_int if day_int is not None else (day_value if day_value is not None else "?"),
+                "chapter": info.get("chapter"),
+                "topic": info.get("topic"),
+                "goal": info.get("goal"),
+            }
+
+    failed_lines = [_format_line(info) for info in lessons_info if info.get("needs_rework")]
+    failed_identifiers = sorted(failed_identifiers_set)
+
+    return {
+        "missed": missed,
+        "next": next_assignment if not blocked_for_rework else None,
+        "target": target_total,
+        "failed": failed_lines,
+        "failed_identifiers": failed_identifiers,
+    }
 
 # ---------------------------------------------------------------------------
 # Helpers used elsewhere in the module (stubs shown here for completeness)
@@ -1001,7 +1061,13 @@ def render_results_and_resources_tab() -> None:
     if not isinstance(df_scores_raw, pd.DataFrame):
         df_scores_raw = pd.DataFrame()
 
-    assignment_summary: dict[str, object] = {"missed": [], "next": None, "target": 0}
+    assignment_summary: dict[str, object] = {
+        "missed": [],
+        "next": None,
+        "target": 0,
+        "failed": [],
+        "failed_identifiers": [],
+    }
     try:
         summary_candidate = get_assignment_summary(
             selected_code,
@@ -1027,10 +1093,32 @@ def render_results_and_resources_tab() -> None:
         except (TypeError, ValueError):
             target_value = 0
 
+        failed_candidate = summary_candidate.get("failed")
+        if isinstance(failed_candidate, (list, tuple, set)):
+            failed_list = [
+                str(item).strip() for item in failed_candidate if str(item).strip()
+            ]
+        elif isinstance(failed_candidate, str):
+            failed_list = [failed_candidate.strip()] if failed_candidate.strip() else []
+        elif failed_candidate is None:
+            failed_list = []
+        else:
+            failed_list = [str(failed_candidate).strip()]
+
+        failed_ids_candidate = summary_candidate.get("failed_identifiers")
+        if isinstance(failed_ids_candidate, (list, tuple, set)):
+            failed_identifiers = list(failed_ids_candidate)
+        elif failed_ids_candidate is None:
+            failed_identifiers = []
+        else:
+            failed_identifiers = [failed_ids_candidate]
+
         assignment_summary = {
             "missed": missed_list,
             "next": summary_candidate.get("next"),
             "target": target_value,
+            "failed": failed_list,
+            "failed_identifiers": failed_identifiers,
         }
 
     if selected_level:
@@ -1206,10 +1294,20 @@ def render_results_and_resources_tab() -> None:
         else:
             missed_assignments = []
 
+        failed_raw = assignment_summary.get("failed")
+        if isinstance(failed_raw, (list, tuple, set)):
+            failed_assignments = [
+                str(item).strip() for item in failed_raw if str(item).strip()
+            ]
+        elif isinstance(failed_raw, str):
+            failed_assignments = [failed_raw.strip()] if failed_raw.strip() else []
+        else:
+            failed_assignments = []
+
         next_candidate = assignment_summary.get("next")
         next_assignment = next_candidate if isinstance(next_candidate, dict) else None
 
-        if next_assignment:
+        if not failed_assignments and next_assignment:
             day_text = _clean_text(next_assignment.get("day"))
             chapter_text = _clean_text(next_assignment.get("chapter"))
             topic_text = _clean_text(next_assignment.get("topic"))
@@ -1232,6 +1330,10 @@ def render_results_and_resources_tab() -> None:
             if goal_text:
                 highlight_lines.append(f"**Goal:** {goal_text}")
             st.success("\n\n".join(highlight_lines))
+
+        if failed_assignments:
+            st.warning("Rework failed assignments before moving on:")
+            st.markdown("\n".join(f"- {item}" for item in failed_assignments))
 
         if missed_assignments:
             st.markdown("**Missed assignments to review:**")
