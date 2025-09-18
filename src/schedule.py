@@ -325,9 +325,9 @@ Submitting Work
             "instruction": "This is a practical exercise. All the answers are included in the document except for the last paragraph. You can send a screenshot of that to your tutor",
             "grammar_topic": "Modal Verbs",
             "schreiben_sprechen": {
-                "video": "https://youtu.be/XwFPjLjvDog",
-                "youtube_link": "https://youtu.be/XwFPjLjvDog",
-                "workbook_link": "https://drive.google.com/file/d/1_MU9gLXyfA7AeSAKIPOSpHR9IrpdwcBX/view?usp=sharing"
+                "video": "https://youtu.be/G08nQJh1Trc",
+                "youtube_link": "https://youtu.be/G08nQJh1Trc",
+                "workbook_link": "https://drive.google.com/file/d/1oOT_b3S4MZIqZ10Kui-dR6qlM0AZfWZ4/view?usp=sharing"
             }
         },
         # DAY 15
