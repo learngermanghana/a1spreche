@@ -392,6 +392,7 @@ from src.assignment_ui import (
     load_assignment_scores,
     render_results_and_resources_tab,
     get_assignment_summary,
+    select_best_assignment_attempts,
 )
 from src.session_management import (
     bootstrap_state,
@@ -1501,9 +1502,10 @@ if tab == "Dashboard":
 
     _df_assign['level'] = _df_assign['level'].astype(str).str.upper().str.strip()
     _df_assign['score'] = pd.to_numeric(_df_assign['score'], errors='coerce')
+    _df_assign_best = select_best_assignment_attempts(_df_assign)
     _min_assignments = 3
     _df_level = (
-        _df_assign[_df_assign['level'] == _level]
+        _df_assign_best[_df_assign_best['level'] == _level]
         .groupby(['studentcode', 'name'], as_index=False)
         .agg(total_score=('score', 'sum'), completed=('assignment', 'nunique'))
     )

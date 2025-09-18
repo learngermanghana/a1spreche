@@ -377,6 +377,39 @@ def load_assignment_scores(force_refresh: bool = False) -> pd.DataFrame:
     return _load_assignment_scores_cached(force_refresh=force_refresh)
 
 
+def select_best_assignment_attempts(df: pd.DataFrame) -> pd.DataFrame:
+    """Return each assignment only once with the highest available score.
+
+    The assignment scores sheet can contain multiple attempts per assignment.
+    For leaderboard style calculations we only want to credit the best attempt
+    for each student/assignment pair.  This helper performs that normalization
+    while leaving the original dataframe untouched.
+    """
+
+    if not isinstance(df, pd.DataFrame):
+        return pd.DataFrame()
+    if df.empty:
+        return df.iloc[0:0].copy()
+
+    required = {"studentcode", "assignment", "score"}
+    if not required.issubset(df.columns):
+        return df.copy()
+
+    working = df.copy()
+    working["_score_numeric"] = pd.to_numeric(working["score"], errors="coerce")
+    deduped = (
+        working.sort_values(
+            by=["studentcode", "assignment", "_score_numeric"],
+            ascending=[True, True, False],
+            na_position="last",
+            kind="mergesort",
+        )
+        .drop_duplicates(subset=["studentcode", "assignment"], keep="first")
+        .drop(columns="_score_numeric")
+    )
+    return deduped
+
+
 def fetch_scores(*_args, **_kwargs) -> pd.DataFrame:
     """Compatibility shim so tests can monkeypatch score fetching."""
 
