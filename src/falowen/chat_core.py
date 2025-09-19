@@ -94,12 +94,22 @@ def prepare_chat_session(
 
     conv_key = st.session_state.get("falowen_conv_key")
     fresh_chat = False
-    if not conv_key or not str(conv_key).startswith(f"{mode_level_teil}_"):
+    prefix = f"{mode_level_teil}_"
+
+    def _matches_prefix(value: Any) -> bool:
+        return bool(value) and str(value).startswith(prefix)
+
+    if not _matches_prefix(conv_key):
         conv_key = (doc_data.get("current_conv", {}) or {}).get(mode_level_teil)
-        if not conv_key or not str(conv_key).startswith(f"{mode_level_teil}_"):
+        if not _matches_prefix(conv_key):
             drafts = (doc_data.get("drafts", {}) or {})
-            conv_key = next((k for k in drafts if str(k).startswith(f"{mode_level_teil}_")), None)
-        if not conv_key:
+            conv_key = next((k for k in drafts if _matches_prefix(k)), None)
+        if not _matches_prefix(conv_key):
+            chats = (doc_data.get("chats", {}) or {})
+            matching_chats = [k for k in chats if _matches_prefix(k)]
+            if matching_chats:
+                conv_key = matching_chats[-1]
+        if not _matches_prefix(conv_key):
             conv_key = f"{mode_level_teil}_{uuid4().hex[:8]}"
             fresh_chat = True
         if doc_ref is not None:
