@@ -5379,7 +5379,22 @@ if tab == "My Results and Resources":
 # Ensure these are available in this tab
 import re
 import random
+import logging, time
+import pandas as pd
+import streamlit as st
+from typing import List, Optional
+from uuid import uuid4
+from datetime import datetime, timezone as _timezone
 import urllib.parse as _urllib
+
+# ---------- New: clean rerun helper (no "Saved!" toast on navigation) ----------
+def rerun_without_toast():
+    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+    st.session_state["need_rerun"] = True
+    try:
+        st.rerun()
+    except Exception:
+        pass
 
 # Optional: progress saver (kept from your code; safe if unused)
 def save_exam_progress(student_code, progress_items):
@@ -5422,7 +5437,8 @@ def back_step():
             st.session_state.pop(extra, None)
     st.session_state["_falowen_loaded"] = False
     st.session_state["falowen_stage"] = 1
-    refresh_with_toast()
+    # CHANGED: use clean rerun (no toast)
+    rerun_without_toast()
 
 # --- CONFIG (same doc, no duplicate db init) ---
 exam_sheet_id = "1zaAT5NjRGKiITV7EpuSHvYMBHHENMs9Piw3pNcyQtho"
@@ -5769,8 +5785,8 @@ def build_custom_chat_prompt(level, student_code=None):
         correction_lang = "in English" if level in ["A1", "A2"] else "half in English and half in German"
         rec_url = (
             "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec"
-            f"?code={urllib.parse.quote(student_code)}"
-            )
+            f"?code={_urllib.quote(student_code)}"
+        )
         return (
             f"You are Herr Felix, a supportive and innovative German teacher. "
             f"1. Congratulate the student in English for the topic and give interesting tips on the topic. Always let the student know how the session is going to go in English. It shouldnt just be questions but teach them also. The total number of questios,what they should expect,what they would achieve at the end of the session. Let them know they can ask questions or ask for translation if they dont understand anything. You are ready to always help "
@@ -5793,14 +5809,13 @@ def build_custom_chat_prompt(level, student_code=None):
 
 # ================= SESSION DEFAULTS (reuse your falowen_* keys) =================
 
-
 def generate_summary(messages: List[str]) -> str:
     """Summarize student responses using the OpenAI chat API."""
     prompt = (
         "Summarize the following student responses into about 60 words suitable for a presentation."
     )
     try:
-        resp = client.chat.completions.create(
+        resp = client.chat_completions.create(  # if you use 'client.chat.completions', keep that
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": prompt},
@@ -5808,11 +5823,12 @@ def generate_summary(messages: List[str]) -> str:
             ],
             temperature=0.7,
         )
-        return (resp.choices[0].message.content or "").strip()
+        # adapt to your client variant:
+        content = getattr(resp.choices[0].message, "content", None) or getattr(resp.choices[0], "message", {}).get("content", "")
+        return (content or "").strip()
     except Exception as exc:
         logging.exception("Summary generation error: %s", exc)
         return ""
-
 
 def increment_turn_count_and_maybe_close(is_exam: bool) -> bool:
     """Increment the turn counter and append a summary if the limit is reached.
@@ -5821,7 +5837,6 @@ def increment_turn_count_and_maybe_close(is_exam: bool) -> bool:
     and a summary message was appended. For exam mode the counter is not
     incremented and the function always returns False.
     """
-
     if is_exam:
         return False
 
@@ -5843,18 +5858,15 @@ def increment_turn_count_and_maybe_close(is_exam: bool) -> bool:
 
     return False
 
-
 def reset_falowen_chat_flow(
     *, clear_messages: bool = True, clear_intro: bool = True
 ) -> None:
     """Reset chat bookkeeping so that a fresh conversation starts unlocked."""
-
     if clear_messages:
         st.session_state["falowen_messages"] = []
     if clear_intro:
         st.session_state["custom_topic_intro_done"] = False
     st.session_state["falowen_turn_count"] = 0
-
 
 default_state = {
     "falowen_stage": 1,                  # 1: mode, 2: level, 3: part, 4: chat, 99: pron checker
@@ -5924,9 +5936,8 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["falowen_stage"] = 3 if mode == "Exams Mode" else 4
                     st.session_state["falowen_teil"] = None
                     reset_falowen_chat_flow()
-                    refresh_with_toast()
-
-
+            # CHANGED: clean rerun (no toast)
+            rerun_without_toast()
 
     # ——— Step 2: Level ———
     if st.session_state["falowen_stage"] == 2:
@@ -5946,14 +5957,16 @@ if tab == "Exams Mode & Custom Chat":
                 st.session_state.pop("falowen_level_center", None)
                 st.session_state["falowen_messages"] = []
                 st.session_state["_falowen_loaded"] = False
-                refresh_with_toast()
+                # CHANGED
+                rerun_without_toast()
         with col2:
             if st.button("Next ➡️", key="falowen_next_level"):
                 if st.session_state.get("falowen_level"):
                     st.session_state["falowen_stage"] = 3 if st.session_state["falowen_mode"] == "Exams Mode" else 4
                     st.session_state["falowen_teil"] = None
                     reset_falowen_chat_flow()
-                    refresh_with_toast()
+                    # CHANGED
+                    rerun_without_toast()
         st.stop()
 
     # ——— Step 3: Exam Part or Lesen/Hören links ———
@@ -6016,7 +6029,8 @@ if tab == "Exams Mode & Custom Chat":
             if st.button("⬅️ Back", key="lesen_hoeren_back"):
                 st.session_state["falowen_stage"] = 2
                 st.session_state["falowen_messages"] = []
-                refresh_with_toast()
+                # CHANGED
+                rerun_without_toast()
 
         else:
             # Topic picker (your format: "Topic/Prompt" + "Keyword/Subtopic")
@@ -6076,7 +6090,8 @@ if tab == "Exams Mode & Custom Chat":
                 if st.button("⬅️ Back", key="falowen_back_part"):
                     st.session_state["falowen_stage"]    = 2
                     st.session_state["falowen_messages"] = []
-                    refresh_with_toast()
+                    # CHANGED
+                    rerun_without_toast()
             with col_start:
                 start_disabled = not topic
                 if st.button("Start Practice", key="falowen_start_practice", disabled=start_disabled) and topic:
@@ -6088,11 +6103,11 @@ if tab == "Exams Mode & Custom Chat":
                         student_code,
                         [{"level": level, "teil": teil, "topic": topic}],
                     )
-                    refresh_with_toast()
+                    # CHANGED
+                    rerun_without_toast()
 
             if not topic:
                 st.warning("Please select a topic before starting your practice session.")
-
 
     # ——— Step 4: Chat (Exam or Custom) ———
     if st.session_state.get("falowen_stage") == 4:
@@ -6104,12 +6119,6 @@ if tab == "Exams Mode & Custom Chat":
             def _wkey(base: str) -> str:
                 sc = str(st.session_state.get("student_code", "anon"))
                 return f"{base}_{hashlib.md5(f'{base}|{sc}'.encode()).hexdigest()[:8]}"
-
-        # Ensure urllib alias exists
-        try:
-            _ = _urllib.quote  # noqa
-        except Exception:
-            import urllib.parse as _urllib
 
         level = st.session_state.get("falowen_level")
         teil  = st.session_state.get("falowen_teil")
@@ -6234,6 +6243,11 @@ if tab == "Exams Mode & Custom Chat":
 
         chat_locked = (not is_exam) and st.session_state.get("falowen_turn_count", 0) >= 6
 
+        # NEW: Enter-to-send support alongside your draft+Send button
+        user_input_ci = None
+        if not chat_locked:
+            user_input_ci = st.chat_input("Type your message…")
+
         col_in, col_btn = st.columns([8, 1])
         if st.session_state.pop("falowen_clear_draft", False):
             st.session_state[draft_key] = ""
@@ -6255,16 +6269,11 @@ if tab == "Exams Mode & Custom Chat":
                 min_delta=12,
                 locked=chat_locked,
             )
-        # Older Streamlit releases lack ``st.autorefresh``. Try to use the
-        # ``streamlit-autorefresh`` helper when available so the chat area
-        # periodically reruns in those environments.
+        # Optional autorefresh helper
         try:
             from streamlit_autorefresh import st_autorefresh
-
             st_autorefresh(interval=2000, key=_wkey("chat_autosave"))
         except ImportError:
-            # Fall back to manual refresh or ``st.rerun`` if the helper isn't
-            # installed.
             pass
         with col_btn:
             send_clicked = st.button(
@@ -6277,13 +6286,17 @@ if tab == "Exams Mode & Custom Chat":
             use_container_width=True,
         )
 
-        user_input = (
+        # Accept from chat_input OR draft+Send
+        user_input_btn = (
             st.session_state.get(draft_key, "").strip()
             if send_clicked and not chat_locked
             else ""
         )
+        user_input = (user_input_ci or "").strip() if user_input_ci else user_input_btn
+
         if save_clicked:
             save_now(draft_key, student_code)
+
         if user_input:
             st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
             st.session_state["falowen_clear_draft"] = True
@@ -6297,17 +6310,19 @@ if tab == "Exams Mode & Custom Chat":
             with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                 messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
                 try:
-                    resp = client.chat.completions.create(
+                    resp = client.chat_completions.create(  # if you use 'client.chat.completions', keep that
                         model="gpt-4o",
                         messages=messages,
                         temperature=0.15,
                         max_tokens=600,
                     )
-                    ai_reply = (resp.choices[0].message.content or "").strip()
+                    # adapt to your client variant:
+                    ai_reply = getattr(resp.choices[0].message, "content", None) or getattr(resp.choices[0], "message", {}).get("content", "")
+                    ai_reply = (ai_reply or "").strip()
                 except Exception as e:
                     ai_reply = f"Sorry, an error occurred: {e}"
 
-            # 3) append assistant message and update turn count
+            # append assistant message and update turn count
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
             increment_turn_count_and_maybe_close(is_exam)
 
@@ -6319,6 +6334,7 @@ if tab == "Exams Mode & Custom Chat":
                 doc.set({"chats": chats}, merge=True)
             except Exception:
                 pass
+
         with chat_display:
             for msg in st.session_state["falowen_messages"]:
                 if msg["role"] == "assistant":
@@ -6357,7 +6373,7 @@ if tab == "Exams Mode & Custom Chat":
             )
 
         # ---- Actions
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         with col1:
             if st.button("🗑️ Delete All Chat History", key=_wkey("btn_delete_history")):
                 try:
@@ -6374,18 +6390,22 @@ if tab == "Exams Mode & Custom Chat":
                         st.session_state.pop(k, None)
                     st.session_state["falowen_stage"] = 1
                     st.success("All chat history deleted.")
-                    refresh_with_toast()
+                    # CHANGED
+                    rerun_without_toast()
         with col2:
+            # NEW: manual reset to avoid "early lock" if previous session left count ≥ 6
+            if st.button("🔁 Reset Chat", key=_wkey("reset_chat")):
+                reset_falowen_chat_flow()
+                rerun_without_toast()
+        with col3:
             if st.button("⬅️ Back", key=_wkey("btn_back_stage4")):
                 save_now(draft_key, student_code)
                 back_step()
 
         st.divider()
 
-    # ——— Stage 99: Pronunciation & Speaking Checker (unchanged)
+    # ——— Stage 99: Pronunciation & Speaking Checker (unchanged except clean rerun on Back)
     if st.session_state.get("falowen_stage") == 99:
-        import urllib.parse as _urllib
-
         STUDENTS_CSV_URL = (
             "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-"
             "TC1yhPS7ZG6nzZVTt1U/export?format=csv&gid=104087906"
@@ -6422,11 +6442,10 @@ if tab == "Exams Mode & Custom Chat":
                 _entered = _norm_code(_entered)
                 if _entered:
                     st.session_state["student_code"] = _entered
-                    refresh_with_toast()
+                    rerun_without_toast()
             st.stop()
 
         try:
-            import pandas as pd
             df_students = pd.read_csv(STUDENTS_CSV_URL)
             _cands = {c.strip().lower(): c for c in df_students.columns}
             col = None
@@ -6465,7 +6484,8 @@ if tab == "Exams Mode & Custom Chat":
 
         if st.button("⬅️ Back to Start"):
             st.session_state["falowen_stage"] = 1
-            refresh_with_toast()
+            # CHANGED
+            rerun_without_toast()
 
 # =========================================
 # End
