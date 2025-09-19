@@ -6310,15 +6310,13 @@ if tab == "Exams Mode & Custom Chat":
             with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                 messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
                 try:
-                    resp = client.chat_completions.create(  # if you use 'client.chat.completions', keep that
+                    resp = client.chat.completions.create(
                         model="gpt-4o",
                         messages=messages,
                         temperature=0.15,
                         max_tokens=600,
                     )
-                    # adapt to your client variant:
-                    ai_reply = getattr(resp.choices[0].message, "content", None) or getattr(resp.choices[0], "message", {}).get("content", "")
-                    ai_reply = (ai_reply or "").strip()
+                    ai_reply = (resp.choices[0].message.content or "").strip()
                 except Exception as e:
                     ai_reply = f"Sorry, an error occurred: {e}"
 
