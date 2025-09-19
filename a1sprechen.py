@@ -5838,6 +5838,18 @@ def increment_turn_count_and_maybe_close(is_exam: bool) -> bool:
     return False
 
 
+def reset_falowen_chat_flow(
+    *, clear_messages: bool = True, clear_intro: bool = True
+) -> None:
+    """Reset chat bookkeeping so that a fresh conversation starts unlocked."""
+
+    if clear_messages:
+        st.session_state["falowen_messages"] = []
+    if clear_intro:
+        st.session_state["custom_topic_intro_done"] = False
+    st.session_state["falowen_turn_count"] = 0
+
+
 default_state = {
     "falowen_stage": 1,                  # 1: mode, 2: level, 3: part, 4: chat, 99: pron checker
     "falowen_mode": None,                # **RENAMED choices in UI below**
@@ -5905,8 +5917,7 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["falowen_level"] = level
                     st.session_state["falowen_stage"] = 3 if mode == "Exams Mode" else 4
                     st.session_state["falowen_teil"] = None
-                    st.session_state["falowen_messages"] = []
-                    st.session_state["custom_topic_intro_done"] = False
+                    reset_falowen_chat_flow()
                     refresh_with_toast()
 
 
@@ -5935,8 +5946,7 @@ if tab == "Exams Mode & Custom Chat":
                 if st.session_state.get("falowen_level"):
                     st.session_state["falowen_stage"] = 3 if st.session_state["falowen_mode"] == "Exams Mode" else 4
                     st.session_state["falowen_teil"] = None
-                    st.session_state["falowen_messages"] = []
-                    st.session_state["custom_topic_intro_done"] = False
+                    reset_falowen_chat_flow()
                     refresh_with_toast()
         st.stop()
 
@@ -6066,8 +6076,7 @@ if tab == "Exams Mode & Custom Chat":
                 if st.button("Start Practice", key="falowen_start_practice", disabled=start_disabled) and topic:
                     st.session_state["falowen_teil"] = teil
                     st.session_state["falowen_stage"] = 4
-                    st.session_state["falowen_messages"] = []
-                    st.session_state["custom_topic_intro_done"] = False
+                    reset_falowen_chat_flow()
                     student_code = st.session_state.get("student_code")
                     save_exam_progress(
                         student_code,
@@ -6101,6 +6110,7 @@ if tab == "Exams Mode & Custom Chat":
         mode  = st.session_state.get("falowen_mode")
         is_exam = (mode == "Exams Mode")
         student_code = st.session_state.get("student_code", "demo")
+        fresh_chat = False
 
         # === Load messages & draft PER (student_code + mode/level/teil) ===
         mode_level_teil = f"{mode}_{level}_{(teil or 'custom')}"
@@ -6125,6 +6135,7 @@ if tab == "Exams Mode & Custom Chat":
                 )
             if not conv_key:
                 conv_key = f"{mode_level_teil}_{uuid4().hex[:8]}"
+                fresh_chat = True
             if doc_ref is not None:
                 try:
                     doc_ref.set({"current_conv": {mode_level_teil: conv_key}}, merge=True)
@@ -6141,10 +6152,14 @@ if tab == "Exams Mode & Custom Chat":
         remote_messages = chats.get(conv_key)
         if loaded_key != conv_key:
             current_messages = []
+            fresh_chat = True
         if isinstance(remote_messages, list):
             st.session_state["falowen_messages"] = remote_messages
         else:
             st.session_state["falowen_messages"] = current_messages
+
+        if fresh_chat:
+            reset_falowen_chat_flow(clear_messages=False, clear_intro=False)
 
         draft_text = load_chat_draft_from_db(student_code, conv_key)
         st.session_state[draft_key] = draft_text
@@ -6157,6 +6172,7 @@ if tab == "Exams Mode & Custom Chat":
 
         # Seed the first assistant instruction if chat is empty
         if not st.session_state["falowen_messages"]:
+            reset_falowen_chat_flow(clear_messages=False, clear_intro=False)
             if is_exam:
                 instruction = build_exam_instruction(level, teil)
             else:
