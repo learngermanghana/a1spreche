@@ -73,6 +73,12 @@ def toast_info(msg: str) -> None:
     st.toast(msg, icon="ℹ️")
 
 
+def rerun_without_toast() -> None:
+    """Increment ``__refresh`` and flag a rerun without notifying the user."""
+    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+    st.session_state["need_rerun"] = True
+
+
 def refresh_with_toast(msg: str = "Saved!") -> None:
     """Increment ``__refresh`` and show a saved toast.
 
@@ -85,6 +91,5 @@ def refresh_with_toast(msg: str = "Saved!") -> None:
     msg:
         The message to display in the success toast. Defaults to ``"Saved!"``.
     """
-    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-    st.session_state["need_rerun"] = True
+    rerun_without_toast()
     toast_ok(msg)

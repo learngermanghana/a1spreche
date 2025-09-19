@@ -32,6 +32,15 @@ def test_toast_info(monkeypatch):
     mock_st.toast.assert_called_once_with("note", icon="ℹ️")
 
 
+def test_rerun_without_toast(monkeypatch):
+    mock_st = types.SimpleNamespace(toast=MagicMock(), session_state={})
+    monkeypatch.setattr(toasts, "st", mock_st)
+    toasts.rerun_without_toast()
+    mock_st.toast.assert_not_called()
+    assert mock_st.session_state["__refresh"] == 1
+    assert mock_st.session_state["need_rerun"] is True
+
+
 def test_refresh_with_toast(monkeypatch):
     mock_st = types.SimpleNamespace(toast=MagicMock(), session_state={})
     monkeypatch.setattr(toasts, "st", mock_st)

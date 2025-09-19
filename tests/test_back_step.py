@@ -1,5 +1,6 @@
 import ast
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 from src.draft_management import _draft_state_keys
 from src.utils import toasts
@@ -14,12 +15,12 @@ def _load_back_step():
     ]
     module_ast = ast.Module(body=funcs, type_ignores=[])
     code = compile(module_ast, "a1sprechen.py", "exec")
-    st = SimpleNamespace(session_state={}, toast=lambda *a, **k: None)
+    st = SimpleNamespace(session_state={}, toast=MagicMock())
     toasts.st = st
     glb = {
         "st": st,
         "_draft_state_keys": _draft_state_keys,
-        "refresh_with_toast": toasts.refresh_with_toast,
+        "rerun_without_toast": toasts.rerun_without_toast,
     }
     exec(code, glb)
     return glb["back_step"], st
@@ -53,6 +54,8 @@ def test_back_step_clears_chat_state():
     assert ss['falowen_stage'] == 1
     assert ss['_falowen_loaded'] is False
     assert ss['__refresh'] == 1
+    assert ss['need_rerun'] is True
+    st.toast.assert_not_called()
 
     for key in [
         'falowen_mode', 'falowen_level', 'falowen_teil',
