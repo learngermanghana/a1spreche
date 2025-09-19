@@ -13,7 +13,7 @@ re-used outside the monolithic :mod:`a1sprechen` module.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import logging
 import re
@@ -33,7 +33,7 @@ try:  # pragma: no cover - schedule/streamlit may be unavailable in some tests
         }
     )
 except Exception:  # pragma: no cover - best effort for offline tests
-    CANONICAL_LABELS: list[str] = []
+    CANONICAL_LABELS: List[str] = []
 
 
 def normalize_label(label: str) -> str:
@@ -386,7 +386,7 @@ def save_response(post_id: str, text: str, responder_code: str) -> None:
         logging.warning("Failed to save response for %s: %s", post_id, exc)
 
 
-def fetch_attendance_summary(student_code: str, class_name: str) -> tuple[int, float]:
+def fetch_attendance_summary(student_code: str, class_name: str) -> Tuple[int, float]:
     """Return ``(sessions, hours)`` attended by ``student_code`` in ``class_name``.
 
     The data is expected under ``attendance/{class_name}/sessions`` where each

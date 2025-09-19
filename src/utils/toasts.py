@@ -1,3 +1,5 @@
+from typing import Set
+
 import streamlit as st
 
 
@@ -5,7 +7,7 @@ _RECENT_TOASTS_KEY = "__recent_toasts__"
 
 
 def _already_toasted(msg: str) -> bool:
-    shown: set[str] = st.session_state.setdefault(_RECENT_TOASTS_KEY, set())
+    shown: Set[str] = st.session_state.setdefault(_RECENT_TOASTS_KEY, set())
     if msg in shown:
         return True
     shown.add(msg)

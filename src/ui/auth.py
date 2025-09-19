@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
-from typing import Optional
+from typing import Dict, Optional
 import urllib.parse as _urllib
 import secrets
 import urllib.parse
@@ -75,7 +75,9 @@ def _normalize_roster(df):
     return df
 
 
-def _refresh_logged_in_student_row(student_row: dict | None = None) -> None:
+def _refresh_logged_in_student_row(
+    student_row: Optional[Dict[str, object]] = None,
+) -> None:
     """Force-refresh the roster and update the cached ``student_row`` once."""
 
     roster_flag = st.session_state.setdefault("roster_refreshed", True)
