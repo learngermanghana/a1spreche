@@ -313,6 +313,7 @@ def render_chat_stage(
         doc_data=session.doc_data,
     )
 
+    recorder_display = st.container()
     chat_display = st.container()
 
     def _render_chat_messages(container):
@@ -333,9 +334,10 @@ def render_chat_stage(
                             unsafe_allow_html=True,
                         )
 
-    _render_chat_messages(chat_display)
+    with recorder_display:
+        _render_recorder_button(key_fn, student_code)
 
-    _render_recorder_button(key_fn, student_code)
+    _render_chat_messages(chat_display)
 
     if is_exam:
         input_result = _render_exam_input_area(
