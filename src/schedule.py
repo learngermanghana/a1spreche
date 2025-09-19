@@ -90,8 +90,8 @@ Submitting Work
             "grammar_topic": "Formal and Informal Greetings",
             "assignment": True,
             "lesen_hören": {
-                "video": "https://youtu.be/RLZBnQxAUt8",
-                "youtube_link": "https://youtu.be/RLZBnQxAUt8",
+                "video": "https://youtu.be/NmaHd9xsGvw",
+                "youtube_link": "https://youtu.be/NmaHd9xsGvw",
                 "grammarbook_link": "https://drive.google.com/file/d/10UPl4n5FzukSDiTIlcM-WjmNuJGz9OgL/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/view?usp=sharing"
             }
@@ -1280,8 +1280,8 @@ Good luck and viel Erfolg on your language journey!
             "goal": "Eine Filmkritik schreiben und Filme bewerten.",
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
-            "video": "",
-            "youtube_link": "",
+            "video": "https://youtu.be/8rclmwsAYtc",
+            "youtube_link": "https://youtu.be/8rclmwsAYtc",
             "grammarbook_link": "https://drive.google.com/file/d/11_i8x_tmppV5Vzc1jfYAkGAhJYelwMrr/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1dC4H3hyiX2gZ0R3jj_0CAjhl7iBa5oA7/view?usp=sharing"
         },
