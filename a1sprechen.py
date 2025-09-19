@@ -6138,8 +6138,8 @@ if tab == "Exams Mode & Custom Chat":
         if user_input:
             # 1) Show student's message immediately
             st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
-            # 2) Clear textarea
-            st.session_state[draft_key] = ""
+            # 2) Clear textarea on next render
+            st.session_state["falowen_clear_draft"] = True
             # 3) OpenAI reply
             with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                 messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
