@@ -159,12 +159,6 @@ def render_custom_chat_input(
                 min_delta=12,
                 locked=chat_locked,
             )
-        try:  # pragma: no cover - optional dependency
-            from streamlit_autorefresh import st_autorefresh
-
-            st_autorefresh(interval=2000, key=widget_key("chat_autosave"))
-        except Exception:
-            pass
         with col_btn:
             send_clicked = st.button(
                 "Send",
