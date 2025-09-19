@@ -106,9 +106,20 @@ def prepare_chat_session(
             conv_key = next((k for k in drafts if _matches_prefix(k)), None)
         if not _matches_prefix(conv_key):
             chats = (doc_data.get("chats", {}) or {})
-            matching_chats = [k for k in chats if _matches_prefix(k)]
-            if matching_chats:
-                conv_key = matching_chats[-1]
+
+            def _message_count(value: Any) -> int:
+                if isinstance(value, list):
+                    return len(value)
+                return 0
+
+            matching_chat_entries = [
+                (key, chats[key]) for key in chats if _matches_prefix(key)
+            ]
+            if matching_chat_entries:
+                conv_key = max(
+                    matching_chat_entries,
+                    key=lambda item: (_message_count(item[1]), item[0]),
+                )[0]
         if not _matches_prefix(conv_key):
             conv_key = f"{mode_level_teil}_{uuid4().hex[:8]}"
             fresh_chat = True
