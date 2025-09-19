@@ -215,7 +215,20 @@ def _render_exam_input_area(
     col_in, col_btn = st.columns([8, 1])
     if st.session_state.pop("falowen_clear_draft", False):
         st.session_state[draft_key] = ""
-        save_now(draft_key, student_code)
+        autosave_maybe(
+            student_code,
+            draft_key,
+            st.session_state[draft_key],
+            min_secs=0.0,
+            min_delta=0,
+        )
+        last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(
+            draft_key
+        )
+        st.session_state[last_val_key] = st.session_state[draft_key]
+        st.session_state[last_ts_key] = time.time()
+        st.session_state[saved_flag_key] = True
+        st.session_state[saved_at_key] = datetime.now(_timezone.utc)
     with col_in:
         st.text_area(
             "Type your answer...",
@@ -375,22 +388,8 @@ def render_chat_stage(
             {"role": "user", "content": input_result.user_input}
         )
         if not use_chat_input:
-            st.session_state[session.draft_key] = ""
-            autosave_maybe(
-                student_code,
-                session.draft_key,
-                st.session_state[session.draft_key],
-                min_secs=0.0,
-                min_delta=0,
-                locked=chat_locked,
-            )
-            last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(
-                session.draft_key
-            )
-            st.session_state[last_val_key] = ""
-            st.session_state[last_ts_key] = time.time()
-            st.session_state[saved_flag_key] = True
-            st.session_state[saved_at_key] = datetime.now(_timezone.utc)
+            st.session_state["falowen_clear_draft"] = True
+            rerun_without_toast()
 
         chat_placeholder.empty()
         _render_chat_messages(chat_placeholder)

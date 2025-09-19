@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone as _timezone
+import time
 from typing import Callable, List, Optional
 
 import logging
 
 import streamlit as st
 
-from src.draft_management import autosave_maybe, save_now
+from src.draft_management import _draft_state_keys, autosave_maybe, save_now
 
 TURN_LIMIT = 6
 CUSTOM_CHAT_GREETING = "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
@@ -141,7 +143,21 @@ def render_custom_chat_input(
         col_in, col_btn = st.columns([8, 1])
         if st.session_state.pop("falowen_clear_draft", False):
             st.session_state[draft_key] = ""
-            save_now(draft_key, student_code)
+            autosave_maybe(
+                student_code,
+                draft_key,
+                st.session_state[draft_key],
+                min_secs=0.0,
+                min_delta=0,
+                locked=chat_locked,
+            )
+            last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(
+                draft_key
+            )
+            st.session_state[last_val_key] = st.session_state[draft_key]
+            st.session_state[last_ts_key] = time.time()
+            st.session_state[saved_flag_key] = True
+            st.session_state[saved_at_key] = datetime.now(_timezone.utc)
         with col_in:
             st.text_area(
                 "Type your answer...",
