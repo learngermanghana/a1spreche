@@ -315,6 +315,7 @@ def render_chat_stage(
 
     recorder_display = st.container()
     chat_display = st.container()
+    chat_placeholder = chat_display.empty()
     status_display = st.container()
     status_placeholder = status_display.empty()
 
@@ -339,7 +340,7 @@ def render_chat_stage(
     with recorder_display:
         _render_recorder_button(key_fn, student_code)
 
-    _render_chat_messages(chat_display)
+    _render_chat_messages(chat_placeholder)
 
     if is_exam:
         input_result = _render_exam_input_area(
@@ -391,6 +392,9 @@ def render_chat_stage(
             st.session_state[saved_flag_key] = True
             st.session_state[saved_at_key] = datetime.now(_timezone.utc)
 
+        chat_placeholder.empty()
+        _render_chat_messages(chat_placeholder)
+
         with status_placeholder:
             with st.spinner("🧑‍🏫 Herr Felix is typing…"):
                 payload = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
@@ -408,6 +412,8 @@ def render_chat_stage(
         status_placeholder.empty()
 
         st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
+        chat_placeholder.empty()
+        _render_chat_messages(chat_placeholder)
         if not is_exam:
             custom_chat.increment_turn_count_and_maybe_close(False)
         else:
@@ -422,9 +428,9 @@ def render_chat_stage(
             doc_data=session.doc_data,
         )
 
-        refreshed_chat_display = chat_display.empty()
+        chat_placeholder = chat_display.empty()
         status_placeholder = status_display.empty()
-        _render_chat_messages(refreshed_chat_display)
+        _render_chat_messages(chat_placeholder)
 
     teil_str = str(teil) if teil else "chat"
     pdf_bytes = generate_chat_pdf(st.session_state.get("falowen_messages", []))
