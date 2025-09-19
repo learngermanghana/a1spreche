@@ -5988,6 +5988,9 @@ if tab == "Exams Mode & Custom Chat":
             search = st.text_input("🔍 Search topic or keyword...", "")
             filtered = [t for t in topics_list if search.lower() in t.lower()] if search else topics_list
 
+            topic: Optional[str] = None
+            keyword: Optional[str] = None
+
             if filtered:
                 st.markdown("**Preview: Available Topics**")
                 for t in filtered[:6]:
@@ -6007,9 +6010,12 @@ if tab == "Exams Mode & Custom Chat":
                 else:
                     topic, keyword = chosen, None
 
-                st.session_state["falowen_exam_topic"]   = topic
-                st.session_state["falowen_exam_keyword"] = keyword
-                st.success(f"**Your exam topic is:** {topic}" + (f" – {keyword}" if keyword else ""))
+                if topic:
+                    st.session_state["falowen_exam_topic"] = topic
+                    st.session_state["falowen_exam_keyword"] = keyword
+                    st.success(
+                        f"**Your exam topic is:** {topic}" + (f" – {keyword}" if keyword else "")
+                    )
 
             else:
                 st.info("No topics found. Try a different search.")
@@ -6024,14 +6030,21 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["falowen_messages"] = []
                     refresh_with_toast()
             with col_start:
-                if st.button("Start Practice", key="falowen_start_practice"):
-                    st.session_state["falowen_teil"]            = teil
-                    st.session_state["falowen_stage"]           = 4
-                    st.session_state["falowen_messages"]        = []
+                start_disabled = not topic
+                if st.button("Start Practice", key="falowen_start_practice", disabled=start_disabled) and topic:
+                    st.session_state["falowen_teil"] = teil
+                    st.session_state["falowen_stage"] = 4
+                    st.session_state["falowen_messages"] = []
                     st.session_state["custom_topic_intro_done"] = False
                     student_code = st.session_state.get("student_code")
-                    save_exam_progress(student_code, [{"level": level, "teil": teil, "topic": topic}])
+                    save_exam_progress(
+                        student_code,
+                        [{"level": level, "teil": teil, "topic": topic}],
+                    )
                     refresh_with_toast()
+
+            if not topic:
+                st.warning("Please select a topic before starting your practice session.")
 
 
     # ——— Step 4: Chat (Exam or Custom) ———
