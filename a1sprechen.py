@@ -4954,6 +4954,10 @@ if tab == "My Course":
                         on_change=save_now,
                         args=(draft_key, student_code),
                     )
+                    render_umlaut_pad(
+                        draft_key,
+                        context=f"classboard_reply_{q_id}",
+                    )
 
                     current_text = st.session_state.get(draft_key, "")
                     if not isinstance(current_text, str):
