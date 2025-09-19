@@ -2,6 +2,8 @@ import ast
 import time
 from datetime import datetime, timezone
 
+from src.draft_management import _draft_state_keys
+
 
 def load_send_comment(stub_st):
     with open('a1sprechen.py', 'r', encoding='utf-8') as f:
@@ -49,6 +51,10 @@ class DummyStreamlit:
         self.locked.add(key)
         return value
 
+    def chat_input(self, placeholder="", key=None, on_submit=None, args=None, kwargs=None):
+        self.locked.add(key)
+        return None
+
     def success(self, msg):
         pass
 
@@ -77,13 +83,7 @@ def render_comment_box(st, q_id, student_code):
     clear_key = f"__clear_comment_draft_{q_id}"
     if st.session_state.pop(clear_key, False):
         st.session_state[draft_key] = ""
-    current_text = st.session_state.get(draft_key, "")
-    st.text_area(
-        f"Comment on Q{q_id}",
-        value=current_text,
-        key=draft_key,
-        placeholder="Write your comment…",
-    )
+    st.chat_input("Reply to this thread…", key=draft_key)
 
 
 def test_comment_submission_clears_box():
@@ -92,7 +92,12 @@ def test_comment_submission_clears_box():
     board = DummyBoardBase()
     q_id = 'q1'
     draft_key = f'classroom_comment_draft_{q_id}'
+    last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
     st.session_state[draft_key] = 'hi'
+    st.session_state[last_val_key] = 'hi'
+    st.session_state[last_ts_key] = 0.0
+    st.session_state[saved_flag_key] = True
+    st.session_state[saved_at_key] = datetime.now(timezone.utc)
     render_comment_box(st, q_id, 's1')
 
     try:
@@ -103,14 +108,18 @@ def test_comment_submission_clears_box():
             'class',
             board,
             draft_key,
-            'lv',
-            'lt',
-            'sf',
-            'sa',
+            last_val_key,
+            last_ts_key,
+            saved_flag_key,
+            saved_at_key,
         )
-    except DummyStreamlit.StreamlitAPIException:
-        assert False, 'StreamlitAPIException should not be raised'
+    except DummyStreamlit.StreamlitAPIException as exc:
+        raise AssertionError('StreamlitAPIException should not be raised') from exc
 
     st.locked.clear()
     render_comment_box(st, q_id, 's1')
     assert st.session_state[draft_key] == ''
+    assert st.session_state[last_val_key] == ''
+    assert st.session_state[saved_flag_key] is False
+    assert st.session_state[saved_at_key] is None
+    assert 0 < st.session_state[last_ts_key] <= time.time()
