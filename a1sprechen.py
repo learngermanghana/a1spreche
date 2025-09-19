@@ -4904,6 +4904,8 @@ if tab == "My Course":
                     ai_flag = f"q_ai_busy_{q_id}"
 
                     current_text = st.session_state.get(draft_key, "")
+                    if not isinstance(current_text, str):
+                        current_text = ""
                     if st.session_state.get(ai_flag):
                         with st.spinner("Correcting with AI..."):
                             apply_ai_correction(q_id, draft_key, current_text)
@@ -4911,6 +4913,8 @@ if tab == "My Course":
                         st.session_state["need_rerun"] = True
                         st.session_state[active_thread_state_key] = q_id
                         current_text = st.session_state.get(draft_key, "")
+                        if not isinstance(current_text, str):
+                            current_text = ""
 
                     composer_value = st.chat_input(
                         "Reply to this thread…",
@@ -4920,6 +4924,8 @@ if tab == "My Course":
                     )
 
                     current_text = st.session_state.get(draft_key, "")
+                    if not isinstance(current_text, str):
+                        current_text = ""
                     autosave_maybe(student_code, draft_key, current_text, min_secs=2.0, min_delta=12)
 
                     if current_text:

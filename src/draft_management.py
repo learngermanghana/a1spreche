@@ -68,10 +68,15 @@ def autosave_maybe(
     if locked:
         return
 
+    if not isinstance(text, str):
+        text = ""
+
     last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(
         lesson_field_key
     )
     last_val = st.session_state.get(last_val_key, "")
+    if not isinstance(last_val, str):
+        last_val = ""
     last_ts = float(st.session_state.get(last_ts_key, 0.0))
     now = time.time()
 
