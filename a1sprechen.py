@@ -210,9 +210,11 @@ def render_umlaut_pad(widget_key: str, *, context: str, disabled: bool = False) 
     if markdown_fn is None:
         return
 
+    note = "_Umlaut keys (copy or paste):_"
     parts = ["**Umlaute:**", "ä", "ö", "ü", "ß"]
     separator = " · "
-    body = f"{parts[0]} {separator.join(parts[1:])}"
+    buttons = f"{parts[0]} {separator.join(parts[1:])}"
+    body = f"{note} {buttons}"
 
     if disabled:
         body = f"{body} _(copy only)_"
