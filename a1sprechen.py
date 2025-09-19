@@ -6392,8 +6392,16 @@ if tab == "Exams Mode & Custom Chat":
         draft_key = _wkey("chat_draft")
         st.session_state["falowen_chat_draft_key"] = draft_key
 
+        current_messages = st.session_state.get("falowen_messages", [])
+        loaded_key = st.session_state.get("falowen_loaded_key")
         chats = (doc_data.get("chats", {}) or {})
-        st.session_state["falowen_messages"] = chats.get(conv_key, [])
+        remote_messages = chats.get(conv_key)
+        if loaded_key != conv_key:
+            current_messages = []
+        if isinstance(remote_messages, list):
+            st.session_state["falowen_messages"] = remote_messages
+        else:
+            st.session_state["falowen_messages"] = current_messages
 
         draft_text = load_chat_draft_from_db(student_code, conv_key)
         st.session_state[draft_key] = draft_text
