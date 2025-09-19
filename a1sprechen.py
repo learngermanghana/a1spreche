@@ -5888,13 +5888,21 @@ if tab == "Exams Mode & Custom Chat":
 
 
     # ——— Step 2: Level ———
-    if st.session_state["falowen_stage"] == 2 and not st.session_state.get("falowen_level"):
+    if st.session_state["falowen_stage"] == 2:
         st.subheader("Step 2: Choose Your Level")
-        level = st.radio("Select your level:", ["A1","A2","B1","B2","C1"], key="falowen_level_center")
+        level = st.radio(
+            "Select your level:",
+            ["A1", "A2", "B1", "B2", "C1"],
+            key="falowen_level_center",
+        )
+        if level:
+            st.session_state["falowen_level"] = level
         col1, col2 = st.columns(2)
         with col1:
             if st.button("⬅️ Back", key="falowen_back1"):
                 st.session_state["falowen_stage"] = 1
+                st.session_state["falowen_level"] = None
+                st.session_state.pop("falowen_level_center", None)
                 st.session_state["falowen_messages"] = []
                 st.session_state["_falowen_loaded"] = False
                 refresh_with_toast()
