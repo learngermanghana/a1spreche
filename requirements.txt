@@ -1,4 +1,5 @@
 streamlit==1.49.0
+streamlit-autorefresh==1.0.1
 openai==1.55.3
 pandas==2.3.2
 fpdf==1.7.2
