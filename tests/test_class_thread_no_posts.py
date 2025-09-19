@@ -41,6 +41,10 @@ class DummyStreamlit:
     def __init__(self):
         self.session_state = {}
         self.query_params = {}
+        self.warnings = []
+
+    def warning(self, message):
+        self.warnings.append(message)
 
 
 
@@ -87,3 +91,16 @@ def test_go_class_thread_keeps_search_when_posts_exist():
     assert st.session_state.get("q_search_count") == 1
     assert st.session_state.get("coursebook_subtab") == "🧑‍🏫 Classroom"
     assert st.session_state.get("classroom_page") == "Class Notes & Q&A"
+
+
+def test_go_class_thread_warns_when_db_missing():
+    fn, st, db = setup_env()
+    original_get_db = fn.__globals__["get_db"]
+    fn.__globals__["get_db"] = lambda: None
+    try:
+        fn("9", db=None)
+    finally:
+        fn.__globals__["get_db"] = original_get_db
+
+    assert st.session_state.get("class_discussion_warning") is True
+    assert st.warnings[-1].startswith("Class discussion database is currently unavailable")

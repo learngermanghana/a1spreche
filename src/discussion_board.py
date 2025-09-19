@@ -51,6 +51,14 @@ def go_class_thread(topic: str, db: Optional[object] = None) -> None:
     if db is None:
         db = get_db()
 
+    if db is None:
+        st.warning(
+            "Class discussion database is currently unavailable. "
+            "Please try again later."
+        )
+        st.session_state["class_discussion_warning"] = True
+        return
+
     student_level = st.session_state.get("student_level", "A1")
     class_name = (
         str(st.session_state.get("student_row", {}).get("ClassName", ""))
