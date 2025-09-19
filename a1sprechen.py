@@ -4933,7 +4933,6 @@ if tab == "My Course":
                     if current_text:
                         st.session_state[active_thread_state_key] = q_id
 
-                    send_disabled = not current_text.strip()
                     send_col, ai_col = st.columns([1, 1])
 
                     with send_col:
@@ -4942,22 +4941,24 @@ if tab == "My Course":
                             key=f"q_send_comment_{q_id}",
                             type="primary",
                             use_container_width=True,
-                            disabled=send_disabled,
                         ):
-                            st.session_state[active_thread_state_key] = q_id
-                            send_comment(
-                                q_id,
-                                student_code,
-                                student_name,
-                                class_name,
-                                board_base,
-                                draft_key,
-                                last_val_key,
-                                last_ts_key,
-                                saved_flag_key,
-                                saved_at_key,
-                            )
-                            st.session_state["need_rerun"] = True
+                            if not current_text.strip():
+                                st.warning("Type a reply first.")
+                            else:
+                                st.session_state[active_thread_state_key] = q_id
+                                send_comment(
+                                    q_id,
+                                    student_code,
+                                    student_name,
+                                    class_name,
+                                    board_base,
+                                    draft_key,
+                                    last_val_key,
+                                    last_ts_key,
+                                    saved_flag_key,
+                                    saved_at_key,
+                                )
+                                st.session_state["need_rerun"] = True
 
                     with ai_col:
                         if st.button(
