@@ -91,28 +91,31 @@ def generate_summary(messages: List[str]) -> str:
 def increment_turn_count_and_maybe_close(is_exam: bool, *, summary_builder: Optional[Callable[[List[str]], str]] = None) -> bool:
     if is_exam:
         st.session_state["falowen_chat_closed"] = False
+        st.session_state.pop("falowen_summary_emitted", None)
         return False
-
-    if st.session_state.get("falowen_chat_closed"):
-        return False
-
-    st.session_state["falowen_turn_count"] = st.session_state.get("falowen_turn_count", 0) + 1
-    if st.session_state["falowen_turn_count"] >= TURN_LIMIT:
-        builder = summary_builder or generate_summary
-        user_msgs = [
-            m.get("content", "")
-            for m in st.session_state.get("falowen_messages", [])
-            if m.get("role") == "user"
-        ]
-        summary = builder(user_msgs)
-        messages = st.session_state.setdefault("falowen_messages", [])
-        if not messages or messages[-1].get("role") != "assistant" or messages[-1].get("content") != summary:
-            messages.append({"role": "assistant", "content": summary})
-        st.session_state["falowen_chat_closed"] = True
-        return True
 
     st.session_state["falowen_chat_closed"] = False
-    return False
+
+    st.session_state["falowen_turn_count"] = st.session_state.get("falowen_turn_count", 0) + 1
+    if st.session_state["falowen_turn_count"] < TURN_LIMIT:
+        st.session_state["falowen_summary_emitted"] = False
+        return False
+
+    if st.session_state.get("falowen_summary_emitted"):
+        return False
+
+    builder = summary_builder or generate_summary
+    user_msgs = [
+        m.get("content", "")
+        for m in st.session_state.get("falowen_messages", [])
+        if m.get("role") == "user"
+    ]
+    summary = builder(user_msgs)
+    messages = st.session_state.setdefault("falowen_messages", [])
+    if not messages or messages[-1].get("role") != "assistant" or messages[-1].get("content") != summary:
+        messages.append({"role": "assistant", "content": summary})
+    st.session_state["falowen_summary_emitted"] = True
+    return True
 
 
 def render_custom_chat_input(
@@ -126,12 +129,7 @@ def render_custom_chat_input(
     """Render the non-exam chat input area and return interaction metadata."""
 
     use_chat_input = bool(st.session_state.get("falowen_use_chat_input"))
-    turn_count = int(st.session_state.get("falowen_turn_count", 0))
-    chat_closed = bool(st.session_state.get("falowen_chat_closed"))
-    chat_locked = chat_closed or turn_count >= TURN_LIMIT
-    if chat_locked and not chat_closed:
-        st.session_state["falowen_chat_closed"] = True
-        chat_closed = True
+    chat_locked = False
 
     user_input_ci: Optional[str] = None
     user_input_btn = ""

@@ -22,7 +22,7 @@ def _load_increment_fn():
     )
 
 
-def test_increment_and_finalize_after_six():
+def test_increment_and_emit_summary_after_six():
     inc, dummy, st, _ = _load_increment_fn()
     ss = st.session_state
     ss['falowen_turn_count'] = 5
@@ -34,8 +34,9 @@ def test_increment_and_finalize_after_six():
     ended = inc(False)
     assert ended is True
     assert ss['falowen_turn_count'] == 6
-    assert ss['falowen_chat_closed'] is True
+    assert ss['falowen_chat_closed'] is False
     assert ss['falowen_messages'][-1]['content'] == 'SUMMARY'
+    assert ss['falowen_summary_emitted'] is True
     assert dummy.called_with == ['Hallo', 'Tschüss']
 
 
@@ -49,6 +50,7 @@ def test_increment_when_below_limit():
     assert ss['falowen_turn_count'] == 3
     assert ss['falowen_messages'] == [{'role': 'user', 'content': 'Hallo'}]
     assert ss['falowen_chat_closed'] is False
+    assert ss['falowen_summary_emitted'] is False
     assert not hasattr(dummy, 'called_with')
 
 
@@ -58,25 +60,24 @@ def test_no_increment_in_exam_mode():
     ss['falowen_turn_count'] = 4
     ss['falowen_messages'] = []
     ss['falowen_chat_closed'] = False
+    ss['falowen_summary_emitted'] = True
     ended = inc(True)
     assert ended is False
     assert ss['falowen_turn_count'] == 4
     assert ss['falowen_messages'] == []
     assert ss['falowen_chat_closed'] is False
+    assert 'falowen_summary_emitted' not in ss
     assert not hasattr(dummy, 'called_with')
 
 
-def test_new_chat_reset_unlocks_after_limit():
+def test_new_chat_reset_clears_summary_state():
     inc, dummy, st, reset_chat = _load_increment_fn()
     ss = st.session_state
     ss['falowen_turn_count'] = 6
     ss['falowen_messages'] = [{'role': 'user', 'content': 'Hallo'}]
     ss['custom_topic_intro_done'] = True
-
-    ss['falowen_chat_closed'] = True
-
-    chat_locked = (not False) and bool(ss.get('falowen_chat_closed'))
-    assert chat_locked is True
+    ss['falowen_chat_closed'] = False
+    ss['falowen_summary_emitted'] = True
 
     reset_chat()
 
@@ -84,11 +85,10 @@ def test_new_chat_reset_unlocks_after_limit():
     assert ss['falowen_messages'] == []
     assert ss['custom_topic_intro_done'] is False
     assert ss['falowen_chat_closed'] is False
-    chat_locked = (not False) and bool(ss.get('falowen_chat_closed'))
-    assert chat_locked is False
+    assert 'falowen_summary_emitted' not in ss
 
 
-def test_prevents_duplicate_summary_when_closed():
+def test_prevents_duplicate_summary_after_emission():
     inc, dummy, st, _ = _load_increment_fn()
     ss = st.session_state
     ss['falowen_turn_count'] = 6
@@ -97,11 +97,35 @@ def test_prevents_duplicate_summary_when_closed():
         {'role': 'assistant', 'content': 'Hi'},
         {'role': 'assistant', 'content': 'SUMMARY'},
     ]
-    ss['falowen_chat_closed'] = True
+    ss['falowen_chat_closed'] = False
+    ss['falowen_summary_emitted'] = True
 
     ended = inc(False)
 
     assert ended is False
-    assert ss['falowen_turn_count'] == 6
+    assert ss['falowen_turn_count'] == 7
     assert ss['falowen_messages'][-1]['content'] == 'SUMMARY'
     assert not hasattr(dummy, 'called_with')
+
+
+def test_summary_only_once_chat_remains_open():
+    inc, dummy, st, _ = _load_increment_fn()
+    ss = st.session_state
+    ss['falowen_turn_count'] = 5
+    ss['falowen_messages'] = [
+        {'role': 'user', 'content': 'Hallo'},
+        {'role': 'assistant', 'content': 'Hi'},
+        {'role': 'user', 'content': 'Tschüss'},
+    ]
+
+    first = inc(False)
+    assert first is True
+    assert ss['falowen_summary_emitted'] is True
+    assert ss['falowen_chat_closed'] is False
+
+    second = inc(False)
+    assert second is False
+    assert ss['falowen_turn_count'] == 7
+    assert ss['falowen_chat_closed'] is False
+    assert ss['falowen_messages'].count({'role': 'assistant', 'content': 'SUMMARY'}) == 1
+    assert dummy.called_with == ['Hallo', 'Tschüss']

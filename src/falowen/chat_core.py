@@ -33,6 +33,7 @@ def reset_falowen_chat_flow(*, clear_messages: bool = True, clear_intro: bool = 
         st.session_state["custom_topic_intro_done"] = False
     st.session_state["falowen_turn_count"] = 0
     st.session_state["falowen_chat_closed"] = False
+    st.session_state.pop("falowen_summary_emitted", None)
 
 
 def back_step() -> None:
@@ -50,6 +51,7 @@ def back_step() -> None:
         "custom_topic_intro_done",
         "falowen_turn_count",
         "falowen_chat_closed",
+        "falowen_summary_emitted",
     ]:
         st.session_state.pop(key, None)
     if draft_key:
