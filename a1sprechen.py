@@ -6101,36 +6101,57 @@ if tab == "Exams Mode & Custom Chat":
         st.caption("You can keep chatting here or record your answer now.")
 
         # ---- Input area ----
+        use_chat_input = (not is_exam) and bool(st.session_state.get("falowen_use_chat_input"))
         chat_locked = (not is_exam) and st.session_state.get("falowen_turn_count", 0) >= 6
 
-        # optional Enter-to-send
-        user_input_ci = None if chat_locked else st.chat_input("Type your message…")
+        user_input_ci: Optional[str] = None
+        user_input_btn = ""
+        save_clicked = False
 
-        col_in, col_btn = st.columns([8, 1])
-        if st.session_state.pop("falowen_clear_draft", False):
-            st.session_state[draft_key] = ""
-            save_now(draft_key, student_code)
-        with col_in:
-            st.text_area(
-                "Type your answer...",
-                key=draft_key,
-                on_change=save_now,
-                args=(draft_key, student_code),
+        if use_chat_input:
+            # optional Enter-to-send chat bubble
+            user_input_ci = None if chat_locked else st.chat_input("Type your message…")
+        else:
+            col_in, col_btn = st.columns([8, 1])
+            if st.session_state.pop("falowen_clear_draft", False):
+                st.session_state[draft_key] = ""
+                save_now(draft_key, student_code)
+            with col_in:
+                st.text_area(
+                    "Type your answer...",
+                    key=draft_key,
+                    on_change=save_now,
+                    args=(draft_key, student_code),
+                    disabled=chat_locked,
+                )
+                render_umlaut_pad(draft_key, context=f"falowen_chat_{conv_key}", disabled=chat_locked)
+                autosave_maybe(
+                    student_code,
+                    draft_key,
+                    st.session_state.get(draft_key, ""),
+                    min_secs=2.0,
+                    min_delta=12,
+                    locked=chat_locked,
+                )
+            try:
+                from streamlit_autorefresh import st_autorefresh
+
+                st_autorefresh(interval=2000, key=_wkey("chat_autosave"))
+            except ImportError:
+                pass
+            with col_btn:
+                send_clicked = st.button("Send", key=_wkey("chat_send"), type="primary", disabled=chat_locked)
+            save_clicked = st.button(
+                "Save draft",
+                key=_wkey("chat_save_draft"),
                 disabled=chat_locked,
+                use_container_width=True,
             )
-            render_umlaut_pad(draft_key, context=f"falowen_chat_{conv_key}", disabled=chat_locked)
-            autosave_maybe(student_code, draft_key, st.session_state.get(draft_key, ""), min_secs=2.0, min_delta=12, locked=chat_locked)
-        try:
-            from streamlit_autorefresh import st_autorefresh
-            st_autorefresh(interval=2000, key=_wkey("chat_autosave"))
-        except ImportError:
-            pass
-        with col_btn:
-            send_clicked = st.button("Send", key=_wkey("chat_send"), type="primary", disabled=chat_locked)
-        save_clicked = st.button("Save draft", key=_wkey("chat_save_draft"), disabled=chat_locked, use_container_width=True)
+            user_input_btn = (
+                st.session_state.get(draft_key, "").strip() if send_clicked and not chat_locked else ""
+            )
 
-        user_input_btn = (st.session_state.get(draft_key, "").strip() if send_clicked and not chat_locked else "")
-        user_input = (user_input_ci or "").strip() if user_input_ci else user_input_btn
+        user_input = (user_input_ci or "").strip() if use_chat_input else user_input_btn
 
         if save_clicked:
             save_now(draft_key, student_code)
