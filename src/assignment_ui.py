@@ -1613,6 +1613,17 @@ def render_results_and_resources_tab() -> None:
             horizontal=True,
         )
 
+        pdf_state_keys = {
+            "Transcript PDF": ("transcript_pdf_bytes", "transcript_pdf_filename"),
+            "Enrollment Letter": ("enrollment_letter_pdf_bytes", "enrollment_letter_pdf_filename"),
+            "Receipt": ("receipt_pdf_bytes", "receipt_pdf_filename"),
+        }
+
+        for option, keys in pdf_state_keys.items():
+            if option != choice:
+                for key in keys:
+                    st.session_state.pop(key, None)
+
         # ------- Transcript PDF -------
         if choice == "Transcript PDF":
             st.markdown("**Transcript summary PDF**")
@@ -1671,6 +1682,8 @@ def render_results_and_resources_tab() -> None:
                     self.alias_nb_pages()
 
             if st.button("⬇️ Create & Download Transcript PDF"):
+                st.session_state.pop("transcript_pdf_bytes", None)
+                st.session_state.pop("transcript_pdf_filename", None)
                 pdf = PDFReport()
                 t = pdf._text
                 pdf.add_page()
@@ -1759,16 +1772,23 @@ def render_results_and_resources_tab() -> None:
                 file_level = level_val if level_val and level_val != "-" else "level"
                 file_stem = f"{file_code}_transcript_{file_level}".replace(" ", "_")
                 file_name = f"{file_stem}.pdf"
+                st.session_state["transcript_pdf_bytes"] = pdf_bytes
+                st.session_state["transcript_pdf_filename"] = file_name
+
+            transcript_bytes = st.session_state.get("transcript_pdf_bytes")
+            transcript_name = st.session_state.get("transcript_pdf_filename")
+            if transcript_bytes and transcript_name:
                 st.download_button(
                     label="Download Transcript PDF",
-                    data=pdf_bytes,
-                    file_name=file_name,
+                    data=transcript_bytes,
+                    file_name=transcript_name,
                     mime="application/pdf",
                 )
-                b64 = _b64.b64encode(pdf_bytes).decode()
+                b64 = _b64.b64encode(transcript_bytes).decode()
                 st.markdown(
-                    f"<a href=\"data:application/pdf;base64,{b64}\" download=\"{file_name}\" "
-                    f"style=\"font-size:1.1em;font-weight:600;color:#2563eb;\">📥 Click here to download transcript PDF (manual)</a>",
+                    f"<a href=\"data:application/pdf;base64,{b64}\" download=\"{transcript_name}\" "
+                    f"style=\"font-size:1.1em;font-weight:600;color:#2563eb;\">📥 Click here to download transcript PDF (manual)"
+                    "</a>",
                     unsafe_allow_html=True,
                 )
                 st.info("If the button does not work, right-click the blue link above and choose 'Save link as...'")
@@ -1880,12 +1900,22 @@ def render_results_and_resources_tab() -> None:
             st.text_input("Enrollment end", value=end_val, disabled=True)
 
             if st.button("Generate Enrollment Letter"):
+                st.session_state.pop("enrollment_letter_pdf_bytes", None)
+                st.session_state.pop("enrollment_letter_pdf_filename", None)
                 pdf_bytes = generate_enrollment_letter_pdf(name_val, level_display, start_val, end_val)
                 file_stub = (name_val or "student").strip().replace(" ", "_") or "student"
+                st.session_state["enrollment_letter_pdf_bytes"] = pdf_bytes
+                st.session_state["enrollment_letter_pdf_filename"] = (
+                    f"{file_stub}_enrollment_letter.pdf"
+                )
+
+            enrollment_bytes = st.session_state.get("enrollment_letter_pdf_bytes")
+            enrollment_name = st.session_state.get("enrollment_letter_pdf_filename")
+            if enrollment_bytes and enrollment_name:
                 st.download_button(
                     "Download Enrollment Letter PDF",
-                    data=pdf_bytes,
-                    file_name=f"{file_stub}_enrollment_letter.pdf",
+                    data=enrollment_bytes,
+                    file_name=enrollment_name,
                     mime="application/pdf",
                 )
 
@@ -1950,6 +1980,8 @@ def render_results_and_resources_tab() -> None:
             st.text_input("Date", value=receipt_date, disabled=True)
 
             if st.button("Generate Receipt"):
+                st.session_state.pop("receipt_pdf_bytes", None)
+                st.session_state.pop("receipt_pdf_filename", None)
                 pdf_bytes = generate_receipt_pdf(
                     name_val,
                     level_display,
@@ -1961,10 +1993,16 @@ def render_results_and_resources_tab() -> None:
                 )
                 receipt_stub = code_display if code_display and code_display != "-" else "student"
                 receipt_stub = receipt_stub.replace(" ", "_") or "student"
+                st.session_state["receipt_pdf_bytes"] = pdf_bytes
+                st.session_state["receipt_pdf_filename"] = f"{receipt_stub}_receipt.pdf"
+
+            receipt_bytes = st.session_state.get("receipt_pdf_bytes")
+            receipt_name = st.session_state.get("receipt_pdf_filename")
+            if receipt_bytes and receipt_name:
                 st.download_button(
                     "Download Receipt PDF",
-                    data=pdf_bytes,
-                    file_name=f"{receipt_stub}_receipt.pdf",
+                    data=receipt_bytes,
+                    file_name=receipt_name,
                     mime="application/pdf",
                 )
 
