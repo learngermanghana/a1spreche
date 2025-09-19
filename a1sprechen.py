@@ -4320,11 +4320,6 @@ if tab == "My Course":
                 .collection("posts")
             )
 
-            active_thread_state_key = "classroom_active_thread"
-            if active_thread_state_key not in st.session_state:
-                st.session_state[active_thread_state_key] = None
-
-
             _new7, _unans, _total = 0, 0, 0
             try:
                 _now = _dt.now(_timezone.utc)
@@ -4911,7 +4906,6 @@ if tab == "My Course":
                             apply_ai_correction(q_id, draft_key, current_text)
                         st.session_state[ai_flag] = False
                         st.session_state["need_rerun"] = True
-                        st.session_state[active_thread_state_key] = q_id
                         current_text = st.session_state.get(draft_key, "")
                         if not isinstance(current_text, str):
                             current_text = ""
@@ -4930,9 +4924,6 @@ if tab == "My Course":
                         current_text = ""
                     autosave_maybe(student_code, draft_key, current_text, min_secs=2.0, min_delta=12)
 
-                    if current_text:
-                        st.session_state[active_thread_state_key] = q_id
-
                     send_col, ai_col = st.columns([1, 1])
 
                     with send_col:
@@ -4945,7 +4936,6 @@ if tab == "My Course":
                             if not current_text.strip():
                                 st.warning("Type a reply first.")
                             else:
-                                st.session_state[active_thread_state_key] = q_id
                                 send_comment(
                                     q_id,
                                     student_code,
@@ -4969,15 +4959,13 @@ if tab == "My Course":
                         ):
                             st.session_state[ai_flag] = True
                             st.session_state["need_rerun"] = True
-                            st.session_state[active_thread_state_key] = q_id
 
-                    if st.session_state.get(active_thread_state_key) == q_id:
-                        try:
-                            from streamlit_autorefresh import st_autorefresh
+                    try:
+                        from streamlit_autorefresh import st_autorefresh
 
-                            st_autorefresh(interval=5000, key=f"comment_refresh_{q_id}")
-                        except ImportError:
-                            pass
+                        st_autorefresh(interval=5000, key=f"comment_refresh_{q_id}")
+                    except ImportError:
+                        pass
 
                     if idx < len(questions) - 1:
                         st.divider()
