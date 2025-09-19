@@ -326,7 +326,7 @@ from src.contracts import (
 )
 from src.services.contracts import contract_active
 from src.utils.currency import format_cedis
-from src.utils.toasts import toast_ok, refresh_with_toast, toast_once
+from src.utils.toasts import toast_ok, refresh_with_toast, toast_once, request_rerun
 from src.firestore_utils import (
     _draft_doc_ref,
     load_chat_draft_from_db,
@@ -5422,7 +5422,7 @@ def back_step():
             st.session_state.pop(extra, None)
     st.session_state["_falowen_loaded"] = False
     st.session_state["falowen_stage"] = 1
-    refresh_with_toast()
+    request_rerun()
 
 # --- CONFIG (same doc, no duplicate db init) ---
 exam_sheet_id = "1zaAT5NjRGKiITV7EpuSHvYMBHHENMs9Piw3pNcyQtho"
@@ -5934,7 +5934,7 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["falowen_stage"] = 3 if mode == "Exams Mode" else 4
                     st.session_state["falowen_teil"] = None
                     reset_falowen_chat_flow()
-                    refresh_with_toast()
+                    request_rerun()
 
 
 
@@ -5956,14 +5956,14 @@ if tab == "Exams Mode & Custom Chat":
                 st.session_state.pop("falowen_level_center", None)
                 st.session_state["falowen_messages"] = []
                 st.session_state["_falowen_loaded"] = False
-                refresh_with_toast()
+                request_rerun()
         with col2:
             if st.button("Next ➡️", key="falowen_next_level"):
                 if st.session_state.get("falowen_level"):
                     st.session_state["falowen_stage"] = 3 if st.session_state["falowen_mode"] == "Exams Mode" else 4
                     st.session_state["falowen_teil"] = None
                     reset_falowen_chat_flow()
-                    refresh_with_toast()
+                    request_rerun()
         st.stop()
 
     # ——— Step 3: Exam Part or Lesen/Hören links ———
@@ -6026,7 +6026,7 @@ if tab == "Exams Mode & Custom Chat":
             if st.button("⬅️ Back", key="lesen_hoeren_back"):
                 st.session_state["falowen_stage"] = 2
                 st.session_state["falowen_messages"] = []
-                refresh_with_toast()
+                request_rerun()
 
         else:
             # Topic picker (your format: "Topic/Prompt" + "Keyword/Subtopic")
@@ -6086,7 +6086,7 @@ if tab == "Exams Mode & Custom Chat":
                 if st.button("⬅️ Back", key="falowen_back_part"):
                     st.session_state["falowen_stage"]    = 2
                     st.session_state["falowen_messages"] = []
-                    refresh_with_toast()
+                    request_rerun()
             with col_start:
                 start_disabled = not topic
                 if st.button("Start Practice", key="falowen_start_practice", disabled=start_disabled) and topic:
@@ -6248,7 +6248,7 @@ if tab == "Exams Mode & Custom Chat":
         col_in, col_btn = st.columns([8, 1])
         if st.session_state.pop("falowen_clear_draft", False):
             st.session_state[draft_key] = ""
-            save_now(draft_key, student_code)
+            save_now(draft_key, student_code, show_toast=False)
         with col_in:
             st.text_area(
                 "Type your answer...",
@@ -6404,7 +6404,7 @@ if tab == "Exams Mode & Custom Chat":
                     refresh_with_toast()
         with col2:
             if st.button("⬅️ Back", key=_wkey("btn_back_stage4")):
-                save_now(draft_key, student_code)
+                save_now(draft_key, student_code, show_toast=False)
                 back_step()
 
         st.divider()

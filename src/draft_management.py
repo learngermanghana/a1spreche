@@ -36,7 +36,7 @@ def _draft_state_keys(draft_key: str) -> Tuple[str, str, str, str]:
     )
 
 
-def save_now(draft_key: str, code: str) -> None:
+def save_now(draft_key: str, code: str, *, show_toast: bool = True) -> None:
     """Immediately persist the draft associated with ``draft_key``."""
     text = st.session_state.get(draft_key, "") or ""
     if st.session_state.get("falowen_chat_draft_key") == draft_key:
@@ -52,7 +52,8 @@ def save_now(draft_key: str, code: str) -> None:
     st.session_state[last_ts_key] = time.time()
     st.session_state[saved_flag_key] = True
     st.session_state[saved_at_key] = datetime.now(_timezone.utc)
-    toast_ok("Saved!")
+    if show_toast:
+        toast_ok("Saved!")
 
 
 def autosave_maybe(

@@ -19,7 +19,7 @@ def _load_back_step():
     glb = {
         "st": st,
         "_draft_state_keys": _draft_state_keys,
-        "refresh_with_toast": toasts.refresh_with_toast,
+        "request_rerun": toasts.request_rerun,
     }
     exec(code, glb)
     return glb["back_step"], st
