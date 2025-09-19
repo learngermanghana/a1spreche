@@ -301,6 +301,13 @@ def ensure_student_row(*, stop_if_missing: bool = False) -> Dict[str, Any]:
 
     return student_row
 
+# Hide sidebar entirely until user logs in
+if not st.session_state.get("logged_in", False):
+    st.markdown(
+        "<style>div[data-testid='stSidebar'] {display: none;}</style>",
+        unsafe_allow_html=True,
+    )
+
 
 # Ensure the latest lesson schedule is loaded
 if "level_schedules_initialized" not in st.session_state:
