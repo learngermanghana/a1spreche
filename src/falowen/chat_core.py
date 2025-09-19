@@ -413,17 +413,6 @@ def render_chat_stage(
         mime="application/pdf",
         key=key_fn("dl_chat_pdf"),
     )
-    chat_as_text = "\n".join(
-        [f"{m.get('role', '').capitalize()}: {m.get('content', '')}" for m in st.session_state.get("falowen_messages", [])]
-    )
-    st.download_button(
-        "⬇️ Download Chat as TXT",
-        chat_as_text.encode("utf-8"),
-        file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.txt",
-        mime="text/plain",
-        key=key_fn("dl_chat_txt"),
-    )
-
     col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("🗑️ Delete All Chat History", key=key_fn("btn_delete_history")):
