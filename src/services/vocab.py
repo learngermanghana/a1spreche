@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Union
 
 import pandas as pd
 import streamlit as st
@@ -12,7 +12,7 @@ DEFAULT_SHEET_ID = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
 DEFAULT_SHEET_GID = 0  # <-- change this if your Vocab tab uses another gid
 
 
-def _lookup_secret(*keys: str) -> str | int | None:
+def _lookup_secret(*keys: str) -> Union[str, int, None]:
     """Return the first matching value from ``st.secrets`` for ``keys``."""
 
     secrets = getattr(st, "secrets", None)
@@ -29,7 +29,7 @@ def _lookup_secret(*keys: str) -> str | int | None:
     return None
 
 
-def _coerce_gid(raw_value: str | int | None) -> int:
+def _coerce_gid(raw_value: Union[str, int, None]) -> int:
     """Convert a user-provided gid to an ``int`` or fall back to the default."""
 
     if raw_value in (None, ""):

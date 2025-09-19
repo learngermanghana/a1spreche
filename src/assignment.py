@@ -3,10 +3,12 @@
 import html
 import re
 import urllib.parse
+from typing import Union
+
 import pandas as pd
 
 
-def linkify_html(text: str | float | None) -> str:
+def linkify_html(text: Union[str, float, None]) -> str:
     """Escape HTML and convert URLs in plain text to anchor tags."""
     s = "" if text is None or (isinstance(text, float) and pd.isna(text)) else str(text)
     s = html.escape(s)
@@ -17,7 +19,7 @@ def linkify_html(text: str | float | None) -> str:
     )
     return s
 
-def _clean_link(val: str | float | None) -> str:
+def _clean_link(val: Union[str, float, None]) -> str:
     """Return a clean string or '' if empty/NaN/common placeholders."""
     if val is None:
         return ""
@@ -26,7 +28,7 @@ def _clean_link(val: str | float | None) -> str:
     s = str(val).strip()
     return "" if s.lower() in {"", "nan", "none", "null", "0"} else s
 
-def _is_http_url(s: str | float | None) -> bool:
+def _is_http_url(s: Union[str, float, None]) -> bool:
     try:
         u = urllib.parse.urlparse(str(s))
         return u.scheme in ("http", "https") and bool(u.netloc)

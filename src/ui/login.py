@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
+from typing import Dict
 from functools import lru_cache
 
 import streamlit as st
@@ -133,7 +134,7 @@ def render_falowen_login(
         from types import SimpleNamespace
         from .. import ui_widgets
 
-        captured: dict[str, str] = {}
+        captured: Dict[str, str] = {}
 
         def _capture(markup: str, **_: object) -> None:
             captured["html"] = markup

@@ -14,7 +14,7 @@ import re
 import tempfile
 import time
 from datetime import date
-from typing import Callable, NamedTuple, Sequence
+from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Set, Tuple, Union
 
 import pandas as pd
 import requests
@@ -52,14 +52,14 @@ BOLD_FONT_PATH = os.path.join(BASE_DIR, "font", "DejaVuSans-Bold.ttf")
 # Expected assignment counts for each level. Values here take precedence over
 # schedule-derived counts so we can present authoritative targets even when
 # schedule heuristics skip practice-only entries.
-LEVEL_ASSIGNMENT_TARGET_OVERRIDES: dict[str, int] = {
+LEVEL_ASSIGNMENT_TARGET_OVERRIDES: Dict[str, int] = {
     "A1": 19,
 }
 
 PASS_MARK = 60.0
 
 
-def _first_series(df: pd.DataFrame, candidates: Sequence[str]) -> pd.Series | None:
+def _first_series(df: pd.DataFrame, candidates: Sequence[str]) -> Optional[pd.Series]:
     for candidate in candidates:
         if candidate in df.columns:
             return df[candidate]
@@ -78,7 +78,7 @@ def _clean_text(value: object) -> str:
     return "" if not text or text.lower() == "nan" else text
 
 
-def _coerce_score_value(value: object) -> float | None:
+def _coerce_score_value(value: object) -> Optional[float]:
     text = _clean_text(value)
     if not text:
         return None
@@ -122,7 +122,7 @@ def _display_from_numeric(val: float) -> str:
     return f"{val:.0f}"
 
 
-def _score_status_details(numeric_value: float | None) -> tuple[str, str, str]:
+def _score_status_details(numeric_value: Optional[float]) -> Tuple[str, str, str]:
     """Return status details for a score as (emoji, label text, table text)."""
 
     if numeric_value is None:
@@ -263,7 +263,7 @@ def summarize_assignment_attempts(df_user: pd.DataFrame) -> pd.DataFrame:
     date_norm = date_raw_series.map(_format_date_value)
     date_value = pd.to_datetime(date_raw_series, errors="coerce")
 
-    def _series_to_text(series: pd.Series | None) -> pd.Series:
+    def _series_to_text(series: Optional[pd.Series]) -> pd.Series:
         if series is None:
             return pd.Series([""] * total_rows, index=index, dtype=object)
         return series.map(_clean_text)
@@ -294,7 +294,7 @@ def summarize_assignment_attempts(df_user: pd.DataFrame) -> pd.DataFrame:
         index=index,
     )
 
-    records: list[pd.Series] = []
+    records: List[pd.Series] = []
     for _, group in df_prepared.groupby("assignment_key", sort=False):
         group_sorted = group.assign(
             _score_sort=group["score_numeric"].fillna(float("-inf")),
@@ -432,12 +432,12 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
         or []
     )
 
-    def _extract_all_nums(chapter_str: str) -> list[float]:
+    def _extract_all_nums(chapter_str: str) -> List[float]:
         text = "" if chapter_str is None else str(chapter_str)
         if not text:
             return []
-        numbers: list[float] = []
-        base_prefix: str | None = None
+        numbers: List[float] = []
+        base_prefix: Optional[str] = None
         decimal_len = 0
         for match in re.finditer(r"\d+(?:\.\d+)?", text):
             token = match.group()
@@ -462,7 +462,7 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
                     decimal_len = 0
         return numbers
 
-    def _numbers_from_source(value: object) -> list[float]:
+    def _numbers_from_source(value: object) -> List[float]:
         if value is None:
             return []
         text = str(value).strip()
@@ -470,8 +470,8 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
             return []
         return _extract_all_nums(text)
 
-    def _collect_section_numbers(section: object, fallback: object) -> list[float]:
-        numbers: list[float] = []
+    def _collect_section_numbers(section: object, fallback: object) -> List[float]:
+        numbers: List[float] = []
         if isinstance(section, dict):
             if section.get("assignment"):
                 numbers.extend(_numbers_from_source(section.get("chapter", fallback)))
@@ -481,8 +481,8 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
                     numbers.extend(_numbers_from_source(item.get("chapter", fallback)))
         return numbers
 
-    def _chapter_strings(lesson: dict) -> list[str]:
-        chapters: list[str] = []
+    def _chapter_strings(lesson: dict) -> List[str]:
+        chapters: List[str] = []
 
         def _maybe_add(value: object) -> None:
             if value is None:
@@ -505,15 +505,15 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
     student_norm = (student_code or "").strip().casefold()
     level_norm = (level or "").strip().casefold()
 
-    completed_nums: set[float] = set()
-    failed_attempt_nums: set[float] = set()
+    completed_nums: Set[float] = set()
+    failed_attempt_nums: Set[float] = set()
     if isinstance(df, pd.DataFrame) and not df.empty:
         required_columns = {"studentcode", "assignment", "level"}
         if required_columns.issubset(df.columns):
             normalized_columns = {
                 str(column).strip().casefold(): column for column in df.columns
             }
-            score_column_name: str | None = None
+            score_column_name: Optional[str] = None
             for candidate in ("score", "grade", "points", "result", "marks", "percentage"):
                 lookup = normalized_columns.get(candidate)
                 if lookup is not None:
@@ -526,7 +526,7 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
             level_series = df["level"].astype(str).str.strip().str.casefold()
             mask = (student_series == student_norm) & (level_series == level_norm)
             if mask.any():
-                highest_scores: dict[float, float] = {}
+                highest_scores: Dict[float, float] = {}
                 filtered_df = df.loc[mask]
                 for _, row in filtered_df.iterrows():
                     assignment_value = row.get("assignment")
@@ -539,7 +539,7 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
                     if not numbers:
                         continue
 
-                    numeric_score: float | None = None
+                    numeric_score: Optional[float] = None
                     if score_column_name is not None:
                         numeric_score = _coerce_score_value(row.get(score_column_name))
                         if numeric_score is not None:
@@ -561,14 +561,14 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
                     else:
                         failed_attempt_nums.add(identifier)
 
-    def _to_int(value: object) -> int | None:
+    def _to_int(value: object) -> Optional[int]:
         try:
             return int(value) if value is not None else None
         except (TypeError, ValueError):
             return None
 
-    lessons_info: list[dict[str, object]] = []
-    assignment_identifiers: set[float] = set()
+    lessons_info: List[Dict[str, object]] = []
+    assignment_identifiers: Set[float] = set()
 
     for lesson in schedule:
         if not isinstance(lesson, dict):
@@ -600,8 +600,8 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
         if not has_reading and has_writing:
             continue
 
-        seen: set[float] = set()
-        relevant_nums: list[float] = []
+        seen: Set[float] = set()
+        relevant_nums: List[float] = []
         for num in general_nums + reading_nums + writing_nums:
             if num not in seen:
                 seen.add(num)
@@ -623,7 +623,7 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
             }
         )
 
-    failed_identifiers_set: set[float] = set()
+    failed_identifiers_set: Set[float] = set()
     for info in lessons_info:
         relevant_nums = info["relevant_nums"]
         needs_rework = any(num in failed_attempt_nums for num in relevant_nums)
@@ -647,7 +647,7 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
 
     target_total = len(assignment_identifiers)
 
-    def _format_line(info: dict[str, object]) -> str:
+    def _format_line(info: Dict[str, object]) -> str:
         day_value = info.get("day")
         day_display = day_value if day_value is not None else "?"
         line = f"Day {day_display}:"
@@ -659,8 +659,8 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
             line += f" – {topic_text}"
         return line
 
-    missed: list[str] = []
-    next_assignment: dict | None = None
+    missed: List[str] = []
+    next_assignment: Optional[Dict[str, object]] = None
 
     for info in lessons_info:
         if info.get("completed"):
@@ -703,7 +703,7 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
 
 _num_pat = re.compile(r"(\d+(?:[.,]\d+)?)")
 
-def _extract_max_num(text: str | float | int | None) -> float | None:
+def _extract_max_num(text: Union[str, float, int, None]) -> Optional[float]:
     if text is None:
         return None
     s = str(text)
@@ -711,7 +711,7 @@ def _extract_max_num(text: str | float | int | None) -> float | None:
     return max(nums) if nums else None
 
 
-def _is_recommendable(lesson: dict) -> bool:
+def _is_recommendable(lesson: Dict[str, object]) -> bool:
     # Placeholder business rule (kept minimal since original logic not included)
     return bool(lesson)
 
@@ -1094,7 +1094,7 @@ def render_results_and_resources_tab() -> None:
     if not isinstance(df_scores_raw, pd.DataFrame):
         df_scores_raw = pd.DataFrame()
 
-    assignment_summary: dict[str, object] = {
+    assignment_summary: Dict[str, object] = {
         "missed": [],
         "next": None,
         "target": 0,
@@ -1219,7 +1219,7 @@ def render_results_and_resources_tab() -> None:
     if pd.isna(best_score):
         best_score = 0.0
 
-    top_result: dict[str, object] | None = None
+    top_result: Optional[Dict[str, object]] = None
     if not numeric_nonnull.empty:
         try:
             top_idx = numeric_series.idxmax(skipna=True)
@@ -1237,7 +1237,7 @@ def render_results_and_resources_tab() -> None:
             }
 
     def score_label_fmt(
-        score_value: object, plain: bool = False, attempts: int | None = None
+        score_value: object, plain: bool = False, attempts: Optional[int] = None
     ) -> str:
         cleaned_text = _clean_text(score_value)
         numeric_value = _coerce_score_value(score_value)
@@ -1290,7 +1290,7 @@ def render_results_and_resources_tab() -> None:
             ]
         )
 
-    display_records: list[dict[str, object]]
+    display_records: List[Dict[str, object]]
     if not df_summary.empty:
         display_records = df_summary.to_dict(orient="records")
     else:
@@ -1346,7 +1346,7 @@ def render_results_and_resources_tab() -> None:
             topic_text = _clean_text(next_assignment.get("topic"))
             goal_text = _clean_text(next_assignment.get("goal"))
 
-            descriptor_parts: list[str] = []
+            descriptor_parts: List[str] = []
             if day_text:
                 descriptor_parts.append(
                     day_text
@@ -1380,9 +1380,9 @@ def render_results_and_resources_tab() -> None:
             st.info("No feedback available yet.")
         else:
             def _extract_record_text(
-                record_dict: dict[str, object],
-                preferred_keys: tuple[str, ...],
-                keyword_tokens: tuple[str, ...],
+                record_dict: Dict[str, object],
+                preferred_keys: Tuple[str, ...],
+                keyword_tokens: Tuple[str, ...],
             ) -> str:
                 for key in preferred_keys:
                     if key in record_dict:
@@ -1433,7 +1433,7 @@ def render_results_and_resources_tab() -> None:
                 if date_value:
                     st.write(f"Date: {date_value}")
 
-                seen_texts: set[str] = set()
+                seen_texts: Set[str] = set()
 
                 feedback_text = _extract_record_text(record, feedback_keys, feedback_tokens)
                 if feedback_text:
@@ -1444,7 +1444,7 @@ def render_results_and_resources_tab() -> None:
                     )
 
                 answer_text = _extract_record_text(record, answer_keys, answer_tokens)
-                fallback_refs: list[tuple[str, str]] = []
+                fallback_refs: List[Tuple[str, str]] = []
                 if not answer_text and isinstance(student_row, dict) and student_row:
                     seen_values = set(seen_texts)
                     for key, raw_value in student_row.items():
@@ -1512,7 +1512,7 @@ def render_results_and_resources_tab() -> None:
             "locked_detail": trophy_locked_detail,
         }
 
-        average_badges: list[dict[str, object]] = []
+        average_badges: List[Dict[str, object]] = []
         for title, emoji, threshold in (
             ("Gold Badge", "🥇", 80.0),
             ("Silver Badge", "🥈", 70.0),

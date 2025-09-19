@@ -5,7 +5,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from threading import Lock
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 from collections.abc import MutableMapping
 from types import SimpleNamespace
 
@@ -20,7 +20,7 @@ except Exception:  # pragma: no cover
 @dataclass
 class SimpleCookieManager(MutableMapping[str, Any]):
     """Minimal in-memory cookie store used for tests."""
-    store: dict[str, dict[str, Any]] = field(default_factory=dict)
+    store: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
     def __getitem__(self, key: str) -> Any:  # pragma: no cover
         item = self.store[key]
@@ -38,7 +38,7 @@ class SimpleCookieManager(MutableMapping[str, Any]):
     def __len__(self) -> int:  # pragma: no cover
         return len(self.store)
 
-    def pop(self, key: str, default: Any | None = None) -> Any | None:  # pragma: no cover
+    def pop(self, key: str, default: Optional[Any] = None) -> Optional[Any]:  # pragma: no cover
         item = self.store.pop(key, None)
         if item is None:
             return default
@@ -47,7 +47,7 @@ class SimpleCookieManager(MutableMapping[str, Any]):
     def set(self, key: str, value: Any, **kwargs: Any) -> None:  # pragma: no cover
         self.store[key] = {"value": value, "kwargs": kwargs}
 
-    def get(self, key: str, default: Any | None = None) -> Any | None:  # pragma: no cover
+    def get(self, key: str, default: Optional[Any] = None) -> Optional[Any]:  # pragma: no cover
         item = self.store.get(key)
         if item is None:
             return default
@@ -85,7 +85,9 @@ def _cm_save(cm: Any) -> None:
         except Exception:
             logging.exception("Cookie save failed")
 
-def _cm_set(cm: MutableMapping[str, Any] | Any, key: str, value: Any, **kwargs: Any) -> None:
+def _cm_set(
+    cm: Union[MutableMapping[str, Any], object], key: str, value: Any, **kwargs: Any
+) -> None:
     """
     Try cookie_manager.set(key, value, **kwargs). Fall back to mapping semantics
     (for SimpleCookieManager/tests). Tracks kwargs in SimpleCookieManager.store for assertions.
@@ -122,13 +124,17 @@ def _cm_set(cm: MutableMapping[str, Any] | Any, key: str, value: Any, **kwargs: 
             store[key]["kwargs"] = cookie_args
 
 # Public cookie ops used by the app
-def set_student_code_cookie(cm: MutableMapping[str, Any] | Any, code: str, **kwargs: Any) -> None:
+def set_student_code_cookie(
+    cm: Union[MutableMapping[str, Any], object], code: str, **kwargs: Any
+) -> None:
     _cm_set(cm, "student_code", code, **kwargs)
 
-def set_session_token_cookie(cm: MutableMapping[str, Any] | Any, token: str, **kwargs: Any) -> None:
+def set_session_token_cookie(
+    cm: Union[MutableMapping[str, Any], object], token: str, **kwargs: Any
+) -> None:
     _cm_set(cm, "session_token", token, **kwargs)
 
-def clear_session(cm: MutableMapping[str, Any] | Any) -> None:
+def clear_session(cm: Union[MutableMapping[str, Any], object]) -> None:
     try:
         # Try CookieManager.delete if available
         deleter = getattr(cm, "delete", None)
@@ -160,7 +166,7 @@ class _SessionStore:
     """In-memory mapping of session token to student code."""
 
     def __init__(self, ttl: int = 3600) -> None:  # pragma: no cover
-        self._store: dict[str, tuple[str, datetime]] = {}
+        self._store: Dict[str, Tuple[str, datetime]] = {}
         self._lock = Lock()
         self._ttl = ttl
 
@@ -179,7 +185,7 @@ class _SessionStore:
             self._store[token] = (student_code, datetime.now(timezone.utc))
             self._prune_locked()
 
-    def get(self, token: str) -> str | None:
+    def get(self, token: str) -> Optional[str]:
         with self._lock:
             self._prune_locked()
             data = self._store.get(token)
@@ -204,7 +210,7 @@ def persist_session_client(token: str, student_code: str) -> None:  # pragma: no
     get_session_store().set(token, student_code)
 
 
-def get_session_client(token: str) -> str | None:  # pragma: no cover
+def get_session_client(token: str) -> Optional[str]:  # pragma: no cover
     return get_session_store().get(token)
 
 

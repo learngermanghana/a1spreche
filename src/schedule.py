@@ -1,11 +1,12 @@
 """Course schedule utilities."""
 from __future__ import annotations
 
+from typing import Dict, List
 import re
 import streamlit as st
 
 
-def _strip_topic_chapter(schedule: list[dict]) -> list[dict]:
+def _strip_topic_chapter(schedule: List[Dict[str, object]]) -> List[Dict[str, object]]:
     """Remove trailing chapter references from lesson topics.
 
     Some schedule entries duplicate the chapter number in the ``topic`` field

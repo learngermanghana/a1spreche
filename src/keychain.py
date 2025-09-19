@@ -8,6 +8,7 @@ Swift functions using ``subprocess`` and provides Python-friendly wrappers.
 
 from enum import Enum
 from pathlib import Path
+from typing import Optional
 import json
 import subprocess
 from shutil import which
@@ -46,7 +47,7 @@ def _run_swift(snippet: str) -> None:
         pass
 
 
-def _run_swift_capture(snippet: str) -> str | None:
+def _run_swift_capture(snippet: str) -> Optional[str]:
     """Execute Swift code and return its stdout."""
 
     if not _SWIFT_BIN or not _SWIFT_HELPER.exists():
@@ -84,7 +85,7 @@ def delete_token(key: KeychainKey) -> None:
     _run_swift(snippet)
 
 
-def get_token(key: KeychainKey) -> str | None:
+def get_token(key: KeychainKey) -> Optional[str]:
     """Fetch a token from the platform keychain."""
 
     snippet = f"""
