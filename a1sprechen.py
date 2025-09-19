@@ -4916,10 +4916,12 @@ if tab == "My Course":
                         if not isinstance(current_text, str):
                             current_text = ""
 
-                    composer_value = st.chat_input(
+                    st.text_area(
                         "Reply to this thread…",
                         key=draft_key,
-                        on_submit=save_now,
+                        placeholder="Reply to this thread…",
+                        label_visibility="collapsed",
+                        on_change=save_now,
                         args=(draft_key, student_code),
                     )
 
@@ -4931,31 +4933,42 @@ if tab == "My Course":
                     if current_text:
                         st.session_state[active_thread_state_key] = q_id
 
-                    if composer_value:
-                        st.session_state[draft_key] = composer_value
-                        st.session_state[active_thread_state_key] = q_id
-                        send_comment(
-                            q_id,
-                            student_code,
-                            student_name,
-                            class_name,
-                            board_base,
-                            draft_key,
-                            last_val_key,
-                            last_ts_key,
-                            saved_flag_key,
-                            saved_at_key,
-                        )
-                        st.session_state["need_rerun"] = True
+                    send_disabled = not current_text.strip()
+                    send_col, ai_col = st.columns([1, 1])
 
-                    if st.button(
-                        "✨ Correct with AI",
-                        key=f"q_ai_btn_{q_id}",
-                        disabled=st.session_state.get(ai_flag, False),
-                    ):
-                        st.session_state[ai_flag] = True
-                        st.session_state["need_rerun"] = True
-                        st.session_state[active_thread_state_key] = q_id
+                    with send_col:
+                        if st.button(
+                            "Send Reply",
+                            key=f"q_send_comment_{q_id}",
+                            type="primary",
+                            use_container_width=True,
+                            disabled=send_disabled,
+                        ):
+                            st.session_state[active_thread_state_key] = q_id
+                            send_comment(
+                                q_id,
+                                student_code,
+                                student_name,
+                                class_name,
+                                board_base,
+                                draft_key,
+                                last_val_key,
+                                last_ts_key,
+                                saved_flag_key,
+                                saved_at_key,
+                            )
+                            st.session_state["need_rerun"] = True
+
+                    with ai_col:
+                        if st.button(
+                            "✨ Correct with AI",
+                            key=f"q_ai_btn_{q_id}",
+                            disabled=st.session_state.get(ai_flag, False),
+                            use_container_width=True,
+                        ):
+                            st.session_state[ai_flag] = True
+                            st.session_state["need_rerun"] = True
+                            st.session_state[active_thread_state_key] = q_id
 
                     if st.session_state.get(active_thread_state_key) == q_id:
                         try:
