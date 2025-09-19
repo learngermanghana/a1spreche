@@ -420,7 +420,7 @@ def render_chat_stage(
         mime="application/pdf",
         key=key_fn("dl_chat_pdf"),
     )
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     with col1:
         if st.button("🗑️ Delete All Chat History", key=key_fn("btn_delete_history")):
             if db is not None:
@@ -445,10 +445,6 @@ def render_chat_stage(
                     st.session_state["falowen_stage"] = 1
                     rerun_without_toast()
     with col2:
-        if st.button("🔁 Reset Chat", key=key_fn("reset_chat")):
-            reset_falowen_chat_flow()
-            rerun_without_toast()
-    with col3:
         if st.button("⬅️ Back", key=key_fn("btn_back_stage4")):
             save_now(session.draft_key, student_code)
             back_step()
