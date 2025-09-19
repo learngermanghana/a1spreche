@@ -424,38 +424,28 @@ def render_chat_stage(
         key=key_fn("dl_chat_txt"),
     )
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("🗑️ Delete All Chat History", key=key_fn("btn_delete_history")):
-            if db is not None:
-                try:
-                    db.collection("falowen_chats").document(student_code).delete()
-                except Exception as exc:
-                    st.error(f"Could not delete chat history: {exc}")
-                else:
-                    for k in [
-                        "falowen_stage",
-                        "falowen_mode",
-                        "falowen_level",
-                        "falowen_teil",
-                        "falowen_messages",
-                        "custom_topic_intro_done",
-                        "falowen_exam_topic",
-                        "falowen_exam_keyword",
-                        "_falowen_loaded",
-                        "falowen_loaded_key",
-                    ]:
-                        st.session_state.pop(k, None)
-                    st.session_state["falowen_stage"] = 1
-                    rerun_without_toast()
-    with col2:
-        if st.button("🔁 Reset Chat", key=key_fn("reset_chat")):
-            reset_falowen_chat_flow()
-            rerun_without_toast()
-    with col3:
-        if st.button("⬅️ Back", key=key_fn("btn_back_stage4")):
-            save_now(session.draft_key, student_code)
-            back_step()
+    if st.button("🗑️ Delete All Chat History", key=key_fn("btn_delete_history")):
+        if db is not None:
+            try:
+                db.collection("falowen_chats").document(student_code).delete()
+            except Exception as exc:
+                st.error(f"Could not delete chat history: {exc}")
+            else:
+                for k in [
+                    "falowen_stage",
+                    "falowen_mode",
+                    "falowen_level",
+                    "falowen_teil",
+                    "falowen_messages",
+                    "custom_topic_intro_done",
+                    "falowen_exam_topic",
+                    "falowen_exam_keyword",
+                    "_falowen_loaded",
+                    "falowen_loaded_key",
+                ]:
+                    st.session_state.pop(k, None)
+                st.session_state["falowen_stage"] = 1
+                rerun_without_toast()
 
     st.divider()
 
