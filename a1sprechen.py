@@ -5413,7 +5413,7 @@ def back_step():
         "falowen_messages",
         "falowen_loaded_key", "falowen_conv_key",
         "falowen_chat_draft_key", "custom_topic_intro_done",
-        "falowen_turn_count",
+        "falowen_turn_count", "falowen_chat_closed",
     ]:
         st.session_state.pop(key, None)
     if draft_key:
@@ -5825,20 +5825,28 @@ def increment_turn_count_and_maybe_close(is_exam: bool) -> bool:
     if is_exam:
         return False
 
-    st.session_state["falowen_turn_count"] = (
-        st.session_state.get("falowen_turn_count", 0) + 1
-    )
+    if st.session_state.get("falowen_chat_closed"):
+        return False
 
-    if st.session_state["falowen_turn_count"] >= 6:
+    st.session_state.setdefault("falowen_chat_closed", False)
+
+    turn_count = st.session_state.get("falowen_turn_count", 0)
+    if turn_count < 6:
+        turn_count += 1
+    st.session_state["falowen_turn_count"] = turn_count
+
+    if turn_count >= 6:
         user_msgs = [
             m.get("content", "")
             for m in st.session_state.get("falowen_messages", [])
             if m.get("role") == "user"
         ]
         summary = generate_summary(user_msgs)
+        st.session_state.setdefault("falowen_messages", [])
         st.session_state["falowen_messages"].append(
             {"role": "assistant", "content": summary}
         )
+        st.session_state["falowen_chat_closed"] = True
         return True
 
     return False
@@ -5854,6 +5862,7 @@ def reset_falowen_chat_flow(
     if clear_intro:
         st.session_state["custom_topic_intro_done"] = False
     st.session_state["falowen_turn_count"] = 0
+    st.session_state["falowen_chat_closed"] = False
 
 
 default_state = {
@@ -5863,6 +5872,7 @@ default_state = {
     "falowen_teil": None,
     "falowen_messages": [],
     "falowen_turn_count": 0,
+    "falowen_chat_closed": False,
     "custom_topic_intro_done": False,
     "custom_chat_level": None,
     "falowen_exam_topic": None,
@@ -6232,7 +6242,8 @@ if tab == "Exams Mode & Custom Chat":
 
         # ========= Handle new input FIRST =========
 
-        chat_locked = (not is_exam) and st.session_state.get("falowen_turn_count", 0) >= 6
+        chat_closed = bool(st.session_state.get("falowen_chat_closed"))
+        chat_locked = (not is_exam) and chat_closed
 
         col_in, col_btn = st.columns([8, 1])
         if st.session_state.pop("falowen_clear_draft", False):
@@ -6356,6 +6367,22 @@ if tab == "Exams Mode & Custom Chat":
                 key=_wkey("dl_chat_txt")
             )
 
+        if not is_exam and chat_closed:
+            st.info(
+                "Herr Felix has wrapped up this conversation with a summary."
+                " Start a new chat to keep practicing!"
+            )
+            if st.button(
+                "🔄 Start a new chat",
+                key=_wkey("chat_restart"),
+                use_container_width=True,
+            ):
+                reset_falowen_chat_flow()
+                st.session_state["falowen_clear_draft"] = True
+                if draft_key in st.session_state:
+                    st.session_state[draft_key] = ""
+                refresh_with_toast("Ready for a new chat!")
+
         # ---- Actions
         col1, col2 = st.columns(2)
         with col1:
@@ -6368,7 +6395,7 @@ if tab == "Exams Mode & Custom Chat":
                     for k in [
                         "falowen_stage","falowen_mode","falowen_level","falowen_teil",
                         "falowen_messages","custom_topic_intro_done","falowen_exam_topic",
-                        "falowen_exam_keyword",
+                        "falowen_exam_keyword","falowen_turn_count","falowen_chat_closed",
                         "_falowen_loaded","falowen_loaded_key"
                     ]:
                         st.session_state.pop(k, None)

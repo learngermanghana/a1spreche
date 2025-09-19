@@ -41,6 +41,7 @@ def test_back_step_clears_chat_state():
         'falowen_chat_draft_key': 'chat_draft_123',
         'custom_topic_intro_done': True,
         'falowen_turn_count': 5,
+        'falowen_chat_closed': True,
         '__refresh': 0,
     })
     draft_key = ss['falowen_chat_draft_key']
@@ -60,6 +61,7 @@ def test_back_step_clears_chat_state():
         'falowen_messages',
         'falowen_loaded_key', 'falowen_conv_key',
         'falowen_chat_draft_key', 'custom_topic_intro_done',
-        'falowen_turn_count', draft_key, *_draft_state_keys(draft_key)
+        'falowen_turn_count', 'falowen_chat_closed',
+        draft_key, *_draft_state_keys(draft_key)
     ]:
         assert key not in ss
