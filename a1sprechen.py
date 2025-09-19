@@ -198,6 +198,285 @@ def hide_sidebar() -> None:
     )
 
 
+# ------------------------------------------------------------------------------
+# Shared umlaut keypad + hint helper
+# ------------------------------------------------------------------------------
+_UMLAUT_HINT_MAP = {
+    "mochte": "möchte",
+    "mussen": "müssen",
+    "durfen": "dürfen",
+    "schon": "schön",
+    "schuler": "schüler",
+    "gross": "groß",
+    "furchtbar": "fürchterbar",
+}
+
+
+def _umlaut_helper_id(*parts: str) -> str:
+    base = "|".join(str(p) for p in parts if p)
+    digest = hashlib.md5(base.encode("utf-8")).hexdigest()[:8]
+    safe = re.sub(r"[^A-Za-z0-9_-]", "_", base) or "pad"
+    return f"umlaut_{safe}_{digest}"
+
+
+def _handle_umlaut_event(event: Any) -> None:
+    if not event or not isinstance(event, dict):
+        return
+    if event.get("type") != "hint":
+        return
+
+    ascii_word = _safe_str(event.get("code"))
+    suggestion = _safe_str(event.get("suggestion"))
+    pad_id = _safe_str(event.get("id"))
+    if not ascii_word or not suggestion or not pad_id:
+        return
+
+    token = f"{pad_id}::{ascii_word}"
+    seen = st.session_state.setdefault("__umlaut_hints_seen", {})
+    if seen.get(token):
+        return
+    seen[token] = True
+
+    st.toast(
+        f"Try **{suggestion}** instead of \"{ascii_word}\" for the umlaut spelling.",
+        icon="ℹ️",
+    )
+
+
+def render_umlaut_pad(widget_key: str, *, context: str, disabled: bool = False) -> None:
+    html_component = getattr(components, "html", None)
+    if html_component is None:
+        return
+
+    element_id = _umlaut_helper_id(widget_key, context)
+    buttons_html = "".join(
+        f"<button type='button' data-char='{char}' {'disabled' if disabled else ''}>{char}</button>"
+        for char in ("ä", "ö", "ü", "ß")
+    )
+
+    config = {
+        "elementId": element_id,
+        "widgetKey": widget_key,
+        "hints": _UMLAUT_HINT_MAP,
+        "disabled": disabled,
+    }
+    config_json = json.dumps(config, ensure_ascii=False).replace("</", "<\/")
+
+    html_payload_template = """
+    <div class=\"falowen-umlaut-pad\" data-pad-id=\"__ELEMENT_ID__\">
+      <span class=\"falowen-umlaut-label\">Umlaut keys:</span>
+      __BUTTONS__
+    </div>
+    <script>
+    (function() {{
+        const cfg = __CONFIG__;
+        const frameEl = window.frameElement;
+        const parentWin = window.parent || window;
+        const parentDoc = parentWin.document || document;
+
+        function setHeight(px) {{
+            try {{
+                if (window.Streamlit && window.Streamlit.setFrameHeight) {{
+                    window.Streamlit.setFrameHeight(px);
+                }}
+            }} catch (err) {{}}
+        }
+
+        setHeight(64);
+
+        const style = document.createElement('style');
+        style.textContent = `
+            body {{ margin: 0; font-family: 'Inter', 'Segoe UI', sans-serif; }}
+            .falowen-umlaut-pad {{
+                display: inline-flex;
+                align-items: center;
+                gap: 0.35rem;
+                padding: 6px 8px;
+                border-radius: 999px;
+                background: #f1f5f9;
+                border: 1px solid #cbd5f5;
+                box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.08);
+                color: #0f172a;
+                font-size: 0.85rem;
+                line-height: 1;
+                flex-wrap: wrap;
+            }}
+            .falowen-umlaut-pad button {{
+                border: none;
+                border-radius: 8px;
+                padding: 6px 10px;
+                font-size: 1rem;
+                font-weight: 600;
+                color: #0f172a;
+                background: linear-gradient(145deg, #e0f2fe, #bfdbfe);
+                cursor: pointer;
+                transition: transform 0.08s ease, box-shadow 0.08s ease;
+                box-shadow: 0 1px 2px rgba(15, 23, 42, 0.2);
+            }}
+            .falowen-umlaut-pad button:hover {{ transform: translateY(-1px); }}
+            .falowen-umlaut-pad button:active {{ transform: translateY(1px); box-shadow: inset 0 1px 2px rgba(15,23,42,0.3); }}
+            .falowen-umlaut-pad button:disabled {{
+                cursor: not-allowed;
+                opacity: 0.55;
+                background: #e2e8f0;
+                box-shadow: none;
+            }}
+            .falowen-umlaut-label {{
+                font-weight: 600;
+                color: #1e293b;
+            }}
+        `;
+        document.head.appendChild(style);
+
+        function locateTextarea() {{
+            if (!frameEl) {{
+                return null;
+            }}
+
+            const attrName = 'data-falowen-pad';
+            if (frameEl.dataset && frameEl.dataset.boundTextarea) {{
+                const cached = parentDoc.querySelector(`textarea[${attrName}="${frameEl.dataset.boundTextarea}"]`);
+                if (cached) {{
+                    return cached;
+                }}
+            }}
+
+            let parent = frameEl.parentElement;
+            while (parent) {{
+                if (parent.previousElementSibling) {{
+                    const candidates = parent.previousElementSibling.querySelectorAll('textarea');
+                    if (candidates.length) {{
+                        const ta = candidates[candidates.length - 1];
+                        ta.setAttribute(attrName, cfg.elementId);
+                        frameEl.dataset.boundTextarea = cfg.elementId;
+                        return ta;
+                    }}
+                }}
+                parent = parent.parentElement;
+            }}
+
+            const frameRect = frameEl.getBoundingClientRect();
+            const allAreas = Array.from(parentDoc.querySelectorAll('textarea'));
+            let best = null;
+            let bestDelta = Number.POSITIVE_INFINITY;
+            for (const ta of allAreas) {{
+                const rect = ta.getBoundingClientRect();
+                if (rect.bottom <= frameRect.bottom + 6) {{
+                    const delta = Math.abs(frameRect.top - rect.bottom);
+                    if (delta < bestDelta) {{
+                        best = ta;
+                        bestDelta = delta;
+                    }}
+                }}
+            }}
+            if (!best && allAreas.length) {{
+                best = allAreas[allAreas.length - 1];
+            }}
+            if (best) {{
+                best.setAttribute(attrName, cfg.elementId);
+                frameEl.dataset.boundTextarea = cfg.elementId;
+            }}
+            return best;
+        }}
+
+        function sendHint(asciiWord, suggestion) {{
+            if (!asciiWord || !suggestion) return;
+            const token = `${{cfg.elementId}}::${{asciiWord}}`;
+            parentWin.__falowenHintCache = parentWin.__falowenHintCache || {{}};
+            if (parentWin.__falowenHintCache[token]) return;
+            parentWin.__falowenHintCache[token] = true;
+            try {{
+                if (window.Streamlit && window.Streamlit.setComponentValue) {{
+                    window.Streamlit.setComponentValue({{
+                        type: 'hint',
+                        id: cfg.elementId,
+                        code: asciiWord,
+                        suggestion: suggestion
+                    }});
+                }}
+            }} catch (err) {{}}
+        }}
+
+        function attach() {{
+            const textarea = locateTextarea();
+            if (!textarea) {{
+                setTimeout(attach, 250);
+                return;
+            }}
+
+            const hintMap = cfg.hints || {{}};
+
+            if (!cfg.disabled) {{
+                const buttons = document.querySelectorAll('.falowen-umlaut-pad button[data-char]');
+                buttons.forEach((btn) => {{
+                    btn.addEventListener('click', () => {{
+                        try {{
+                            textarea.focus();
+                            const char = btn.dataset.char || '';
+                            const start = textarea.selectionStart ?? textarea.value.length;
+                            const end = textarea.selectionEnd ?? textarea.value.length;
+                            const before = textarea.value.slice(0, start);
+                            const after = textarea.value.slice(end);
+                            textarea.value = before + char + after;
+                            const newPos = start + char.length;
+                            textarea.selectionStart = textarea.selectionEnd = newPos;
+                            textarea.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                        }} catch (err) {{}}
+                    }});
+                }});
+            }}
+
+            function monitor() {{
+                try {{
+                    const lowered = (textarea.value || '').toLowerCase();
+                    for (const [plain, umlauted] of Object.entries(hintMap)) {{
+                        if (lowered.includes(plain)) {{
+                            sendHint(plain, umlauted);
+                        }}
+                    }}
+                }} catch (err) {{}}
+            }}
+
+            monitor();
+            textarea.addEventListener('input', monitor, {{ passive: true }});
+        }}
+
+        attach();
+    }})();
+    </script>
+    """
+
+    html_payload_template = html_payload_template.replace("{{", "{").replace("}}", "}")
+
+    html_payload = (
+        html_payload_template
+        .replace("__ELEMENT_ID__", element_id)
+        .replace("__BUTTONS__", buttons_html)
+        .replace("__CONFIG__", config_json)
+    )
+
+    try:
+        event = html_component(
+            f"""
+            <html>
+              <head>
+                <meta charset='utf-8'>
+              </head>
+              <body>
+                {html_payload}
+              </body>
+            </html>
+            """,
+            height=74,
+            key=f"{element_id}__pad",
+            scrolling=False,
+        )
+    except Exception:
+        return
+
+    _handle_umlaut_event(event)
+
+
 
 def ensure_student_row(*, stop_if_missing: bool = False) -> Dict[str, Any]:
     """Ensure ``st.session_state['student_row']`` is populated from the roster."""
@@ -3110,6 +3389,7 @@ if tab == "My Course":
                     disabled=locked,
                     help="Autosaves on blur and in the background while you type."
                 )
+                render_umlaut_pad(draft_key, context=f"coursebook_{lesson_key}", disabled=locked)
 
                 # Debounced autosave (safe so empty first-render won't wipe a non-empty cloud draft)
                 current_text = st.session_state.get(draft_key, "")
@@ -4491,6 +4771,7 @@ if tab == "My Course":
             ta_col, ai_col = st.columns([3, 1])
             with ta_col:
                 new_q = st.text_area("Your content", key="q_text", height=160)
+                render_umlaut_pad("q_text", context="classboard_post")
             with ai_col:
                 if st.button(
                     "✨ Correct with AI",
@@ -6171,6 +6452,7 @@ if tab == "Exams Mode & Custom Chat":
                 args=(draft_key, student_code),
                 disabled=chat_locked,
             )
+            render_umlaut_pad(draft_key, context=f"falowen_chat_{conv_key}", disabled=chat_locked)
             autosave_maybe(
                 student_code,
                 draft_key,
