@@ -5815,7 +5815,7 @@ def generate_summary(messages: List[str]) -> str:
         "Summarize the following student responses into about 60 words suitable for a presentation."
     )
     try:
-        resp = client.chat_completions.create(  # if you use 'client.chat.completions', keep that
+        resp = client.chat.completions.create(  # if you use 'client.chat.completions', keep that
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": prompt},
@@ -6310,7 +6310,7 @@ if tab == "Exams Mode & Custom Chat":
             with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                 messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
                 try:
-                    resp = client.chat_completions.create(  # if you use 'client.chat.completions', keep that
+                    resp = client.chat.completions.create(  # if you use 'client.chat.completions', keep that
                         model="gpt-4o",
                         messages=messages,
                         temperature=0.15,
