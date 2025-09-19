@@ -70,6 +70,20 @@ The vocabulary sheet must include the following columns:
 |-------|--------|---------|
 | A1    | Haus   | house   |
 
+#### Configuring the source sheet
+
+By default the app reads from the shared sheet used during development.
+Deployments can point to another document by providing configuration at runtime:
+
+- Environment variables: set `VOCAB_SHEET_ID` and `VOCAB_SHEET_GID`.
+- Streamlit secrets: add `vocab_sheet_id`/`vocab_sheet_gid` (or the upper-case
+  variants) to `st.secrets`.
+
+The sheet *id* identifies the document while the *gid* selects a specific tab
+within the workbook. The gid must be an integer. Any configuration mechanism can
+override one or both values; unspecified fields fall back to the built-in
+defaults.
+
 ## Keychain Helper
 
 The application uses a small Swift utility to read and write OAuth tokens from

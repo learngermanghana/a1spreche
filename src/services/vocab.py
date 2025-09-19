@@ -2,19 +2,83 @@
 
 from __future__ import annotations
 
+import os
 from typing import Dict, Tuple
 
 import pandas as pd
 import streamlit as st
 
-SHEET_ID = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
-SHEET_GID = 0  # <-- change this if your Vocab tab uses another gid
+DEFAULT_SHEET_ID = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
+DEFAULT_SHEET_GID = 0  # <-- change this if your Vocab tab uses another gid
+
+
+def _lookup_secret(*keys: str) -> str | int | None:
+    """Return the first matching value from ``st.secrets`` for ``keys``."""
+
+    secrets = getattr(st, "secrets", None)
+    if not secrets:  # pragma: no cover - streamlit always provides secrets
+        return None
+    for key in keys:
+        try:
+            if key in secrets:  # type: ignore[operator]
+                return secrets[key]
+        except TypeError:  # pragma: no cover - defensive for custom secrets
+            value = getattr(secrets, key, None)
+            if value is not None:
+                return value
+    return None
+
+
+def _coerce_gid(raw_value: str | int | None) -> int:
+    """Convert a user-provided gid to an ``int`` or fall back to the default."""
+
+    if raw_value in (None, ""):
+        return DEFAULT_SHEET_GID
+    if isinstance(raw_value, int):
+        return raw_value
+    try:
+        return int(str(raw_value).strip())
+    except (TypeError, ValueError):
+        return DEFAULT_SHEET_GID
+
+
+def get_vocab_sheet_config() -> Tuple[str, int]:
+    """Resolve the configured sheet id and gid from env vars or secrets."""
+
+    sheet_id = os.getenv("VOCAB_SHEET_ID") or _lookup_secret(
+        "VOCAB_SHEET_ID", "vocab_sheet_id"
+    )
+    if not sheet_id:
+        sheet_id = DEFAULT_SHEET_ID
+    sheet_id = str(sheet_id)
+
+    raw_gid = os.getenv("VOCAB_SHEET_GID")
+    if raw_gid in (None, ""):
+        raw_gid = _lookup_secret("VOCAB_SHEET_GID", "vocab_sheet_gid")
+    sheet_gid = _coerce_gid(raw_gid)
+
+    return sheet_id, sheet_gid
+
+
+SHEET_ID, SHEET_GID = get_vocab_sheet_config()
+
+
+def _build_vocab_csv_url() -> str:
+    """Construct the CSV export URL for the configured sheet."""
+
+    sheet_id, sheet_gid = get_vocab_sheet_config()
+    global SHEET_ID, SHEET_GID
+    SHEET_ID, SHEET_GID = sheet_id, sheet_gid
+    return (
+        f"https://docs.google.com/spreadsheets/d/{sheet_id}/"
+        f"export?format=csv&gid={sheet_gid}"
+    )
 
 
 @st.cache_data
 def load_vocab_lists() -> Tuple[Dict[str, list], Dict[Tuple[str, str], Dict[str, str]]]:
     """Load vocabulary and audio URLs from the configured Google Sheet."""
-    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={SHEET_GID}"
+    csv_url = _build_vocab_csv_url()
     try:
         df = pd.read_csv(csv_url)
     except Exception as e:  # pragma: no cover - network errors
@@ -93,6 +157,7 @@ __all__ = [
     "SHEET_GID",
     "VOCAB_LISTS",
     "AUDIO_URLS",
+    "get_vocab_sheet_config",
     "load_vocab_lists",
     "refresh_vocab_from_sheet",
     "get_audio_url",
