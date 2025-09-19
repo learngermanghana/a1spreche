@@ -5815,7 +5815,7 @@ def generate_summary(messages: List[str]) -> str:
         "Summarize the following student responses into about 60 words suitable for a presentation."
     )
     try:
-        resp = client.chat.completions.create(  # if you use 'client.chat.completions', keep that
+        resp = client.chat_completions.create(  # if you use 'client.chat.completions', keep that
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": prompt},
@@ -6486,6 +6486,7 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_stage"] = 1
             # CHANGED
             rerun_without_toast()
+
 
 
 # =========================================
