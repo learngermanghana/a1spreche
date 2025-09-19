@@ -1,29 +1,16 @@
-import ast
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from src.draft_management import _draft_state_keys
+from src.falowen import chat_core
 from src.utils import toasts
 
 
 def _load_back_step():
-    with open("a1sprechen.py", "r", encoding="utf-8") as f:
-        src = f.read()
-    mod = ast.parse(src)
-    funcs = [
-        node for node in mod.body if isinstance(node, ast.FunctionDef) and node.name == "back_step"
-    ]
-    module_ast = ast.Module(body=funcs, type_ignores=[])
-    code = compile(module_ast, "a1sprechen.py", "exec")
     st = SimpleNamespace(session_state={}, toast=MagicMock())
+    chat_core.st = st  # type: ignore[attr-defined]
     toasts.st = st
-    glb = {
-        "st": st,
-        "_draft_state_keys": _draft_state_keys,
-        "rerun_without_toast": toasts.rerun_without_toast,
-    }
-    exec(code, glb)
-    return glb["back_step"], st
+    return chat_core.back_step, st
 
 
 def test_back_step_clears_chat_state():

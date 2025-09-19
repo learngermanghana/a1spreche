@@ -1,34 +1,24 @@
-import ast
 from types import SimpleNamespace
+
+from src.falowen import chat_core
+from src.falowen import custom_chat
 
 
 def _load_increment_fn():
-    with open('a1sprechen.py', 'r', encoding='utf-8') as f:
-        src = f.read()
-    mod = ast.parse(src)
-    wanted = []
-    target_names = {
-        'increment_turn_count_and_maybe_close',
-        'reset_falowen_chat_flow',
-    }
-    for node in mod.body:
-        if isinstance(node, ast.FunctionDef) and node.name in target_names:
-            wanted.append(node)
-    module_ast = ast.Module(body=wanted, type_ignores=[])
-    code = compile(module_ast, 'a1sprechen.py', 'exec')
     st = SimpleNamespace(session_state={})
+    custom_chat.st = st  # type: ignore[attr-defined]
+    chat_core.st = st  # type: ignore[attr-defined]
 
     def dummy_summary(msgs):
         dummy_summary.called_with = msgs
         return 'SUMMARY'
 
-    glb = {'st': st, 'generate_summary': dummy_summary}
-    exec(code, glb)
+    custom_chat.generate_summary = dummy_summary  # type: ignore[assignment]
     return (
-        glb['increment_turn_count_and_maybe_close'],
+        custom_chat.increment_turn_count_and_maybe_close,
         dummy_summary,
         st,
-        glb['reset_falowen_chat_flow'],
+        chat_core.reset_falowen_chat_flow,
     )
 
 
