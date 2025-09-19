@@ -40,6 +40,10 @@ def do_logout(
     st_module.session_state.pop("_google_btn_rendered", None)
     st_module.session_state.pop("_google_cta_rendered", None)
     st_module.session_state.pop("_ann_hash", None)
+    st_module.session_state.pop("falowen_loaded_student_code", None)
+    st_module.session_state.pop("falowen_conv_key", None)
+    st_module.session_state.pop("falowen_loaded_key", None)
+    st_module.session_state.pop("falowen_messages", None)
     for k in list(st_module.session_state.keys()):
         if k.startswith("__google_btn_rendered::"):
             st_module.session_state.pop(k, None)

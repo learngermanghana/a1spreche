@@ -80,6 +80,15 @@ def prepare_chat_session(
     level: str,
     teil: Optional[str],
 ) -> ChatSessionData:
+    previous_student_code = st.session_state.get("falowen_loaded_student_code")
+    student_switched = (
+        previous_student_code is not None and previous_student_code != student_code
+    )
+    if student_switched:
+        st.session_state.pop("falowen_conv_key", None)
+        st.session_state.pop("falowen_loaded_key", None)
+        st.session_state.pop("falowen_messages", None)
+
     mode_level_teil = f"{mode}_{level}_{teil or 'custom'}"
     doc_ref = None
     doc_data: Dict[str, Any] = {}
@@ -93,7 +102,7 @@ def prepare_chat_session(
             doc_data = {}
 
     conv_key = st.session_state.get("falowen_conv_key")
-    fresh_chat = False
+    fresh_chat = bool(student_switched)
     prefix = f"{mode_level_teil}_"
 
     def _matches_prefix(value: Any) -> bool:
@@ -160,6 +169,7 @@ def prepare_chat_session(
     st.session_state[saved_flag_key] = True
     st.session_state[saved_at_key] = datetime.now(_timezone.utc)
     st.session_state["falowen_loaded_key"] = conv_key
+    st.session_state["falowen_loaded_student_code"] = student_code
 
     return ChatSessionData(
         conv_key=conv_key,
