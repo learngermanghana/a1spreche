@@ -314,6 +314,28 @@ def render_chat_stage(
         doc_data=session.doc_data,
     )
 
+    chat_display = st.container()
+
+    def _render_chat_messages(container):
+        with container:
+            for msg in st.session_state.get("falowen_messages", []):
+                if msg.get("role") == "assistant":
+                    with st.chat_message("assistant", avatar="🧑‍🏫"):
+                        st.markdown(
+                            "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
+                            f"<div style='{bubble_assistant}'>{highlight_keywords(msg.get('content', ''), highlight_words)}</div>",
+                            unsafe_allow_html=True,
+                        )
+                else:
+                    with st.chat_message("user"):
+                        st.markdown(
+                            "<div style='display:flex;justify-content:flex-end;'>"
+                            f"<div style='{bubble_user}'>🗣️ {msg.get('content', '')}</div></div>",
+                            unsafe_allow_html=True,
+                        )
+
+    _render_chat_messages(chat_display)
+
     _render_recorder_button(key_fn, student_code)
 
     if is_exam:
@@ -379,23 +401,8 @@ def render_chat_stage(
             doc_data=session.doc_data,
         )
 
-    chat_display = st.container()
-    with chat_display:
-        for msg in st.session_state.get("falowen_messages", []):
-            if msg.get("role") == "assistant":
-                with st.chat_message("assistant", avatar="🧑‍🏫"):
-                    st.markdown(
-                        "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
-                        f"<div style='{bubble_assistant}'>{highlight_keywords(msg.get('content', ''), highlight_words)}</div>",
-                        unsafe_allow_html=True,
-                    )
-            else:
-                with st.chat_message("user"):
-                    st.markdown(
-                        "<div style='display:flex;justify-content:flex-end;'>"
-                        f"<div style='{bubble_user}'>🗣️ {msg.get('content', '')}</div></div>",
-                        unsafe_allow_html=True,
-                    )
+        refreshed_chat_display = chat_display.empty()
+        _render_chat_messages(refreshed_chat_display)
 
     teil_str = str(teil) if teil else "chat"
     pdf_bytes = generate_chat_pdf(st.session_state.get("falowen_messages", []))
