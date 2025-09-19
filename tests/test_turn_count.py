@@ -44,6 +44,7 @@ def test_increment_and_finalize_after_six():
     ended = inc(False)
     assert ended is True
     assert ss['falowen_turn_count'] == 6
+    assert ss['falowen_chat_closed'] is True
     assert ss['falowen_messages'][-1]['content'] == 'SUMMARY'
     assert dummy.called_with == ['Hallo', 'Tschüss']
 
@@ -57,6 +58,7 @@ def test_increment_when_below_limit():
     assert ended is False
     assert ss['falowen_turn_count'] == 3
     assert ss['falowen_messages'] == [{'role': 'user', 'content': 'Hallo'}]
+    assert ss['falowen_chat_closed'] is False
     assert not hasattr(dummy, 'called_with')
 
 
@@ -65,10 +67,12 @@ def test_no_increment_in_exam_mode():
     ss = st.session_state
     ss['falowen_turn_count'] = 4
     ss['falowen_messages'] = []
+    ss['falowen_chat_closed'] = False
     ended = inc(True)
     assert ended is False
     assert ss['falowen_turn_count'] == 4
     assert ss['falowen_messages'] == []
+    assert ss['falowen_chat_closed'] is False
     assert not hasattr(dummy, 'called_with')
 
 
@@ -79,7 +83,9 @@ def test_new_chat_reset_unlocks_after_limit():
     ss['falowen_messages'] = [{'role': 'user', 'content': 'Hallo'}]
     ss['custom_topic_intro_done'] = True
 
-    chat_locked = (not False) and ss.get('falowen_turn_count', 0) >= 6
+    ss['falowen_chat_closed'] = True
+
+    chat_locked = (not False) and bool(ss.get('falowen_chat_closed'))
     assert chat_locked is True
 
     reset_chat()
@@ -87,5 +93,25 @@ def test_new_chat_reset_unlocks_after_limit():
     assert ss['falowen_turn_count'] == 0
     assert ss['falowen_messages'] == []
     assert ss['custom_topic_intro_done'] is False
-    chat_locked = (not False) and ss.get('falowen_turn_count', 0) >= 6
+    assert ss['falowen_chat_closed'] is False
+    chat_locked = (not False) and bool(ss.get('falowen_chat_closed'))
     assert chat_locked is False
+
+
+def test_prevents_duplicate_summary_when_closed():
+    inc, dummy, st, _ = _load_increment_fn()
+    ss = st.session_state
+    ss['falowen_turn_count'] = 6
+    ss['falowen_messages'] = [
+        {'role': 'user', 'content': 'Hallo'},
+        {'role': 'assistant', 'content': 'Hi'},
+        {'role': 'assistant', 'content': 'SUMMARY'},
+    ]
+    ss['falowen_chat_closed'] = True
+
+    ended = inc(False)
+
+    assert ended is False
+    assert ss['falowen_turn_count'] == 6
+    assert ss['falowen_messages'][-1]['content'] == 'SUMMARY'
+    assert not hasattr(dummy, 'called_with')
