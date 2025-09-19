@@ -4623,6 +4623,18 @@ if tab == "My Course":
                 st.success("Comment sent!")
                 refresh_with_toast()
 
+            comment_panel_active = (
+                st.session_state.get("coursebook_subtab") == "🧑‍🏫 Classroom"
+                and st.session_state.get("classroom_page") == "Class Notes & Q&A"
+            )
+            if comment_panel_active:
+                try:
+                    from streamlit_autorefresh import st_autorefresh
+                except ImportError:
+                    pass
+                else:
+                    st_autorefresh(interval=5000, key="classboard_comment_refresh")
+
             if not questions:
                 st.info("No posts yet.")
             else:
@@ -4959,13 +4971,6 @@ if tab == "My Course":
                         ):
                             st.session_state[ai_flag] = True
                             st.session_state["need_rerun"] = True
-
-                    try:
-                        from streamlit_autorefresh import st_autorefresh
-
-                        st_autorefresh(interval=5000, key=f"comment_refresh_{q_id}")
-                    except ImportError:
-                        pass
 
                     if idx < len(questions) - 1:
                         st.divider()
