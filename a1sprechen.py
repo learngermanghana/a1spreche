@@ -7046,6 +7046,8 @@ if tab == "Schreiben Trainer":
             st.session_state[f"{student_code}_last_feedback"] = existing_feedback
             st.session_state[f"{student_code}_last_user_letter"] = existing_letter
 
+        letter_disabled = daily_so_far >= SCHREIBEN_DAILY_LIMIT
+
         user_letter = st.text_area(
             "Paste or type your German letter/essay here.",
             key=draft_key,
@@ -7053,7 +7055,13 @@ if tab == "Schreiben Trainer":
             on_change=lambda: save_now(draft_key, student_code),
             height=400,
             placeholder="Write your German letter here...",
-            disabled=(daily_so_far >= SCHREIBEN_DAILY_LIMIT),
+            disabled=letter_disabled,
+        )
+
+        render_umlaut_pad(
+            draft_key,
+            context=f"schreiben_mark_{student_code}",
+            disabled=letter_disabled,
         )
 
         autosave_maybe(student_code, draft_key, user_letter, min_secs=2.0, min_delta=20)
@@ -7591,6 +7599,12 @@ if tab == "Schreiben Trainer":
                 on_change=lambda: save_now(draft_key, student_code),
             )
 
+            render_umlaut_pad(
+                draft_key,
+                context=f"letter_coach_prompt_{student_code}",
+                disabled=False,
+            )
+
             autosave_maybe(
                 student_code,
                 draft_key,
@@ -7705,6 +7719,12 @@ if tab == "Schreiben Trainer":
                 placeholder="Type your reply, ask about a section, or paste your draft here...",
                 label_visibility="collapsed",
 
+            )
+
+            render_umlaut_pad(
+                draft_key,
+                context=f"letter_coach_chat_{student_code}",
+                disabled=False,
             )
             
             autosave_maybe(
