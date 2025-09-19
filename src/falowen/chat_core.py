@@ -315,6 +315,8 @@ def render_chat_stage(
 
     recorder_display = st.container()
     chat_display = st.container()
+    status_display = st.container()
+    status_placeholder = status_display.empty()
 
     def _render_chat_messages(container):
         with container:
@@ -374,18 +376,21 @@ def render_chat_stage(
         if not use_chat_input:
             st.session_state["falowen_clear_draft"] = True
 
-        with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-            payload = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
-            try:
-                resp = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=payload,
-                    temperature=0.15,
-                    max_tokens=600,
-                )
-                ai_reply = (resp.choices[0].message.content or "").strip()
-            except Exception as exc:
-                ai_reply = f"Sorry, an error occurred: {exc}"
+        with status_placeholder:
+            with st.spinner("🧑‍🏫 Herr Felix is typing…"):
+                payload = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
+                try:
+                    resp = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=payload,
+                        temperature=0.15,
+                        max_tokens=600,
+                    )
+                    ai_reply = (resp.choices[0].message.content or "").strip()
+                except Exception as exc:
+                    ai_reply = f"Sorry, an error occurred: {exc}"
+
+        status_placeholder.empty()
 
         st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
         if not is_exam:
@@ -403,6 +408,7 @@ def render_chat_stage(
         )
 
         refreshed_chat_display = chat_display.empty()
+        status_placeholder = status_display.empty()
         _render_chat_messages(refreshed_chat_display)
 
     teil_str = str(teil) if teil else "chat"
