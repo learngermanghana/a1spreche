@@ -4320,6 +4320,10 @@ if tab == "My Course":
                 .collection("posts")
             )
 
+            active_thread_state_key = "classroom_active_thread"
+            if active_thread_state_key not in st.session_state:
+                st.session_state[active_thread_state_key] = None
+
 
             _new7, _unans, _total = 0, 0, 0
             try:
@@ -4785,12 +4789,16 @@ if tab == "My Course":
                             cid = c.id
                             c_data = c.to_dict() or {}
                             c_label = _fmt_ts(c_data.get("timestamp"))
-                            st.markdown(
-                                f"<div style='margin-left:20px;color:#444;font-size:0.95rem;line-height:1.45;'>↳ <b>{c_data.get('replied_by_name','')}</b> "
-                                f"<span style='color:#bbb;'>{c_label}</span><br>"
-                                f"{c_data.get('content','')}</div>",
-                                unsafe_allow_html=True
-                            )
+                            commenter = c_data.get("replied_by_name", "")
+                            role = "user" if c_data.get("replied_by_code") == student_code else "assistant"
+                            message = st.chat_message(role)
+                            header_html = f"**{commenter}**"
+                            if c_label:
+                                header_html = (
+                                    f"{header_html} <span style='color:#94a3b8;font-size:0.85rem;'>{c_label}</span>"
+                                )
+                            message.markdown(header_html, unsafe_allow_html=True)
+                            message.markdown(c_data.get("content", ""))
 
                             clear_c_edit_flag = f"__clear_c_edit_{q_id}_{cid}"
                             if st.session_state.pop(clear_c_edit_flag, False):
@@ -4802,7 +4810,8 @@ if tab == "My Course":
 
                             can_modify_c = (c_data.get("replied_by_code") == student_code) or IS_ADMIN
                             if can_modify_c:
-                                rc1, rc2, _ = st.columns([1, 1, 6])
+                                controls = message.container()
+                                rc1, rc2, _ = controls.columns([1, 1, 6])
                                 with rc1:
                                     if st.button("✏️ Edit", key=f"c_edit_btn_{q_id}_{cid}"):
                                         st.session_state[f"c_editing_{q_id}_{cid}"] = True
@@ -4819,7 +4828,8 @@ if tab == "My Course":
                                         refresh_with_toast()
 
                                 if st.session_state.get(f"c_editing_{q_id}_{cid}", False):
-                                    with st.form(f"c_edit_form_{q_id}_{cid}"):
+                                    edit_container = controls.container()
+                                    with edit_container.form(f"c_edit_form_{q_id}_{cid}"):
                                         new_rtext = st.text_area(
                                             "Edit comment",
                                             value=st.session_state.get(f"c_edit_text_{q_id}_{cid}", ""),
@@ -4831,7 +4841,7 @@ if tab == "My Course":
                                     if csave and new_rtext.strip():
                                         c.reference.update({
                                             "content": new_rtext.strip(),
-                                             "edited_at": _dt.now(_timezone.utc),
+                                            "edited_at": _dt.now(_timezone.utc),
                                         })
                                         _notify_slack(
                                             f"✏️ *Class Board comment edited* — {class_name}\n"
@@ -4891,7 +4901,6 @@ if tab == "My Course":
                             st.session_state[draft_key] = ai_text
                             save_ai_response(q_id, ai_text, flagged)
 
-                    send_flag = f"q_comment_busy_{q_id}"
                     ai_flag = f"q_ai_busy_{q_id}"
 
                     current_text = st.session_state.get(draft_key, "")
@@ -4900,56 +4909,55 @@ if tab == "My Course":
                             apply_ai_correction(q_id, draft_key, current_text)
                         st.session_state[ai_flag] = False
                         st.session_state["need_rerun"] = True
+                        st.session_state[active_thread_state_key] = q_id
                         current_text = st.session_state.get(draft_key, "")
 
-                    comment_text = st.text_area(
-                        f"Comment on Q{q_id}",
-                        value=current_text,
+                    composer_value = st.chat_input(
+                        "Reply to this thread…",
                         key=draft_key,
-                        placeholder="Write your comment…",
-                        on_change=save_now,
+                        on_submit=save_now,
                         args=(draft_key, student_code),
-                        height=80,
                     )
+
                     current_text = st.session_state.get(draft_key, "")
                     autosave_maybe(student_code, draft_key, current_text, min_secs=2.0, min_delta=12)
 
-                    send_col, ai_col = st.columns([1, 1])
+                    if current_text:
+                        st.session_state[active_thread_state_key] = q_id
 
-                    with send_col:
-                        if st.session_state.get(send_flag):
-                            with st.spinner("Sending..."):
-                                send_comment(
-                                    q_id,
-                                    student_code,
-                                    student_name,
-                                    class_name,
-                                    board_base,
-                                    draft_key,
-                                    last_val_key,
-                                    last_ts_key,
-                                    saved_flag_key,
-                                    saved_at_key,
-                                )
-                                st.session_state[send_flag] = False
-                                st.session_state["need_rerun"] = True
+                    if composer_value:
+                        st.session_state[draft_key] = composer_value
+                        st.session_state[active_thread_state_key] = q_id
+                        send_comment(
+                            q_id,
+                            student_code,
+                            student_name,
+                            class_name,
+                            board_base,
+                            draft_key,
+                            last_val_key,
+                            last_ts_key,
+                            saved_flag_key,
+                            saved_at_key,
+                        )
+                        st.session_state["need_rerun"] = True
 
-                        if st.button(
-                            f"Send Comment {q_id}",
-                            key=f"q_comment_btn_{q_id}",
-                            disabled=st.session_state.get(send_flag, False),
-                        ):
-                            st.session_state[send_flag] = True
-                            st.session_state["need_rerun"] = True
+                    if st.button(
+                        "✨ Correct with AI",
+                        key=f"q_ai_btn_{q_id}",
+                        disabled=st.session_state.get(ai_flag, False),
+                    ):
+                        st.session_state[ai_flag] = True
+                        st.session_state["need_rerun"] = True
+                        st.session_state[active_thread_state_key] = q_id
 
-                    with ai_col:
-                        if st.button(
-                            "✨ Correct with AI",
-                            key=f"q_ai_btn_{q_id}",
-                            disabled=st.session_state.get(ai_flag, False),
-                        ):
-                            st.session_state[ai_flag] = True
-                            st.session_state["need_rerun"] = True
+                    if st.session_state.get(active_thread_state_key) == q_id:
+                        try:
+                            from streamlit_autorefresh import st_autorefresh
+
+                            st_autorefresh(interval=5000, key=f"comment_refresh_{q_id}")
+                        except ImportError:
+                            pass
 
                     if idx < len(questions) - 1:
                         st.divider()
