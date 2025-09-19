@@ -5379,22 +5379,14 @@ if tab == "My Results and Resources":
 # ================================
 # 5. EXAMS MODE & CUSTOM CHAT — uses your prompts + bubble UI + highlighting
 # ================================
-# This block assumes you already created:
-# - `db`  (Firestore client)
-# - `client` (OpenAI client)
-# - helpers: save_now, autosave_maybe, load_chat_draft_from_db, _draft_state_keys,
-#            generate_chat_pdf
-# Do NOT redefine them here.
 
+# —— keep Firestore `db` and OpenAI `client` from above (not redefined here) ——
+
+# Ensure these are available in this tab
 import re
 import random
-import logging, time
-import pandas as pd
-import streamlit as st
-from typing import List, Optional
-from uuid import uuid4
-from datetime import datetime, timezone as _timezone
 import urllib.parse as _urllib
+
 
 # ---------- Clean rerun helper (prevents the confusing "Saved!" toast) ----------
 def rerun_without_toast():
@@ -5405,6 +5397,7 @@ def rerun_without_toast():
         pass
 
 # ---------- UI styles ----------
+
 bubble_user = (
     "background:#1976d2; color:#fff; border-radius:18px 18px 2px 18px;"
     "padding:10px 16px; margin:5px 0 5px auto; max-width:90vw; display:inline-block; font-size:1.12em;"
@@ -5433,6 +5426,7 @@ def highlight_keywords(text, words, ignore_case=True):
     return text
 
 def render_message(role: str, text: str) -> None:
+    """Render a single chat message with bubble styling."""
     if role == "assistant":
         with st.chat_message("assistant", avatar="🧑‍🏫"):
             st.markdown(
@@ -5442,12 +5436,15 @@ def render_message(role: str, text: str) -> None:
     else:
         with st.chat_message("user"):
             st.markdown(
-                "<div style='display:flex;justify-content:flex-end;'>"
-                f"<div style='{bubble_user}'>🗣️ {text}</div></div>",
+                (
+                    "<div style='display:flex;justify-content:flex-end;'>"
+                    f"<div style='{bubble_user}'>🗣️ {text}</div></div>"
+                ),
                 unsafe_allow_html=True,
             )
 
 def clear_falowen_chat(student_code, mode, level, teil):
+    """Deletes the saved chat for a particular student/mode/level/teil from Firestore."""
     chat_key = f"{mode}_{level}_{teil or 'custom'}"
     doc_ref = db.collection("falowen_chats").document(student_code)
     doc = doc_ref.get()
@@ -5457,19 +5454,20 @@ def clear_falowen_chat(student_code, mode, level, teil):
         drafts = data.get("drafts", {})
         changed = False
         if chat_key in chats:
-            del chats[chat_key]; changed = True
+            del chats[chat_key]
+            changed = True
         if chat_key in drafts:
-            del drafts[chat_key]; changed = True
+            del drafts[chat_key]
+            changed = True
         if changed:
             doc_ref.set({"chats": chats, "drafts": drafts}, merge=True)
 
-# ---------- Quick links ----------
-# ---------- Prompt builders ----------
 
-# ---------- Defaults ----------
+
+
 default_state = {
-    "falowen_stage": 1,
-    "falowen_mode": None,
+    "falowen_stage": 1,                  # 1: mode, 2: level, 3: part, 4: chat, 99: pron checker
+    "falowen_mode": None,                # **RENAMED choices in UI below**
     "falowen_level": None,
     "falowen_teil": None,
     "falowen_messages": [],
@@ -5483,9 +5481,6 @@ for key, val in default_state.items():
     if key not in st.session_state:
         st.session_state[key] = val
 
-# ================================
-# MAIN TAB
-# ================================
 if tab == "Exams Mode & Custom Chat":
     st.markdown(
         '''
@@ -5498,19 +5493,21 @@ if tab == "Exams Mode & Custom Chat":
     )
     st.divider()
 
-    # ----- Login context -----
+    # ===== Login context (reuse app login; no duplicate UI here) =====
     if "student_code" not in st.session_state or not st.session_state["student_code"]:
         st.warning("Please log in on the main page to continue.")
         st.stop()
     code = st.session_state["student_code"]
 
-    # ----- Step 1: Mode -----
+    # ——— Step 1: Mode ———
     if st.session_state["falowen_stage"] == 1:
         st.subheader("Step 1: Choose Practice Mode")
         st.info(
-            "- **Exams Mode**: Chat with an examiner (Sprechen) and quick links to official Lesen/Hören.\n"
-            "- **Custom Chat**: Free conversation on your topic with feedback.\n"
-            "- **Pronunciation & Speaking Checker**: Upload a short audio for scoring and tips.",
+            """
+            - **Exams Mode**: Chat with an examiner (Sprechen) and quick links to official Lesen/Hören.
+            - **Custom Chat**: Free conversation on your topic with feedback.
+            - **Pronunciation & Speaking Checker**: Upload a short audio for scoring and tips.
+            """,
             icon="ℹ️"
         )
         mode = st.radio(
@@ -5522,9 +5519,12 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_mode"] = mode
             st.session_state["falowen_stage"] = 99 if mode == "Pronunciation & Speaking Checker" else 2
             if mode == "Pronunciation & Speaking Checker":
+                st.session_state["falowen_stage"] = 99
                 st.session_state["falowen_level"] = None
             else:
-                level = get_student_level(st.session_state["student_code"], default=None)
+                level = get_student_level(
+                    st.session_state["student_code"], default=None
+                )
                 if level is None:
                     st.session_state["falowen_level"] = None
                     st.session_state["falowen_stage"] = 2
@@ -5533,12 +5533,18 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["falowen_stage"] = 3 if mode == "Exams Mode" else 4
                     st.session_state["falowen_teil"] = None
                     reset_falowen_chat_flow()
-            rerun_without_toast()
+                    refresh_with_toast()
 
-    # ----- Step 2: Level -----
+
+
+    # ——— Step 2: Level ———
     if st.session_state["falowen_stage"] == 2:
         st.subheader("Step 2: Choose Your Level")
-        level = st.radio("Select your level:", ["A1", "A2", "B1", "B2", "C1"], key="falowen_level_center")
+        level = st.radio(
+            "Select your level:",
+            ["A1", "A2", "B1", "B2", "C1"],
+            key="falowen_level_center",
+        )
         if level:
             st.session_state["falowen_level"] = level
         col1, col2 = st.columns(2)
@@ -5549,26 +5555,29 @@ if tab == "Exams Mode & Custom Chat":
                 st.session_state.pop("falowen_level_center", None)
                 st.session_state["falowen_messages"] = []
                 st.session_state["_falowen_loaded"] = False
-                rerun_without_toast()
+                refresh_with_toast()
         with col2:
             if st.button("Next ➡️", key="falowen_next_level"):
                 if st.session_state.get("falowen_level"):
                     st.session_state["falowen_stage"] = 3 if st.session_state["falowen_mode"] == "Exams Mode" else 4
                     st.session_state["falowen_teil"] = None
                     reset_falowen_chat_flow()
-                    rerun_without_toast()
+                    refresh_with_toast()
         st.stop()
 
-    # ----- Step 3: Exam Part or Links -----
+    # ——— Step 3: Exam Part or Lesen/Hören links ———
     if st.session_state["falowen_stage"] == 3:
+
         render_exam_setup(
             reset_chat_flow=reset_falowen_chat_flow,
             back_step=back_step,
             db=db,
         )
 
-    # ----- Step 4: Chat (Exam or Custom) -----
+
+    # ——— Step 4: Chat (Exam or Custom) ———
     if st.session_state.get("falowen_stage") == 4:
+
         render_chat_stage(
             client=client,
             db=db,
@@ -5580,15 +5589,24 @@ if tab == "Exams Mode & Custom Chat":
             render_umlaut_pad=render_umlaut_pad,
         )
 
-    # ----- Stage 99: Pronunciation & Speaking Checker -----
+
+    # ——— Stage 99: Pronunciation & Speaking Checker (unchanged)
     if st.session_state.get("falowen_stage") == 99:
+        import urllib.parse as _urllib
+
         STUDENTS_CSV_URL = (
             "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-"
             "TC1yhPS7ZG6nzZVTt1U/export?format=csv&gid=104087906"
         )
 
         def _norm_code(v: str) -> str:
-            return str(v or "").strip().lower().replace("\u00a0", " ").replace(" ", "")
+            return (
+                str(v or "")
+                .strip()
+                .lower()
+                .replace("\u00a0", " ")
+                .replace(" ", "")
+            )
 
         student_code = _norm_code(st.session_state.get("student_code"))
 
@@ -5612,10 +5630,11 @@ if tab == "Exams Mode & Custom Chat":
                 _entered = _norm_code(_entered)
                 if _entered:
                     st.session_state["student_code"] = _entered
-                    rerun_without_toast()
+                    refresh_with_toast()
             st.stop()
 
         try:
+            import pandas as pd
             df_students = pd.read_csv(STUDENTS_CSV_URL)
             _cands = {c.strip().lower(): c for c in df_students.columns}
             col = None
@@ -5634,7 +5653,9 @@ if tab == "Exams Mode & Custom Chat":
         st.subheader("🎤 Pronunciation & Speaking Checker")
         st.info("Click the button below to open the Sprechen Recorder.")
 
-        RECORDER_URL = "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec"
+        RECORDER_URL = (
+            "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec"
+        )
         rec_url = f"{RECORDER_URL}?code={_urllib.quote(student_code)}"
 
         try:
@@ -5652,8 +5673,7 @@ if tab == "Exams Mode & Custom Chat":
 
         if st.button("⬅️ Back to Start"):
             st.session_state["falowen_stage"] = 1
-            rerun_without_toast()
-
+            refresh_with_toast()
 
 # =========================================
 # End
