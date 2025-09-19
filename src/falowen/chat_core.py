@@ -253,15 +253,12 @@ def _render_recorder_button(widget_key_fn: Callable[[str], str], student_code: s
     )
     rec_url = f"{recorder_base}?code={student_code}"
     label = "\U0001F399\ufe0f Record your answer now (Sprechen Recorder)"
-    try:
-        st.link_button(label, rec_url, type="primary", use_container_width=True, key=widget_key_fn("btn_recorder"))
-    except Exception:
-        fallback = (
-            '<a href="{url}" target="_blank" style="display:block;text-align:center;'
-            'padding:12px 16px;border-radius:10px;background:#2563eb;color:#fff;'
-            'text-decoration:none;font-weight:700;">{label}</a>'
-        ).format(url=rec_url, label=label)
-        st.markdown(fallback, unsafe_allow_html=True)
+    fallback = (
+        '<a href="{url}" target="_blank" rel="noopener noreferrer" '
+        'style="display:block;text-align:center;padding:12px 16px;border-radius:10px;'
+        'background:#2563eb;color:#fff;text-decoration:none;font-weight:700;">{label}</a>'
+    ).format(url=rec_url, label=label)
+    st.markdown(fallback, unsafe_allow_html=True)
     st.caption("You can keep chatting here or record your answer now.")
 
 
