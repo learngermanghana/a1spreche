@@ -40,7 +40,6 @@ def back_step() -> None:
     draft_key = st.session_state.get("falowen_chat_draft_key")
     for key in [
         "falowen_mode",
-        "falowen_level",
         "falowen_teil",
         "falowen_exam_topic",
         "falowen_exam_keyword",
