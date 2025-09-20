@@ -345,7 +345,7 @@ def render_chat_stage(
     mode_only_prefix = f"{mode}_"
 
     # Collect all threads for this MODE and sort by message-count, then key
-    items: List[tuple[str, List[Dict[str, Any]]]] = []
+    items: List[tuple[str, List[Dict[str, Any]]]]] = []
     for key, msgs in stored_chats.items():
         if not isinstance(key, str) or not isinstance(msgs, list):
             continue
@@ -368,6 +368,11 @@ def render_chat_stage(
     combined_history: List[Dict[str, Any]] = []
     for _, msgs in items:
         combined_history.extend(msgs)
+
+    # Don’t render thousands of bubbles; keep the most recent ~400 messages for performance
+    MAX_RENDERED = 400
+    if len(combined_history) > MAX_RENDERED:
+        combined_history = combined_history[-MAX_RENDERED:]
 
     # ================================
     # System prompt & greeting (unchanged)
@@ -422,7 +427,7 @@ def render_chat_stage(
     _render_chat_messages(chat_placeholder, combined_history)
 
     # ================================
-    # Input handling (unchanged)
+    # Input handling
     # ================================
     if is_exam:
         input_result = _render_exam_input_area(
@@ -449,6 +454,9 @@ def render_chat_stage(
         chat_locked = custom_result.chat_locked
         use_chat_input = custom_result.use_chat_input
 
+    if chat_locked:
+        st.info("✋ This chat is temporarily locked. Finish the current step or click ‘Back’ to continue.")
+
     if input_result.save_clicked:
         save_now(session.draft_key, student_code)
 
@@ -461,15 +469,20 @@ def render_chat_stage(
             st.session_state["falowen_clear_draft"] = True
             rerun_without_toast()
 
-        # Re-render combined history including the just-added user msg
-        # (temporarily add it to the end for immediate UI feedback)
+        # Re-render combined history including the just-added user msg (quick feedback)
         live_combined = combined_history + [{"role": "user", "content": input_result.user_input}]
         chat_placeholder.empty()
         _render_chat_messages(chat_placeholder, live_combined)
 
         with status_placeholder:
             with st.spinner("🧑‍🏫 Herr Felix is typing…"):
-                payload = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
+                # --- Trim model payload to avoid stalls/timeouts ---
+                thread_msgs = st.session_state.get("falowen_messages", [])
+                MAX_TURNS = 24  # up to 24 messages (12 exchanges)
+                trimmed = thread_msgs[-MAX_TURNS:] if len(thread_msgs) > MAX_TURNS else thread_msgs
+
+                payload = [{"role": "system", "content": system_prompt}] + trimmed
+
                 try:
                     resp = client.chat.completions.create(
                         model="gpt-4o",
@@ -478,8 +491,11 @@ def render_chat_stage(
                         max_tokens=600,
                     )
                     ai_reply = (resp.choices[0].message.content or "").strip()
+                    if not ai_reply:
+                        ai_reply = "🤔 I didn’t get a response text. Please try again."
                 except Exception as exc:
-                    ai_reply = f"Sorry, an error occurred: {exc}"
+                    ai_reply = f"Sorry, an error occurred while generating a reply: {exc}"
+                    st.error(ai_reply)
 
         status_placeholder.empty()
 
@@ -499,15 +515,12 @@ def render_chat_stage(
             doc_data=session.doc_data,
         )
 
-        # Recompute + render combined history after persistence
+        # Recompute + render combined history after persistence (keep active thread freshest)
         chat_placeholder = chat_display.empty()
         status_placeholder = status_display.empty()
 
-        # Pull updated doc_data (optional; safe to use our previous build too)
-        # For simplicity, rebuild combined from our local structures:
         updated_items = []
         for k, msgs in items:
-            # Replace the active key's messages with in-memory state for recency
             if k == session.conv_key:
                 updated_items.append((k, st.session_state["falowen_messages"]))
             else:
@@ -518,6 +531,8 @@ def render_chat_stage(
         updated_combined: List[Dict[str, Any]] = []
         for _, msgs in updated_items:
             updated_combined.extend(msgs)
+        if len(updated_combined) > MAX_RENDERED:
+            updated_combined = updated_combined[-MAX_RENDERED:]
 
         _render_chat_messages(chat_placeholder, updated_combined)
 
