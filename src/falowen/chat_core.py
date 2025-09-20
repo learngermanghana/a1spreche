@@ -242,11 +242,26 @@ def _normalise_messages(value: Any) -> List[Dict[str, Any]]:
     return []
 
 
+def _parse_conv_key(key: str) -> Dict[str, str]:
+    # Keys are like: "{mode}_{level}_{teilOrCustom}_{suffix}"
+    parts = key.split("_", 3)
+    meta = {"mode": "", "level": "", "teil": "", "suffix": key}
+    if len(parts) >= 3:
+        meta["mode"], meta["level"], meta["teil"] = parts[0], parts[1], parts[2]
+        if len(parts) == 4:
+            meta["suffix"] = parts[3]
+    return meta
+
+
+def _pretty_label_from_key(conv_key: str) -> str:
+    meta = _parse_conv_key(conv_key)
+    head = " • ".join([meta["mode"] or "?", meta["level"] or "?", meta["teil"] or "?"])
+    return f"{head} • {meta['suffix']}" if meta.get("suffix") else head
+
+
 def _divider_for(conv_key: str, label: Optional[str] = None) -> Dict[str, Any]:
-    # label looks like: "Mode • Level • Teil • suffix" derived from conv_key
-    parts = conv_key.split("_", 3)
-    pretty = " • ".join(parts[:3]) + (f" • {parts[3]}" if len(parts) == 4 else "")
-    return {"role": "assistant", "content": f"--- ✨ {label or pretty} ✨ ---", "_divider": True}
+    label = label or _pretty_label_from_key(conv_key)
+    return {"role": "assistant", "content": f"--- ✨ {label} ✨ ---", "_divider": True}
 
 
 def render_chat_stage(
@@ -278,20 +293,25 @@ def render_chat_stage(
     )
 
     # ================================
-    # Build a combined view of ALL history (all modes), with section dividers.
+    # Build a combined view of ALL history for the same MODE (e.g., "Custom Chat"),
+    # with section dividers per thread.
     # ================================
     stored_chats: Dict[str, Any] = session.doc_data.get("chats", {}) or {}
+    mode_only_prefix = f"{mode}_"
 
-    # Collect every thread and sort by message-count desc, then key (stable)
+    # Collect all threads for this MODE and sort by message-count, then key
     items: List[tuple[str, List[Dict[str, Any]]]] = []
     for key, msgs in stored_chats.items():
         if not isinstance(key, str) or not isinstance(msgs, list):
             continue
+        if not key.startswith(mode_only_prefix):
+            continue
         items.append((key, _normalise_messages(msgs)))
 
+    # Sort by message count desc, then key (stable)
     items.sort(key=lambda it: (len(it[1]), it[0]), reverse=True)
 
-    # If current conv isn't persisted yet, include its in-memory messages
+    # If current conv isn't persisted yet, include its in-memory messages at the end
     current_messages = [
         msg if isinstance(msg, dict) else {}
         for msg in st.session_state.get("falowen_messages", [])
@@ -300,7 +320,7 @@ def render_chat_stage(
     if session.conv_key not in existing_keys and current_messages:
         items.append((session.conv_key, current_messages))
 
-    # Flatten with a divider before each thread
+    # Flatten, but insert a divider before each thread
     combined_history: List[Dict[str, Any]] = []
     for k, msgs in items:
         combined_history.append(_divider_for(k))
@@ -328,7 +348,7 @@ def render_chat_stage(
         doc_data=session.doc_data,
     )
 
-    # ========= Lazy loading setup (newest page first) =========
+    # ========= Lazy loading setup =========
     PAGE_SIZE = 200  # messages per page (tune as needed)
     page = int(st.session_state.get("falowen_page", 1))
     total = len(combined_history)
@@ -446,7 +466,7 @@ def render_chat_stage(
 
         with status_placeholder:
             with st.spinner("🧑‍🏫 Herr Felix is typing…"):
-                # Trim model payload to avoid stalls/timeouts (active thread only)
+                # Trim model payload to avoid stalls/timeouts
                 thread_msgs = st.session_state.get("falowen_messages", [])
                 MAX_TURNS = 24  # up to 24 messages (≈12 exchanges)
                 trimmed = thread_msgs[-MAX_TURNS:] if len(thread_msgs) > MAX_TURNS else thread_msgs
@@ -512,32 +532,15 @@ def render_chat_stage(
         paged2 = updated_combined[start2:]
         _render_chat_messages(chat_placeholder, paged2)
 
-    # ================================
-    # PDF downloads (Current vs All)
-    # ================================
     teil_str = str(teil) if teil else "chat"
-    pdf_current = generate_chat_pdf(st.session_state.get("falowen_messages", []))
-    combined_no_dividers = [m for m in combined_history if not m.get("_divider")]
-    pdf_all = generate_chat_pdf(combined_no_dividers)
-
-    c1, c2 = st.columns(2)
-    with c1:
-        st.download_button(
-            "⬇️ Download CURRENT thread as PDF",
-            pdf_current,
-            file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}_CURRENT.pdf",
-            mime="application/pdf",
-            key=key_fn("dl_chat_pdf_current"),
-        )
-    with c2:
-        st.download_button(
-            "⬇️ Download ALL history as PDF",
-            pdf_all,
-            file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}_ALL.pdf",
-            mime="application/pdf",
-            key=key_fn("dl_chat_pdf_all"),
-        )
-
+    pdf_bytes = generate_chat_pdf(st.session_state.get("falowen_messages", []))
+    st.download_button(
+        "⬇️ Download Chat as PDF",
+        pdf_bytes,
+        file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.pdf",
+        mime="application/pdf",
+        key=key_fn("dl_chat_pdf"),
+    )
     col1, col2 = st.columns(2)
     with col1:
         if st.button("🗑️ Delete All Chat History", key=key_fn("btn_delete_history")):
