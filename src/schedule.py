@@ -357,8 +357,8 @@ Submitting Work
             "lesen_hören": [
                 {
                     "chapter": "9",
-                    "video": "https://youtu.be/qtGQZhxgZYE",
-                    "youtube_link": "https://youtu.be/qtGQZhxgZYE",
+                    "video": "https://youtu.be/MrB3BPtQN6A",
+                    "youtube_link": "https://youtu.be/MrB3BPtQN6A",
                     "assignment": True,
                     "grammarbook_link": "https://drive.google.com/file/d/1g-qLEH1ZDnFZCT83TW-MPLxNt2nO7UAv/view?usp=sharing",
                     "workbook_link": "https://drive.google.com/file/d/1hKtQdXg5y3yJyFBQsCMr7fZ11cYbuG7D/view?usp=sharing"

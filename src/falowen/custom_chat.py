@@ -13,19 +13,15 @@ import streamlit as st
 
 from src.draft_management import _draft_state_keys, autosave_maybe, save_now
 
-# === LIMITS DISABLED ===
-# None means: do not enforce any daily/turn limit in Custom Chat.
-TURN_LIMIT: Optional[int] = None
-
-CUSTOM_CHAT_GREETING = (
-    "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
-)
+TURN_LIMIT = 6
+CUSTOM_CHAT_GREETING = "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
 
 _summary_client = None
 
 
 def set_summary_client(client) -> None:
     """Configure the OpenAI client used for chat summaries."""
+
     global _summary_client
     _summary_client = client
 
@@ -73,6 +69,7 @@ def build_custom_chat_prompt(level: str, student_code: Optional[str] = None) -> 
 
 def generate_summary(messages: List[str]) -> str:
     """Use the configured OpenAI client to summarise custom chat answers."""
+
     if not messages:
         return ""
     prompt = "Summarize the following student responses into about 60 words suitable for a presentation."
@@ -93,31 +90,15 @@ def generate_summary(messages: List[str]) -> str:
         return ""
 
 
-def increment_turn_count_and_maybe_close(
-    is_exam: bool, *, summary_builder: Optional[Callable[[List[str]], str]] = None
-) -> bool:
-    """
-    Track turns but NEVER close/limit the chat in Custom Chat.
-    Returns False to indicate the chat remains open.
-    """
-    # Exams flow stays open as before.
+def increment_turn_count_and_maybe_close(is_exam: bool, *, summary_builder: Optional[Callable[[List[str]], str]] = None) -> bool:
     if is_exam:
         st.session_state["falowen_chat_closed"] = False
         st.session_state.pop("falowen_summary_emitted", None)
         return False
 
-    # Custom Chat: keep open, no limits.
     st.session_state["falowen_chat_closed"] = False
 
-    # Maintain a counter for analytics/UX if you still want it.
     st.session_state["falowen_turn_count"] = st.session_state.get("falowen_turn_count", 0) + 1
-
-    # If TURN_LIMIT is None => limits disabled: never trigger auto-summary/close.
-    if TURN_LIMIT is None:
-        st.session_state["falowen_summary_emitted"] = False
-        return False
-
-    # (If you ever set TURN_LIMIT to an int again, the below would run.)
     if st.session_state["falowen_turn_count"] < TURN_LIMIT:
         st.session_state["falowen_summary_emitted"] = False
         return False
@@ -125,7 +106,6 @@ def increment_turn_count_and_maybe_close(
     if st.session_state.get("falowen_summary_emitted"):
         return False
 
-    # Optional: auto-summary path (kept for completeness, but unreachable when TURN_LIMIT is None)
     builder = summary_builder or generate_summary
     user_msgs = [
         m.get("content", "")
@@ -137,7 +117,7 @@ def increment_turn_count_and_maybe_close(
     if not messages or messages[-1].get("role") != "assistant" or messages[-1].get("content") != summary:
         messages.append({"role": "assistant", "content": summary})
     st.session_state["falowen_summary_emitted"] = True
-    return False  # even after summary, do NOT close
+    return True
 
 
 def render_custom_chat_input(
@@ -151,7 +131,6 @@ def render_custom_chat_input(
     """Render the non-exam chat input area and return interaction metadata."""
 
     use_chat_input = bool(st.session_state.get("falowen_use_chat_input"))
-    # Never lock the chat due to daily/turn limits
     chat_locked = False
 
     user_input_ci: Optional[str] = None
@@ -172,7 +151,9 @@ def render_custom_chat_input(
                 min_delta=0,
                 locked=chat_locked,
             )
-            last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
+            last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(
+                draft_key
+            )
             st.session_state[last_val_key] = st.session_state[draft_key]
             st.session_state[last_ts_key] = time.time()
             st.session_state[saved_flag_key] = True
