@@ -19,12 +19,23 @@ if TYPE_CHECKING:  # pragma: no cover - runtime import to avoid circular depende
     from a1sprechen import _dict_tts_bytes_de as DictTtsFn
     from a1sprechen import is_correct_answer as IsCorrectAnswerFn
     from a1sprechen import render_message as RenderMessageFn
+    from a1sprechen import render_umlaut_pad as RenderUmlautPadFn
 
 
-_HELPERS: Tuple[object, object, object] | None = None
+_HELPERS: Tuple[
+    "IsCorrectAnswerFn",
+    "RenderMessageFn",
+    "DictTtsFn",
+    "RenderUmlautPadFn",
+] | None = None
 
 
-def _get_app_helpers() -> Tuple[object, object, object]:
+def _get_app_helpers() -> Tuple[
+    "IsCorrectAnswerFn",
+    "RenderMessageFn",
+    "DictTtsFn",
+    "RenderUmlautPadFn",
+]:
     """Lazy import helpers from :mod:`a1sprechen` to avoid circular imports."""
 
     global _HELPERS
@@ -34,6 +45,7 @@ def _get_app_helpers() -> Tuple[object, object, object]:
             getattr(app_module, "is_correct_answer"),
             getattr(app_module, "render_message"),
             getattr(app_module, "_dict_tts_bytes_de"),
+            getattr(app_module, "render_umlaut_pad"),
         )
     return _HELPERS
 
@@ -41,7 +53,12 @@ def _get_app_helpers() -> Tuple[object, object, object]:
 def render_vocab_practice(student_code: str, level: str) -> None:
     """Render the Vocab Practice experience for *student_code* at *level*."""
 
-    is_correct_answer, render_message, dict_tts_bytes = _get_app_helpers()
+    (
+        is_correct_answer,
+        render_message,
+        dict_tts_bytes,
+        render_umlaut_pad,
+    ) = _get_app_helpers()
 
     defaults = {
         "vt_history": [],
@@ -162,11 +179,13 @@ def render_vocab_practice(student_code: str, level: str) -> None:
             unsafe_allow_html=True,
         )
 
+        input_key = f"vt_input_{index}"
         user_answer = st.text_input(
             f"{word} = ?",
-            key=f"vt_input_{index}",
+            key=input_key,
             placeholder="Type your answer here...",
         )
+        render_umlaut_pad(input_key, context=f"vocab_practice_{level}")
         if user_answer and st.button("Check", key=f"vt_check_{index}"):
             st.session_state.vt_history.append(("user", user_answer))
             if is_correct_answer(user_answer, answer):
