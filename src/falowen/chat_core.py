@@ -200,6 +200,8 @@ def persist_messages(
 
     chats = dict((doc_data or {}).get("chats", {}))
     chats[conv_key] = messages
+    if isinstance(doc_data, dict):
+        doc_data.setdefault("chats", {})[conv_key] = messages
     try:
         doc_ref.set({"chats": chats}, merge=True)
     except Exception:
@@ -470,6 +472,67 @@ def render_chat_stage(
         mime="application/pdf",
         key=key_fn("dl_chat_pdf"),
     )
+
+    chats_by_student = (session.doc_data.get("chats", {}) or {}) if session.doc_data else {}
+    mode_level_teil = f"{mode}_{level}_{teil or 'custom'}"
+    prefix = f"{mode_level_teil}_"
+    relevant_keys = [
+        key for key in chats_by_student if str(key).startswith(prefix)
+    ]
+    relevant_keys.sort(
+        key=lambda conv: (0 if conv == session.conv_key else 1, conv),
+    )
+    relevant_conversations = {key: chats_by_student[key] for key in relevant_keys}
+
+    expander_key = key_fn("chat_history_expander")
+    with st.expander("📚 Previous conversations", expanded=False, key=expander_key):
+        if not relevant_conversations:
+            st.caption("No saved conversations yet for this mode.")
+        else:
+            items = list(relevant_conversations.items())
+            for idx, (conv_key, messages) in enumerate(items):
+                st.markdown(
+                    f"**Conversation {conv_key.replace(prefix, '').upper() or conv_key}**"
+                )
+                history_messages = messages if isinstance(messages, list) else []
+                if not history_messages:
+                    st.caption("No messages saved yet for this conversation.")
+                for msg in history_messages:
+                    role = msg.get("role", "assistant")
+                    content = msg.get("content", "")
+                    timestamp = msg.get("timestamp")
+                    bubble_style = bubble_user if role == "user" else bubble_assistant
+                    alignment = "flex-end" if role == "user" else "flex-start"
+                    speaker_label = "🗣️ You" if role == "user" else "🧑‍🏫 Herr Felix"
+                    content_str = str(content)
+                    if role == "assistant":
+                        content_str = highlight_keywords(content_str, highlight_words)
+                    content_html = content_str.replace("\n", "<br>")
+                    st.markdown(
+                        "<div style='display:flex;justify-content:{align};margin-bottom:4px;'>"
+                        "<div style='{style}'>"
+                        "<div style='font-weight:600;margin-bottom:2px;'>{speaker}</div>"
+                        "{body}"
+                        "</div></div>".format(
+                            align=alignment,
+                            style=bubble_style,
+                            speaker=speaker_label,
+                            body=content_html,
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                    if timestamp:
+                        ts_str = str(timestamp)
+                        st.markdown(
+                            "<div style='font-size:0.75rem;color:#6b7280;text-align:{align};margin-bottom:8px;'>"
+                            "{ts}</div>".format(
+                                align="right" if role == "user" else "left",
+                                ts=ts_str,
+                            ),
+                            unsafe_allow_html=True,
+                        )
+                if idx < len(items) - 1:
+                    st.divider()
     col1, col2 = st.columns(2)
     with col1:
         if st.button("🗑️ Delete All Chat History", key=key_fn("btn_delete_history")):
