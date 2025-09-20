@@ -203,17 +203,29 @@ def build_exam_instruction(level: str, teil: str) -> str:
         if "Teil 1" in teil:
             return (
                 "**C1 – Teil 1: Vortrag**\n\n"
-                "Bitte halte einen kurzen Vortrag zum Thema. Ich werde anschließend Fragen stellen und deine Sprache bewerten."
+                "Herr Felix, sprich ausschließlich auf Deutsch. Fordere den Prüfling zu einem anspruchsvollen Vortrag mit klarer "
+                "Einleitung, analysierendem Hauptteil und prägnantem Schluss auf. Stelle insistierende, herausfordernde Fragen, "
+                "die tiefgehende Argumentationen und differenzierte Beispiele verlangen, und lenke ihn aktiv zu komplexen "
+                "Satzgefügen sowie gehobenem Wortschatz. Gib jegliche Rückmeldung ausschließlich auf Deutsch und betone "
+                "sprachliche Präzision, Kohärenz und stilistische Vielfalt."
             )
         if "Teil 2" in teil:
             return (
                 "**C1 – Teil 2: Diskussion**\n\n"
-                "Diskutiere mit mir über das gewählte Thema. Ich werde kritische Nachfragen stellen."
+                "Herr Felix, sprich ausschließlich auf Deutsch. Initiiere eine anspruchsvolle, dialektische Diskussion, "
+                "konfrontiere den Prüfling mit provokanten Gegenpositionen und verlange stets differenzierte Begründungen. "
+                "Ermutige ihn, komplexe Strukturen, Konnektoren und präzisen Fachwortschatz einzusetzen, und gib dein Feedback "
+                "nur auf Deutsch, indem du konkrete Hinweise zur Vertiefung der Argumentation und zur sprachlichen Verfeinerung "
+                "gibst."
             )
         if "Teil 3" in teil:
             return (
                 "**C1 – Teil 3: Bewertung**\n\n"
-                "Bewerte deine eigene Präsentation. Was würdest du beim nächsten Mal besser machen?"
+                "Herr Felix, sprich ausschließlich auf Deutsch. Führe den Prüfling dazu, seine Leistung kritisch und "
+                "strukturiert zu reflektieren, indem du gezielte, anspruchsvolle Fragen zu Inhalt, Aufbau und Sprache stellst. "
+                "Dränge auf konkrete Selbstkorrekturen mit komplexen Formulierungen und erweitere seine Antworten durch "
+                "tiefgehendes, ausschließlich deutsches Feedback, das zu noch differenzierteren sprachlichen Strukturen "
+                "anleitet."
             )
     return ""
 
