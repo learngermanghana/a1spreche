@@ -20,7 +20,6 @@ from . import custom_chat, exams_mode
 
 def widget_key(base: str, *, student_code: Optional[str] = None) -> str:
     """Stable widget key namespaced by student code."""
-
     sc = student_code or str(st.session_state.get("student_code", "anon"))
     digest = hashlib.md5(f"{base}|{sc}".encode()).hexdigest()[:8]
     return f"{base}_{digest}"
@@ -334,17 +333,28 @@ def render_chat_stage(
         teil=teil,
     )
 
-    mode_level_teil = f"{mode}_{level}_{teil or 'custom'}"
-    prefix = f"{mode_level_teil}_"
-    stored_chats = session.doc_data.get("chats", {}) or {}
+    # ================================
+    # Conversation history (show ALL Custom Chat threads for the student)
+    # ================================
+    stored_chats: Dict[str, Any] = session.doc_data.get("chats", {}) or {}
 
     def _normalise_messages(value: Any) -> List[Dict[str, Any]]:
         if isinstance(value, list):
             return [msg for msg in value if isinstance(msg, dict)]
         return []
 
+    def _parse_conv_key(key: str) -> Dict[str, str]:
+        # Keys are like: "{mode}_{level}_{teilOrCustom}_{suffix}"
+        parts = key.split("_", 3)
+        meta = {"mode": "", "level": "", "teil": "", "suffix": key}
+        if len(parts) >= 3:
+            meta["mode"], meta["level"], meta["teil"] = parts[0], parts[1], parts[2]
+            if len(parts) == 4:
+                meta["suffix"] = parts[3]
+        return meta
+
     def _format_history_label(conv_key: str, messages: List[Dict[str, Any]]) -> str:
-        suffix = conv_key.split(prefix, 1)[-1] if conv_key.startswith(prefix) else conv_key
+        meta = _parse_conv_key(conv_key)
         message_count = len(messages)
         last_entry: Dict[str, Any] = messages[-1] if messages else {}
         preview = ""
@@ -372,42 +382,42 @@ def render_chat_stage(
                 if timestamp_label:
                     break
 
-        meta_bits = [
-            f"{message_count} message{'s' if message_count != 1 else ''}"
-        ]
+        head = " • ".join([meta["mode"] or "?", meta["level"] or "?", meta["teil"] or "?"])
+        tail = [f"{message_count} msg" if message_count == 1 else f"{message_count} msgs"]
         if timestamp_label:
-            meta_bits.append(f"last: {timestamp_label}")
+            tail.append(f"last {timestamp_label}")
         if preview:
-            meta_bits.append(f"“{preview}”")
+            tail.append(f"“{preview}”")
+        return f"{head} — " + " • ".join(tail)
 
-        meta = " • ".join(meta_bits)
-        return f"Conversation {suffix} — {meta}" if meta else f"Conversation {suffix}"
+    # Accept any chat that matches the current MODE (e.g., "Custom Chat"), regardless of level/teil
+    mode_only_prefix = f"{mode}_"
 
-    stored_conversations = [
-        (key, _normalise_messages(messages))
-        for key, messages in stored_chats.items()
-        if isinstance(key, str) and key.startswith(prefix)
-    ]
+    items: List[tuple[str, List[Dict[str, Any]]]] = []
+    for key, msgs in stored_chats.items():
+        if not isinstance(key, str) or not isinstance(msgs, list):
+            continue
+        if not key.startswith(mode_only_prefix):
+            continue
+        items.append((key, _normalise_messages(msgs)))
 
-    def _message_count(item: tuple[str, List[Dict[str, Any]]]) -> int:
-        return len(item[1])
+    # Sort by message count desc, then key
+    items.sort(key=lambda it: (len(it[1]), it[0]), reverse=True)
 
-    stored_conversations.sort(key=lambda item: (_message_count(item), item[0]), reverse=True)
-
+    # Keep current in-memory messages at top if the conv_key isn't stored yet
     current_messages = [
         msg if isinstance(msg, dict) else {}
         for msg in st.session_state.get("falowen_messages", [])
     ]
-
-    existing_keys = [key for key, _ in stored_conversations]
+    existing_keys = [k for k, _ in items]
     if session.conv_key in existing_keys:
-        current_index = existing_keys.index(session.conv_key)
-        stored_conversations.insert(0, stored_conversations.pop(current_index))
+        idx = existing_keys.index(session.conv_key)
+        items.insert(0, items.pop(idx))
     else:
-        stored_conversations.insert(0, (session.conv_key, current_messages))
+        items.insert(0, (session.conv_key, current_messages))
 
-    history_labels = {key: _format_history_label(key, msgs) for key, msgs in stored_conversations}
-    history_options = [key for key, _ in stored_conversations]
+    history_options = [k for k, _ in items]
+    history_labels = {k: _format_history_label(k, v) for k, v in items}
 
     selected_conv_key = st.selectbox(
         "Load previous chat",
@@ -417,7 +427,15 @@ def render_chat_stage(
         format_func=lambda value: history_labels.get(value, value),
     )
 
+    # If user picks a chat with a different level/teil, align UI scope to that chat
     if selected_conv_key and selected_conv_key != session.conv_key:
+        meta = _parse_conv_key(selected_conv_key)
+        # Mode is already Custom Chat; keep it. Align level/teil.
+        if meta["level"]:
+            st.session_state["falowen_level"] = meta["level"]
+        if meta["teil"]:
+            st.session_state["falowen_teil"] = None if meta["teil"] == "custom" else meta["teil"]
+
         st.session_state["falowen_conv_key"] = selected_conv_key
         st.session_state.pop("falowen_messages", None)
         st.session_state.pop("falowen_loaded_key", None)
@@ -425,9 +443,9 @@ def render_chat_stage(
         rerun_without_toast()
         return
 
-    if session.fresh_chat:
-        reset_falowen_chat_flow(clear_messages=False, clear_intro=False)
-
+    # ================================
+    # System prompt & greeting
+    # ================================
     if is_exam:
         topic = st.session_state.get("falowen_exam_topic")
         keyword = st.session_state.get("falowen_exam_keyword")
