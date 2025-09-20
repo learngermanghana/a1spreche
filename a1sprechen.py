@@ -5941,7 +5941,15 @@ if tab == "Vocab Trainer":
                 unsafe_allow_html=True
             )
 
-            usr = st.text_input(f"{word} = ?", key=f"vt_input_{idx}", placeholder="Type your answer here...")
+            usr = st.text_input(
+                f"{word} = ?",
+                key=f"vt_input_{idx}",
+                placeholder="Type your answer here...",
+            )
+            render_umlaut_pad(
+                f"vt_input_{idx}",
+                context=f"vocab_practice_{student_code}",
+            )
             if usr and st.button("Check", key=f"vt_check_{idx}"):
                 st.session_state.vt_history.append(("user", usr))
                 if is_correct_answer(usr, answer):
