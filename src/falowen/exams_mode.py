@@ -238,7 +238,8 @@ def build_exam_system_prompt(level: str, teil: str, student_code: str = "felixa1
                 "Clearly report which of the required keywords were covered and list any that were missed before moving on.\n"
                 "Ask exactly these three follow-up questions in order, one at a time, with gentle encouragement after every reply:\n"
                 "1. Haben Sie Geschwister?\n2. Wie alt ist deine Mutter?\n3. Bist du verheiratet?\n"
-                "Finish with an encouraging summary plus a score out of 25 that explicitly states Pass or Not yet Pass.\n"
+                "Finish with an encouraging summary plus a score out of 25 that explicitly states Pass or Not yet Pass."
+                " After you share the score, gently remind them once more that **Buchstabieren** may be requested and wish them good luck.\n"
             + record_line
         )
         if "Teil 2" in teil:
