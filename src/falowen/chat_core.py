@@ -484,8 +484,7 @@ def render_chat_stage(
     )
     relevant_conversations = {key: chats_by_student[key] for key in relevant_keys}
 
-    expander_key = key_fn("chat_history_expander")
-    with st.expander("📚 Previous conversations", expanded=False, key=expander_key):
+    with st.expander("📚 Previous conversations", expanded=False):
         if not relevant_conversations:
             st.caption("No saved conversations yet for this mode.")
         else:
