@@ -334,6 +334,96 @@ def render_chat_stage(
         teil=teil,
     )
 
+    mode_level_teil = f"{mode}_{level}_{teil or 'custom'}"
+    prefix = f"{mode_level_teil}_"
+    stored_chats = session.doc_data.get("chats", {}) or {}
+
+    def _normalise_messages(value: Any) -> List[Dict[str, Any]]:
+        if isinstance(value, list):
+            return [msg for msg in value if isinstance(msg, dict)]
+        return []
+
+    def _format_history_label(conv_key: str, messages: List[Dict[str, Any]]) -> str:
+        suffix = conv_key.split(prefix, 1)[-1] if conv_key.startswith(prefix) else conv_key
+        message_count = len(messages)
+        last_entry: Dict[str, Any] = messages[-1] if messages else {}
+        preview = ""
+        if isinstance(last_entry, dict):
+            raw_content = str(last_entry.get("content", "")).strip()
+            if raw_content:
+                preview = raw_content.replace("\n", " ")
+                if len(preview) > 60:
+                    preview = f"{preview[:57]}…"
+
+        timestamp_label: Optional[str] = None
+        if isinstance(last_entry, dict):
+            for ts_key in ("timestamp", "ts", "created_at", "time"):
+                ts_value = last_entry.get(ts_key)
+                if not ts_value:
+                    continue
+                if isinstance(ts_value, (int, float)):
+                    try:
+                        ts_dt = datetime.fromtimestamp(ts_value, tz=_timezone.utc).astimezone()
+                        timestamp_label = ts_dt.strftime("%Y-%m-%d %H:%M")
+                    except Exception:
+                        timestamp_label = str(ts_value)
+                else:
+                    timestamp_label = str(ts_value)
+                if timestamp_label:
+                    break
+
+        meta_bits = [
+            f"{message_count} message{'s' if message_count != 1 else ''}"
+        ]
+        if timestamp_label:
+            meta_bits.append(f"last: {timestamp_label}")
+        if preview:
+            meta_bits.append(f"“{preview}”")
+
+        meta = " • ".join(meta_bits)
+        return f"Conversation {suffix} — {meta}" if meta else f"Conversation {suffix}"
+
+    stored_conversations = [
+        (key, _normalise_messages(messages))
+        for key, messages in stored_chats.items()
+        if isinstance(key, str) and key.startswith(prefix)
+    ]
+
+    def _message_count(item: tuple[str, List[Dict[str, Any]]]) -> int:
+        return len(item[1])
+
+    stored_conversations.sort(key=lambda item: (_message_count(item), item[0]), reverse=True)
+
+    current_messages = [
+        msg if isinstance(msg, dict) else {}
+        for msg in st.session_state.get("falowen_messages", [])
+    ]
+
+    existing_keys = [key for key, _ in stored_conversations]
+    if session.conv_key in existing_keys:
+        current_index = existing_keys.index(session.conv_key)
+        stored_conversations.insert(0, stored_conversations.pop(current_index))
+    else:
+        stored_conversations.insert(0, (session.conv_key, current_messages))
+
+    history_labels = {key: _format_history_label(key, msgs) for key, msgs in stored_conversations}
+    history_options = [key for key, _ in stored_conversations]
+
+    selected_conv_key = st.selectbox(
+        "Load previous chat",
+        options=history_options,
+        index=0,
+        key=key_fn("history_selector"),
+        format_func=lambda value: history_labels.get(value, value),
+    )
+
+    if selected_conv_key and selected_conv_key != session.conv_key:
+        st.session_state["falowen_conv_key"] = selected_conv_key
+        st.session_state.pop("falowen_messages", None)
+        st.session_state.pop("falowen_loaded_key", None)
+        st.session_state["falowen_clear_draft"] = True
+        rerun_without_toast()
+
     if session.fresh_chat:
         reset_falowen_chat_flow(clear_messages=False, clear_intro=False)
 
