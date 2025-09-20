@@ -74,3 +74,43 @@ def test_render_chat_stage_switch_does_not_persist_previous_chat(monkeypatch):
     assert session_state["falowen_conv_key"] == next_key
     assert "falowen_messages" not in session_state
     assert session_state["falowen_clear_draft"] is True
+
+
+def test_combine_history_for_display_includes_all_threads():
+    threads = [
+        (
+            "Chat Mode_A1_custom_old",
+            [
+                {"role": "assistant", "content": "old-1"},
+                {"role": "user", "content": "old-2"},
+            ],
+        ),
+        (
+            "Chat Mode_A1_custom_archived",
+            [
+                {"role": "assistant", "content": "archived-1"},
+            ],
+        ),
+    ]
+    current_messages = [
+        {"role": "assistant", "content": "current-1"},
+        {"role": "user", "content": "current-2"},
+    ]
+
+    combined = chat_core.combine_history_for_display(
+        threads,
+        current_conv_key="Chat Mode_A1_custom_active",
+        current_messages=current_messages,
+    )
+
+    divider_labels = [msg["content"] for msg in combined if msg.get("_divider")]
+    assert len(divider_labels) == 3
+
+    rendered_messages = [msg["content"] for msg in combined if not msg.get("_divider")]
+    assert rendered_messages == [
+        "old-1",
+        "old-2",
+        "archived-1",
+        "current-1",
+        "current-2",
+    ]
