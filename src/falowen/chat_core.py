@@ -20,7 +20,6 @@ from . import custom_chat, exams_mode
 
 def widget_key(base: str, *, student_code: Optional[str] = None) -> str:
     """Stable widget key namespaced by student code."""
-
     sc = student_code or str(st.session_state.get("student_code", "anon"))
     digest = hashlib.md5(f"{base}|{sc}".encode()).hexdigest()[:8]
     return f"{base}_{digest}"
@@ -334,8 +333,10 @@ def render_chat_stage(
         teil=teil,
     )
 
+
     if session.fresh_chat:
         reset_falowen_chat_flow(clear_messages=False, clear_intro=False)
+
 
     if is_exam:
         topic = st.session_state.get("falowen_exam_topic")
