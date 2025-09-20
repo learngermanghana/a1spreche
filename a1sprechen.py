@@ -6501,6 +6501,10 @@ if tab == "Schreiben Trainer":
                 height=400,
                 placeholder="Paste your improved letter here..."
             )
+            render_umlaut_pad(
+                f"{student_code}_improved_letter",
+                context=f"schreiben_improve_{student_code}",
+            )
             compare_clicked = st.button("Compare My Improvement", key=f"compare_btn_{student_code}")
 
             if compare_clicked and improved_letter.strip():
