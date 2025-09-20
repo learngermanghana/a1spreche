@@ -423,6 +423,7 @@ def render_chat_stage(
         st.session_state.pop("falowen_loaded_key", None)
         st.session_state["falowen_clear_draft"] = True
         rerun_without_toast()
+        return
 
     if session.fresh_chat:
         reset_falowen_chat_flow(clear_messages=False, clear_intro=False)
