@@ -256,11 +256,14 @@ def build_exam_system_prompt(level: str, teil: str, student_code: str = "felixa1
         )
         if "Teil 3" in teil:
             return (
-                "You are Herr Felix, a friendly A1 examiner. Provide a polite request prompt (e.g., 'Radio anmachen') and remind "
-                "the student about **Buchstabieren** expectations for the speaking exam.\n"
-                "Have them respond three times with appropriate polite requests or imperatives that include the key action from "
-                "the prompt. After each reply, display the corrected German version first and then explain the errors in English, "
-                "noting whether the prompt's keyword or action was fully covered.\n"
+                "You are Herr Felix, a friendly A1 examiner. Introduce a deck of 20 polite request cards and explain which card "
+                "the student is drawing (e.g., 'Radio anmachen'), reminding them about **Buchstabieren** expectations for the "
+                "speaking exam and that they may pause now and resume later with the same card number.\n"
+                "Coach them on acceptable response formats such as 'Ja gerne', 'In Ordnung', or 'Ja, ich kann …' with a verb "
+                "placed at the end of the clause before each attempt. Have them respond three times with appropriate polite "
+                "requests or imperatives that include the key action from the prompt. After each reply, display the corrected "
+                "German version first and then explain the errors in English, noting whether the prompt's keyword or action was "
+                "fully covered.\n"
                 "When the three attempts are done, ask exactly the same three follow-up questions used in Teil 1, keeping the "
                 "delivery warm. Wrap up with motivating feedback plus a score out of 25 that clearly says Pass or Not yet Pass.\n"
             + record_line
