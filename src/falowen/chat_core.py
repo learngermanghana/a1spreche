@@ -322,7 +322,6 @@ def render_chat_stage(
     is_exam = mode == "Exams Mode"
 
     custom_chat.set_summary_client(client)
-
     key_fn = lambda base: widget_key(base, student_code=student_code)  # noqa: E731
 
     session = prepare_chat_session(
@@ -334,7 +333,7 @@ def render_chat_stage(
     )
 
     # ================================
-    # Conversation history (show ALL Custom Chat threads for the student)
+    # Build a combined view of ALL history for the same MODE (e.g., "Custom Chat")
     # ================================
     stored_chats: Dict[str, Any] = session.doc_data.get("chats", {}) or {}
 
@@ -343,56 +342,9 @@ def render_chat_stage(
             return [msg for msg in value if isinstance(msg, dict)]
         return []
 
-    def _parse_conv_key(key: str) -> Dict[str, str]:
-        # Keys are like: "{mode}_{level}_{teilOrCustom}_{suffix}"
-        parts = key.split("_", 3)
-        meta = {"mode": "", "level": "", "teil": "", "suffix": key}
-        if len(parts) >= 3:
-            meta["mode"], meta["level"], meta["teil"] = parts[0], parts[1], parts[2]
-            if len(parts) == 4:
-                meta["suffix"] = parts[3]
-        return meta
-
-    def _format_history_label(conv_key: str, messages: List[Dict[str, Any]]) -> str:
-        meta = _parse_conv_key(conv_key)
-        message_count = len(messages)
-        last_entry: Dict[str, Any] = messages[-1] if messages else {}
-        preview = ""
-        if isinstance(last_entry, dict):
-            raw_content = str(last_entry.get("content", "")).strip()
-            if raw_content:
-                preview = raw_content.replace("\n", " ")
-                if len(preview) > 60:
-                    preview = f"{preview[:57]}…"
-
-        timestamp_label: Optional[str] = None
-        if isinstance(last_entry, dict):
-            for ts_key in ("timestamp", "ts", "created_at", "time"):
-                ts_value = last_entry.get(ts_key)
-                if not ts_value:
-                    continue
-                if isinstance(ts_value, (int, float)):
-                    try:
-                        ts_dt = datetime.fromtimestamp(ts_value, tz=_timezone.utc).astimezone()
-                        timestamp_label = ts_dt.strftime("%Y-%m-%d %H:%M")
-                    except Exception:
-                        timestamp_label = str(ts_value)
-                else:
-                    timestamp_label = str(ts_value)
-                if timestamp_label:
-                    break
-
-        head = " • ".join([meta["mode"] or "?", meta["level"] or "?", meta["teil"] or "?"])
-        tail = [f"{message_count} msg" if message_count == 1 else f"{message_count} msgs"]
-        if timestamp_label:
-            tail.append(f"last {timestamp_label}")
-        if preview:
-            tail.append(f"“{preview}”")
-        return f"{head} — " + " • ".join(tail)
-
-    # Accept any chat that matches the current MODE (e.g., "Custom Chat"), regardless of level/teil
     mode_only_prefix = f"{mode}_"
 
+    # Collect all threads for this MODE and sort by message-count, then key
     items: List[tuple[str, List[Dict[str, Any]]]] = []
     for key, msgs in stored_chats.items():
         if not isinstance(key, str) or not isinstance(msgs, list):
@@ -401,50 +353,24 @@ def render_chat_stage(
             continue
         items.append((key, _normalise_messages(msgs)))
 
-    # Sort by message count desc, then key
     items.sort(key=lambda it: (len(it[1]), it[0]), reverse=True)
 
-    # Keep current in-memory messages at top if the conv_key isn't stored yet
+    # If current conv isn't persisted yet, include its in-memory messages at the end
     current_messages = [
         msg if isinstance(msg, dict) else {}
         for msg in st.session_state.get("falowen_messages", [])
     ]
     existing_keys = [k for k, _ in items]
-    if session.conv_key in existing_keys:
-        idx = existing_keys.index(session.conv_key)
-        items.insert(0, items.pop(idx))
-    else:
-        items.insert(0, (session.conv_key, current_messages))
+    if session.conv_key not in existing_keys and current_messages:
+        items.append((session.conv_key, current_messages))
 
-    history_options = [k for k, _ in items]
-    history_labels = {k: _format_history_label(k, v) for k, v in items}
-
-    selected_conv_key = st.selectbox(
-        "Load previous chat",
-        options=history_options,
-        index=0,
-        key=key_fn("history_selector"),
-        format_func=lambda value: history_labels.get(value, value),
-    )
-
-    # If user picks a chat with a different level/teil, align UI scope to that chat
-    if selected_conv_key and selected_conv_key != session.conv_key:
-        meta = _parse_conv_key(selected_conv_key)
-        # Mode is already Custom Chat; keep it. Align level/teil.
-        if meta["level"]:
-            st.session_state["falowen_level"] = meta["level"]
-        if meta["teil"]:
-            st.session_state["falowen_teil"] = None if meta["teil"] == "custom" else meta["teil"]
-
-        st.session_state["falowen_conv_key"] = selected_conv_key
-        st.session_state.pop("falowen_messages", None)
-        st.session_state.pop("falowen_loaded_key", None)
-        st.session_state["falowen_clear_draft"] = True
-        rerun_without_toast()
-        return
+    # Flatten all messages (oldest threads first by our sort; within a thread messages are already in order)
+    combined_history: List[Dict[str, Any]] = []
+    for _, msgs in items:
+        combined_history.extend(msgs)
 
     # ================================
-    # System prompt & greeting
+    # System prompt & greeting (unchanged)
     # ================================
     if is_exam:
         topic = st.session_state.get("falowen_exam_topic")
@@ -471,9 +397,9 @@ def render_chat_stage(
     status_display = st.container()
     status_placeholder = status_display.empty()
 
-    def _render_chat_messages(container):
+    def _render_chat_messages(container, messages: List[Dict[str, Any]]):
         with container:
-            for msg in st.session_state.get("falowen_messages", []):
+            for msg in messages:
                 if msg.get("role") == "assistant":
                     with st.chat_message("assistant", avatar="🧑‍🏫"):
                         st.markdown(
@@ -492,8 +418,12 @@ def render_chat_stage(
     with recorder_display:
         _render_recorder_button(key_fn, student_code)
 
-    _render_chat_messages(chat_placeholder)
+    # Render combined history
+    _render_chat_messages(chat_placeholder, combined_history)
 
+    # ================================
+    # Input handling (unchanged)
+    # ================================
     if is_exam:
         input_result = _render_exam_input_area(
             draft_key=session.draft_key,
@@ -523,6 +453,7 @@ def render_chat_stage(
         save_now(session.draft_key, student_code)
 
     if input_result.user_input:
+        # Append to the active session only; display will recompute combined history on rerun
         st.session_state.setdefault("falowen_messages", []).append(
             {"role": "user", "content": input_result.user_input}
         )
@@ -530,8 +461,11 @@ def render_chat_stage(
             st.session_state["falowen_clear_draft"] = True
             rerun_without_toast()
 
+        # Re-render combined history including the just-added user msg
+        # (temporarily add it to the end for immediate UI feedback)
+        live_combined = combined_history + [{"role": "user", "content": input_result.user_input}]
         chat_placeholder.empty()
-        _render_chat_messages(chat_placeholder)
+        _render_chat_messages(chat_placeholder, live_combined)
 
         with status_placeholder:
             with st.spinner("🧑‍🏫 Herr Felix is typing…"):
@@ -550,13 +484,12 @@ def render_chat_stage(
         status_placeholder.empty()
 
         st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
-        chat_placeholder.empty()
-        _render_chat_messages(chat_placeholder)
         if not is_exam:
             custom_chat.increment_turn_count_and_maybe_close(False)
         else:
             st.session_state["falowen_chat_closed"] = False
 
+        # Persist just the active thread to Firestore
         persist_messages(
             student_code,
             session.conv_key,
@@ -566,9 +499,27 @@ def render_chat_stage(
             doc_data=session.doc_data,
         )
 
+        # Recompute + render combined history after persistence
         chat_placeholder = chat_display.empty()
         status_placeholder = status_display.empty()
-        _render_chat_messages(chat_placeholder)
+
+        # Pull updated doc_data (optional; safe to use our previous build too)
+        # For simplicity, rebuild combined from our local structures:
+        updated_items = []
+        for k, msgs in items:
+            # Replace the active key's messages with in-memory state for recency
+            if k == session.conv_key:
+                updated_items.append((k, st.session_state["falowen_messages"]))
+            else:
+                updated_items.append((k, msgs))
+        if session.conv_key not in existing_keys:
+            updated_items.append((session.conv_key, st.session_state["falowen_messages"]))
+
+        updated_combined: List[Dict[str, Any]] = []
+        for _, msgs in updated_items:
+            updated_combined.extend(msgs)
+
+        _render_chat_messages(chat_placeholder, updated_combined)
 
     teil_str = str(teil) if teil else "chat"
     pdf_bytes = generate_chat_pdf(st.session_state.get("falowen_messages", []))
