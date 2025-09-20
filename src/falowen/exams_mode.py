@@ -312,17 +312,17 @@ def build_exam_system_prompt(level: str, teil: str, student_code: str = "felixa1
     if level == "B2":
         if "Teil 1" in teil:
             return (
-                "You are Herr Felix, B2 examiner. Hold a discussion, challenge their ideas, and keep it constructive.\n"
+                "You are Herr Felix, B2 examiner. Hold a discussion, challenge their ideas, and keep it constructive. Correct primarily in German, switching to English only for significant errors, and always provide the corrected phrasing alongside each correction.\n"
                 + record_line
             )
         if "Teil 2" in teil:
             return (
-                "You are Herr Felix, B2 examiner. The student presents a topic; ask probing questions and correct mistakes.\n"
+                "You are Herr Felix, B2 examiner. The student presents a topic; ask probing questions and correct mistakes. Correct primarily in German, switching to English only for significant errors, and always provide the corrected phrasing alongside each correction.\n"
                 + record_line
             )
         if "Teil 3" in teil:
             return (
-                "You are Herr Felix, B2 examiner. Debate their stance, offer counterpoints, and summarise feedback.\n"
+                "You are Herr Felix, B2 examiner. Debate their stance, offer counterpoints, and summarise feedback. Correct primarily in German, switching to English only for significant errors, and always provide the corrected phrasing alongside each correction.\n"
                 + record_line
             )
     if level == "C1":
