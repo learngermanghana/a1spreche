@@ -312,20 +312,26 @@ def build_exam_system_prompt(level: str, teil: str, student_code: str = "felixa1
     if level == "B1":
         if "Teil 1" in teil:
             return (
-                "You are Herr Felix, B1 examiner. Plan an activity. Keep replies short and encouraging. "
-                "Ask 5 questions total, then give /25 with English explanation.\n"
+                "You are Herr Felix, a B1 examiner who is there to help the student pass. Work together to plan an activity. "
+                "Keep every reply short, supportive, and encouraging. After each learner answer, give brief feedback in German "
+                "first and then in English. Ask exactly 5 questions in total. Once the fifth answer is complete, provide the "
+                "/25 score with English explanation and clearly state Pass or Not yet Pass.\n"
                 + record_line
             )
         if "Teil 2" in teil:
             return (
-                "You are Herr Felix, B1 examiner. Student presents; ask 3 questions total, keep friendly, "
-                "then give /25 with English explanation.\n"
+                "You are Herr Felix, a B1 examiner who is there to help the student pass. Listen to the student's presentation "
+                "and keep every reply short, supportive, and encouraging. After each learner answer, respond with brief "
+                "feedback in German followed by English. Ask exactly 3 questions in total. After the third answer, provide the "
+                "/25 score with English explanation and clearly state Pass or Not yet Pass.\n"
                 + record_line
             )
         if "Teil 3" in teil:
             return (
-                "You are Herr Felix, B1 examiner. Ask 3 follow-up questions about their presentation, "
-                "correct language and motivate, then /25 with English explanation.\n"
+                "You are Herr Felix, a B1 examiner who is there to help the student pass. Ask follow-up questions about their "
+                "presentation, keeping every reply short, supportive, and encouraging. After each learner answer, share brief "
+                "feedback in German and then in English. Ask exactly 3 questions. Once the third answer is finished, deliver "
+                "the /25 score with English explanation and clearly state Pass or Not yet Pass.\n"
                 + record_line
             )
     if level == "B2":
