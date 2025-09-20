@@ -34,8 +34,6 @@ def reset_falowen_chat_flow(*, clear_messages: bool = True, clear_intro: bool = 
     st.session_state["falowen_turn_count"] = 0
     st.session_state["falowen_chat_closed"] = False
     st.session_state.pop("falowen_summary_emitted", None)
-    # Reset lazy-load page on any chat reset
-    st.session_state["falowen_page"] = 1
 
 
 def back_step() -> None:
@@ -53,7 +51,6 @@ def back_step() -> None:
         "falowen_turn_count",
         "falowen_chat_closed",
         "falowen_summary_emitted",
-        "falowen_page",
     ]:
         st.session_state.pop(key, None)
     if draft_key:
@@ -90,7 +87,6 @@ def prepare_chat_session(
         st.session_state.pop("falowen_conv_key", None)
         st.session_state.pop("falowen_loaded_key", None)
         st.session_state.pop("falowen_messages", None)
-        st.session_state["falowen_page"] = 1  # reset pager on student switch
 
     mode_level_teil = f"{mode}_{level}_{teil or 'custom'}"
     doc_ref = None
@@ -249,6 +245,36 @@ def _divider_for(conv_key: str, label: Optional[str] = None) -> Dict[str, Any]:
     return {"role": "assistant", "content": f"--- ✨ {label or pretty} ✨ ---", "_divider": True}
 
 
+def combine_history_for_display(
+    threads: Iterable[tuple[str, List[Dict[str, Any]]]],
+    *,
+    current_conv_key: str,
+    current_messages: Optional[Iterable[Dict[str, Any]]] = None,
+) -> List[Dict[str, Any]]:
+    """Flatten stored threads for display, inserting dividers between them."""
+
+    flattened: List[Dict[str, Any]] = []
+    seen_current = False
+    normalised_current = _normalise_messages(list(current_messages or []))
+
+    for key, raw_msgs in threads:
+        msgs = _normalise_messages(raw_msgs)
+        if key == current_conv_key:
+            seen_current = True
+            use_msgs = normalised_current if normalised_current else msgs
+        else:
+            use_msgs = msgs
+
+        flattened.append(_divider_for(key))
+        flattened.extend(use_msgs)
+
+    if not seen_current and normalised_current:
+        flattened.append(_divider_for(current_conv_key))
+        flattened.extend(normalised_current)
+
+    return flattened
+
+
 def render_chat_stage(
     *,
     client,
@@ -300,11 +326,34 @@ def render_chat_stage(
     if session.conv_key not in existing_keys and current_messages:
         items.append((session.conv_key, current_messages))
 
-    # Flatten with a divider before each thread
-    combined_history: List[Dict[str, Any]] = []
-    for k, msgs in items:
-        combined_history.append(_divider_for(k))
-        combined_history.extend(msgs)
+    if items:
+        options = [k for k, _ in items]
+        if session.conv_key not in options:
+            options.append(session.conv_key)
+        if len(options) > 1:
+            try:
+                current_index = options.index(session.conv_key)
+            except ValueError:
+                current_index = 0
+
+            selected_key = st.selectbox(
+                "Select a chat thread",
+                options,
+                index=current_index,
+                key=key_fn("conv_selector"),
+            )
+            if selected_key != session.conv_key:
+                st.session_state["falowen_conv_key"] = selected_key
+                st.session_state.pop("falowen_messages", None)
+                st.session_state["falowen_clear_draft"] = True
+                rerun_without_toast()
+                return
+
+    combined_history = combine_history_for_display(
+        items,
+        current_conv_key=session.conv_key,
+        current_messages=st.session_state.get("falowen_messages", []),
+    )
 
     # ================================
     # System prompt & greeting
@@ -327,13 +376,6 @@ def render_chat_stage(
         doc_ref=session.doc_ref,
         doc_data=session.doc_data,
     )
-
-    # ========= Lazy loading setup (newest page first) =========
-    PAGE_SIZE = 200  # messages per page (tune as needed)
-    page = int(st.session_state.get("falowen_page", 1))
-    total = len(combined_history)
-    start = max(0, total - page * PAGE_SIZE)
-    paged_history = combined_history[start:]
 
     recorder_display = st.container()
     chat_display = st.container()
@@ -383,15 +425,8 @@ def render_chat_stage(
         st.markdown(fallback, unsafe_allow_html=True)
         st.caption("You can keep chatting here or record your answer now.")
 
-    # Render paged history
-    _render_chat_messages(chat_placeholder, paged_history)
-
-    # "Load earlier messages" button if there are more
-    if start > 0:
-        if st.button("⬆️ Load earlier messages", key=key_fn("load_earlier")):
-            st.session_state["falowen_page"] = page + 1
-            rerun_without_toast()
-            return
+    # Render full history
+    _render_chat_messages(chat_placeholder, combined_history)
 
     # ================================
     # Input handling
@@ -428,9 +463,6 @@ def render_chat_stage(
         save_now(session.draft_key, student_code)
 
     if input_result.user_input:
-        # Reset pager to show the newest page after sending
-        st.session_state["falowen_page"] = 1
-
         # Append to the active session only; display recomputes combined history on rerun
         st.session_state.setdefault("falowen_messages", []).append(
             {"role": "user", "content": input_result.user_input, "timestamp": time.time()}
@@ -439,10 +471,14 @@ def render_chat_stage(
             st.session_state["falowen_clear_draft"] = True
             rerun_without_toast()
 
-        # Quick visual feedback: append the user msg to current paged view
-        live_paged = paged_history + [{"role": "user", "content": input_result.user_input}]
+        # Quick visual feedback: recompute combined history with the new user message
+        combined_history = combine_history_for_display(
+            items,
+            current_conv_key=session.conv_key,
+            current_messages=st.session_state.get("falowen_messages", []),
+        )
         chat_placeholder.empty()
-        _render_chat_messages(chat_placeholder, live_paged)
+        _render_chat_messages(chat_placeholder, combined_history)
 
         with status_placeholder:
             with st.spinner("🧑‍🏫 Herr Felix is typing…"):
@@ -500,17 +536,13 @@ def render_chat_stage(
         if session.conv_key not in existing_keys:
             updated_items.append((session.conv_key, st.session_state["falowen_messages"]))
 
-        updated_combined: List[Dict[str, Any]] = []
-        for k, msgs in updated_items:
-            updated_combined.append(_divider_for(k))
-            updated_combined.extend(msgs)
-
-        # Apply paging again (page reset to 1 above)
-        page2 = int(st.session_state.get("falowen_page", 1))
-        total2 = len(updated_combined)
-        start2 = max(0, total2 - page2 * PAGE_SIZE)
-        paged2 = updated_combined[start2:]
-        _render_chat_messages(chat_placeholder, paged2)
+        items = updated_items
+        combined_history = combine_history_for_display(
+            items,
+            current_conv_key=session.conv_key,
+            current_messages=st.session_state.get("falowen_messages", []),
+        )
+        _render_chat_messages(chat_placeholder, combined_history)
 
     # ================================
     # PDF downloads (Current vs All)
@@ -558,7 +590,6 @@ def render_chat_stage(
                         "falowen_exam_keyword",
                         "_falowen_loaded",
                         "falowen_loaded_key",
-                        "falowen_page",
                     ]:
                         st.session_state.pop(k, None)
                     st.session_state["falowen_stage"] = 1
@@ -642,4 +673,5 @@ __all__ = [
     "persist_messages",
     "seed_initial_instruction",
     "render_chat_stage",
+    "combine_history_for_display",
 ]
