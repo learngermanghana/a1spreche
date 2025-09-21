@@ -1,9 +1,22 @@
-"""Custom chat helpers used by the Falowen Streamlit experience."""
+"""Custom chat helpers used by the Falowen Streamlit experience (UPDATED).
+
+Changes:
+- Topic-locked, format-enforced prompt for A1–B2 (and a tighter C1 prompt).
+- Guardrails to validate assistant output and auto-reformat if it drifts or violates format.
+- Optional topic wiring + helpers for recording URL and session topic.
+
+Integration notes:
+- Store the user-selected topic into st.session_state via set_active_topic(topic).
+- Build your system prompt by calling build_custom_chat_prompt(level, student_code, topic).
+- After you receive the assistant's draft reply but before appending it to state, call
+  enforce_format_or_regenerate(...) to ensure strict format and no early summaries.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone as _timezone
+import re
 import time
 from typing import Callable, List, Optional
 
@@ -13,18 +26,40 @@ import streamlit as st
 
 from src.draft_management import _draft_state_keys, autosave_maybe, save_now
 
+# -----------------------------------------------------------------------------
+# Constants & Globals
+# -----------------------------------------------------------------------------
+
 TURN_LIMIT = 6
 CUSTOM_CHAT_GREETING = "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
 
 _summary_client = None
+_chat_client = None  # optional separate client for chat completion reformatting
 
+
+# -----------------------------------------------------------------------------
+# Client set-up
+# -----------------------------------------------------------------------------
 
 def set_summary_client(client) -> None:
     """Configure the OpenAI client used for chat summaries."""
-
     global _summary_client
     _summary_client = client
 
+
+def set_chat_client(client) -> None:
+    """Configure the OpenAI client used for chat guardrail reformatting.
+
+    If not set, enforce_format_or_regenerate will return the original text
+    unchanged when a reformat would be required.
+    """
+    global _chat_client
+    _chat_client = client
+
+
+# -----------------------------------------------------------------------------
+# Data structures
+# -----------------------------------------------------------------------------
 
 @dataclass
 class CustomChatResult:
@@ -35,38 +70,92 @@ class CustomChatResult:
     messages: List[dict]
 
 
-def build_custom_chat_prompt(level: str, student_code: Optional[str] = None) -> str:
+# -----------------------------------------------------------------------------
+# Helpers: topic + recording URL
+# -----------------------------------------------------------------------------
+
+def set_active_topic(topic: str) -> None:
+    """Persist the session's active topic for the 6-turn flow."""
+    st.session_state["falowen_topic"] = (topic or "").strip()
+
+
+def get_active_topic(default: str = "kein Thema") -> str:
+    return (st.session_state.get("falowen_topic", "").strip() or default)
+
+
+def _recording_url(student_code: Optional[str]) -> str:
+    if not student_code:
+        student_code = st.session_state.get("student_code", "")
+    return (
+        "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec"
+        f"?code={student_code}"
+    )
+
+
+# -----------------------------------------------------------------------------
+# Prompt builders (UPDATED)
+# -----------------------------------------------------------------------------
+
+def build_custom_chat_prompt(level: str, student_code: Optional[str] = None, topic: Optional[str] = None) -> str:
+    """Build the strict system prompt for the current level.
+
+    For A1–B2, this locks to ACTIVE_TOPIC, enforces a single-question turn format,
+    bans survey/generalization language, and defines a final-turn template.
+    """
     if student_code is None:
         student_code = st.session_state.get("student_code", "")
+    if topic is None:
+        topic = get_active_topic()
+
     if level == "C1":
         return (
-            "You are supportive German C1 Teacher. Speak both English and German. "
-            "Ask one question at a time. Suggest useful starters, check C1 level. "
-            "After correction, proceed to the next question using 'your next recommended question'. "
-            "Stay on one topic; after 5 strong questions, give performance, score, and suggestions."
+            "You are a supportive German C1 teacher. Speak both English and German. "
+            "Ask exactly ONE German question per turn. After each student reply, give concise corrections and feedback. "
+            "Stay on ONE topic the student chose. Do NOT summarize or end until exactly 5 strong questions are complete. "
+            "Then give performance, score, and suggestions."
         )
+
     if level in ["A1", "A2", "B1", "B2"]:
         correction_lang = "in English" if level in ["A1", "A2"] else "half in English and half in German"
-        rec_url = (
-            "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec"
-            f"?code={student_code}"
-        )
+        rec_url = _recording_url(student_code)
+
         return (
-            "You are Herr Felix, a supportive and innovative German teacher. "
-            "Start by congratulating the student in English for their chosen topic and outline the session: focus on confident speaking, vocabulary growth, and question practice across six turns leading to a short presentation. "
-            "Encourage consistent study habits, remind them they can always ask for translations, and share one quick tip for building ideas if they feel stuck. "
-            "If their input is a letter task, direct them to use the Schreiben tab ideas generator instead. "
-            "Promise that after six answers you will build a 60-word presentation from their own words and share an audio-recording link in German. "
-            "Choose three useful keywords for the topic and, for each keyword, ask up to two creative follow-up questions in German only, one at a time, and base the follow-up plan on the student's previous response. "
-            "After every answer, deliver feedback in English, add one motivating suggestion in German, clearly explain any difficult words (A1–B2 level), and gently reinforce the teaching focus. "
-            "If the student asks three grammar questions consecutively without attempting answers, pause the grammar chat politely and guide them back to their course book before continuing. "
-            "After reaching six total questions, give final feedback in English and give them the presentation from their own words in German covering strengths, mistakes, and how to improve, summarise next steps in German, provide idea-building encouragement, and then share the recording link: "
-            f"Always let them know how many question left for you to give them their presentation so they dont feel lost. "
-            f"[Record your audio here]({rec_url}). Include the promised 60-word presentation composed from their own words in German and end with a motivational message wishing them good luck. "
-            f"All feedback and corrections should be {correction_lang}. Keep it motivating and friendly throughout."
+            "ROLE: You are Herr Felix, a supportive German teacher.\n"
+            f"ACTIVE_TOPIC: {topic}\n"
+            "SESSION PLAN: 6 turns (exactly). Ask ONE German question per turn, based on the student's previous answer. "
+            "After the 6th answer ONLY, produce a ~60-word German mini-presentation assembled from the student's own words, "
+            "final feedback in English, next steps in German, and the recording link.\n"
+            "ABSOLUTE RULES:\n"
+            "1) Stay on ACTIVE_TOPIC. Do NOT generalize to other students, surveys, participants, or groups. "
+            "   Never write: 'In our survey', 'participants', or similar.\n"
+            "2) Do NOT summarize or end early. If you are about to summarize before turn 6, instead ask the next question.\n"
+            "3) Ask exactly ONE new German question per turn. No multiple questions in one turn.\n"
+            "4) If the input is a letter task, briefly redirect to the Schreiben tab ideas generator and return to ACTIVE_TOPIC.\n"
+            "5) Keywords: choose three useful keywords for the topic in the first turn only.\n"
+            f"6) All feedback/corrections must be {correction_lang}. Keep tone friendly and motivating.\n"
+            "7) Always show how many questions remain until the presentation.\n"
+            "8) Use the EXACT OUTPUT FORMAT below. Do not add extra sections or prose outside these labels.\n\n"
+            "OUTPUT FORMAT (every turn BEFORE the 6th summary):\n"
+            "IntroEN: <one short line of encouragement or guidance in English>\n"
+            "Keywords: <3 comma-separated words>  # only include on the FIRST turn; otherwise write '-'\n"
+            "Feedback: <" + correction_lang + " corrections and clarity>\n"
+            "ExplainWords: <brief meanings of any tricky words at this level>\n"
+            "MotivationDE: <one short motivating sentence in German>\n"
+            "FrageDE: <ONE German question, tailored to prior answer>\n"
+            "TurnsLeft: <number from 5 down to 1>\n\n"
+            "FINAL TURN (AFTER receiving the 6th student answer) — USE THIS FORMAT ONLY:\n"
+            "FinalFeedbackEN: <overall feedback in English>\n"
+            "PraesentationDE: <~60 words in German, composed from the student's own words>\n"
+            "NextStepsDE: <brief, concrete next steps in German>\n"
+            f"RecordingLink: [Record your audio here]({rec_url})\n"
+            "MotivationDE: <one friendly closing line in German>\n"
         )
     return ""
 
+
+# -----------------------------------------------------------------------------
+# Summary generation (unchanged)
+# -----------------------------------------------------------------------------
 
 def generate_summary(messages: List[str]) -> str:
     """Use the configured OpenAI client to summarise custom chat answers."""
@@ -91,7 +180,90 @@ def generate_summary(messages: List[str]) -> str:
         return ""
 
 
-def increment_turn_count_and_maybe_close(is_exam: bool, *, summary_builder: Optional[Callable[[List[str]], str]] = None) -> bool:
+# -----------------------------------------------------------------------------
+# Guardrails: format validation + auto-reformat
+# -----------------------------------------------------------------------------
+
+_SECTION_PATTERN = re.compile(
+    r"^IntroEN:\s.+\n"
+    r"Keywords:\s(.+|-)\n"
+    r"Feedback:\s.+\n"
+    r"ExplainWords:\s.*\n"
+    r"MotivationDE:\s.+\n"
+    r"FrageDE:\s.+\?\s*\n"
+    r"TurnsLeft:\s[1-5]\s*$",
+    re.DOTALL,
+)
+
+
+def is_valid_turn_text(text: str, *, is_final: bool, rec_url: str) -> bool:
+    """Check if assistant text matches the required structure and constraints."""
+    tl = text.lower()
+    if is_final:
+        required = ["FinalFeedbackEN:", "PraesentationDE:", "NextStepsDE:", "RecordingLink:", "MotivationDE:"]
+        url_ok = (rec_url in text)
+        return all(lbl in text for lbl in required) and url_ok and ("survey" not in tl) and ("participants" not in tl)
+    return bool(_SECTION_PATTERN.match(text)) and ("survey" not in tl) and ("participants" not in tl)
+
+
+def enforce_format_or_regenerate(
+    draft_text: str,
+    *,
+    is_final: bool,
+    system_prompt: str,
+    dialog_messages: List[dict],
+    rec_url: Optional[str] = None,
+    model: str = "gpt-4o-mini",
+    temperature: float = 0.3,
+) -> str:
+    """Ensure the assistant response follows the strict format.
+
+    If invalid and a chat client is configured, request a reprint in the exact format
+    without adding new content. If no client is configured, return the original text.
+    """
+    if rec_url is None:
+        rec_url = _recording_url(st.session_state.get("student_code", ""))
+
+    if is_valid_turn_text(draft_text, is_final=is_final, rec_url=rec_url):
+        return draft_text
+
+    if _chat_client is None:
+        # No client to reformat—fallback to original (caller may decide to drop it)
+        return draft_text
+
+    try:
+        resp = _chat_client.chat.completions.create(  # type: ignore[union-attr]
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                *dialog_messages,
+                {
+                    "role": "system",
+                    "content": (
+                        "Your last message violated the output format or rules (topic drift or early summary). "
+                        "Reprint the SAME content strictly in the required OUTPUT FORMAT. "
+                        "Do not add any new information. Do not mention this correction."
+                    ),
+                },
+            ],
+            temperature=temperature,
+        )
+        fixed = (resp.choices[0].message.content or "").strip()
+        return fixed if is_valid_turn_text(fixed, is_final=is_final, rec_url=rec_url) else draft_text
+    except Exception as exc:  # pragma: no cover
+        logging.exception("Guardrail reformat error: %s", exc)
+        return draft_text
+
+
+# -----------------------------------------------------------------------------
+# Turn counter & summary emission (unchanged behavior)
+# -----------------------------------------------------------------------------
+
+def increment_turn_count_and_maybe_close(
+    is_exam: bool,
+    *,
+    summary_builder: Optional[Callable[[List[str]], str]] = None,
+) -> bool:
     if is_exam:
         st.session_state["falowen_chat_closed"] = False
         st.session_state.pop("falowen_summary_emitted", None)
@@ -109,9 +281,7 @@ def increment_turn_count_and_maybe_close(is_exam: bool, *, summary_builder: Opti
 
     builder = summary_builder or generate_summary
     user_msgs = [
-        m.get("content", "")
-        for m in st.session_state.get("falowen_messages", [])
-        if m.get("role") == "user"
+        m.get("content", "") for m in st.session_state.get("falowen_messages", []) if m.get("role") == "user"
     ]
     summary = builder(user_msgs)
     messages = st.session_state.setdefault("falowen_messages", [])
@@ -120,6 +290,10 @@ def increment_turn_count_and_maybe_close(is_exam: bool, *, summary_builder: Opti
     st.session_state["falowen_summary_emitted"] = True
     return True
 
+
+# -----------------------------------------------------------------------------
+# UI: custom chat input (unchanged UI; includes autosave)
+# -----------------------------------------------------------------------------
 
 def render_custom_chat_input(
     *,
@@ -152,9 +326,7 @@ def render_custom_chat_input(
                 min_delta=0,
                 locked=chat_locked,
             )
-            last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(
-                draft_key
-            )
+            last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
             st.session_state[last_val_key] = st.session_state[draft_key]
             st.session_state[last_ts_key] = time.time()
             st.session_state[saved_flag_key] = True
@@ -204,13 +376,21 @@ def render_custom_chat_input(
     )
 
 
+# -----------------------------------------------------------------------------
+# Public API
+# -----------------------------------------------------------------------------
+
 __all__ = [
     "CustomChatResult",
     "CUSTOM_CHAT_GREETING",
     "TURN_LIMIT",
     "build_custom_chat_prompt",
+    "enforce_format_or_regenerate",
     "generate_summary",
     "increment_turn_count_and_maybe_close",
     "render_custom_chat_input",
+    "set_active_topic",
+    "get_active_topic",
     "set_summary_client",
+    "set_chat_client",
 ]
