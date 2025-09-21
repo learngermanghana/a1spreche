@@ -134,11 +134,10 @@ def increment_turn_count_and_maybe_close(
 
     st.session_state["falowen_chat_closed"] = False
 
-    # Derive count from messages to avoid drift
-    answers = _count_user_answers()
-    st.session_state["falowen_turn_count"] = answers
+    current = int(st.session_state.get("falowen_turn_count", 0)) + 1
+    st.session_state["falowen_turn_count"] = current
 
-    if answers < TURN_LIMIT:
+    if current < TURN_LIMIT:
         st.session_state["falowen_summary_emitted"] = False
         return False
 
