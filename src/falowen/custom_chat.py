@@ -136,19 +136,19 @@ def build_custom_chat_prompt(level: str, student_code: Optional[str] = None, top
             "7) Always show how many questions remain until the presentation.\n"
             "8) Use the EXACT OUTPUT FORMAT below. Do not add extra sections or prose outside these labels.\n\n"
             "OUTPUT FORMAT (every turn BEFORE the 6th summary):\n"
-            "IntroEN: <one short line of encouragement or guidance in English>\n"
-            "Keywords: <3 comma-separated words>  # only include on the FIRST turn; otherwise write '-'\n"
-            "Feedback: <" + correction_lang + " corrections and clarity>\n"
-            "ExplainWords: <brief meanings of any tricky words at this level>\n"
-            "MotivationDE: <one short motivating sentence in German>\n"
-            "FrageDE: <ONE German question, tailored to prior answer>\n"
-            "TurnsLeft: <number from 5 down to 1>\n\n"
+            "**IntroEN**: <one short line of encouragement or guidance in English>\n\n"
+            "**Keywords**: <3 comma-separated words>  # only include on the FIRST turn; otherwise write '-'\n\n"
+            "**Feedback**: <" + correction_lang + " corrections and clarity>\n\n"
+            "**ExplainWords**: <brief meanings of any tricky words at this level>\n\n"
+            "**MotivationDE**: <one short motivating sentence in German>\n\n"
+            "**FrageDE**: <ONE German question, tailored to prior answer>\n\n"
+            "**TurnsLeft**: <number from 5 down to 1>\n\n"
             "FINAL TURN (AFTER receiving the 6th student answer) — USE THIS FORMAT ONLY:\n"
-            "FinalFeedbackEN: <overall feedback in English>\n"
-            "PraesentationDE: <~60 words in German, composed from the student's own words>\n"
-            "NextStepsDE: <brief, concrete next steps in German>\n"
-            f"RecordingLink: [Record your audio here]({rec_url})\n"
-            "MotivationDE: <one friendly closing line in German>\n"
+            "**FinalFeedbackEN**: <overall feedback in English>\n\n"
+            "**PraesentationDE**: <~60 words in German, composed from the student's own words>\n\n"
+            "**NextStepsDE**: <brief, concrete next steps in German>\n\n"
+            f"**RecordingLink**: [Record your audio here]({rec_url})\n\n"
+            "**MotivationDE**: <one friendly closing line in German>\n"
         )
     return ""
 
@@ -185,15 +185,16 @@ def generate_summary(messages: List[str]) -> str:
 # -----------------------------------------------------------------------------
 
 _SECTION_PATTERN = re.compile(
-    r"^IntroEN:\s.+\n"
-    r"Keywords:\s(.+|-)\n"
-    r"Feedback:\s.+\n"
-    r"ExplainWords:\s.*\n"
-    r"MotivationDE:\s.+\n"
-    r"FrageDE:\s.+\?\s*\n"
-    r"TurnsLeft:\s[1-5]\s*$",
+    r"^\*\*IntroEN\*\*:\s.+\n\n"
+    r"\*\*Keywords\*\*:\s(.+|-)\n\n"
+    r"\*\*Feedback\*\*:\s.+\n\n"
+    r"\*\*ExplainWords\*\*:\s.*\n\n"
+    r"\*\*MotivationDE\*\*:\s.+\n\n"
+    r"\*\*FrageDE\*\*:\s.+\?\s*\n\n"
+    r"\*\*TurnsLeft\*\*:\s[1-5]\s*$",
     re.DOTALL,
 )
+
 
 
 def is_valid_turn_text(text: str, *, is_final: bool, rec_url: str) -> bool:
