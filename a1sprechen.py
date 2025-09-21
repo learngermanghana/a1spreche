@@ -5385,7 +5385,7 @@ if tab == "Chat • Grammar • Exams":
     st.caption("Simple & clear: last 3 messages shown; input stays below. 3 keywords • 6 questions.")
 
     # ---- Links
-    RECORDER_URL = "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec?code=felixa2"
+    RECORDER_URL = "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec"
     PRACTICE_URL = "https://script.google.com/macros/s/AKfycbyJ5lTeXUgaGw-rejDuh_2ex7El_28JgKLurOOsO1c8LWfVE-Em2-vuWuMn1hC5-_IN/exec"
 
     # ---------- Styles (bubbles, chips, sticky input, contrast buttons, cards) ----------
