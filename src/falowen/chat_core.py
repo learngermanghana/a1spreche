@@ -15,12 +15,17 @@ from src.draft_management import _draft_state_keys, autosave_maybe, save_now
 from src.firestore_utils import load_chat_draft_from_db
 from src.utils.toasts import rerun_without_toast
 
+# NOTE: custom_chat exposes:
+# - build_custom_chat_prompt(level)
+# - CUSTOM_CHAT_GREETING
+# - set_summary_client(client)  (safe to keep even if you use it elsewhere)
+# - set_topic_from_first_user_msg_if_needed(text)
+# - nudge_back_to_topic_if_needed(text)  (optional)
 from . import custom_chat, exams_mode
 
 
 def widget_key(base: str, *, student_code: Optional[str] = None) -> str:
     """Stable widget key namespaced by student code."""
-
     sc = student_code or str(st.session_state.get("student_code", "anon"))
     digest = hashlib.md5(f"{base}|{sc}".encode()).hexdigest()[:8]
     return f"{base}_{digest}"
@@ -322,8 +327,10 @@ def render_chat_stage(
     teil = st.session_state.get("falowen_teil")
     mode = st.session_state.get("falowen_mode")
     student_code = st.session_state.get("student_code", "demo")
+    # Adjust this check to whatever label you use for Exams Mode
     is_exam = mode == "Exams Mode"
 
+    # Still OK to set summary client here if you reuse summary helpers
     custom_chat.set_summary_client(client)
 
     key_fn = lambda base: widget_key(base, student_code=student_code)  # noqa: E731
@@ -347,7 +354,8 @@ def render_chat_stage(
         system_prompt = prompts.system_prompt
     else:
         instruction = custom_chat.CUSTOM_CHAT_GREETING
-        system_prompt = custom_chat.build_custom_chat_prompt(level, student_code)
+        # >>> use your exact Custom Chat prompt signature (no student_code arg)
+        system_prompt = custom_chat.build_custom_chat_prompt(level)
 
     seed_initial_instruction(
         instruction,
@@ -387,6 +395,7 @@ def render_chat_stage(
 
     _render_chat_messages(chat_placeholder)
 
+    # Input handling
     if is_exam:
         input_result = _render_exam_input_area(
             draft_key=session.draft_key,
@@ -416,6 +425,12 @@ def render_chat_stage(
         save_now(session.draft_key, student_code)
 
     if input_result.user_input:
+        # >>> Custom Chat only: capture the topic on the first user message
+        if not is_exam:
+            custom_chat.set_topic_from_first_user_msg_if_needed(input_result.user_input)
+            # Optional gentle steer back to topic (uncomment to enable)
+            # custom_chat.nudge_back_to_topic_if_needed(input_result.user_input)
+
         st.session_state.setdefault("falowen_messages", []).append(
             {"role": "user", "content": input_result.user_input}
         )
@@ -445,10 +460,12 @@ def render_chat_stage(
         st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
         chat_placeholder.empty()
         _render_chat_messages(chat_placeholder)
-        if not is_exam:
-            custom_chat.increment_turn_count_and_maybe_close(False)
-        else:
-            st.session_state["falowen_chat_closed"] = False
+
+        # >>> IMPORTANT: removed hard turn control. No auto-closing, no auto-summary.
+        # if not is_exam:
+        #     custom_chat.increment_turn_count_and_maybe_close(False)
+        # else:
+        #     st.session_state["falowen_chat_closed"] = False
 
         persist_messages(
             student_code,
