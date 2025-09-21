@@ -5434,9 +5434,18 @@ if tab == "Custom Chat & Speaking Tools":
     # ---------- Subtabs (all inside Custom Chat) ----------
     tab_tc, tab_gram, tab_exam = st.tabs(["🧑‍🏫 Topic Coach", "🛠️ Grammar", "📝 Exams"])
 
-# ===================== Topic Coach (finalizes + recorder reminders + mobile-friendly buttons) =====================
-with tab_tc:
-    # ---- Styles (high-contrast mobile buttons, bubbles, chips, sticky input) ----
+# =========================================================
+# ========== Custom Chat & Speaking Tools (Tab) ===========
+# =========================================================
+if tab == "Custom Chat & Speaking Tools":
+    st.markdown("## 🗣️ Custom Chat & Speaking Tools")
+    st.caption("Simple & clear: last 3 messages shown; input stays below. 3 keywords • 6 questions.")
+
+    # ---- Links
+    RECORDER_URL = "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec?code=felixa2"
+    PRACTICE_URL = "https://script.google.com/macros/s/AKfycbyJ5lTeXUgaGw-rejDuh_2ex7El_28JgKLurOOsO1c8LWfVE-Em2-vuWuMn1hC5-_IN/exec"
+
+    # ---------- Styles (bubbles, chips, sticky input, contrast buttons, cards) ----------
     st.markdown("""
     <style>
       .bubble-wrap{ display:flex; gap:8px; margin:8px 0; align-items:flex-start; }
@@ -5458,6 +5467,7 @@ with tab_tc:
         border:1px solid #a7f3d0; background:#ecfdf5; color:#064e3b;
         padding:10px 12px; border-radius:10px; margin:6px 0 10px 0; font-weight:700;
       }
+      .panel { border:1px solid rgba(148,163,184,.35); border-radius:12px; padding:12px 14px; background:#ffffff; }
       .pres-card{
         border:2px solid #c7d2fe; background:#eef2ff; border-radius:12px; padding:12px 14px; margin-top:10px;
       }
@@ -5476,261 +5486,366 @@ with tab_tc:
     </style>
     """, unsafe_allow_html=True)
 
-    # ---- recorder link + gentle reminder (top banner) ----
-    st.markdown(
-        f"""
-        <div class="rec-banner">
-          🎙️ You can also <a class="btn secondary" href="{RECORDER_URL}" target="_blank" rel="noopener">Open Recorder</a>
-          to record your answers while you practice.
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    # ---------- Persistent (data-only) session state ----------
+    if "cchat_data_chat" not in st.session_state:     st.session_state["cchat_data_chat"] = []
+    if "cchat_data_qcount" not in st.session_state:   st.session_state["cchat_data_qcount"] = 0
+    if "cchat_data_finalized" not in st.session_state: st.session_state["cchat_data_finalized"] = False
+    chat_data_key   = "cchat_data_chat"
+    qcount_data_key = "cchat_data_qcount"
 
-    # ---- one-time data flags ----
-    if "cchat_data_finalized" not in st.session_state:
-        st.session_state["cchat_data_finalized"] = False
+    # ---------- Widget keys (never write to these keys in code) ----------
+    KEY_LEVEL_SLIDER   = "cchat_w_level"
+    KEY_FORCE_DE_TOG   = "cchat_w_force_de"
+    KEY_MAX_WORDS_NUM  = "cchat_w_max_words"
+    KEY_NEWCHAT_BTN    = "cchat_w_btn_new_bottom"
+    KEY_CHAT_INPUT     = "cchat_w_chat_input"
+    KEY_GRAM_TEXT      = "cchat_w_gram_text"
+    KEY_GRAM_LEVEL     = "cchat_w_gram_level"
+    KEY_GRAM_ASK_BTN   = "cchat_w_gram_go"
 
-    # ---- controls (level etc.) ----
-    level_options = ["A1", "A2", "B1", "B2"]
-    ensure_student_level()
-    roster_level = _safe_upper(st.session_state.get("student_level"), "")
-    match = re.search("|".join(level_options), roster_level) if roster_level else None
-    default_level = match.group(0) if match else "A2"
+    # ---------- Subtabs ----------
+    tab_tc, tab_gram, tab_exam = st.tabs(["🧑‍🏫 Topic Coach", "🛠️ Grammar", "📝 Exams"])
 
-    colA, colB, colC = st.columns([1,1,1.2])
-    with colA:
-        cur_level = st.session_state.get(KEY_LEVEL_SLIDER, default_level)
-        if cur_level not in level_options:
-            cur_level = default_level
-        level = st.select_slider("Level (CEFR)", level_options, value=cur_level, key=KEY_LEVEL_SLIDER)
-    with colB:
-        force_de = st.toggle("Force German replies 🇩🇪", key=KEY_FORCE_DE_TOG, value=st.session_state.get(KEY_FORCE_DE_TOG, False))
-    with colC:
-        max_words = st.number_input(
-            "Max words per reply",
-            min_value=60, max_value=400,
-            value=int(st.session_state.get(KEY_MAX_WORDS_NUM, 140)),
-            step=10, key=KEY_MAX_WORDS_NUM
+    # ===================== Topic Coach (intro, feedback, finalize) =====================
+    with tab_tc:
+        # Recorder reminder banner + button
+        st.markdown(
+            f"""
+            <div class="rec-banner">
+              🎙️ You can also <a class="btn secondary" href="{RECORDER_URL}" target="_blank" rel="noopener">Open Recorder</a>
+              to record your answers while you practice.
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
-    # ---- progress ----
-    q_done = int(st.session_state[qcount_data_key] or 0)
-    st.markdown(f"**Progress:** ✅ {q_done}/6 answered")
-    st.progress(q_done / 6.0)
+        # Controls
+        level_options = ["A1", "A2", "B1", "B2"]
+        ensure_student_level()
+        roster_level = _safe_upper(st.session_state.get("student_level"), "")
+        match = re.search("|".join(level_options), roster_level) if roster_level else None
+        default_level = match.group(0) if match else "A2"
 
-    if st.session_state["cchat_data_finalized"]:
-        st.success("🎉 Session complete — summary & ~60-word presentation generated. Use the copy button below or regenerate.")
+        colA, colB, colC = st.columns([1,1,1.2])
+        with colA:
+            cur_level = st.session_state.get(KEY_LEVEL_SLIDER, default_level)
+            if cur_level not in level_options:
+                cur_level = default_level
+            level = st.select_slider("Level (CEFR)", level_options, value=cur_level, key=KEY_LEVEL_SLIDER)
+        with colB:
+            force_de = st.toggle("Force German replies 🇩🇪", key=KEY_FORCE_DE_TOG, value=st.session_state.get(KEY_FORCE_DE_TOG, False))
+        with colC:
+            max_words = st.number_input(
+                "Max words per reply",
+                min_value=60, max_value=400,
+                value=int(st.session_state.get(KEY_MAX_WORDS_NUM, 140)),
+                step=10, key=KEY_MAX_WORDS_NUM
+            )
 
-        # quick regenerate (no counter changes)
-        if st.button("🔁 Regenerate presentation", key="cchat_w_btn_regen"):
-            convo = [{"role": "system", "content": "You are Herr Felix. FINALIZE NOW: The student has answered 6 questions. Do not ask more questions. Output two parts: 1) An English summary (strengths, mistakes, improvements). 2) A ~60-word presentation using their own words (add a few if needed). Keep it clear and usable for class. No extra chit-chat."}]
+        # Progress
+        q_done = int(st.session_state[qcount_data_key] or 0)
+        st.markdown(f"**Progress:** ✅ {q_done}/6 answered")
+        st.progress(q_done / 6.0)
+
+        if st.session_state["cchat_data_finalized"]:
+            st.success("🎉 Session complete — summary & ~60-word presentation generated. You can regenerate if you like.")
+            if st.button("🔁 Regenerate presentation", key="cchat_w_btn_regen"):
+                convo = [{"role": "system", "content": "You are Herr Felix. FINALIZE NOW: The student has answered 6 questions. Do not ask more questions. Output two parts: 1) An English summary (strengths, mistakes, improvements). 2) A ~60-word presentation using their own words (add a few if needed). Keep it clear and usable for class. No extra chit-chat."}]
+                for m in st.session_state[chat_data_key]:
+                    convo.append({"role": m["role"], "content": m["content"]})
+                placeholder = st.empty()
+                placeholder.markdown("<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>", unsafe_allow_html=True)
+                time.sleep(random.uniform(0.8, 1.2))
+                try:
+                    resp = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=convo,
+                        temperature=0.2,
+                        max_tokens=800,
+                    )
+                    reply_raw = (resp.choices[0].message.content or "").strip()
+                except Exception as e:
+                    reply_raw = f"(Error) {e}"
+                placeholder.empty()
+                st.session_state[chat_data_key].append({
+                    "role": "assistant",
+                    "content": reply_raw,
+                    "ts": datetime.now(UTC).isoformat()
+                })
+                st.rerun()
+
+        st.divider()
+
+        # History: older collapsed; last 3 messages shown old→new
+        history = st.session_state[chat_data_key] or []
+        older = history[:-3] if len(history) > 3 else []
+        latest = history[-3:] if len(history) > 3 else history
+
+        if older:
+            with st.expander(f"Show earlier ({len(older)})"):
+                for m in older:
+                    if m["role"] == "user":
+                        st.markdown(f"<div class='bubble-wrap'><div class='lbl-u'>Student</div></div>", unsafe_allow_html=True)
+                        st.markdown(f"<div class='bubble-u'>{m['content']}</div>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>", unsafe_allow_html=True)
+                        st.markdown(f"<div class='bubble-a'>{m['content']}</div>", unsafe_allow_html=True)
+
+        for m in latest:
+            if m["role"] == "user":
+                st.markdown(f"<div class='bubble-wrap'><div class='lbl-u'>Student</div></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='bubble-u'>{m['content']}</div>", unsafe_allow_html=True)
+            else:
+                st.markdown(f"<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='bubble-a'>{m['content']}</div>", unsafe_allow_html=True)
+
+        # ---- coaching system prompt (intro + feedback + expand + keywords) ----
+        correction_lang = "English"
+        system_text = (
+            f"You are Herr Felix, a supportive and innovative German teacher.\n"
+            f"GOALS:\n"
+            f"- Run a 6-question speaking practice session guided by exactly 3 keywords.\n"
+            f"- After each student answer: (1) correct errors, (2) explain briefly in {correction_lang}, "
+            f"(3) add richer ideas/templates/examples to help them speak more, then (4) ask ONE next German question.\n"
+            f"- Keep questions level-appropriate, short, and creative; never ask >2 questions per keyword.\n\n"
+            f"FIRST TOPIC BEHAVIOR:\n"
+            f"- If the student's FIRST message looks like a topic (1–3 words, e.g., 'Einkaufen', 'Reisen', 'Umwelt'), "
+            f"start with a short English topic intro: what it covers, typical situations, 3–5 helpful ideas, "
+            f"and a micro-vocabulary set (3–6 important words with brief glosses). Then begin Question 1 in German.\n\n"
+            f"FEEDBACK AFTER EACH ANSWER:\n"
+            f"- 1) 'Corrections': fix errors; give 1–2 short notes in {correction_lang}; show a corrected German sentence.\n"
+            f"- 2) 'Idea boost': give 1–2 extra angles students can add; include a tiny template + one filled example in German.\n"
+            f"- 3) 'Next question' (German only): exactly one question.\n\n"
+            f"FINISHING:\n"
+            f"- Stop after 6 questions (≤2 per keyword). Then output:\n"
+            f"  (A) English summary: strengths, mistakes, what to improve.\n"
+            f"  (B) A ~60-word class presentation using the student's own words (add a few if needed).\n\n"
+            f"KEYWORDS & STYLE:\n"
+            f"- Choose exactly 3 useful keywords for the topic. At the top of each reply, show a **KEYWORDS** header "
+            f"with three bold chips (e.g., **Supermarkt**, **Preise**, **Einkaufszettel**).\n"
+            f"- Short paragraphs, simple bullets. Keep each reply under {max_words} words.\n"
+        )
+        system_text += f" CEFR level: {level}."
+        if force_de:
+            system_text += " Ask questions in German; explanations/feedback in English."
+
+        # ---- sticky input (recorder reminder + new chat + input) ----
+        with st.container():
+            st.markdown("<div class='sticky-input'>", unsafe_allow_html=True)
+            st.markdown(
+                f"<div class='meta'>Tip: You can also <a href='{RECORDER_URL}' target='_blank' rel='noopener'>record your answer</a> while you practice.</div>",
+                unsafe_allow_html=True
+            )
+            col_left, col_right = st.columns([1, 4])
+            with col_left:
+                if st.button("🧹 New chat", key=KEY_NEWCHAT_BTN, use_container_width=True):
+                    st.session_state[chat_data_key] = []
+                    st.session_state[qcount_data_key] = 0
+                    st.session_state["cchat_data_finalized"] = False
+                    st.toast("Cleared")
+                    st.rerun()
+            with col_right:
+                user_msg = st.chat_input(
+                    "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand.",
+                    key=KEY_CHAT_INPUT
+                )
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        # ---- SEND ----
+        if user_msg:
+            # Store user message
+            st.session_state[chat_data_key].append({
+                "role": "user", "content": user_msg, "ts": datetime.now(UTC).isoformat()
+            })
+
+            # Count rule: don't count first topic; only increment if an assistant turn exists before this user turn
+            has_assistant_turn = any(m["role"] == "assistant" for m in st.session_state[chat_data_key][:-1])
+            if has_assistant_turn and not st.session_state["cchat_data_finalized"]:
+                st.session_state[qcount_data_key] = min(6, int(st.session_state[qcount_data_key] or 0) + 1)
+
+            # Build conversation
+            convo = [{"role": "system", "content": system_text}]
             for m in st.session_state[chat_data_key]:
                 convo.append({"role": m["role"], "content": m["content"]})
 
+            # Detect first 'topic-like' input (1–3 words, no punctuation) → INTRO_MODE
+            def _looks_like_topic(s: str) -> bool:
+                s = (s or "").strip()
+                if not s: return False
+                if any(ch in s for ch in ".,;:!?/\\()[]{}\"'`~@#$%^&*_+=|<>"):
+                    return False
+                words = s.split()
+                return 1 <= len(words) <= 3
+
+            no_assistant_yet = not any(m["role"] == "assistant" for m in st.session_state[chat_data_key])
+            if no_assistant_yet and _looks_like_topic(user_msg):
+                convo.append({
+                    "role": "system",
+                    "content": (
+                        "INTRO_MODE: The first user input is a topic. Start with a short English topic overview, "
+                        "3–5 concrete ideas, and a 3–6 word mini-vocabulary list (German + tiny gloss). "
+                        "Then ask the first question in German (ONE question only)."
+                    )
+                })
+
+            # Finalization at 6 questions
+            finalize_now = (int(st.session_state[qcount_data_key]) >= 6) and (not st.session_state["cchat_data_finalized"])
+            if finalize_now:
+                convo.append({
+                    "role": "system",
+                    "content": (
+                        "FINALIZE NOW: The student has answered 6 questions. "
+                        "Do not ask more questions. Output two parts only:\n"
+                        "1) English summary (strengths, mistakes, what to improve).\n"
+                        "2) A ~60-word presentation using their own words (add a few if needed) for class speaking.\n"
+                        "Keep it clear and usable. No extra chit-chat."
+                    )
+                })
+            else:
+                # Always ensure corrections + idea boost + next Q on normal turns
+                convo.append({
+                    "role": "system",
+                    "content": (
+                        "FEEDBACK_MODE: For the user's last message, first give 'Corrections' with a brief explanation in English "
+                        "and a corrected German sentence; then 'Idea boost' with a tiny template and one filled German example; "
+                        "THEN ask exactly ONE next German question (unless already finished)."
+                    )
+                })
+
+            # Typing pulse
+            placeholder = st.empty()
+            placeholder.markdown("<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>", unsafe_allow_html=True)
+            time.sleep(random.uniform(0.8, 1.2))
+
+            # Call model
+            try:
+                resp = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=convo,
+                    temperature=0.2,
+                    max_tokens=800 if finalize_now else 600,
+                )
+                reply_raw = (resp.choices[0].message.content or "").strip()
+            except Exception as e:
+                reply_raw = f"(Error) {e}"
+
+            placeholder.empty()
+
+            # Convert "Keywords:" line → bold chips (skip for final message usually)
+            chips_html = ""
+            if not finalize_now:
+                kw_match = re.search(r"(?:^|\n)\s*(?:\*\*?)?(KEYWORDS?|Keywords?)\b(?:\*\*?)?\s*:\s*(.+)", reply_raw)
+                if kw_match:
+                    raw = re.split(r"[•,|/]", kw_match.group(2))
+                    kws = [k.strip(" .*-_") for k in raw if k.strip()]
+                    if kws:
+                        chips_html = "<div class='kw-title'>**KEYWORDS**</div>" + "".join(
+                            f"<span class='kw-chip'><b>{k}</b></span>" for k in kws[:3]
+                        )
+                        reply_raw = re.sub(r"(?:^|\n)\s*(?:\*\*?)?(KEYWORDS?|Keywords?)\b(?:\*\*?)?\s*:.*", "", reply_raw, count=1)
+
+            # Store assistant message
+            bubble = (chips_html + ("<div style='height:6px'></div>" if chips_html else "")) + reply_raw
+            st.session_state[chat_data_key].append({
+                "role": "assistant", "content": bubble, "ts": datetime.now(UTC).isoformat()
+            })
+
+            # If final, mark and try to render presentation card
+            if finalize_now:
+                st.session_state["cchat_data_finalized"] = True
+
+                # Extract a ~60-word presentation paragraph
+                def _extract_presentation(text: str) -> str:
+                    paras = [p.strip() for p in re.split(r"\n{2,}|\r{2,}", text) if p.strip()]
+                    best = ""
+                    best_len = 0
+                    for p in paras:
+                        wc = len(re.findall(r"\b\w+\b", p))
+                        if 45 <= wc <= 90 and wc > best_len:
+                            best, best_len = p, wc
+                    if not best:
+                        best = paras[-1] if paras else text
+                    return best
+
+                pres = _extract_presentation(reply_raw)
+                wc = len(re.findall(r"\b\w+\b", pres))
+                html_id = f"pres_{uuid4().hex}"
+                components.html(f"""
+                    <div class="pres-card" id="{html_id}">
+                      <div class="pres-head">
+                        <div><b>🎤 60-word class presentation</b> <span class="meta">(~{wc} words)</span></div>
+                        <button class="pres-copy" onclick="
+                          const txt = document.querySelector('#{html_id} .pres-body').innerText;
+                          navigator.clipboard.writeText(txt);
+                          this.innerText='Copied!';
+                          setTimeout(()=>this.innerText='Copy',1200);
+                        ">Copy</button>
+                      </div>
+                      <div class="pres-body" style="margin-top:8px; white-space:pre-wrap;">{html.escape(pres)}</div>
+                    </div>
+                """, height=170)
+
+            st.rerun()
+
+    # ===================== Grammar (simple, one-box) =====================
+    with tab_gram:
+        st.markdown("Paste a sentence or ask a grammar question. I’ll correct or explain briefly with 1–2 examples.")
+        gcol1, gcol2 = st.columns([3, 1])
+        with gcol1:
+            gram_q = st.text_area(
+                "Type your grammar question or paste text",
+                height=160,
+                key=KEY_GRAM_TEXT,
+                placeholder="z.B. Ist es 'wegen dem' oder 'wegen des'? Oder: Ich bin gestern in den Park gegangen…",
+            )
+        with gcol2:
+            level_options = ["A1", "A2", "B1", "B2"]
+            cur_level_g = st.session_state.get(KEY_LEVEL_SLIDER, "A2")
+            if cur_level_g not in level_options:
+                cur_level_g = "A2"
+            gram_level = st.select_slider("Level", level_options, value=cur_level_g, key=KEY_GRAM_LEVEL)
+            ask = st.button("Ask", type="primary", use_container_width=True, key=KEY_GRAM_ASK_BTN)
+
+        if ask and (gram_q or "").strip():
+            sys = (
+                "You are a German grammar helper. Match the CEFR level, be concise, and give 1–2 short examples. "
+                "If text was pasted, correct it first (one paragraph), then list 3 bullet notes on key points."
+            )
             placeholder = st.empty()
             placeholder.markdown("<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>", unsafe_allow_html=True)
             time.sleep(random.uniform(0.8, 1.2))
             try:
                 resp = client.chat.completions.create(
                     model="gpt-4o-mini",
-                    messages=convo,
-                    temperature=0.2,
-                    max_tokens=800,
+                    messages=[
+                        {"role": "system", "content": sys + f" CEFR level: {gram_level}."},
+                        {"role": "user", "content": gram_q},
+                    ],
+                    temperature=0,
+                    max_tokens=600,
                 )
-                reply_raw = (resp.choices[0].message.content or "").strip()
+                out = (resp.choices[0].message.content or "").strip()
             except Exception as e:
-                reply_raw = f"(Error) {e}"
+                out = f"(Error) {e}"
             placeholder.empty()
+            st.markdown(f"<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='bubble-a'>{out}</div>", unsafe_allow_html=True)
 
-            st.session_state[chat_data_key].append({
-                "role": "assistant",
-                "content": reply_raw,
-                "ts": datetime.now(UTC).isoformat()
-            })
-            st.rerun()
+    # ===================== Exams (open practice link) =====================
+    with tab_exam:
+        st.markdown(
+            """
+            <div class="panel">
+              <b>Full exam practice:</b><br>
+              • Tap the button to open exam-style practice.<br>
+              • Time yourself and stay calm. You’ve got this! 💪
+            </div>
+            """, unsafe_allow_html=True
+        )
+        st.markdown(f'<a class="btn" href="{PRACTICE_URL}" target="_blank" rel="noopener">📝 Start Exam Practice</a>', unsafe_allow_html=True)
 
     st.divider()
-
-    # ---- history (older collapsed; last 3 in natural order) ----
-    history = st.session_state[chat_data_key] or []
-    older = history[:-3] if len(history) > 3 else []
-    latest = history[-3:] if len(history) > 3 else history
-
-    if older:
-        with st.expander(f"Show earlier ({len(older)})"):
-            for m in older:
-                if m["role"] == "user":
-                    st.markdown(f"<div class='bubble-wrap'><div class='lbl-u'>Student</div></div>", unsafe_allow_html=True)
-                    st.markdown(f"<div class='bubble-u'>{m['content']}</div>", unsafe_allow_html=True)
-                else:
-                    st.markdown(f"<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>", unsafe_allow_html=True)
-                    st.markdown(f"<div class='bubble-a'>{m['content']}</div>", unsafe_allow_html=True)
-
-    for m in latest:
-        if m["role"] == "user":
-            st.markdown(f"<div class='bubble-wrap'><div class='lbl-u'>Student</div></div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='bubble-u'>{m['content']}</div>", unsafe_allow_html=True)
-        else:
-            st.markdown(f"<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='bubble-a'>{m['content']}</div>", unsafe_allow_html=True)
-
-    # ---- coaching system prompt ----
-    correction_lang = "English"
-    system_text = (
-        f"You are Herr Felix, a supportive and innovative German teacher. "
-        f"1) Congratulate the student in English for the chosen topic. Explain simply how the session works: "
-        f"6 short questions, small teaching moments, clear goals, and they can ask for translation anytime. "
-        f"2) If their input looks like a letter-writing task, kindly redirect them to the Ideen-Generator in the Schreiben tab; here we practice speaking. "
-        f"Promise: after 6 answers you will create a ~60-word presentation from their own words they can record (mp3/wav) and upload in Pronunciation & Speaking Checker. "
-        f"Pick exactly 3 useful keywords for the topic and use them quietly to guide the talk. "
-        f"For each keyword, ask up to 2 creative level-appropriate questions in German, ONE at a time (don’t reveal the keywords). "
-        f"After each answer: give short feedback in English and one extension suggestion in German. Explain difficult words for A1–B2. "
-        f"If they ask 3 grammar questions in a row without answering, pause grammar and point them to course-book search; then continue speaking practice. "
-        f"Stop after 6 total questions (never more than 2 per keyword). "
-        f"Then give an English summary (what went well, mistakes, what to improve) and a ~60-word presentation using their words (add a few if needed). "
-        f"All feedback/corrections must be in {correction_lang}. "
-        f"FORMAT: Start each reply with a clear **KEYWORDS** header and three bold chips, e.g. **Supermarkt**, **Preise**, **Einkaufszettel**. "
-        f"Use short paragraphs and simple bullets."
-    )
-    system_text += f" CEFR level: {level}. Keep each reply under {max_words} words."
-    if force_de:
-        system_text += " Ask questions in German; explanations/feedback in English."
-
-    # ---- sticky input with persistent recorder reminder ----
-    with st.container():
-        st.markdown("<div class='sticky-input'>", unsafe_allow_html=True)
-        # subtle inline reminder every turn
-        st.markdown(
-            f"<div class='meta'>Tip: You can also <a href='{RECORDER_URL}' target='_blank' rel='noopener'>record your answer</a> while you practice.</div>",
-            unsafe_allow_html=True
-        )
-
-        col_left, col_right = st.columns([1, 4])
-        with col_left:
-            if st.button("🧹 New chat", key=KEY_NEWCHAT_BTN, use_container_width=True):
-                st.session_state[chat_data_key] = []
-                st.session_state[qcount_data_key] = 0
-                st.session_state["cchat_data_finalized"] = False
-                st.toast("Cleared")
-                st.rerun()
-
-        with col_right:
-            user_msg = st.chat_input(
-                "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand.",
-                key=KEY_CHAT_INPUT
-            )
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    # ---- SEND ----
-    if user_msg:
-        # store user message
-        st.session_state[chat_data_key].append({
-            "role": "user", "content": user_msg, "ts": datetime.now(UTC).isoformat()
-        })
-
-        # counting rule (don’t count first topic; only after a prior assistant turn)
-        has_assistant_turn = any(m["role"] == "assistant" for m in st.session_state[chat_data_key][:-1])
-        if has_assistant_turn and not st.session_state["cchat_data_finalized"]:
-            st.session_state[qcount_data_key] = min(6, int(st.session_state[qcount_data_key] or 0) + 1)
-
-        # build convo
-        convo = [{"role": "system", "content": system_text}]
-        for m in st.session_state[chat_data_key]:
-            convo.append({"role": m["role"], "content": m["content"]})
-
-        # force finalize when reaching 6
-        finalize_now = (int(st.session_state[qcount_data_key]) >= 6) and (not st.session_state["cchat_data_finalized"])
-        if finalize_now:
-            convo.append({
-                "role": "system",
-                "content": (
-                    "FINALIZE NOW: The student has answered 6 questions. "
-                    "Do not ask more questions. Output two parts only:\n"
-                    "1) English summary (strengths, mistakes, what to improve).\n"
-                    "2) A ~60-word presentation using their own words (add a few if needed) for class speaking.\n"
-                    "Keep it clear and usable. No extra chit-chat."
-                )
-            })
-
-        # typing pulse
-        placeholder = st.empty()
-        placeholder.markdown("<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>", unsafe_allow_html=True)
-        time.sleep(random.uniform(0.8, 1.2))
-
-        # call model
-        try:
-            resp = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=convo,
-                temperature=0.2,
-                max_tokens=800 if finalize_now else 600,
-            )
-            reply_raw = (resp.choices[0].message.content or "").strip()
-        except Exception as e:
-            reply_raw = f"(Error) {e}"
-
-        placeholder.empty()
-
-        # convert a "Keywords:" line to chips (for non-final turns this is common)
-        chips_html = ""
-        if not finalize_now:
-            kw_match = re.search(r"(?:^|\n)\s*(?:\*\*?)?(KEYWORDS?|Keywords?)\b(?:\*\*?)?\s*:\s*(.+)", reply_raw)
-            if kw_match:
-                raw = re.split(r"[•,|/]", kw_match.group(2))
-                kws = [k.strip(" .*-_") for k in raw if k.strip()]
-                if kws:
-                    chips_html = "<div class='kw-title'>**KEYWORDS**</div>" + "".join(
-                        f"<span class='kw-chip'><b>{k}</b></span>" for k in kws[:3]
-                    )
-                    reply_raw = re.sub(r"(?:^|\n)\s*(?:\*\*?)?(KEYWORDS?|Keywords?)\b(?:\*\*?)?\s*:.*", "", reply_raw, count=1)
-
-        # store assistant message
-        bubble = (chips_html + ("<div style='height:6px'></div>" if chips_html else "")) + reply_raw
-        st.session_state[chat_data_key].append({
-            "role": "assistant", "content": bubble, "ts": datetime.now(UTC).isoformat()
-        })
-
-        # mark finalized once we push the final output
-        if finalize_now:
-            st.session_state["cchat_data_finalized"] = True
-
-            # --- Try to detect a ~60-word presentation and render a copyable card ---
-            def _extract_presentation(text: str) -> str:
-                # Heuristic: pick the longest paragraph between 45 and 90 words
-                paras = [p.strip() for p in re.split(r"\n{2,}|\r{2,}", text) if p.strip()]
-                best = ""
-                best_len = 0
-                for p in paras:
-                    wc = len(re.findall(r"\b\w+\b", p))
-                    if 45 <= wc <= 90 and wc > best_len:
-                        best, best_len = p, wc
-                if not best:
-                    # fallback: take the last paragraph if nothing matched
-                    best = paras[-1] if paras else text
-                return best
-
-            pres = _extract_presentation(reply_raw)
-            wc = len(re.findall(r"\b\w+\b", pres))
-            # Render the card with Copy button (uses components which you already import as `components`)
-            html_id = f"pres_{uuid4().hex}"
-            components.html(f"""
-                <div class="pres-card" id="{html_id}">
-                  <div class="pres-head">
-                    <div><b>🎤 60-word class presentation</b> <span class="meta">(~{wc} words)</span></div>
-                    <button class="pres-copy" onclick="
-                      const txt = document.querySelector('#{html_id} .pres-body').innerText;
-                      navigator.clipboard.writeText(txt);
-                      this.innerText='Copied!';
-                      setTimeout(()=>this.innerText='Copy',1200);
-                    ">Copy</button>
-                  </div>
-                  <div class="pres-body" style="margin-top:8px; white-space:pre-wrap;">{html.escape(pres)}</div>
-                </div>
-            """, height=170)
-
-        st.rerun()
+    render_app_footer(FOOTER_LINKS)
 
 
     # ===================== Grammar (simple, one-box) =====================
