@@ -837,7 +837,7 @@ def render_sidebar_published():
         st.sidebar.button("🏠 Dashboard",                use_container_width=True, on_click=_go, args=("Dashboard",))
         st.sidebar.button("📈 My Course",                use_container_width=True, on_click=_go, args=("My Course",))
         st.sidebar.button("📊 Results & Resources",      use_container_width=True, on_click=_go, args=("My Results and Resources",))
-        st.sidebar.button("🗣️ Custom Chat & Speaking Tools", use_container_width=True, on_click=_go, args=("Custom Chat & Speaking Tools",))
+        st.sidebar.button("🗣️ Chat • Grammar • Exams", use_container_width=True, on_click=_go, args=("Chat • Grammar • Exams",))
         st.sidebar.button("📚 Vocab Trainer",            use_container_width=True, on_click=_go, args=("Vocab Trainer",))
         st.sidebar.button("📗 Dictionary",              use_container_width=True, on_click=_go_dictionary)
         st.sidebar.button("✍️ Schreiben Trainer",        use_container_width=True, on_click=_go, args=("Schreiben Trainer",))
@@ -874,7 +874,7 @@ def render_sidebar_published():
 - **Dashboard:** Overview (streak, next lesson, missed, leaderboard, new posts).
 - **My Course:** Lessons, materials, and submission flow.
 - **Results & Resources:** Marks, feedback, downloadable resources.
-- **Custom Chat & Speaking Tools:** Guided conversation practice plus instant pronunciation feedback.
+- **Chat • Grammar • Exams:** Guided conversation practice plus instant pronunciation feedback.
 - **Vocab Trainer:** Daily picks, spaced review, stats.
 - **Schreiben Trainer:** Structured writing with iterative feedback.
                 """
@@ -1379,7 +1379,7 @@ def render_dropdown_nav():
         "Dashboard",
         "My Course",
         "My Results and Resources",
-        "Custom Chat & Speaking Tools",
+        "Chat • Grammar • Exams",
         "Vocab Trainer",
         "Schreiben Trainer",
     ]
@@ -1387,7 +1387,7 @@ def render_dropdown_nav():
         "Dashboard": "🏠",
         "My Course": "📈",
         "My Results and Resources": "📊",
-        "Custom Chat & Speaking Tools": "🗣️",
+        "Chat • Grammar • Exams": "🗣️",
         "Vocab Trainer": "📚",
         "Schreiben Trainer": "✍️",
     }
@@ -5375,8 +5375,8 @@ if tab == "My Course":
 if tab == "My Results and Resources":
     render_results_and_resources_tab()
 
-if tab == "Custom Chat & Speaking Tools":
-    st.markdown("## 🗣️ Custom Chat & Speaking Tools")
+if tab == "Chat • Grammar • Exams":
+    st.markdown("## 🗣️ Chat • Grammar • Exams")
     st.caption("Simple & clear: last 3 messages shown; input stays below. 3 keywords • 6 questions.")
 
     # ---- Links
@@ -6280,7 +6280,7 @@ if tab == "Schreiben Trainer":
         Practice German letters, emails, and essays for A1–C1 exams—now with automatic level detection.
 
         Want to practice presentations or focus on Speaking, Reading, or Listening?
-        👉 Switch to **Exam Mode & Custom Chat** (tab above)!
+        👉 Switch to **Exam Mode & Chat • Grammar • Exams** (tab above)!
 
         Your writing will be assessed and scored out of 25 marks, just like in the real exam.
         """,

@@ -1,4 +1,4 @@
-"""Custom chat helpers used by the Falowen Streamlit experience."""
+"""Chat • Grammar • Exams helpers used by the Falowen Streamlit experience."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ _summary_client = None
 
 
 def set_summary_client(client) -> None:
-    """Configure the OpenAI client used for chat summaries."""
+    """Configure the OpenAI client used for Chat • Grammar • Exams summaries."""
     global _summary_client
     _summary_client = client
 
@@ -85,7 +85,7 @@ def build_custom_chat_prompt(level: str, student_code: Optional[str] = None) -> 
 
 
 def generate_summary(messages: List[str]) -> str:
-    """Use the configured OpenAI client to summarise custom chat answers."""
+    """Use the configured OpenAI client to summarise Chat • Grammar • Exams answers."""
     if not messages:
         return ""
     prompt = "Summarize the following student responses into about 60 words suitable for a presentation."
