@@ -5940,9 +5940,15 @@ if tab == "Chat • Grammar • Exams":
 
         if ask and (gram_q or "").strip():
             sys = (
-                "You are a German grammar helper. Match the CEFR level, be concise, and give 1–2 short examples. "
-                "If text was pasted, correct it first (one paragraph), then list 3 bullet notes on key points."
-                "Always explain in simple english and support with examples in German but still explain with english for the student to understand"
+                "You are a German grammar helper. "
+                "All EXPLANATIONS must be in English ONLY. "
+                "The CORRECTED TEXT and EXAMPLE SENTENCES must be in German ONLY. "
+                "Match the CEFR level and be concise. "
+                "If text was pasted, first give a short corrected German version of the user's text, "
+                "then provide exactly 3 concise English bullet points explaining the key grammar points and corrections, "
+                "and finally give 1–2 short German example sentences that illustrate the rule. "
+                "If it's only a question (no text to correct), give the English explanation and German examples only. "
+                "Keep the whole answer compact and classroom-friendly."
             )
             placeholder = st.empty()
             placeholder.markdown("<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>", unsafe_allow_html=True)
@@ -5968,8 +5974,8 @@ if tab == "Chat • Grammar • Exams":
                         {"role": "system", "content": sys + f" CEFR level: {gram_level}."},
                         {"role": "user", "content": gram_q},
                     ],
-                    temperature=0,
-                    max_tokens=600,
+                    temperature=0.1,
+                    max_tokens=700,
                 )
                 out = (resp.choices[0].message.content or "").strip()
             except Exception as e:
@@ -5977,6 +5983,7 @@ if tab == "Chat • Grammar • Exams":
             placeholder.empty()
             st.markdown(f"<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>", unsafe_allow_html=True)
             st.markdown(f"<div class='bubble-a'>{out}</div>", unsafe_allow_html=True)
+
 
     # ===================== Exams (open practice link) =====================
     with tab_exam:
