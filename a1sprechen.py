@@ -5576,8 +5576,7 @@ def page_custom_chat():
     # Export transcript (coach tab history)
     if st.button("📥 Download coach transcript (.txt)"):
         fname = f"chat_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.txt"
-        txt = "
-".join([f"[{m['ts']}] {m['role'].upper()}: {m['content']}" for m in st.session_state.chat])
+        txt = "\n".join([f"[{m['ts']}] {m['role'].upper()}: {m['content']}" for m in st.session_state.chat])
         st.download_button("Save now", data=txt.encode("utf-8"), file_name=fname, mime="text/plain")
 
 
