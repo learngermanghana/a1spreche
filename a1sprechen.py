@@ -21,7 +21,7 @@ from datetime import datetime
 from datetime import datetime as _dt
 from uuid import uuid4
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, List
+from typing import Any, Dict, Optional, Tuple, List, Iterable, MutableMapping
 from functools import lru_cache
 
 # ==== Third-Party Packages ====
@@ -98,6 +98,58 @@ def _safe_str(v, default: str = "") -> str:
 def _safe_upper(v, default: str = "") -> str:
     s = _safe_str(v, default)
     return s.upper() if s else default
+
+
+def _topic_coach_state_key(base: str, student_code: str, level: str) -> str:
+    student = _safe_str(student_code, "_") or "_"
+    level_token = _safe_str(level, "_") or "_"
+    return f"{base}:{student}:{level_token}"
+
+
+def _initialise_topic_coach_session_state(
+    session_state: MutableMapping[str, Any],
+    *,
+    student_code: str,
+    level: str,
+    messages: Iterable[Dict[str, Any]],
+    qcount: Any,
+    finalized: Any,
+    identity_key: str = "_cchat_active_identity",
+) -> Tuple[str, str, str]:
+    """Return scoped Topic Coach session-state keys after initialising values."""
+
+    student_token = _safe_str(student_code)
+    level_token = _safe_str(level)
+    identity = (student_token, level_token)
+    previous_identity = session_state.get(identity_key)
+    identity_changed = previous_identity != identity
+
+    chat_key = _topic_coach_state_key("cchat_data_chat", student_token, level_token)
+    qcount_key = _topic_coach_state_key("cchat_data_qcount", student_token, level_token)
+    finalized_key = _topic_coach_state_key("cchat_data_finalized", student_token, level_token)
+
+    for legacy_key in ("cchat_data_chat", "cchat_data_qcount", "cchat_data_finalized"):
+        session_state.pop(legacy_key, None)
+
+    if identity_changed or chat_key not in session_state:
+        session_state[chat_key] = list(messages or [])
+    elif not session_state[chat_key] and messages:
+        session_state[chat_key] = list(messages)
+
+    try:
+        qcount_value = int(qcount or 0)
+    except Exception:
+        qcount_value = 0
+    qcount_value = max(0, qcount_value)
+    if identity_changed or qcount_key not in session_state:
+        session_state[qcount_key] = qcount_value
+
+    finalized_value = bool(finalized)
+    if identity_changed or finalized_key not in session_state:
+        session_state[finalized_key] = finalized_value
+
+    session_state[identity_key] = identity
+    return chat_key, qcount_key, finalized_key
 
 
 def _resolve_class_name(
@@ -5526,32 +5578,6 @@ if tab == "Chat • Grammar • Exams":
         bool(topic_meta.get("finalized")) if isinstance(topic_meta, dict) else False
     )
 
-    # ---------- Persistent (data-only) session state ----------
-    if "cchat_data_chat" not in st.session_state:
-        st.session_state["cchat_data_chat"] = list(topic_messages)
-    elif not st.session_state["cchat_data_chat"] and topic_messages:
-        st.session_state["cchat_data_chat"] = list(topic_messages)
-    if "cchat_data_qcount" not in st.session_state:
-        st.session_state["cchat_data_qcount"] = loaded_qcount
-    if "cchat_data_finalized" not in st.session_state:
-        st.session_state["cchat_data_finalized"] = loaded_finalized
-
-    chat_data_key = "cchat_data_chat"
-    qcount_data_key = "cchat_data_qcount"
-
-    def _save_topic_coach_transcript() -> None:
-        if not student_code_tc:
-            return
-        doc_ref = topic_doc_ref or get_topic_coach_doc(topic_db, student_code_tc)
-        if doc_ref is None:
-            return
-        persist_topic_coach_state(
-            doc_ref,
-            messages=list(st.session_state.get(chat_data_key, [])),
-            qcount=st.session_state.get(qcount_data_key, 0),
-            finalized=st.session_state.get("cchat_data_finalized", False),
-        )
-
     # ---------- Widget keys (make them UNIQUE across app) ----------
     KEY_LEVEL_SLIDER   = "cchat_w_level"
     KEY_FORCE_DE_TOG   = "cchat_w_force_de"
@@ -5564,6 +5590,47 @@ if tab == "Chat • Grammar • Exams":
     KEY_GRAM_ASK_BTN   = "cchat_w_gram_go"
     # Also make Regen button unique
     KEY_REGEN_BTN      = "cchat_w_btn_regen_v2"
+
+    level_options = ["A1", "A2", "B1", "B2"]
+    ensure_student_level()
+    roster_level = _safe_upper(st.session_state.get("student_level"), "")
+    match = re.search("|".join(level_options), roster_level) if roster_level else None
+    default_level = match.group(0) if match else "A2"
+
+    active_level = sync_level_state(
+        st,
+        student_code=student_code_tc,
+        default_level=default_level,
+        level_options=level_options,
+        slider_key=KEY_LEVEL_SLIDER,
+        grammar_key=KEY_GRAM_LEVEL,
+    )
+
+    (
+        chat_data_key,
+        qcount_data_key,
+        finalized_data_key,
+    ) = _initialise_topic_coach_session_state(
+        st.session_state,
+        student_code=student_code_tc,
+        level=active_level,
+        messages=topic_messages,
+        qcount=loaded_qcount,
+        finalized=loaded_finalized,
+    )
+
+    def _save_topic_coach_transcript() -> None:
+        if not student_code_tc:
+            return
+        doc_ref = topic_doc_ref or get_topic_coach_doc(topic_db, student_code_tc)
+        if doc_ref is None:
+            return
+        persist_topic_coach_state(
+            doc_ref,
+            messages=list(st.session_state.get(chat_data_key, [])),
+            qcount=st.session_state.get(qcount_data_key, 0),
+            finalized=st.session_state.get(finalized_data_key, False),
+        )
 
     # ---------- Subtabs ----------
     tab_tc, tab_gram, tab_exam = st.tabs(["🧑‍🏫 Topic Coach", "🛠️ Grammar", "📝 Exams"])
@@ -5582,21 +5649,6 @@ if tab == "Chat • Grammar • Exams":
         )
 
         # Controls
-        level_options = ["A1", "A2", "B1", "B2"]
-        ensure_student_level()
-        roster_level = _safe_upper(st.session_state.get("student_level"), "")
-        match = re.search("|".join(level_options), roster_level) if roster_level else None
-        default_level = match.group(0) if match else "A2"
-
-        sync_level_state(
-            st,
-            student_code=student_code_tc,
-            default_level=default_level,
-            level_options=level_options,
-            slider_key=KEY_LEVEL_SLIDER,
-            grammar_key=KEY_GRAM_LEVEL,
-        )
-
         colA, colB, colC = st.columns([1,1,1.2])
         with colA:
             cur_level = st.session_state.get(KEY_LEVEL_SLIDER, default_level)
@@ -5618,7 +5670,7 @@ if tab == "Chat • Grammar • Exams":
         st.markdown(f"**Progress:** ✅ {q_done}/6 answered")
         st.progress(q_done / 6.0)
 
-        if st.session_state["cchat_data_finalized"]:
+        if st.session_state[finalized_data_key]:
             st.success("🎉 Session complete — summary & ~60-word presentation generated. You can regenerate if you like.")
             if st.button("🔁 Regenerate presentation", key=KEY_REGEN_BTN):
                 convo = [{"role": "system", "content": "You are Herr Felix. FINALIZE NOW: The student has answered 6 questions. Do not ask more questions. Output two parts: 1) An English summary (strengths, mistakes, improvements). 2) A ~60-word presentation using their own words (add a few if needed). Keep it clear and usable for class. No extra chit-chat."}]
@@ -5713,7 +5765,7 @@ if tab == "Chat • Grammar • Exams":
                 if st.button("🧹 New chat", key=KEY_NEWCHAT_BTN, use_container_width=True):
                     st.session_state[chat_data_key] = []
                     st.session_state[qcount_data_key] = 0
-                    st.session_state["cchat_data_finalized"] = False
+                    st.session_state[finalized_data_key] = False
                     _save_topic_coach_transcript()
                     st.toast("Cleared")
                     st.rerun()
@@ -5734,7 +5786,7 @@ if tab == "Chat • Grammar • Exams":
 
             # Count rule: don't count first topic; only increment if an assistant turn exists before this user turn
             has_assistant_turn = any(m["role"] == "assistant" for m in st.session_state[chat_data_key][:-1])
-            if has_assistant_turn and not st.session_state["cchat_data_finalized"]:
+            if has_assistant_turn and not st.session_state[finalized_data_key]:
                 st.session_state[qcount_data_key] = min(6, int(st.session_state[qcount_data_key] or 0) + 1)
 
             _save_topic_coach_transcript()
@@ -5765,7 +5817,7 @@ if tab == "Chat • Grammar • Exams":
                 })
 
             # Finalization at 6 questions
-            finalize_now = (int(st.session_state[qcount_data_key]) >= 6) and (not st.session_state["cchat_data_finalized"])
+            finalize_now = (int(st.session_state[qcount_data_key]) >= 6) and (not st.session_state[finalized_data_key])
             if finalize_now:
                 convo.append({
                     "role": "system",
@@ -5828,7 +5880,7 @@ if tab == "Chat • Grammar • Exams":
 
             # If final, mark and try to render presentation card
             if finalize_now:
-                st.session_state["cchat_data_finalized"] = True
+                st.session_state[finalized_data_key] = True
 
                 # Extract a ~60-word presentation paragraph
                 def _extract_presentation(text: str) -> str:
