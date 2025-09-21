@@ -5686,6 +5686,7 @@ if tab == "Chat • Grammar • Exams":
                     "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand.",
                     key=KEY_CHAT_INPUT
                 )
+                render_umlaut_pad(KEY_CHAT_INPUT, context="chat_tab", disabled=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
         # ---- SEND ----
