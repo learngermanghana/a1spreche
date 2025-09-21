@@ -43,6 +43,11 @@ from src.discussion_board import (
     CLASS_DISCUSSION_REMINDER,
     go_class_thread,
 )
+from src.topic_coach_persistence import (
+    get_topic_coach_doc,
+    load_topic_coach_state,
+    persist_topic_coach_state,
+)
 
 from flask import Flask
 from auth import auth_bp
@@ -5424,12 +5429,101 @@ if tab == "Chat • Grammar • Exams":
     </style>
     """, unsafe_allow_html=True)
 
+    student_code_tc = (st.session_state.get("student_code") or "").strip()
+
+    def _resolve_topic_coach_db():
+        """Return a Firestore client for Topic Coach persistence if available."""
+
+        global db  # type: ignore  # Streamlit runtime assigns this at module scope
+        existing = globals().get("db")
+        if existing is None:
+            existing = getattr(_falowen_sessions, "db", None) or getattr(
+                _falowen_sessions, "_db_client", None
+            )
+        if existing is not None:
+            return existing
+
+        getter = getattr(_falowen_sessions, "get_db", None)
+        if callable(getter):
+            try:
+                existing = getter()
+            except Exception as exc:
+                logging.debug("Topic Coach Firestore unavailable: %s", exc)
+                return None
+            if existing is not None:
+                try:
+                    _falowen_sessions.db = existing
+                except Exception:
+                    pass
+                if hasattr(_falowen_sessions, "_db_client"):
+                    try:
+                        _falowen_sessions._db_client = existing
+                    except Exception:
+                        pass
+                db = existing
+                return existing
+        return None
+
+    topic_db = _resolve_topic_coach_db()
+    topic_doc_ref = None
+    topic_messages: List[Dict[str, Any]] = []
+    topic_meta: Dict[str, Any] = {}
+    if student_code_tc:
+        topic_doc_ref, topic_messages, topic_meta = load_topic_coach_state(
+            topic_db, student_code_tc
+        )
+
+    def _infer_topic_qcount(messages: List[Dict[str, Any]]) -> int:
+        count = 0
+        assistant_seen = False
+        for msg in messages:
+            if not isinstance(msg, dict):
+                continue
+            role = msg.get("role")
+            if role == "assistant":
+                assistant_seen = True
+            elif role == "user" and assistant_seen:
+                count = min(6, count + 1)
+        return count
+
+    loaded_qcount_raw = topic_meta.get("qcount") if isinstance(topic_meta, dict) else None
+    try:
+        loaded_qcount = int(loaded_qcount_raw) if loaded_qcount_raw is not None else None
+    except Exception:
+        loaded_qcount = None
+    if loaded_qcount is None:
+        loaded_qcount = _infer_topic_qcount(topic_messages)
+    loaded_qcount = max(0, loaded_qcount)
+
+    loaded_finalized = (
+        bool(topic_meta.get("finalized")) if isinstance(topic_meta, dict) else False
+    )
+
     # ---------- Persistent (data-only) session state ----------
-    if "cchat_data_chat" not in st.session_state:     st.session_state["cchat_data_chat"] = []
-    if "cchat_data_qcount" not in st.session_state:   st.session_state["cchat_data_qcount"] = 0
-    if "cchat_data_finalized" not in st.session_state: st.session_state["cchat_data_finalized"] = False
-    chat_data_key   = "cchat_data_chat"
+    if "cchat_data_chat" not in st.session_state:
+        st.session_state["cchat_data_chat"] = list(topic_messages)
+    elif not st.session_state["cchat_data_chat"] and topic_messages:
+        st.session_state["cchat_data_chat"] = list(topic_messages)
+    if "cchat_data_qcount" not in st.session_state:
+        st.session_state["cchat_data_qcount"] = loaded_qcount
+    if "cchat_data_finalized" not in st.session_state:
+        st.session_state["cchat_data_finalized"] = loaded_finalized
+
+    chat_data_key = "cchat_data_chat"
     qcount_data_key = "cchat_data_qcount"
+
+    def _save_topic_coach_transcript() -> None:
+        if not student_code_tc:
+            return
+        doc_ref = topic_doc_ref or get_topic_coach_doc(topic_db, student_code_tc)
+        if doc_ref is None:
+            return
+        persist_topic_coach_state(
+            doc_ref,
+            messages=list(st.session_state.get(chat_data_key, [])),
+            qcount=st.session_state.get(qcount_data_key, 0),
+            finalized=st.session_state.get("cchat_data_finalized", False),
+        )
 
     # ---------- Widget keys (make them UNIQUE across app) ----------
     KEY_LEVEL_SLIDER   = "cchat_w_level"
@@ -5513,6 +5607,7 @@ if tab == "Chat • Grammar • Exams":
                     "content": reply_raw,
                     "ts": datetime.now(UTC).isoformat()
                 })
+                _save_topic_coach_transcript()
                 st.rerun()
 
         st.divider()
@@ -5583,6 +5678,7 @@ if tab == "Chat • Grammar • Exams":
                     st.session_state[chat_data_key] = []
                     st.session_state[qcount_data_key] = 0
                     st.session_state["cchat_data_finalized"] = False
+                    _save_topic_coach_transcript()
                     st.toast("Cleared")
                     st.rerun()
             with col_right:
@@ -5603,6 +5699,8 @@ if tab == "Chat • Grammar • Exams":
             has_assistant_turn = any(m["role"] == "assistant" for m in st.session_state[chat_data_key][:-1])
             if has_assistant_turn and not st.session_state["cchat_data_finalized"]:
                 st.session_state[qcount_data_key] = min(6, int(st.session_state[qcount_data_key] or 0) + 1)
+
+            _save_topic_coach_transcript()
 
             # Build conversation
             convo = [{"role": "system", "content": system_text}]
@@ -5726,6 +5824,7 @@ if tab == "Chat • Grammar • Exams":
                     </div>
                 """, height=170)
 
+            _save_topic_coach_transcript()
             st.rerun()
 
     # ===================== Grammar (simple, one-box) =====================
