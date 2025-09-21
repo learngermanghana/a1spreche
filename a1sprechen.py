@@ -5375,295 +5375,208 @@ if tab == "My Course":
 if tab == "My Results and Resources":
     render_results_and_resources_tab()
 
-# ================================
-# 5. EXAMS MODE & CUSTOM CHAT — uses your prompts + bubble UI + highlighting
-# ================================
-
-# —— keep Firestore `db` and OpenAI `client` from above (not redefined here) ——
-
-# Ensure these are available in this tab
-import re
-import random
-import urllib.parse as _urllib
-
-
-# ---------- Clean rerun helper (prevents the confusing "Saved!" toast) ----------
-def rerun_without_toast():
-    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
-    try:
-        st.rerun()
-    except Exception:
-        pass
-
-# ---------- UI styles ----------
-
-bubble_user = (
-    "background:#1976d2; color:#fff; border-radius:18px 18px 2px 18px;"
-    "padding:10px 16px; margin:5px 0 5px auto; max-width:90vw; display:inline-block; font-size:1.12em;"
-    "box-shadow:0 2px 8px rgba(0,0,0,0.09); word-break:break-word;"
-)
-bubble_assistant = (
-    "background:#faf9e4; color:#2d2d2d; border-radius:18px 18px 18px 2px;"
-    "padding:10px 16px; margin:5px auto 5px 0; max-width:90vw; display:inline-block; font-size:1.12em;"
-    "box-shadow:0 2px 8px rgba(0,0,0,0.09); word-break:break-word;"
-)
-highlight_words = [
-    "Fehler", "Tipp", "Achtung", "gut", "korrekt", "super", "nochmals",
-    "Bitte", "Vergessen Sie nicht"
-]
-
-def highlight_keywords(text, words, ignore_case=True):
-    flags = re.IGNORECASE if ignore_case else 0
-    for w in words:
-        pattern = r'\b' + re.escape(w) + r'\b'
-        text = re.sub(
-            pattern,
-            lambda m: f"<span style='background:#ffe082; color:#d84315; font-weight:bold;'>{m.group(0)}</span>",
-            text,
-            flags=flags,
-        )
-    return text
-
-def render_message(role: str, text: str) -> None:
-    """Render a single chat message with bubble styling."""
-    if role == "assistant":
-        with st.chat_message("assistant", avatar="🧑‍🏫"):
-            st.markdown(
-                f"<div style='{bubble_assistant}'>{highlight_keywords(text, highlight_words)}</div>",
-                unsafe_allow_html=True,
-            )
-    else:
-        with st.chat_message("user"):
-            st.markdown(
-                (
-                    "<div style='display:flex;justify-content:flex-end;'>"
-                    f"<div style='{bubble_user}'>🗣️ {text}</div></div>"
-                ),
-                unsafe_allow_html=True,
-            )
-
-def clear_falowen_chat(student_code, mode, level, teil):
-    """Deletes the saved chat for a particular student/mode/level/teil from Firestore."""
-    chat_key = f"{mode}_{level}_{teil or 'custom'}"
-    doc_ref = db.collection("falowen_chats").document(student_code)
-    doc = doc_ref.get()
-    if doc.exists:
-        data = doc.to_dict()
-        chats = data.get("chats", {})
-        drafts = data.get("drafts", {})
-        changed = False
-        if chat_key in chats:
-            del chats[chat_key]
-            changed = True
-        if chat_key in drafts:
-            del drafts[chat_key]
-            changed = True
-        if changed:
-            doc_ref.set({"chats": chats, "drafts": drafts}, merge=True)
-
-
-
-
-default_state = {
-    "falowen_stage": 1,                  # 1: mode, 2: level, 3: chat, 99: pron checker
-    "falowen_mode": None,                # **RENAMED choices in UI below**
-    "falowen_level": None,
-    "falowen_teil": None,
-    "falowen_messages": [],
-    "falowen_turn_count": 0,
-    "custom_topic_intro_done": False,
-    "custom_chat_level": None,
-}
-for key, val in default_state.items():
-    if key not in st.session_state:
-        st.session_state[key] = val
-
+# =========================================================
+# ========== Custom Chat & Speaking Tools (Tab) ===========
+# =========================================================
 if tab == "Custom Chat & Speaking Tools":
-    st.markdown(
-        '''
-        <div style="padding: 8px 12px; background: #28a745; color: #fff; border-radius: 6px;
-                    text-align: center; margin-bottom: 8px; font-size: 1.3rem;">
-            🗣️ Custom Chat & Speaking Tools
-        </div>
-        ''',
-        unsafe_allow_html=True
-    )
-    st.divider()
+    st.markdown("## 🗣️ Custom Chat & Speaking Tools")
+    st.caption("Chat to learn or get instant grammar help. No exam mode.")
 
-    # ===== Login context (reuse app login; no duplicate UI here) =====
-    if "student_code" not in st.session_state or not st.session_state["student_code"]:
-        st.warning("Please log in on the main page to continue.")
-        st.stop()
-    code = st.session_state["student_code"]
+    # ----- namespaced state helpers -----
+    def _ns(key: str, default=None):
+        k = f"cchat_{key}"
+        if k not in st.session_state:
+            st.session_state[k] = default
+        return k
 
-    # ——— Step 1: Mode ———
-    if st.session_state["falowen_stage"] == 1:
-        st.subheader("Step 1: Choose Practice Mode")
-        st.info(
-            """
-            - **Custom Chat**: Free conversation on your topic with feedback.
-            - **Pronunciation & Speaking Checker**: Upload a short audio for scoring and tips.
-            """,
-            icon="ℹ️"
-        )
-        mode = st.radio(
-            "How would you like to practice?",
-            ["Custom Chat", "Pronunciation & Speaking Checker"],
-            key="falowen_mode_center"
-        )
-        if st.button("Next ➡️", key="falowen_next_mode"):
-            st.session_state["falowen_mode"] = mode
-            st.session_state["falowen_stage"] = 99 if mode == "Pronunciation & Speaking Checker" else 2
-            if mode == "Pronunciation & Speaking Checker":
-                st.session_state["falowen_stage"] = 99
-                st.session_state["falowen_level"] = None
-            else:
-                level = get_student_level(
-                    st.session_state["student_code"], default=None
-                )
-                if level is None:
-                    st.session_state["falowen_level"] = None
-                    st.session_state["falowen_stage"] = 2
-                else:
-                    st.session_state["falowen_level"] = level
-                    st.session_state["falowen_stage"] = 3
-                    st.session_state["falowen_teil"] = None
-                    reset_falowen_chat_flow()
-                    refresh_with_toast()
+    _ns("level", "A2")
+    _ns("force_de", False)
+    _ns("max_words", 120)
+    _ns("topic", "")
+    _ns("chat", [])
 
+    # ----- two main tabs: Topic Coach | Grammar Helper -----
+    tab_coach, tab_grammar = st.tabs(["🧑‍🏫 Topic Coach", "🛠️ Grammar Helper"])
 
+    # ===================== Topic Coach =====================
+    with tab_coach:
+        colA, colB = st.columns(2)
+        with colA:
+            st.session_state[_ns("level")] = st.select_slider(
+                "Level (CEFR)", ["A1", "A2", "B1", "B2"], key=_ns("level")
+            )
+        with colB:
+            st.session_state[_ns("force_de")] = st.toggle(
+                "Force German replies 🇩🇪", key=_ns("force_de")
+            )
 
-    # ——— Step 2: Level ———
-    if st.session_state["falowen_stage"] == 2:
-        st.subheader("Step 2: Choose Your Level")
-        level = st.radio(
-            "Select your level:",
-            ["A1", "A2", "B1", "B2", "C1"],
-            key="falowen_level_center",
-        )
-        if level:
-            st.session_state["falowen_level"] = level
-        col1, col2 = st.columns(2)
+        col1, col2 = st.columns([2, 1])
         with col1:
-            if st.button("⬅️ Back", key="falowen_back1"):
-                st.session_state["falowen_stage"] = 1
-                st.session_state["falowen_level"] = None
-                st.session_state.pop("falowen_level_center", None)
-                st.session_state["falowen_messages"] = []
-                st.session_state["_falowen_loaded"] = False
-                refresh_with_toast()
+            st.session_state[_ns("topic")] = st.text_input(
+                "Topic / Assignment (optional)",
+                value=st.session_state[_ns("topic")] or "",
+                placeholder="z.B. Gesundheit, Reisen, Bewerbung…",
+                key=_ns("topic"),
+            )
         with col2:
-            if st.button("Next ➡️", key="falowen_next_level"):
-                if st.session_state.get("falowen_level"):
-                    st.session_state["falowen_stage"] = 3
-                    st.session_state["falowen_teil"] = None
-                    reset_falowen_chat_flow()
-                    refresh_with_toast()
-        st.stop()
-
-    # ——— Step 3: Custom Chat ———
-    if st.session_state.get("falowen_stage") == 3:
-
-        render_chat_stage(
-            client=client,
-            db=db,
-            highlight_words=highlight_words,
-            bubble_user=bubble_user,
-            bubble_assistant=bubble_assistant,
-            highlight_keywords=highlight_keywords,
-            generate_chat_pdf=generate_chat_pdf,
-            render_umlaut_pad=render_umlaut_pad,
-        )
-
-
-    # ——— Stage 99: Pronunciation & Speaking Checker (unchanged)
-    if st.session_state.get("falowen_stage") == 99:
-        import urllib.parse as _urllib
-
-        STUDENTS_CSV_URL = (
-            "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-"
-            "TC1yhPS7ZG6nzZVTt1U/export?format=csv&gid=104087906"
-        )
-
-        def _norm_code(v: str) -> str:
-            return (
-                str(v or "")
-                .strip()
-                .lower()
-                .replace("\u00a0", " ")
-                .replace(" ", "")
+            st.session_state[_ns("max_words")] = st.number_input(
+                "Max words per reply",
+                min_value=40, max_value=400,
+                value=int(st.session_state[_ns("max_words")] or 120),
+                step=10, key=_ns("max_words")
             )
 
-        student_code = _norm_code(st.session_state.get("student_code"))
+        a1, a2 = st.columns(2)
+        with a1:
+            if st.button("🧹 New chat", key=_ns("btn_new")):
+                st.session_state[_ns("chat")] = []
+                st.toast("Cleared")
+        with a2:
+            if st.button("🧭 Insert structure", key=_ns("btn_struct")):
+                structure = (
+                    "**Suggested Structure**\n"
+                    "- Einleitung/Hook\n- Thema & Ziel\n- 3 Hauptpunkte (mit Beispiel)\n"
+                    "- Zusammenfassung\n- Abschluss & Frage an Publikum"
+                )
+                st.session_state[_ns("chat")].append({
+                    "role": "assistant", "content": structure, "ts": datetime.now(UTC).isoformat()
+                })
 
-        if not student_code:
+        st.divider()
+
+        # Chat history
+        for msg in st.session_state[_ns("chat")]:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+
+        # System prompt
+        system_text = (
+            "You are a helpful conversation partner and topic coach. "
+            "Keep answers concise, encourage follow-up questions, teach with simple examples, "
+            "and match CEFR level."
+        )
+        system_text += f" CEFR level: {st.session_state[_ns('level')]}."
+        if st.session_state[_ns("force_de")]:
+            system_text += " Respond in German unless the user explicitly asks for English."
+        if st.session_state[_ns("topic")]:
+            system_text += f" Topic: {st.session_state[_ns('topic')]}."
+        system_text += f" Keep responses under {st.session_state[_ns('max_words')]} words."
+
+        # Chat input
+        user_msg = st.chat_input("Type your message… (Enter to send)", key=_ns("chat_input"))
+        if user_msg:
+            st.session_state[_ns("chat")].append({
+                "role": "user", "content": user_msg, "ts": datetime.now(UTC).isoformat()
+            })
+            with st.chat_message("user"):
+                st.markdown(user_msg)
+
+            history = [{"role": m["role"], "content": m["content"]}
+                       for m in st.session_state[_ns("chat")]]
+            messages = [{"role": "system", "content": system_text}] + history
+
+            with st.chat_message("assistant"):
+                with st.spinner("Thinking…"):
+                    try:
+                        resp = client.chat.completions.create(
+                            model="gpt-4o-mini",
+                            messages=messages,
+                            temperature=0.2,
+                            max_tokens=500,
+                        )
+                        reply = (resp.choices[0].message.content or "").strip()
+                    except Exception as e:
+                        reply = f"(Error) {e}"
+                    st.markdown(reply)
+            st.session_state[_ns("chat")].append({
+                "role": "assistant", "content": reply, "ts": datetime.now(UTC).isoformat()
+            })
+
+    # ===================== Grammar Helper =====================
+    with tab_grammar:
+        st.markdown("Use this tool to **check**, **explain**, or **simplify** your German.")
+        gcol1, gcol2 = st.columns([3, 1])
+        with gcol1:
+            text_in = st.text_area(
+                "Paste German text here",
+                height=180,
+                key=_ns("gram_text"),
+                placeholder="Schreiben Sie hier Ihren Text…",
+            )
+        with gcol2:
+            level = st.select_slider(
+                "Level", ["A1", "A2", "B1", "B2"],
+                value=st.session_state[_ns("level")],
+                key=_ns("gram_level")
+            )
+            action = st.radio(
+                "Action", ["Check grammar", "Explain grammar", "Simplify text"],
+                index=0, key=_ns("gram_action")
+            )
+            go = st.button("Run", type="primary", use_container_width=True, key=_ns("gram_go"))
+
+        if go and (text_in or "").strip():
+            sys = "You are a German grammar helper. Match the user's CEFR level, be concise, and provide examples."
+            if action == "Check grammar":
+                user = (
+                    "Correct the text. Return JSON with keys 'corrected' and 'notes' "
+                    "(list of brief bullet points).\n\nText:\n" + text_in
+                )
+            elif action == "Explain grammar":
+                user = (
+                    "Explain the main grammar points and mistakes for the following text. "
+                    "Return bullet points with examples at the user's level.\n\nText:\n" + text_in
+                )
+            else:  # Simplify text
+                user = (
+                    "Rewrite the text in simpler German suitable for the level. Keep meaning. "
+                    "Then list 3 key words.\n\nText:\n" + text_in
+                )
+
             try:
-                qp = st.query_params
-                q_from_url = qp.get("code")
-                if isinstance(q_from_url, list):
-                    q_from_url = q_from_url[0]
-                q_from_url = _norm_code(q_from_url)
-                if q_from_url:
-                    student_code = q_from_url
-                    st.session_state["student_code"] = student_code
-            except Exception:
-                pass
+                resp = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": sys + f" CEFR level: {level}."},
+                        {"role": "user", "content": user},
+                    ],
+                    temperature=0,
+                    max_tokens=600,
+                )
+                out = (resp.choices[0].message.content or "").strip()
+            except Exception as e:
+                out = f"(Error) {e}"
 
-        if not student_code:
-            st.warning("Missing student code. Please enter it to continue.")
-            _entered = st.text_input("Student Code", value="", key="enter_student_code")
-            if st.button("Continue", type="primary", key="enter_code_btn"):
-                _entered = _norm_code(_entered)
-                if _entered:
-                    st.session_state["student_code"] = _entered
-                    refresh_with_toast()
-            st.stop()
+            # Try to parse JSON for 'Check grammar'
+            if action == "Check grammar":
+                try:
+                    data = json.loads(out)
+                    corrected = (data.get("corrected") or "").strip()
+                    notes = data.get("notes") or []
 
-        try:
-            import pandas as pd
-            df_students = pd.read_csv(STUDENTS_CSV_URL)
-            _cands = {c.strip().lower(): c for c in df_students.columns}
-            col = None
-            for key in ["studentcode", "student_code", "code", "student code"]:
-                if key in _cands:
-                    col = _cands[key]
-                    break
-            if col:
-                codes = {_norm_code(x) for x in df_students[col].astype(str)}
-                if student_code not in codes:
-                    st.error("Student code not found in our records. Please check and try again.")
-                    st.stop()
-        except Exception:
-            pass
+                    st.markdown("### ✅ Corrected Text")
+                    st.code(corrected, language="text")
 
-        st.subheader("🎤 Pronunciation & Speaking Checker")
-        st.info("Click the button below to open the Sprechen Recorder.")
+                    # Diff view (helper defined earlier in your file)
+                    try:
+                        diff_html = diff_with_markers(text_in, corrected)
+                        st.markdown("### ✨ Changes (diff)")
+                        st.markdown(diff_html, unsafe_allow_html=True)
+                    except Exception:
+                        pass
 
-        RECORDER_URL = (
-            "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec"
-        )
-        rec_url = f"{RECORDER_URL}?code={_urllib.quote(student_code)}"
+                    if notes:
+                        st.markdown("### 📝 Notes")
+                        st.markdown("\n".join(f"- {n}" for n in notes))
+                except Exception:
+                    # Fallback: just render model text
+                    st.markdown(out)
+            else:
+                st.markdown(out)
 
-        try:
-            st.link_button("📼 Open Sprechen Recorder", rec_url, type="primary", use_container_width=True)
-        except Exception:
-            st.markdown(
-                f'<a href="{rec_url}" target="_blank" style="display:block;text-align:center;'
-                'padding:12px 16px;border-radius:10px;background:#2563eb;color:#fff;'
-                'text-decoration:none;font-weight:700;">📼 Open Sprechen Recorder</a>',
-                unsafe_allow_html=True,
-            )
+    st.divider()
+    render_app_footer(FOOTER_LINKS)
 
-        st.caption("If the button doesn’t open, copy & paste this link:")
-        st.code(rec_url, language="text")
-
-        if st.button("⬅️ Back to Start"):
-            st.session_state["falowen_stage"] = 1
-            refresh_with_toast()
-
-# =========================================
-# End
-# =========================================
 
 
 # =========================================
