@@ -5399,7 +5399,6 @@ if tab == "Custom Chat & Speaking Tools":
     level_key = _ns("level", default_level)
     _ns("force_de", False)
     _ns("max_words", 120)
-    _ns("topic", "")
     _ns("chat", [])
 
     # ----- two main tabs: Topic Coach | Grammar Helper -----
@@ -5415,37 +5414,16 @@ if tab == "Custom Chat & Speaking Tools":
         with colB:
             force_de = st.toggle("Force German replies 🇩🇪", key=_ns("force_de"))
 
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            topic = st.text_input(
-                "Topic / Assignment (optional)",
-                value=st.session_state[_ns("topic")] or "",
-                placeholder="z.B. Gesundheit, Reisen, Bewerbung…",
-                key=_ns("topic"),
-            )
-        with col2:
-            max_words = st.number_input(
-                "Max words per reply",
-                min_value=40, max_value=400,
-                value=int(st.session_state[_ns("max_words")] or 120),
-                step=10, key=_ns("max_words")
-            )
+        max_words = st.number_input(
+            "Max words per reply",
+            min_value=40, max_value=400,
+            value=int(st.session_state[_ns("max_words")] or 120),
+            step=10, key=_ns("max_words")
+        )
 
-        a1, a2 = st.columns(2)
-        with a1:
-            if st.button("🧹 New chat", key=_ns("btn_new")):
-                st.session_state[_ns("chat")] = []
-                st.toast("Cleared")
-        with a2:
-            if st.button("🧭 Insert structure", key=_ns("btn_struct")):
-                structure = (
-                    "**Suggested Structure**\n"
-                    "- Einleitung/Hook\n- Thema & Ziel\n- 3 Hauptpunkte (mit Beispiel)\n"
-                    "- Zusammenfassung\n- Abschluss & Frage an Publikum"
-                )
-                st.session_state[_ns("chat")].append({
-                    "role": "assistant", "content": structure, "ts": datetime.now(UTC).isoformat()
-                })
+        if st.button("🧹 New chat", key=_ns("btn_new")):
+            st.session_state[_ns("chat")] = []
+            st.toast("Cleared")
 
         st.divider()
 
@@ -5463,12 +5441,13 @@ if tab == "Custom Chat & Speaking Tools":
         system_text += f" CEFR level: {level}."
         if force_de:
             system_text += " Respond in German unless the user explicitly asks for English."
-        if topic:
-            system_text += f" Topic: {topic}."
         system_text += f" Keep responses under {max_words} words."
 
         # Chat input
-        user_msg = st.chat_input("Type your message… (Enter to send)", key=_ns("chat_input"))
+        user_msg = st.chat_input(
+            "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand.",
+            key=_ns("chat_input")
+        )
         if user_msg:
             st.session_state[_ns("chat")].append({
                 "role": "user", "content": user_msg, "ts": datetime.now(UTC).isoformat()
