@@ -5380,70 +5380,62 @@ if tab == "My Results and Resources":
 # =========================================================
 if tab == "Custom Chat & Speaking Tools":
     st.markdown("## 🗣️ Custom Chat & Speaking Tools")
-    st.caption("Topic Coach + Grammar Helper. Newest messages on top. Input stays below.")
+    st.caption("Simple & clear: last 3 messages on top, input stays below. 3 keywords • 6 questions.")
 
-    # ---------- tiny UI polish & sticky input/FAB ----------
+    # ---------- minimal UI styles ----------
     st.markdown("""
     <style>
       .bubble-a{background:#fffbe6;border:1px solid #fde68a;padding:12px 14px;border-radius:14px;margin:8px 0;line-height:1.55;}
       .bubble-u{background:#eef2ff;border:1px solid #c7d2fe;padding:12px 14px;border-radius:14px;margin:8px 0;line-height:1.55;text-align:right;}
       .kw-chip{display:inline-block;margin:0 6px 6px 0;padding:2px 10px;border-radius:999px;border:1px solid #7dd3fc;background:#e0f2fe;font-weight:700;}
       .hint{color:#64748b;font-size:.9rem;margin:2px 0 6px 0;}
-      .sticky-input{position:sticky; bottom:0; background:#f8fafc; padding:10px 8px; border-top:1px solid #e5e7eb; box-shadow:0 -6px 20px rgba(2,6,23,.06); border-radius:12px;}
+      .sticky-input{position:sticky; bottom:0; background:#f8fafc; padding:10px 8px;
+                    border-top:1px solid #e5e7eb; box-shadow:0 -6px 20px rgba(2,6,23,.06); border-radius:12px;}
+      @media (max-width: 640px){
+        .block-container { padding-bottom: 4.5rem; }
+        button, [role="button"] { min-height: 44px; }
+      }
+      .typing span{ display:inline-block; width:6px; height:6px; margin:0 2px; border-radius:50%;
+                    background:#94a3b8; opacity:.2; animation: t 1s infinite; }
+      .typing span:nth-child(2){ animation-delay:.15s; }
+      .typing span:nth-child(3){ animation-delay:.3s; }
+      @keyframes t{ 0%{opacity:.2; transform:translateY(0)} 50%{opacity:1; transform:translateY(-2px)} 100%{opacity:.2; transform:translateY(0)} }
     </style>
     """, unsafe_allow_html=True)
 
-    # ---------- namespaced state ----------
+    # ---------- tiny helper for namespaced state ----------
     def _ns(key: str, default=None):
         k = f"cchat_{key}"
         if k not in st.session_state:
             st.session_state[k] = default
         return k
 
-    # derive default level from roster if available
+    # ---------- safe level defaults ----------
     level_options = ["A1", "A2", "B1", "B2"]
     ensure_student_level()
     roster_level = _safe_upper(st.session_state.get("student_level"), "")
     match = re.search("|".join(level_options), roster_level) if roster_level else None
     default_level = match.group(0) if match else "A2"
 
-    level_key   = _ns("level", default_level)
-    force_de_key= _ns("force_de", False)
-    max_words_key=_ns("max_words", 140)
-    chat_key    = _ns("chat", [])
-    qcount_key  = _ns("qcount", 0)  # 0..6 questions asked by Felix
-
-    # ---- handle floating FAB "New chat" via query param ----
-    # (JS link adds ?newchat=1; here we clear and remove it)
-    want_new = str(st.query_params.get("newchat", "") or "") == "1"
-    if want_new:
-        st.session_state[chat_key] = []
-        st.session_state[qcount_key] = 0
-        try:
-            st.query_params["newchat"] = ""
-        except Exception:
-            pass
-        st.toast("Cleared")
-
-    # floating action button (FAB)
-    components.html("""
-    <style>
-      .fab{position:fixed; right:18px; bottom:88px; z-index:9999;}
-      .fab a{display:inline-flex; align-items:center; gap:8px; padding:12px 14px; border-radius:999px;
-             background:#1f2d7a; color:white; text-decoration:none; font-weight:800; box-shadow:0 8px 22px rgba(31,45,122,.25);}
-      @media (max-width:640px){ .fab{bottom:86px;} }
-    </style>
-    <div class="fab"><a href="?newchat=1">🧹 New chat</a></div>
-    """, height=0)
+    level_key    = _ns("level", default_level)
+    force_de_key = _ns("force_de", False)
+    max_words_key= _ns("max_words", 140)
+    chat_key     = _ns("chat", [])
+    qcount_key   = _ns("qcount", 0)   # how many questions Felix has asked (0..6)
 
     # ---------- two sub-tabs ----------
     tab_coach, tab_grammar = st.tabs(["🧑‍🏫 Topic Coach", "🛠️ Grammar Helper"])
 
     # ===================== Topic Coach =====================
     with tab_coach:
+        # safe current level in case roster says C1/C2
+        cur_level = st.session_state.get(level_key) or default_level
+        if cur_level not in level_options:
+            cur_level = default_level
+
         colA, colB, colC = st.columns([1,1,1.2])
         with colA:
-            level = st.select_slider("Level (CEFR)", level_options, key=level_key)
+            level = st.select_slider("Level (CEFR)", level_options, value=cur_level, key=level_key)
         with colB:
             force_de = st.toggle("Force German replies 🇩🇪", key=force_de_key)
         with colC:
@@ -5458,7 +5450,7 @@ if tab == "Custom Chat & Speaking Tools":
         st.markdown(f"**Progress:** ✅ {q_done}/{q_total} answered")
         st.progress(q_done / q_total if q_total else 0.0)
 
-        # ---- Quick-insert chips (send templated user turns) ----
+        # ---- Quick-insert chips (simple, helpful) ----
         c1, c2, c3, c4 = st.columns(4)
         if c1.button("💡 Define topic"):
             st.session_state[chat_key].append({"role":"user","content":"Mein Thema ist: Einkaufen im Supermarkt. Ich möchte über Preise und Angebote sprechen.","ts":datetime.now(UTC).isoformat()})
@@ -5475,73 +5467,82 @@ if tab == "Custom Chat & Speaking Tools":
 
         st.divider()
 
-        # --- HISTORY: collapse older; show newest block first (last 3), rest in expander ---
+        # --- HISTORY: older collapsed; show last 3 (newest first) ---
         history = st.session_state[chat_key] or []
-        older_count = max(0, len(history) - 3)
-        if older_count:
-            with st.expander(f"Show earlier ({older_count})"):
-                for msg in history[:-3]:
-                    if msg["role"] == "user":
-                        st.markdown(f"<div class='bubble-u'>{msg['content']}</div>", unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"<div class='bubble-a'>{msg['content']}</div>", unsafe_allow_html=True)
+        older = history[:-3] if len(history) > 3 else []
+        latest = history[-3:] if len(history) > 3 else history
 
-        tail = history[-3:] if len(history) > 3 else history
-        if tail:
+        if older:
+            with st.expander(f"Show earlier ({len(older)})"):
+                for m in older:
+                    st.markdown(f"<div class='bubble-{'u' if m['role']=='user' else 'a'}'>{m['content']}</div>", unsafe_allow_html=True)
+
+        if latest:
             st.markdown("<div class='hint'>Newest first</div>", unsafe_allow_html=True)
-        for msg in reversed(tail):
-            if msg["role"] == "user":
-                st.markdown(f"<div class='bubble-u'>{msg['content']}</div>", unsafe_allow_html=True)
-            else:
-                st.markdown(f"<div class='bubble-a'>{msg['content']}</div>", unsafe_allow_html=True)
+        for m in reversed(latest):
+            st.markdown(f"<div class='bubble-{'u' if m['role']=='user' else 'a'}'>{m['content']}</div>", unsafe_allow_html=True)
 
-        # --- SYSTEM PROMPT (3 keywords, 6 questions) ---
+        # --- UPDATED COACH PROMPT (3 keywords, 6 questions, simple & clear) ---
         correction_lang = "English"
         system_text = (
             f"You are Herr Felix, a supportive and innovative German teacher. "
-            f"1) Congratulate the student in English for the topic and give interesting tips on it. "
-            f"Explain how the session will go in English (what to expect, total questions=6, goals, and that they can ask for translation). "
-            f"2) If the input looks like a letter-writing task, gently redirect to the Ideen-Generator in the Schreiben tab; this space is for speaking. "
-            f"Promise that after 6 answered questions you will build a ~60-word presentation from their own words to record (mp3/wav) and upload in Pronunciation & Speaking Checker. "
-            f"Pick exactly 3 useful keywords related to the topic and use them as hidden foci for the conversation. "
-            f"Give ideas in English on how to build points. "
-            f"For each keyword, ask up to 2 creative level-appropriate questions in German, ONE at a time (never show the keyword names). "
-            f"After each answer: feedback in English and a short extension suggestion in German. Explain difficult words for A1–B2. "
-            f"If the student asks 3 grammar questions in a row without answering, warmly pause grammar and point them to the course-book search; resume speaking practice after. "
-            f"Continue with follow-ups until you reach 6 total (never >2 per keyword). "
-            f"After 6 answers: give an English summary (strengths, mistakes, improvements) plus a ~60-word presentation using their words (add a few if needed) and motivate them. "
-            f"ALL feedback/corrections must be in {correction_lang}. "
-            f"FORMATTING: Start each reply with a 'Keywords' line showing three bold chips, e.g. **Supermarkt**, **Preise**, **Einkaufszettel**. "
-            f"Use short paragraphs and bullets where helpful."
+            f"1) Congratulate the student in English for the chosen topic. Explain simply how the session works: "
+            f"6 short questions, small teaching moments, clear goals, and they can ask for translation anytime. "
+            f"2) If their input looks like a letter-writing task, kindly redirect them to the Ideen-Generator in the Schreiben tab; here we practice speaking. "
+            f"Promise: after 6 answers you will create a ~60-word presentation from their own words they can record (mp3/wav) and upload in Pronunciation & Speaking Checker. "
+            f"Pick exactly 3 useful keywords for the topic and use them quietly to guide the talk. "
+            f"For each keyword, ask up to 2 creative level-appropriate questions in German, ONE at a time (don’t reveal the keywords). "
+            f"After each answer: give short feedback in English and one extension suggestion in German. Explain difficult words for A1–B2. "
+            f"If they ask 3 grammar questions in a row without answering, pause grammar and point them to course-book search; then continue speaking practice. "
+            f"Stop after 6 total questions (never more than 2 per keyword). "
+            f"Then give an English summary (what went well, mistakes, what to improve) and a ~60-word presentation using their words (add a few if needed). "
+            f"All feedback/corrections must be in {correction_lang}. "
+            f"FORMAT: Start each reply with a 'Keywords' line showing three bold chips, e.g. **Supermarkt**, **Preise**, **Einkaufszettel**. "
+            f"Use short paragraphs and simple bullets."
         )
-        system_text += f" CEFR level: {st.session_state[level_key]}. Keep each reply under {int(st.session_state[max_words_key])} words."
-        if st.session_state[force_de_key]:
+        system_text += f" CEFR level: {level}. Keep each reply under {max_words} words."
+        if force_de:
             system_text += " Ask questions in German; explanations/feedback in English."
 
-        # --- STICKY INPUT (always at bottom) ---
+        # --- STICKY INPUT with "New chat" right above the type box ---
         with st.container():
             st.markdown("<div class='sticky-input'>", unsafe_allow_html=True)
-            user_msg = st.chat_input(
-                "Hallo! 👋 What topic do you want to practice today? (You can ask for translations anytime.)",
-                key=_ns("chat_input")
-            )
+
+            col_left, col_right = st.columns([1, 4])
+            with col_left:
+                if st.button("🧹 New chat", key=_ns("btn_new_bottom"), use_container_width=True):
+                    st.session_state[chat_key] = []
+                    st.session_state[qcount_key] = 0
+                    st.toast("Cleared")
+                    st.rerun()
+
+            with col_right:
+                user_msg = st.chat_input(
+                    "Write your message here… (You can ask for translations anytime.)",
+                    key=_ns("chat_input")
+                )
+
             st.markdown("</div>", unsafe_allow_html=True)
 
+        # --- handle send ---
         if user_msg:
-            # append user turn
+            # store user turn
             st.session_state[chat_key].append({
                 "role": "user", "content": user_msg, "ts": datetime.now(UTC).isoformat()
             })
 
-            # build conversation for API
+            # build convo
             convo = [{"role": "system", "content": system_text}]
             for m in st.session_state[chat_key]:
                 convo.append({"role": m["role"], "content": m["content"]})
 
-            # call model with deliberate pacing (typing pulse)
+            # tiny typing pulse
+            placeholder = st.empty()
+            placeholder.markdown("<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>", unsafe_allow_html=True)
+            time.sleep(random.uniform(0.8, 1.2))
+
+            # call model
             try:
-                # tiny typing delay to feel natural
-                time.sleep(random.uniform(0.8, 1.2))
                 resp = client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=convo,
@@ -5552,7 +5553,9 @@ if tab == "Custom Chat & Speaking Tools":
             except Exception as e:
                 reply_raw = f"(Error) {e}"
 
-            # convert 'Keywords:' line to chips if present
+            placeholder.empty()
+
+            # turn any leading "Keywords:" line into chips
             chips_html = ""
             kw_match = re.search(r"(?:^|\\n)\\s*\\*\\*?Keywords?\\*\\*?:\\s*(.+)", reply_raw, flags=re.IGNORECASE)
             if kw_match:
@@ -5562,42 +5565,46 @@ if tab == "Custom Chat & Speaking Tools":
                     chips_html = "".join(f"<span class='kw-chip'><b>{k}</b></span>" for k in kws[:3])
                     reply_raw = re.sub(r"(?:^|\\n)\\s*\\*\\*?Keywords?\\*\\*?:.*", "", reply_raw, count=1, flags=re.IGNORECASE)
 
-            # increment question count heuristically (cap at 6)
+            # bump question counter (cap at 6)
             st.session_state[qcount_key] = min(6, int(st.session_state[qcount_key] or 0) + 1)
 
-            # store assistant message with chips
+            # store assistant turn with chips
             bubble = (chips_html + ("<div style='height:6px'></div>" if chips_html else "")) + reply_raw
             st.session_state[chat_key].append({
                 "role": "assistant", "content": bubble, "ts": datetime.now(UTC).isoformat()
             })
-            st.rerun()  # keep input sticky and show newest on top
+            st.rerun()
 
-    # ===================== Grammar Helper =====================
+    # ===================== Grammar Helper (very simple) =====================
     with tab_grammar:
-        st.markdown("Ask any **grammar question** or paste a sentence for help. I’ll correct/explain briefly with examples.")
+        st.markdown("Paste a sentence or ask a grammar question. I’ll correct or explain briefly with 1–2 examples.")
         gcol1, gcol2 = st.columns([3, 1])
         with gcol1:
             gram_q = st.text_area(
                 "Type your grammar question or paste text",
-                height=180,
+                height=160,
                 key=_ns("gram_text"),
                 placeholder="z.B. Ist es 'wegen dem' oder 'wegen des'? Oder: Ich bin gestern in den Park gegangen…",
             )
         with gcol2:
-            gram_level = st.select_slider(
-                "Level", level_options,
-                value=st.session_state[level_key],
-                key=_ns("gram_level")
-            )
+            # safe level for slider
+            cur_level_g = st.session_state.get(level_key) or default_level
+            if cur_level_g not in level_options:
+                cur_level_g = default_level
+
+            gram_level = st.select_slider("Level", level_options, value=cur_level_g, key=_ns("gram_level"))
             ask = st.button("Ask", type="primary", use_container_width=True, key=_ns("gram_go"))
 
         if ask and (gram_q or "").strip():
             sys = (
-                "You are a German grammar helper. Match the CEFR level, be concise, give 1–2 examples. "
-                "If text was pasted, correct it first, then explain key points in bullets."
+                "You are a German grammar helper. Match the CEFR level, be concise, and give 1–2 short examples. "
+                "If text was pasted, correct it first (one paragraph), then list 3 bullet notes on key points."
             )
+            # typing pulse
+            placeholder = st.empty()
+            placeholder.markdown("<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>", unsafe_allow_html=True)
+            time.sleep(random.uniform(0.8, 1.2))
             try:
-                time.sleep(random.uniform(0.8, 1.2))  # same typing pulse
                 resp = client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[
@@ -5610,7 +5617,7 @@ if tab == "Custom Chat & Speaking Tools":
                 out = (resp.choices[0].message.content or "").strip()
             except Exception as e:
                 out = f"(Error) {e}"
-
+            placeholder.empty()
             st.markdown(f"<div class='bubble-a'>{out}</div>", unsafe_allow_html=True)
 
     st.divider()
