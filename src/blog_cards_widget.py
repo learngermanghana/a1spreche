@@ -163,5 +163,40 @@ def render_blog_cards(
         .falowen-blog-wrap {{ grid-template-columns: 1fr; }}
       }}
     </style>
+    <script>
+      (() => {{
+        let lastHeight = 0;
+        const updateHeight = () => {{
+          const outer = document.querySelector('.falowen-blog-outer');
+          if (!outer) return;
+          const height = Math.ceil(outer.getBoundingClientRect().height);
+          if (!height || height === lastHeight) return;
+          lastHeight = height;
+          document.body.style.minHeight = height + 'px';
+          document.documentElement.style.minHeight = height + 'px';
+          if (window.parent && window.parent !== window) {{
+            window.parent.postMessage({{ type: 'streamlit:setFrameHeight', height }}, '*');
+          }}
+        }};
+
+        const init = () => {{
+          const outer = document.querySelector('.falowen-blog-outer');
+          if (!outer) {{
+            window.requestAnimationFrame(init);
+            return;
+          }}
+          updateHeight();
+          const observer = new ResizeObserver(() => window.requestAnimationFrame(updateHeight));
+          observer.observe(outer);
+          window.addEventListener('load', updateHeight, {{ once: true }});
+        }};
+
+        if ('ResizeObserver' in window) {{
+          init();
+        }} else {{
+          window.addEventListener('load', updateHeight);
+        }}
+      }})();
+    </script>
     """
-    components.html(html_block, height=height, scrolling=True)
+    components.html(html_block, height=height, scrolling=False)
