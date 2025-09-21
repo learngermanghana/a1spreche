@@ -5402,24 +5402,22 @@ if tab == "Custom Chat & Speaking Tools":
     with tab_coach:
         colA, colB = st.columns(2)
         with colA:
-            st.session_state[_ns("level")] = st.select_slider(
+            level = st.select_slider(
                 "Level (CEFR)", ["A1", "A2", "B1", "B2"], key=_ns("level")
             )
         with colB:
-            st.session_state[_ns("force_de")] = st.toggle(
-                "Force German replies 🇩🇪", key=_ns("force_de")
-            )
+            force_de = st.toggle("Force German replies 🇩🇪", key=_ns("force_de"))
 
         col1, col2 = st.columns([2, 1])
         with col1:
-            st.session_state[_ns("topic")] = st.text_input(
+            topic = st.text_input(
                 "Topic / Assignment (optional)",
                 value=st.session_state[_ns("topic")] or "",
                 placeholder="z.B. Gesundheit, Reisen, Bewerbung…",
                 key=_ns("topic"),
             )
         with col2:
-            st.session_state[_ns("max_words")] = st.number_input(
+            max_words = st.number_input(
                 "Max words per reply",
                 min_value=40, max_value=400,
                 value=int(st.session_state[_ns("max_words")] or 120),
@@ -5455,12 +5453,12 @@ if tab == "Custom Chat & Speaking Tools":
             "Keep answers concise, encourage follow-up questions, teach with simple examples, "
             "and match CEFR level."
         )
-        system_text += f" CEFR level: {st.session_state[_ns('level')]}."
-        if st.session_state[_ns("force_de")]:
+        system_text += f" CEFR level: {level}."
+        if force_de:
             system_text += " Respond in German unless the user explicitly asks for English."
-        if st.session_state[_ns("topic")]:
-            system_text += f" Topic: {st.session_state[_ns('topic')]}."
-        system_text += f" Keep responses under {st.session_state[_ns('max_words')]} words."
+        if topic:
+            system_text += f" Topic: {topic}."
+        system_text += f" Keep responses under {max_words} words."
 
         # Chat input
         user_msg = st.chat_input("Type your message… (Enter to send)", key=_ns("chat_input"))
