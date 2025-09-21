@@ -5760,7 +5760,7 @@ if tab == "Chat • Grammar • Exams":
                 f"<div class='meta'>Tip: You can also <a href='{RECORDER_URL}' target='_blank' rel='noopener'>record your answer</a> while you practice.</div>",
                 unsafe_allow_html=True
             )
-            col_left, col_right = st.columns([1, 4])
+            col_left, col_right = st.columns([1, 6])
             with col_left:
                 if st.button("🧹 New chat", key=KEY_NEWCHAT_BTN, use_container_width=True):
                     st.session_state[chat_data_key] = []
