@@ -48,6 +48,7 @@ from src.topic_coach_persistence import (
     load_topic_coach_state,
     persist_topic_coach_state,
 )
+from src.level_sync import sync_level_state
 
 from flask import Flask
 from auth import auth_bp
@@ -5561,6 +5562,15 @@ if tab == "Chat • Grammar • Exams":
         match = re.search("|".join(level_options), roster_level) if roster_level else None
         default_level = match.group(0) if match else "A2"
 
+        sync_level_state(
+            st,
+            student_code=student_code_tc,
+            default_level=default_level,
+            level_options=level_options,
+            slider_key=KEY_LEVEL_SLIDER,
+            grammar_key=KEY_GRAM_LEVEL,
+        )
+
         colA, colB, colC = st.columns([1,1,1.2])
         with colA:
             cur_level = st.session_state.get(KEY_LEVEL_SLIDER, default_level)
@@ -5840,9 +5850,12 @@ if tab == "Chat • Grammar • Exams":
             )
         with gcol2:
             level_options = ["A1", "A2", "B1", "B2"]
-            cur_level_g = st.session_state.get(KEY_LEVEL_SLIDER, "A2")
+            default_gram = st.session_state.get("_cchat_last_profile_level") or level_options[0]
+            if default_gram not in level_options:
+                default_gram = level_options[0]
+            cur_level_g = st.session_state.get(KEY_GRAM_LEVEL, default_gram)
             if cur_level_g not in level_options:
-                cur_level_g = "A2"
+                cur_level_g = default_gram
             gram_level = st.select_slider("Level", level_options, value=cur_level_g, key=KEY_GRAM_LEVEL)
             ask = st.button("Ask", type="primary", use_container_width=True, key=KEY_GRAM_ASK_BTN)
 
