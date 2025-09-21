@@ -141,9 +141,7 @@ def generate_summary(messages: List[str]) -> str:
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": prompt},
-                {"role": "user", "content": "
-
-".join(messages)},
+                {"role": "user", "content": "\n\n".join(messages)},
             ],
             temperature=0.7,
         )

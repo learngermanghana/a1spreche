@@ -1,185 +1,313 @@
-"""Custom chat helpers used by the Falowen Streamlit experience."""
+"""Core helpers orchestrating the Falowen chat experience.
+
+This module bridges the navigation/state management helpers that power the
+Streamlit flow with the chat specific utilities that live in
+``src.falowen.custom_chat``.  The public API intentionally mirrors the
+historical interface so callers can keep importing ``chat_core`` while the
+heavy lifting lives in :mod:`src.falowen.custom_chat`.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone as _timezone
-import time
-from typing import Callable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
+from uuid import uuid4
 
 import logging
 
 import streamlit as st
 
-from src.draft_management import _draft_state_keys, autosave_maybe, save_now
+from src.draft_management import _draft_state_keys
+from src.firestore_utils import load_chat_draft_from_db
+from src.utils.toasts import rerun_without_toast
 
-CUSTOM_CHAT_GREETING = "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
+from . import custom_chat as _custom_chat
 
-_summary_client = None
-
-
-def set_summary_client(client) -> None:
-    """Configure the OpenAI client used for chat summaries."""
-
-    global _summary_client
-    _summary_client = client
+# Re-export chat specific helpers so existing imports continue to function.
+CustomChatResult = _custom_chat.CustomChatResult
+CUSTOM_CHAT_GREETING = _custom_chat.CUSTOM_CHAT_GREETING
+TURN_LIMIT = _custom_chat.TURN_LIMIT
+build_custom_chat_prompt = _custom_chat.build_custom_chat_prompt
+generate_summary = _custom_chat.generate_summary
+increment_turn_count_and_maybe_close = (
+    _custom_chat.increment_turn_count_and_maybe_close
+)
+render_custom_chat_input = _custom_chat.render_custom_chat_input
+set_summary_client = _custom_chat.set_summary_client
 
 
 @dataclass
-class CustomChatResult:
-    user_input: str
-    save_clicked: bool
-    chat_locked: bool
-    use_chat_input: bool
-    messages: List[dict]
+class ChatSessionData:
+    """Container describing the currently selected conversation."""
+
+    conv_key: str
+    draft_key: str
+    doc_ref: Any
+    doc_data: Dict[str, Any]
+    fresh_chat: bool
+    messages: Optional[List[dict]] = None
 
 
-def build_custom_chat_prompt(level: str, student_code: Optional[str] = None) -> str:
-    if student_code is None:
-        student_code = st.session_state.get("student_code", "")
-    if level == "C1":
-        return (
-            "You are supportive German C1 Teacher. Speak both English and German. "
-            "Ask one question at a time. Suggest useful starters, check C1 level. "
-            "After correction, proceed to the next question using 'your next recommended question'. "
-            "Stay on one topic; after 5 strong questions, give performance, score, and suggestions."
-        )
-    if level in ["A1", "A2", "B1", "B2"]:
-        correction_lang = "in English" if level in ["A1", "A2"] else "half in English and half in German"
-        rec_url = (
-            "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec"
-            f"?code={student_code}"
-        )
-        return (
-            "You are Herr Felix, a supportive and innovative German teacher. "
-            "Start by congratulating the student in English for their chosen topic and outline the session: focus on confident speaking, vocabulary growth, and question practice across six turns leading to a short presentation. "
-            "Encourage consistent study habits, remind them they can always ask for translations, and share one quick tip for building ideas if they feel stuck. "
-            "If their input is a letter task, direct them to use the Schreiben tab ideas generator instead. "
-            "Promise that after six answers you will build a 60-word presentation from their own words and share an audio-recording link in German. "
-            "Choose three useful keywords for the topic and, for each keyword, ask up to two creative follow-up questions in German only, one at a time, and base the follow-up plan on the student's previous response. "
-            "After every answer, deliver feedback in English, add one motivating suggestion in German, clearly explain any difficult words (A1–B2 level), and gently reinforce the teaching focus. "
-            "If the student asks three grammar questions consecutively without attempting answers, pause the grammar chat politely and guide them back to their course book before continuing. "
-            "After reaching six total questions, give final feedback in English and give them the presentation from their own words in German covering strengths, mistakes, and how to improve, summarise next steps in German, provide idea-building encouragement, and then share the recording link: "
-            f"Always let them know how many question left for you to give them their presentation so they dont feel lost. "
-            f"[Record your audio here]({rec_url}). Include the promised 60-word presentation composed from their own words in German and end with a motivational message wishing them good luck. "
-            f"All feedback and corrections should be {correction_lang}. Keep it motivating and friendly throughout."
-        )
-    return ""
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def widget_key(name: str) -> str:
+    """Return a deterministic widget key scoped to the active conversation."""
+
+    prefix = st.session_state.get("falowen_loaded_key") or st.session_state.get(
+        "falowen_conv_key", "falowen"
+    )
+    safe_prefix = prefix.replace(" ", "_")
+    return f"{safe_prefix}_{name}"
 
 
-def generate_summary(messages: List[str]) -> str:
-    """Use the configured OpenAI client to summarise custom chat answers."""
+def _conversation_namespace(mode: Optional[str], level: Optional[str], teil: Optional[str]) -> str:
+    suffix = (teil or "custom").strip() or "custom"
+    return f"{(mode or '').strip()}_{(level or '').strip()}_{suffix}".strip("_")
 
-    if not messages:
-        return ""
-    prompt = "Summarize the following student responses into about 60 words suitable for a presentation."
+
+def _prefixed_keys(chats: Dict[str, List[dict]], namespace: str) -> List[str]:
+    return [key for key in chats if key.startswith(namespace)]
+
+
+def seed_initial_instruction(messages: List[dict]) -> None:
+    """Ensure a conversation starts with the default assistant greeting."""
+
+    if messages:
+        return
+    messages.append({"role": "assistant", "content": CUSTOM_CHAT_GREETING})
+    st.session_state["falowen_messages"] = messages
+
+
+def persist_messages(doc_ref: Any, conv_key: str, messages: Iterable[dict]) -> None:
+    """Persist the latest conversation transcript to the backing store."""
+
+    if doc_ref is None:
+        return
     try:
-        if _summary_client is None:
-            raise RuntimeError("summary client not configured")
-        resp = _summary_client.chat.completions.create(  # type: ignore[union-attr]
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": "\n\n".join(messages)},
-            ],
-            temperature=0.7,
-        )
-        return (resp.choices[0].message.content or "").strip()
-    except Exception as exc:  # pragma: no cover - network failures surfaced to logs
-        logging.exception("Summary generation error: %s", exc)
-        return ""
+        doc_ref.set({"chats": {conv_key: list(messages)}}, merge=True)
+    except Exception as exc:  # pragma: no cover - Firestore failure paths
+        logging.warning("Failed to persist chat for %s: %s", conv_key, exc)
 
 
-def render_custom_chat_input(
+def _load_chat_document(db: Any, student_code: str) -> tuple[Any, Dict[str, Any]]:
+    if db is None or not student_code:
+        return None, {}
+    doc_ref = db.collection("falowen_chats").document(student_code)
+    try:
+        snapshot = doc_ref.get()
+        if getattr(snapshot, "exists", False):
+            return doc_ref, snapshot.to_dict() or {}
+    except Exception as exc:  # pragma: no cover - Firestore failure paths
+        logging.warning("Failed to load chats for %s: %s", student_code, exc)
+    return doc_ref, {}
+
+
+def _pick_existing_conv(
     *,
-    draft_key: str,
-    conv_key: str,
+    namespace: str,
+    chats: Dict[str, List[dict]],
+    doc_data: Dict[str, Any],
+    session_state_key: Optional[str],
+) -> Optional[str]:
+    if session_state_key and session_state_key in chats:
+        return session_state_key
+
+    current_conv = (doc_data.get("current_conv") or {}).get(namespace)
+    if current_conv and current_conv in chats:
+        return current_conv
+
+    drafts = doc_data.get("drafts") or {}
+    for draft_key in drafts:
+        if draft_key.startswith(namespace) and draft_key in chats:
+            return draft_key
+
+    prefixed = _prefixed_keys(chats, namespace)
+    if prefixed:
+        return max(prefixed, key=lambda key: len(chats.get(key, [])))
+    return None
+
+
+def prepare_chat_session(
+    *,
+    db: Any,
     student_code: str,
-    widget_key: Callable[[str], str],
-    render_umlaut_pad: Callable[[str, str, bool], None],
-) -> CustomChatResult:
-    """Render the non-exam chat input area and return interaction metadata."""
+    mode: Optional[str],
+    level: Optional[str],
+    teil: Optional[str],
+) -> ChatSessionData:
+    """Populate Streamlit state for the active conversation and return metadata."""
 
-    use_chat_input = bool(st.session_state.get("falowen_use_chat_input"))
-    chat_locked = False
+    namespace = _conversation_namespace(mode, level, teil)
+    doc_ref, doc_data = _load_chat_document(db, student_code)
+    chats = (doc_data.get("chats") or {})
 
-    user_input_ci: Optional[str] = None
-    user_input_btn = ""
-    save_clicked = False
+    current = _pick_existing_conv(
+        namespace=namespace,
+        chats=chats,
+        doc_data=doc_data,
+        session_state_key=st.session_state.get("falowen_conv_key"),
+    )
 
-    if use_chat_input:
-        user_input_ci = None if chat_locked else st.chat_input("Type your message…")
-    else:
-        col_in, col_btn = st.columns([8, 1])
-        if st.session_state.pop("falowen_clear_draft", False):
-            st.session_state[draft_key] = ""
-            autosave_maybe(
+    fresh_chat = False
+    if not current:
+        current = f"{namespace}_{uuid4().hex[:8]}"
+        chats = doc_data.setdefault("chats", {})
+        chats[current] = []
+        fresh_chat = True
+
+    messages = list(chats.get(current, []))
+    st.session_state["falowen_messages"] = messages
+    st.session_state["falowen_conv_key"] = current
+    st.session_state["falowen_loaded_key"] = current
+
+    draft_key = f"falowen_chat_draft_{current}"
+    st.session_state["falowen_chat_draft_key"] = draft_key
+    draft_text = (
+        load_chat_draft_from_db(student_code, current) if student_code else ""
+    )
+    st.session_state[draft_key] = draft_text
+
+    if doc_ref is not None:
+        try:
+            doc_ref.set({"current_conv": {namespace: current}}, merge=True)
+        except Exception as exc:  # pragma: no cover - Firestore failure paths
+            logging.warning(
+                "Failed to update current conversation for %s/%s: %s",
                 student_code,
-                draft_key,
-                st.session_state[draft_key],
-                min_secs=0.0,
-                min_delta=0,
-                locked=chat_locked,
+                namespace,
+                exc,
             )
-            last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(
-                draft_key
-            )
-            st.session_state[last_val_key] = st.session_state[draft_key]
-            st.session_state[last_ts_key] = time.time()
-            st.session_state[saved_flag_key] = True
-            st.session_state[saved_at_key] = datetime.now(_timezone.utc)
-        with col_in:
-            st.text_area(
-                "Type your answer...",
-                key=draft_key,
-                on_change=save_now,
-                args=(draft_key, student_code),
-                disabled=chat_locked,
-            )
-            render_umlaut_pad(draft_key, context=f"falowen_chat_{conv_key}", disabled=chat_locked)
-            autosave_maybe(
-                student_code,
-                draft_key,
-                st.session_state.get(draft_key, ""),
-                min_secs=2.0,
-                min_delta=12,
-                locked=chat_locked,
-            )
-        with col_btn:
-            send_clicked = st.button(
-                "Send",
-                key=widget_key("chat_send"),
-                type="primary",
-                disabled=chat_locked,
-            )
-        save_clicked = st.button(
-            "Save draft",
-            key=widget_key("chat_save_draft"),
-            disabled=chat_locked,
-            use_container_width=True,
-        )
-        user_input_btn = (
-            st.session_state.get(draft_key, "").strip() if send_clicked and not chat_locked else ""
-        )
 
-    user_input = (user_input_ci or "").strip() if use_chat_input else user_input_btn
+    return ChatSessionData(
+        conv_key=current,
+        draft_key=draft_key,
+        doc_ref=doc_ref,
+        doc_data=doc_data,
+        fresh_chat=fresh_chat,
+        messages=messages,
+    )
 
-    return CustomChatResult(
-        user_input=user_input,
-        save_clicked=save_clicked,
-        chat_locked=chat_locked,
-        use_chat_input=use_chat_input,
-        messages=list(st.session_state.get("falowen_messages", [])),
+
+def reset_falowen_chat_flow() -> None:
+    """Reset chat specific state without clearing the level/mode selection."""
+
+    st.session_state["falowen_turn_count"] = 0
+    st.session_state["falowen_messages"] = []
+    st.session_state["falowen_chat_closed"] = False
+    st.session_state["custom_topic_intro_done"] = False
+    st.session_state.pop("falowen_summary_emitted", None)
+
+
+def back_step() -> None:
+    """Return to the first wizard step and clear chat related state."""
+
+    draft_key = st.session_state.pop("falowen_chat_draft_key", None)
+    if draft_key:
+        st.session_state.pop(draft_key, None)
+        for extra in _draft_state_keys(draft_key):
+            st.session_state.pop(extra, None)
+
+    for key in [
+        "falowen_mode",
+        "falowen_teil",
+        "falowen_exam_topic",
+        "falowen_exam_keyword",
+        "falowen_messages",
+        "falowen_loaded_key",
+        "falowen_conv_key",
+        "custom_topic_intro_done",
+        "falowen_turn_count",
+        "falowen_chat_closed",
+        "falowen_summary_emitted",
+    ]:
+        st.session_state.pop(key, None)
+
+    st.session_state["falowen_stage"] = 1
+    st.session_state["_falowen_loaded"] = False
+
+    rerun_without_toast()
+
+
+def render_chat_stage(
+    *,
+    client: Any,
+    db: Any,
+    highlight_words: Iterable[str],
+    bubble_user: str,
+    bubble_assistant: str,
+    highlight_keywords,
+    generate_chat_pdf,
+    render_umlaut_pad,
+) -> None:
+    """Render the Streamlit UI for the chat stage."""
+
+    del client, highlight_words, bubble_user, bubble_assistant, highlight_keywords
+    del generate_chat_pdf
+
+    session = prepare_chat_session(
+        db=db,
+        student_code=st.session_state.get("student_code", ""),
+        mode=st.session_state.get("falowen_mode"),
+        level=st.session_state.get("falowen_level"),
+        teil=st.session_state.get("falowen_teil"),
+    )
+
+    namespace = _conversation_namespace(
+        st.session_state.get("falowen_mode"),
+        st.session_state.get("falowen_level"),
+        st.session_state.get("falowen_teil"),
+    )
+
+    chats = (session.doc_data.get("chats") or {})
+    options = sorted(_prefixed_keys(chats, namespace))
+    if session.conv_key not in options:
+        options.append(session.conv_key)
+
+    selected_key = st.selectbox(
+        "Previous chats",
+        options,
+        index=options.index(session.conv_key) if session.conv_key in options else 0,
+        key=widget_key("chat_selector"),
+    )
+
+    if selected_key != session.conv_key:
+        st.session_state["falowen_conv_key"] = selected_key
+        st.session_state.pop("falowen_messages", None)
+        st.session_state["falowen_clear_draft"] = True
+        rerun_without_toast()
+        return
+
+    messages = st.session_state.setdefault("falowen_messages", session.messages or [])
+    if session.fresh_chat:
+        seed_initial_instruction(messages)
+        persist_messages(session.doc_ref, session.conv_key, messages)
+
+    render_custom_chat_input(
+        draft_key=session.draft_key,
+        conv_key=session.conv_key,
+        student_code=st.session_state.get("student_code", ""),
+        widget_key=widget_key,
+        render_umlaut_pad=render_umlaut_pad,
     )
 
 
 __all__ = [
+    "ChatSessionData",
     "CustomChatResult",
     "CUSTOM_CHAT_GREETING",
     "TURN_LIMIT",
+    "back_step",
     "build_custom_chat_prompt",
     "generate_summary",
     "increment_turn_count_and_maybe_close",
+    "persist_messages",
+    "prepare_chat_session",
+    "render_chat_stage",
     "render_custom_chat_input",
+    "reset_falowen_chat_flow",
+    "seed_initial_instruction",
     "set_summary_client",
+    "widget_key",
 ]
