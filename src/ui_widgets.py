@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import textwrap
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -250,7 +251,16 @@ def render_announcements(announcements: list) -> None:
             if a.get("body"):
                 text += f" — {a.get('body','')}"
             st.markdown(text)
-    st.markdown("Visit [blog.falowen.app](https://blog.falowen.app) for more.")
+    st.markdown(
+        textwrap.dedent(
+            """
+            <div style="margin-top:6px;">
+              Visit <a href="https://blog.falowen.app" target="_blank" rel="noopener">blog.falowen.app</a> for more.
+            </div>
+            """
+        ).strip(),
+        unsafe_allow_html=True,
+    )
 
 
 def render_announcements_once(data: list, dashboard_active: bool) -> None:

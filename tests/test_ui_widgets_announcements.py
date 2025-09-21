@@ -47,18 +47,22 @@ def test_render_announcements_fallback_without_banner(monkeypatch):
         raise TypeError("no components")
 
     def fake_markdown(msg, *_, **__):
-        outputs.append(msg)
+        outputs.append((msg, __))
 
     monkeypatch.setattr(ui_widgets, "components", SimpleNamespace(html=failing_html))
     monkeypatch.setattr(ui_widgets.st, "markdown", fake_markdown)
     ui_widgets.render_announcements(
         [{"title": "t", "body": "b", "href": "https://xmpl"}]
     )
+    footer_html = (
+        '<div style="margin-top:6px;">\n  Visit <a href="https://blog.falowen.app" '
+        'target="_blank" rel="noopener">blog.falowen.app</a> for more.\n</div>'
+    )
     assert outputs == [
-        "[**t**](https://xmpl) — b",
-        "Visit [blog.falowen.app](https://blog.falowen.app) for more.",
+        ("[**t**](https://xmpl) — b", {}),
+        (footer_html, {"unsafe_allow_html": True}),
     ]
-    assert all(BANNER not in o for o in outputs)
+    assert all(BANNER not in o[0] for o in outputs)
 
 
 def test_render_announcements_empty(monkeypatch):
@@ -90,12 +94,18 @@ def test_render_announcements_footer_has_blog_link(monkeypatch):
         return None
 
     def fake_markdown(msg, *_, **__):
-        footers.append(msg)
+        footers.append((msg, __))
 
     monkeypatch.setattr(ui_widgets, "components", SimpleNamespace(html=fake_html))
     monkeypatch.setattr(ui_widgets.st, "markdown", fake_markdown)
     ui_widgets.render_announcements([{"title": "t"}])
-    assert footers == ["Visit [blog.falowen.app](https://blog.falowen.app) for more."]
+    assert footers == [
+        (
+            '<div style="margin-top:6px;">\n  Visit <a href="https://blog.falowen.app" '
+            'target="_blank" rel="noopener">blog.falowen.app</a> for more.\n</div>',
+            {"unsafe_allow_html": True},
+        )
+    ]
 
 def test_render_announcements_once_skips_when_hash_matches(monkeypatch):
     render_mock = MagicMock()
