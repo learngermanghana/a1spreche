@@ -149,17 +149,21 @@ def render_announcements(announcements: list) -> None:
       }
       .ann-wrap{max-width:1100px;margin:0 auto;padding:0 10px;}
       .ann-title{font-weight:800;font-size:1.05rem;line-height:1.2; padding-left:12px;border-left:5px solid var(--brand);margin:0 0 6px 0;color:var(--text);}
-      .ann-shell{border-radius:14px;border:1px solid var(--shell-border);background:var(--card);box-shadow:0 6px 18px rgba(2,6,23,.12);padding:12px 14px;overflow:hidden;}
-      .ann-heading{display:flex;align-items:center;gap:10px;margin:0 0 6px 0;font-weight:800;color:var(--text);}
-      .ann-heading a{color:var(--text);text-decoration:none;}
-      .ann-chip{font-size:.78rem;font-weight:800;text-transform:uppercase;background:var(--chip-bg);color:var(--chip-fg);padding:4px 9px;border-radius:999px;border:1px solid var(--shell-border);}
-      .ann-body{color:var(--muted);margin:0;line-height:1.55;font-size:1rem}
+      .ann-shell{border-radius:14px;border:1px solid var(--shell-border);background:var(--card);box-shadow:0 6px 18px rgba(2,6,23,.12);padding:12px 14px;}
+      .ann-heading{display:flex;align-items:center;gap:10px;margin:0 0 6px 0;font-weight:800;color:var(--text);flex-wrap:wrap;}
+      .ann-heading a{color:var(--text);text-decoration:none;flex:1 1 auto;min-width:0;word-break:break-word;}
+      .ann-chip{font-size:.78rem;font-weight:800;text-transform:uppercase;background:var(--chip-bg);color:var(--chip-fg);padding:4px 9px;border-radius:999px;border:1px solid var(--shell-border);flex-shrink:0;}
+      .ann-body{color:var(--muted);margin:0;line-height:1.55;font-size:1rem;overflow-wrap:anywhere;}
       .ann-actions{margin-top:8px}
       .ann-actions a{color:var(--link);text-decoration:none;font-weight:700}
       .ann-dots{display:flex;gap:12px;justify-content:center;margin-top:12px}
       .ann-dot{width:11px;height:11px;border-radius:999px;background:#9ca3af;opacity:.9;transform:scale(.95);border:none;cursor:pointer;touch-action:manipulation;}
       .ann-dot[aria-current="true"]{background:var(--brand);opacity:1;transform:scale(1.22);box-shadow:0 0 0 4px var(--ring)}
       .ann-tagline{margin:0 0 10px 0;color:var(--muted);font-size:.9rem}
+      @media (max-width: 420px){
+        .ann-heading{align-items:flex-start;}
+        .ann-chip{margin-bottom:6px;}
+      }
     </style>
     <div class="ann-wrap">
       <div class="ann-title">📣 Falowen blog updates</div>
@@ -183,6 +187,13 @@ def render_announcements(announcements: list) -> None:
       const dotsWrap= document.getElementById('ann_dots');
       let i = 0;
       let timer;
+      let resizeTimer;
+      function adjustHeight(){
+        const height = document.documentElement.scrollHeight;
+        if (window.parent && window.parent !== window){
+          window.parent.postMessage({ type: 'streamlit:setFrameHeight', height: height }, '*');
+        }
+      }
       function setActiveDot(idx){ [...dotsWrap.children].forEach((d,j)=> d.setAttribute('aria-current', j===idx ? 'true':'false')); }
       function render(idx){
         const c = data[idx] || {};
@@ -200,6 +211,7 @@ def render_announcements(announcements: list) -> None:
         const link = document.createElement('a'); link.target = '_blank'; link.rel='noopener'; link.textContent='Read more'; link.href = c.href || '#';
         actionEl.textContent=''; actionEl.appendChild(link); actionEl.style.display = c.href ? '' : 'none';
         setActiveDot(idx);
+        setTimeout(adjustHeight, 50);
       }
       function restartTimer(){
         if (data.length <= 1) return;
@@ -217,13 +229,18 @@ def render_announcements(announcements: list) -> None:
         dotsWrap.appendChild(b); });
       render(i);
       if (data.length > 1) { timer = setInterval(()=>{ i = (i + 1) % data.length; render(i); }, 5000); }
+      adjustHeight();
+      window.addEventListener('resize', ()=>{
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(adjustHeight, 150);
+      });
     </script>
     """
     try:
         components.html(
             _html.replace("__DATA__", json.dumps(announcements, ensure_ascii=False)),
-            height=240,
-            scrolling=False,
+            height=420,
+            scrolling=True,
         )
     except TypeError:
         for a in announcements:
