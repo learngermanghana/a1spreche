@@ -5380,7 +5380,17 @@ if tab == "My Results and Resources":
 # =========================================================
 if tab == "Custom Chat & Speaking Tools":
     st.markdown("## 🗣️ Custom Chat & Speaking Tools")
-    st.caption("Topic Coach + Grammar Helper. Newest messages appear at the top; input stays below.")
+    st.caption("Topic Coach + Grammar Helper. Newest messages on top. Input stays below.")
+
+    # ---------- tiny UI polish for chat bubbles & chips ----------
+    st.markdown("""
+    <style>
+      .bubble-a{background:#fffbe6;border:1px solid #fde68a;padding:12px 14px;border-radius:14px;margin:8px 0;line-height:1.55;}
+      .bubble-u{background:#eef2ff;border:1px solid #c7d2fe;padding:12px 14px;border-radius:14px;margin:8px 0;line-height:1.55;text-align:right;}
+      .kw-chip{display:inline-block;margin:0 6px 6px 0;padding:2px 10px;border-radius:999px;border:1px solid #7dd3fc;background:#e0f2fe;font-weight:700;}
+      .hint{color:#64748b;font-size:.9rem;margin:2px 0 6px 0;}
+    </style>
+    """, unsafe_allow_html=True)
 
     # ---------- namespaced state ----------
     def _ns(key: str, default=None):
@@ -5389,6 +5399,7 @@ if tab == "Custom Chat & Speaking Tools":
             st.session_state[k] = default
         return k
 
+    # derive default level from roster if available
     level_options = ["A1", "A2", "B1", "B2"]
     ensure_student_level()
     roster_level = _safe_upper(st.session_state.get("student_level"), "")
@@ -5396,9 +5407,9 @@ if tab == "Custom Chat & Speaking Tools":
     default_level = match.group(0) if match else "A2"
 
     level_key = _ns("level", default_level)
-    _ns("force_de", False)
-    _ns("max_words", 140)
-    _ns("chat", [])
+    force_de_key = _ns("force_de", False)
+    max_words_key = _ns("max_words", 140)
+    chat_key = _ns("chat", [])
 
     # ---------- two sub-tabs ----------
     tab_coach, tab_grammar = st.tabs(["🧑‍🏫 Topic Coach", "🛠️ Grammar Helper"])
@@ -5409,104 +5420,110 @@ if tab == "Custom Chat & Speaking Tools":
         with colA:
             level = st.select_slider("Level (CEFR)", level_options, key=level_key)
         with colB:
-            force_de = st.toggle("Force German replies 🇩🇪", key=_ns("force_de"))
+            force_de = st.toggle("Force German replies 🇩🇪", key=force_de_key)
 
         max_words = st.number_input(
-            "Max words per reply",
-            min_value=60, max_value=400,
-            value=int(st.session_state[_ns("max_words")] or 140),
-            step=10, key=_ns("max_words")
+            "Max words per reply", min_value=60, max_value=400,
+            value=int(st.session_state[max_words_key] or 140),
+            step=10, key=max_words_key
         )
 
-        if st.button("🧹 New chat", key=_ns("btn_new")):
-            st.session_state[_ns("chat")] = []
-            st.toast("Cleared")
+        a1, a2 = st.columns([1,1])
+        with a1:
+            if st.button("🧹 New chat", key=_ns("btn_new")):
+                st.session_state[chat_key] = []
+                st.toast("Cleared")
 
         st.divider()
 
-        # --- history (newest first) ---
-        if st.session_state[_ns("chat")]:
-            st.caption("Newest first")
-        for msg in reversed(st.session_state[_ns("chat")]):
-            with st.chat_message(msg["role"]):
-                st.markdown(msg["content"])
+        # --- HISTORY: show only the last 3 messages, newest first ---
+        history = st.session_state[chat_key] or []
+        tail = history[-3:] if len(history) > 3 else history
+        if tail:
+            st.markdown("<div class='hint'>Newest first (showing last 3)</div>", unsafe_allow_html=True)
+        for msg in reversed(tail):
+            if msg["role"] == "user":
+                st.markdown(f"<div class='bubble-u'>{msg['content']}</div>", unsafe_allow_html=True)
+            else:
+                st.markdown(f"<div class='bubble-a'>{msg['content']}</div>", unsafe_allow_html=True)
 
-        # --- compose system (UPDATED COACH PROMPT) ---
-        correction_lang = "English"  # keep feedback/corrections in English
+        # --- SYSTEM PROMPT (updated coaching logic & formatting) ---
+        correction_lang = "English"
         system_text = (
             f"You are Herr Felix, a supportive and innovative German teacher. "
-            f"1. Congratulate the student in English for the topic and give interesting tips on the topic. "
-            f"Always let the student know how the session is going to go in English. It shouldnt just be questions "
-            f"but teach them also. The total number of questios,what they should expect,what they would achieve at the end "
-            f"of the session. Let them know they can ask questions or ask for translation if they dont understand anything. "
-            f"You are ready to always help "
-            f"2. If student input looks like a letter question instead of a topic for discussion, then prompt them that you "
-            f"are trained to only help them with their speaking so they should rather paste their letter question in the ideas "
-            f"generator in the schreiben tab. "
-            f"Promise them that if they answer all 8 questions, you use their own words to build a presentation of 60 words "
-            f"for them. They record it as mp3 or wav on their phones and upload at the Pronunciation & Speaking Checker tab "
-            f"under the Exams Mode & Custom Chat. They only have to be consistent "
-            f"Pick 4 useful keywords related to the student's topic and use them as the focus for conversation. Give students "
-            f"ideas and how to build their points for the conversation in English. "
-            f"For each keyword, ask the student up to 2 creative, diverse and interesting questions in German only based on "
-            f"student language level, one at a time, not all at once. Just ask the question and don't let student know this is "
-            f"the keyword you are using. "
-            f"After each student answer, give feedback and a suggestion to extend their answer if it's too short. Feedback in "
-            f"English and suggestion in German. "
-            f" Explain difficult words when level is A1,A2,B1,B2. "
-            f"IMPORTANT: If a student asks 3 grammar questions in a row without trying to answer your conversation questions, "
-            f"respond warmly but firmly: remind them to check their course book using the search button for grammar explanations. "
-            f"Explain that reading their book will help them become more independent and confident as a learner. Kindly pause "
-            f"grammar explanations until they have checked the book and tried the conversation questions. Stay positive, but firm "
-            f"about using the resources. If they still have a specific question after reading, gladly help. "
-            f"After keyword questions, continue with other random follow-up questions that reflect student selected level about "
-            f"the topic in German (until you reach 8 questions in total). "
-            f"Never ask more than 2 questions about the same keyword. "
-            f"After the student answers 8 questions, write a summary of their performance: what they did well, mistakes, and "
-            f"what to improve in English and end the chat with motivation and tips. "
-            f"Also give them 60 words from their own words in a presentation form that they can use in class. Add your own points "
-            f"if their words and responses were small. Tell them to improve on it, record with phones as wav or mp3 and upload at "
-            f"Pronunciation & Speaking Checker for further assessment and learn to speak without reading "
-            f"All feedback and corrections should be {correction_lang}. "
-            f"Encourage the student and keep the chat motivating. "
+            f"1) Congratulate the student in English for the topic and give interesting tips on it. "
+            f"Explain how the session will go in English (what to expect, total questions, goals, and that they can ask for translation). "
+            f"2) If the input looks like a letter-writing task, gently redirect them to paste it into the Ideen-Generator in the Schreiben tab; "
+            f"tell them you focus on speaking here. "
+            f"Promise that after 8 answered questions you will build a 60-word presentation from their own words. "
+            f"Tell them to record it (mp3/wav) and upload it in the Pronunciation & Speaking Checker under Exams Mode & Custom Chat. "
+            f"Pick exactly 4 useful keywords related to the topic and use them as hidden foci for the conversation. "
+            f"Give ideas in English on how to build points for the conversation. "
+            f"For each keyword, ask up to 2 creative questions in German only (level-appropriate), ONE at a time. "
+            f"After each answer: give feedback in English and a short extension suggestion in German. "
+            f"Explain difficult words for A1–B2. "
+            f"If the student asks 3 grammar questions in a row without answering, warmly pause grammar and remind them to check the course book "
+            f"search for explanations, then continue speaking practice. "
+            f"Continue with follow-up questions until you reach 8 total. Never >2 questions per keyword. "
+            f"After 8 answers: write an English summary (strengths, mistakes, improvements) and finish with motivation. "
+            f"Then produce a ~60-word presentation using their words (add a few if needed) and remind them to record & upload it. "
+            f"ALL feedback/corrections must be in {correction_lang}. "
+            f"FORMATTING: Start each main reply with a 'Keywords' line showing four bold keywords as chips, e.g. "
+            f"**Supermarkt**, **Preise**, **Einkaufszettel**, **Kassenzettel**. Use short paragraphs and bullet points."
         )
-        # guardrails for language/length
         system_text += f" CEFR level: {level}. Keep each reply under {max_words} words."
         if force_de:
-            system_text += " Ask your questions in German; meta-instructions and feedback in English."
+            system_text += " Ask questions in German; explanations/feedback in English."
 
-        # --- input (always at bottom) ---
+        # --- INPUT (always at the very bottom) ---
         user_msg = st.chat_input(
             "Hallo! 👋 What topic do you want to practice today? (You can ask for translations anytime.)",
             key=_ns("chat_input")
         )
         if user_msg:
-            st.session_state[_ns("chat")].append({
+            # append user message
+            st.session_state[chat_key].append({
                 "role": "user", "content": user_msg, "ts": datetime.now(UTC).isoformat()
             })
-            history = [{"role": m["role"], "content": m["content"]}
-                       for m in st.session_state[_ns("chat")]]
-            messages = [{"role": "system", "content": system_text}] + history
-            with st.chat_message("assistant"):
-                with st.spinner("Thinking…"):
-                    try:
-                        resp = client.chat.completions.create(
-                            model="gpt-4o-mini",
-                            messages=messages,
-                            temperature=0.2,
-                            max_tokens=550,
-                        )
-                        reply = (resp.choices[0].message.content or "").strip()
-                    except Exception as e:
-                        reply = f"(Error) {e}"
-                    st.markdown(reply)
-            st.session_state[_ns("chat")].append({
-                "role": "assistant", "content": reply, "ts": datetime.now(UTC).isoformat()
+
+            # build conversation for API
+            convo = [{"role": "system", "content": system_text}]
+            for m in st.session_state[chat_key]:
+                convo.append({"role": m["role"], "content": m["content"]})
+
+            # call model
+            try:
+                resp = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=convo,
+                    temperature=0.2,
+                    max_tokens=550,
+                )
+                reply = (resp.choices[0].message.content or "").strip()
+            except Exception as e:
+                reply = f"(Error) {e}"
+
+            # light post-format: convert a 'Keywords:' line to chips if present
+            chips_html = ""
+            kw_match = re.search(r"(?:^|\\n)\\s*\\*\\*?Keywords?\\*\\*?:\\s*(.+)", reply, flags=re.IGNORECASE)
+            if kw_match:
+                # split on commas, bullets, or pipes
+                raw = re.split(r"[•,|/]", kw_match.group(1))
+                kws = [k.strip(" .*-_") for k in raw if k.strip()]
+                if kws:
+                    chips_html = "".join(f"<span class='kw-chip'><b>{k}</b></span>" for k in kws[:4])
+                    reply = re.sub(r"(?:^|\\n)\\s*\\*\\*?Keywords?\\*\\*?:.*", "", reply, count=1, flags=re.IGNORECASE)
+
+            # store assistant message wrapped in a bubble with chips header
+            bubble = (chips_html + ("<div style='height:6px'></div>" if chips_html else "")) + reply
+            st.session_state[chat_key].append({
+                "role": "assistant", "content": bubble, "ts": datetime.now(UTC).isoformat()
             })
+            st.rerun()  # ensure the new message shows above, with input staying at bottom
 
     # ===================== Grammar Helper =====================
     with tab_grammar:
-        st.markdown("Ask any **grammar question** or paste a sentence for help. I’ll explain/correct/simplify as needed.")
+        st.markdown("Ask any **grammar question** or paste a sentence for help. I’ll correct/explain briefly with examples.")
         gcol1, gcol2 = st.columns([3, 1])
         with gcol1:
             gram_q = st.text_area(
@@ -5525,9 +5542,8 @@ if tab == "Custom Chat & Speaking Tools":
 
         if ask and (gram_q or "").strip():
             sys = (
-                "You are a German grammar helper. Match the user's CEFR level, be concise, "
-                "and provide a short answer with 1–2 examples. If the user pasted a text, "
-                "correct it and briefly explain the key points."
+                "You are a German grammar helper. Match the CEFR level, be concise, give 1–2 examples. "
+                "If text was pasted, correct it first, then explain key points in bullets."
             )
             try:
                 resp = client.chat.completions.create(
@@ -5542,7 +5558,8 @@ if tab == "Custom Chat & Speaking Tools":
                 out = (resp.choices[0].message.content or "").strip()
             except Exception as e:
                 out = f"(Error) {e}"
-            st.markdown(out)
+
+            st.markdown(f"<div class='bubble-a'>{out}</div>", unsafe_allow_html=True)
 
     st.divider()
     render_app_footer(FOOTER_LINKS)
