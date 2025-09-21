@@ -5890,6 +5890,7 @@ if tab == "Chat • Grammar • Exams":
             sys = (
                 "You are a German grammar helper. Match the CEFR level, be concise, and give 1–2 short examples. "
                 "If text was pasted, correct it first (one paragraph), then list 3 bullet notes on key points."
+                "Always explain in simple english and support with examples in German but still explain with english for the student to understand"
             )
             placeholder = st.empty()
             placeholder.markdown("<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>", unsafe_allow_html=True)
