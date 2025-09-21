@@ -2164,7 +2164,7 @@ def render_section(day_info: dict, key: str, title: str, icon: str) -> None:
             )
         if part.get('workbook_link'):
             render_link("📒 Workbook (Assignment)", part['workbook_link'])
-            render_assignment_reminder()
+            render_assignment_reminder(show_grammar_cta=True)
         extras = part.get('extra_resources')
         if extras:
             for ex in (extras if isinstance(extras, list) else [extras]):
@@ -2761,7 +2761,7 @@ if tab == "My Course":
                                 f"{key}-{idx_part}",
                                 f"Day {day_info.get('day')} Chapter {chapter}",
                             )
-                        render_assignment_reminder()
+                        render_assignment_reminder(show_grammar_cta=True)
                     if extras:
                         for ex in _as_list(extras):
                             st.markdown(f"- [🔗 Extra]({ex})")
@@ -2793,7 +2793,7 @@ if tab == "My Course":
                             f"fallback-{info.get('day', '')}",
                             f"Day {info.get('day')} Chapter {info.get('chapter', '')}",
                         )
-                    render_assignment_reminder()
+                    render_assignment_reminder(show_grammar_cta=True)
                     showed = True
                 for ex in _as_list(info.get("extra_resources")):
                     st.markdown(f"- [🔗 Extra]({ex})")

@@ -5,7 +5,7 @@ import types
 from pathlib import Path
 
 
-def _load_render_section_any(render_vocab_stub=None):
+def _load_render_section_any(render_vocab_stub=None, assignment_stub=None):
     """Load the ``render_section_any`` helper from ``a1sprechen.py``.
 
     Parameters
@@ -53,7 +53,7 @@ def _load_render_section_any(render_vocab_stub=None):
 
     mod.st = ST()
     mod.render_vocab_lookup = render_vocab_stub or (lambda *a, **k: None)
-    mod.render_assignment_reminder = lambda *a, **k: None
+    mod.render_assignment_reminder = assignment_stub or (lambda *a, **k: None)
     mod.logging = logging
 
     exec(snippet, mod.__dict__)
@@ -98,4 +98,19 @@ def test_dictionary_label_passed():
     render_section_any(day_info, "lesen", "Lesen", "📖", set())
 
     assert captured == {"key": "lesen-0", "label": "Day 7 Chapter 2"}
+
+
+def test_assignment_reminder_receives_cta_flag():
+    calls = []
+
+    def assignment_stub(*args, **kwargs):  # pragma: no cover - trivial
+        calls.append((args, kwargs))
+
+    render_section_any, st = _load_render_section_any(assignment_stub=assignment_stub)
+    day_info = {"lesen": {"chapter": "2", "workbook_link": "x"}, "day": 7}
+    render_section_any(day_info, "lesen", "Lesen", "📖", set())
+
+    assert len(calls) == 1
+    assert calls[0][0] == ()
+    assert calls[0][1] == {"show_grammar_cta": True}
 

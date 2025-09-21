@@ -39,8 +39,8 @@ def _load_vocab_sheet(sheet_id: str = VOCAB_SHEET_ID) -> Optional[pd.DataFrame]:
         return None
 
 
-def render_assignment_reminder() -> None:
-    """Show a yellow assignment reminder box."""
+def render_assignment_reminder(*, show_grammar_cta: bool = False) -> None:
+    """Show a yellow assignment reminder box and optional grammar CTA."""
 
     st.markdown(
         '''
@@ -63,9 +63,16 @@ def render_assignment_reminder() -> None:
             ⬆️ <strong>Your Assignment:</strong><br>
             Complete the exercises in your <em>workbook</em> for this chapter.
         </div>
-        ''',
+        '''
+        ,
         unsafe_allow_html=True,
     )
+
+    if show_grammar_cta:
+        if st.button("Ask a grammar question", use_container_width=True):
+            st.session_state["nav_sel"] = "Chat • Grammar • Exams"
+            st.session_state["main_tab_select"] = "Chat • Grammar • Exams"
+            st.session_state["need_rerun"] = True
 
 
 def render_link(label: str, url: str) -> None:
