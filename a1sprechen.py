@@ -5947,6 +5947,20 @@ if tab == "Chat • Grammar • Exams":
             placeholder = st.empty()
             placeholder.markdown("<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>", unsafe_allow_html=True)
             time.sleep(random.uniform(0.8, 1.2))
+            if topic_db is None:
+                logging.debug("Grammar Firestore logging skipped: no client available")
+            else:
+                try:
+                    topic_db.collection("falowen_grammar_questions").add(
+                        {
+                            "student_code": st.session_state.get("student_code"),
+                            "level": gram_level,
+                            "question": gram_q,
+                            "created_at": firestore.SERVER_TIMESTAMP,
+                        }
+                    )
+                except Exception:
+                    logging.warning("Failed to log grammar question", exc_info=True)
             try:
                 resp = client.chat.completions.create(
                     model="gpt-4o-mini",
