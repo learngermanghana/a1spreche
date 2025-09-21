@@ -5493,15 +5493,18 @@ if tab == "Custom Chat & Speaking Tools":
     chat_data_key   = "cchat_data_chat"
     qcount_data_key = "cchat_data_qcount"
 
-    # ---------- Widget keys (never write to these keys in code) ----------
+    # ---------- Widget keys (make them UNIQUE across app) ----------
     KEY_LEVEL_SLIDER   = "cchat_w_level"
     KEY_FORCE_DE_TOG   = "cchat_w_force_de"
     KEY_MAX_WORDS_NUM  = "cchat_w_max_words"
     KEY_NEWCHAT_BTN    = "cchat_w_btn_new_bottom"
     KEY_CHAT_INPUT     = "cchat_w_chat_input"
-    KEY_GRAM_TEXT      = "cchat_w_gram_text"
-    KEY_GRAM_LEVEL     = "cchat_w_gram_level"
-    KEY_GRAM_ASK_BTN   = "cchat_w_gram_go"
+    # Grammar keys: use v2 suffix to avoid collisions elsewhere
+    KEY_GRAM_TEXT      = "cchat_w_gram_text_v2"
+    KEY_GRAM_LEVEL     = "cchat_w_gram_level_v2"
+    KEY_GRAM_ASK_BTN   = "cchat_w_gram_go_v2"
+    # Also make Regen button unique
+    KEY_REGEN_BTN      = "cchat_w_btn_regen_v2"
 
     # ---------- Subtabs ----------
     tab_tc, tab_gram, tab_exam = st.tabs(["🧑‍🏫 Topic Coach", "🛠️ Grammar", "📝 Exams"])
@@ -5549,7 +5552,7 @@ if tab == "Custom Chat & Speaking Tools":
 
         if st.session_state["cchat_data_finalized"]:
             st.success("🎉 Session complete — summary & ~60-word presentation generated. You can regenerate if you like.")
-            if st.button("🔁 Regenerate presentation", key="cchat_w_btn_regen"):
+            if st.button("🔁 Regenerate presentation", key=KEY_REGEN_BTN):
                 convo = [{"role": "system", "content": "You are Herr Felix. FINALIZE NOW: The student has answered 6 questions. Do not ask more questions. Output two parts: 1) An English summary (strengths, mistakes, improvements). 2) A ~60-word presentation using their own words (add a few if needed). Keep it clear and usable for class. No extra chit-chat."}]
                 for m in st.session_state[chat_data_key]:
                     convo.append({"role": m["role"], "content": m["content"]})
