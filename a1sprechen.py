@@ -5723,6 +5723,7 @@ if tab == "Chat • Grammar • Exams":
                 st.markdown(f"<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>", unsafe_allow_html=True)
                 st.markdown(f"<div class='bubble-a'>{m['content']}</div>", unsafe_allow_html=True)
 
+
         # ---- coaching system prompt (intro + feedback + expand + keywords) ----
         correction_lang = "English"
         system_text = (
@@ -5732,6 +5733,12 @@ if tab == "Chat • Grammar • Exams":
             f"- After each student answer: (1) correct errors, (2) explain briefly in {correction_lang}, "
             f"(3) add richer ideas/templates/examples to help them speak more, then (4) ask ONE next German question.\n"
             f"- Keep questions level-appropriate, short, and creative; never ask >2 questions per keyword.\n\n"
+            f"FIRST REPLY (MANDATORY):\n"
+            f"- Your FIRST paragraph must be in English: congratulate the topic, explain how the session works (6 Qs, feedback each time), "
+            f"invite questions/translation requests, and set expectations.\n"
+            f"- Then show a **KEYWORDS** line with exactly 3 bold chips (e.g., **Supermarkt**, **Preise**, **Einkaufszettel**).\n"
+            f"- After the English intro, ask exactly ONE short German question to begin.\n"
+            f"- Never start your first reply with German.\n\n"
             f"FIRST TOPIC BEHAVIOR:\n"
             f"- If the student's FIRST message looks like a topic (1–3 words, e.g., 'Einkaufen', 'Reisen', 'Umwelt'), "
             f"start with a short English topic intro: what it covers, typical situations, 3–5 helpful ideas, "
@@ -5751,7 +5758,34 @@ if tab == "Chat • Grammar • Exams":
         )
         system_text += f" CEFR level: {level}."
         if force_de:
-            system_text += " Ask questions in German; explanations/feedback in English."
+            system_text += " After your first English intro, ask questions in German; explanations/feedback stay in English."
+
+        # ---- build conversation & enforce first-reply English intro ----
+        convo = [{"role": "system", "content": system_text}]
+        for m in st.session_state[chat_data_key]:
+            convo.append({"role": m["role"], "content": m["content"]})
+
+        no_assistant_yet = not any(m["role"] == "assistant" for m in st.session_state[chat_data_key])
+        if no_assistant_yet:
+            convo.append({
+                "role": "system",
+                "content": (
+                    "FIRST_REPLY_MODE: Start with a short English intro (overview, session plan, encouragement). "
+                    "Then present a **KEYWORDS** line with exactly 3 bold chips. "
+                    "Finally ask ONE short German question to begin. "
+                    "Do not skip the English intro even if the user's first message is long or detailed."
+                )
+            })
+        else:
+            convo.append({
+                "role": "system",
+                "content": (
+                    "FEEDBACK_MODE: For the user's last message, first give 'Corrections' with a brief explanation in English "
+                    "and a corrected German sentence; then 'Idea boost' with a tiny template and one filled German example; "
+                    "THEN ask exactly ONE next German question (unless already finished)."
+                )
+            })
+
 
         # ---- sticky input (recorder reminder + new chat + input) ----
         with st.container():
