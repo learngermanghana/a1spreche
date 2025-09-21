@@ -5380,61 +5380,74 @@ if tab == "My Results and Resources":
 # =========================================================
 if tab == "Custom Chat & Speaking Tools":
     st.markdown("## 🗣️ Custom Chat & Speaking Tools")
-    st.caption("Clear & simple: last 3 messages on top, input stays below. 3 keywords • 6 questions.")
+    st.caption("Simple & clear: last 3 messages shown; input stays below. 3 keywords • 6 questions.")
 
-    # ---------- styles ----------
+    # ---- Links you requested
+    RECORDER_URL = "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec?code=felixa2"
+    PRACTICE_URL = "https://script.google.com/macros/s/AKfycbyJ5lTeXUgaGw-rejDuh_2ex7El_28JgKLurOOsO1c8LWfVE-Em2-vuWuMn1hC5-_IN/exec"
+
+    # ---------- Styles (bubbles, chips, sticky input, labels) ----------
     st.markdown("""
     <style>
-      .bubble-a{background:#fffbe6;border:1px solid #fde68a;padding:12px 14px;border-radius:14px;margin:8px 0;line-height:1.55;}
-      .bubble-u{background:#eef2ff;border:1px solid #c7d2fe;padding:12px 14px;border-radius:14px;margin:8px 0;line-height:1.55;text-align:right;}
-      .kw-chip{display:inline-block;margin:0 6px 6px 0;padding:2px 10px;border-radius:999px;border:1px solid #7dd3fc;background:#e0f2fe;font-weight:700;}
-      .hint{color:#64748b;font-size:.9rem;margin:2px 0 6px 0;}
-      .sticky-input{position:sticky; bottom:0; background:#f8fafc; padding:10px 8px;
-                    border-top:1px solid #e5e7eb; box-shadow:0 -6px 20px rgba(2,6,23,.06); border-radius:12px;}
+      .bubble-wrap{ display:flex; gap:8px; margin:8px 0; align-items:flex-start; }
+      .bubble-a{ background:#fffbe6; border:1px solid #fde68a; padding:12px 14px; border-radius:14px; line-height:1.55; max-width:92%; }
+      .bubble-u{ background:#eef2ff; border:1px solid #c7d2fe; padding:12px 14px; border-radius:14px; line-height:1.55; margin-left:auto; max-width:92%; }
+      .lbl-a{ font-size:.8rem; color:#7c2d12; font-weight:800; margin-bottom:4px; }
+      .lbl-u{ font-size:.8rem; color:#1e40af; font-weight:800; text-align:right; margin:0 4px 4px 0; }
+      .kw-title{ font-weight:900; font-size:1.05rem; margin:2px 0 6px 0; }
+      .kw-chip{ display:inline-block; margin:0 6px 6px 0; padding:6px 12px; border-radius:999px; border:1px solid #0891b2; background:#e0f2fe; font-weight:800; }
+      .sticky-input{ position:sticky; bottom:0; background:#f8fafc; padding:10px 8px;
+                     border-top:1px solid #e5e7eb; box-shadow:0 -6px 20px rgba(2,6,23,.06); border-radius:12px; }
+      .btn-row { display:flex; flex-wrap:wrap; gap:10px; }
+      .btn {
+        display:inline-block; padding:10px 14px; border-radius:10px; text-decoration:none; font-weight:800;
+        background:#1f2d7a; color:white; border:1px solid #1b2a6e; box-shadow:0 4px 10px rgba(31,45,122,.18);
+      }
+      .panel { border:1px solid rgba(148,163,184,.35); border-radius:12px; padding:12px 14px; background:#ffffff; }
       @media (max-width: 640px){
         .block-container { padding-bottom: 4.5rem; }
         button, [role="button"] { min-height: 44px; }
       }
       .typing span{ display:inline-block; width:6px; height:6px; margin:0 2px; border-radius:50%;
                     background:#94a3b8; opacity:.2; animation: t 1s infinite; }
-      .typing span:nth-child(2){ animation-delay:.15s; }
-      .typing span:nth-child(3){ animation-delay:.3s; }
+      .typing span:nth-child(2){ animation-delay:.15s; } .typing span:nth-child(3){ animation-delay:.3s; }
       @keyframes t{ 0%{opacity:.2; transform:translateY(0)} 50%{opacity:1; transform:translateY(-2px)} 100%{opacity:.2; transform:translateY(0)} }
     </style>
     """, unsafe_allow_html=True)
 
-    # ---------- state (only for NON-widget data) ----------
-    if "cchat_data_chat" not in st.session_state:
-        st.session_state["cchat_data_chat"] = []
-    if "cchat_data_qcount" not in st.session_state:
-        st.session_state["cchat_data_qcount"] = 0
-
-    chat_data_key = "cchat_data_chat"
+    # ---------- Persistent (data-only) session state ----------
+    if "cchat_data_chat" not in st.session_state:     st.session_state["cchat_data_chat"] = []
+    if "cchat_data_qcount" not in st.session_state:   st.session_state["cchat_data_qcount"] = 0
+    chat_data_key   = "cchat_data_chat"
     qcount_data_key = "cchat_data_qcount"
 
-    # ---------- widget keys (DO NOT prefill st.session_state for these) ----------
+    # ---------- Widget keys (do NOT preassign values to these keys) ----------
     KEY_LEVEL_SLIDER   = "cchat_w_level"
     KEY_FORCE_DE_TOG   = "cchat_w_force_de"
     KEY_MAX_WORDS_NUM  = "cchat_w_max_words"
     KEY_NEWCHAT_BTN    = "cchat_w_btn_new_bottom"
     KEY_CHAT_INPUT     = "cchat_w_chat_input"
+    KEY_GRAM_TEXT      = "cchat_w_gram_text"
     KEY_GRAM_LEVEL     = "cchat_w_gram_level"
     KEY_GRAM_ASK_BTN   = "cchat_w_gram_go"
-    KEY_GRAM_TEXT      = "cchat_w_gram_text"
 
-    # ---------- two sub-tabs ----------
-    tab_coach, tab_grammar = st.tabs(["🧑‍🏫 Topic Coach", "🛠️ Grammar Helper"])
+    # ---------- Subtabs (all inside Custom Chat) ----------
+    tab_tc, tab_gram, tab_exam = st.tabs(["🧑‍🏫 Topic Coach", "🛠️ Grammar", "📝 Exams"])
 
     # ===================== Topic Coach =====================
-    with tab_coach:
-        # safe level defaults from roster
+    with tab_tc:
+        # Recorder button at the top
+        st.markdown('<div class="btn-row">', unsafe_allow_html=True)
+        st.markdown(f'<a class="btn" href="{RECORDER_URL}" target="_blank" rel="noopener" aria-label="Open Recorder">🎙️ Open Recorder</a>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # Level controls
         level_options = ["A1", "A2", "B1", "B2"]
         ensure_student_level()
         roster_level = _safe_upper(st.session_state.get("student_level"), "")
         match = re.search("|".join(level_options), roster_level) if roster_level else None
         default_level = match.group(0) if match else "A2"
 
-        # controls (widgets manage their own st.session_state under their keys)
         colA, colB, colC = st.columns([1,1,1.2])
         with colA:
             cur_level = st.session_state.get(KEY_LEVEL_SLIDER, default_level)
@@ -5451,15 +5464,14 @@ if tab == "Custom Chat & Speaking Tools":
                 step=10, key=KEY_MAX_WORDS_NUM
             )
 
-        # ---- 6-step progress header ----
+        # Progress
         q_done = int(st.session_state[qcount_data_key] or 0)
-        q_total = 6
-        st.markdown(f"**Progress:** ✅ {q_done}/{q_total} answered")
-        st.progress(q_done / q_total if q_total else 0.0)
+        st.markdown(f"**Progress:** ✅ {q_done}/6 answered")
+        st.progress(q_done / 6.0)
 
         st.divider()
 
-        # --- HISTORY: older collapsed; show last 3 (newest first) ---
+        # History: show earlier (if any), then the last 3 in natural order (old→new)
         history = st.session_state[chat_data_key] or []
         older = history[:-3] if len(history) > 3 else []
         latest = history[-3:] if len(history) > 3 else history
@@ -5467,14 +5479,22 @@ if tab == "Custom Chat & Speaking Tools":
         if older:
             with st.expander(f"Show earlier ({len(older)})"):
                 for m in older:
-                    st.markdown(f"<div class='bubble-{'u' if m['role']=='user' else 'a'}'>{m['content']}</div>", unsafe_allow_html=True)
+                    if m["role"] == "user":
+                        st.markdown(f"<div class='bubble-wrap'><div class='lbl-u'>Student</div></div>", unsafe_allow_html=True)
+                        st.markdown(f"<div class='bubble-u'>{m['content']}</div>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>", unsafe_allow_html=True)
+                        st.markdown(f"<div class='bubble-a'>{m['content']}</div>", unsafe_allow_html=True)
 
-        if latest:
-            st.markdown("<div class='hint'>Newest first</div>", unsafe_allow_html=True)
-        for m in reversed(latest):
-            st.markdown(f"<div class='bubble-{'u' if m['role']=='user' else 'a'}'>{m['content']}</div>", unsafe_allow_html=True)
+        for m in latest:
+            if m["role"] == "user":
+                st.markdown(f"<div class='bubble-wrap'><div class='lbl-u'>Student</div></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='bubble-u'>{m['content']}</div>", unsafe_allow_html=True)
+            else:
+                st.markdown(f"<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='bubble-a'>{m['content']}</div>", unsafe_allow_html=True)
 
-        # --- COACH PROMPT (3 keywords, 6 questions) ---
+        # System prompt (3 keywords, 6 questions; strong KEYWORDS header)
         correction_lang = "English"
         system_text = (
             f"You are Herr Felix, a supportive and innovative German teacher. "
@@ -5489,14 +5509,14 @@ if tab == "Custom Chat & Speaking Tools":
             f"Stop after 6 total questions (never more than 2 per keyword). "
             f"Then give an English summary (what went well, mistakes, what to improve) and a ~60-word presentation using their words (add a few if needed). "
             f"All feedback/corrections must be in {correction_lang}. "
-            f"FORMAT: Start each reply with a 'Keywords' line showing three bold chips, e.g. **Supermarkt**, **Preise**, **Einkaufszettel**. "
+            f"FORMAT: Start each reply with a clear **KEYWORDS** header and three bold chips, e.g. **Supermarkt**, **Preise**, **Einkaufszettel**. "
             f"Use short paragraphs and simple bullets."
         )
         system_text += f" CEFR level: {level}. Keep each reply under {max_words} words."
         if force_de:
             system_text += " Ask questions in German; explanations/feedback in English."
 
-        # --- STICKY INPUT with New chat directly above type box ---
+        # Sticky input (New chat above input)
         with st.container():
             st.markdown("<div class='sticky-input'>", unsafe_allow_html=True)
 
@@ -5510,30 +5530,32 @@ if tab == "Custom Chat & Speaking Tools":
 
             with col_right:
                 user_msg = st.chat_input(
-                    "Write your message here… (You can ask for translations anytime.)",
+                    "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand.",
                     key=KEY_CHAT_INPUT
                 )
 
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # --- handle send ---
+        # Send
         if user_msg:
-            # store user
             st.session_state[chat_data_key].append({
                 "role": "user", "content": user_msg, "ts": datetime.now(UTC).isoformat()
             })
 
-            # build convo
+            # Do NOT count the first student message (topic). Only increment after at least one assistant turn exists.
+            has_assistant_turn = any(m["role"] == "assistant" for m in st.session_state[chat_data_key][:-1])
+            if has_assistant_turn:
+                st.session_state[qcount_data_key] = min(6, int(st.session_state[qcount_data_key] or 0) + 1)
+
             convo = [{"role": "system", "content": system_text}]
             for m in st.session_state[chat_data_key]:
                 convo.append({"role": m["role"], "content": m["content"]})
 
-            # typing pulse
+            # Typing pulse
             placeholder = st.empty()
             placeholder.markdown("<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>", unsafe_allow_html=True)
             time.sleep(random.uniform(0.8, 1.2))
 
-            # call model
             try:
                 resp = client.chat.completions.create(
                     model="gpt-4o-mini",
@@ -5547,28 +5569,26 @@ if tab == "Custom Chat & Speaking Tools":
 
             placeholder.empty()
 
-            # convert any leading "Keywords:" into chips
+            # Turn leading "Keywords:" into chips + title
             chips_html = ""
-            kw_match = re.search(r"(?:^|\\n)\\s*\\*\\*?Keywords?\\*\\*?:\\s*(.+)", reply_raw, flags=re.IGNORECASE)
+            kw_match = re.search(r"(?:^|\n)\s*(?:\*\*?)?(KEYWORDS?|Keywords?)\b(?:\*\*?)?\s*:\s*(.+)", reply_raw)
             if kw_match:
-                raw = re.split(r"[•,|/]", kw_match.group(1))
+                raw = re.split(r"[•,|/]", kw_match.group(2))
                 kws = [k.strip(" .*-_") for k in raw if k.strip()]
                 if kws:
-                    chips_html = "".join(f"<span class='kw-chip'><b>{k}</b></span>" for k in kws[:3])
-                    reply_raw = re.sub(r"(?:^|\\n)\\s*\\*\\*?Keywords?\\*\\*?:.*", "", reply_raw, count=1, flags=re.IGNORECASE)
+                    chips_html = "<div class='kw-title'>**KEYWORDS**</div>" + "".join(
+                        f"<span class='kw-chip'><b>{k}</b></span>" for k in kws[:3]
+                    )
+                    reply_raw = re.sub(r"(?:^|\n)\s*(?:\*\*?)?(KEYWORDS?|Keywords?)\b(?:\*\*?)?\s*:.*", "", reply_raw, count=1)
 
-            # bump question counter (cap at 6)
-            st.session_state[qcount_data_key] = min(6, int(st.session_state[qcount_data_key] or 0) + 1)
-
-            # store assistant
             bubble = (chips_html + ("<div style='height:6px'></div>" if chips_html else "")) + reply_raw
             st.session_state[chat_data_key].append({
                 "role": "assistant", "content": bubble, "ts": datetime.now(UTC).isoformat()
             })
             st.rerun()
 
-    # ===================== Grammar Helper (simple) =====================
-    with tab_grammar:
+    # ===================== Grammar (simple, one-box) =====================
+    with tab_gram:
         st.markdown("Paste a sentence or ask a grammar question. I’ll correct or explain briefly with 1–2 examples.")
         gcol1, gcol2 = st.columns([3, 1])
         with gcol1:
@@ -5579,8 +5599,8 @@ if tab == "Custom Chat & Speaking Tools":
                 placeholder="z.B. Ist es 'wegen dem' oder 'wegen des'? Oder: Ich bin gestern in den Park gegangen…",
             )
         with gcol2:
-            # safe level for slider (avoid ValueError)
             level_options = ["A1", "A2", "B1", "B2"]
+            # Reuse coach slider value if valid, else default "A2"
             cur_level_g = st.session_state.get(KEY_LEVEL_SLIDER, "A2")
             if cur_level_g not in level_options:
                 cur_level_g = "A2"
@@ -5593,7 +5613,6 @@ if tab == "Custom Chat & Speaking Tools":
                 "You are a German grammar helper. Match the CEFR level, be concise, and give 1–2 short examples. "
                 "If text was pasted, correct it first (one paragraph), then list 3 bullet notes on key points."
             )
-            # typing pulse
             placeholder = st.empty()
             placeholder.markdown("<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>", unsafe_allow_html=True)
             time.sleep(random.uniform(0.8, 1.2))
@@ -5611,7 +5630,21 @@ if tab == "Custom Chat & Speaking Tools":
             except Exception as e:
                 out = f"(Error) {e}"
             placeholder.empty()
+            st.markdown(f"<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>", unsafe_allow_html=True)
             st.markdown(f"<div class='bubble-a'>{out}</div>", unsafe_allow_html=True)
+
+    # ===================== Exams (open practice link) =====================
+    with tab_exam:
+        st.markdown(
+            """
+            <div class="panel">
+              <b>Full exam practice:</b><br>
+              • Tap the button to open exam-style practice.<br>
+              • Time yourself and stay calm. You’ve got this! 💪
+            </div>
+            """, unsafe_allow_html=True
+        )
+        st.markdown(f'<a class="btn" href="{PRACTICE_URL}" target="_blank" rel="noopener">📝 Start Exam Practice</a>', unsafe_allow_html=True)
 
     st.divider()
     render_app_footer(FOOTER_LINKS)
