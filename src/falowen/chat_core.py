@@ -212,8 +212,6 @@ def back_step() -> None:
     for key in [
         "falowen_mode",
         "falowen_teil",
-        "falowen_exam_topic",
-        "falowen_exam_keyword",
         "falowen_messages",
         "falowen_loaded_key",
         "falowen_conv_key",

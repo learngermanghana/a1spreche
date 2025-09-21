@@ -6,7 +6,6 @@ Disallow: /login
 Disallow: /dashboard
 Disallow: /my-course
 Disallow: /results
-Disallow: /exams
 Disallow: /vocab-trainer
 Disallow: /class-notes
 Disallow: /api/
