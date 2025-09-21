@@ -5375,192 +5375,262 @@ if tab == "My Course":
 if tab == "My Results and Resources":
     render_results_and_resources_tab()
 
-# =========================================================
-# ========== Custom Chat & Speaking Tools (Tab) ===========
-# =========================================================
-if tab == "Custom Chat & Speaking Tools":
-    st.markdown("## 🗣️ Custom Chat & Speaking Tools")
-    st.caption("Chat to learn or get instant grammar help. No exam mode.")
+import streamlit as st
+from datetime import datetime, timedelta
+import json
 
-    # ----- namespaced state helpers -----
-    def _ns(key: str, default=None):
-        k = f"cchat_{key}"
-        if k not in st.session_state:
-            st.session_state[k] = default
-        return k
+# --- Nav dropdown (mobile-friendly, simple text) ---
+def render_dropdown_nav():
+    tabs = [
+        "Dashboard",
+        "My Course",
+        "My Results and Resources",
+        "Custom Chat & Speaking Tools",
+        "Vocab Trainer",
+        "Schreiben Trainer",
+    ]
+    icons = {
+        "Dashboard": "🏠",
+        "My Course": "📈",
+        "My Results and Resources": "📊",
+        "Custom Chat & Speaking Tools": "🗣️",
+        "Vocab Trainer": "📚",
+        "Schreiben Trainer": "✍️",
+    }
+    label_map = {t: f"{icons.get(t,'•')}  {t}" for t in tabs}
+    choice = st.selectbox("Navigation", tabs, format_func=lambda t: label_map[t])
+    st.markdown("---")
+    return choice
 
-    level_options = ["A1", "A2", "B1", "B2"]
+# ----------------- UTILITIES -----------------
+SYSTEM_TEMPLATES = {
+    "Topic Coach": (
+        "You are a helpful AI conversation partner. Keep answers concise, encourage follow-up questions, "
+        "and teach using examples. Use simple language aligned to the CEFR level and switch to the target "
+        "language when the user requests."
+    ),
+    "Presentation Prep": (
+        "You are a presentation coach. Help the student structure a talk (hook, agenda, 3 key points, examples, "
+        "conclusion, Q&A prep). Offer bullet-point outlines first, then upgraded versions."
+    ),
+    "Exam Mode": (
+        "You are a strict examiner for beginner/intermediate German speaking or writing. Ask one task at a time, "
+        "enforce time/word limits, and grade with a clear rubric (Grammar, Task Achievement, Clarity, Vocabulary)."
+    ),
+}
 
-    ensure_student_level()
-    roster_level = _safe_upper(st.session_state.get("student_level"), "")
-    match = re.search("|".join(level_options), roster_level) if roster_level else None
-    default_level = match.group(0) if match else "A2"
+DEFAULT_RUBRIC = {
+    "Grammar": ["word order", "verb position", "articles/Case"],
+    "Task Achievement": ["answered prompt", "included required elements"],
+    "Clarity": ["easy to understand", "logical flow"],
+    "Vocabulary": ["range for level", "appropriate collocations"],
+}
 
-    level_key = _ns("level", default_level)
-    _ns("force_de", False)
-    _ns("max_words", 120)
-    _ns("chat", [])
+def init_state():
+    st.session_state.setdefault("mode", "Topic Coach")
+    st.session_state.setdefault("chat", [])  # list of {role, content, ts}
+    st.session_state.setdefault("exam_deadline", None)
+    st.session_state.setdefault("level", "A2")
+    st.session_state.setdefault("force_german", False)
+    st.session_state.setdefault("max_words", 120)
+    st.session_state.setdefault("topic", "")
 
-    # ----- two main tabs: Topic Coach | Grammar Helper -----
+@st.cache_resource(show_spinner=False)
+def get_model():
+    # 🔌 Replace this stub with your LLM client (e.g., OpenAI, Azure, etc.)
+    class Stub:
+        def chat(self, system, history, max_tokens=600):
+            # A tiny echo/coach stub for offline dev
+            last_user = next((m["content"] for m in reversed(history) if m["role"] == "user"), "")
+            reply = (
+                "(Stub) I read your message. Here's how I'd help: "
+                + (last_user[:180] if last_user else "Ask me something about your topic or task.")
+            )
+            return reply
+    return Stub()
+
+MODEL = get_model()
+
+# --------------- REUSABLE UTILITIES ---------------
+def util_outline_generator():
+    st.markdown("#### 🧭 Presentation Outline Generator")
+    topic = st.text_input("Topic", key="util_topic", placeholder="e.g., Gesundheit, Reisen, Bewerbung…")
+    level = st.select_slider("Level", ["A1","A2","B1","B2"], value=st.session_state.get("level","A2"), key="util_level")
+    if st.button("Generate outline", key="util_outline_btn"):
+        system = SYSTEM_TEMPLATES["Presentation Prep"] + f" CEFR level: {level}. Keep responses under 120 words."
+        prompt = f"Create a concise outline (hook, agenda, 3 points with examples, conclusion) for: {topic or 'generic A2 topic'}."
+        reply = MODEL.chat(system=system, history=[{"role":"user","content":prompt}])
+        st.markdown(reply)
+
+
+def util_exam_tasks():
+    st.markdown("#### 🎯 Exam Task Generator")
+    mode = st.selectbox("Exam type", ["A1 Sprechen","A2 Sprechen","B1 Sprechen"], key="util_exam_type")
+    if st.button("Create 3 tasks", key="util_exam_btn"):
+        template = SYSTEM_TEMPLATES["Exam Mode"] + " Keep tasks short and clear."
+        user = f"Give me 3 {mode} tasks covering introduction, asking questions, and a polite request using *bitte*."
+        reply = MODEL.chat(system=template, history=[{"role":"user","content":user}])
+        st.markdown(reply)
+
+
+def util_speaking_timer():
+    st.markdown("#### ⏱️ Speaking Timer")
+    mins = st.slider("Minutes", 1, 20, 5, key="util_timer_mins")
+    if st.button("Start timer", key="util_timer_btn"):
+        st.session_state["util_timer_end"] = (datetime.utcnow() + timedelta(minutes=int(mins))).isoformat()
+    if "util_timer_end" in st.session_state:
+        remaining = datetime.fromisoformat(st.session_state["util_timer_end"]) - datetime.utcnow()
+        secs = max(0, int(remaining.total_seconds()))
+        mm, ss = secs // 60, secs % 60
+        st.progress(min(1.0, 1 - secs / (mins*60 or 1)))
+        st.caption(f"Time left: {mm:02d}:{ss:02d}")
+        if secs == 0:
+            st.warning("Time is up!")
+
+
+# --------------- PAGE: Custom Chat & Speaking Tools ---------------
+
+def page_custom_chat():
+    init_state()
+
+    st.subheader("🗣️ Custom Chat & Speaking Tools")
+    st.caption("Topic Coach + Grammar Helper. Input stays at the bottom; newest messages show on top.")
+
+    # Tabs: Topic Coach | Grammar Helper
     tab_coach, tab_grammar = st.tabs(["🧑‍🏫 Topic Coach", "🛠️ Grammar Helper"])
 
     # ===================== Topic Coach =====================
     with tab_coach:
         colA, colB = st.columns(2)
         with colA:
-            level = st.select_slider(
-                "Level (CEFR)", level_options, key=level_key
-            )
+            st.session_state.level = st.select_slider("Level (CEFR)", options=["A1","A2","B1","B2"], value=st.session_state.level)
         with colB:
-            force_de = st.toggle("Force German replies 🇩🇪", key=_ns("force_de"))
+            st.session_state.force_german = st.toggle("Force German replies 🇩🇪", value=st.session_state.force_german)
 
-        max_words = st.number_input(
-            "Max words per reply",
-            min_value=40, max_value=400,
-            value=int(st.session_state[_ns("max_words")] or 120),
-            step=10, key=_ns("max_words")
+        st.session_state.max_words = st.number_input(
+            "Max words per reply", min_value=40, max_value=400, value=int(st.session_state.max_words), step=10
         )
 
-        if st.button("🧹 New chat", key=_ns("btn_new")):
-            st.session_state[_ns("chat")] = []
+        if st.button("🧹 New chat", key="coach_new"):
+            st.session_state.chat = []
             st.toast("Cleared")
 
         st.divider()
 
-        # Chat history
-        for msg in st.session_state[_ns("chat")]:
+        # --- Chat history (NEWEST FIRST) ---
+        if st.session_state.chat:
+            st.caption("Newest first")
+        for msg in reversed(st.session_state.chat):
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
-        # System prompt
-        system_text = (
-            "You are a helpful conversation partner and topic coach. "
-            "Keep answers concise, encourage follow-up questions, teach with simple examples, "
-            "and match CEFR level."
+        # --- Build system prompt ---
+        system = (
+            "You are a helpful conversation partner and topic coach. Keep answers concise, "
+            "encourage follow-up questions, teach with simple examples, and match CEFR level."
         )
-        system_text += f" CEFR level: {level}."
-        if force_de:
-            system_text += " Respond in German unless the user explicitly asks for English."
-        system_text += f" Keep responses under {max_words} words."
+        system += f" CEFR level: {st.session_state.level}."
+        if st.session_state.force_german:
+            system += " Respond in German unless the user explicitly asks for English."
+        system += f" Keep responses under {st.session_state.max_words} words."
 
-        # Chat input
-        user_msg = st.chat_input(
-            "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand.",
-            key=_ns("chat_input")
-        )
+        # --- Chat input (ALWAYS AT BOTTOM) ---
+        user_msg = st.chat_input("Hallo! 👋 What would you like to talk about? Give me details so I can help.", key="coach_input")
         if user_msg:
-            st.session_state[_ns("chat")].append({
-                "role": "user", "content": user_msg, "ts": datetime.now(UTC).isoformat()
-            })
-            with st.chat_message("user"):
-                st.markdown(user_msg)
-
-            history = [{"role": m["role"], "content": m["content"]}
-                       for m in st.session_state[_ns("chat")]]
-            messages = [{"role": "system", "content": system_text}] + history
-
+            st.session_state.chat.append({"role": "user", "content": user_msg, "ts": datetime.utcnow().isoformat()})
+            history = [{"role": m["role"], "content": m["content"]} for m in st.session_state.chat]
             with st.chat_message("assistant"):
                 with st.spinner("Thinking…"):
-                    try:
-                        resp = client.chat.completions.create(
-                            model="gpt-4o-mini",
-                            messages=messages,
-                            temperature=0.2,
-                            max_tokens=500,
-                        )
-                        reply = (resp.choices[0].message.content or "").strip()
-                    except Exception as e:
-                        reply = f"(Error) {e}"
+                    reply = MODEL.chat(system=system, history=history, max_tokens=600)
                     st.markdown(reply)
-            st.session_state[_ns("chat")].append({
-                "role": "assistant", "content": reply, "ts": datetime.now(UTC).isoformat()
-            })
+            st.session_state.chat.append({"role": "assistant", "content": reply, "ts": datetime.utcnow().isoformat()})
 
     # ===================== Grammar Helper =====================
     with tab_grammar:
-        st.markdown("Use this tool to **check**, **explain**, or **simplify** your German.")
+        st.markdown("Ask any **grammar question** or paste a sentence for help. I’ll explain/correct/simplify as needed.")
         gcol1, gcol2 = st.columns([3, 1])
         with gcol1:
-            text_in = st.text_area(
-                "Paste German text here",
+            gram_q = st.text_area(
+                "Type your grammar question or paste text",
                 height=180,
-                key=_ns("gram_text"),
-                placeholder="Schreiben Sie hier Ihren Text…",
+                key="gram_text",
+                placeholder="z.B. Ist es 'wegen dem' oder 'wegen des'? — Oder: Ich bin gestern in den Park gegangen...",
             )
         with gcol2:
-            level = st.select_slider(
-                "Level", level_options,
-                value=st.session_state[level_key],
-                key=_ns("gram_level")
-            )
-            action = st.radio(
-                "Action", ["Check grammar", "Explain grammar", "Simplify text"],
-                index=0, key=_ns("gram_action")
-            )
-            go = st.button("Run", type="primary", use_container_width=True, key=_ns("gram_go"))
+            gram_level = st.select_slider("Level", ["A1","A2","B1","B2"], value=st.session_state.level, key="gram_level")
+            ask = st.button("Ask", type="primary", use_container_width=True, key="gram_go")
 
-        if go and (text_in or "").strip():
-            sys = "You are a German grammar helper. Match the user's CEFR level, be concise, and provide examples."
-            if action == "Check grammar":
-                user = (
-                    "Correct the text. Return JSON with keys 'corrected' and 'notes' "
-                    "(list of brief bullet points).\n\nText:\n" + text_in
-                )
-            elif action == "Explain grammar":
-                user = (
-                    "Explain the main grammar points and mistakes for the following text. "
-                    "Return bullet points with examples at the user's level.\n\nText:\n" + text_in
-                )
-            else:  # Simplify text
-                user = (
-                    "Rewrite the text in simpler German suitable for the level. Keep meaning. "
-                    "Then list 3 key words.\n\nText:\n" + text_in
-                )
-
+        if ask and (gram_q or "").strip():
+            sys = (
+                "You are a German grammar helper. Match the user's CEFR level, be concise, and provide a short answer "
+                "with 1–2 examples. If the user pasted a text, correct it and briefly explain the key points."
+            )
+            history = [{"role": "user", "content": gram_q}]
             try:
-                resp = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {"role": "system", "content": sys + f" CEFR level: {level}."},
-                        {"role": "user", "content": user},
-                    ],
-                    temperature=0,
-                    max_tokens=600,
-                )
-                out = (resp.choices[0].message.content or "").strip()
+                reply = MODEL.chat(system=sys + f" CEFR level: {gram_level}.", history=history, max_tokens=700)
             except Exception as e:
-                out = f"(Error) {e}"
-
-            # Try to parse JSON for 'Check grammar'
-            if action == "Check grammar":
-                try:
-                    data = json.loads(out)
-                    corrected = (data.get("corrected") or "").strip()
-                    notes = data.get("notes") or []
-
-                    st.markdown("### ✅ Corrected Text")
-                    st.code(corrected, language="text")
-
-                    # Diff view (helper defined earlier in your file)
-                    try:
-                        diff_html = diff_with_markers(text_in, corrected)
-                        st.markdown("### ✨ Changes (diff)")
-                        st.markdown(diff_html, unsafe_allow_html=True)
-                    except Exception:
-                        pass
-
-                    if notes:
-                        st.markdown("### 📝 Notes")
-                        st.markdown("\n".join(f"- {n}" for n in notes))
-                except Exception:
-                    # Fallback: just render model text
-                    st.markdown(out)
-            else:
-                st.markdown(out)
+                reply = f"(Error) {e}"
+            st.markdown(reply)
 
     st.divider()
-    render_app_footer(FOOTER_LINKS)
+    # Export transcript (coach tab history)
+    if st.button("📥 Download coach transcript (.txt)"):
+        fname = f"chat_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.txt"
+        txt = "
+".join([f"[{m['ts']}] {m['role'].upper()}: {m['content']}" for m in st.session_state.chat])
+        st.download_button("Save now", data=txt.encode("utf-8"), file_name=fname, mime="text/plain")
 
+
+# --------------- PAGE: Dashboard ---------------
+
+
+def page_dashboard():
+    st.subheader("🏠 Dashboard")
+    st.caption("Quick utilities to get started. Use the nav to open full tools.")
+    util_outline_generator()
+    st.divider()
+    util_exam_tasks()
+    st.divider()
+    util_speaking_timer()
+
+
+# --------------- PAGE: Start ---------------
+
+def page_start():
+    st.subheader("🚀 Start")
+    st.caption("Warm-up and essentials before class or a presentation.")
+    with st.expander("Warm-up prompts"):
+        st.markdown("- Stell dich in 4 Sätzen vor.
+- Nenne 3 Ziele für heute.
+- Stelle mir eine Frage zum Thema.")
+    util_outline_generator()
+    st.divider()
+    util_speaking_timer()
+
+
+def mount(tab: str | None = None):
+    """Mount this page inside your existing app.
+    - If `tab` is provided, we render based on it.
+    - If `tab` is None, we fall back to the built-in dropdown nav for quick testing.
+    """
+    # Normalize the tab label for flexible matching
+    if tab is None:
+        tab = render_dropdown_nav()
+    label = (tab or "").strip().lower()
+
+    # Accept a few common variants
+    if label in {"custom chat & speaking tools", "custom chat", "chat & speaking tools", "speaking tools"}:
+        page_custom_chat()
+    elif label in {"dashboard", "home"}:
+        page_dashboard()
+    elif label in {"start", "getting started"}:
+        page_start()
+    else:
+        st.info("Use the dropdown to open 'Custom Chat & Speaking Tools'.")
+
+# For local/dev run
+if __name__ == "__main__":
+    mount()
 
 
 # =========================================
