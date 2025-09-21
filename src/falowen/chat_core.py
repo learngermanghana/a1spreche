@@ -13,7 +13,6 @@ import streamlit as st
 
 from src.draft_management import _draft_state_keys, autosave_maybe, save_now
 
-TURN_LIMIT = 6
 CUSTOM_CHAT_GREETING = "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
 
 _summary_client = None
@@ -89,36 +88,6 @@ def generate_summary(messages: List[str]) -> str:
     except Exception as exc:  # pragma: no cover - network failures surfaced to logs
         logging.exception("Summary generation error: %s", exc)
         return ""
-
-
-def increment_turn_count_and_maybe_close(is_exam: bool, *, summary_builder: Optional[Callable[[List[str]], str]] = None) -> bool:
-    if is_exam:
-        st.session_state["falowen_chat_closed"] = False
-        st.session_state.pop("falowen_summary_emitted", None)
-        return False
-
-    st.session_state["falowen_chat_closed"] = False
-
-    st.session_state["falowen_turn_count"] = st.session_state.get("falowen_turn_count", 0) + 1
-    if st.session_state["falowen_turn_count"] < TURN_LIMIT:
-        st.session_state["falowen_summary_emitted"] = False
-        return False
-
-    if st.session_state.get("falowen_summary_emitted"):
-        return False
-
-    builder = summary_builder or generate_summary
-    user_msgs = [
-        m.get("content", "")
-        for m in st.session_state.get("falowen_messages", [])
-        if m.get("role") == "user"
-    ]
-    summary = builder(user_msgs)
-    messages = st.session_state.setdefault("falowen_messages", [])
-    if not messages or messages[-1].get("role") != "assistant" or messages[-1].get("content") != summary:
-        messages.append({"role": "assistant", "content": summary})
-    st.session_state["falowen_summary_emitted"] = True
-    return True
 
 
 def render_custom_chat_input(
