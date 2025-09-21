@@ -100,7 +100,7 @@ def test_dictionary_label_passed():
     assert captured == {"key": "lesen-0", "label": "Day 7 Chapter 2"}
 
 
-def test_assignment_reminder_receives_cta_flag():
+def test_assignment_reminder_called_without_kwargs():
     calls = []
 
     def assignment_stub(*args, **kwargs):  # pragma: no cover - trivial
@@ -112,5 +112,5 @@ def test_assignment_reminder_receives_cta_flag():
 
     assert len(calls) == 1
     assert calls[0][0] == ()
-    assert calls[0][1] == {"show_grammar_cta": True}
+    assert calls[0][1] == {}
 

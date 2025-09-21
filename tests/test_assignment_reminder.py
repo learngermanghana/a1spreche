@@ -6,37 +6,28 @@ class DummyStreamlit:
         self.markdowns = []
         self.button_calls = []
         self.session_state = {}
-        self.next_button_result = False
 
     def markdown(self, text, **kwargs):  # pragma: no cover - trivial
         self.markdowns.append((text, kwargs))
 
-    def button(self, label, **kwargs):  # pragma: no cover - trivial
-        self.button_calls.append((label, kwargs))
-        return self.next_button_result
+
+def test_assignment_reminder_renders_notice(monkeypatch):
+    st = DummyStreamlit()
+    monkeypatch.setattr(ui, "st", st)
+
+    ui.render_assignment_reminder()
+
+    assert len(st.markdowns) == 1
+    text, kwargs = st.markdowns[0]
+    assert "Your Assignment" in text
+    assert kwargs.get("unsafe_allow_html") is True
 
 
-def test_assignment_reminder_no_cta_by_default(monkeypatch):
+def test_assignment_reminder_does_not_render_cta(monkeypatch):
     st = DummyStreamlit()
     monkeypatch.setattr(ui, "st", st)
 
     ui.render_assignment_reminder()
 
     assert st.button_calls == []
-
-
-def test_assignment_reminder_cta_sets_session_state(monkeypatch):
-    st = DummyStreamlit()
-    st.next_button_result = True
-    monkeypatch.setattr(ui, "st", st)
-
-    ui.render_assignment_reminder(show_grammar_cta=True)
-
-    assert st.button_calls == [
-        ("Ask a grammar question", {"use_container_width": True})
-    ]
-    assert st.session_state == {
-        "nav_sel": "Chat • Grammar • Exams",
-        "main_tab_select": "Chat • Grammar • Exams",
-        "need_rerun": True,
-    }
+    assert st.session_state == {}
