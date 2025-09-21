@@ -5375,68 +5375,6 @@ if tab == "My Course":
 if tab == "My Results and Resources":
     render_results_and_resources_tab()
 
-# =========================================================
-# ========== Custom Chat & Speaking Tools (Tab) ===========
-# =========================================================
-if tab == "Custom Chat & Speaking Tools":
-    st.markdown("## 🗣️ Custom Chat & Speaking Tools")
-    st.caption("Simple & clear: last 3 messages shown; input stays below. 3 keywords • 6 questions.")
-
-    # ---- Links you requested
-    RECORDER_URL = "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec?code=felixa2"
-    PRACTICE_URL = "https://script.google.com/macros/s/AKfycbyJ5lTeXUgaGw-rejDuh_2ex7El_28JgKLurOOsO1c8LWfVE-Em2-vuWuMn1hC5-_IN/exec"
-
-    # ---------- Styles (bubbles, chips, sticky input, labels) ----------
-    st.markdown("""
-    <style>
-      .bubble-wrap{ display:flex; gap:8px; margin:8px 0; align-items:flex-start; }
-      .bubble-a{ background:#fffbe6; border:1px solid #fde68a; padding:12px 14px; border-radius:14px; line-height:1.55; max-width:92%; }
-      .bubble-u{ background:#eef2ff; border:1px solid #c7d2fe; padding:12px 14px; border-radius:14px; line-height:1.55; margin-left:auto; max-width:92%; }
-      .lbl-a{ font-size:.8rem; color:#7c2d12; font-weight:800; margin-bottom:4px; }
-      .lbl-u{ font-size:.8rem; color:#1e40af; font-weight:800; text-align:right; margin:0 4px 4px 0; }
-      .kw-title{ font-weight:900; font-size:1.05rem; margin:2px 0 6px 0; }
-      .kw-chip{ display:inline-block; margin:0 6px 6px 0; padding:6px 12px; border-radius:999px; border:1px solid #0891b2; background:#e0f2fe; font-weight:800; }
-      .sticky-input{ position:sticky; bottom:0; background:#f8fafc; padding:10px 8px;
-                     border-top:1px solid #e5e7eb; box-shadow:0 -6px 20px rgba(2,6,23,.06); border-radius:12px; }
-      .btn-row { display:flex; flex-wrap:wrap; gap:10px; }
-      .btn {
-        display:inline-block; padding:10px 14px; border-radius:10px; text-decoration:none; font-weight:800;
-        background:#1f2d7a; color:white; border:1px solid #1b2a6e; box-shadow:0 4px 10px rgba(31,45,122,.18);
-      }
-      .panel { border:1px solid rgba(148,163,184,.35); border-radius:12px; padding:12px 14px; background:#ffffff; }
-      @media (max-width: 640px){
-        .block-container { padding-bottom: 4.5rem; }
-        button, [role="button"] { min-height: 44px; }
-      }
-      .typing span{ display:inline-block; width:6px; height:6px; margin:0 2px; border-radius:50%;
-                    background:#94a3b8; opacity:.2; animation: t 1s infinite; }
-      .typing span:nth-child(2){ animation-delay:.15s; } .typing span:nth-child(3){ animation-delay:.3s; }
-      @keyframes t{ 0%{opacity:.2; transform:translateY(0)} 50%{opacity:1; transform:translateY(-2px)} 100%{opacity:.2; transform:translateY(0)} }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # ---------- Persistent (data-only) session state ----------
-    if "cchat_data_chat" not in st.session_state:     st.session_state["cchat_data_chat"] = []
-    if "cchat_data_qcount" not in st.session_state:   st.session_state["cchat_data_qcount"] = 0
-    chat_data_key   = "cchat_data_chat"
-    qcount_data_key = "cchat_data_qcount"
-
-    # ---------- Widget keys (do NOT preassign values to these keys) ----------
-    KEY_LEVEL_SLIDER   = "cchat_w_level"
-    KEY_FORCE_DE_TOG   = "cchat_w_force_de"
-    KEY_MAX_WORDS_NUM  = "cchat_w_max_words"
-    KEY_NEWCHAT_BTN    = "cchat_w_btn_new_bottom"
-    KEY_CHAT_INPUT     = "cchat_w_chat_input"
-    KEY_GRAM_TEXT      = "cchat_w_gram_text"
-    KEY_GRAM_LEVEL     = "cchat_w_gram_level"
-    KEY_GRAM_ASK_BTN   = "cchat_w_gram_go"
-
-    # ---------- Subtabs (all inside Custom Chat) ----------
-    tab_tc, tab_gram, tab_exam = st.tabs(["🧑‍🏫 Topic Coach", "🛠️ Grammar", "📝 Exams"])
-
-# =========================================================
-# ========== Custom Chat & Speaking Tools (Tab) ===========
-# =========================================================
 if tab == "Custom Chat & Speaking Tools":
     st.markdown("## 🗣️ Custom Chat & Speaking Tools")
     st.caption("Simple & clear: last 3 messages shown; input stays below. 3 keywords • 6 questions.")
@@ -5499,10 +5437,10 @@ if tab == "Custom Chat & Speaking Tools":
     KEY_MAX_WORDS_NUM  = "cchat_w_max_words"
     KEY_NEWCHAT_BTN    = "cchat_w_btn_new_bottom"
     KEY_CHAT_INPUT     = "cchat_w_chat_input"
-    # Grammar keys: use v2 suffix to avoid collisions elsewhere
-    KEY_GRAM_TEXT      = "cchat_w_gram_text_v2"
-    KEY_GRAM_LEVEL     = "cchat_w_gram_level_v2"
-    KEY_GRAM_ASK_BTN   = "cchat_w_gram_go_v2"
+    # Grammar keys: one set shared across the grammar widgets
+    KEY_GRAM_TEXT      = "cchat_w_gram_text"
+    KEY_GRAM_LEVEL     = "cchat_w_gram_level"
+    KEY_GRAM_ASK_BTN   = "cchat_w_gram_go"
     # Also make Regen button unique
     KEY_REGEN_BTN      = "cchat_w_btn_regen_v2"
 
@@ -5806,69 +5744,6 @@ if tab == "Custom Chat & Speaking Tools":
             cur_level_g = st.session_state.get(KEY_LEVEL_SLIDER, "A2")
             if cur_level_g not in level_options:
                 cur_level_g = "A2"
-            gram_level = st.select_slider("Level", level_options, value=cur_level_g, key=KEY_GRAM_LEVEL)
-            ask = st.button("Ask", type="primary", use_container_width=True, key=KEY_GRAM_ASK_BTN)
-
-        if ask and (gram_q or "").strip():
-            sys = (
-                "You are a German grammar helper. Match the CEFR level, be concise, and give 1–2 short examples. "
-                "If text was pasted, correct it first (one paragraph), then list 3 bullet notes on key points."
-            )
-            placeholder = st.empty()
-            placeholder.markdown("<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>", unsafe_allow_html=True)
-            time.sleep(random.uniform(0.8, 1.2))
-            try:
-                resp = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {"role": "system", "content": sys + f" CEFR level: {gram_level}."},
-                        {"role": "user", "content": gram_q},
-                    ],
-                    temperature=0,
-                    max_tokens=600,
-                )
-                out = (resp.choices[0].message.content or "").strip()
-            except Exception as e:
-                out = f"(Error) {e}"
-            placeholder.empty()
-            st.markdown(f"<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='bubble-a'>{out}</div>", unsafe_allow_html=True)
-
-    # ===================== Exams (open practice link) =====================
-    with tab_exam:
-        st.markdown(
-            """
-            <div class="panel">
-              <b>Full exam practice:</b><br>
-              • Tap the button to open exam-style practice.<br>
-              • Time yourself and stay calm. You’ve got this! 💪
-            </div>
-            """, unsafe_allow_html=True
-        )
-        st.markdown(f'<a class="btn" href="{PRACTICE_URL}" target="_blank" rel="noopener">📝 Start Exam Practice</a>', unsafe_allow_html=True)
-
-    st.divider()
-    render_app_footer(FOOTER_LINKS)
-
-
-    # ===================== Grammar (simple, one-box) =====================
-    with tab_gram:
-        st.markdown("Paste a sentence or ask a grammar question. I’ll correct or explain briefly with 1–2 examples.")
-        gcol1, gcol2 = st.columns([3, 1])
-        with gcol1:
-            gram_q = st.text_area(
-                "Type your grammar question or paste text",
-                height=160,
-                key=KEY_GRAM_TEXT,
-                placeholder="z.B. Ist es 'wegen dem' oder 'wegen des'? Oder: Ich bin gestern in den Park gegangen…",
-            )
-        with gcol2:
-            level_options = ["A1", "A2", "B1", "B2"]
-            # Reuse coach slider value if valid, else default "A2"
-            cur_level_g = st.session_state.get(KEY_LEVEL_SLIDER, "A2")
-            if cur_level_g not in level_options:
-                cur_level_g = "A2"
-
             gram_level = st.select_slider("Level", level_options, value=cur_level_g, key=KEY_GRAM_LEVEL)
             ask = st.button("Ask", type="primary", use_container_width=True, key=KEY_GRAM_ASK_BTN)
 
