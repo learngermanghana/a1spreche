@@ -5771,7 +5771,7 @@ if tab == "Chat • Grammar • Exams":
                     st.rerun()
             with col_right:
                 user_msg = st.chat_input(
-                    "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand.",
+                    "Hallo! 👋 What would you like to talk about? Type here so we can chat",
                     key=KEY_CHAT_INPUT
                 )
                 render_umlaut_pad(KEY_CHAT_INPUT, context="chat_tab", disabled=True)
