@@ -17,12 +17,10 @@ def test_back_step_clears_chat_state():
     back_step, st = _load_back_step()
     ss = st.session_state
     ss.update({
-        'falowen_stage': 4,
+        'falowen_stage': 3,
         'falowen_mode': 'mode',
         'falowen_level': 'A1',
         'falowen_teil': 'T1',
-        'falowen_exam_topic': 'topic',
-        'falowen_exam_keyword': 'key',
         'falowen_messages': ['hi'],
         'falowen_loaded_key': 'lk',
         'falowen_conv_key': 'conv',
@@ -48,7 +46,6 @@ def test_back_step_clears_chat_state():
 
     for key in [
         'falowen_mode', 'falowen_teil',
-        'falowen_exam_topic', 'falowen_exam_keyword',
         'falowen_messages',
         'falowen_loaded_key', 'falowen_conv_key',
         'falowen_chat_draft_key', 'custom_topic_intro_done',

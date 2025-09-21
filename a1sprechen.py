@@ -353,7 +353,6 @@ from src.falowen.chat_core import (
     render_chat_stage,
     reset_falowen_chat_flow,
 )
-from src.falowen.exams_mode import render_exam_setup
 from src.firestore_helpers import (
     lesson_key_build,
     lock_id,
@@ -838,7 +837,7 @@ def render_sidebar_published():
         st.sidebar.button("🏠 Dashboard",                use_container_width=True, on_click=_go, args=("Dashboard",))
         st.sidebar.button("📈 My Course",                use_container_width=True, on_click=_go, args=("My Course",))
         st.sidebar.button("📊 Results & Resources",      use_container_width=True, on_click=_go, args=("My Results and Resources",))
-        st.sidebar.button("🗣️ Exams Mode & Custom Chat", use_container_width=True, on_click=_go, args=("Exams Mode & Custom Chat",))
+        st.sidebar.button("🗣️ Custom Chat & Speaking Tools", use_container_width=True, on_click=_go, args=("Custom Chat & Speaking Tools",))
         st.sidebar.button("📚 Vocab Trainer",            use_container_width=True, on_click=_go, args=("Vocab Trainer",))
         st.sidebar.button("📗 Dictionary",              use_container_width=True, on_click=_go_dictionary)
         st.sidebar.button("✍️ Schreiben Trainer",        use_container_width=True, on_click=_go, args=("Schreiben Trainer",))
@@ -875,7 +874,7 @@ def render_sidebar_published():
 - **Dashboard:** Overview (streak, next lesson, missed, leaderboard, new posts).
 - **My Course:** Lessons, materials, and submission flow.
 - **Results & Resources:** Marks, feedback, downloadable resources.
-- **Exams Mode & Custom Chat:** Exam-style drills + targeted AI practice.
+- **Custom Chat & Speaking Tools:** Guided conversation practice plus instant pronunciation feedback.
 - **Vocab Trainer:** Daily picks, spaced review, stats.
 - **Schreiben Trainer:** Structured writing with iterative feedback.
                 """
@@ -1380,7 +1379,7 @@ def render_dropdown_nav():
         "Dashboard",
         "My Course",
         "My Results and Resources",
-        "Exams Mode & Custom Chat",
+        "Custom Chat & Speaking Tools",
         "Vocab Trainer",
         "Schreiben Trainer",
     ]
@@ -1388,7 +1387,7 @@ def render_dropdown_nav():
         "Dashboard": "🏠",
         "My Course": "📈",
         "My Results and Resources": "📊",
-        "Exams Mode & Custom Chat": "🗣️",
+        "Custom Chat & Speaking Tools": "🗣️",
         "Vocab Trainer": "📚",
         "Schreiben Trainer": "✍️",
     }
@@ -5466,7 +5465,7 @@ def clear_falowen_chat(student_code, mode, level, teil):
 
 
 default_state = {
-    "falowen_stage": 1,                  # 1: mode, 2: level, 3: part, 4: chat, 99: pron checker
+    "falowen_stage": 1,                  # 1: mode, 2: level, 3: chat, 99: pron checker
     "falowen_mode": None,                # **RENAMED choices in UI below**
     "falowen_level": None,
     "falowen_teil": None,
@@ -5474,19 +5473,17 @@ default_state = {
     "falowen_turn_count": 0,
     "custom_topic_intro_done": False,
     "custom_chat_level": None,
-    "falowen_exam_topic": None,
-    "falowen_exam_keyword": None,
 }
 for key, val in default_state.items():
     if key not in st.session_state:
         st.session_state[key] = val
 
-if tab == "Exams Mode & Custom Chat":
+if tab == "Custom Chat & Speaking Tools":
     st.markdown(
         '''
         <div style="padding: 8px 12px; background: #28a745; color: #fff; border-radius: 6px;
                     text-align: center; margin-bottom: 8px; font-size: 1.3rem;">
-            🗣️ Exams Mode & Custom Chat
+            🗣️ Custom Chat & Speaking Tools
         </div>
         ''',
         unsafe_allow_html=True
@@ -5504,7 +5501,6 @@ if tab == "Exams Mode & Custom Chat":
         st.subheader("Step 1: Choose Practice Mode")
         st.info(
             """
-            - **Exams Mode**: Chat with an examiner (Sprechen) and quick links to official Lesen/Hören.
             - **Custom Chat**: Free conversation on your topic with feedback.
             - **Pronunciation & Speaking Checker**: Upload a short audio for scoring and tips.
             """,
@@ -5512,7 +5508,7 @@ if tab == "Exams Mode & Custom Chat":
         )
         mode = st.radio(
             "How would you like to practice?",
-            ["Exams Mode", "Custom Chat", "Pronunciation & Speaking Checker"],
+            ["Custom Chat", "Pronunciation & Speaking Checker"],
             key="falowen_mode_center"
         )
         if st.button("Next ➡️", key="falowen_next_mode"):
@@ -5530,7 +5526,7 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["falowen_stage"] = 2
                 else:
                     st.session_state["falowen_level"] = level
-                    st.session_state["falowen_stage"] = 3 if mode == "Exams Mode" else 4
+                    st.session_state["falowen_stage"] = 3
                     st.session_state["falowen_teil"] = None
                     reset_falowen_chat_flow()
                     refresh_with_toast()
@@ -5559,24 +5555,14 @@ if tab == "Exams Mode & Custom Chat":
         with col2:
             if st.button("Next ➡️", key="falowen_next_level"):
                 if st.session_state.get("falowen_level"):
-                    st.session_state["falowen_stage"] = 3 if st.session_state["falowen_mode"] == "Exams Mode" else 4
+                    st.session_state["falowen_stage"] = 3
                     st.session_state["falowen_teil"] = None
                     reset_falowen_chat_flow()
                     refresh_with_toast()
         st.stop()
 
-    # ——— Step 3: Exam Part or Lesen/Hören links ———
-    if st.session_state["falowen_stage"] == 3:
-
-        render_exam_setup(
-            reset_chat_flow=reset_falowen_chat_flow,
-            back_step=back_step,
-            db=db,
-        )
-
-
-    # ——— Step 4: Chat (Exam or Custom) ———
-    if st.session_state.get("falowen_stage") == 4:
+    # ——— Step 3: Custom Chat ———
+    if st.session_state.get("falowen_stage") == 3:
 
         render_chat_stage(
             client=client,
