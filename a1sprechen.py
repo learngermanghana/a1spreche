@@ -5389,7 +5389,14 @@ if tab == "Custom Chat & Speaking Tools":
             st.session_state[k] = default
         return k
 
-    _ns("level", "A2")
+    level_options = ["A1", "A2", "B1", "B2"]
+
+    ensure_student_level()
+    roster_level = _safe_upper(st.session_state.get("student_level"), "")
+    match = re.search("|".join(level_options), roster_level) if roster_level else None
+    default_level = match.group(0) if match else "A2"
+
+    level_key = _ns("level", default_level)
     _ns("force_de", False)
     _ns("max_words", 120)
     _ns("topic", "")
@@ -5403,7 +5410,7 @@ if tab == "Custom Chat & Speaking Tools":
         colA, colB = st.columns(2)
         with colA:
             level = st.select_slider(
-                "Level (CEFR)", ["A1", "A2", "B1", "B2"], key=_ns("level")
+                "Level (CEFR)", level_options, key=level_key
             )
         with colB:
             force_de = st.toggle("Force German replies 🇩🇪", key=_ns("force_de"))
@@ -5503,8 +5510,8 @@ if tab == "Custom Chat & Speaking Tools":
             )
         with gcol2:
             level = st.select_slider(
-                "Level", ["A1", "A2", "B1", "B2"],
-                value=st.session_state[_ns("level")],
+                "Level", level_options,
+                value=st.session_state[level_key],
                 key=_ns("gram_level")
             )
             action = st.radio(
