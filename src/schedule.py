@@ -338,7 +338,7 @@ Submitting Work
             "chapter": "4.7",
             "assignment": False,
             "goal": "Understand imperative statements and learn how to use them in your Sprechen exams, especially in Teil 3.",
-            "instruction": "After completing this chapter, open Custom Chat & Speaking Tools, pick A1 as your level, and ask for Teil 3-style prompts to practice.",
+            "instruction": "After completing this chapter, open Chat • Grammar • Exams, pick A1 as your level, and ask for Teil 3-style prompts to practice.",
             "grammar_topic": "Imperative",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/IVtUc9T3o0Y",
@@ -530,7 +530,7 @@ Kindly communicate with us what you would like to do next by emailing **learnger
 You can prepare for the A1 exams or progress to A2. We wish you continued success in your journey. 
 
 Use:
-- **Custom Chat & Speaking Tools** for guided speaking practice and pronunciation feedback.  
+- **Chat • Grammar • Exams** for guided speaking practice and pronunciation feedback.
 - **Vocabulary Trainer**  
 - **Schreiben Trainer** (includes pre-filled questions on typical exam topics)  
 
@@ -568,7 +568,7 @@ Course Structure: Each day is divided into four Teile (parts).
         • Read this section one chapter ahead to prepare for class discussions.  
         • It includes a topic-of-the-day and tips to spark conversation.  
         • Participation here is essential; unprepared students may find it difficult to contribute.  
-        • For extra practice, open Custom Chat & Speaking Tools. Copy or type the daily question into Custom Chat; the AI will offer tips so you arrive “three times prepared.”  
+        • For extra practice, open Chat • Grammar • Exams. Copy or type the daily question into Chat • Grammar • Exams; the AI will offer tips so you arrive “three times prepared.”  
 
     Teil 2 – Schreiben (Writing Assignment)
         • Use the Schreibentrainer tools to draft and refine your writing.  
@@ -606,7 +606,7 @@ Summary
     • Teil 1: Prepare for group discussion (no submission).  
     • Teil 2–4: Complete writing, reading, and listening assignments daily.  
     • Stay Ahead: Always read Teil 1 one chapter in advance.  
-    • Be Prepared: Use Custom Chat & Speaking Tools to practice the question of the day.  
+    • Be Prepared: Use Chat • Grammar • Exams to practice the question of the day.  
     • Use Tools: Schreibentrainer for writing, recorded lectures for each topic, and grammar notes for quick reference.  
     • Submit Work: Teile 2–4 only, via the Submit tab.  
 
@@ -1013,7 +1013,7 @@ Kindly communicate with us what you would like to do next by emailing **learnger
 You can prepare for the A2 exams or progress to B1. We wish you continued success in your journey. 
 
 Use:
-- **Custom Chat & Speaking Tools** for guided speaking practice and pronunciation feedback.  
+- **Chat • Grammar • Exams** for guided speaking practice and pronunciation feedback.  
 - **Vocabulary Trainer**  
 - **Schreiben Trainer** (includes pre-filled questions on typical exam topics)  
 
@@ -1051,7 +1051,7 @@ Course Structure: Each day is divided into four Teile (parts).
         • Read this section one chapter ahead to prepare for class discussions.  
         • It includes a topic-of-the-day and tips to spark conversation.  
         • Participation here is essential; unprepared students may find it difficult to contribute.  
-        • For extra practice, open Custom Chat & Speaking Tools. Copy or type the daily question into Custom Chat; the AI will offer tips so you arrive “three times prepared.”  
+        • For extra practice, open Chat • Grammar • Exams. Copy or type the daily question into Chat • Grammar • Exams; the AI will offer tips so you arrive “three times prepared.”  
 
     Teil 2 – Schreiben (Writing Assignment)
         • Use the Schreibentrainer tools to draft and refine your writing.  
@@ -1089,7 +1089,7 @@ Summary
     • Teil 1: Prepare for group discussion (no submission).  
     • Teil 2–4: Complete writing, reading, and listening assignments daily.  
     • Stay Ahead: Always read Teil 1 one chapter in advance.  
-    • Be Prepared: Use Custom Chat & Speaking Tools to practice the question of the day.  
+    • Be Prepared: Use Chat • Grammar • Exams to practice the question of the day.  
     • Use Tools: Schreibentrainer for writing, recorded lectures for each topic, and grammar notes for quick reference.  
     • Submit Work: Teile 2–4 only, via the Submit tab.  
 
@@ -1495,7 +1495,7 @@ Nächste Schritte:
   • **Prüfungsmodus** (mit alten Goethe-Prüfungsfragen – für Hörverstehen bitte YouTube verwenden)  
   • **Vokabeltrainer**  
   • **Schreibtrainer** mit typischen Prüfungsthemen  
-  • **Custom Chat** für zusätzliche Übung  
+  • **Chat • Grammar • Exams** für zusätzliche Übung  
 
  Hinweis: Dein Zugang zu deinem Tutor bleibt bis zum Ende deines Vertrags aktiv.  
  Wenn dir der Kurs gefallen hat, hinterlasse uns bitte eine [positive Bewertung auf Google](https://g.page/r/Cdogveq3Hy69EBE/review).  
@@ -1534,7 +1534,7 @@ Course Structure: Each day is divided into four Teile (parts).
         • Read this section one chapter ahead to prepare for class discussions.
         • It includes a topic-of-the-day and tips to spark conversation.
         • Participation here is essential; unprepared students may find it difficult to contribute.
-        • For extra practice, open Custom Chat & Speaking Tools. Copy or type the daily question into Custom Chat; the AI will offer tips so you arrive “three times prepared.”
+        • For extra practice, open Chat • Grammar • Exams. Copy or type the daily question into Chat • Grammar • Exams; the AI will offer tips so you arrive “three times prepared.”
 
     Teil 2 – Schreiben (Writing Assignment)
         • Use the Schreibentrainer tools to draft and refine your writing.
@@ -1572,7 +1572,7 @@ Summary
     • Teil 1: Prepare for group discussion (no submission).
     • Teil 2–4: Complete writing, reading, and listening assignments daily.
     • Stay Ahead: Always read Teil 1 one chapter in advance.
-    • Be Prepared: Use Custom Chat & Speaking Tools to practice the question of the day.
+    • Be Prepared: Use Chat • Grammar • Exams to practice the question of the day.
     • Use Tools: Schreibentrainer for writing, recorded lectures for each topic, and grammar notes for quick reference.
     • Submit Work: Teile 2–4 only, via the Submit tab.
 
