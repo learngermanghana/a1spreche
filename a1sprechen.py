@@ -6037,18 +6037,93 @@ if tab == "Chat • Grammar • Exams":
             st.markdown(f"<div class='bubble-a'>{out}</div>", unsafe_allow_html=True)
 
 
-    # ===================== Exams (open practice link) =====================
+    # ===================== Exams (Speaking • Lesen • Hören) =====================
     with tab_exam:
-        st.markdown(
-            """
-            <div class="panel">
-              <b>Full exam practice:</b><br>
-              • Tap the button to open exam-style practice.<br>
-              • Time yourself and stay calm. You’ve got this! 💪
-            </div>
-            """, unsafe_allow_html=True
-        )
-        st.markdown(f'<a class="btn" href="{PRACTICE_URL}" target="_blank" rel="noopener">📝 Start Exam Practice</a>', unsafe_allow_html=True)
+        # Level-aware Goethe links (Lesen & Hören)
+        lesen_links = {
+            "A1": [("Goethe A1 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd1/ueb.html")],
+            "A2": [("Goethe A2 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd2/ueb.html")],
+            "B1": [("Goethe B1 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb1/ueb.html")],
+            "B2": [("Goethe B2 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb2/ue9.html")],
+            "C1": [("Goethe C1 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/be/en/spr/prf/gzc1/u24.html")],
+        }
+        hoeren_links = {
+            "A1": [("Goethe A1 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd1/ueb.html")],
+            "A2": [("Goethe A2 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd2/ueb.html")],
+            "B1": [("Goethe B1 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb1/ueb.html")],
+            "B2": [("Goethe B2 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb2/ue9.html")],
+            "C1": [("Goethe C1 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/be/en/spr/prf/gzc1/u24.html")],
+        }
+
+        sub_speak, sub_lesen, sub_hoeren = st.tabs(["🗣️ Speaking", "📖 Lesen", "🎧 Hören"])
+
+        # ---------- Speaking ----------
+        with sub_speak:
+            st.markdown(
+                """
+                <div class="panel">
+                  <b>Speaking practice</b><br>
+                  • Use the recorder to practice answers aloud.<br>
+                  • Keep sentences short and clear — you’ve got this! 💪
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                f'<a class="btn secondary" href="{RECORDER_URL}" target="_blank" rel="noopener">🎙️ Open Recorder</a>',
+                unsafe_allow_html=True,
+            )
+
+        # Helper to render link rows as buttons
+        def _link_buttons(rows):
+            for title, url in rows:
+                st.markdown(
+                    f'<div style="margin:6px 0;"><a class="btn" href="{url}" target="_blank" rel="noopener">{title}</a></div>',
+                    unsafe_allow_html=True,
+                )
+
+        # Default level pulled from the Topic Coach level slider (fallback to A1)
+        level_for_exams = st.session_state.get(KEY_LEVEL_SLIDER, "A1")
+        if level_for_exams not in lesen_links:
+            level_for_exams = "A1"
+
+        # ---------- Lesen ----------
+        with sub_lesen:
+            st.markdown(
+                """
+                <div class="panel">
+                  <b>Reading (Lesen)</b><br>
+                  • Choose your level to open official Goethe online practice.
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            lv = st.select_slider(
+                "Level",
+                options=list(lesen_links.keys()),
+                value=level_for_exams,
+                key="exam_lesen_level",
+            )
+            _link_buttons(lesen_links.get(lv, []))
+
+        # ---------- Hören ----------
+        with sub_hoeren:
+            st.markdown(
+                """
+                <div class="panel">
+                  <b>Listening (Hören)</b><br>
+                  • Choose your level to open official Goethe online practice.
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            lv_h = st.select_slider(
+                "Level",
+                options=list(hoeren_links.keys()),
+                value=level_for_exams,
+                key="exam_hoeren_level",
+            )
+            _link_buttons(hoeren_links.get(lv_h, []))
 
     st.divider()
     render_app_footer(FOOTER_LINKS)
