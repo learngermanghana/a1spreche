@@ -484,6 +484,7 @@ def _build_coursebook_status_payload(
     attempts_count = 0
     last_scored = ""
     textual_outcome: Optional[str] = None
+    explicit_fail = False
 
     if best_row is not None:
         score_display = str(best_row.get("score_display") or "").strip()
@@ -502,13 +503,23 @@ def _build_coursebook_status_payload(
             status_text,
         )
 
-    passed = best_score is not None and best_score >= PASS_MARK
-
-    if best_score is None:
-        if textual_outcome == "pass":
+    passed = False
+    if best_score is not None:
+        if best_score >= PASS_MARK:
             passed = True
-        elif textual_outcome == "fail":
-            needs_resubmit_flag = True
+        else:
+            explicit_fail = True
+
+    if textual_outcome == "fail":
+        explicit_fail = True
+        passed = False
+    elif textual_outcome == "pass" and best_score is None:
+        passed = True
+
+    if explicit_fail:
+        needs_resubmit_flag = True
+    elif passed:
+        needs_resubmit_flag = False
 
     if needs_resubmit_flag:
         label = "Resubmission needed"
