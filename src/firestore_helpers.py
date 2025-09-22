@@ -40,6 +40,14 @@ def _firestore_where(query, field: str, op: str, value):
 from src.firestore_utils import load_draft_meta_from_db
 
 
+_ASSIGNMENT_SPLIT_RE = re.compile(r"[^a-z0-9]+")
+_ASSIGNMENT_SUBTOK_RE = re.compile(r"[a-z]+|\d+")
+_LESSON_KEY_ASSIGNMENT_RE = re.compile(
+    r"(?P<level>[^_]+)_day(?P<day>[^_]+)_ch(?P<chapter>.+)", re.IGNORECASE
+)
+_ASSIGNMENT_GENERIC_TOKENS = {"day", "lesson", "chapter", "ch"}
+
+
 def lesson_key_build(level: str, day: int, chapter: str) -> str:
     """Unique, safe key for this lesson (reusable in docs/fields)."""
     safe_ch = re.sub(r"[^A-Za-z0-9_\-]+", "_", str(chapter))
@@ -229,8 +237,66 @@ def _score_timestamp(value: Any) -> float:
     return 0.0
 
 
+def _normalize_assignment_tokens(value: Any) -> set[str]:
+    """Return a set of comparable tokens for assignment-style strings."""
+
+    if value is None:
+        return set()
+
+    text = str(value).strip().lower()
+    if not text:
+        return set()
+
+    tokens: set[str] = set()
+
+    for chunk in _ASSIGNMENT_SPLIT_RE.split(text):
+        if not chunk:
+            continue
+        for part in _ASSIGNMENT_SUBTOK_RE.findall(chunk):
+            if not part:
+                continue
+            if part in _ASSIGNMENT_GENERIC_TOKENS:
+                continue
+            if part.endswith("s") and part[:-1] in {"assignment", "chapter", "lesson"}:
+                part = part[:-1]
+            if part.isdigit():
+                try:
+                    part = str(int(part))
+                except Exception:
+                    pass
+            tokens.add(part)
+
+    if "assignment" in tokens:
+        tokens.add("assignment")
+
+    return {token for token in tokens if token and token not in _ASSIGNMENT_GENERIC_TOKENS}
+
+
+def _lesson_assignment_tokens(lesson_key: str) -> Optional[tuple[set[str], set[str]]]:
+    """Extract level and chapter tokens from a ``lesson_key`` for assignment matching."""
+
+    if not lesson_key:
+        return None
+
+    match = _LESSON_KEY_ASSIGNMENT_RE.match(lesson_key.strip())
+    if not match:
+        return None
+
+    level_raw = match.group("level")
+    chapter_raw = match.group("chapter")
+
+    level_tokens = _normalize_assignment_tokens(level_raw)
+    chapter_tokens = _normalize_assignment_tokens(chapter_raw)
+
+    if not level_tokens or not chapter_tokens:
+        return None
+
+    return level_tokens, chapter_tokens
+
+
 def _score_matches_lesson(doc: Dict[str, Any], lesson_key: str) -> bool:
-    key_norm = (lesson_key or "").strip().lower()
+    raw_lesson_key = (lesson_key or "").strip()
+    key_norm = raw_lesson_key.lower()
     if not key_norm:
         return False
     for field in ("lesson_key", "lessonKey", "lesson", "chapter"):
@@ -240,6 +306,28 @@ def _score_matches_lesson(doc: Dict[str, Any], lesson_key: str) -> bool:
         text = str(value).strip().lower()
         if text == key_norm:
             return True
+    lesson_tokens = _lesson_assignment_tokens(raw_lesson_key)
+    if not lesson_tokens:
+        return False
+    level_tokens, chapter_tokens = lesson_tokens
+    chapter_numeric = {token for token in chapter_tokens if token.isdigit()}
+    chapter_text = {token for token in chapter_tokens if not token.isdigit()}
+    assignment_fields = ("assignment", "assignment_name", "assignmentName")
+    for field in assignment_fields:
+        value = doc.get(field)
+        if value is None:
+            continue
+        assignment_tokens = _normalize_assignment_tokens(value)
+        if not assignment_tokens:
+            continue
+        overlap = assignment_tokens.intersection(level_tokens)
+        if not any(token for token in overlap if not token.isdigit()):
+            continue
+        if chapter_text - assignment_tokens:
+            continue
+        if chapter_numeric - assignment_tokens:
+            continue
+        return True
     return False
 
 
