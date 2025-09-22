@@ -6063,14 +6063,15 @@ if tab == "Chat • Grammar • Exams":
                 """
                 <div class="panel">
                   <b>Speaking practice</b><br>
-                  • Use the recorder to practice answers aloud.<br>
+                  • Open the practice page and follow the prompts to record and submit.<br>
                   • Keep sentences short and clear — you’ve got this! 💪
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
+            # Use the PRACTICE_URL here (as requested)
             st.markdown(
-                f'<a class="btn secondary" href="{PRACTICE_URL}" target="_blank" rel="noopener">🎙️ Open Recorder</a>',
+                f'<a class="btn secondary" href="{PRACTICE_URL}" target="_blank" rel="noopener">📝 Open Speaking Practice</a>',
                 unsafe_allow_html=True,
             )
 
