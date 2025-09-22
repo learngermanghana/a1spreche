@@ -31,7 +31,10 @@ import requests
 import streamlit as st
 import streamlit.components.v1 as components
 from docx import Document
-from google.cloud.firestore_v1 import FieldFilter
+try:  # FieldFilter is optional for local testing environments
+    from google.cloud.firestore_v1 import FieldFilter
+except ImportError:  # pragma: no cover - fallback path is exercised in tests
+    FieldFilter = None  # type: ignore[assignment]
 from firebase_admin import firestore  # Firebase
 from openai import OpenAI
 from src.styles import inject_global_styles
@@ -59,6 +62,14 @@ from src.blog_cards_widget import render_blog_cards
 import src.schedule as _schedule
 load_level_schedules = _schedule.load_level_schedules
 refresh_level_schedules = getattr(_schedule, "refresh_level_schedules", lambda: None)
+
+
+def _firestore_where(query, field: str, op: str, value):
+    """Apply a Firestore ``where`` clause compatible with optional FieldFilter."""
+
+    if FieldFilter is None:
+        return query.where(field, op, value)
+    return query.where(filter=FieldFilter(field, op, value))
 
 app = Flask(__name__)
 app.register_blueprint(auth_bp)
@@ -2756,12 +2767,8 @@ if tab == "My Course":
                 .document(class_name_lookup)
                 .collection("posts")
             )
-            post_count = sum(
-                1
-                for _ in board_base.where(
-                    filter=FieldFilter("chapter", "==", chapter)
-                ).stream()
-            )
+            filtered_posts = _firestore_where(board_base, "chapter", "==", chapter)
+            post_count = sum(1 for _ in filtered_posts.stream())
             link_key = CLASS_DISCUSSION_LINK_TMPL.format(chapter=chapter)
             count_txt = f" ({post_count})" if post_count else ""
             st.info(
