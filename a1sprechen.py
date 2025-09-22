@@ -6047,6 +6047,22 @@ if tab == "Chat • Grammar • Exams":
 
         sub_speak, sub_lesen, sub_hoeren = st.tabs(["🗣️ Speaking", "📖 Lesen", "🎧 Hören"])
 
+        def _link_buttons(links: Iterable[Tuple[str, str]]) -> None:
+            """Render a set of practice links as buttons in the Exams tab."""
+
+            items = list(links or [])
+            if not items:
+                st.caption("No practice links available for this level yet.")
+                return
+
+            for idx, (label, url) in enumerate(items):
+                if not label or not url:
+                    continue
+
+                key_seed = f"{label}|{url}|{idx}"
+                btn_key = f"exam_link_{hashlib.md5(key_seed.encode()).hexdigest()[:8]}"
+                st.link_button(label, url, use_container_width=True, key=btn_key)
+
 
     with sub_speak:
         st.markdown(
