@@ -21,7 +21,7 @@ from datetime import datetime
 from datetime import datetime as _dt
 from uuid import uuid4
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, List, Iterable, MutableMapping
+from typing import Any, Dict, Optional, Tuple, List, Iterable, MutableMapping, Callable
 from functools import lru_cache
 
 # ==== Third-Party Packages ====
@@ -259,6 +259,151 @@ def _show_missing_code_warning(
         "manually enter your student code in the field below. If it still isn't "
         f"recognized, [email us]({mailto_link}) and paste your work so the administration can assist."
     )
+
+
+def _derive_coursebook_submit_status(
+    *,
+    locked: bool,
+    needs_resubmit: Optional[bool],
+    latest_submission: Optional[Dict[str, Any]],
+    student_code: str,
+    lesson_key: str,
+    pass_mark: float,
+    score_fetcher: Optional[Callable[[str, str, Optional[Dict[str, Any]]], Optional[Dict[str, Any]]]] = None,
+) -> Dict[str, Any]:
+    """Return derived status information for the coursebook submit view."""
+
+    state: Dict[str, Any] = {
+        "locked": locked,
+        "needs_resubmit": needs_resubmit if needs_resubmit is not None else None,
+        "status_label": None,
+        "status_message": None,
+        "numeric_score": None,
+        "status_text": None,
+        "from_scores": False,
+        "clear_lock": False,
+    }
+
+    if not latest_submission:
+        return state
+
+    fetcher = score_fetcher if callable(score_fetcher) else globals().get("fetch_latest_score")
+    score_doc: Optional[Dict[str, Any]] = None
+    if callable(fetcher):
+        try:
+            score_doc = fetcher(student_code, lesson_key, latest_submission)  # type: ignore[misc]
+        except Exception:
+            score_doc = None
+
+    state["from_scores"] = True
+
+    def _coerce(value: Any) -> Optional[float]:
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            try:
+                if math.isnan(value):  # type: ignore[arg-type]
+                    return None
+            except Exception:
+                pass
+            try:
+                return float(value)
+            except Exception:
+                return None
+        if isinstance(value, str):
+            text = value.strip()
+            if not text:
+                return None
+            text = text.replace("%", "")
+            match = re.search(r"-?\d+(?:\.\d+)?", text)
+            if match:
+                try:
+                    return float(match.group())
+                except Exception:
+                    return None
+        return None
+
+    numeric_score: Optional[float] = None
+    status_text = ""
+    if isinstance(score_doc, dict):
+        for key in ("numeric_score", "score", "percentage", "percent", "points", "marks"):
+            numeric_score = _coerce(score_doc.get(key))
+            if numeric_score is not None:
+                break
+        raw_status = score_doc.get("status") or score_doc.get("status_text")
+        if isinstance(raw_status, str):
+            status_text = raw_status.strip()
+
+    state["numeric_score"] = numeric_score
+    state["status_text"] = status_text or None
+
+    status_norm = status_text.casefold() if status_text else ""
+
+    if numeric_score is None:
+        if status_norm:
+            if "resubmission" in status_norm and "not" not in status_norm:
+                state.update(
+                    {
+                        "status_label": "Resubmission needed",
+                        "status_message": status_text,
+                        "needs_resubmit": True,
+                        "locked": False,
+                        "clear_lock": True,
+                    }
+                )
+                return state
+            if any(token in status_norm for token in ("complete", "pass")):
+                state.update(
+                    {
+                        "status_label": "Passed/Completed",
+                        "status_message": status_text,
+                        "needs_resubmit": False,
+                        "locked": True,
+                    }
+                )
+                return state
+
+        label = status_text or "In review"
+        if status_norm and status_text and status_norm != "in review":
+            message = status_text
+        else:
+            message = "Your tutor is reviewing this submission."
+        state.update(
+            {
+                "status_label": label,
+                "status_message": message,
+                "needs_resubmit": False,
+                "locked": locked,
+            }
+        )
+        return state
+
+    if numeric_score >= pass_mark:
+        message = f"Great job! Score: {numeric_score:g} (pass mark {pass_mark:g})."
+        state.update(
+            {
+                "status_label": "Passed/Completed",
+                "status_message": message,
+                "needs_resubmit": False,
+                "locked": True,
+            }
+        )
+        return state
+
+    message = (
+        f"Score {numeric_score:g} is below the pass mark ({pass_mark:g}). "
+        "Update your answer and resubmit."
+    )
+    state.update(
+        {
+            "status_label": "Resubmission needed",
+            "status_message": message,
+            "needs_resubmit": True,
+            "locked": False,
+            "clear_lock": True,
+        }
+    )
+    return state
 
 
 def hide_sidebar() -> None:
@@ -3049,6 +3194,15 @@ if tab == "My Course":
                 st.session_state["student_code"] = code
                 chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
 
+                from src.assignment_ui import PASS_MARK  # local import to avoid heavy module at top
+                from src.firestore_helpers import fetch_latest_score
+
+                needs_resubmit_key = f"{lesson_key}__needs_resubmit"
+                needs_resubmit_state = st.session_state.get(needs_resubmit_key)
+                status_label: Optional[str] = None
+                status_message: str = ""
+                status_from_scores = False
+
                 name = st.text_input("Name", value=student_row.get('Name', ''))
                 email = st.text_input("Email", value=student_row.get('Email', ''))
 
@@ -3082,6 +3236,8 @@ if tab == "My Course":
 
                 last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
 
+                latest_submission = fetch_latest(student_level, code, lesson_key)
+
                 # 1) If a forced reload was requested, apply it BEFORE widget creation
                 if st.session_state.get(pending_key):
                     cloud_text = st.session_state.pop(pending_text_key, "")
@@ -3103,10 +3259,9 @@ if tab == "My Course":
 
                 else:
                     # 2) If a SUBMISSION exists, always enforce it (locked) on every run
-                    latest = fetch_latest(student_level, code, lesson_key)
-                    if latest and (latest.get("answer", "") is not None):
-                        sub_txt = latest.get("answer", "") or ""
-                        sub_ts  = latest.get("updated_at")
+                    if latest_submission and (latest_submission.get("answer", "") is not None):
+                        sub_txt = latest_submission.get("answer", "") or ""
+                        sub_ts  = latest_submission.get("updated_at")
 
                         st.session_state[draft_key]      = sub_txt
                         st.session_state[last_val_key]   = sub_txt
@@ -3155,16 +3310,67 @@ if tab == "My Course":
                                     st.session_state[saved_flag_key] = True
                                     st.session_state[saved_at_key]   = (cts or datetime.now(_timezone.utc))
 
+                status_state = _derive_coursebook_submit_status(
+                    locked=locked,
+                    needs_resubmit=needs_resubmit_state,
+                    latest_submission=latest_submission,
+                    student_code=code,
+                    lesson_key=lesson_key,
+                    pass_mark=PASS_MARK,
+                    score_fetcher=fetch_latest_score,
+                )
+                status_from_scores = bool(status_state.get("from_scores", status_from_scores))
+                if status_state.get("clear_lock"):
+                    st.session_state.pop(locked_key, None)
+                locked = bool(status_state.get("locked", locked))
+                needs_resubmit_state = status_state.get("needs_resubmit", needs_resubmit_state)
+                if needs_resubmit_state is not None:
+                    st.session_state[needs_resubmit_key] = bool(needs_resubmit_state)
+                    needs_resubmit_state = bool(needs_resubmit_state)
+                else:
+                    needs_resubmit_state = st.session_state.get(needs_resubmit_key)
+                status_label = status_state.get("status_label") or status_label
+                status_message = status_state.get("status_message") or status_message
+
                 st.subheader("✍️ Your Answer")
+
+                if status_label:
+                    status_styles = {
+                        "Resubmission needed": ("#fee2e2", "#991b1b"),
+                        "Passed/Completed": ("#dcfce7", "#166534"),
+                        "In review": ("#dbeafe", "#1e3a8a"),
+                    }
+                    bg_color, text_color = status_styles.get(status_label, ("#e2e8f0", "#1f2937"))
+                    detail = status_message.strip()
+                    detail_html = (
+                        f"<div style='margin-top:4px;color:#1f2937;font-size:0.95rem;'>{html.escape(detail)}</div>"
+                        if detail
+                        else ""
+                    )
+                    st.markdown(
+                        """
+                        <div style="margin-bottom:12px;padding:12px 14px;border-radius:12px;background:%s;border:1px solid rgba(15,23,42,0.12);">
+                          <div style="font-weight:600;color:%s;">%s</div>
+                          %s
+                        </div>
+                        """
+                        % (bg_color, text_color, html.escape(status_label), detail_html),
+                        unsafe_allow_html=True,
+                    )
 
                 if locked:
                     st.warning("This box is locked because you have already submitted your work.")
-                    needs_resubmit = st.session_state.get(f"{lesson_key}__needs_resubmit")
-                    if needs_resubmit is None:
+                    needs_resubmit_flag = needs_resubmit_state
+                    if needs_resubmit_flag is None:
+                        needs_resubmit_flag = st.session_state.get(needs_resubmit_key)
+                    if needs_resubmit_flag is None and not status_from_scores:
                         answer_text = st.session_state.get(draft_key, "").strip()
                         MIN_WORDS = 20
-                        needs_resubmit = len(answer_text.split()) < MIN_WORDS
-                    if needs_resubmit:
+                        needs_resubmit_flag = len(answer_text.split()) < MIN_WORDS
+                        st.session_state[needs_resubmit_key] = bool(needs_resubmit_flag)
+                    elif needs_resubmit_flag is not None:
+                        st.session_state[needs_resubmit_key] = bool(needs_resubmit_flag)
+                    if needs_resubmit_flag:
 
                         resubmit_body = (
                             "Paste your revised work here.\n\n"
