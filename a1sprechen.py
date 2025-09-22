@@ -498,13 +498,13 @@ def _build_coursebook_status_payload(
     passed = best_score is not None and best_score >= PASS_MARK
 
     if needs_resubmit:
-        label = "Resubmit needed"
+        label = "Resubmission needed"
     elif passed:
-        label = "Passed"
+        label = "Completed"
     elif has_submission:
         label = "In review"
     else:
-        label = "Draft"
+        label = "Not yet submitted"
 
     meta_lines: List[str] = []
 
@@ -525,9 +525,9 @@ def _build_coursebook_status_payload(
     if last_submission_str:
         meta_lines.insert(0, f"Last submitted: {last_submission_str}")
 
-    if label == "Draft" and not meta_lines:
+    if label == "Not yet submitted" and not meta_lines:
         meta_lines.append("No submission yet.")
-    elif label == "Resubmit needed" and not meta_lines:
+    elif label == "Resubmission needed" and not meta_lines:
         meta_lines.append("Tutor requested another attempt.")
 
     payload = {
@@ -553,19 +553,21 @@ def _render_coursebook_status_banner(payload: Dict[str, Any]) -> None:
     if not isinstance(payload, dict) or not payload:
         return
 
-    label = str(payload.get("label") or "Draft")
+    default_label = "Not yet submitted"
+    label = str(payload.get("label") or default_label)
     icon_map = {
-        "Passed": "✅",
+        "Completed": "✅",
         "In review": "⏳",
-        "Resubmit needed": "⚠️",
-        "Draft": "📝",
+        "Resubmission needed": "⚠️",
+        "Not yet submitted": "📝",
     }
     color_map = {
-        "Passed": "#dcfce7",
+        "Completed": "#dcfce7",
         "In review": "#fef9c3",
-        "Resubmit needed": "#fee2e2",
-        "Draft": "#e0f2fe",
+        "Resubmission needed": "#fee2e2",
+        "Not yet submitted": "#e0f2fe",
     }
+    default_color = color_map.get(default_label, "#e0f2fe")
 
     meta_lines = [str(line).strip() for line in payload.get("meta_lines", []) if str(line).strip()]
     meta_html = "".join(
@@ -579,11 +581,11 @@ def _render_coursebook_status_banner(payload: Dict[str, Any]) -> None:
             border-radius: 10px;
             padding: 0.75rem 1rem;
             margin-bottom: 0.75rem;
-            background: {color_map.get(label, '#e0f2fe')};
+            background: {color_map.get(label, default_color)};
             border: 1px solid rgba(15, 23, 42, 0.12);
         ">
             <div style="font-weight:600;color:#0f172a;">
-                {icon_map.get(label, '📝')} {html.escape(label)}
+                {icon_map.get(label, icon_map.get(default_label, '📝'))} {html.escape(label)}
             </div>
             {meta_html}
         </div>
