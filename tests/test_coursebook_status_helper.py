@@ -172,3 +172,17 @@ def test_coursebook_status_helper_textual_fallback(
     assert payload["label"] == expected_label
     assert payload["needs_resubmit"] is expected_resubmit
 
+
+def test_coursebook_status_helper_soft_resubmit_clears_on_textual_pass(status_helper):
+    summary_df = _make_summary(None, status_value="Completed")
+
+    payload = status_helper(
+        latest_submission={"answer": "Hallo"},
+        needs_resubmit=True,
+        attempts_summary=summary_df,
+        assignment_identifiers=[1.0],
+    )
+
+    assert payload["label"] == "Completed"
+    assert payload["needs_resubmit"] is False
+
