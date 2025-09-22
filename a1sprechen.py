@@ -6031,36 +6031,151 @@ if tab == "Chat • Grammar • Exams":
 
         sub_speak, sub_lesen, sub_hoeren = st.tabs(["🗣️ Speaking", "📖 Lesen", "🎧 Hören"])
 
-        # ---------- Speaking ----------
-        with sub_speak:
-            st.markdown(
-                """
-                <div class="panel">
-                  <b>Speaking practice</b><br>
-                  • Open the practice page and follow the prompts to record and submit.<br>
-                  • Keep sentences short and clear — you’ve got this! 💪
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            # Use the PRACTICE_URL here (as requested)
-            st.markdown(
-                f'<a class="btn secondary" href="{PRACTICE_URL}" target="_blank" rel="noopener">📝 Open Speaking Practice</a>',
-                unsafe_allow_html=True,
-            )
 
-        # Helper to render link rows as buttons
-        def _link_buttons(rows):
-            for title, url in rows:
-                st.markdown(
-                    f'<div style="margin:6px 0;"><a class="btn" href="{url}" target="_blank" rel="noopener">{title}</a></div>',
-                    unsafe_allow_html=True,
+    with sub_speak:
+        st.markdown(
+            """
+            <div class="panel">
+              <b>Speaking practice</b><br>
+              • Open the practice page and follow the prompts to record and submit.<br>
+              • Keep sentences short and clear — you’ve got this! 💪
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # Button to your speaking practice page (PRACTICE_URL)
+        st.markdown(
+            f'<a class="btn secondary" href="{PRACTICE_URL}" target="_blank" rel="noopener">📝 Open Speaking Practice</a>',
+            unsafe_allow_html=True,
+        )
+
+        st.markdown("### 📊 Your Speaking Progress")
+
+        @st.cache_data(ttl=900)
+        def _load_speaking_sheet():
+            SHEET_ID = "1zaAT5NjRGKiITV7EpuSHvYMBHHENMs9Piw3pNcyQtho"
+            GID = "1742958075"
+            url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={GID}"
+            try:
+                resp = requests.get(url, timeout=10)
+                resp.raise_for_status()
+                df = pd.read_csv(io.StringIO(resp.text))
+            except Exception:
+                return pd.DataFrame()
+
+            # normalize columns
+            df.columns = [c.strip().lower() for c in df.columns]
+            for numcol in ["score_total", "pronunciation", "grammar", "content", "fluency"]:
+                if numcol in df.columns:
+                    df[numcol] = pd.to_numeric(df[numcol], errors="coerce")
+            if "timestamp" in df.columns:
+                df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+            return df
+
+        def _drive_id_to_direct_audio(file_id: str) -> str:
+            """Convert raw Google Drive file ID ➜ direct playable URL."""
+            fid = (file_id or "").strip()
+            if not fid:
+                return ""
+            if fid.startswith("http://") or fid.startswith("https://"):
+                m = re.search(r"/d/([A-Za-z0-9_-]{20,})", fid) or re.search(r"[?&]id=([A-Za-z0-9_-]{20,})", fid)
+                if m:
+                    fid = m.group(1)
+            return f"https://drive.google.com/uc?export=download&id={fid}"
+
+        df_all = _load_speaking_sheet()
+        student_code = (st.session_state.get("student_code") or "").strip().lower()
+
+        if df_all.empty:
+            st.info("No stats available yet. Try a speaking practice and come back!")
+        elif "code" not in df_all.columns:
+            st.info("Stats sheet is missing a 'code' column.")
+        else:
+            df_me = df_all[df_all["code"].astype(str).str.strip().str.lower() == student_code].copy()
+            if df_me.empty:
+                st.info("No submissions found for your account yet.")
+            else:
+                if "timestamp" in df_me.columns:
+                    df_me = df_me.sort_values("timestamp", ascending=False)
+
+                attempts = len(df_me)
+                def _num_ok(x): return x if x is not None and not pd.isna(x) else float("nan")
+
+                avg_score = _num_ok(df_me["score_total"].dropna().mean()) if "score_total" in df_me else float("nan")
+                best_score = _num_ok(df_me["score_total"].dropna().max()) if "score_total" in df_me else float("nan")
+                last_score = (
+                    _num_ok(df_me["score_total"].dropna().iloc[0])
+                    if "score_total" in df_me and not df_me["score_total"].dropna().empty
+                    else float("nan")
                 )
+                last_when = df_me["timestamp"].iloc[0] if "timestamp" in df_me and pd.notna(df_me["timestamp"].iloc[0]) else None
 
-        # Default level pulled from the Topic Coach level slider (fallback to A1)
-        level_for_exams = st.session_state.get(KEY_LEVEL_SLIDER, "A1")
-        if level_for_exams not in lesen_links:
-            level_for_exams = "A1"
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Attempts", attempts)
+                c2.metric("Avg. score", f"{avg_score:.1f}" if pd.notna(avg_score) else "—")
+                c3.metric("Best score", f"{best_score:.1f}" if pd.notna(best_score) else "—")
+                c4.metric("Last score", f"{last_score:.1f}" if pd.notna(last_score) else "—")
+                if last_when is not None and pd.notna(last_when):
+                    st.caption(f"Last submission: {last_when:%d %b %Y, %H:%M}")
+
+                # Breakdown by part
+                if "part" in df_me.columns:
+                    by_part = (
+                        df_me.groupby("part")
+                        .agg(attempts=("part", "count"), avg_score=("score_total", "mean"))
+                        .reset_index()
+                        .sort_values(["part"])
+                    )
+                    st.markdown("#### Breakdown by Part")
+                    st.dataframe(by_part.assign(avg_score=by_part["avg_score"].round(1)), use_container_width=True)
+
+                # Recent attempts table
+                show_cols = [c for c in [
+                    "timestamp", "part", "question_id", "prompt", "score_total",
+                    "pronunciation", "grammar", "content", "fluency", "feedback_text"
+                ] if c in df_me.columns]
+
+                df_recent = df_me.loc[:, show_cols].head(8) if show_cols else pd.DataFrame()
+                if not df_recent.empty:
+                    if "prompt" in df_recent.columns:
+                        df_recent["prompt"] = (
+                            df_recent["prompt"].astype(str).str.slice(0, 120)
+                            .mask(df_recent["prompt"].str.len() > 120, df_recent["prompt"].str.slice(0, 117) + "…")
+                        )
+                    if "feedback_text" in df_recent.columns:
+                        df_recent["feedback_text"] = (
+                            df_recent["feedback_text"].astype(str).str.slice(0, 140)
+                            .mask(df_recent["feedback_text"].str.len() > 140, df_recent["feedback_text"].str.slice(0, 137) + "…")
+                        )
+
+                st.markdown("#### Recent attempts")
+                st.dataframe(df_recent, use_container_width=True)
+
+                # Inline audio for newest attempt — column could be 'audio_file_id' or similar
+                audio_col = next((c for c in ["audio_file_id", "audio_id", "audio"] if c in df_me.columns), None)
+                if audio_col and not df_me.empty:
+                    raw_id = str(df_me.iloc[0][audio_col] or "").strip()
+                    audio_url = _drive_id_to_direct_audio(raw_id)
+                    if audio_url:
+                        try:
+                            if callable(render_audio_player):
+                                render_audio_player(audio_url)
+                            else:
+                                raise NameError
+                        except Exception:
+                            st.markdown(
+                                f"""
+                                <audio controls style="width:100%;">
+                                  <source src="{audio_url}">
+                                  Your browser does not support the audio element.
+                                </audio>
+                                <div style="margin-top:4px;">
+                                  <a href="{audio_url}" target="_blank" rel="noopener">Open audio</a>
+                                </div>
+                                """,
+                                unsafe_allow_html=True,
+                            )
 
         # ---------- Lesen ----------
         with sub_lesen:
