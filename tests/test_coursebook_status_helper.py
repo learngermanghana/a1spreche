@@ -153,6 +153,8 @@ def test_textual_status_populates_failed_identifiers(monkeypatch, score_text, st
         (None, "Resubmission needed", "Resubmission needed", True),
         ("Pass", None, "Completed", False),
         (None, "Completed", "Completed", False),
+        ("Completed - no resubmission needed", None, "Completed", False),
+        (None, "Completed - resubmission not required", "Completed", False),
     ],
 )
 def test_coursebook_status_helper_textual_fallback(
