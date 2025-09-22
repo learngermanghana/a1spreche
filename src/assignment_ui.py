@@ -59,6 +59,56 @@ LEVEL_ASSIGNMENT_TARGET_OVERRIDES: Dict[str, int] = {
 PASS_MARK = 60.0
 
 
+_TEXTUAL_FAIL_PATTERNS = (
+    r"\bfail(?:ed|ure)?\b",
+    r"\bresub(?:mit|mission)\b",
+    r"\bresub\b",
+    r"\bre[- ]?submit\b",
+    r"\btry\s+again\b",
+    r"\bincomplete\b",
+    r"\bneeds?\s+resub(?:mit|mission)\b",
+    r"\brequires?\s+resub(?:mit|mission)\b",
+    r"\bneeds?\s+revision\b",
+    r"\bneeds?\s+improvement\b",
+    r"\banother\s+attempt\b",
+)
+
+_TEXTUAL_PASS_PATTERNS = (
+    r"\bpass\b",
+    r"\bpassed\b",
+    r"\bcomplete\b",
+    r"\bcompleted\b",
+    r"\bcompetent\b",
+    r"\bachieved\b",
+    r"\bsatisfactory\b",
+)
+
+
+def infer_textual_score_state(*values: object) -> Optional[str]:
+    """Infer a pass/fail outcome from textual score/status fields."""
+
+    texts: List[str] = []
+    for value in values:
+        text = _clean_text(value)
+        if text:
+            texts.append(text.casefold())
+
+    if not texts:
+        return None
+
+    normalized = re.sub(r"[^a-z0-9]+", " ", " ".join(texts))
+
+    for pattern in _TEXTUAL_FAIL_PATTERNS:
+        if re.search(pattern, normalized):
+            return "fail"
+
+    for pattern in _TEXTUAL_PASS_PATTERNS:
+        if re.search(pattern, normalized):
+            return "pass"
+
+    return None
+
+
 def _first_series(df: pd.DataFrame, candidates: Sequence[str]) -> Optional[pd.Series]:
     for candidate in candidates:
         if candidate in df.columns:
@@ -194,6 +244,10 @@ def summarize_assignment_attempts(df_user: pd.DataFrame) -> pd.DataFrame:
         df_user,
         ["score", "grade", "points", "result", "marks", "percentage"],
     )
+    status_series = _first_series(
+        df_user,
+        ["status", "result_status", "grade_status", "assessment_status"],
+    )
     date_series = _first_series(
         df_user,
         [
@@ -252,7 +306,15 @@ def summarize_assignment_attempts(df_user: pd.DataFrame) -> pd.DataFrame:
     score_display = score_clean.where(
         score_clean.astype(bool), numeric_series.map(_display_from_numeric)
     ).fillna("")
+    status_raw_series = (
+        status_series
+        if status_series is not None
+        else pd.Series([None] * total_rows, index=index, dtype=object)
+    )
+    status_clean = status_raw_series.map(_clean_text)
+    status_fallback = status_clean.where(status_clean.astype(bool), score_clean)
     status_display = numeric_series.apply(lambda val: _score_status_details(val)[2])
+    status_display = status_display.where(numeric_series.notna(), status_fallback)
 
     date_raw_series = (
         date_series
@@ -527,6 +589,7 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
             mask = (student_series == student_norm) & (level_series == level_norm)
             if mask.any():
                 highest_scores: Dict[float, float] = {}
+                textual_results: Dict[float, str] = {}
                 filtered_df = df.loc[mask]
                 for _, row in filtered_df.iterrows():
                     assignment_value = row.get("assignment")
@@ -539,15 +602,39 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
                     if not numbers:
                         continue
 
+                    text_candidates: List[object] = []
                     numeric_score: Optional[float] = None
                     if score_column_name is not None:
-                        numeric_score = _coerce_score_value(row.get(score_column_name))
+                        raw_score_value = row.get(score_column_name)
+                        text_candidates.append(raw_score_value)
+                        numeric_score = _coerce_score_value(raw_score_value)
                         if numeric_score is not None:
                             try:
                                 numeric_score = float(numeric_score)
                             except (TypeError, ValueError):
                                 numeric_score = None
+                    for extra_key in (
+                        "status",
+                        "score",
+                        "grade",
+                        "result",
+                        "marks",
+                        "percentage",
+                    ):
+                        if extra_key == score_column_name:
+                            continue
+                        text_candidates.append(row.get(extra_key))
+
+                    textual_outcome = infer_textual_score_state(*text_candidates)
+
                     if numeric_score is None or pd.isna(numeric_score):
+                        if textual_outcome:
+                            for num in numbers:
+                                previous = textual_results.get(num)
+                                if textual_outcome == "fail":
+                                    textual_results[num] = "fail"
+                                elif previous != "fail":
+                                    textual_results[num] = "pass"
                         continue
 
                     for num in numbers:
@@ -560,6 +647,15 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
                         completed_nums.add(identifier)
                     else:
                         failed_attempt_nums.add(identifier)
+
+                for identifier, outcome in textual_results.items():
+                    if identifier in highest_scores:
+                        continue
+                    if outcome == "fail":
+                        failed_attempt_nums.add(identifier)
+                        completed_nums.discard(identifier)
+                    elif outcome == "pass" and identifier not in failed_attempt_nums:
+                        completed_nums.add(identifier)
 
     def _to_int(value: object) -> Optional[int]:
         try:
