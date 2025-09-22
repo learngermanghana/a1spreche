@@ -6059,9 +6059,7 @@ if tab == "Chat • Grammar • Exams":
                 if not label or not url:
                     continue
 
-                key_seed = f"{label}|{url}|{idx}"
-                btn_key = f"exam_link_{hashlib.md5(key_seed.encode()).hexdigest()[:8]}"
-                st.link_button(label, url, use_container_width=True, key=btn_key)
+                st.link_button(label, url, use_container_width=True)
 
 
     with sub_speak:
