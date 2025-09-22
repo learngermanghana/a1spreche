@@ -5635,6 +5635,112 @@ if tab == "Chat • Grammar • Exams":
     # ---------- Subtabs ----------
     tab_tc, tab_gram, tab_exam = st.tabs(["🧑‍🏫 Topic Coach", "🛠️ Grammar", "📝 Exams"])
 
+    exam_lesen_links = {
+        "A1": [
+            {
+                "label": "Goethe Zertifikat A1 – Lesen (Modellsatz)",
+                "url": "https://www.goethe.de/resources/files/pdf41/start-deutsch-1-modellsatz.pdf",
+            },
+            {
+                "label": "telc Deutsch A1 – Lesen Übungstest",
+                "url": "https://www.telc.net/fileadmin/user_upload/medien/pdf/Deutsch_A1-1_Pruefungsuebung.pdf",
+            },
+        ],
+        "A2": [
+            {
+                "label": "Goethe Zertifikat A2 – Lesen (Modellsatz)",
+                "url": "https://www.goethe.de/resources/files/pdf63/goethe-zertifikat-a2-modellsatz.pdf",
+            },
+            {
+                "label": "telc Deutsch A2 – Lesen Beispielprüfung",
+                "url": "https://www.telc.net/fileadmin/user_upload/medien/pdf/Deutsch_A2_Pruefungsbeispiele.pdf",
+            },
+        ],
+        "B1": [
+            {
+                "label": "Goethe Zertifikat B1 – Lesen (Modellsatz)",
+                "url": "https://www.goethe.de/resources/files/pdf58/goethe-zertifikat-b1-jugendliche-modellsatz.pdf",
+            },
+            {
+                "label": "telc Deutsch B1 – Lesen Musterprüfung",
+                "url": "https://www.telc.net/fileadmin/user_upload/medien/pdf/Deutsch_B1_Pruefungsbeispiele.pdf",
+            },
+        ],
+        "B2": [
+            {
+                "label": "Goethe Zertifikat B2 – Lesen (Modellsatz)",
+                "url": "https://www.goethe.de/resources/files/pdf47/goethe-zertifikat-b2-modellsatz.pdf",
+            },
+            {
+                "label": "telc Deutsch B2 – Lesen Musterprüfung",
+                "url": "https://www.telc.net/fileadmin/user_upload/medien/pdf/Deutsch_B2_Pruefungsbeispiele.pdf",
+            },
+        ],
+        "C1": [
+            {
+                "label": "Goethe Zertifikat C1 – Lesen (Modellsatz)",
+                "url": "https://www.goethe.de/resources/files/pdf44/goethe-zertifikat-c1-modellsatz.pdf",
+            },
+            {
+                "label": "telc Deutsch C1 Hochschule – Lesen Musterprüfung",
+                "url": "https://www.telc.net/fileadmin/user_upload/medien/pdf/C1_Hochschule_Pruefungsbeispiele.pdf",
+            },
+        ],
+    }
+
+    exam_hoeren_links = {
+        "A1": [
+            {
+                "label": "Goethe Zertifikat A1 – Hören Audio",
+                "url": "https://www.goethe.de/resources/files/audio83/start-deutsch-1-modellsatz-hoeren.mp3",
+            },
+            {
+                "label": "telc Deutsch A1 – Hören Audios",
+                "url": "https://www.telc.net/fileadmin/user_upload/medien/mp3/Deutsch_A1-1_Musterpruefung_Hoeren.zip",
+            },
+        ],
+        "A2": [
+            {
+                "label": "Goethe Zertifikat A2 – Hören Audio",
+                "url": "https://www.goethe.de/resources/files/audio62/goethe-zertifikat-a2-modellsatz-hoeren.mp3",
+            },
+            {
+                "label": "telc Deutsch A2 – Hören Audios",
+                "url": "https://www.telc.net/fileadmin/user_upload/medien/mp3/Deutsch_A2_Musterpruefung_Hoeren.zip",
+            },
+        ],
+        "B1": [
+            {
+                "label": "Goethe Zertifikat B1 – Hören Audio",
+                "url": "https://www.goethe.de/resources/files/audio52/goethe-zertifikat-b1-modellsatz-hoeren.mp3",
+            },
+            {
+                "label": "telc Deutsch B1 – Hören Audios",
+                "url": "https://www.telc.net/fileadmin/user_upload/medien/mp3/Deutsch_B1_Musterpruefung_Hoeren.zip",
+            },
+        ],
+        "B2": [
+            {
+                "label": "Goethe Zertifikat B2 – Hören Audio",
+                "url": "https://www.goethe.de/resources/files/audio45/goethe-zertifikat-b2-modellsatz-hoeren.mp3",
+            },
+            {
+                "label": "telc Deutsch B2 – Hören Audios",
+                "url": "https://www.telc.net/fileadmin/user_upload/medien/mp3/Deutsch_B2_Musterpruefung_Hoeren.zip",
+            },
+        ],
+        "C1": [
+            {
+                "label": "Goethe Zertifikat C1 – Hören Audio",
+                "url": "https://www.goethe.de/resources/files/audio44/goethe-zertifikat-c1-modellsatz-hoeren.mp3",
+            },
+            {
+                "label": "telc Deutsch C1 Hochschule – Hören Audios",
+                "url": "https://www.telc.net/fileadmin/user_upload/medien/mp3/C1_Hochschule_Musterpruefung_Hoeren.zip",
+            },
+        ],
+    }
+
     # ===================== Topic Coach (intro, feedback, finalize) =====================
     with tab_tc:
         # Recorder reminder banner + button
@@ -6031,6 +6137,66 @@ if tab == "Chat • Grammar • Exams":
             """, unsafe_allow_html=True
         )
         st.markdown(f'<a class="btn" href="{PRACTICE_URL}" target="_blank" rel="noopener">📝 Start Exam Practice</a>', unsafe_allow_html=True)
+
+        def _normalise_exam_level(value: Any) -> str:
+            raw = _safe_upper(value)
+            if not raw:
+                return ""
+            token = re.sub(r"[^A-Z0-9]", "", raw)[:2]
+            return token if token in exam_lesen_links or token in exam_hoeren_links else ""
+
+        level_candidates = [
+            st.session_state.get(KEY_LEVEL_SLIDER),
+            st.session_state.get(KEY_GRAM_LEVEL),
+            active_level,
+            st.session_state.get("active_level"),
+        ]
+
+        resolved_level = ""
+        for candidate in level_candidates:
+            candidate_level = _normalise_exam_level(candidate)
+            if candidate_level:
+                resolved_level = candidate_level
+                break
+
+        if not resolved_level:
+            if "A1" in exam_lesen_links or "A1" in exam_hoeren_links:
+                resolved_level = "A1"
+            else:
+                available_levels = sorted({*exam_lesen_links.keys(), *exam_hoeren_links.keys()})
+                resolved_level = available_levels[0] if available_levels else "A1"
+
+        def _extract_links(entries: Any) -> List[Tuple[str, str]]:
+            results: List[Tuple[str, str]] = []
+            for item in entries or []:
+                label = url = ""
+                if isinstance(item, dict):
+                    label = _safe_str(item.get("label"))
+                    url = _safe_str(item.get("url"))
+                elif isinstance(item, (list, tuple)) and len(item) >= 2:
+                    label = _safe_str(item[0])
+                    url = _safe_str(item[1])
+                if label and url:
+                    results.append((label, url))
+            return results
+
+        lesen_items = _extract_links(exam_lesen_links.get(resolved_level))
+        hoeren_items = _extract_links(exam_hoeren_links.get(resolved_level))
+        sprechen_items = _extract_links([("Falowen Recorder", RECORDER_URL)])
+
+        st.markdown("### 📘 Skill practice for your level")
+        st.markdown(f"Currently showing: **{resolved_level}**")
+
+        def _render_skill_block(title: str, items: List[Tuple[str, str]]) -> None:
+            st.markdown(f"**{title}**")
+            if items:
+                st.markdown("\n".join(f"- [{label}]({url})" for label, url in items))
+            else:
+                st.markdown("- _(No resources available yet.)_")
+
+        _render_skill_block("Lesen", lesen_items)
+        _render_skill_block("Hören", hoeren_items)
+        _render_skill_block("Sprechen", sprechen_items)
 
     st.divider()
     render_app_footer(FOOTER_LINKS)
