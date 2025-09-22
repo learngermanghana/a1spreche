@@ -6029,6 +6029,22 @@ if tab == "Chat • Grammar • Exams":
             "C1": [("Goethe C1 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/be/en/spr/prf/gzc1/u24.html")],
         }
 
+        level_for_exams = st.session_state.get("exam_lesen_level", default_level)
+        if level_for_exams not in lesen_links or level_for_exams not in hoeren_links:
+            level_for_exams = st.session_state.get("exam_hoeren_level", level_for_exams)
+        if level_for_exams not in lesen_links or level_for_exams not in hoeren_links:
+            if default_level in lesen_links and default_level in hoeren_links:
+                level_for_exams = default_level
+            else:
+                common_levels = [lvl for lvl in lesen_links if lvl in hoeren_links]
+                if common_levels:
+                    level_for_exams = common_levels[0]
+                else:
+                    level_for_exams = next(
+                        iter(lesen_links.keys()),
+                        next(iter(hoeren_links.keys()), default_level),
+                    )
+
         sub_speak, sub_lesen, sub_hoeren = st.tabs(["🗣️ Speaking", "📖 Lesen", "🎧 Hören"])
 
 
