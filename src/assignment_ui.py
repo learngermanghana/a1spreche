@@ -73,6 +73,24 @@ _TEXTUAL_FAIL_PATTERNS = (
     r"\banother\s+attempt\b",
 )
 
+_RESUBMISSION_FAIL_PATTERNS = {
+    r"\bresub(?:mit|mission)\b",
+    r"\bresub\b",
+    r"\bre[- ]?submit\b",
+    r"\bneeds?\s+resub(?:mit|mission)\b",
+    r"\brequires?\s+resub(?:mit|mission)\b",
+}
+
+_NEGATED_RESUBMISSION_PATTERNS = (
+    r"\bno\s+resub(?:mit|mission)\b",
+    r"\bno\s+need\s+to\s+resub(?:mit|mission)\b",
+    r"\bdoes\s+not\s+need\s+to\s+resub(?:mit|mission)\b",
+    r"\bnot\s+required\s+to\s+resub(?:mit|mission)\b",
+    r"\bresub(?:mit|mission)\s+not\s+(?:required|needed|necessary)\b",
+    r"\bresub(?:mit|mission)\s+(?:is\s+)?optional\b",
+    r"\boptional\s+resub(?:mit|mission)\b",
+)
+
 _TEXTUAL_PASS_PATTERNS = (
     r"\bpass\b",
     r"\bpassed\b",
@@ -82,6 +100,23 @@ _TEXTUAL_PASS_PATTERNS = (
     r"\bachieved\b",
     r"\bsatisfactory\b",
 )
+
+
+def _has_negated_resubmission(text: str) -> bool:
+    return any(re.search(pattern, text) for pattern in _NEGATED_RESUBMISSION_PATTERNS)
+
+
+def _resubmission_is_required(text: str) -> bool:
+    if _has_negated_resubmission(text):
+        return False
+    requirement_patterns = (
+        r"\bneeds?\s+resub(?:mit|mission)\b",
+        r"\bresub(?:mit|mission)\s+needed\b",
+        r"\bresub(?:mit|mission)\s+required\b",
+        r"\brequires?\s+resub(?:mit|mission)\b",
+        r"\bmust\s+resub(?:mit|mission)\b",
+    )
+    return any(re.search(pattern, text) for pattern in requirement_patterns)
 
 
 def infer_textual_score_state(*values: object) -> Optional[str]:
@@ -98,13 +133,21 @@ def infer_textual_score_state(*values: object) -> Optional[str]:
 
     normalized = re.sub(r"[^a-z0-9]+", " ", " ".join(texts))
 
+    has_pass_cue = any(re.search(pattern, normalized) for pattern in _TEXTUAL_PASS_PATTERNS)
+    negated_resubmission = _has_negated_resubmission(normalized)
+    resubmission_required = _resubmission_is_required(normalized)
+
     for pattern in _TEXTUAL_FAIL_PATTERNS:
         if re.search(pattern, normalized):
+            if pattern in _RESUBMISSION_FAIL_PATTERNS:
+                if negated_resubmission:
+                    continue
+                if has_pass_cue and not resubmission_required:
+                    continue
             return "fail"
 
-    for pattern in _TEXTUAL_PASS_PATTERNS:
-        if re.search(pattern, normalized):
-            return "pass"
+    if has_pass_cue:
+        return "pass"
 
     return None
 
