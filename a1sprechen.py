@@ -21,7 +21,7 @@ from datetime import datetime
 from datetime import datetime as _dt
 from uuid import uuid4
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, List, Iterable, MutableMapping
+from typing import Any, Dict, Optional, Tuple, List, Iterable, MutableMapping, Set
 from functools import lru_cache
 
 # ==== Third-Party Packages ====
@@ -75,6 +75,9 @@ st.set_page_config(
 # Load global CSS classes and variables
 inject_global_styles()
 
+MIN_RESUBMIT_WORD_COUNT = 20
+_ASSIGNMENT_NUMBER_PATTERN = re.compile(r"\d+(?:\.\d+)?")
+
 st.markdown("""
 <style>
 html, body { overscroll-behavior-y: none; }
@@ -98,6 +101,191 @@ def _safe_str(v, default: str = "") -> str:
 def _safe_upper(v, default: str = "") -> str:
     s = _safe_str(v, default)
     return s.upper() if s else default
+
+
+def _extract_assignment_numbers_for_resubmit(source: Any) -> List[float]:
+    text = "" if source is None else str(source).strip()
+    if not text:
+        return []
+
+    numbers: List[float] = []
+    base_prefix: Optional[str] = None
+    decimal_len = 0
+
+    for match in _ASSIGNMENT_NUMBER_PATTERN.finditer(text):
+        token = match.group()
+        if "." in token:
+            integer_part, decimal_part = token.split(".", 1)
+            base_prefix = integer_part
+            decimal_len = len(decimal_part)
+            try:
+                numbers.append(float(f"{integer_part}.{decimal_part}"))
+            except ValueError:
+                continue
+        else:
+            plain = token.lstrip("0") or "0"
+            if (
+                base_prefix is not None
+                and decimal_len
+                and plain.isdigit()
+                and len(plain) <= decimal_len
+            ):
+                combined = f"{base_prefix}.{plain.zfill(decimal_len)}"
+                try:
+                    numbers.append(float(combined))
+                except ValueError:
+                    continue
+            else:
+                try:
+                    numbers.append(float(token))
+                except ValueError:
+                    continue
+                base_prefix = None
+                decimal_len = 0
+
+    return numbers
+
+
+def _collect_section_assignment_numbers_for_resubmit(section: Any, fallback: Any) -> List[float]:
+    numbers: List[float] = []
+    if isinstance(section, dict):
+        if section.get("assignment"):
+            numbers.extend(
+                _extract_assignment_numbers_for_resubmit(section.get("chapter", fallback))
+            )
+    elif isinstance(section, list):
+        for item in section:
+            if isinstance(item, dict) and item.get("assignment"):
+                numbers.extend(
+                    _extract_assignment_numbers_for_resubmit(item.get("chapter", fallback))
+                )
+    return numbers
+
+
+def _lesson_assignment_identifiers_for_resubmit(lesson: Any) -> List[float]:
+    if not isinstance(lesson, dict):
+        return []
+
+    fallback_chapter = lesson.get("chapter")
+    seen: Set[float] = set()
+    identifiers: List[float] = []
+
+    def _extend(values: Iterable[float]) -> None:
+        for value in values:
+            try:
+                if math.isnan(value):
+                    continue
+            except (TypeError, ValueError):
+                pass
+            if value not in seen:
+                seen.add(value)
+                identifiers.append(value)
+
+    if lesson.get("assignment"):
+        _extend(_extract_assignment_numbers_for_resubmit(fallback_chapter))
+
+    _extend(_collect_section_assignment_numbers_for_resubmit(lesson.get("lesen_hören"), fallback_chapter))
+    _extend(
+        _collect_section_assignment_numbers_for_resubmit(
+            lesson.get("schreiben_sprechen"),
+            fallback_chapter,
+        )
+    )
+
+    return identifiers
+
+
+def _lesson_requires_resubmit_from_summary(
+    summary: Optional[Dict[str, Any]],
+    lesson: Optional[Dict[str, Any]],
+) -> bool:
+    if not isinstance(summary, dict) or not isinstance(lesson, dict):
+        return False
+
+    failed = summary.get("failed_identifiers")
+    if not failed:
+        return False
+
+    if isinstance(failed, (list, tuple, set)):
+        iterable = failed
+    else:
+        iterable = [failed]
+
+    failed_set: Set[float] = set()
+    for value in iterable:
+        try:
+            num = float(value)
+        except (TypeError, ValueError):
+            continue
+        if math.isnan(num):
+            continue
+        failed_set.add(num)
+
+    if not failed_set:
+        return False
+
+    lesson_identifiers = _lesson_assignment_identifiers_for_resubmit(lesson)
+    return any(identifier in failed_set for identifier in lesson_identifiers)
+
+
+def determine_needs_resubmit(
+    summary: Optional[Dict[str, Any]],
+    lesson: Optional[Dict[str, Any]],
+    *,
+    answer_text: str = "",
+    min_words: int = MIN_RESUBMIT_WORD_COUNT,
+) -> bool:
+    if _lesson_requires_resubmit_from_summary(summary, lesson):
+        return True
+
+    text = "" if answer_text is None else str(answer_text)
+    if min_words > 0 and len(text.split()) < min_words:
+        return True
+
+    return False
+
+
+def _assignment_summary_session_key(student_code: str, level: str) -> str:
+    student_token = _safe_str(student_code).casefold()
+    level_token = _safe_str(level).casefold()
+    return f"assignment_summary::{level_token}::{student_token}"
+
+
+def _load_assignment_summary_for(student_code: str, level: str) -> Optional[Dict[str, Any]]:
+    student = _safe_str(student_code)
+    level_token = _safe_str(level)
+    if not student or not level_token:
+        return None
+
+    cache_key = _assignment_summary_session_key(student, level_token)
+    cached = st.session_state.get(cache_key)
+    if isinstance(cached, dict):
+        return cached
+
+    try:
+        df_scores = load_assignment_scores()
+    except Exception as exc:  # pragma: no cover - best effort cache fill
+        logging.debug(
+            "Unable to load assignment scores for summary (%s/%s): %s",
+            level_token,
+            student,
+            exc,
+        )
+        return None
+
+    try:
+        summary = get_assignment_summary(student, level_token, df_scores)
+    except Exception as exc:  # pragma: no cover - best effort cache fill
+        logging.debug(
+            "Unable to compute assignment summary for %s/%s: %s",
+            level_token,
+            student,
+            exc,
+        )
+        return None
+
+    st.session_state[cache_key] = summary
+    return summary
 
 
 def _timestamp_to_epoch(ts: Optional[datetime]) -> float:
@@ -3159,11 +3347,15 @@ if tab == "My Course":
 
                 if locked:
                     st.warning("This box is locked because you have already submitted your work.")
-                    needs_resubmit = st.session_state.get(f"{lesson_key}__needs_resubmit")
-                    if needs_resubmit is None:
-                        answer_text = st.session_state.get(draft_key, "").strip()
-                        MIN_WORDS = 20
-                        needs_resubmit = len(answer_text.split()) < MIN_WORDS
+                    answer_text = st.session_state.get(draft_key, "")
+                    summary = _load_assignment_summary_for(code, student_level)
+                    needs_resubmit = determine_needs_resubmit(
+                        summary,
+                        info,
+                        answer_text=answer_text or "",
+                        min_words=MIN_RESUBMIT_WORD_COUNT,
+                    )
+                    st.session_state[f"{lesson_key}__needs_resubmit"] = needs_resubmit
                     if needs_resubmit:
 
                         resubmit_body = (
@@ -3396,11 +3588,12 @@ if tab == "My Course":
                                         st.markdown(
                                             f"""1. [Open the Falowen bot](https://t.me/falowenbot) and tap **Start**\n2. Register: `/register {code}`\n3. To deactivate: send `/stop`"""
                                         )
-                                answer_text = st.session_state.get(draft_key, "").strip()
-                                MIN_WORDS = 20
-
-                                st.session_state[f"{lesson_key}__needs_resubmit"] = (
-                                    len(answer_text.split()) < MIN_WORDS
+                                answer_text = (st.session_state.get(draft_key, "") or "").strip()
+                                st.session_state[f"{lesson_key}__needs_resubmit"] = determine_needs_resubmit(
+                                    None,
+                                    info,
+                                    answer_text=answer_text,
+                                    min_words=MIN_RESUBMIT_WORD_COUNT,
                                 )
 
 
