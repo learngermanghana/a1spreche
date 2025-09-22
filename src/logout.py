@@ -26,6 +26,28 @@ def do_logout(
     except Exception:
         logger.exception("Token revoke failed on logout")
 
+    draft_keys = {
+        "coursebook_draft_key",
+        "__active_draft_key",
+        "falowen_chat_draft_key",
+    }
+    draft_prefixes = ("draft_", "falowen_chat_draft_")
+
+    for key in list(st_module.session_state.keys()):
+        should_clear = False
+        if key in draft_keys:
+            should_clear = True
+        elif any(key.startswith(prefix) for prefix in draft_prefixes):
+            should_clear = True
+        else:
+            for base_key in draft_keys:
+                if key.startswith(f"{base_key}__") or key.startswith(f"{base_key}_"):
+                    should_clear = True
+                    break
+
+        if should_clear:
+            st_module.session_state.pop(key, None)
+
     st_module.session_state.update(
         {
             "logged_in": False,
