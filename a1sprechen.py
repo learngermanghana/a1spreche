@@ -288,6 +288,256 @@ def _load_assignment_summary_for(student_code: str, level: str) -> Optional[Dict
     return summary
 
 
+def _load_assignment_attempt_summary(student_code: str, level: str) -> pd.DataFrame:
+    """Return a per-assignment summary for ``student_code`` at ``level``."""
+
+    empty = summarize_assignment_attempts(pd.DataFrame())
+
+    student = _safe_str(student_code)
+    level_token = _safe_str(level)
+    if not student:
+        return empty
+
+    try:
+        df_scores = load_assignment_scores()
+    except Exception as exc:  # pragma: no cover - best effort cache fill
+        logging.debug(
+            "Unable to load assignment scores for status (%s/%s): %s",
+            level_token,
+            student,
+            exc,
+        )
+        return empty
+
+    if not isinstance(df_scores, pd.DataFrame) or df_scores.empty:
+        return empty
+
+    working = df_scores.copy()
+    column_lookup = {str(col).strip().casefold(): col for col in working.columns}
+
+    code_column = column_lookup.get("studentcode")
+    if not code_column:
+        return empty
+
+    mask = working[code_column].astype(str).str.strip().str.casefold() == student.casefold()
+
+    level_column = column_lookup.get("level")
+    if level_column and level_token:
+        mask &= (
+            working[level_column]
+            .astype(str)
+            .str.strip()
+            .str.casefold()
+            == level_token.casefold()
+        )
+
+    df_user = working.loc[mask].copy() if mask.any() else working.iloc[0:0].copy()
+    return summarize_assignment_attempts(df_user)
+
+
+def _format_status_timestamp(value: object) -> str:
+    """Return ``value`` as a friendly UTC timestamp string."""
+
+    if isinstance(value, pd.Timestamp):  # pragma: no cover - convenience branch
+        value = value.to_pydatetime()
+
+    if isinstance(value, datetime):
+        dt_value = value
+    elif value is None:
+        return ""
+    else:
+        text = str(value).strip()
+        return text
+
+    if dt_value.tzinfo is None:
+        dt_value = dt_value.replace(tzinfo=UTC)
+
+    try:
+        dt_utc = dt_value.astimezone(UTC)
+    except Exception:  # pragma: no cover - defensive fallback
+        dt_utc = dt_value
+
+    return dt_utc.strftime("%Y-%m-%d %H:%M UTC")
+
+
+def _build_coursebook_status_payload(
+    *,
+    latest_submission: Optional[Dict[str, Any]],
+    needs_resubmit: bool,
+    attempts_summary: Optional[pd.DataFrame],
+    assignment_identifiers: Iterable[float],
+) -> Dict[str, Any]:
+    """Combine submission + score signals into a status payload."""
+
+    identifiers: Set[float] = set()
+    for value in assignment_identifiers or []:
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            continue
+        if math.isnan(numeric):
+            continue
+        identifiers.add(numeric)
+
+    best_row: Optional[pd.Series] = None
+    best_score: Optional[float] = None
+
+    if isinstance(attempts_summary, pd.DataFrame) and not attempts_summary.empty:
+        for _, row in attempts_summary.iterrows():
+            assignment_text = row.get("assignment", "")
+            numbers = {
+                num
+                for num in _extract_assignment_numbers_for_resubmit(assignment_text)
+                if not math.isnan(num)
+            }
+            if identifiers and not (numbers & identifiers):
+                continue
+
+            score_value = row.get("score_numeric")
+            if score_value is None:
+                numeric_score = None
+            else:
+                try:
+                    numeric_score = float(score_value)
+                except (TypeError, ValueError):
+                    numeric_score = None
+            if numeric_score is not None and math.isnan(numeric_score):
+                numeric_score = None
+
+            if best_row is None:
+                best_row = row
+                best_score = numeric_score
+                continue
+
+            if numeric_score is None:
+                continue
+
+            if best_score is None or numeric_score > best_score:
+                best_row = row
+                best_score = numeric_score
+
+    has_submission = latest_submission is not None
+    last_submission_str = ""
+    if has_submission:
+        last_submission_str = _format_status_timestamp(
+            (latest_submission or {}).get("updated_at")
+            or (latest_submission or {}).get("created_at")
+        )
+
+    score_display = ""
+    status_text = ""
+    attempts_count = 0
+    last_scored = ""
+
+    if best_row is not None:
+        score_display = str(best_row.get("score_display") or "").strip()
+        status_text = str(best_row.get("status") or "").strip()
+        last_scored = (
+            str(best_row.get("date_norm") or "").strip()
+            or str(best_row.get("date_raw") or "").strip()
+        )
+        try:
+            attempts_count = int(best_row.get("attempts") or 0)
+        except (TypeError, ValueError):
+            attempts_count = 0
+
+    passed = best_score is not None and best_score >= PASS_MARK
+
+    if needs_resubmit:
+        label = "Resubmit needed"
+    elif passed:
+        label = "Passed"
+    elif has_submission:
+        label = "In review"
+    else:
+        label = "Draft"
+
+    meta_lines: List[str] = []
+
+    detail_parts: List[str] = []
+    if score_display:
+        detail_parts.append(score_display)
+    elif status_text and status_text.lower() != label.lower():
+        detail_parts.append(status_text)
+    if attempts_count:
+        attempt_label = "attempt" if attempts_count == 1 else "attempts"
+        detail_parts.append(f"{attempts_count} {attempt_label}")
+    if detail_parts:
+        meta_lines.append(" · ".join(detail_parts))
+
+    if last_scored:
+        meta_lines.append(f"Scored: {last_scored}")
+
+    if last_submission_str:
+        meta_lines.insert(0, f"Last submitted: {last_submission_str}")
+
+    if label == "Draft" and not meta_lines:
+        meta_lines.append("No submission yet.")
+    elif label == "Resubmit needed" and not meta_lines:
+        meta_lines.append("Tutor requested another attempt.")
+
+    payload = {
+        "label": label,
+        "meta_lines": [line for line in meta_lines if line.strip()],
+        "score": best_score if best_score is not None else None,
+        "score_display": score_display,
+        "attempts": attempts_count,
+        "last_scored": last_scored,
+        "last_submission": last_submission_str,
+        "needs_resubmit": bool(needs_resubmit),
+        "has_submission": has_submission,
+        "status_text": status_text,
+        "assignment_identifiers": sorted(identifiers),
+    }
+
+    return payload
+
+
+def _render_coursebook_status_banner(payload: Dict[str, Any]) -> None:
+    """Render a concise status banner for the Course Book submission panel."""
+
+    if not isinstance(payload, dict) or not payload:
+        return
+
+    label = str(payload.get("label") or "Draft")
+    icon_map = {
+        "Passed": "✅",
+        "In review": "⏳",
+        "Resubmit needed": "⚠️",
+        "Draft": "📝",
+    }
+    color_map = {
+        "Passed": "#dcfce7",
+        "In review": "#fef9c3",
+        "Resubmit needed": "#fee2e2",
+        "Draft": "#e0f2fe",
+    }
+
+    meta_lines = [str(line).strip() for line in payload.get("meta_lines", []) if str(line).strip()]
+    meta_html = "".join(
+        f"<div style='font-size:0.85rem;color:#0f172a;margin-top:0.25rem;'>{html.escape(line)}</div>"
+        for line in meta_lines
+    )
+
+    st.markdown(
+        f"""
+        <div style="
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.75rem;
+            background: {color_map.get(label, '#e0f2fe')};
+            border: 1px solid rgba(15, 23, 42, 0.12);
+        ">
+            <div style="font-weight:600;color:#0f172a;">
+                {icon_map.get(label, '📝')} {html.escape(label)}
+            </div>
+            {meta_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def _timestamp_to_epoch(ts: Optional[datetime]) -> float:
     """Return ``ts`` as epoch seconds (or ``0.0`` if unavailable)."""
 
@@ -686,6 +936,8 @@ from src.assignment_ui import (
     render_results_and_resources_tab,
     get_assignment_summary,
     select_best_assignment_attempts,
+    summarize_assignment_attempts,
+    PASS_MARK,
 )
 from src.session_management import (
     bootstrap_state,
@@ -3271,6 +3523,8 @@ if tab == "My Course":
                 last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
 
                 # 1) If a forced reload was requested, apply it BEFORE widget creation
+                latest_submission: Optional[Dict[str, Any]] = None
+
                 if st.session_state.get(pending_key):
                     cloud_text = st.session_state.pop(pending_text_key, "")
                     cloud_ts   = st.session_state.pop(pending_ts_key, None)
@@ -3291,10 +3545,10 @@ if tab == "My Course":
 
                 else:
                     # 2) If a SUBMISSION exists, always enforce it (locked) on every run
-                    latest = fetch_latest(student_level, code, lesson_key)
-                    if latest and (latest.get("answer", "") is not None):
-                        sub_txt = latest.get("answer", "") or ""
-                        sub_ts  = latest.get("updated_at")
+                    latest_submission = fetch_latest(student_level, code, lesson_key)
+                    if latest_submission and (latest_submission.get("answer", "") is not None):
+                        sub_txt = latest_submission.get("answer", "") or ""
+                        sub_ts  = latest_submission.get("updated_at")
 
                         st.session_state[draft_key]      = sub_txt
                         st.session_state[last_val_key]   = sub_txt
@@ -3343,7 +3597,12 @@ if tab == "My Course":
                                     st.session_state[saved_flag_key] = True
                                     st.session_state[saved_at_key]   = (cts or datetime.now(_timezone.utc))
 
+                if latest_submission is None:
+                    latest_submission = fetch_latest(student_level, code, lesson_key)
+
                 st.subheader("✍️ Your Answer")
+
+                needs_resubmit = False
 
                 if locked:
                     st.warning("This box is locked because you have already submitted your work.")
@@ -3396,7 +3655,26 @@ if tab == "My Course":
                             """,
                             unsafe_allow_html=True,
                         )
-                    
+
+                st.session_state[f"{lesson_key}__needs_resubmit"] = needs_resubmit
+
+                try:
+                    attempts_summary = _load_assignment_attempt_summary(code, student_level)
+                except Exception:
+                    attempts_summary = summarize_assignment_attempts(pd.DataFrame())
+
+                assignment_identifiers = _lesson_assignment_identifiers_for_resubmit(info)
+                status_payload = _build_coursebook_status_payload(
+                    latest_submission=latest_submission,
+                    needs_resubmit=needs_resubmit,
+                    attempts_summary=attempts_summary,
+                    assignment_identifiers=assignment_identifiers,
+                )
+
+                status_key = f"{lesson_key}__status_payload"
+                st.session_state[status_key] = status_payload
+                _render_coursebook_status_banner(status_payload)
+
                 # ---------- Editor (save on blur + debounce) ----------
                 st.text_area(
                     "Type all your answers here",
