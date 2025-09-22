@@ -5,7 +5,7 @@ import textwrap
 import types
 from pathlib import Path
 from datetime import datetime, UTC
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 import pandas as pd
 import pytest
@@ -44,6 +44,8 @@ def _load_status_helper():
     mod.MIN_RESUBMIT_WORD_COUNT = 20
     mod.Iterable = Iterable
     mod.List = List
+    mod.Tuple = Tuple
+    mod.Callable = Callable
     mod.Dict = Dict
     mod.Optional = Optional
     mod.Any = Any
@@ -72,8 +74,8 @@ def _make_summary(score_value):
 @pytest.mark.parametrize(
     "needs_resubmit,score_value,expected_label",
     [
-        (True, 50, "Resubmit needed"),
-        (False, 85, "Passed"),
+        (True, 50, "Resubmission needed"),
+        (False, 85, "Completed"),
         (False, None, "In review"),
     ],
 )
@@ -98,4 +100,16 @@ def test_coursebook_status_helper_labels(status_helper, needs_resubmit, score_va
         assert "85" in lines
     if expected_label == "In review":
         assert any("Last submitted" in line for line in payload.get("meta_lines", []))
+
+
+def test_coursebook_status_helper_not_yet_submitted(status_helper):
+    payload = status_helper(
+        latest_submission=None,
+        needs_resubmit=False,
+        attempts_summary=None,
+        assignment_identifiers=[1.0],
+    )
+
+    assert payload["label"] == "Not yet submitted"
+    assert "No submission yet." in " ".join(payload.get("meta_lines", []))
 
