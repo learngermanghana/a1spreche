@@ -10,6 +10,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 import pandas as pd
 import pytest
 
+import src.assignment_ui as assignment_ui
 from src.assignment_ui import summarize_assignment_attempts, PASS_MARK
 
 
@@ -49,6 +50,7 @@ def _load_status_helper():
     mod.Dict = Dict
     mod.Optional = Optional
     mod.Any = Any
+    mod.infer_textual_score_state = assignment_ui.infer_textual_score_state
 
     exec(snippet, mod.__dict__)
     return mod._build_coursebook_status_payload
@@ -59,7 +61,7 @@ def status_helper():
     return _load_status_helper()
 
 
-def _make_summary(score_value):
+def _make_summary(score_value, *, status_value=None):
     data = {
         "assignment": ["Day 1 – 1.0"],
         "score": [score_value],
@@ -67,6 +69,8 @@ def _make_summary(score_value):
         "level": ["A1"],
         "date": ["2024-01-01"],
     }
+    if status_value is not None:
+        data["status"] = [status_value]
     df = pd.DataFrame(data)
     return summarize_assignment_attempts(df)
 
@@ -112,4 +116,57 @@ def test_coursebook_status_helper_not_yet_submitted(status_helper):
 
     assert payload["label"] == "Not yet submitted"
     assert "No submission yet." in " ".join(payload.get("meta_lines", []))
+
+
+@pytest.mark.parametrize(
+    "score_text,status_text",
+    [
+        ("Resubmission needed", None),
+        (None, "Resubmission needed"),
+    ],
+)
+def test_textual_status_populates_failed_identifiers(monkeypatch, score_text, status_text):
+    schedule = [
+        {"day": 1, "chapter": "1.0", "assignment": True, "topic": "Ch1"},
+    ]
+    monkeypatch.setattr(assignment_ui, "_get_level_schedules", lambda: {"A1": schedule})
+
+    data = {
+        "studentcode": ["S1"],
+        "assignment": ["1.0"],
+        "level": ["A1"],
+        "date": ["2024-01-01"],
+        "score": [score_text],
+    }
+    if status_text is not None:
+        data["status"] = [status_text]
+    summary = assignment_ui.get_assignment_summary("S1", "A1", pd.DataFrame(data))
+
+    assert summary["failed_identifiers"] == [1.0]
+    assert summary["failed"] == ["Day 1: Chapter 1.0 – Ch1"]
+
+
+@pytest.mark.parametrize(
+    "score_value,status_value,expected_label,expected_resubmit",
+    [
+        ("Resubmission needed", None, "Resubmission needed", True),
+        (None, "Resubmission needed", "Resubmission needed", True),
+        ("Pass", None, "Completed", False),
+        (None, "Completed", "Completed", False),
+    ],
+)
+def test_coursebook_status_helper_textual_fallback(
+    status_helper, score_value, status_value, expected_label, expected_resubmit
+):
+    summary_df = _make_summary(score_value, status_value=status_value)
+
+    payload = status_helper(
+        latest_submission={"answer": "Hallo"},
+        needs_resubmit=False,
+        attempts_summary=summary_df,
+        assignment_identifiers=[1.0],
+    )
+
+    assert payload["label"] == expected_label
+    assert payload["needs_resubmit"] is expected_resubmit
 

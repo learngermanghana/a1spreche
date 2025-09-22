@@ -478,10 +478,12 @@ def _build_coursebook_status_payload(
             or (latest_submission or {}).get("created_at")
         )
 
+    needs_resubmit_flag = bool(needs_resubmit)
     score_display = ""
     status_text = ""
     attempts_count = 0
     last_scored = ""
+    textual_outcome: Optional[str] = None
 
     if best_row is not None:
         score_display = str(best_row.get("score_display") or "").strip()
@@ -494,10 +496,21 @@ def _build_coursebook_status_payload(
             attempts_count = int(best_row.get("attempts") or 0)
         except (TypeError, ValueError):
             attempts_count = 0
+        textual_outcome = infer_textual_score_state(
+            best_row.get("score_raw"),
+            score_display,
+            status_text,
+        )
 
     passed = best_score is not None and best_score >= PASS_MARK
 
-    if needs_resubmit:
+    if best_score is None:
+        if textual_outcome == "pass":
+            passed = True
+        elif textual_outcome == "fail":
+            needs_resubmit_flag = True
+
+    if needs_resubmit_flag:
         label = "Resubmission needed"
     elif passed:
         label = "Completed"
@@ -538,7 +551,7 @@ def _build_coursebook_status_payload(
         "attempts": attempts_count,
         "last_scored": last_scored,
         "last_submission": last_submission_str,
-        "needs_resubmit": bool(needs_resubmit),
+        "needs_resubmit": needs_resubmit_flag,
         "has_submission": has_submission,
         "status_text": status_text,
         "assignment_identifiers": sorted(identifiers),
@@ -995,6 +1008,7 @@ from src.assignment_ui import (
     select_best_assignment_attempts,
     summarize_assignment_attempts,
     PASS_MARK,
+    infer_textual_score_state,
 )
 from src.session_management import (
     bootstrap_state,
