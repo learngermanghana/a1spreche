@@ -12,7 +12,11 @@ from datetime import datetime
 from typing import Any, Dict, Iterable, Optional
 
 from firebase_admin import firestore
-from google.cloud.firestore_v1 import FieldFilter
+
+try:  # FieldFilter is optional for environments without Firestore client
+    from google.cloud.firestore_v1 import FieldFilter
+except ImportError:  # pragma: no cover - fallback exercised in tests
+    FieldFilter = None  # type: ignore[assignment]
 
 try:  # Firestore may be unavailable in tests
     from falowen.sessions import get_db
@@ -25,6 +29,14 @@ db = None  # type: ignore
 
 def _get_db():
     return db if db is not None else get_db()
+
+
+def _firestore_where(query, field: str, op: str, value):
+    """Apply a ``where`` clause supporting optional ``FieldFilter`` imports."""
+
+    if FieldFilter is None:
+        return query.where(field, op, value)
+    return query.where(filter=FieldFilter(field, op, value))
 from src.firestore_utils import load_draft_meta_from_db
 
 
@@ -45,20 +57,15 @@ def has_existing_submission(level: str, code: str, lesson_key: str) -> bool:
     db = _get_db()
     posts_ref = db.collection("submissions").document(level).collection("posts")
     try:
-        q = (
-            posts_ref.where(filter=FieldFilter("student_code", "==", code))
-            .where(filter=FieldFilter("lesson_key", "==", lesson_key))
-            .limit(1)
-            .stream()
-        )
+        query = _firestore_where(posts_ref, "student_code", "==", code)
+        query = _firestore_where(query, "lesson_key", "==", lesson_key)
+        q = query.limit(1).stream()
         return any(True for _ in q)
     except Exception:
         try:
-            for _ in (
-                posts_ref.where(filter=FieldFilter("student_code", "==", code))
-                .where(filter=FieldFilter("lesson_key", "==", lesson_key))
-                .stream()
-            ):
+            query = _firestore_where(posts_ref, "student_code", "==", code)
+            query = _firestore_where(query, "lesson_key", "==", lesson_key)
+            for _ in query.stream():
                 return True
         except Exception:
             pass
@@ -146,10 +153,10 @@ def fetch_latest(level: str, code: str, lesson_key: str) -> Optional[Dict[str, A
     db = _get_db()
     posts_ref = db.collection("submissions").document(level).collection("posts")
     try:
+        query = _firestore_where(posts_ref, "student_code", "==", code)
+        query = _firestore_where(query, "lesson_key", "==", lesson_key)
         docs = (
-            posts_ref.where(filter=FieldFilter("student_code", "==", code))
-            .where(filter=FieldFilter("lesson_key", "==", lesson_key))
-            .order_by("updated_at", direction=firestore.Query.DESCENDING)
+            query.order_by("updated_at", direction=firestore.Query.DESCENDING)
             .limit(1)
             .stream()
         )
@@ -157,11 +164,9 @@ def fetch_latest(level: str, code: str, lesson_key: str) -> Optional[Dict[str, A
             return d.to_dict()
     except Exception:
         try:
-            docs = (
-                posts_ref.where(filter=FieldFilter("student_code", "==", code))
-                .where(filter=FieldFilter("lesson_key", "==", lesson_key))
-                .stream()
-            )
+            query = _firestore_where(posts_ref, "student_code", "==", code)
+            query = _firestore_where(query, "lesson_key", "==", lesson_key)
+            docs = query.stream()
             items = [d.to_dict() for d in docs]
             items.sort(key=lambda x: x.get("updated_at"), reverse=True)
             return items[0] if items else None
@@ -242,7 +247,7 @@ def _score_candidates(ref, filters: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
     try:
         query = ref
         for field, value in filters.items():
-            query = query.where(filter=FieldFilter(field, "==", value))
+            query = _firestore_where(query, field, "==", value)
         docs = [doc.to_dict() for doc in query.stream()]
     except Exception:
         return []
