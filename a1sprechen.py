@@ -100,6 +100,24 @@ def _safe_upper(v, default: str = "") -> str:
     return s.upper() if s else default
 
 
+def _timestamp_to_epoch(ts: Optional[datetime]) -> float:
+    """Return ``ts`` as epoch seconds (or ``0.0`` if unavailable)."""
+
+    if ts is None:
+        return 0.0
+
+    if isinstance(ts, (int, float)):
+        try:
+            return float(ts)
+        except (TypeError, ValueError):
+            return 0.0
+
+    try:
+        return float(ts.timestamp())  # type: ignore[call-arg]
+    except Exception:
+        return 0.0
+
+
 def _topic_coach_state_key(base: str, student_code: str, level: str) -> str:
     student = _safe_str(student_code, "_") or "_"
     level_token = _safe_str(level, "_") or "_"
@@ -3075,7 +3093,7 @@ if tab == "My Course":
 
                     st.session_state[draft_key]      = cloud_text or ""
                     st.session_state[last_val_key]   = st.session_state[draft_key]
-                    st.session_state[last_ts_key]    = time.time()
+                    st.session_state[last_ts_key]    = _timestamp_to_epoch(cloud_ts)
                     st.session_state[saved_flag_key] = True
                     st.session_state[saved_at_key]   = (cloud_ts or datetime.now(_timezone.utc))
                     st.session_state[hydrated_key]   = True
@@ -3095,7 +3113,7 @@ if tab == "My Course":
 
                         st.session_state[draft_key]      = sub_txt
                         st.session_state[last_val_key]   = sub_txt
-                        st.session_state[last_ts_key]    = time.time()
+                        st.session_state[last_ts_key]    = _timestamp_to_epoch(sub_ts)
                         st.session_state[saved_flag_key] = True
                         st.session_state[saved_at_key]   = (sub_ts or datetime.now(_timezone.utc))
                         st.session_state[locked_key]     = True
@@ -3116,15 +3134,15 @@ if tab == "My Course":
                             if cloud_text is not None:
                                 st.session_state[draft_key]      = cloud_text or ""
                                 st.session_state[last_val_key]   = st.session_state[draft_key]
-                                st.session_state[last_ts_key]    = time.time()
+                                st.session_state[last_ts_key]    = _timestamp_to_epoch(cloud_ts)
                                 st.session_state[saved_flag_key] = True
                                 st.session_state[saved_at_key]   = (cloud_ts or datetime.now(_timezone.utc))
                             else:
                                 st.session_state.setdefault(draft_key, "")
                                 st.session_state.setdefault(last_val_key, "")
-                                st.session_state.setdefault(last_ts_key, time.time())
-                                st.session_state.setdefault(saved_flag_key, False)
-                                st.session_state.setdefault(saved_at_key, None)
+                                st.session_state[last_ts_key] = 0.0
+                                st.session_state[saved_flag_key] = False
+                                st.session_state[saved_at_key] = None
 
                             st.session_state[hydrated_key] = True
 
@@ -3140,7 +3158,7 @@ if tab == "My Course":
                                 if ctext:
                                     st.session_state[draft_key]      = ctext
                                     st.session_state[last_val_key]   = ctext
-                                    st.session_state[last_ts_key]    = time.time()
+                                    st.session_state[last_ts_key]    = _timestamp_to_epoch(cts)
                                     st.session_state[saved_flag_key] = True
                                     st.session_state[saved_at_key]   = (cts or datetime.now(_timezone.utc))
 
