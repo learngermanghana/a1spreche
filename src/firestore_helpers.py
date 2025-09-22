@@ -36,6 +36,16 @@ def lock_id(level: str, code: str, lesson_key: str) -> str:
     return f"{level}__{safe_code}__{lesson_key}"
 
 
+def clear_lock(level: str, code: str, lesson_key: str) -> None:
+    """Best-effort removal of an existing submission lock document."""
+    db = _get_db()
+    try:
+        db.collection("submission_locks").document(lock_id(level, code, lesson_key)).delete()
+    except Exception:
+        # Non-fatal: lock cleanup is best-effort only.
+        pass
+
+
 def has_existing_submission(level: str, code: str, lesson_key: str) -> bool:
     """True if a submission exists for this (level, code, lesson_key)."""
     db = _get_db()
@@ -150,7 +160,10 @@ def fetch_latest(level: str, code: str, lesson_key: str) -> Optional[Dict[str, A
             .stream()
         )
         for d in docs:
-            return d.to_dict()
+            payload = d.to_dict() or {}
+            payload.setdefault("__id", d.id)
+            payload.setdefault("__path", d.reference.path)
+            return payload
     except Exception:
         try:
             docs = (
@@ -158,7 +171,12 @@ def fetch_latest(level: str, code: str, lesson_key: str) -> Optional[Dict[str, A
                 .where(filter=FieldFilter("lesson_key", "==", lesson_key))
                 .stream()
             )
-            items = [d.to_dict() for d in docs]
+            items = []
+            for d in docs:
+                payload = d.to_dict() or {}
+                payload.setdefault("__id", d.id)
+                payload.setdefault("__path", getattr(d, "reference", None) and d.reference.path)
+                items.append(payload)
             items.sort(key=lambda x: x.get("updated_at"), reverse=True)
             return items[0] if items else None
         except Exception:
@@ -169,6 +187,7 @@ def fetch_latest(level: str, code: str, lesson_key: str) -> Optional[Dict[str, A
 __all__ = [
     "lesson_key_build",
     "lock_id",
+    "clear_lock",
     "has_existing_submission",
     "acquire_lock",
     "is_locked",

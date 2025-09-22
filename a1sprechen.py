@@ -21,7 +21,7 @@ from datetime import datetime
 from datetime import datetime as _dt
 from uuid import uuid4
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, List, Iterable, MutableMapping, Set
+from typing import Any, Dict, Optional, Tuple, List, Iterable, MutableMapping, Set, Callable
 from functools import lru_cache
 
 # ==== Third-Party Packages ====
@@ -243,6 +243,60 @@ def determine_needs_resubmit(
         return True
 
     return False
+
+
+def _compute_resubmit_unlock_state(
+    locked: bool,
+    *,
+    summary: Optional[Dict[str, Any]],
+    lesson: Optional[Dict[str, Any]],
+    answer_text: str,
+    min_words: int = MIN_RESUBMIT_WORD_COUNT,
+) -> Tuple[bool, bool]:
+    """Determine whether the editor should unlock due to a resubmit flag."""
+
+    needs_resubmit = determine_needs_resubmit(
+        summary,
+        lesson,
+        answer_text=answer_text,
+        min_words=min_words,
+    )
+
+    if locked and needs_resubmit:
+        return needs_resubmit, False
+
+    return needs_resubmit, locked
+
+
+def _should_abort_submission_for_existing_attempt(
+    *,
+    needs_resubmit: bool,
+    got_lock: bool,
+    has_existing_submission_fn: Callable[[], bool],
+) -> Tuple[bool, bool]:
+    """Return ``(abort, recovered_lock)`` for the submission flow.
+
+    ``abort`` is ``True`` when we should stop processing and surface an
+    "already submitted" warning. ``recovered_lock`` is ``True`` when we
+    encountered a stale lock but can proceed (either because resubmit overrides
+    the lock or because there was no submission stored with that lock).
+    """
+
+    if got_lock:
+        return False, False
+
+    if needs_resubmit:
+        return False, True
+
+    try:
+        exists = has_existing_submission_fn()
+    except Exception:
+        exists = False
+
+    if exists:
+        return True, False
+
+    return False, True
 
 
 def _assignment_summary_session_key(student_code: str, level: str) -> str:
@@ -870,6 +924,7 @@ from src.falowen.chat_core import (
 from src.firestore_helpers import (
     lesson_key_build,
     lock_id,
+    clear_lock,
     has_existing_submission,
     acquire_lock,
     is_locked,
@@ -3494,12 +3549,15 @@ if tab == "My Course":
 
 
                 draft_key = f"draft_{lesson_key}"
+                needs_resubmit_key = f"{lesson_key}__needs_resubmit"
+                latest_submission_id_key = f"{lesson_key}__latest_submission_id"
                 st.session_state["coursebook_draft_key"] = draft_key
-                db_locked = is_locked(student_level, code, lesson_key)
+                stored_resubmit_override = bool(st.session_state.get(needs_resubmit_key, False))
+                db_locked = False if stored_resubmit_override else is_locked(student_level, code, lesson_key)
                 locked_key = f"{lesson_key}_locked"
                 if db_locked:
                     st.session_state[locked_key] = True
-                locked = db_locked or st.session_state.get(locked_key, False)
+                locked = (db_locked or st.session_state.get(locked_key, False)) and not stored_resubmit_override
                 submit_in_progress_key = f"{lesson_key}_submit_in_progress"
 
                 # ---------- save previous lesson on switch + force hydrate for this one ----------
@@ -3546,6 +3604,10 @@ if tab == "My Course":
                 else:
                     # 2) If a SUBMISSION exists, always enforce it (locked) on every run
                     latest_submission = fetch_latest(student_level, code, lesson_key)
+                    if latest_submission:
+                        st.session_state[latest_submission_id_key] = latest_submission.get("__id")
+                    else:
+                        st.session_state.pop(latest_submission_id_key, None)
                     if latest_submission and (latest_submission.get("answer", "") is not None):
                         sub_txt = latest_submission.get("answer", "") or ""
                         sub_ts  = latest_submission.get("updated_at")
@@ -3602,61 +3664,57 @@ if tab == "My Course":
 
                 st.subheader("✍️ Your Answer")
 
-                needs_resubmit = False
+                answer_text = st.session_state.get(draft_key, "") or ""
+                summary: Optional[Dict[str, Any]] = None
+                needs_resubmit = bool(st.session_state.get(needs_resubmit_key, False))
 
                 if locked:
-                    st.warning("This box is locked because you have already submitted your work.")
-                    answer_text = st.session_state.get(draft_key, "")
-                    summary = _load_assignment_summary_for(code, student_level)
-                    needs_resubmit = determine_needs_resubmit(
-                        summary,
-                        info,
-                        answer_text=answer_text or "",
+                    try:
+                        summary = _load_assignment_summary_for(code, student_level)
+                    except Exception:
+                        summary = None
+
+                    needs_resubmit, locked_after = _compute_resubmit_unlock_state(
+                        locked,
+                        summary=summary,
+                        lesson=info,
+                        answer_text=answer_text,
                         min_words=MIN_RESUBMIT_WORD_COUNT,
                     )
-                    st.session_state[f"{lesson_key}__needs_resubmit"] = needs_resubmit
-                    if needs_resubmit:
 
-                        resubmit_body = (
-                            "Paste your revised work here.\n\n"
-                            f"Name: {name or ''}\n"
-                            f"Student Code: {code or ''}\n"
-                            f"Assignment number: {info['day']}"
-                        )
-                        resubmit_link = (
-                            "mailto:learngermanghana@gmail.com"
-                            "?subject=Assignment%20Resubmission"
-                            f"&body={_urllib.quote(resubmit_body)}"
-                        )
-                        st.markdown(
-                            f"""
-                            <div class="resubmit-box">
-                              <p>Need to resubmit?</p>
-                              <a href="{resubmit_link}">
+                    if not locked_after:
+                        locked = False
+                        st.session_state[locked_key] = False
+                        try:
+                            clear_lock(student_level, code, lesson_key)
+                        except Exception:
+                            pass
+                    else:
+                        locked = True
+                        st.warning("This box is locked because you have already submitted your work.")
+                else:
+                    if not needs_resubmit:
+                        try:
+                            summary = _load_assignment_summary_for(code, student_level)
+                        except Exception:
+                            summary = None
+                        if summary:
+                            computed_needs_resubmit, _ = _compute_resubmit_unlock_state(
+                                locked,
+                                summary=summary,
+                                lesson=info,
+                                answer_text=answer_text,
+                                min_words=MIN_RESUBMIT_WORD_COUNT,
+                            )
+                            needs_resubmit = computed_needs_resubmit
 
-                                Resubmit via email
-                              </a>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
-                        st.markdown(
-                            """
-                            <style>
-                              .resubmit-box {
-                                margin-top: 1rem;
-                                padding: 1rem;
-                                background: #fff3cd;
-                                border-left: 4px solid #ffa726;
-                                border-radius: 8px;
-                              }
-                              .resubmit-box a { color: #d97706; font-weight: 600; }
-                            </style>
-                            """,
-                            unsafe_allow_html=True,
-                        )
+                st.session_state[needs_resubmit_key] = needs_resubmit
 
-                st.session_state[f"{lesson_key}__needs_resubmit"] = needs_resubmit
+                if needs_resubmit and not locked:
+                    st.info(
+                        "Your tutor requested a resubmission. Update your answer and submit again.",
+                        icon="✏️",
+                    )
 
                 try:
                     attempts_summary = _load_assignment_attempt_summary(code, student_level)
@@ -3789,26 +3847,50 @@ if tab == "My Course":
                         disabled=(not can_submit) or submit_in_progress,
                     ):
                         st.session_state[submit_in_progress_key] = True
-                        
+
                         try:
 
                             # 1) Try to acquire the lock first
+                            resubmit_active = bool(st.session_state.get(needs_resubmit_key, False))
+                            if resubmit_active:
+                                try:
+                                    clear_lock(student_level, code, lesson_key)
+                                except Exception:
+                                    pass
+
                             got_lock = acquire_lock(student_level, code, lesson_key)
 
-                            # If lock exists already, check whether a submission exists; if yes, reflect lock and rerun.
-                            if not got_lock:
-                                if has_existing_submission(student_level, code, lesson_key):
-                                    st.session_state[locked_key] = True
-                                    st.warning("You have already submitted this assignment. It is locked.")
-                                    refresh_with_toast()
+                            abort_submission, recovered_lock = _should_abort_submission_for_existing_attempt(
+                                needs_resubmit=resubmit_active,
+                                got_lock=got_lock,
+                                has_existing_submission_fn=lambda: has_existing_submission(
+                                    student_level,
+                                    code,
+                                    lesson_key,
+                                ),
+                            )
+
+                            if abort_submission:
+                                st.session_state[locked_key] = True
+                                st.warning("You have already submitted this assignment. It is locked.")
+                                refresh_with_toast()
+                            else:
+                                if not got_lock and recovered_lock:
+                                    if resubmit_active:
+                                        st.info("Continuing resubmit attempt — refreshing your submission now…")
+                                    else:
+                                        st.info("Found an old lock without a submission — recovering and submitting now…")
+
+                                posts_ref = db.collection("submissions").document(student_level).collection("posts")
+
+                                # 2) Pre-create doc (avoids add() tuple-order mismatch)
+                                existing_doc_id = st.session_state.get(latest_submission_id_key)
+                                if resubmit_active and existing_doc_id:
+                                    doc_ref = posts_ref.document(existing_doc_id)
                                 else:
-                                    st.info("Found an old lock without a submission — recovering and submitting now…")
-
-                            posts_ref = db.collection("submissions").document(student_level).collection("posts")
-
-                            # 2) Pre-create doc (avoids add() tuple-order mismatch)
-                            doc_ref = posts_ref.document()  # auto-ID now available
-                            short_ref = f"{doc_ref.id[:8].upper()}-{info['day']}"
+                                    doc_ref = posts_ref.document()  # auto-ID now available
+                                st.session_state[latest_submission_id_key] = doc_ref.id
+                                short_ref = f"{doc_ref.id[:8].upper()}-{info['day']}"
 
                             payload = {
                                 "student_code": code,
