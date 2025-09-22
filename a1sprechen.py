@@ -6070,7 +6070,7 @@ if tab == "Chat • Grammar • Exams":
                 unsafe_allow_html=True,
             )
             st.markdown(
-                f'<a class="btn secondary" href="{RECORDER_URL}" target="_blank" rel="noopener">🎙️ Open Recorder</a>',
+                f'<a class="btn secondary" href="{PRACTICE_URL}" target="_blank" rel="noopener">🎙️ Open Recorder</a>',
                 unsafe_allow_html=True,
             )
 
