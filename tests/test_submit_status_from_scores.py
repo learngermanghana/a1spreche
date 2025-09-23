@@ -8,6 +8,8 @@ from typing import Any, Callable, Dict, Optional
 
 import pytest
 
+from src.assignment_ui import infer_textual_score_state
+
 
 def _load_submit_status_helper():
     src_path = Path("a1sprechen.py")
@@ -35,6 +37,7 @@ def _load_submit_status_helper():
     module.Dict = Dict
     module.Optional = Optional
     module.Callable = Callable
+    module.infer_textual_score_state = infer_textual_score_state
 
     exec(snippet, module.__dict__)
     return module
@@ -103,6 +106,39 @@ def test_submit_status_triggers_resubmit(submit_status_helper, monkeypatch):
     assert state["needs_resubmit"] is True
     assert state["locked"] is False
     assert state["clear_lock"] is True
+
+
+@pytest.mark.parametrize(
+    "status_text",
+    [
+        "Resubmit",
+        "Please redo the exercise",
+        "Failed",
+    ],
+)
+def test_submit_status_textual_resubmit_tokens(submit_status_helper, monkeypatch, status_text):
+    helper, module = submit_status_helper
+
+    def fake_fetch(*_args, **_kwargs):
+        return {"status": status_text}
+
+    monkeypatch.setattr(module, "fetch_latest_score", fake_fetch, raising=False)
+
+    state = helper(
+        locked=True,
+        needs_resubmit=None,
+        latest_submission={"answer": "Hallo"},
+        student_code="S1",
+        lesson_key="A1_day1_ch1",
+        pass_mark=60.0,
+    )
+
+    assert state["status_label"] == "Resubmission needed"
+    assert state["needs_resubmit"] is True
+    assert state["locked"] is False
+    assert state["clear_lock"] is True
+    assert state["status_message"]
+    assert status_text.lower() in state["status_message"].lower()
 
 
 def test_assignment_score_fetch_and_status(submit_status_helper, monkeypatch):
