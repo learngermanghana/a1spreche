@@ -2242,6 +2242,103 @@ def render_section(day_info: dict, key: str, title: str, icon: str) -> None:
             for ex in (extras if isinstance(extras, list) else [extras]):
                 render_link("🔗 Extra", ex)
 
+# ---- Status + chip UI (reuseable) ----
+STATUS_OPTIONS = ["Not submitted", "In review", "Passed", "Failed"]
+STATUS_COLORS = {
+    "Not submitted": "#9CA3AF",  # gray
+    "In review": "#F59E0B",      # amber
+    "Passed": "#10B981",         # green
+    "Failed": "#EF4444",         # red
+}
+
+def status_chip(label: str) -> str:
+    color = STATUS_COLORS.get(label, "#9CA3AF")
+    return f"""
+    <span style="
+        display:inline-block; padding:4px 10px; border-radius:999px;
+        font-size:12px; font-weight:600;
+        background:{color}20; color:{color}; border:1px solid {color}55;">
+        {label}
+    </span>
+    """
+
+# ---- Firestore helpers ----
+def _submissions_col(level: str):
+    return db.collection("submissions").document(level).collection("posts")
+
+def get_latest_submission_doc(level: str, student_code: str, lesson_key: str):
+    q = (
+        _submissions_col(level)
+        .where(filter=FieldFilter("student_code", "==", student_code))
+        .where(filter=FieldFilter("lesson_key", "==", lesson_key))
+        .order_by("created_at", direction=firestore.Query.DESCENDING)
+        .limit(1)
+    )
+    docs = list(q.stream())
+    if not docs:
+        return None, None
+    d = docs[0]
+    return d.reference, (d.to_dict() or {})
+
+def _scores_col():
+    return db.collection("scores")
+
+def expected_assignment_name(level: str, day: int) -> str:
+    # Matches your “A1 Assignment 13” pattern from the screenshot
+    return f"{level} Assignment {int(day)}"
+
+def get_score_for_assignment(student_code: str, level: str, day: int):
+    """
+    Returns the newest score doc (dict) for this student+assignment, else None.
+    """
+    assignment = expected_assignment_name(level, day)
+    q = (
+        _scores_col()
+        .where(filter=FieldFilter("studentcode", "==", student_code))
+        .where(filter=FieldFilter("assignment", "==", assignment))
+        .limit(1)
+    )
+    docs = list(q.stream())
+    if not docs:
+        return None
+    return docs[0].to_dict() or {}
+
+def score_to_status(score: float) -> str:
+    try:
+        return "Passed" if float(score) >= 60 else "Failed"
+    except Exception:
+        return "In review"
+
+def set_submission_status(level: str, student_code: str, lesson_key: str, label: str) -> bool:
+    doc_ref, _ = get_latest_submission_doc(level, student_code, lesson_key)
+    if not doc_ref:
+        return False
+    canonical = {
+        "Not submitted": "not_submitted",
+        "In review": "in_review",
+        "Passed": "passed",
+        "Failed": "failed",
+    }.get(label, "in_review")
+    try:
+        doc_ref.set({"status": canonical, "updated_at": firestore.SERVER_TIMESTAMP}, merge=True)
+        return True
+    except Exception:
+        return False
+
+def get_submission_status_label(level: str, student_code: str, lesson_key: str) -> str:
+    _, doc = get_latest_submission_doc(level, student_code, lesson_key)
+    if not doc:
+        return "Not submitted"
+    raw = (doc.get("status") or "").lower().strip()
+    if raw in ("passed", "pass"):
+        return "Passed"
+    if raw in ("failed", "fail"):
+        return "Failed"
+    if raw in ("in_review", "review", "submitted"):
+        return "In review"
+    return "In review"
+
+
 # -------------------------
 # Slack helpers (optional)
 # -------------------------
@@ -2996,7 +3093,7 @@ if tab == "My Course":
                 st.info("No playlist found for your level yet. Stay tuned!")
             st.markdown("**The End**")
 
-
+#start
         # SUBMIT
         elif coursebook_section == "Submit":
             st.markdown("### ✅ Submit Your Assignment")
@@ -3154,6 +3251,77 @@ if tab == "My Course":
                                     st.session_state[last_ts_key]    = time.time()
                                     st.session_state[saved_flag_key] = True
                                     st.session_state[saved_at_key]   = (cts or datetime.now(_timezone.utc))
+
+                                # >>> (2) Derive status from scores (if available) and show the chip
+                from google.cloud.firestore_v1.base_query import FieldFilter
+
+                def expected_assignment_name(level: str, day: int) -> str:
+                    # Matches your "A1 Assignment 13" style
+                    return f"{level} Assignment {int(day)}"
+
+                def get_score_for_assignment(student_code: str, level: str, day: int):
+                    """
+                    Returns the matching score doc (dict) for this student+assignment, else None.
+                    """
+                    try:
+                        assignment = expected_assignment_name(level, day)
+                        q = (
+                            db.collection("scores")
+                              .where(filter=FieldFilter("studentcode", "==", student_code))
+                              .where(filter=FieldFilter("assignment", "==", assignment))
+                              .limit(1)
+                        )
+                        docs = list(q.stream())
+                        if not docs:
+                            return None
+                        return docs[0].to_dict() or None
+                    except Exception:
+                        return None
+
+                # Pull score and map to Passed/Failed (>=60 pass)
+                score_doc = get_score_for_assignment(code, student_level, info["day"])
+                if score_doc and isinstance(score_doc.get("score"), (int, float)):
+                    derived_label = "Passed" if float(score_doc["score"]) >= 60.0 else "Failed"
+                    # Persist onto the latest submission doc (if any)
+                    try:
+                        set_submission_status(student_level, code, lesson_key, derived_label)
+                    except Exception:
+                        pass
+
+                # Read the current status label (Not submitted / In review / Passed / Failed)
+                current_status = get_submission_status_label(student_level, code, lesson_key)
+
+                # Visual chip for students & staff
+                st.markdown(
+                    f"**Submission status:** {status_chip(current_status)}",
+                    unsafe_allow_html=True
+                )
+
+                # Optional: show score + comments for transparency
+                if score_doc:
+                    _sc = score_doc.get("score")
+                    _cm = score_doc.get("comments", "")
+                    _lk = score_doc.get("link", "")
+                    st.info(f"Score: **{_sc}**  •  Comments: {_cm or '—'}")
+                    if _lk:
+                        st.markdown(f"[📄 Marking details / key sheet]({_lk})")
+
+                # >>> (3) If Failed, require resubmission (staff can unlock)
+                if current_status == "Failed":
+                    st.error("Score below 60 — resubmission required.")
+                    is_staff = bool(st.session_state.get("is_staff") or st.session_state.get("admin"))
+                    if is_staff:
+                        if st.button("Allow resubmission (unlock box)", key=f"unlock_{lesson_key}"):
+                            try:
+                                db.collection("submission_locks").document(
+                                    lock_id(student_level, code, lesson_key)
+                                ).delete()
+                            except Exception:
+                                pass
+                            st.session_state[locked_key] = False
+                            locked = False
+                            st.success("Unlocked. Ask the student to reload this page.")
+
 
                 st.subheader("✍️ Your Answer")
 
