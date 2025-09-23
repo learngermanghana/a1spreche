@@ -73,3 +73,11 @@ def test_determine_needs_resubmit_detects_nested_assignment():
     long_answer = "word " * 25
 
     assert determine(summary, lesson, answer_text=long_answer) is True
+
+
+def test_determine_needs_resubmit_skips_word_count_for_non_assignment():
+    determine = _load_determine_needs_resubmit()
+    summary = {"failed_identifiers": []}
+    lesson = {"assignment": False, "chapter": "intro"}
+
+    assert determine(summary, lesson, answer_text="", min_words=5) is False

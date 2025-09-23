@@ -464,6 +464,26 @@ def _extract_assignment_numbers_for_resubmit(lesson: Optional[Dict[str, Any]]) -
     return sorted(numbers)
 
 
+def _lesson_contains_assignment_flag(node: Any) -> bool:
+    """Return ``True`` when ``node`` contains a truthy ``assignment`` flag."""
+
+    if isinstance(node, dict):
+        if node.get("assignment"):
+            return True
+        for value in node.values():
+            if _lesson_contains_assignment_flag(value):
+                return True
+        return False
+
+    if isinstance(node, (list, tuple, set)):
+        for item in node:
+            if _lesson_contains_assignment_flag(item):
+                return True
+        return False
+
+    return False
+
+
 def determine_needs_resubmit(
     summary: Optional[Dict[str, Any]],
     lesson: Optional[Dict[str, Any]],
@@ -505,8 +525,12 @@ def determine_needs_resubmit(
                     continue
 
     lesson_numbers = set(_extract_assignment_numbers_for_resubmit(lesson))
+    has_assignment_flag = _lesson_contains_assignment_flag(lesson)
     if failed_numbers and lesson_numbers & failed_numbers:
         return True
+
+    if not lesson_numbers and not has_assignment_flag:
+        return False
 
     words = (answer_text or "").split()
     try:
