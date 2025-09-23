@@ -21,7 +21,7 @@ from datetime import datetime
 from datetime import datetime as _dt
 from uuid import uuid4
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, List, Iterable, MutableMapping
+from typing import Any, Dict, Optional, Tuple, List, Iterable, MutableMapping, Set
 from functools import lru_cache
 
 # ==== Third-Party Packages ====
@@ -2286,21 +2286,163 @@ def expected_assignment_name(level: str, day: int) -> str:
     # Matches your “A1 Assignment 13” pattern from the screenshot
     return f"{level} Assignment {int(day)}"
 
-def get_score_for_assignment(student_code: str, level: str, day: int):
+def _lesson_chapter_strings(lesson_info: Optional[Dict[str, Any]]) -> List[str]:
+    chapters: List[str] = []
+    if not isinstance(lesson_info, dict):
+        return chapters
+
+    def _maybe_add(value: Any) -> None:
+        if value is None:
+            return
+        text = str(value).strip()
+        if text:
+            chapters.append(text)
+
+    _maybe_add(lesson_info.get("chapter"))
+    for section_name in ("lesen_hören", "schreiben_sprechen"):
+        section = lesson_info.get(section_name)
+        if isinstance(section, dict):
+            _maybe_add(section.get("chapter"))
+        elif isinstance(section, list):
+            for item in section:
+                if isinstance(item, dict):
+                    _maybe_add(item.get("chapter"))
+    return chapters
+
+
+def _extract_numeric_tokens(text: str) -> List[str]:
+    tokens: List[str] = []
+    if not text:
+        return tokens
+
+    base_prefix: Optional[str] = None
+    decimal_len = 0
+    for match in re.finditer(r"\d+(?:\.\d+)?", text):
+        token = match.group()
+        if "." in token:
+            integer_part, decimal_part = token.split(".", 1)
+            base_prefix = integer_part
+            decimal_len = len(decimal_part)
+            tokens.append(f"{integer_part}.{decimal_part}")
+        else:
+            plain = token.lstrip("0") or "0"
+            if (
+                base_prefix is not None
+                and decimal_len
+                and plain.isdigit()
+                and len(plain) <= decimal_len
+            ):
+                combined = f"{base_prefix}.{plain.zfill(decimal_len)}"
+                tokens.append(combined)
+            else:
+                tokens.append(token)
+                base_prefix = None
+                decimal_len = 0
+    return tokens
+
+
+def _normalize_numeric_token(token: str) -> List[str]:
+    variants: List[str] = []
+    text = token.strip()
+    if not text:
+        return variants
+
+    def _add_variant(value: str) -> None:
+        if value and value not in variants:
+            variants.append(value)
+
+    _add_variant(text)
+
+    body = text
+    sign = ""
+    if body.startswith(("+", "-")):
+        sign, body = body[0], body[1:]
+
+    if "." in body:
+        integer_part, decimal_part = body.split(".", 1)
+        integer_norm = integer_part.lstrip("0") or "0"
+        decimal_norm = decimal_part.rstrip("0")
+        if decimal_norm:
+            _add_variant(f"{sign}{integer_norm}.{decimal_norm}")
+        else:
+            _add_variant(f"{sign}{integer_norm}")
+    else:
+        integer_norm = body.lstrip("0") or "0"
+        _add_variant(f"{sign}{integer_norm}")
+
+    return variants
+
+
+def _numeric_assignment_candidates(lesson_info: Optional[Dict[str, Any]]) -> List[str]:
+    candidates: List[str] = []
+    seen: Set[str] = set()
+    for chapter in _lesson_chapter_strings(lesson_info):
+        for raw in _extract_numeric_tokens(chapter):
+            for variant in _normalize_numeric_token(raw):
+                if variant and variant not in seen:
+                    seen.add(variant)
+                    candidates.append(variant)
+    return candidates
+
+
+def get_score_for_assignment(
+    student_code: str,
+    level: str,
+    day: int,
+    lesson_info: Optional[Dict[str, Any]] = None,
+):
     """
     Returns the newest score doc (dict) for this student+assignment, else None.
     """
-    assignment = expected_assignment_name(level, day)
-    q = (
-        _scores_col()
-        .where(filter=FieldFilter("studentcode", "==", student_code))
-        .where(filter=FieldFilter("assignment", "==", assignment))
-        .limit(1)
-    )
-    docs = list(q.stream())
-    if not docs:
-        return None
-    return docs[0].to_dict() or {}
+
+    candidates: List[str] = []
+    seen: Set[str] = set()
+
+    def _add_candidate(value: Any) -> None:
+        if value is None:
+            return
+        text = str(value).strip()
+        if not text or text.lower() == "nan":
+            return
+        if text not in seen:
+            seen.add(text)
+            candidates.append(text)
+
+    try:
+        day_int = int(day)
+    except (TypeError, ValueError):
+        day_int = None
+
+    if day_int is not None:
+        _add_candidate(expected_assignment_name(level, day_int))
+        _add_candidate(str(day_int))
+    else:
+        try:
+            _add_candidate(expected_assignment_name(level, day))
+        except Exception:
+            pass
+
+    for chapter_candidate in _numeric_assignment_candidates(lesson_info):
+        _add_candidate(chapter_candidate)
+
+    for candidate in candidates:
+        try:
+            q = (
+                _scores_col()
+                .where(filter=FieldFilter("studentcode", "==", student_code))
+                .where(filter=FieldFilter("assignment", "==", candidate))
+                .limit(1)
+            )
+            docs = list(q.stream())
+        except Exception:
+            continue
+        if docs:
+            doc = docs[0]
+            try:
+                return doc.to_dict() or {}
+            except Exception:
+                return {}
+    return None
 
 def score_to_status(score: float) -> str:
     try:
@@ -3252,33 +3394,13 @@ if tab == "My Course":
                                     st.session_state[saved_at_key]   = (cts or datetime.now(_timezone.utc))
 
                                 # >>> (2) Derive status from scores (if available) and show the chip
-                from google.cloud.firestore_v1.base_query import FieldFilter
-
-                def expected_assignment_name(level: str, day: int) -> str:
-                    # Matches your "A1 Assignment 13" style
-                    return f"{level} Assignment {int(day)}"
-
-                def get_score_for_assignment(student_code: str, level: str, day: int):
-                    """
-                    Returns the matching score doc (dict) for this student+assignment, else None.
-                    """
-                    try:
-                        assignment = expected_assignment_name(level, day)
-                        q = (
-                            db.collection("scores")
-                              .where(filter=FieldFilter("studentcode", "==", student_code))
-                              .where(filter=FieldFilter("assignment", "==", assignment))
-                              .limit(1)
-                        )
-                        docs = list(q.stream())
-                        if not docs:
-                            return None
-                        return docs[0].to_dict() or None
-                    except Exception:
-                        return None
-
                 # Pull score and map to Passed/Failed (>=60 pass)
-                score_doc = get_score_for_assignment(code, student_level, info["day"])
+                score_doc = get_score_for_assignment(
+                    code,
+                    student_level,
+                    info["day"],
+                    lesson_info=info,
+                )
                 if score_doc and isinstance(score_doc.get("score"), (int, float)):
                     derived_label = "Passed" if float(score_doc["score"]) >= 60.0 else "Failed"
                     # Persist onto the latest submission doc (if any)
