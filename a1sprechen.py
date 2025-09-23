@@ -437,6 +437,7 @@ from src.firestore_helpers import (
     is_locked,
     resolve_current_content,
     fetch_latest,
+    stream_latest_snapshots,
 )
 from src.attendance_utils import load_attendance_records
 import src.ui_components as _ui_components
@@ -2267,18 +2268,16 @@ def _submissions_col(level: str):
     return db.collection("submissions").document(level).collection("posts")
 
 def get_latest_submission_doc(level: str, student_code: str, lesson_key: str):
-    q = (
+    base_query = (
         _submissions_col(level)
         .where(filter=FieldFilter("student_code", "==", student_code))
         .where(filter=FieldFilter("lesson_key", "==", lesson_key))
-        .order_by("created_at", direction=firestore.Query.DESCENDING)
-        .limit(1)
     )
-    docs = list(q.stream())
+    docs = stream_latest_snapshots(base_query, "created_at", limit=1)
     if not docs:
         return None, None
-    d = docs[0]
-    return d.reference, (d.to_dict() or {})
+    snapshot, data = docs[0]
+    return getattr(snapshot, "reference", None), data
 
 def _scores_col():
     return db.collection("scores")
