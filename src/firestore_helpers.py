@@ -6,15 +6,30 @@ here keeps the entrypoint slimmer and improves reusability.
 
 import re
 from datetime import datetime
+from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple
 
-from firebase_admin import firestore
-from google.cloud.firestore_v1 import FieldFilter
+try:  # Firebase may be unavailable in some environments (e.g. CI tests)
+    from firebase_admin import firestore  # type: ignore
+except Exception:  # pragma: no cover - fallback for optional dependency
+    firestore = SimpleNamespace(  # type: ignore[assignment]
+        Query=SimpleNamespace(DESCENDING="DESCENDING"),
+        SERVER_TIMESTAMP=object(),
+    )
+
+try:  # Firestore client library may be absent in import-only tests
+    from google.cloud.firestore_v1 import FieldFilter  # type: ignore
+except Exception:  # pragma: no cover - fallback for optional dependency
+    class FieldFilter:  # type: ignore[override]
+        def __init__(self, *args, **kwargs) -> None:
+            raise RuntimeError("Firestore client is unavailable")
 
 try:  # Firestore-specific exceptions may be unavailable in tests
     from google.api_core import exceptions as google_exceptions
 except Exception:  # pragma: no cover - optional dependency
     google_exceptions = None  # type: ignore[assignment]
+
+from src.firestore_utils import load_draft_meta_from_db
 
 try:  # Firestore may be unavailable in tests
     from falowen.sessions import get_db
@@ -80,7 +95,6 @@ def stream_latest_snapshots(query, timestamp_field: str, *, limit: Optional[int]
         if limit is not None:
             return items[:limit]
         return items
-from src.firestore_utils import load_draft_meta_from_db
 
 
 def lesson_key_build(level: str, day: int, chapter: str) -> str:
