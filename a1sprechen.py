@@ -1385,10 +1385,8 @@ def render_level_welcome_video(level: str | None):
     if not vid:
         st.info(f"No welcome video added yet for {level}. Check back soon!")
         return
-    components.html(
-        f"""
-        <div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:12px;
-                    box-shadow:0 4px 12px rgba(0,0,0,.08);">
+    html = f"""
+        <div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,.08);">
           <iframe
             src="https://www.youtube.com/embed/{vid}"
             title="Welcome • {level}"
@@ -1398,8 +1396,8 @@ def render_level_welcome_video(level: str | None):
             style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;border-radius:12px;">
           </iframe>
         </div>
-        """, height=320, scrolling=False
-    )
+    """
+    components.html(html, height=320, scrolling=False)
 
 
 # ------------------------------------------------------------------------------
