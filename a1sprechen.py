@@ -5571,6 +5571,7 @@ if tab == "Chat • Grammar • Exams":
     )
 
     # ---------- Widget keys (make them UNIQUE across app) ----------
+    POST_TOAST_FLAG    = "_cchat_show_post_toast"
     KEY_LEVEL_SLIDER   = "cchat_w_level"
     KEY_FORCE_DE_TOG   = "cchat_w_force_de"
     KEY_MAX_WORDS_NUM  = "cchat_w_max_words"
@@ -5629,6 +5630,8 @@ if tab == "Chat • Grammar • Exams":
 
     # ===================== Topic Coach (intro, feedback, finalize) =====================
     with tab_tc:
+        if st.session_state.pop(POST_TOAST_FLAG, False):
+            toast_ok("Answer sent!")
         # Recorder reminder banner + button
         st.markdown(
             f"""
@@ -5816,6 +5819,7 @@ if tab == "Chat • Grammar • Exams":
                 st.session_state[qcount_data_key] = min(6, int(st.session_state[qcount_data_key] or 0) + 1)
 
             _save_topic_coach_transcript()
+            st.session_state[POST_TOAST_FLAG] = True
 
             # Build conversation
             convo = [{"role": "system", "content": system_text}]
