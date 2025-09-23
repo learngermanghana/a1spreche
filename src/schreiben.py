@@ -15,12 +15,7 @@ import pandas as pd
 
 import streamlit as st
 from google.api_core.exceptions import GoogleAPICallError
-
-try:  # FieldFilter is optional in local/unit test environments
-    from google.cloud.firestore_v1 import FieldFilter
-except ImportError:  # pragma: no cover - fallback path covered in tests
-    FieldFilter = None  # type: ignore[assignment]
-
+from google.cloud.firestore_v1 import FieldFilter
 from firebase_admin import firestore
 
 try:  # Firestore may be unavailable in tests
@@ -34,14 +29,6 @@ db = None  # type: ignore
 
 def _get_db():
     return db if db is not None else get_db()
-
-
-def _firestore_where(query, field: str, op: str, value):
-    """Apply a Firestore ``where`` clause regardless of FieldFilter availability."""
-
-    if FieldFilter is None:
-        return query.where(field, op, value)
-    return query.where(filter=FieldFilter(field, op, value))
 
 
 # ---------------------------------------------------------------------------
@@ -215,10 +202,9 @@ def update_schreiben_stats(student_code: str) -> None:
         st.warning("Firestore not initialized; skipping stats update.")
         return
 
-    submissions_query = _firestore_where(
-        db.collection("schreiben_submissions"), "student_code", "==", student_code
-    )
-    submissions = submissions_query.stream()
+    submissions = db.collection("schreiben_submissions").where(
+        filter=FieldFilter("student_code", "==", student_code)
+    ).stream()
 
     total = 0
     passed = 0

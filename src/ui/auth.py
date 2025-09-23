@@ -14,11 +14,7 @@ import html  # noqa: F401
 
 import bcrypt
 import streamlit as st
-
-try:  # FieldFilter may be unavailable in local test environments
-    from google.cloud.firestore_v1 import FieldFilter
-except ImportError:  # pragma: no cover - fallback path covered via tests
-    FieldFilter = None  # type: ignore[assignment]
+from google.cloud.firestore_v1 import FieldFilter
 from falowen.email_utils import send_reset_email, build_gas_reset_link
 from falowen.sessions import create_session_token, destroy_session_token
 from src.auth import persist_session_client
@@ -28,14 +24,6 @@ from src.session_management import determine_level
 from src.ui_helpers import qp_get, qp_clear
 from src.services.contracts import contract_active
 from src.utils.toasts import refresh_with_toast, toast_ok, toast_err
-
-
-def _firestore_where(query, field: str, op: str, value):
-    """Apply a Firestore ``where`` using ``FieldFilter`` when available."""
-
-    if FieldFilter is None:
-        return query.where(field, op, value)
-    return query.where(filter=FieldFilter(field, op, value))
 
 
 # Google OAuth configuration
@@ -399,10 +387,13 @@ def render_forgot_password_panel() -> None:
                     return db
 
             db = get_db()
-            students = db.collection("students")
-            user_query = _firestore_where(students, "email", "==", e).get()
+            user_query = db.collection("students").where(
+                filter=FieldFilter("email", "==", e)
+            ).get()
             if not user_query:
-                user_query = _firestore_where(students, "Email", "==", e).get()
+                user_query = db.collection("students").where(
+                    filter=FieldFilter("Email", "==", e)
+                ).get()
             if not user_query:
                 st.error("No account found with that email.")
             else:

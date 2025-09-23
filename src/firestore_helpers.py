@@ -4,19 +4,11 @@ These helpers were previously embedded in ``a1sprechen.py`` but moving them
 here keeps the entrypoint slimmer and improves reusability.
 """
 
-from __future__ import annotations
-
-import math
 import re
-from datetime import datetime
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Dict, Optional
 
 from firebase_admin import firestore
-
-try:  # FieldFilter is optional for environments without Firestore client
-    from google.cloud.firestore_v1 import FieldFilter
-except ImportError:  # pragma: no cover - fallback exercised in tests
-    FieldFilter = None  # type: ignore[assignment]
+from google.cloud.firestore_v1 import FieldFilter
 
 try:  # Firestore may be unavailable in tests
     from falowen.sessions import get_db
@@ -29,23 +21,7 @@ db = None  # type: ignore
 
 def _get_db():
     return db if db is not None else get_db()
-
-
-def _firestore_where(query, field: str, op: str, value):
-    """Apply a ``where`` clause supporting optional ``FieldFilter`` imports."""
-
-    if FieldFilter is None:
-        return query.where(field, op, value)
-    return query.where(filter=FieldFilter(field, op, value))
 from src.firestore_utils import load_draft_meta_from_db
-
-
-_ASSIGNMENT_SPLIT_RE = re.compile(r"[^a-z0-9]+")
-_ASSIGNMENT_SUBTOK_RE = re.compile(r"[a-z]+|\d+")
-_LESSON_KEY_ASSIGNMENT_RE = re.compile(
-    r"(?P<level>[^_]+)_day(?P<day>[^_]+)_ch(?P<chapter>.+)", re.IGNORECASE
-)
-_ASSIGNMENT_GENERIC_TOKENS = {"day", "lesson", "chapter", "ch"}
 
 
 def lesson_key_build(level: str, day: int, chapter: str) -> str:
@@ -65,15 +41,20 @@ def has_existing_submission(level: str, code: str, lesson_key: str) -> bool:
     db = _get_db()
     posts_ref = db.collection("submissions").document(level).collection("posts")
     try:
-        query = _firestore_where(posts_ref, "student_code", "==", code)
-        query = _firestore_where(query, "lesson_key", "==", lesson_key)
-        q = query.limit(1).stream()
+        q = (
+            posts_ref.where(filter=FieldFilter("student_code", "==", code))
+            .where(filter=FieldFilter("lesson_key", "==", lesson_key))
+            .limit(1)
+            .stream()
+        )
         return any(True for _ in q)
     except Exception:
         try:
-            query = _firestore_where(posts_ref, "student_code", "==", code)
-            query = _firestore_where(query, "lesson_key", "==", lesson_key)
-            for _ in query.stream():
+            for _ in (
+                posts_ref.where(filter=FieldFilter("student_code", "==", code))
+                .where(filter=FieldFilter("lesson_key", "==", lesson_key))
+                .stream()
+            ):
                 return True
         except Exception:
             pass
@@ -161,10 +142,10 @@ def fetch_latest(level: str, code: str, lesson_key: str) -> Optional[Dict[str, A
     db = _get_db()
     posts_ref = db.collection("submissions").document(level).collection("posts")
     try:
-        query = _firestore_where(posts_ref, "student_code", "==", code)
-        query = _firestore_where(query, "lesson_key", "==", lesson_key)
         docs = (
-            query.order_by("updated_at", direction=firestore.Query.DESCENDING)
+            posts_ref.where(filter=FieldFilter("student_code", "==", code))
+            .where(filter=FieldFilter("lesson_key", "==", lesson_key))
+            .order_by("updated_at", direction=firestore.Query.DESCENDING)
             .limit(1)
             .stream()
         )
@@ -172,279 +153,17 @@ def fetch_latest(level: str, code: str, lesson_key: str) -> Optional[Dict[str, A
             return d.to_dict()
     except Exception:
         try:
-            query = _firestore_where(posts_ref, "student_code", "==", code)
-            query = _firestore_where(query, "lesson_key", "==", lesson_key)
-            docs = query.stream()
+            docs = (
+                posts_ref.where(filter=FieldFilter("student_code", "==", code))
+                .where(filter=FieldFilter("lesson_key", "==", lesson_key))
+                .stream()
+            )
             items = [d.to_dict() for d in docs]
             items.sort(key=lambda x: x.get("updated_at"), reverse=True)
             return items[0] if items else None
         except Exception:
             return None
     return None
-
-
-def _coerce_score_value(value: Any) -> Optional[float]:
-    """Best-effort conversion of a score value to ``float``."""
-
-    if value is None:
-        return None
-
-    if isinstance(value, (int, float)):
-        try:
-            if math.isnan(value):  # type: ignore[arg-type]
-                return None
-        except Exception:
-            pass
-        try:
-            return float(value)
-        except Exception:
-            return None
-
-    if isinstance(value, str):
-        text = value.strip()
-        if not text:
-            return None
-        text = text.replace("%", "")
-        match = re.search(r"-?\d+(?:\.\d+)?", text)
-        if match:
-            try:
-                return float(match.group())
-            except Exception:
-                return None
-    return None
-
-
-def _score_timestamp(value: Any) -> float:
-    """Return a comparable timestamp for ordering score documents."""
-
-    if value is None:
-        return 0.0
-    if isinstance(value, (int, float)):
-        try:
-            return float(value)
-        except Exception:
-            return 0.0
-    if isinstance(value, datetime):
-        try:
-            return float(value.timestamp())
-        except Exception:
-            return 0.0
-    try:
-        if hasattr(value, "timestamp"):
-            return float(value.timestamp())  # type: ignore[call-arg]
-    except Exception:
-        pass
-    return 0.0
-
-
-def _normalize_assignment_tokens(value: Any) -> set[str]:
-    """Return a set of comparable tokens for assignment-style strings."""
-
-    if value is None:
-        return set()
-
-    text = str(value).strip().lower()
-    if not text:
-        return set()
-
-    tokens: set[str] = set()
-
-    for chunk in _ASSIGNMENT_SPLIT_RE.split(text):
-        if not chunk:
-            continue
-        for part in _ASSIGNMENT_SUBTOK_RE.findall(chunk):
-            if not part:
-                continue
-            if part in _ASSIGNMENT_GENERIC_TOKENS:
-                continue
-            if part.endswith("s") and part[:-1] in {"assignment", "chapter", "lesson"}:
-                part = part[:-1]
-            if part.isdigit():
-                try:
-                    part = str(int(part))
-                except Exception:
-                    pass
-            tokens.add(part)
-
-    if "assignment" in tokens:
-        tokens.add("assignment")
-
-    return {token for token in tokens if token and token not in _ASSIGNMENT_GENERIC_TOKENS}
-
-
-def _lesson_assignment_tokens(lesson_key: str) -> Optional[tuple[set[str], set[str]]]:
-    """Extract level and chapter tokens from a ``lesson_key`` for assignment matching."""
-
-    if not lesson_key:
-        return None
-
-    match = _LESSON_KEY_ASSIGNMENT_RE.match(lesson_key.strip())
-    if not match:
-        return None
-
-    level_raw = match.group("level")
-    chapter_raw = match.group("chapter")
-
-    level_tokens = _normalize_assignment_tokens(level_raw)
-    chapter_tokens = _normalize_assignment_tokens(chapter_raw)
-
-    if not level_tokens or not chapter_tokens:
-        return None
-
-    return level_tokens, chapter_tokens
-
-
-def _score_matches_lesson(doc: Dict[str, Any], lesson_key: str) -> bool:
-    raw_lesson_key = (lesson_key or "").strip()
-    key_norm = raw_lesson_key.lower()
-    if not key_norm:
-        return False
-    for field in ("lesson_key", "lessonKey", "lesson", "chapter"):
-        value = doc.get(field)
-        if value is None:
-            continue
-        text = str(value).strip().lower()
-        if text == key_norm:
-            return True
-    lesson_tokens = _lesson_assignment_tokens(raw_lesson_key)
-    if not lesson_tokens:
-        return False
-    level_tokens, chapter_tokens = lesson_tokens
-    chapter_numeric = {token for token in chapter_tokens if token.isdigit()}
-    chapter_text = {token for token in chapter_tokens if not token.isdigit()}
-    assignment_fields = ("assignment", "assignment_name", "assignmentName")
-    for field in assignment_fields:
-        value = doc.get(field)
-        if value is None:
-            continue
-        assignment_tokens = _normalize_assignment_tokens(value)
-        if not assignment_tokens:
-            continue
-        overlap = assignment_tokens.intersection(level_tokens)
-        if not any(token for token in overlap if not token.isdigit()):
-            continue
-        if chapter_text - assignment_tokens:
-            continue
-        if chapter_numeric - assignment_tokens:
-            continue
-        return True
-    return False
-
-
-def _score_candidates(ref, filters: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
-    try:
-        query = ref
-        for field, value in filters.items():
-            query = _firestore_where(query, field, "==", value)
-        docs = [doc.to_dict() for doc in query.stream()]
-    except Exception:
-        return []
-
-    docs.sort(
-        key=lambda item: _score_timestamp(
-            item.get("updated_at")
-            or item.get("graded_at")
-            or item.get("created_at")
-        ),
-        reverse=True,
-    )
-    return docs
-
-
-def fetch_latest_score(
-    student_code: str,
-    lesson_key: str,
-    submission: Optional[Dict[str, Any]] = None,
-) -> Optional[Dict[str, Any]]:
-    """Return the most recent score document for this lesson.
-
-    The helper first tries to match on explicit submission identifiers before
-    falling back to ``student_code``/``lesson_key`` pairs. The returned
-    dictionary contains the original document data plus a ``numeric_score`` key
-    when a numeric value could be inferred.
-    """
-
-    db = _get_db()
-    if db is None:
-        return None
-
-    try:
-        scores_ref = db.collection("scores")
-    except Exception:
-        return None
-
-    candidates: list[Dict[str, Any]] = []
-
-    def _extend_from(filters: Dict[str, Any]) -> None:
-        for doc in _score_candidates(scores_ref, filters):
-            candidates.append(doc)
-
-    submission_ids: list[str] = []
-    if submission:
-        for key in (
-            "submission_id",
-            "submissionId",
-            "submission_doc_id",
-            "submission",
-            "id",
-            "doc_id",
-        ):
-            value = submission.get(key)
-            if value:
-                text = str(value).strip()
-                if text:
-                    submission_ids.append(text)
-
-    for sid in submission_ids:
-        for field in ("submission_id", "submissionId", "submission_doc_id"):
-            _extend_from({field: sid})
-        if candidates:
-            break
-
-    student_code = (student_code or "").strip()
-    lesson_key = (lesson_key or "").strip()
-
-    if not candidates and student_code and lesson_key:
-        for code_field in ("student_code", "studentCode", "studentcode"):
-            for lesson_field in ("lesson_key", "lessonKey"):
-                _extend_from({code_field: student_code, lesson_field: lesson_key})
-            if candidates:
-                break
-
-    if not candidates and student_code:
-        for code_field in ("student_code", "studentCode", "studentcode"):
-            for doc in _score_candidates(scores_ref, {code_field: student_code}):
-                if lesson_key and _score_matches_lesson(doc, lesson_key):
-                    candidates.append(doc)
-            if candidates:
-                break
-
-    if not candidates:
-        return None
-
-    best = candidates[0]
-    payload = dict(best)
-
-    numeric_score: Optional[float] = None
-    for key in (
-        "numeric_score",
-        "score",
-        "percentage",
-        "percent",
-        "points",
-        "marks",
-    ):
-        numeric_score = _coerce_score_value(payload.get(key))
-        if numeric_score is not None:
-            break
-    if numeric_score is not None:
-        payload["numeric_score"] = numeric_score
-
-    status_value = payload.get("status") or payload.get("status_text")
-    if isinstance(status_value, str):
-        payload["status_text"] = status_value.strip()
-
-    return payload
 
 
 __all__ = [
@@ -455,5 +174,4 @@ __all__ = [
     "is_locked",
     "resolve_current_content",
     "fetch_latest",
-    "fetch_latest_score",
 ]

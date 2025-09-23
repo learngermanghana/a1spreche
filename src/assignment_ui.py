@@ -78,30 +78,6 @@ def _clean_text(value: object) -> str:
     return "" if not text or text.lower() == "nan" else text
 
 
-def infer_textual_score_state(score_value: object, status_value: object = None) -> Optional[str]:
-    """Classify textual score/status values as ``"completed"`` or ``"resubmit"``."""
-
-    for candidate in (score_value, status_value):
-        text = _clean_text(candidate)
-        if not text:
-            continue
-        normalized = text.casefold()
-        if "resubmission" in normalized:
-            if any(token in normalized for token in ("not", "no")):
-                return "completed"
-            if any(token in normalized for token in ("need", "needed", "require", "required")):
-                return "resubmit"
-            return "resubmit"
-        negative_markers = ("not complete", "not completed", "incomplete", "not yet", "pending")
-        if any(marker in normalized for marker in negative_markers):
-            continue
-        if any(token in normalized for token in ("completed", "complete", "pass", "passed")):
-            return "completed"
-        if any(token in normalized for token in ("fail", "failed", "redo", "resubmit")):
-            return "resubmit"
-    return None
-
-
 def _coerce_score_value(value: object) -> Optional[float]:
     text = _clean_text(value)
     if not text:
@@ -276,19 +252,7 @@ def summarize_assignment_attempts(df_user: pd.DataFrame) -> pd.DataFrame:
     score_display = score_clean.where(
         score_clean.astype(bool), numeric_series.map(_display_from_numeric)
     ).fillna("")
-
-    def _series_to_text(series: Optional[pd.Series]) -> pd.Series:
-        if series is None:
-            return pd.Series([""] * total_rows, index=index, dtype=object)
-        return series.map(_clean_text)
-
-    status_series_original = _first_series(
-        df_user,
-        ["status", "status_text", "result_status", "outcome", "state"],
-    )
-    status_text = _series_to_text(status_series_original)
-    fallback_status = numeric_series.apply(lambda val: _score_status_details(val)[2])
-    status_display = status_text.where(status_text.astype(bool), fallback_status)
+    status_display = numeric_series.apply(lambda val: _score_status_details(val)[2])
 
     date_raw_series = (
         date_series
@@ -298,6 +262,11 @@ def summarize_assignment_attempts(df_user: pd.DataFrame) -> pd.DataFrame:
     date_raw = date_raw_series.map(_clean_text)
     date_norm = date_raw_series.map(_format_date_value)
     date_value = pd.to_datetime(date_raw_series, errors="coerce")
+
+    def _series_to_text(series: Optional[pd.Series]) -> pd.Series:
+        if series is None:
+            return pd.Series([""] * total_rows, index=index, dtype=object)
+        return series.map(_clean_text)
 
     feedback_display = _series_to_text(feedback_series)
     answer_display = _series_to_text(answer_series)
@@ -579,16 +548,6 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
                             except (TypeError, ValueError):
                                 numeric_score = None
                     if numeric_score is None or pd.isna(numeric_score):
-                        textual_state = infer_textual_score_state(
-                            row.get(score_column_name) if score_column_name is not None else None,
-                            row.get("status"),
-                        )
-                        if textual_state:
-                            for num in numbers:
-                                if textual_state == "completed":
-                                    completed_nums.add(num)
-                                elif textual_state == "resubmit":
-                                    failed_attempt_nums.add(num)
                         continue
 
                     for num in numbers:
