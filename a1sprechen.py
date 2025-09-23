@@ -1538,6 +1538,104 @@ render_announcements_once(new_posts, tab == "Dashboard")
 # =========================================================
 # ===================== Dashboard =========================
 # =========================================================
+_ASSIGNMENT_DATE_COLUMNS = (
+    "date",
+    "submission_date",
+    "submissiondate",
+    "submitted_on",
+    "submittedon",
+    "submitted_at",
+    "submittedat",
+    "submitted",
+    "timestamp",
+    "created_at",
+    "createdat",
+    "created",
+    "completed_at",
+    "completedat",
+)
+
+_ASSIGNMENT_DATE_REGEX_PATTERNS = (
+    re.compile(r"(?P<year>\d{4})[-/](?P<month>\d{1,2})[-/](?P<day>\d{1,2})"),
+    re.compile(r"(?P<day>\d{1,2})[\./-](?P<month>\d{1,2})[\./-](?P<year>\d{4})"),
+)
+
+
+def _normalize_assignment_submission_dates(
+    df: pd.DataFrame,
+    *,
+    candidate_columns: Iterable[str] = _ASSIGNMENT_DATE_COLUMNS,
+) -> pd.Series:
+    """Return normalized ``datetime.date`` objects for assignment submissions."""
+
+    if not isinstance(df, pd.DataFrame):
+        return pd.Series(dtype="object")
+
+    if df.empty:
+        return pd.Series([pd.NaT] * len(df), index=df.index, dtype="object")
+
+    column_lookup = {str(col).strip().lower(): col for col in df.columns}
+    source_column: Optional[str] = None
+    for candidate in candidate_columns:
+        if candidate in column_lookup:
+            source_column = column_lookup[candidate]
+            break
+
+    if not source_column:
+        return pd.Series([pd.NaT] * len(df), index=df.index, dtype="object")
+
+    source = df[source_column]
+
+    def _coerce(value: Any) -> Any:
+        parsed_dt = _parse_contract_date_value(value)
+        if parsed_dt is not None:
+            return parsed_dt.date()
+
+        try:
+            ts = pd.to_datetime(value, errors="coerce")
+        except Exception:
+            ts = pd.NaT
+
+        if pd.notna(ts):
+            if isinstance(ts, pd.Timestamp):
+                if ts.tzinfo is not None:
+                    try:
+                        ts = ts.tz_convert(None)
+                    except (TypeError, ValueError):
+                        try:
+                            ts = ts.tz_localize(None)
+                        except (TypeError, ValueError):
+                            pass
+                return ts.date()
+            try:
+                return ts.date()
+            except Exception:
+                pass
+
+        text = "" if value is None else str(value).strip()
+        if not text or text.lower() in ("nan", "none"):
+            return pd.NaT
+
+        for pattern in _ASSIGNMENT_DATE_REGEX_PATTERNS:
+            match = pattern.search(text)
+            if not match:
+                continue
+            parts = match.groupdict()
+            try:
+                year = int(parts["year"])
+                month = int(parts["month"])
+                day = int(parts["day"])
+                return date(year, month, day)
+            except (KeyError, ValueError):
+                continue
+
+        return pd.NaT
+
+    normalized = source.apply(_coerce)
+    normalized.index = source.index
+    return normalized
+
+
 if tab == "Dashboard":
     def _go_attendance() -> None:
         st.session_state["nav_sel"] = "My Course"
@@ -1585,7 +1683,7 @@ if tab == "Dashboard":
     _student_code_raw = (st.session_state.get("student_code", "") or "").strip()
     _student_code = _student_code_raw.lower()
     _df_assign = load_assignment_scores()
-    _df_assign["date"] = pd.to_datetime(_df_assign["date"], errors="coerce").dt.date
+    _df_assign["date"] = _normalize_assignment_submission_dates(_df_assign)
     _mask_student = _df_assign["studentcode"].str.lower().str.strip() == _student_code
 
     _dates = sorted(_df_assign[_mask_student]["date"].dropna().unique(), reverse=True)
