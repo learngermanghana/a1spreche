@@ -1307,8 +1307,8 @@ Good luck and viel Erfolg on your language journey!
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "youtube_link": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1a-UYqXhVb4q71o2_2A6z8tk1Fyb_6PA9/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1u82w53DQ2lml3ivUMHiK2I9kXDk_T1IH/view?usp=sharing"
         },
         # TAG 16
         {
@@ -1320,8 +1320,8 @@ Good luck and viel Erfolg on your language journey!
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "youtube_link": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1a-UYqXhVb4q71o2_2A6z8tk1Fyb_6PA9/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/11MN70gt1zEc0nSyeriUNDP4ZOdooYfYF/view?usp=sharing"
         },
         # TAG 17
         {
@@ -1334,7 +1334,7 @@ Good luck and viel Erfolg on your language journey!
             "video": "",
             "youtube_link": "",
             "grammarbook_link": "",
-            "workbook_link": ""
+            "workbook_link": "https://drive.google.com/file/d/1U2qtjXfid8Aj5LOqP2Uqpbv18-utgZIh/view?usp=sharing"
         },
         # TAG 18
         {
@@ -1346,8 +1346,8 @@ Good luck and viel Erfolg on your language journey!
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "youtube_link": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/13iU-2CldgD1-pP-kRx55Q7ld0KCU37vD/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1ynVwqtIMGSH1rbCfbPeYE2iRH5plkTC8/view?usp=sharing"
         },
         # TAG 19
         {
