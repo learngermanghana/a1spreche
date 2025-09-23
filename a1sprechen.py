@@ -355,28 +355,59 @@ def _derive_coursebook_submit_status(
     status_norm = status_text.casefold() if status_text else ""
 
     if numeric_score is None:
-        if status_norm:
-            if "resubmission" in status_norm and "not" not in status_norm:
-                state.update(
-                    {
-                        "status_label": "Resubmission needed",
-                        "status_message": status_text,
-                        "needs_resubmit": True,
-                        "locked": False,
-                        "clear_lock": True,
-                    }
-                )
-                return state
-            if any(token in status_norm for token in ("complete", "pass")):
-                state.update(
-                    {
-                        "status_label": "Passed/Completed",
-                        "status_message": status_text,
-                        "needs_resubmit": False,
-                        "locked": True,
-                    }
-                )
-                return state
+        textual_state: Optional[str] = None
+        if status_text:
+            infer_fn = globals().get("infer_textual_score_state")
+            if callable(infer_fn):
+                try:
+                    textual_state = infer_fn(None, status_text)
+                except Exception:
+                    textual_state = None
+            if textual_state is None:
+                normalized = status_text.casefold()
+                if "resubmission" in normalized:
+                    if any(token in normalized for token in ("not", "no")):
+                        textual_state = "completed"
+                    else:
+                        textual_state = "resubmit"
+                elif normalized:
+                    negative_markers = (
+                        "not complete",
+                        "not completed",
+                        "incomplete",
+                        "not yet",
+                        "pending",
+                    )
+                    if not any(marker in normalized for marker in negative_markers):
+                        if any(token in normalized for token in ("completed", "complete", "pass", "passed")):
+                            textual_state = "completed"
+                        elif any(token in normalized for token in ("fail", "failed", "redo", "resubmit")):
+                            textual_state = "resubmit"
+
+        if textual_state == "resubmit":
+            message = status_text or "Update your answer and resubmit."
+            state.update(
+                {
+                    "status_label": "Resubmission needed",
+                    "status_message": message,
+                    "needs_resubmit": True,
+                    "locked": False,
+                    "clear_lock": True,
+                }
+            )
+            return state
+
+        if textual_state == "completed":
+            message = status_text or "Marked as completed."
+            state.update(
+                {
+                    "status_label": "Passed/Completed",
+                    "status_message": message,
+                    "needs_resubmit": False,
+                    "locked": True,
+                }
+            )
+            return state
 
         label = status_text or "In review"
         if status_norm and status_text and status_norm != "in review":
