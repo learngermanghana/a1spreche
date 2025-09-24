@@ -5892,7 +5892,6 @@ if tab == "Chat • Grammar • Exams":
 
 
         # ---- sticky input (recorder reminder + new chat + input) ----
-        typing_notice_placeholder = None
         with st.container():
             st.markdown("<div class='sticky-input'>", unsafe_allow_html=True)
             st.markdown(
@@ -5909,7 +5908,6 @@ if tab == "Chat • Grammar • Exams":
                     st.toast("Cleared")
                     st.rerun()
             with col_right:
-                typing_notice_placeholder = st.empty()
                 user_msg = st.chat_input(
                     "Hallo! 👋 What would you like to talk about? Type here so we can chat",
                     key=KEY_CHAT_INPUT
@@ -5982,11 +5980,6 @@ if tab == "Chat • Grammar • Exams":
                 })
 
             # Typing pulse
-            if typing_notice_placeholder is not None:
-                typing_notice_placeholder.markdown(
-                    "<div class='typing-notice'><span>👨‍🏫 Herr Felix is typing…</span><div class='typing'><span></span><span></span><span></span></div></div>",
-                    unsafe_allow_html=True,
-                )
             placeholder = st.empty()
             placeholder.markdown(
                 "<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>",
@@ -6007,9 +6000,6 @@ if tab == "Chat • Grammar • Exams":
                 reply_raw = f"(Error) {e}"
 
             placeholder.empty()
-            if typing_notice_placeholder is not None:
-                typing_notice_placeholder.empty()
-
             # Convert "Keywords:" line → bold chips (skip for final message usually)
             chips_html = ""
             if not finalize_now:
