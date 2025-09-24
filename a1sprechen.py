@@ -5605,6 +5605,13 @@ if tab == "Chat • Grammar • Exams":
     """, unsafe_allow_html=True)
 
     student_code_tc = (st.session_state.get("student_code") or "").strip()
+    student_row_chat = st.session_state.get("student_row") or {}
+    student_display_name = (
+        _safe_str(student_row_chat.get("Name"))
+        or _safe_str(st.session_state.get("student_name"))
+        or "Student"
+    )
+    student_label_html = html.escape(student_display_name)
 
     def _resolve_topic_coach_db():
         """Return a Firestore client for Topic Coach persistence if available."""
@@ -5815,7 +5822,10 @@ if tab == "Chat • Grammar • Exams":
             with st.expander(f"Show earlier ({len(older)})"):
                 for m in older:
                     if m["role"] == "user":
-                        st.markdown(f"<div class='bubble-wrap'><div class='lbl-u'>Student</div></div>", unsafe_allow_html=True)
+                        st.markdown(
+                            f"<div class='bubble-wrap'><div class='lbl-u'>{student_label_html}</div></div>",
+                            unsafe_allow_html=True,
+                        )
                         st.markdown(f"<div class='bubble-u'>{m['content']}</div>", unsafe_allow_html=True)
                     else:
                         st.markdown(f"<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>", unsafe_allow_html=True)
@@ -5823,7 +5833,10 @@ if tab == "Chat • Grammar • Exams":
 
         for m in latest:
             if m["role"] == "user":
-                st.markdown(f"<div class='bubble-wrap'><div class='lbl-u'>Student</div></div>", unsafe_allow_html=True)
+                st.markdown(
+                    f"<div class='bubble-wrap'><div class='lbl-u'>{student_label_html}</div></div>",
+                    unsafe_allow_html=True,
+                )
                 st.markdown(f"<div class='bubble-u'>{m['content']}</div>", unsafe_allow_html=True)
             else:
                 st.markdown(f"<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>", unsafe_allow_html=True)
