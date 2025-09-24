@@ -5586,6 +5586,12 @@ if tab == "Chat • Grammar • Exams":
       .pres-head{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
       .pres-copy{ padding:6px 10px; border-radius:8px; border:1px solid #1f2937; background:#111827; color:#fff; font-weight:800; }
       .meta{ color:#64748b; font-size:.9rem; }
+      .typing-notice{
+        display:flex; align-items:center; gap:8px; margin-bottom:8px;
+        background:#e0f2fe; border:1px solid #bae6fd; color:#0f172a;
+        font-weight:700; font-size:.9rem; padding:8px 12px; border-radius:12px;
+      }
+      .typing-notice .typing span{ background:#0284c7; }
       @media (max-width: 640px){
         .block-container{ padding-bottom: 4.5rem; }
         .btn{ width:100%; text-align:center; }
@@ -5881,6 +5887,7 @@ if tab == "Chat • Grammar • Exams":
 
 
         # ---- sticky input (recorder reminder + new chat + input) ----
+        typing_notice_placeholder = None
         with st.container():
             st.markdown("<div class='sticky-input'>", unsafe_allow_html=True)
             st.markdown(
@@ -5897,6 +5904,7 @@ if tab == "Chat • Grammar • Exams":
                     st.toast("Cleared")
                     st.rerun()
             with col_right:
+                typing_notice_placeholder = st.empty()
                 user_msg = st.chat_input(
                     "Hallo! 👋 What would you like to talk about? Type here so we can chat",
                     key=KEY_CHAT_INPUT
@@ -5969,8 +5977,16 @@ if tab == "Chat • Grammar • Exams":
                 })
 
             # Typing pulse
+            if typing_notice_placeholder is not None:
+                typing_notice_placeholder.markdown(
+                    "<div class='typing-notice'><span>👨‍🏫 Herr Felix is typing…</span><div class='typing'><span></span><span></span><span></span></div></div>",
+                    unsafe_allow_html=True,
+                )
             placeholder = st.empty()
-            placeholder.markdown("<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>", unsafe_allow_html=True)
+            placeholder.markdown(
+                "<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>",
+                unsafe_allow_html=True,
+            )
             time.sleep(random.uniform(0.8, 1.2))
 
             # Call model
@@ -5986,6 +6002,8 @@ if tab == "Chat • Grammar • Exams":
                 reply_raw = f"(Error) {e}"
 
             placeholder.empty()
+            if typing_notice_placeholder is not None:
+                typing_notice_placeholder.empty()
 
             # Convert "Keywords:" line → bold chips (skip for final message usually)
             chips_html = ""
