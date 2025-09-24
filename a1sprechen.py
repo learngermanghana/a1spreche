@@ -5809,6 +5809,8 @@ if tab == "Chat • Grammar • Exams":
         older = history[:-3] if len(history) > 3 else []
         latest = history[-3:] if len(history) > 3 else history
 
+        typing_notice_placeholder: Optional[Any] = None
+
         if older:
             with st.expander(f"Show earlier ({len(older)})"):
                 for m in older:
@@ -5826,6 +5828,8 @@ if tab == "Chat • Grammar • Exams":
             else:
                 st.markdown(f"<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>", unsafe_allow_html=True)
                 st.markdown(f"<div class='bubble-a'>{m['content']}</div>", unsafe_allow_html=True)
+
+        typing_notice_placeholder = st.empty()
 
 
         # ---- coaching system prompt (intro + feedback + expand + keywords) ----
@@ -6000,6 +6004,10 @@ if tab == "Chat • Grammar • Exams":
                 reply_raw = f"(Error) {e}"
 
             placeholder.empty()
+
+            if typing_notice_placeholder is not None:
+                typing_notice_placeholder.empty()
+
             # Convert "Keywords:" line → bold chips (skip for final message usually)
             chips_html = ""
             if not finalize_now:
