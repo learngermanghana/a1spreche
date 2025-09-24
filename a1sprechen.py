@@ -465,10 +465,7 @@ from falowen.sessions import (
     destroy_session_token,
     api_post,
 )
-from falowen.db import (
-    SCHREIBEN_DAILY_LIMIT,
-    inc_sprechen_usage,
-)
+from src.utils.falowen_imports import load_falowen_db
 from src.contracts import (
     is_contract_expired,
 )
@@ -517,6 +514,10 @@ from src.ui_components import (
     render_link,
     render_vocab_lookup,
 )
+
+_falowen_db = load_falowen_db()
+SCHREIBEN_DAILY_LIMIT = _falowen_db.SCHREIBEN_DAILY_LIMIT
+inc_sprechen_usage = _falowen_db.inc_sprechen_usage
 
 prepare_audio_url = getattr(_ui_components, "prepare_audio_url", lambda url: url)
 render_audio_player = getattr(_ui_components, "render_audio_player", lambda *a, **k: None)
