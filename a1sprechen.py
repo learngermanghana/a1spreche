@@ -5809,6 +5809,8 @@ if tab == "Chat • Grammar • Exams":
         older = history[:-3] if len(history) > 3 else []
         latest = history[-3:] if len(history) > 3 else history
 
+        typing_notice_placeholder: Optional[Any] = None
+
         if older:
             with st.expander(f"Show earlier ({len(older)})"):
                 for m in older:
@@ -5826,6 +5828,8 @@ if tab == "Chat • Grammar • Exams":
             else:
                 st.markdown(f"<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>", unsafe_allow_html=True)
                 st.markdown(f"<div class='bubble-a'>{m['content']}</div>", unsafe_allow_html=True)
+
+        typing_notice_placeholder = st.empty()
 
 
         # ---- coaching system prompt (intro + feedback + expand + keywords) ----
@@ -5892,7 +5896,6 @@ if tab == "Chat • Grammar • Exams":
 
 
         # ---- sticky input (recorder reminder + new chat + input) ----
-        typing_notice_placeholder = None
         with st.container():
             st.markdown("<div class='sticky-input'>", unsafe_allow_html=True)
             st.markdown(
@@ -5909,7 +5912,6 @@ if tab == "Chat • Grammar • Exams":
                     st.toast("Cleared")
                     st.rerun()
             with col_right:
-                typing_notice_placeholder = st.empty()
                 user_msg = st.chat_input(
                     "Hallo! 👋 What would you like to talk about? Type here so we can chat",
                     key=KEY_CHAT_INPUT
@@ -6009,7 +6011,6 @@ if tab == "Chat • Grammar • Exams":
             placeholder.empty()
             if typing_notice_placeholder is not None:
                 typing_notice_placeholder.empty()
-
             # Convert "Keywords:" line → bold chips (skip for final message usually)
             chips_html = ""
             if not finalize_now:
