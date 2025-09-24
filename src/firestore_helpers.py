@@ -5,10 +5,32 @@ here keeps the entrypoint slimmer and improves reusability.
 """
 
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Sequence
 
-from firebase_admin import firestore
-from google.cloud.firestore_v1 import FieldFilter
+try:  # pragma: no cover - import guard for tests without firebase_admin
+    from firebase_admin import firestore  # type: ignore
+except Exception:  # pragma: no cover - provide lightweight stub
+    class _FirestoreStub:
+        SERVER_TIMESTAMP = object()
+
+        class Query:
+            DESCENDING = "DESCENDING"
+
+        def __getattr__(self, name):  # allow accessing undefined attrs safely
+            raise AttributeError(name)
+
+    firestore = _FirestoreStub()  # type: ignore
+
+try:  # pragma: no cover - optional dependency for tests
+    from google.cloud.firestore_v1 import FieldFilter  # type: ignore
+except Exception:  # pragma: no cover - fallback stub used in tests
+    class FieldFilter:  # type: ignore
+        def __init__(self, field, op, value):
+            self.field = field
+            self.op = op
+            self.value = value
+
+from google.api_core.exceptions import FailedPrecondition
 
 try:  # Firestore may be unavailable in tests
     from falowen.sessions import get_db
@@ -22,6 +44,55 @@ db = None  # type: ignore
 def _get_db():
     return db if db is not None else get_db()
 from src.firestore_utils import load_draft_meta_from_db
+
+
+def _snapshot_value(snapshot: Any, field: str) -> Any:
+    try:
+        data = snapshot.to_dict()
+    except Exception:
+        data = {}
+    if not isinstance(data, dict):
+        return None
+    return data.get(field)
+
+
+def _coerce_snapshot_pairs(snapshots: Sequence[Any]) -> list[tuple[Any, Dict[str, Any]]]:
+    pairs: list[tuple[Any, Dict[str, Any]]] = []
+    for snap in snapshots:
+        if snap is None:
+            continue
+        try:
+            payload = snap.to_dict()
+        except Exception:
+            payload = {}
+        if not isinstance(payload, dict):
+            payload = {}
+        pairs.append((snap, payload))
+    return pairs
+
+
+def stream_latest_snapshots(query: Any, order_field: str, limit: int = 5):
+    """Return ``[(snapshot, data), ...]`` ordered by *order_field* descending."""
+
+    if query is None:
+        return []
+
+    try:
+        stream_iter = (
+            query.order_by(order_field, direction=firestore.Query.DESCENDING)
+            .limit(limit)
+            .stream()
+        )
+        snapshots = list(stream_iter)
+    except FailedPrecondition:
+        raw_snapshots = list(query.stream())
+        raw_snapshots.sort(
+            key=lambda snap: (_snapshot_value(snap, order_field) or float("-inf")),
+            reverse=True,
+        )
+        snapshots = raw_snapshots[: limit if isinstance(limit, int) and limit > 0 else None]
+
+    return _coerce_snapshot_pairs(snapshots)
 
 
 def lesson_key_build(level: str, day: int, chapter: str) -> str:
@@ -174,4 +245,5 @@ __all__ = [
     "is_locked",
     "resolve_current_content",
     "fetch_latest",
+    "stream_latest_snapshots",
 ]

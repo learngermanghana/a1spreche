@@ -96,6 +96,27 @@ def test_persist_topic_coach_state_writes_payload():
     assert doc_ref._data[TOPIC_COACH_META_FIELD]["finalized"] is True
 
 
+def test_persist_topic_coach_state_includes_focus_tips():
+    base = {"chats": {}, TOPIC_COACH_META_FIELD: {}}
+    doc_ref = FakeDocRef(base, doc_id="stu_focus")
+
+    saved = persist_topic_coach_state(
+        doc_ref,
+        messages=[],
+        qcount=0,
+        finalized=True,
+        focus_tips=["  Endings with -en ", "Capitalise nouns", "Verb second", "Extra"],
+    )
+
+    assert saved is True
+    stored = doc_ref._data[TOPIC_COACH_META_FIELD]
+    assert stored["focus_tips"] == [
+        "Endings with -en",
+        "Capitalise nouns",
+        "Verb second",
+    ]
+
+
 def test_topic_coach_state_round_trip():
     storage = {
         "chats": {},

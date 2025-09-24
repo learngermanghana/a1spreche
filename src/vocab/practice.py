@@ -69,11 +69,15 @@ def render_vocab_practice(student_code: str, level: str) -> None:
         "vt_saved": False,
         "vt_session_id": None,
         "vt_mode": "Only new words",
+        "vt_incorrect": [],
     }
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
 
     stats = render_vocab_stats(student_code)
+    mistakes_order = {
+        word: idx for idx, word in enumerate(stats.get("incorrect_words", [])) if word
+    }
 
     items = VOCAB_LISTS.get(level, [])
     completed = set(stats["completed_words"])
@@ -90,14 +94,27 @@ def render_vocab_practice(student_code: str, level: str) -> None:
             st.subheader("Daily Practice Setup")
             mode = st.radio(
                 "Select words:",
-                ["Only new words", "All words"],
+                ["Only new words", "All words", "Review my mistakes"],
                 horizontal=True,
                 key="vt_mode",
             )
-            session_vocab = (not_done if mode == "Only new words" else items).copy()
+            if mode == "Only new words":
+                session_vocab = not_done.copy()
+            elif mode == "Review my mistakes":
+                session_vocab = [
+                    pair for pair in items if pair[0] in mistakes_order
+                ]
+                session_vocab.sort(key=lambda pair: mistakes_order.get(pair[0], 0))
+            else:
+                session_vocab = items.copy()
             max_count = len(session_vocab)
             if max_count == 0:
-                st.success("🎉 All done! Switch to 'All words' to repeat.")
+                if mode == "Review my mistakes":
+                    st.success("🎉 No recorded mistakes to review. Try another mode.")
+                elif mode == "Only new words":
+                    st.success("🎉 All done! Switch to 'All words' to repeat.")
+                else:
+                    st.info("No vocabulary available yet for this level.")
                 st.stop()
             count = st.number_input(
                 "How many today?",
@@ -118,6 +135,7 @@ def render_vocab_practice(student_code: str, level: str) -> None:
             ]
             st.session_state.vt_saved = False
             st.session_state.vt_session_id = str(uuid4())
+            st.session_state.vt_incorrect = []
             refresh_with_toast()
     else:
         st.markdown("### Daily Practice Setup")
@@ -188,13 +206,17 @@ def render_vocab_practice(student_code: str, level: str) -> None:
         render_umlaut_pad(input_key, context=f"vocab_practice_{level}")
         if user_answer and st.button("Check", key=f"vt_check_{index}"):
             st.session_state.vt_history.append(("user", user_answer))
-            if is_correct_answer(user_answer, answer):
+            correct_now = is_correct_answer(user_answer, answer)
+            if correct_now:
                 st.session_state.vt_score += 1
                 feedback = f"✅ Correct! '{word}' = '{answer}'"
             else:
                 feedback = f"❌ Nope. '{word}' = '{answer}'"
             st.session_state.vt_history.append(("assistant", feedback))
             st.session_state.vt_index += 1
+            if not correct_now:
+                if word not in st.session_state.vt_incorrect:
+                    st.session_state.vt_incorrect.append(word)
             refresh_with_toast()
 
     if isinstance(total, int) and index >= total:
@@ -212,6 +234,7 @@ def render_vocab_practice(student_code: str, level: str) -> None:
                     correct=score,
                     practiced_words=words,
                     session_id=st.session_state.vt_session_id,
+                    incorrect_words=st.session_state.get("vt_incorrect", []),
                 )
             st.session_state.vt_saved = True
             refresh_with_toast()

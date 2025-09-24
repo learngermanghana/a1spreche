@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Iterable, Optional
+from collections import Counter
 
 import os
 import pandas as pd
@@ -140,6 +141,7 @@ def save_vocab_attempt(
     correct: int,
     practiced_words: Iterable[str],
     session_id: Optional[str] = None,
+    incorrect_words: Optional[Iterable[str]] = None,
 ) -> None:
     """Persist one vocab practice attempt to Firestore."""
 
@@ -182,6 +184,13 @@ def save_vocab_attempt(
         )
         correct_int = total_int
 
+    seen_incorrect: list[str] = []
+    if incorrect_words:
+        for word in incorrect_words:
+            text = str(word).strip()
+            if text and text not in seen_incorrect:
+                seen_incorrect.append(text)
+
     attempt = {
         "level": level,
         "total": total_int,
@@ -189,12 +198,21 @@ def save_vocab_attempt(
         "practiced_words": list(practiced_words or []),
         "timestamp": datetime.now(tz=timezone.utc).isoformat(timespec="minutes"),
         "session_id": session_id,
+        "incorrect_words": seen_incorrect,
     }
 
     history.append(attempt)
     total_sessions += 1
     history = history[-MAX_HISTORY:]
     completed = {w for a in history for w in a.get("practiced_words", [])}
+
+    incorrect_counter: Counter[str] = Counter()
+    for attempt_item in history:
+        for item in attempt_item.get("incorrect_words", []):
+            text = str(item).strip()
+            if text:
+                incorrect_counter[text] += 1
+    aggregated_incorrect = [word for word, _ in incorrect_counter.most_common(50)]
 
     try:
         doc_ref.set(
@@ -203,6 +221,7 @@ def save_vocab_attempt(
                 "last_practiced": attempt["timestamp"],
                 "completed_words": sorted(completed),
                 "total_sessions": total_sessions,
+                "incorrect_words": aggregated_incorrect,
             },
             merge=True,
         )
@@ -220,6 +239,7 @@ def get_vocab_stats(student_code: str):
             "last_practiced": None,
             "completed_words": [],
             "total_sessions": 0,
+            "incorrect_words": [],
         }
 
     doc_ref = _db.collection("vocab_stats").document(student_code)
@@ -232,6 +252,7 @@ def get_vocab_stats(student_code: str):
             "last_practiced": None,
             "completed_words": [],
             "total_sessions": 0,
+            "incorrect_words": [],
         }
     if doc.exists:
         data = doc.to_dict() or {}
@@ -244,6 +265,7 @@ def get_vocab_stats(student_code: str):
             "last_practiced": data.get("last_practiced"),
             "completed_words": data.get("completed_words", []),
             "total_sessions": total_sessions,
+            "incorrect_words": data.get("incorrect_words", []),
         }
 
     return {
@@ -251,4 +273,5 @@ def get_vocab_stats(student_code: str):
         "last_practiced": None,
         "completed_words": [],
         "total_sessions": 0,
+        "incorrect_words": [],
     }

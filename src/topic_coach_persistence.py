@@ -15,6 +15,7 @@ import logging
 
 TOPIC_COACH_CHAT_KEY = "topic_coach"
 TOPIC_COACH_META_FIELD = "topic_coach_meta"
+_FOCUS_TIPS_FIELD = "focus_tips"
 
 
 def _coerce_messages(value: Any) -> List[Dict[str, Any]]:
@@ -70,17 +71,44 @@ def load_topic_coach_state(db: Any, student_code: str) -> Tuple[Any, List[Dict[s
     return doc_ref, messages, meta
 
 
-def _normalise_meta(qcount: Any, finalised: Any) -> Dict[str, Any]:
+def _coerce_focus_tips(value: Any) -> List[str]:
+    """Return a list of cleaned focus-tip strings."""
+
+    tips: List[str] = []
+    if not value:
+        return tips
+    if isinstance(value, dict):
+        iterable: Iterable[Any] = value.values()
+    elif isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
+        iterable = value
+    else:
+        return tips
+
+    for item in iterable:
+        text = str(item).strip()
+        if text:
+            tips.append(text)
+    return tips
+
+
+def _normalise_meta(qcount: Any, finalised: Any, focus_tips: Any = None) -> Dict[str, Any]:
     """Return a Firestore-friendly metadata payload."""
 
     try:
         qcount_value = int(qcount or 0)
     except Exception:
         qcount_value = 0
-    return {
+    payload: Dict[str, Any] = {
         "qcount": max(0, qcount_value),
         "finalized": bool(finalised),
     }
+    tips = _coerce_focus_tips(focus_tips)
+    if tips:
+        payload[_FOCUS_TIPS_FIELD] = tips[:3]
+    elif isinstance(focus_tips, Iterable) and not isinstance(focus_tips, (str, bytes)):
+        # Explicitly clear tips when caller provides an empty iterable.
+        payload[_FOCUS_TIPS_FIELD] = []
+    return payload
 
 
 def persist_topic_coach_state(
@@ -89,6 +117,7 @@ def persist_topic_coach_state(
     messages: Iterable[Dict[str, Any]],
     qcount: Any,
     finalized: Any,
+    focus_tips: Any = None,
 ) -> bool:
     """Persist the latest Topic Coach state to Firestore.
 
@@ -101,7 +130,7 @@ def persist_topic_coach_state(
 
     payload = {
         "chats": {TOPIC_COACH_CHAT_KEY: list(messages or [])},
-        TOPIC_COACH_META_FIELD: _normalise_meta(qcount, finalized),
+        TOPIC_COACH_META_FIELD: _normalise_meta(qcount, finalized, focus_tips),
     }
 
     try:
