@@ -19,3 +19,4 @@ rapidfuzz==3.13.0
 flake8==7.1.1
 extra-streamlit-components>=0.1.63
 rich==14.1.0
+streamlit-cookies-controller==0.0.4
