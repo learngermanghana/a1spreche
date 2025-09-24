@@ -5984,11 +5984,6 @@ if tab == "Chat • Grammar • Exams":
                 })
 
             # Typing pulse
-            if typing_notice_placeholder is not None:
-                typing_notice_placeholder.markdown(
-                    "<div class='typing-notice'><span>👨‍🏫 Herr Felix is typing…</span><div class='typing'><span></span><span></span><span></span></div></div>",
-                    unsafe_allow_html=True,
-                )
             placeholder = st.empty()
             placeholder.markdown(
                 "<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>",
@@ -6009,8 +6004,10 @@ if tab == "Chat • Grammar • Exams":
                 reply_raw = f"(Error) {e}"
 
             placeholder.empty()
+
             if typing_notice_placeholder is not None:
                 typing_notice_placeholder.empty()
+
             # Convert "Keywords:" line → bold chips (skip for final message usually)
             chips_html = ""
             if not finalize_now:
@@ -6074,7 +6071,6 @@ if tab == "Chat • Grammar • Exams":
             "Paste a sentence or grammar question here to get quick corrections,"
             " short explanations in English, and German example sentences for your level."
         )
-        st.markdown("Paste a sentence or ask a grammar question. I’ll correct or explain briefly with 1–2 examples.")
         gcol1, gcol2 = st.columns([3, 1])
         with gcol1:
             gram_q = st.text_area(
