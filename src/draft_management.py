@@ -23,7 +23,10 @@ db = None  # type: ignore
 def _get_db():
     return db if db is not None else get_db()
 from src.firestore_utils import save_chat_draft_to_db, save_draft_to_db
-from src.utils.toasts import toast_ok, toast_err
+from src.utils.toasts import toast_ok, toast_err, toast_once
+
+
+DRAFT_SAVE_FAILED_MSG = "Draft save failed. Please check your connection."
 
 
 def _draft_state_keys(draft_key: str) -> Tuple[str, str, str, str]:
@@ -39,15 +42,20 @@ def _draft_state_keys(draft_key: str) -> Tuple[str, str, str, str]:
 def save_now(draft_key: str, code: str) -> None:
     """Immediately persist the draft associated with ``draft_key``."""
     text = st.session_state.get(draft_key, "") or ""
-    if st.session_state.get("falowen_chat_draft_key") == draft_key:
-        conv = st.session_state.get("falowen_conv_key", "")
-        save_chat_draft_to_db(code, conv, text)
-    else:
-        save_draft_to_db(code, draft_key, text)
-
     last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(
         draft_key
     )
+    if st.session_state.get("falowen_chat_draft_key") == draft_key:
+        conv = st.session_state.get("falowen_conv_key", "")
+        ok = save_chat_draft_to_db(code, conv, text)
+    else:
+        ok = save_draft_to_db(code, draft_key, text)
+    if not ok:
+        st.session_state[saved_flag_key] = False
+        st.session_state.pop(saved_at_key, None)
+        toast_err(DRAFT_SAVE_FAILED_MSG)
+        return
+
     st.session_state[last_val_key] = text
     st.session_state[last_ts_key] = time.time()
     st.session_state[saved_flag_key] = True
@@ -87,13 +95,18 @@ def autosave_maybe(
     if changed and (time_ok or big_change):
         if st.session_state.get("falowen_chat_draft_key") == lesson_field_key:
             conv = st.session_state.get("falowen_conv_key", "")
-            save_chat_draft_to_db(code, conv, text)
+            ok = save_chat_draft_to_db(code, conv, text)
         else:
-            save_draft_to_db(code, lesson_field_key, text)
-        st.session_state[last_val_key] = text
+            ok = save_draft_to_db(code, lesson_field_key, text)
         st.session_state[last_ts_key] = now
-        st.session_state[saved_flag_key] = True
-        st.session_state[saved_at_key] = datetime.now(_timezone.utc)
+        if ok:
+            st.session_state[last_val_key] = text
+            st.session_state[saved_flag_key] = True
+            st.session_state[saved_at_key] = datetime.now(_timezone.utc)
+        else:
+            st.session_state[saved_flag_key] = False
+            st.session_state.pop(saved_at_key, None)
+            toast_once(DRAFT_SAVE_FAILED_MSG, "❌")
 
 
 def load_notes_from_db(student_code):
@@ -157,9 +170,11 @@ def on_cb_subtab_change() -> None:
     if prev == "🧑‍🏫 Classroom" and curr != "🧑‍🏫 Classroom":
         for key in [k for k in st.session_state.keys() if k.startswith("classroom_reply_draft_")]:
             try:
-                save_draft_to_db(code, key, st.session_state.get(key, ""))
+                saved = save_draft_to_db(code, key, st.session_state.get(key, ""))
             except Exception:
-                toast_err("Draft save failed")
+                saved = False
+            if not saved:
+                toast_err(DRAFT_SAVE_FAILED_MSG)
             last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(
                 key
             )
@@ -190,6 +205,7 @@ def on_cb_subtab_change() -> None:
 
 
 __all__ = [
+    "DRAFT_SAVE_FAILED_MSG",
     "_draft_state_keys",
     "save_now",
     "autosave_maybe",

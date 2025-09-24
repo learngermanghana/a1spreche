@@ -18,7 +18,7 @@ def test_on_cb_subtab_change_save_error(monkeypatch):
     toast_mock = MagicMock()
     monkeypatch.setattr(dm, "toast_err", toast_mock)
     dm.on_cb_subtab_change()
-    toast_mock.assert_called_once_with("Draft save failed")
+    toast_mock.assert_called_once_with(dm.DRAFT_SAVE_FAILED_MSG)
 
 
 def test_autosave_learning_note_requires_student_code(monkeypatch):
@@ -55,3 +55,54 @@ def test_autosave_maybe_handles_none_state(monkeypatch):
     assert session_state[last_ts_key] >= 0.0
     assert session_state[saved_flag_key] is True
     assert saved_at_key in session_state
+
+
+def test_save_now_surfaces_failure(monkeypatch):
+    draft_key = "lesson_field"
+    last_val_key, last_ts_key, saved_flag_key, saved_at_key = dm._draft_state_keys(
+        draft_key
+    )
+    session_state = {draft_key: "New text", "falowen_chat_draft_key": "other"}
+    mock_st = types.SimpleNamespace(session_state=session_state)
+    monkeypatch.setattr(dm, "st", mock_st)
+
+    monkeypatch.setattr(dm, "save_draft_to_db", MagicMock(return_value=False))
+    monkeypatch.setattr(dm, "save_chat_draft_to_db", MagicMock(return_value=False))
+    toast_mock = MagicMock()
+    monkeypatch.setattr(dm, "toast_err", toast_mock)
+
+    dm.save_now(draft_key, "code")
+
+    toast_mock.assert_called_once_with(dm.DRAFT_SAVE_FAILED_MSG)
+    assert session_state.get(saved_flag_key) is False
+    assert last_val_key not in session_state
+    assert last_ts_key not in session_state
+    assert saved_at_key not in session_state
+
+
+def test_autosave_maybe_surfaces_failure(monkeypatch):
+    draft_key = "lesson_field"
+    last_val_key, last_ts_key, saved_flag_key, saved_at_key = dm._draft_state_keys(
+        draft_key
+    )
+    session_state = {
+        last_val_key: "old",
+        last_ts_key: 0.0,
+        saved_flag_key: True,
+        "falowen_chat_draft_key": "other",
+    }
+    mock_st = types.SimpleNamespace(session_state=session_state)
+    monkeypatch.setattr(dm, "st", mock_st)
+
+    monkeypatch.setattr(dm, "save_draft_to_db", MagicMock(return_value=False))
+    monkeypatch.setattr(dm, "save_chat_draft_to_db", MagicMock(return_value=False))
+    toast_once_mock = MagicMock()
+    monkeypatch.setattr(dm, "toast_once", toast_once_mock)
+
+    dm.autosave_maybe("code", draft_key, "New text", min_secs=0)
+
+    toast_once_mock.assert_called_once_with(dm.DRAFT_SAVE_FAILED_MSG, "❌")
+    assert session_state[last_val_key] == "old"
+    assert session_state[last_ts_key] >= 0.0
+    assert session_state[saved_flag_key] is False
+    assert saved_at_key not in session_state

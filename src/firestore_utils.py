@@ -145,18 +145,23 @@ def _draft_doc_ref(level: str, lesson_key: str, code: str):
 
 # ---- DRAFTS (server-side) — now stored separately from submissions ----
 
-def save_draft_to_db(code: str, field_key: str, text: str) -> None:
-    """Persist the given ``text`` as a draft for ``code``/``field_key``."""
+def save_draft_to_db(code: str, field_key: str, text: str) -> bool:
+    """Persist the given ``text`` as a draft for ``code``/``field_key``.
+
+    Returns ``True`` if the draft was saved successfully and ``False`` if the
+    operation failed.  Failures are logged so callers can surface them to the
+    user.
+    """
 
     db = _get_db()
     if db is None:
-        return
+        return False
     if text is None:
         text = ""
     level, lesson_key = _extract_level_and_lesson(field_key)
     ref = _draft_doc_ref(level, lesson_key, code)
     if ref is None:
-        return
+        return False
     payload = {
         "text": text,
         "updated_at": firestore.SERVER_TIMESTAMP,
@@ -169,7 +174,9 @@ def save_draft_to_db(code: str, field_key: str, text: str) -> None:
         ref.set(payload, merge=True)
     except Exception as exc:  # pragma: no cover - runtime depends on Firestore
         logging.warning("Failed to save draft for %s/%s: %s", code, field_key, exc)
-        return
+        return False
+
+    return True
         
 def load_draft_from_db(code: str, field_key: str) -> str:
     """Return the draft text stored for ``code`` and ``field_key``."""
@@ -178,12 +185,16 @@ def load_draft_from_db(code: str, field_key: str) -> str:
     return text or ""
 
 
-def save_chat_draft_to_db(code: str, conv_key: str, text: str) -> None:
-    """Persist an unsent chat draft for the given conversation."""
+def save_chat_draft_to_db(code: str, conv_key: str, text: str) -> bool:
+    """Persist an unsent chat draft for the given conversation.
+
+    Returns ``True`` on success and ``False`` on failure so the caller can
+    inform the user when the datastore operation fails.
+    """
 
     db = _get_db()
     if db is None:
-        return
+        return False
     ref = db.collection("falowen_chats").document(code)
     mode_level_teil = conv_key.rsplit("_", 1)[0]
     try:
@@ -195,7 +206,9 @@ def save_chat_draft_to_db(code: str, conv_key: str, text: str) -> None:
         ref.set(updates, merge=True)
     except Exception as exc:  # pragma: no cover - runtime depends on Firestore
         logging.warning("Failed to save chat draft for %s/%s: %s", code, conv_key, exc)
-        return
+        return False
+
+    return True
 
 
 def load_chat_draft_from_db(code: str, conv_key: str) -> str:
