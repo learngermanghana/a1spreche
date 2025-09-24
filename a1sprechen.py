@@ -81,6 +81,13 @@ html, body { overscroll-behavior-y: none; }
 </style>
 """, unsafe_allow_html=True)
 
+HERR_FELIX_TYPING_HTML = (
+    "<div class='typing-notice'>"
+    "👨‍🏫 Herr Felix is typing"
+    "<span class='typing'><span></span><span></span><span></span></span>"
+    "</div>"
+)
+
 
 def _safe_str(v, default: str = "") -> str:
     if v is None:
@@ -5934,6 +5941,12 @@ if tab == "Chat • Grammar • Exams":
             _save_topic_coach_transcript()
             st.session_state[POST_TOAST_FLAG] = True
 
+            if typing_notice_placeholder is not None:
+                typing_notice_placeholder.markdown(
+                    HERR_FELIX_TYPING_HTML,
+                    unsafe_allow_html=True,
+                )
+
             # Build conversation
             convo = [{"role": "system", "content": system_text}]
             for m in st.session_state[chat_data_key]:
@@ -6072,7 +6085,9 @@ if tab == "Chat • Grammar • Exams":
             " short explanations in English, and German example sentences for your level."
         )
         gcol1, gcol2 = st.columns([3, 1])
+        gram_typing_notice = None
         with gcol1:
+            gram_typing_notice = st.empty()
             gram_q = st.text_area(
                 "Type your grammar question or paste text",
                 height=160,
@@ -6102,6 +6117,12 @@ if tab == "Chat • Grammar • Exams":
                 "If it's only a question (no text to correct), give the English explanation and German examples only. "
                 "Keep the whole answer compact and classroom-friendly."
             )
+            if gram_typing_notice is not None:
+                gram_typing_notice.markdown(
+                    HERR_FELIX_TYPING_HTML,
+                    unsafe_allow_html=True,
+                )
+
             placeholder = st.empty()
             placeholder.markdown("<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>", unsafe_allow_html=True)
             time.sleep(random.uniform(0.8, 1.2))
@@ -6133,6 +6154,8 @@ if tab == "Chat • Grammar • Exams":
             except Exception as e:
                 out = f"(Error) {e}"
             placeholder.empty()
+            if gram_typing_notice is not None:
+                gram_typing_notice.empty()
             st.markdown(f"<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>", unsafe_allow_html=True)
             st.markdown(f"<div class='bubble-a'>{out}</div>", unsafe_allow_html=True)
 
