@@ -61,7 +61,10 @@ def _load_student_data_cached(csv_url: str) -> pd.DataFrame:
     requests.RequestException | pd.errors.ParserError | ValueError | _NoUsableData
     """
     try:
-        resp = requests.get(csv_url, timeout=12, headers=_REQUEST_HEADERS)
+        try:
+            resp = requests.get(csv_url, timeout=12, headers=_REQUEST_HEADERS)
+        except TypeError:
+            resp = requests.get(csv_url, timeout=12)
         resp.raise_for_status()
         txt = resp.text
         # Guard against HTML interstitials (private sheet / auth / rate limit)
@@ -180,7 +183,14 @@ def load_student_data(force_refresh: bool = False) -> Optional[pd.DataFrame]:
             logging.exception("Unable to clear cached student roster")
 
     try:
+        if force_refresh:
+            try:
+                return _load_student_data_cached()
+            except TypeError:
+                return _load_student_data_cached(url)
         return _load_student_data_cached(url)
+    except TypeError:
+        return _load_student_data_cached()
     except _NoUsableData:
         # Present as "no data" to the caller but DO NOT cache this state
         return None

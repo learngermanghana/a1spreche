@@ -20,6 +20,14 @@ def render_vocab_stats(student_code: str):
         st.markdown(f"- **Sessions:** {stats['total_sessions']}")
         st.markdown(f"- **Last Practiced:** {stats['last_practiced']}")
         st.markdown(f"- **Unique Words:** {len(stats['completed_words'])}")
+        mistakes = [
+            str(item).strip()
+            for item in stats.get("incorrect_words", [])
+            if str(item).strip()
+        ]
+        if mistakes:
+            preview = ", ".join(mistakes[:5])
+            st.markdown(f"- **Needs review:** {preview}")
         if st.checkbox("Show Last 5 Sessions"):
             for a in stats["history"][-5:][::-1]:
                 st.markdown(

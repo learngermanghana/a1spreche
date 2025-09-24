@@ -14,6 +14,7 @@ def test_get_vocab_stats_without_db():
     result = stats.get_vocab_stats("student")
     assert result["history"] == []
     assert result["total_sessions"] == 0
+    assert result["incorrect_words"] == []
 
 def test_vocab_attempt_exists_handles_get_failure(monkeypatch):
     class BoomDoc:
@@ -91,6 +92,22 @@ def test_save_vocab_attempt_truncates_history():
     assert result["total_sessions"] == total
     assert result["history"][0]["session_id"] == f"s{extra}"
     assert result["history"][-1]["session_id"] == f"s{total - 1}"
+
+
+def test_save_vocab_attempt_tracks_incorrect_words():
+    stats.db = DummyDB()
+    stats.save_vocab_attempt(
+        "stud",
+        "A1",
+        3,
+        1,
+        ["Haus", "Auto", "Katze"],
+        incorrect_words=["Haus", "Katze", "Haus"],
+    )
+
+    result = stats.get_vocab_stats("stud")
+    assert result["incorrect_words"][:2] == ["Haus", "Katze"]
+    assert result["history"][-1]["incorrect_words"] == ["Haus", "Katze"]
 
 def test_load_student_levels_uses_env_var(monkeypatch):
     captured = {}

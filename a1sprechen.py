@@ -15,6 +15,7 @@ import time
 import textwrap
 import urllib.parse
 import urllib.parse as _urllib
+from collections import Counter
 from urllib.parse import urlsplit, parse_qs, urlparse, quote_plus
 from datetime import date, timedelta, timezone as _timezone, UTC
 from datetime import datetime
@@ -139,8 +140,9 @@ def _initialise_topic_coach_session_state(
     messages: Iterable[Dict[str, Any]],
     qcount: Any,
     finalized: Any,
+    focus_tips: Iterable[str] | None = None,
     identity_key: str = "_cchat_active_identity",
-) -> Tuple[str, str, str]:
+) -> Tuple[str, str, str, str]:
     """Return scoped Topic Coach session-state keys after initialising values."""
 
     student_token = _safe_str(student_code)
@@ -152,6 +154,7 @@ def _initialise_topic_coach_session_state(
     chat_key = _topic_coach_state_key("cchat_data_chat", student_token, level_token)
     qcount_key = _topic_coach_state_key("cchat_data_qcount", student_token, level_token)
     finalized_key = _topic_coach_state_key("cchat_data_finalized", student_token, level_token)
+    focus_key = _topic_coach_state_key("cchat_data_focus", student_token, level_token)
 
     for legacy_key in ("cchat_data_chat", "cchat_data_qcount", "cchat_data_finalized"):
         session_state.pop(legacy_key, None)
@@ -173,8 +176,70 @@ def _initialise_topic_coach_session_state(
     if identity_changed or finalized_key not in session_state:
         session_state[finalized_key] = finalized_value
 
+    if identity_changed or focus_key not in session_state:
+        session_state[focus_key] = list(focus_tips or [])
+    elif not session_state[focus_key] and focus_tips:
+        session_state[focus_key] = list(focus_tips)
+
     session_state[identity_key] = identity
-    return chat_key, qcount_key, finalized_key
+    return chat_key, qcount_key, finalized_key, focus_key
+
+
+def _extract_focus_tips_from_history(
+    history: Iterable[Dict[str, Any]],
+) -> List[str]:
+    """Return up to three recurring correction themes from the transcript."""
+
+    correction_lines: List[str] = []
+    stop_pattern = re.compile(
+        r"(?:^|\n)\s*(?:idea|💡|next question|question|focus|summary|tip|strengths|improvements?)",
+        re.IGNORECASE,
+    )
+
+    for message in history:
+        if not isinstance(message, dict) or message.get("role") != "assistant":
+            continue
+        raw = str(message.get("content") or "")
+        if not raw:
+            continue
+        text = re.sub(r"<br\s*/?>", "\n", raw, flags=re.IGNORECASE)
+        text = re.sub(r"</(?:div|p|li)>", "\n", text, flags=re.IGNORECASE)
+        text = re.sub(r"<[^>]+>", " ", text)
+        text = html.unescape(text)
+        text = text.replace("**", "")
+        text = text.replace("__", "")
+        text = text.replace("*", "")
+        text = re.sub(r"\r\n?", "\n", text)
+
+        lower_text = text.lower()
+        match = re.search(r"corrections?\s*:?", lower_text)
+        if not match:
+            continue
+        segment = text[match.end() :]
+        stop = stop_pattern.search(segment)
+        if stop:
+            segment = segment[: stop.start()]
+
+        for line in segment.splitlines():
+            cleaned = re.sub(r"^[\-•●▪▫➤▶︎\*\s]+", "", line).strip()
+            if not cleaned:
+                continue
+            if len(cleaned) > 160:
+                cleaned = cleaned[:157].rstrip() + "…"
+            correction_lines.append(cleaned)
+
+    counts: Counter[str] = Counter()
+    canonical: Dict[str, str] = {}
+
+    for line in correction_lines:
+        normalised = re.sub(r"[^\wäöüÄÖÜß ]+", " ", line.lower()).strip()
+        if not normalised:
+            continue
+        counts[normalised] += 1
+        canonical.setdefault(normalised, line)
+
+    tips = [canonical[key] for key, _ in counts.most_common(3)]
+    return tips
 
 
 def _resolve_class_name(
@@ -1654,6 +1719,22 @@ if tab == "Dashboard":
         _qp_set(tab="My Course")
         st.session_state["need_rerun"] = True
 
+    def _go_next_assignment(day_value: Any) -> None:
+        st.session_state["nav_sel"] = "My Course"
+        st.session_state["main_tab_select"] = "My Course"
+        st.session_state["coursebook_subtab"] = "📘 Course Book"
+        st.session_state["cb_prev_subtab"] = "📘 Course Book"
+        st.session_state["coursebook_page"] = "Assignment"
+        st.session_state["coursebook_prev_page"] = "Assignment"
+        params = {"tab": "My Course"}
+        if day_value not in (None, "", "?"):
+            try:
+                params["day"] = int(day_value)
+            except Exception:
+                params["day"] = day_value
+        _qp_set(**params)
+        st.session_state["need_rerun"] = True
+
     # ---------- Helpers ----------
     def safe_get(row, key, default=""):
         try: return row.get(key, default)
@@ -1851,6 +1932,21 @@ if tab == "Dashboard":
         """,
         unsafe_allow_html=True
     )
+    if _next_lesson:
+        raw_day = _next_lesson.get("day", "?")
+        day_text = str(raw_day).strip()
+        if not day_text or day_text.lower() in {"none", "nan"}:
+            button_label = "Start your next assignment"
+        else:
+            button_label = f"Start Day {day_text} assignment"
+        st.button(
+            button_label,
+            type="primary",
+            use_container_width=True,
+            key="btn_dash_next_assignment",
+            on_click=_go_next_assignment,
+            args=(_next_lesson.get("day"),),
+        )
     st.button("View attendance", on_click=_go_attendance)
     st.divider()
 
@@ -2707,13 +2803,14 @@ if tab == "My Course":
             student_row.get("ClassName", ""),
             level=student_level,
         )
+        class_name = class_name_lookup
 
-        if class_name_lookup and chapter:
+        if class_name and chapter:
             board_base = (
                 db.collection("class_board")
                 .document(student_level)
                 .collection("classes")
-                .document(class_name_lookup)
+                .document(class_name)
                 .collection("posts")
             )
             post_count = sum(
@@ -2751,7 +2848,7 @@ if tab == "My Course":
             )
             if post_count == 0:
                 st.caption("No posts yet. Clicking will show the full board.")
-        elif not class_name_lookup:
+        elif not class_name:
             st.error(
                 "This class discussion board is unavailable. Select another "
                 "classroom tab and return, or log out and back in to refresh "
@@ -5717,10 +5814,21 @@ if tab == "Chat • Grammar • Exams":
         grammar_key=KEY_GRAM_LEVEL,
     )
 
+    focus_meta = topic_meta.get("focus_tips") if isinstance(topic_meta, dict) else None
+    if isinstance(focus_meta, list):
+        initial_focus = [
+            str(item).strip()
+            for item in focus_meta
+            if str(item).strip() and str(item).strip().lower() not in {"none", "nan"}
+        ]
+    else:
+        initial_focus = None
+
     (
         chat_data_key,
         qcount_data_key,
         finalized_data_key,
+        focus_data_key,
     ) = _initialise_topic_coach_session_state(
         st.session_state,
         student_code=student_code_tc,
@@ -5728,19 +5836,24 @@ if tab == "Chat • Grammar • Exams":
         messages=topic_messages,
         qcount=loaded_qcount,
         finalized=loaded_finalized,
+        focus_tips=initial_focus,
     )
 
-    def _save_topic_coach_transcript() -> None:
+    def _save_topic_coach_transcript(
+        focus_override: Optional[Iterable[str]] = None,
+    ) -> None:
         if not student_code_tc:
             return
         doc_ref = topic_doc_ref or get_topic_coach_doc(topic_db, student_code_tc)
         if doc_ref is None:
             return
+        focus_payload = list(focus_override or st.session_state.get(focus_data_key, []) or [])
         persist_topic_coach_state(
             doc_ref,
             messages=list(st.session_state.get(chat_data_key, [])),
             qcount=st.session_state.get(qcount_data_key, 0),
             finalized=st.session_state.get(finalized_data_key, False),
+            focus_tips=focus_payload,
         )
 
     # ---------- Subtabs ----------
@@ -5755,6 +5868,17 @@ if tab == "Chat • Grammar • Exams":
             "Run a 6-question speaking session with Herr Felix. You'll get corrections,"
             " ideas, and a final summary plus ~60-word presentation when you finish."
         )
+
+        focus_tips_display = []
+        for tip in st.session_state.get(focus_data_key, []) or []:
+            text_tip = str(tip).strip()
+            if text_tip and text_tip.lower() not in {"none", "nan"}:
+                focus_tips_display.append(text_tip)
+        if focus_tips_display:
+            st.markdown("#### 🎯 Focus Tips from your last session")
+            st.markdown("\n".join(f"- {tip}" for tip in focus_tips_display))
+            st.caption("Start with these corrections in mind before you answer the first question.")
+
         # Recorder reminder banner + button
         st.markdown(
             f"""
@@ -6088,7 +6212,14 @@ if tab == "Chat • Grammar • Exams":
                     </div>
                 """, height=170)
 
-            _save_topic_coach_transcript()
+                new_focus = _extract_focus_tips_from_history(
+                    st.session_state.get(chat_data_key, [])
+                )
+                st.session_state[focus_data_key] = new_focus
+
+            _save_topic_coach_transcript(
+                focus_override=st.session_state.get(focus_data_key, [])
+            )
             st.rerun()
 
     # ===================== Grammar (simple, one-box) =====================
