@@ -6073,7 +6073,6 @@ if tab == "Chat • Grammar • Exams":
             "Paste a sentence or grammar question here to get quick corrections,"
             " short explanations in English, and German example sentences for your level."
         )
-        st.markdown("Paste a sentence or ask a grammar question. I’ll correct or explain briefly with 1–2 examples.")
         gcol1, gcol2 = st.columns([3, 1])
         with gcol1:
             gram_q = st.text_area(
