@@ -6467,15 +6467,21 @@ if tab == "Chat • Grammar • Exams":
                 df_recent = df_me.loc[:, show_cols].head(8) if show_cols else pd.DataFrame()
                 if not df_recent.empty:
                     if "prompt" in df_recent.columns:
-                        df_recent["prompt"] = (
-                            df_recent["prompt"].astype(str).str.slice(0, 120)
-                            .mask(df_recent["prompt"].str.len() > 120, df_recent["prompt"].str.slice(0, 117) + "…")
-                        )
+                        prompt_values = df_recent["prompt"].astype(str)
+                        df_recent["prompt"] = prompt_values.str.slice(0, 120)
+                        long_prompt = prompt_values.str.len() > 120
+                        if long_prompt.any():
+                            df_recent.loc[long_prompt, "prompt"] = (
+                                prompt_values[long_prompt].str.slice(0, 117) + "…"
+                            )
                     if "feedback_text" in df_recent.columns:
-                        df_recent["feedback_text"] = (
-                            df_recent["feedback_text"].astype(str).str.slice(0, 140)
-                            .mask(df_recent["feedback_text"].str.len() > 140, df_recent["feedback_text"].str.slice(0, 137) + "…")
-                        )
+                        feedback_values = df_recent["feedback_text"].astype(str)
+                        df_recent["feedback_text"] = feedback_values.str.slice(0, 140)
+                        long_feedback = feedback_values.str.len() > 140
+                        if long_feedback.any():
+                            df_recent.loc[long_feedback, "feedback_text"] = (
+                                feedback_values[long_feedback].str.slice(0, 137) + "…"
+                            )
 
                 st.markdown("#### Recent attempts")
                 st.dataframe(df_recent, use_container_width=True)
