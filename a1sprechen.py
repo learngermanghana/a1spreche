@@ -5730,6 +5730,11 @@ if tab == "Chat • Grammar • Exams":
     with tab_tc:
         if st.session_state.pop(POST_TOAST_FLAG, False):
             toast_ok("Answer sent!")
+
+        st.info(
+            "Run a 6-question speaking session with Herr Felix. You'll get corrections,"
+            " ideas, and a final summary plus ~60-word presentation when you finish."
+        )
         # Recorder reminder banner + button
         st.markdown(
             f"""
@@ -6046,6 +6051,10 @@ if tab == "Chat • Grammar • Exams":
 
     # ===================== Grammar (simple, one-box) =====================
     with tab_gram:
+        st.info(
+            "Paste a sentence or grammar question here to get quick corrections,"
+            " short explanations in English, and German example sentences for your level."
+        )
         st.markdown("Paste a sentence or ask a grammar question. I’ll correct or explain briefly with 1–2 examples.")
         gcol1, gcol2 = st.columns([3, 1])
         with gcol1:
@@ -6130,6 +6139,11 @@ if tab == "Chat • Grammar • Exams":
             "B2": [("Goethe B2 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb2/ue9.html")],
             "C1": [("Goethe C1 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/be/en/spr/prf/gzc1/u24.html")],
         }
+
+        st.info(
+            "Use these subtabs to get exam-ready: Speaking shows your practice attempts and scores,"
+            " while Lesen and Hören open official Goethe online exercises for your chosen level."
+        )
 
         level_for_exams = st.session_state.get("exam_lesen_level", default_level)
         if level_for_exams not in lesen_links or level_for_exams not in hoeren_links:
