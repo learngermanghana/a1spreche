@@ -887,7 +887,7 @@ def render_logged_in_topbar():
                 "Log out",
                 key="logout_global",
                 type="primary",
-                use_container_width=True,
+                width="stretch",
                 on_click=do_logout,
             )
 
@@ -982,15 +982,15 @@ def render_sidebar_published():
         st.session_state["need_rerun"] = True
     if st.session_state.get("logged_in", False):
         st.sidebar.markdown("## Quick access")
-        st.sidebar.button("🏠 Dashboard",                use_container_width=True, on_click=_go, args=("Dashboard",))
-        st.sidebar.button("📈 My Course",                use_container_width=True, on_click=_go, args=("My Course",))
-        st.sidebar.button("📊 Results & Resources",      use_container_width=True, on_click=_go, args=("My Results and Resources",))
-        st.sidebar.button("🗣️ Chat • Grammar • Exams", use_container_width=True, on_click=_go, args=("Chat • Grammar • Exams",))
-        st.sidebar.button("📚 Vocab Trainer",            use_container_width=True, on_click=_go, args=("Vocab Trainer",))
-        st.sidebar.button("📗 Dictionary",              use_container_width=True, on_click=_go_dictionary)
-        st.sidebar.button("✍️ Schreiben Trainer",        use_container_width=True, on_click=_go, args=("Schreiben Trainer",))
-        st.sidebar.button("🎥 Join on Zoom",             use_container_width=True, on_click=_go_zoom_class)
-        st.sidebar.button("❓ Class Notes & Q&A",         use_container_width=True, on_click=_go_post_qna)
+        st.sidebar.button("🏠 Dashboard",                width="stretch", on_click=_go, args=("Dashboard",))
+        st.sidebar.button("📈 My Course",                width="stretch", on_click=_go, args=("My Course",))
+        st.sidebar.button("📊 Results & Resources",      width="stretch", on_click=_go, args=("My Results and Resources",))
+        st.sidebar.button("🗣️ Chat • Grammar • Exams", width="stretch", on_click=_go, args=("Chat • Grammar • Exams",))
+        st.sidebar.button("📚 Vocab Trainer",            width="stretch", on_click=_go, args=("Vocab Trainer",))
+        st.sidebar.button("📗 Dictionary",              width="stretch", on_click=_go_dictionary)
+        st.sidebar.button("✍️ Schreiben Trainer",        width="stretch", on_click=_go, args=("Schreiben Trainer",))
+        st.sidebar.button("🎥 Join on Zoom",             width="stretch", on_click=_go_zoom_class)
+        st.sidebar.button("❓ Class Notes & Q&A",         width="stretch", on_click=_go_post_qna)
         st.sidebar.divider()
 
         st.sidebar.markdown("## Our Socials")
@@ -1942,7 +1942,7 @@ if tab == "Dashboard":
         st.button(
             button_label,
             type="primary",
-            use_container_width=True,
+            width="stretch",
             key="btn_dash_next_assignment",
             on_click=_go_next_assignment,
             args=(_next_lesson.get("day"),),
@@ -4327,7 +4327,7 @@ if tab == "My Course":
                     df_att.rename(columns={"session": "Session"}, inplace=True)
                     st.dataframe(
                         df_att,
-                        use_container_width=True,
+                        width="stretch",
                         hide_index=True,
                     )
                 else:
@@ -5256,7 +5256,7 @@ if tab == "My Course":
                             "Send Reply",
                             key=f"q_send_comment_{q_id}",
                             type="primary",
-                            use_container_width=True,
+                            width="stretch",
                         ):
                             if not current_text.strip():
                                 st.warning("Type a reply first.")
@@ -5280,7 +5280,7 @@ if tab == "My Course":
                             "✨ Correct with AI",
                             key=f"q_ai_btn_{q_id}",
                             disabled=st.session_state.get(ai_flag, False),
-                            use_container_width=True,
+                            width="stretch",
                         ):
                             st.session_state[ai_flag] = True
                             st.session_state["need_rerun"] = True
@@ -6048,7 +6048,7 @@ if tab == "Chat • Grammar • Exams":
             )
             col_left, col_right = st.columns([1, 10])
             with col_left:
-                if st.button("🧹 New chat", key=KEY_NEWCHAT_BTN, use_container_width=True):
+                if st.button("🧹 New chat", key=KEY_NEWCHAT_BTN, width="stretch"):
                     st.session_state[chat_data_key] = []
                     st.session_state[qcount_data_key] = 0
                     st.session_state[finalized_data_key] = False
@@ -6247,7 +6247,7 @@ if tab == "Chat • Grammar • Exams":
             if cur_level_g not in level_options:
                 cur_level_g = default_gram
             gram_level = st.select_slider("Level", level_options, value=cur_level_g, key=KEY_GRAM_LEVEL)
-            ask = st.button("Ask", type="primary", use_container_width=True, key=KEY_GRAM_ASK_BTN)
+            ask = st.button("Ask", type="primary", width="stretch", key=KEY_GRAM_ASK_BTN)
 
         if ask and (gram_q or "").strip():
             sys = (
@@ -6357,7 +6357,7 @@ if tab == "Chat • Grammar • Exams":
                 if not label or not url:
                     continue
 
-                st.link_button(label, url, use_container_width=True)
+                st.link_button(label, url, width="stretch")
 
 
     with sub_speak:
@@ -6456,7 +6456,7 @@ if tab == "Chat • Grammar • Exams":
                         .sort_values(["part"])
                     )
                     st.markdown("#### Breakdown by Part")
-                    st.dataframe(by_part.assign(avg_score=by_part["avg_score"].round(1)), use_container_width=True)
+                    st.dataframe(by_part.assign(avg_score=by_part["avg_score"].round(1)), width="stretch")
 
                 # Recent attempts table
                 show_cols = [c for c in [
@@ -6484,7 +6484,7 @@ if tab == "Chat • Grammar • Exams":
                             )
 
                 st.markdown("#### Recent attempts")
-                st.dataframe(df_recent, use_container_width=True)
+                st.dataframe(df_recent, width="stretch")
 
                 # Inline audio for newest attempt — column could be 'audio_file_id' or similar
                 audio_col = next((c for c in ["audio_file_id", "audio_id", "audio"] if c in df_me.columns), None)
@@ -7011,7 +7011,7 @@ if tab == "Vocab Trainer":
             f"Browse all words for levels: {levels_label}", expanded=False
         ):
             df_show = df_view[["German", "English"]].copy()
-            st.dataframe(df_show, use_container_width=True, height=420)
+            st.dataframe(df_show, width="stretch", height=420)
 
 
 

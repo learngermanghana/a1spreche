@@ -362,11 +362,11 @@ def render_forgot_password_panel() -> None:
     c3, c4 = st.columns([0.55, 0.45])
     with c3:
         send_btn = st.button(
-            "Send reset link", key="send_reset_btn", use_container_width=True
+            "Send reset link", key="send_reset_btn", width="stretch"
         )
     with c4:
         back_btn = st.button(
-            "Back to login", key="hide_reset_btn", use_container_width=True
+            "Back to login", key="hide_reset_btn", width="stretch"
         )
 
     if back_btn:
