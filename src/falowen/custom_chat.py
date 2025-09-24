@@ -321,7 +321,7 @@ def render_custom_chat_input(
             "Save draft",
             key=widget_key("chat_save_draft"),
             disabled=chat_locked,
-            use_container_width=True,
+            width="stretch",
         )
         user_input_btn = (
             st.session_state.get(draft_key, "").strip()

@@ -273,4 +273,4 @@ def render_vocab_dictionary(student_level_locked: str) -> None:
         f"Browse all words for levels: {levels_label}", expanded=False
     ):
         df_show = df_view[["German", "English"]].copy()
-        st.dataframe(df_show, use_container_width=True, height=420)
+        st.dataframe(df_show, width="stretch", height=420)

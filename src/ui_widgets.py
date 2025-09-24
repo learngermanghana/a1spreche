@@ -100,7 +100,11 @@ def render_google_signin_once(auth_url: str, full_width: bool = True) -> None:
     try:
         components.html(btn_html, height=72, scrolling=False)
     except Exception:
-        st.link_button("Continue with Google", auth_url, use_container_width=full_width)
+        st.link_button(
+            "Continue with Google",
+            auth_url,
+            width="stretch" if full_width else "content",
+        )
     st.session_state["_google_btn_rendered"] = True
 
 
