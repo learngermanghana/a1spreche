@@ -36,6 +36,7 @@ from google.cloud.firestore_v1 import FieldFilter
 from firebase_admin import firestore  # Firebase
 from openai import OpenAI
 from src.styles import inject_global_styles
+from src.lesson_language_support import gather_language_support
 from src.discussion_board import (
     CLASS_DISCUSSION_LABEL,
     CLASS_DISCUSSION_LINK_TMPL,
@@ -1350,6 +1351,42 @@ def get_vocab_of_the_day(df: pd.DataFrame, level: str):
     idx = date.today().toordinal() % len(subset)
     row = subset.reset_index(drop=True).iloc[idx]
     return {"german": row.get("german",""), "english": row.get("english",""), "example": row.get("example","")}
+
+
+def render_lesson_language_support(info: MutableMapping[str, Any] | None, level_key: str) -> None:
+    """Show quick vocab and grammar reminders for the current lesson."""
+
+    info = info or {}
+    grammar_topic = _safe_str(info.get("grammar_topic"))
+    vocab_df = load_full_vocab_sheet()
+    suggestions = gather_language_support(info, level_key, vocab_df, VOCAB_LISTS)
+
+    if not grammar_topic and not suggestions:
+        return
+
+    st.markdown("###### 💡 Quick Language Support")
+    if grammar_topic:
+        st.caption(f"Grammar focus: {grammar_topic}")
+
+    if suggestions:
+        for entry in suggestions:
+            german = _safe_str(entry.get("german"))
+            english = _safe_str(entry.get("english"))
+            example = _safe_str(entry.get("example"))
+            bullet = f"**{german}**" if german else ""
+            if english:
+                bullet = f"{bullet} — {english}" if bullet else english
+            if bullet:
+                line = f"- {bullet}"
+            elif example:
+                line = f"- _{example}_"
+            else:
+                continue
+            if example and bullet:
+                line += f"  \n  _{example}_"
+            st.markdown(line)
+    else:
+        st.caption("No quick vocabulary matches found for this lesson.")
 
 
 @st.cache_data(ttl=3600)
@@ -3129,12 +3166,16 @@ if tab == "My Course":
                         "No activity sections or links found for this lesson. Check the lesson data for A2/B1 key names."
                     )
 
-            # --- quick access to translators ---
-            st.markdown(
-                "[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; "
-                "[🌐 Google Translate](https://translate.google.com)",
-                unsafe_allow_html=True,
-            )
+            # --- quick access to translators and language support ---
+            translator_col, support_col = st.columns([1, 1.6])
+            with translator_col:
+                st.markdown(
+                    "[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; "
+                    "[🌐 Google Translate](https://translate.google.com)",
+                    unsafe_allow_html=True,
+                )
+            with support_col:
+                render_lesson_language_support(info, level_key)
 
             # ---------- Build a clean downloadable bundle of links (no on-page repetition) ----------
             st.divider()
