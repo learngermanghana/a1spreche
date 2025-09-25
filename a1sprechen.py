@@ -22,7 +22,7 @@ from datetime import datetime
 from datetime import datetime as _dt
 from uuid import uuid4
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, List, Iterable, MutableMapping
+from typing import Any, Dict, Optional, Tuple, List, Iterable, MutableMapping, Sequence
 from functools import lru_cache
 
 # ==== Third-Party Packages ====
@@ -106,6 +106,53 @@ def _safe_str(v, default: str = "") -> str:
 def _safe_upper(v, default: str = "") -> str:
     s = _safe_str(v, default)
     return s.upper() if s else default
+
+
+def _coerce_day(value: Any) -> Optional[int]:
+    """Return ``value`` as an ``int`` day when possible."""
+
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+    try:
+        return int(str(value).strip())
+    except Exception:
+        return None
+
+
+def _submission_block_reason(
+    lesson: Optional[MutableMapping[str, Any]],
+    schedule: Sequence[MutableMapping[str, Any]],
+) -> str:
+    """Return a message explaining why submissions are disabled for ``lesson``."""
+
+    day = _coerce_day((lesson or {}).get("day"))
+    if day is None:
+        return ""
+
+    first_day: Optional[int] = None
+    for entry in schedule:
+        first_day = _coerce_day((entry or {}).get("day"))
+        if first_day is not None:
+            break
+
+    last_day: Optional[int] = None
+    for entry in reversed(schedule):
+        last_day = _coerce_day((entry or {}).get("day"))
+        if last_day is not None:
+            break
+
+    if first_day is not None and day == first_day == 0:
+        return "Day 0 is a tutorial day — there is nothing to submit yet."
+    if last_day is not None and day == last_day:
+        return "This final celebration day has no assignment to submit."
+    return ""
 
 
 def _timestamp_to_epoch(ts: Optional[datetime]) -> float:
@@ -3208,6 +3255,9 @@ if tab == "My Course":
 
         # SUBMIT
         elif coursebook_section == "Submit":
+            submission_disabled_reason = _submission_block_reason(info, schedule)
+            submission_disabled = bool(submission_disabled_reason)
+
             st.markdown("### ✅ Submit Your Assignment")
             st.markdown(
                 f"""
@@ -3254,6 +3304,9 @@ if tab == "My Course":
                     st.success("Student code saved. You can now submit your work.")
 
             if not missing_code:
+                if submission_disabled:
+                    st.info(submission_disabled_reason)
+
                 lesson_key = lesson_key_build(student_level, info['day'], info['chapter'])
                 st.session_state["student_code"] = code
                 chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
@@ -3269,6 +3322,7 @@ if tab == "My Course":
                 if db_locked:
                     st.session_state[locked_key] = True
                 locked = db_locked or st.session_state.get(locked_key, False)
+                locked_ui = locked or submission_disabled
                 submit_in_progress_key = f"{lesson_key}_submit_in_progress"
 
                 # ---------- save previous lesson on switch + force hydrate for this one ----------
@@ -3351,11 +3405,11 @@ if tab == "My Course":
                             if cloud_text:
                                 when = f"{cloud_ts.strftime('%Y-%m-%d %H:%M')} UTC" if cloud_ts else ""
                                 st.info(f"💾 Restored your saved draft. {('Last saved ' + when) if when else ''}")
-                            else:
+                            elif not submission_disabled:
                                 st.caption("Start typing your answer.")
                         else:
                             # If 'hydrated' but local is empty, pull cloud once
-                            if not st.session_state.get(draft_key, "") and not locked:
+                            if not st.session_state.get(draft_key, "") and not locked_ui:
                                 ctext, cts = load_draft_meta_from_db(code, draft_key)
                                 if ctext:
                                     st.session_state[draft_key]      = ctext
@@ -3413,7 +3467,6 @@ if tab == "My Course":
                             """,
                             unsafe_allow_html=True,
                         )
-                    
                 # ---------- Editor (save on blur + debounce) ----------
                 st.text_area(
                     "Type all your answers here",
@@ -3421,22 +3474,22 @@ if tab == "My Course":
                     key=draft_key,              # value already hydrated in st.session_state[draft_key]
                     on_change=save_now,         # guaranteed save on blur/change
                     args=(draft_key, code),
-                    disabled=locked,
+                    disabled=locked_ui,
                     help="Autosaves on blur and in the background while you type."
                 )
-                render_umlaut_pad(draft_key, context=f"coursebook_{lesson_key}", disabled=locked)
+                render_umlaut_pad(draft_key, context=f"coursebook_{lesson_key}", disabled=locked_ui)
 
                 # Debounced autosave (safe so empty first-render won't wipe a non-empty cloud draft)
                 current_text = st.session_state.get(draft_key, "")
                 last_val = st.session_state.get(last_val_key, "")
-                if not locked and (current_text.strip() or not last_val.strip()):
-                    autosave_maybe(code, draft_key, current_text, min_secs=2.0, min_delta=12, locked=locked)
+                if not locked_ui and (current_text.strip() or not last_val.strip()):
+                    autosave_maybe(code, draft_key, current_text, min_secs=2.0, min_delta=12, locked=locked_ui)
 
                 # ---------- Manual save + last saved time + safe reload ----------
                 csave1, csave2, csave3 = st.columns([1, 1, 1])
 
                 with csave1:
-                    if st.button("💾 Save Draft now", disabled=locked):
+                    if st.button("💾 Save Draft now", disabled=locked_ui):
                         save_draft_to_db(code, draft_key, current_text)
                         st.session_state[last_val_key]   = current_text
                         st.session_state[last_ts_key]    = time.time()
@@ -3511,14 +3564,18 @@ if tab == "My Course":
                     confirm_final = st.checkbox(
                         f"I confirm this is my complete work for Level {student_level} • Day {info['day']} • Chapter {info['chapter']}.",
                         key=f"confirm_final_{lesson_key}",
-                        disabled=locked
+                        disabled=locked_ui
                     )
                     confirm_lock = st.checkbox(
                         "I understand it will be locked after I submit.",
                         key=f"confirm_lock_{lesson_key}",
-                        disabled=locked
+                        disabled=locked_ui
                     )
-                    can_submit = (confirm_final and confirm_lock and (not locked))
+                    can_submit = (
+                        confirm_final
+                        and confirm_lock
+                        and (not locked_ui)
+                    )
 
                     submit_in_progress = st.session_state.get(submit_in_progress_key, False)
 
