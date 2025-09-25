@@ -3729,7 +3729,7 @@ if tab == "My Course":
                         _You’ll get an **email** when it’s marked. See **Results & Resources** for scores & feedback._
                     """)
 
-                col1, col2, col3 = st.columns([1, 1.2, 1])
+                col1, col2 = st.columns([1, 1.2])
                 with col1:
                     st.markdown("#### 🧾 Finalize")
                     confirm_final = st.checkbox(
@@ -3764,40 +3764,6 @@ if tab == "My Course":
                     else:
                         st.info("Draft preview will appear here once you start typing.")
                         st.caption("Word count: 0")
-
-                with col3:
-                    st.markdown("#### 📎 Attachments")
-                    attachment_sources = [
-                        st.session_state.get(f"{draft_key}__attachments"),
-                        st.session_state.get(f"{lesson_key}__attachments"),
-                    ]
-                    attachments: List[str] = []
-                    for raw in attachment_sources:
-                        if not raw:
-                            continue
-                        if isinstance(raw, (list, tuple, set)):
-                            iter_items = raw
-                        else:
-                            iter_items = [raw]
-                        for item in iter_items:
-                            if item is None:
-                                continue
-                            if isinstance(item, dict):
-                                label = item.get("name") or item.get("filename") or item.get("title")
-                                if label:
-                                    attachments.append(str(label))
-                                elif item.get("url"):
-                                    attachments.append(str(item.get("url")))
-                                else:
-                                    attachments.append(str(item))
-                            else:
-                                attachments.append(str(item))
-
-                    if attachments:
-                        for att in attachments:
-                            st.markdown(f"- {html.escape(att)}")
-                    else:
-                        st.caption("No files attached.")
 
                 submit_in_progress = st.session_state.get(submit_in_progress_key, False)
 
