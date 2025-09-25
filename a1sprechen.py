@@ -3019,13 +3019,15 @@ if tab == "My Course":
                         if _is_url(maybe_vid):
                             cid = _canon_video(maybe_vid)
                             if cid not in seen_videos:
-                                st.markdown(f"[▶️ Watch on YouTube]({maybe_vid})")
+                                st.markdown(
+                                    f"[🎬 Lecture Video on YouTube]({maybe_vid})"
+                                )
                                 seen_videos.add(cid)
                     # links/resources inline
                     if grammarbook_link:
                         st.markdown(f"- [📘 Grammar Book (Notes)]({grammarbook_link})")
                         st.markdown(
-                            '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
+                            "<em>Reminder:</em> 📘 gives you the grammar from today's lecture; 📒 is the assignment you must complete.",
                             unsafe_allow_html=True,
                         )
                     if workbook_link:
@@ -3054,7 +3056,9 @@ if tab == "My Course":
                 if info.get("video"):
                     cid = _canon_video(info["video"])
                     if cid not in seen_videos:
-                        st.markdown(f"[▶️ Watch on YouTube]({info['video']})")
+                        st.markdown(
+                            f"[🎬 Lecture Video on YouTube]({info['video']})"
+                        )
                         seen_videos.add(cid)
                     showed = True
                 if info.get("grammarbook_link"):
@@ -3164,7 +3168,9 @@ if tab == "My Course":
                 if _is_url(info.get("video")):
                     st.video(info["video"])
                 elif info.get("video"):
-                    st.markdown(f"[▶️ Watch on YouTube]({info['video']})")
+                    st.markdown(
+                        f"[🎬 Lecture Video on YouTube]({info['video']})"
+                    )
                     
                 if _is_url(info.get("grammarbook_link")):
                     render_link("📘 Grammar Book (Notes)", info["grammarbook_link"])
