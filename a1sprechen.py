@@ -381,6 +381,74 @@ def _show_missing_code_warning(
     )
 
 
+def _update_student_code_session_state(code: str) -> Dict[str, Any]:
+    """Persist ``code`` into session state and return the updated row."""
+
+    clean_code = _safe_upper(code)
+    if not clean_code or clean_code.lower() == "demo001":
+        return st.session_state.get("student_row") or {}
+
+    current_row = st.session_state.get("student_row")
+    try:
+        updated_row = dict(current_row or {})
+    except Exception:
+        updated_row = {}
+
+    updated_row["StudentCode"] = clean_code
+    st.session_state["student_row"] = updated_row
+    st.session_state["student_code"] = clean_code
+    st.session_state["assignment_student_code_input"] = clean_code
+    st.session_state["submit_student_code_input"] = clean_code
+
+    return updated_row
+
+
+def _recover_student_code(
+    *,
+    lesson_key: str = "",
+    draft_text: Optional[str] = None,
+) -> str:
+    """Attempt to resolve the active student's code from session or drafts."""
+
+    session_row = st.session_state.get("student_row") or {}
+    candidates = [
+        session_row.get("StudentCode"),
+        st.session_state.get("student_code"),
+        st.session_state.get("assignment_student_code_input"),
+        st.session_state.get("submit_student_code_input"),
+    ]
+
+    for candidate in candidates:
+        candidate_code = _safe_upper(candidate)
+        if candidate_code and candidate_code.lower() != "demo001":
+            return candidate_code
+
+    if not lesson_key:
+        return ""
+
+    cache = st.session_state.setdefault("_student_code_lookup_cache", {})
+    text_token = ""
+    if draft_text:
+        try:
+            text_token = hashlib.sha1(str(draft_text).encode("utf-8")).hexdigest()
+        except Exception:
+            text_token = ""
+    cache_key = f"{lesson_key}::{text_token}" if lesson_key else lesson_key
+    cached = cache.get(cache_key)
+    if cached:
+        return _safe_upper(cached)
+
+    recovered = recover_student_code_from_drafts(
+        lesson_key,
+        draft_text=draft_text if draft_text else None,
+    )
+    if recovered:
+        cache[cache_key] = recovered
+        return _safe_upper(recovered)
+
+    return ""
+
+
 def hide_sidebar() -> None:
     """Hide Streamlit's sidebar for pages where it isn't needed."""
     st.markdown(
@@ -531,6 +599,7 @@ from src.firestore_utils import (
     fetch_attendance_summary,
     load_student_profile,
     save_student_profile,
+    recover_student_code_from_drafts,
 )
 from src.draft_management import (
     _draft_state_keys,
@@ -2868,6 +2937,13 @@ if tab == "My Course":
 
         # ---- Lesson info ----
         info = schedule[idx]
+        lesson_key = lesson_key_build(
+            student_level,
+            info.get("day", 0),
+            info.get("chapter", ""),
+        )
+        draft_key = f"draft_{lesson_key}"
+        st.session_state["coursebook_draft_key"] = draft_key
         chapter = info.get("chapter")
         title_txt = f"Day {info['day']}: {info['topic']}"
         st.markdown(
@@ -3010,6 +3086,34 @@ if tab == "My Course":
         # ASSIGNMENT (activities + resources; tolerant across A1–C1)
         elif coursebook_section == "Assignment":
 
+            draft_text = st.session_state.get(draft_key, "")
+            recovered_code = _recover_student_code(
+                lesson_key=lesson_key,
+                draft_text=draft_text if draft_text else None,
+            )
+            student_row = (
+                _update_student_code_session_state(recovered_code)
+                if recovered_code
+                else st.session_state.get("student_row")
+                or {}
+            )
+
+            if not recovered_code:
+                manual_key = "assignment_student_code_input"
+                st.warning(
+                    "We couldn't detect your student code automatically. "
+                    "Enter it below so your work is linked to your account."
+                )
+                manual_value = st.text_input(
+                    "Student code",
+                    key=manual_key,
+                    placeholder="e.g. KWAME123",
+                    help="This appears on your student ID card or welcome email.",
+                )
+                manual_code = _safe_upper(manual_value)
+                if manual_code and manual_code.lower() != "demo001":
+                    student_row = _update_student_code_session_state(manual_code)
+                    st.caption("Student code saved. You're all set to continue.")
 
             # ---------- helpers ----------
             def _as_list(x):
@@ -3326,8 +3430,19 @@ if tab == "My Course":
                 unsafe_allow_html=True
             )
 
+            draft_text = st.session_state.get(draft_key, "")
+            recovered_code = _recover_student_code(
+                lesson_key=lesson_key,
+                draft_text=draft_text if draft_text else None,
+            )
+            student_row = (
+                _update_student_code_session_state(recovered_code)
+                if recovered_code
+                else st.session_state.get("student_row")
+                or {}
+            )
             code = _safe_str(student_row.get("StudentCode"), "demo001")
-            name_default = _safe_str(student_row.get('Name'))
+            name_default = _safe_str(student_row.get("Name"))
             missing_code = (not code) or (code.lower() == "demo001")
 
             code_input_key = "submit_student_code_input"
@@ -3339,36 +3454,29 @@ if tab == "My Course":
                 )
                 manual_value = st.text_input(
                     "Enter your student code to continue",
-                    value=st.session_state.get(code_input_key, ""),
                     key=code_input_key,
                     placeholder="e.g. KWAME123",
                     help="This appears on your student ID card or welcome email.",
                 )
-                entered_code = _safe_str(manual_value)
-                if entered_code and entered_code.lower() != "demo001":
-                    code = _safe_upper(entered_code)
+                manual_code = _safe_upper(manual_value)
+                if manual_code and manual_code.lower() != "demo001":
+                    student_row = _update_student_code_session_state(manual_code)
+                    code = manual_code
                     missing_code = False
-                    updated_row = dict(student_row)
-                    updated_row["StudentCode"] = code
-                    st.session_state["student_row"] = updated_row
-                    st.session_state["student_code"] = code
-                    student_row = updated_row
                     st.success("Student code saved. You can now submit your work.")
+            else:
+                st.session_state[code_input_key] = code
 
             if not missing_code:
                 if submission_disabled:
                     st.info(submission_disabled_reason)
 
-                lesson_key = lesson_key_build(student_level, info['day'], info['chapter'])
                 st.session_state["student_code"] = code
                 chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
 
                 name = st.text_input("Name", value=student_row.get('Name', ''))
                 email = st.text_input("Email", value=student_row.get('Email', ''))
 
-
-                draft_key = f"draft_{lesson_key}"
-                st.session_state["coursebook_draft_key"] = draft_key
                 db_locked = is_locked(student_level, code, lesson_key)
                 locked_key = f"{lesson_key}_locked"
                 if db_locked:
