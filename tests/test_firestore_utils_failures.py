@@ -15,7 +15,8 @@ def test_save_draft_to_db_logs_warning_on_failure(monkeypatch, caplog):
     monkeypatch.setattr(firestore_utils, "_draft_doc_ref", dummy_ref)
 
     with caplog.at_level(logging.WARNING):
-        firestore_utils.save_draft_to_db("code", "draft_X", "text")
+        result = firestore_utils.save_draft_to_db("code", "draft_X", "text")
+    assert result is False
     assert any(record.levelno == logging.WARNING for record in caplog.records)
 
 
@@ -35,7 +36,8 @@ def test_save_chat_draft_to_db_logs_warning_on_failure(monkeypatch, caplog):
     monkeypatch.setattr(firestore_utils, "db", DummyDB())
 
     with caplog.at_level(logging.WARNING):
-        firestore_utils.save_chat_draft_to_db("code", "conv", "hi")
+        result = firestore_utils.save_chat_draft_to_db("code", "conv", "hi")
+    assert result is False
     assert any(record.levelno == logging.WARNING for record in caplog.records)
 
 
@@ -55,7 +57,8 @@ def test_save_chat_draft_to_db_logs_warning_on_failure_when_clearing(monkeypatch
     monkeypatch.setattr(firestore_utils, "db", DummyDB())
 
     with caplog.at_level(logging.WARNING):
-        firestore_utils.save_chat_draft_to_db("code", "conv", "")
+        result = firestore_utils.save_chat_draft_to_db("code", "conv", "")
+    assert result is False
     assert any(record.levelno == logging.WARNING for record in caplog.records)
 
 def test_load_chat_draft_from_db_logs_error_on_failure(monkeypatch, caplog):

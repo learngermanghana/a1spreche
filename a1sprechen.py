@@ -142,7 +142,7 @@ def _initialise_topic_coach_session_state(
     finalized: Any,
     focus_tips: Iterable[str] | None = None,
     identity_key: str = "_cchat_active_identity",
-) -> Tuple[str, str, str, str]:
+) -> Tuple[str, str, str]:
     """Return scoped Topic Coach session-state keys after initialising values."""
 
     student_token = _safe_str(student_code)
@@ -182,7 +182,7 @@ def _initialise_topic_coach_session_state(
         session_state[focus_key] = list(focus_tips)
 
     session_state[identity_key] = identity
-    return chat_key, qcount_key, finalized_key, focus_key
+    return chat_key, qcount_key, finalized_key
 
 
 def _extract_focus_tips_from_history(
@@ -485,6 +485,7 @@ from src.firestore_utils import (
     save_student_profile,
 )
 from src.draft_management import (
+    DRAFT_SAVE_FAILED_MSG,
     _draft_state_keys,
     save_now,
     autosave_maybe,
@@ -2828,32 +2829,19 @@ if tab == "My Course":
                 f"{CLASS_DISCUSSION_REMINDER}"
             )
 
-            def _launch_class_thread(chap: str) -> None:
-                current_row = st.session_state.get("student_row") or {}
-                if isinstance(current_row, dict):
-                    updated_row = dict(current_row)
-                else:
-                    try:
-                        updated_row = dict(current_row)
-                    except Exception:
-                        updated_row = {}
-                updated_row["ClassName"] = class_name_lookup
-                st.session_state["student_row"] = updated_row
-                go_class_thread(chap)
-
             st.button(
                 CLASS_DISCUSSION_LABEL,
                 key=link_key,
-                on_click=_launch_class_thread,
+                on_click=go_class_thread,
                 args=(chapter,),
             )
             if post_count == 0:
                 st.caption("No posts yet. Clicking will show the full board.")
         elif not class_name:
-            st.error(
-                "This class discussion board is unavailable. Select another "
-                "classroom tab and return, or log out and back in to refresh "
-                "your roster."
+            st.info(
+                "Class discussion board unavailable — switch to another tab "
+                "and return, or contact support after logging out and back in "
+                "to refresh your roster."
             )
         else:
             st.warning("Missing chapter for discussion board.")
@@ -3274,11 +3262,15 @@ if tab == "My Course":
                 # ---------- save previous lesson on switch + force hydrate for this one ----------
                 prev_active_key = st.session_state.get("__active_draft_key")
                 if prev_active_key and prev_active_key != draft_key:
+                    prev_text = st.session_state.get(prev_active_key, "")
                     try:
-                        prev_text = st.session_state.get(prev_active_key, "")
-                        save_draft_to_db(code, prev_active_key, prev_text)
+                        prev_saved = save_draft_to_db(code, prev_active_key, prev_text)
                     except Exception:
-                        pass  # never block UI
+                        prev_saved = False
+                    if not prev_saved:
+                        toast_fn = globals().get("toast_once")
+                        if callable(toast_fn):
+                            toast_fn(DRAFT_SAVE_FAILED_MSG, "❌")
                     # ensure the newly selected lesson re-hydrates from cloud
                     st.session_state.pop(f"{draft_key}__hydrated_v2", None)
                 st.session_state["__active_draft_key"] = draft_key
@@ -3437,12 +3429,16 @@ if tab == "My Course":
 
                 with csave1:
                     if st.button("💾 Save Draft now", disabled=locked):
-                        save_draft_to_db(code, draft_key, current_text)
-                        st.session_state[last_val_key]   = current_text
-                        st.session_state[last_ts_key]    = time.time()
-                        st.session_state[saved_flag_key] = True
-                        st.session_state[saved_at_key]   = datetime.now(_timezone.utc)
-                        st.success("Draft saved.")
+                        saved = save_draft_to_db(code, draft_key, current_text)
+                        if saved:
+                            st.session_state[last_val_key] = current_text
+                            st.session_state[last_ts_key] = time.time()
+                            st.session_state[saved_flag_key] = True
+                            st.session_state[saved_at_key] = datetime.now(_timezone.utc)
+                            st.success("Draft saved.")
+                        else:
+                            st.session_state[saved_flag_key] = False
+                            st.error(DRAFT_SAVE_FAILED_MSG)
 
                 with csave2:
                     ts = st.session_state.get(saved_at_key)
@@ -4930,7 +4926,11 @@ if tab == "My Course":
                     f"*When:* {_dt.now(_timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC\n",
                     f"*Comment:* {prev}",
                 )
-                save_draft_to_db(student_code, draft_key, "")
+                cleared = save_draft_to_db(student_code, draft_key, "")
+                if not cleared:
+                    toast_fn = globals().get("toast_once")
+                    if callable(toast_fn):
+                        toast_fn(DRAFT_SAVE_FAILED_MSG, "❌")
                 st.session_state[f"__clear_comment_draft_{q_id}"] = True
                 st.session_state[last_val_key] = ""
                 st.session_state[last_ts_key] = time.time()
@@ -5835,7 +5835,6 @@ if tab == "Chat • Grammar • Exams":
         chat_data_key,
         qcount_data_key,
         finalized_data_key,
-        focus_data_key,
     ) = _initialise_topic_coach_session_state(
         st.session_state,
         student_code=student_code_tc,
@@ -5844,6 +5843,9 @@ if tab == "Chat • Grammar • Exams":
         qcount=loaded_qcount,
         finalized=loaded_finalized,
         focus_tips=initial_focus,
+    )
+    focus_data_key = _topic_coach_state_key(
+        "cchat_data_focus", student_code_tc, active_level
     )
 
     def _save_topic_coach_transcript(
@@ -7349,7 +7351,11 @@ if tab == "Schreiben Trainer":
                 )
                 update_schreiben_stats(student_code)
                 inc_schreiben_usage(student_code)
-                save_draft_to_db(student_code, draft_key, "")
+                cleared = save_draft_to_db(student_code, draft_key, "")
+                if not cleared:
+                    toast_fn = globals().get("toast_once")
+                    if callable(toast_fn):
+                        toast_fn(DRAFT_SAVE_FAILED_MSG, "❌")
                 st.session_state.pop(draft_key, None)
 
         elif (
@@ -8091,6 +8097,129 @@ if tab == "Schreiben Trainer":
 
 
 
+
+
+# ---- Assignment score helpers -------------------------------------------------
+
+
+def _scores_col():
+    """Return the Firestore collection used to store assignment scores."""
+
+    if db is None:  # pragma: no cover - exercised via tests with stubbed factory
+        return None
+    try:
+        return db.collection("assignment_scores")
+    except Exception as exc:  # pragma: no cover - depends on Firestore wiring
+        logging.exception("Failed to access assignment_scores collection: %s", exc)
+        return None
+
+
+def expected_assignment_name(level: str, assignment_day: object) -> str:
+    """Return the canonical assignment label used in Firestore."""
+
+    level_clean = str(level or "").strip()
+    day_text = str(assignment_day or "").strip()
+    match = re.search(r"(\d+(?:\.\d+)?)", day_text)
+    day_part = match.group(1) if match else day_text
+    if level_clean and day_part:
+        return f"{level_clean} Assignment {day_part}"
+    if level_clean:
+        return f"{level_clean} Assignment"
+    return day_part
+
+
+def _assignment_identifiers(
+    level: str,
+    assignment_day: object,
+    lesson_info: Optional[Dict[str, object]] = None,
+) -> List[str]:
+    """Yield possible assignment identifiers ordered by confidence."""
+
+    identifiers: List[str] = []
+    seen = set()
+
+    def _push(value: object) -> None:
+        if value is None:
+            token = ""
+        else:
+            token = str(value).strip()
+        if token:
+            match = re.search(r"(\d+(?:\.\d+)?)", token)
+            if match:
+                token = match.group(1)
+        if token and token not in seen:
+            seen.add(token)
+            identifiers.append(token)
+
+    primary = expected_assignment_name(level, assignment_day)
+    if primary:
+        identifiers.append(primary)
+        seen.add(primary)
+
+    _push(assignment_day)
+
+    if isinstance(lesson_info, dict):
+        _push(lesson_info.get("chapter"))
+        for key in ("lesen_hören", "schreiben_sprechen"):
+            section = lesson_info.get(key)
+            if isinstance(section, dict):
+                _push(section.get("chapter"))
+
+    return identifiers
+
+
+def get_score_for_assignment(
+    student_code: str,
+    level: str,
+    assignment_day: object,
+    *,
+    lesson_info: Optional[Dict[str, object]] = None,
+) -> Dict[str, object]:
+    """Return the student's assignment score document if available."""
+
+    collection = _scores_col()
+    if collection is None:
+        return {}
+
+    try:
+        query = collection.where(filter=FieldFilter("studentcode", "==", student_code))
+    except Exception as exc:  # pragma: no cover - Firestore wiring dependent
+        logging.exception("Failed to query assignment scores for %s: %s", student_code, exc)
+        return {}
+
+    for identifier in _assignment_identifiers(level, assignment_day, lesson_info):
+        try:
+            docs = (
+                query.where(filter=FieldFilter("assignment", "==", identifier))
+                .limit(1)
+                .stream()
+            )
+        except Exception as exc:  # pragma: no cover - Firestore wiring dependent
+            logging.exception(
+                "Failed to fetch assignment score for %s/%s: %s",
+                student_code,
+                identifier,
+                exc,
+            )
+            continue
+
+        doc = next(iter(docs), None)
+        if doc is None:
+            continue
+        try:
+            payload = doc.to_dict() or {}
+        except Exception as exc:  # pragma: no cover - doc decoding dependent
+            logging.exception(
+                "Failed to decode assignment score for %s/%s: %s",
+                student_code,
+                identifier,
+                exc,
+            )
+            continue
+        if payload:
+            return payload
+
+    return {}
 
 
 if st.session_state.pop("need_rerun", False):

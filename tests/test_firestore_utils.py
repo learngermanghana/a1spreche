@@ -133,17 +133,43 @@ def test_save_chat_draft_updates_current_conv(monkeypatch):
     monkeypatch.setattr(firestore_utils, "db", DummyDB())
     conv_key = "ChatMode_A1_T1_abcd1234"
 
-    firestore_utils.save_chat_draft_to_db("code", conv_key, "hi")
+    assert firestore_utils.save_chat_draft_to_db("code", conv_key, "hi") is True
     payload = dummy_doc.payloads[-1]
     assert payload["drafts"][conv_key] == "hi"
     assert payload["current_conv"]["ChatMode_A1_T1"] == conv_key
 
-    firestore_utils.save_chat_draft_to_db("code", conv_key, "")
+    assert firestore_utils.save_chat_draft_to_db("code", conv_key, "") is True
     payload = dummy_doc.payloads[-1]
     assert (
         payload["drafts"][conv_key] is firestore_utils.firestore.DELETE_FIELD
     )
     assert payload["current_conv"]["ChatMode_A1_T1"] == conv_key
+
+
+def test_save_draft_to_db_returns_true(monkeypatch):
+    class DummyRef:
+        def __init__(self):
+            self.payload = None
+
+        def set(self, payload, merge=True):
+            self.payload = payload
+
+    dummy_ref = DummyRef()
+
+    def dummy_ref_factory(level, lesson_key, code):
+        return dummy_ref
+
+    monkeypatch.setattr(firestore_utils, "db", object())
+    monkeypatch.setattr(firestore_utils, "_draft_doc_ref", dummy_ref_factory)
+    monkeypatch.setattr(
+        firestore_utils.firestore,
+        "SERVER_TIMESTAMP",
+        0,
+        raising=False,
+    )
+
+    assert firestore_utils.save_draft_to_db("code", "draft_A1_day1_ch1", "hi") is True
+    assert dummy_ref.payload["text"] == "hi"
 
 
 def test_fetch_attendance_summary_counts_sessions(monkeypatch):
