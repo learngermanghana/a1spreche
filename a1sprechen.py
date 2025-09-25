@@ -22,7 +22,7 @@ from datetime import datetime
 from datetime import datetime as _dt
 from uuid import uuid4
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, List, Iterable, MutableMapping
+from typing import Any, Dict, Optional, Tuple, List, Iterable, MutableMapping, Sequence, Set
 from functools import lru_cache
 
 # ==== Third-Party Packages ====
@@ -106,6 +106,229 @@ def _safe_str(v, default: str = "") -> str:
 def _safe_upper(v, default: str = "") -> str:
     s = _safe_str(v, default)
     return s.upper() if s else default
+
+
+def _coerce_day(value: Any) -> Optional[int]:
+    """Return ``value`` as an ``int`` day when possible."""
+
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+    try:
+        return int(str(value).strip())
+    except Exception:
+        return None
+
+
+def _submission_block_reason(
+    lesson: Optional[MutableMapping[str, Any]],
+    schedule: Sequence[MutableMapping[str, Any]],
+) -> str:
+    """Return a message explaining why submissions are disabled for ``lesson``."""
+
+    day = _coerce_day((lesson or {}).get("day"))
+    if day is None:
+        return ""
+
+    first_day: Optional[int] = None
+    for entry in schedule:
+        first_day = _coerce_day((entry or {}).get("day"))
+        if first_day is not None:
+            break
+
+    last_day: Optional[int] = None
+    for entry in reversed(schedule):
+        last_day = _coerce_day((entry or {}).get("day"))
+        if last_day is not None:
+            break
+
+    if first_day is not None and day == first_day == 0:
+        return "Day 0 is a tutorial day — there is nothing to submit yet."
+    if last_day is not None and day == last_day:
+        return "This final celebration day has no assignment to submit."
+    return ""
+
+
+def _sync_class_name(student_row: Any, class_name: str) -> Any:
+    """Ensure ``student_row`` and session state store ``class_name``.
+
+    Returns the potentially updated ``student_row`` replacement value.
+    """
+
+    if not isinstance(student_row, dict):
+        try:
+            student_row = dict(student_row)
+        except Exception:
+            return student_row
+
+    if student_row.get("ClassName") == class_name:
+        return student_row
+
+    updated = dict(student_row)
+    updated["ClassName"] = class_name
+    st.session_state["student_row"] = updated
+    return updated
+
+
+def expected_assignment_name(level: Any, day: Any) -> str:
+    """Return the canonical assignment name for ``level`` and ``day``."""
+
+    level_token = _assignment_clean_upper(level)
+    day_num = _assignment_day_number(day)
+    if day_num is not None:
+        day_token = str(day_num)
+    else:
+        day_token = _assignment_clean_text(day)
+
+    if level_token and day_token:
+        return f"{level_token} Assignment {day_token}"
+    if day_token:
+        return day_token
+    return level_token
+
+
+def _assignment_clean_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, float):
+        try:
+            if math.isnan(value):
+                return ""
+        except Exception:
+            pass
+    text = str(value).strip()
+    if not text:
+        return ""
+    lowered = text.lower()
+    if lowered in {"nan", "none"}:
+        return ""
+    return text
+
+
+def _assignment_clean_upper(value: Any) -> str:
+    text = _assignment_clean_text(value)
+    return text.upper() if text else ""
+
+
+def _assignment_day_number(day: Any) -> Optional[int]:
+    if day is None or isinstance(day, bool):
+        return None
+    if isinstance(day, (int, float)):
+        try:
+            return int(day)
+        except (TypeError, ValueError):
+            return None
+    text = _assignment_clean_text(day)
+    if not text:
+        return None
+    try:
+        return int(float(text)) if "." in text else int(text)
+    except (TypeError, ValueError):
+        return None
+
+
+def _scores_col():
+    """Return the Firestore collection reference for assignment scores."""
+
+    return db.collection("assignment_scores")
+
+
+def _assignment_fallbacks(
+    day: Any,
+    lesson_info: Optional[Dict[str, Any]] = None,
+) -> List[str]:
+    """Return fallback assignment identifiers derived from lesson metadata."""
+
+    fallbacks: List[str] = []
+    seen: Set[str] = set()
+
+    day_num = _assignment_day_number(day)
+    if day_num is not None:
+        seen.add(str(day_num))
+        fallbacks.append(str(day_num))
+    else:
+        day_token = _assignment_clean_text(day)
+        if day_token:
+            seen.add(day_token)
+            fallbacks.append(day_token)
+
+    if not lesson_info:
+        return fallbacks
+
+    candidate_values = [
+        lesson_info.get("chapter"),
+    ]
+    for key in ("lesen_hören", "lesen_hoeren", "schreiben_sprechen"):
+        sub = lesson_info.get(key)
+        if isinstance(sub, dict):
+            candidate_values.append(sub.get("chapter"))
+
+    for value in candidate_values:
+        text = _assignment_clean_text(value)
+        if not text:
+            continue
+        for match in re.findall(r"\d+(?:\.\d+)?", text):
+            if match not in seen:
+                seen.add(match)
+                fallbacks.append(match)
+
+    return fallbacks
+
+
+def get_score_for_assignment(
+    student_code: str,
+    level: str,
+    day: Any,
+    *,
+    lesson_info: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    """Fetch the latest score entry for the assignment matching ``day``."""
+
+    try:
+        scores_ref = _scores_col()
+    except Exception:
+        return None
+
+    if scores_ref is None:
+        return None
+
+    candidates: List[str] = []
+    canonical = expected_assignment_name(level, day)
+    if canonical:
+        candidates.append(canonical)
+
+    for fallback in _assignment_fallbacks(day, lesson_info):
+        if fallback not in candidates:
+            candidates.append(fallback)
+
+    student_token = _assignment_clean_text(student_code)
+    for assignment_name in candidates:
+        if not assignment_name:
+            continue
+        query = scores_ref.where(
+            filter=FieldFilter("studentcode", "==", student_token)
+        ).where(
+            filter=FieldFilter("assignment", "==", assignment_name)
+        ).limit(1)
+
+        try:
+            docs = list(query.stream())
+        except Exception:
+            continue
+
+        if docs:
+            try:
+                return docs[0].to_dict()
+            except Exception:
+                return None
+
+    return None
 
 
 def _timestamp_to_epoch(ts: Optional[datetime]) -> float:
@@ -2798,14 +3021,19 @@ if tab == "My Course":
                 f"📝 **Instruction:** {info.get('instruction','')}"
             )
 
-        # ---- Class discussion count & link ----
         student_row = st.session_state.get("student_row") or {}
         _class_name_clean, class_name_lookup = _resolve_class_name(
             student_row.get("ClassName", ""),
             level=student_level,
         )
         class_name = class_name_lookup
+        if class_name_lookup:
+            student_row = _sync_class_name(student_row, class_name_lookup)
 
+        submission_block_reason = _submission_block_reason(info, schedule)
+        is_final_celebration = "final celebration" in submission_block_reason.lower()
+
+        # ---- Class discussion count & link ----
         if class_name and chapter:
             board_base = (
                 db.collection("class_board")
@@ -2828,35 +3056,28 @@ if tab == "My Course":
                 f"{CLASS_DISCUSSION_REMINDER}"
             )
 
-            def _launch_class_thread(chap: str) -> None:
-                current_row = st.session_state.get("student_row") or {}
-                if isinstance(current_row, dict):
-                    updated_row = dict(current_row)
-                else:
-                    try:
-                        updated_row = dict(current_row)
-                    except Exception:
-                        updated_row = {}
-                updated_row["ClassName"] = class_name_lookup
-                st.session_state["student_row"] = updated_row
-                go_class_thread(chap)
-
             st.button(
                 CLASS_DISCUSSION_LABEL,
                 key=link_key,
-                on_click=_launch_class_thread,
+                on_click=go_class_thread,
                 args=(chapter,),
             )
             if post_count == 0:
                 st.caption("No posts yet. Clicking will show the full board.")
         elif not class_name:
-            st.error(
-                "This class discussion board is unavailable. Select another "
-                "classroom tab and return, or log out and back in to refresh "
-                "your roster."
+            st.info(
+                "We couldn't locate your class discussion board."
+                " Please contact support or your tutor so we can link your "
+                "classroom."
             )
         else:
-            st.warning("Missing chapter for discussion board.")
+            if is_final_celebration:
+                st.info(
+                    "🎉 This celebration day doesn't include a discussion board. "
+                    "Enjoy connecting with your classmates in your own way!"
+                )
+            else:
+                st.warning("Missing chapter for discussion board.")
 
         st.divider()
 
@@ -3208,6 +3429,9 @@ if tab == "My Course":
 
         # SUBMIT
         elif coursebook_section == "Submit":
+            submission_disabled_reason = submission_block_reason
+            submission_disabled = bool(submission_disabled_reason)
+
             st.markdown("### ✅ Submit Your Assignment")
             st.markdown(
                 f"""
@@ -3254,6 +3478,9 @@ if tab == "My Course":
                     st.success("Student code saved. You can now submit your work.")
 
             if not missing_code:
+                if submission_disabled:
+                    st.info(submission_disabled_reason)
+
                 lesson_key = lesson_key_build(student_level, info['day'], info['chapter'])
                 st.session_state["student_code"] = code
                 chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
@@ -3269,6 +3496,7 @@ if tab == "My Course":
                 if db_locked:
                     st.session_state[locked_key] = True
                 locked = db_locked or st.session_state.get(locked_key, False)
+                locked_ui = locked or submission_disabled
                 submit_in_progress_key = f"{lesson_key}_submit_in_progress"
 
                 # ---------- save previous lesson on switch + force hydrate for this one ----------
@@ -3351,11 +3579,11 @@ if tab == "My Course":
                             if cloud_text:
                                 when = f"{cloud_ts.strftime('%Y-%m-%d %H:%M')} UTC" if cloud_ts else ""
                                 st.info(f"💾 Restored your saved draft. {('Last saved ' + when) if when else ''}")
-                            else:
+                            elif not submission_disabled:
                                 st.caption("Start typing your answer.")
                         else:
                             # If 'hydrated' but local is empty, pull cloud once
-                            if not st.session_state.get(draft_key, "") and not locked:
+                            if not st.session_state.get(draft_key, "") and not locked_ui:
                                 ctext, cts = load_draft_meta_from_db(code, draft_key)
                                 if ctext:
                                     st.session_state[draft_key]      = ctext
@@ -3413,7 +3641,6 @@ if tab == "My Course":
                             """,
                             unsafe_allow_html=True,
                         )
-                    
                 # ---------- Editor (save on blur + debounce) ----------
                 st.text_area(
                     "Type all your answers here",
@@ -3421,22 +3648,22 @@ if tab == "My Course":
                     key=draft_key,              # value already hydrated in st.session_state[draft_key]
                     on_change=save_now,         # guaranteed save on blur/change
                     args=(draft_key, code),
-                    disabled=locked,
+                    disabled=locked_ui,
                     help="Autosaves on blur and in the background while you type."
                 )
-                render_umlaut_pad(draft_key, context=f"coursebook_{lesson_key}", disabled=locked)
+                render_umlaut_pad(draft_key, context=f"coursebook_{lesson_key}", disabled=locked_ui)
 
                 # Debounced autosave (safe so empty first-render won't wipe a non-empty cloud draft)
                 current_text = st.session_state.get(draft_key, "")
                 last_val = st.session_state.get(last_val_key, "")
-                if not locked and (current_text.strip() or not last_val.strip()):
-                    autosave_maybe(code, draft_key, current_text, min_secs=2.0, min_delta=12, locked=locked)
+                if not locked_ui and (current_text.strip() or not last_val.strip()):
+                    autosave_maybe(code, draft_key, current_text, min_secs=2.0, min_delta=12, locked=locked_ui)
 
                 # ---------- Manual save + last saved time + safe reload ----------
                 csave1, csave2, csave3 = st.columns([1, 1, 1])
 
                 with csave1:
-                    if st.button("💾 Save Draft now", disabled=locked):
+                    if st.button("💾 Save Draft now", disabled=locked_ui):
                         save_draft_to_db(code, draft_key, current_text)
                         st.session_state[last_val_key]   = current_text
                         st.session_state[last_ts_key]    = time.time()
@@ -3511,14 +3738,18 @@ if tab == "My Course":
                     confirm_final = st.checkbox(
                         f"I confirm this is my complete work for Level {student_level} • Day {info['day']} • Chapter {info['chapter']}.",
                         key=f"confirm_final_{lesson_key}",
-                        disabled=locked
+                        disabled=locked_ui
                     )
                     confirm_lock = st.checkbox(
                         "I understand it will be locked after I submit.",
                         key=f"confirm_lock_{lesson_key}",
-                        disabled=locked
+                        disabled=locked_ui
                     )
-                    can_submit = (confirm_final and confirm_lock and (not locked))
+                    can_submit = (
+                        confirm_final
+                        and confirm_lock
+                        and (not locked_ui)
+                    )
 
                     submit_in_progress = st.session_state.get(submit_in_progress_key, False)
 
