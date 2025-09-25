@@ -3230,6 +3230,12 @@ if tab == "My Course":
             fetch_videos = fetch_youtube_playlist_videos
             playlist_id = random.choice(playlist_ids) if playlist_ids else None
 
+            reflection_prompts = [
+                "📝 After watching, jot down two new words or phrases you heard.",
+                "🗣️ Pause the video and repeat a key sentence aloud to practice pronunciation.",
+                "💬 Summarize the main idea of the video in one or two simple sentences.",
+            ]
+
             if playlist_id:
                 if st.button("🔄 Refresh videos", key=f"refresh_vod_{level_key}"):
                     st.cache_data.clear()
@@ -3246,6 +3252,11 @@ if tab == "My Course":
                     video = video_list[today_idx]
                     st.markdown(f"**{video['title']}**")
                     st.video(video['url'])
+                    description = video.get("description")
+                    if description:
+                        st.caption(description)
+                    else:
+                        st.caption(random.choice(reflection_prompts))
                 else:
                     st.info("No videos found for your level’s playlist. Check back soon!")
             else:
