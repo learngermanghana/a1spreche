@@ -36,7 +36,6 @@ from google.cloud.firestore_v1 import FieldFilter
 from firebase_admin import firestore  # Firebase
 from openai import OpenAI
 from src.styles import inject_global_styles
-from src.ui.sound import play_ui_sound
 from src.discussion_board import (
     CLASS_DISCUSSION_LABEL,
     CLASS_DISCUSSION_LINK_TMPL,
@@ -8087,8 +8086,6 @@ if tab == "Schreiben Trainer":
 
 
 
-
-play_ui_sound()
 
 if st.session_state.pop("need_rerun", False):
     # Mark done so we don't schedule again

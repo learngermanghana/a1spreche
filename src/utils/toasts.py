@@ -2,8 +2,6 @@ from typing import Set
 
 import streamlit as st
 
-from src.ui.sound import play_ui_sound
-
 
 _RECENT_TOASTS_KEY = "__recent_toasts__"
 
@@ -31,7 +29,6 @@ def toast_once(msg: str, icon: str) -> None:
     """
     if not _already_toasted(msg):
         st.toast(msg, icon=icon)
-        play_ui_sound(force=True)
 
 
 def toast_ok(msg: str) -> None:
@@ -43,7 +40,6 @@ def toast_ok(msg: str) -> None:
         The message to display.
     """
     st.toast(msg, icon="✅")
-    play_ui_sound(force=True)
 
 
 def toast_err(msg: str) -> None:
@@ -55,7 +51,6 @@ def toast_err(msg: str) -> None:
         The message to display.
     """
     st.toast(msg, icon="❌")
-    play_ui_sound(force=True)
 
 
 def toast_warn(msg: str) -> None:
@@ -67,7 +62,6 @@ def toast_warn(msg: str) -> None:
         The message to display.
     """
     st.toast(msg, icon="⚠️")
-    play_ui_sound(force=True)
 
 
 def toast_info(msg: str) -> None:
@@ -79,7 +73,6 @@ def toast_info(msg: str) -> None:
         The message to display.
     """
     st.toast(msg, icon="ℹ️")
-    play_ui_sound(force=True)
 
 
 def rerun_without_toast() -> None:
