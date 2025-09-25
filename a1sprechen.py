@@ -3850,10 +3850,13 @@ if tab == "My Course":
                                 st.session_state[locked_key] = True
                                 st.session_state[f"{lesson_key}__receipt"] = short_ref
 
-                                st.success("Submitted! Your work has been sent to your tutor.")
+                                st.success(
+                                    f"Well done, {name or 'Student'}! Remember the pass mark is 60, "
+                                    "and if you score below that you must revisit this Submit page to try again."
+                                )
                                 st.caption(
-                                    f"Receipt: `{short_ref}` • You’ll be emailed when it’s marked. "
-                                    "See **Results & Resources** for scores & feedback."
+                                    f"Receipt: `{short_ref}` • Marks will arrive by email and via "
+                                    "Telegram from @falowenbot. See **Results & Resources** for scores & feedback."
                                 )
                                 row = st.session_state.get("student_row") or {}
                                 tg_subscribed = bool(
@@ -3872,7 +3875,13 @@ if tab == "My Course":
                                 else:
                                     with st.expander("🔔 Subscribe to Telegram notifications", expanded=False):
                                         st.markdown(
-                                            f"""1. [Open the Falowen bot](https://t.me/falowenbot) and tap **Start**\n2. Register: `/register {code}`\n3. To deactivate: send `/stop`"""
+                                            "\n".join(
+                                                [
+                                                    "1. Search for **@falowenbot** on Telegram and open the chat.",
+                                                    "2. Tap **Start**, then follow the prompts to connect your account so you can receive your marks.",
+                                                    "3. To deactivate: send `/stop`",
+                                                ]
+                                            )
                                         )
                                 answer_text = st.session_state.get(draft_key, "").strip()
                                 MIN_WORDS = 20
