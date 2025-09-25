@@ -37,9 +37,15 @@ def _load_render_section_any(render_vocab_stub=None, assignment_stub=None):
     class ST:
         def __init__(self):
             self.markdowns = []
+            self.checkboxes = []
 
         def markdown(self, text, **kwargs):  # pragma: no cover - trivial
             self.markdowns.append(text)
+
+        def checkbox(self, label, **kwargs):  # pragma: no cover - trivial
+            entry = {"label": label, "key": kwargs.get("key")}
+            self.checkboxes.append(entry)
+            return False
 
         def expander(self, *a, **k):  # pragma: no cover - trivial
             class CM:
@@ -94,10 +100,32 @@ def test_dictionary_label_passed():
         captured["label"] = context_label
 
     render_section_any, st = _load_render_section_any(render_vocab_stub=stub)
-    day_info = {"lesen": {"chapter": "2", "workbook_link": "x"}, "day": 7}
+    day_info = {
+        "lesen": {
+            "chapter": "2",
+            "workbook_link": "https://example.com/workbook",
+            "grammarbook_link": "https://example.com/grammar",
+            "extra_resources": ["https://example.com/extra"],
+        },
+        "day": 7,
+    }
     render_section_any(day_info, "lesen", "Lesen", "📖", set())
 
     assert captured == {"key": "lesen-0", "label": "Day 7 Chapter 2"}
+    assert st.checkboxes == [
+        {
+            "label": "Reviewed grammar notes – [📘 Grammar Book (Notes)](https://example.com/grammar)",
+            "key": "lesen-0-grammar",
+        },
+        {
+            "label": "Completed workbook – [📒 Workbook (Assignment)](https://example.com/workbook)",
+            "key": "lesen-0-workbook",
+        },
+        {
+            "label": "Explored extra resource – [🔗 Extra](https://example.com/extra)",
+            "key": "lesen-0-extra-0",
+        },
+    ]
 
 
 def test_assignment_reminder_called_without_kwargs():
@@ -113,4 +141,22 @@ def test_assignment_reminder_called_without_kwargs():
     assert len(calls) == 1
     assert calls[0][0] == ()
     assert calls[0][1] == {}
+
+
+def test_grammar_checkbox_label_and_key():
+    render_section_any, st = _load_render_section_any()
+    day_info = {
+        "lesen": {
+            "chapter": "4",
+            "grammarbook_link": "https://example.com/grammar",
+        }
+    }
+    render_section_any(day_info, "lesen", "Lesen", "📖", set())
+
+    assert st.checkboxes == [
+        {
+            "label": "Reviewed grammar notes – [📘 Grammar Book (Notes)](https://example.com/grammar)",
+            "key": "lesen-0-grammar",
+        }
+    ]
 

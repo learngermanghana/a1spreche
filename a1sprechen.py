@@ -3394,23 +3394,30 @@ if tab == "My Course":
                     else:
                         st.markdown(f"###### {icon} Chapter {chapter}")
                     # videos (embed once)
-                    for maybe_vid in [video, youtube_link]:
+                    for vid_idx, maybe_vid in enumerate([video, youtube_link]):
                         if _is_url(maybe_vid):
                             cid = _canon_video(maybe_vid)
                             if cid not in seen_videos:
-                                st.markdown(
-                                    f"[🎬 Lecture Video on YouTube]({maybe_vid})"
+                                st.checkbox(
+                                    f"Watched video – [🎬 Lecture Video on YouTube]({maybe_vid})",
+                                    key=f"{key}-{idx_part}-video-{vid_idx}",
                                 )
                                 seen_videos.add(cid)
                     # links/resources inline
                     if grammarbook_link:
-                        st.markdown(f"- [📘 Grammar Book (Notes)]({grammarbook_link})")
+                        st.checkbox(
+                            f"Reviewed grammar notes – [📘 Grammar Book (Notes)]({grammarbook_link})",
+                            key=f"{key}-{idx_part}-grammar",
+                        )
                         st.markdown(
                             "<em>Reminder:</em> 📘 gives you the grammar from today's lecture; 📒 is the assignment you must complete.",
                             unsafe_allow_html=True,
                         )
                     if workbook_link:
-                        st.markdown(f"- [📒 Workbook (Assignment)]({workbook_link})")
+                        st.checkbox(
+                            f"Completed workbook – [📒 Workbook (Assignment)]({workbook_link})",
+                            key=f"{key}-{idx_part}-workbook",
+                        )
                         with st.expander("📖 Dictionary"):
                             render_vocab_lookup(
                                 f"{key}-{idx_part}",
@@ -3418,8 +3425,11 @@ if tab == "My Course":
                             )
                         render_assignment_reminder()
                     if extras:
-                        for ex in _as_list(extras):
-                            st.markdown(f"- [🔗 Extra]({ex})")
+                        for extra_idx, ex in enumerate(_as_list(extras)):
+                            st.checkbox(
+                                f"Explored extra resource – [🔗 Extra]({ex})",
+                                key=f"{key}-{idx_part}-extra-{extra_idx}",
+                            )
 
             # ---------- YOUR WORK (tolerant across levels; embeds each video at most once) ----------
             st.markdown("### 🧪 Your Work")
@@ -3432,19 +3442,28 @@ if tab == "My Course":
             else:
                 # Fallback: show top-level resources even if there are no section keys
                 showed = False
+                fallback_section = "fallback"
+                part_index = 0
                 if info.get("video"):
                     cid = _canon_video(info["video"])
                     if cid not in seen_videos:
-                        st.markdown(
-                            f"[🎬 Lecture Video on YouTube]({info['video']})"
+                        st.checkbox(
+                            f"Watched video – [🎬 Lecture Video on YouTube]({info['video']})",
+                            key=f"{fallback_section}-{part_index}-video-0",
                         )
                         seen_videos.add(cid)
                     showed = True
                 if info.get("grammarbook_link"):
-                    st.markdown(f"- [📘 Grammar Book (Notes)]({info['grammarbook_link']})")
+                    st.checkbox(
+                        f"Reviewed grammar notes – [📘 Grammar Book (Notes)]({info['grammarbook_link']})",
+                        key=f"{fallback_section}-{part_index}-grammar",
+                    )
                     showed = True
                 if info.get("workbook_link"):
-                    st.markdown(f"- [📒 Workbook (Assignment)]({info['workbook_link']})")
+                    st.checkbox(
+                        f"Completed workbook – [📒 Workbook (Assignment)]({info['workbook_link']})",
+                        key=f"{fallback_section}-{part_index}-workbook",
+                    )
                     with st.expander("📖 Dictionary"):
                         render_vocab_lookup(
                             f"fallback-{info.get('day', '')}",
@@ -3452,8 +3471,11 @@ if tab == "My Course":
                         )
                     render_assignment_reminder()
                     showed = True
-                for ex in _as_list(info.get("extra_resources")):
-                    st.markdown(f"- [🔗 Extra]({ex})")
+                for extra_idx, ex in enumerate(_as_list(info.get("extra_resources"))):
+                    st.checkbox(
+                        f"Explored extra resource – [🔗 Extra]({ex})",
+                        key=f"{fallback_section}-{part_index}-extra-{extra_idx}",
+                    )
                     showed = True
 
                 if not showed:
