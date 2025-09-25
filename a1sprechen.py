@@ -3610,7 +3610,7 @@ if tab == "My Course":
                         _You’ll get an **email** when it’s marked. See **Results & Resources** for scores & feedback._
                     """)
 
-                col1, col2, col3 = st.columns(3)
+                col1, col2, col3 = st.columns([1, 1.2, 1])
                 with col1:
                     st.markdown("#### 🧾 Finalize")
                     confirm_final = st.checkbox(
@@ -3629,8 +3629,60 @@ if tab == "My Course":
                         and (not locked_ui)
                     )
 
-                    submit_in_progress = st.session_state.get(submit_in_progress_key, False)
+                with col2:
+                    st.markdown("#### 🔍 Live Preview")
+                    preview_text = st.session_state.get(draft_key, "") or ""
+                    word_count = len(preview_text.split()) if preview_text else 0
+                    if preview_text.strip():
+                        st.caption(f"Word count: {word_count}")
+                        preview_box = (
+                            "<div style=\"max-height:360px;overflow:auto;padding:12px;border:1px solid #e2e8f0;"
+                            "border-radius:8px;background:#f8fafc;white-space:pre-wrap;line-height:1.5;\">"
+                            f"{html.escape(preview_text)}"
+                            "</div>"
+                        )
+                        st.markdown(preview_box, unsafe_allow_html=True)
+                    else:
+                        st.info("Draft preview will appear here once you start typing.")
+                        st.caption("Word count: 0")
 
+                with col3:
+                    st.markdown("#### 📎 Attachments")
+                    attachment_sources = [
+                        st.session_state.get(f"{draft_key}__attachments"),
+                        st.session_state.get(f"{lesson_key}__attachments"),
+                    ]
+                    attachments: List[str] = []
+                    for raw in attachment_sources:
+                        if not raw:
+                            continue
+                        if isinstance(raw, (list, tuple, set)):
+                            iter_items = raw
+                        else:
+                            iter_items = [raw]
+                        for item in iter_items:
+                            if item is None:
+                                continue
+                            if isinstance(item, dict):
+                                label = item.get("name") or item.get("filename") or item.get("title")
+                                if label:
+                                    attachments.append(str(label))
+                                elif item.get("url"):
+                                    attachments.append(str(item.get("url")))
+                                else:
+                                    attachments.append(str(item))
+                            else:
+                                attachments.append(str(item))
+
+                    if attachments:
+                        for att in attachments:
+                            st.markdown(f"- {html.escape(att)}")
+                    else:
+                        st.caption("No files attached.")
+
+                submit_in_progress = st.session_state.get(submit_in_progress_key, False)
+
+                with col1:
                     if st.button(
                         "✅ Confirm & Submit",
                         type="primary",
