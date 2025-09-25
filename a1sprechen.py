@@ -22,7 +22,7 @@ from datetime import datetime
 from datetime import datetime as _dt
 from uuid import uuid4
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, List, Iterable, MutableMapping, Sequence
+from typing import Any, Dict, Optional, Tuple, List, Iterable, MutableMapping, Sequence, Set
 from functools import lru_cache
 
 # ==== Third-Party Packages ====
@@ -1432,8 +1432,23 @@ def parse_contract_start(date_str: Any):
     return _parse_contract_date_value(date_str)
 
 
-def _compute_finish_date_estimates(start_str: Any, total_lessons: Any, parse_start_fn):
-    """Return projected completion dates keyed by weekly study frequency."""
+def _compute_finish_date_estimates(
+    start_str,
+    total_lessons,
+    parse_start_fn,
+    *,
+    pace_sessions_per_week=None,
+    completed_lessons=None,
+    anchor_date=None,
+):
+    import math  # local import for isolated test execution
+    """Return projected completion dates keyed by weekly study frequency.
+
+    When ``pace_sessions_per_week`` and ``completed_lessons`` are provided the
+    projection uses the student's personalised progress.  ``anchor_date`` can be
+    supplied to shift the projection window to today rather than the contract
+    start date.
+    """
 
     try:
         total = int(total_lessons)
@@ -1461,15 +1476,49 @@ def _compute_finish_date_estimates(start_str: Any, total_lessons: Any, parse_sta
     else:
         return None
 
-    weeks_three = (total + 2) // 3
-    weeks_two = (total + 1) // 2
-    weeks_one = total
+    base_date = anchor_date or start_date
 
-    return {
-        3: start_date + timedelta(weeks=weeks_three),
-        2: start_date + timedelta(weeks=weeks_two),
-        1: start_date + timedelta(weeks=weeks_one),
-    }
+    completed = None
+    if completed_lessons is not None:
+        try:
+            completed = max(0, int(completed_lessons))
+        except (TypeError, ValueError):
+            completed = None
+
+    remaining = total - completed if completed is not None else total
+    if remaining <= 0:
+        remaining = 0
+
+    def _project(weekly_rate):
+        if weekly_rate <= 0:
+            return None
+        lessons_left = remaining or 0
+        if lessons_left <= 0:
+            return base_date
+        weeks_needed = math.ceil(lessons_left / float(weekly_rate))
+        return base_date + timedelta(weeks=weeks_needed)
+
+    weeks_three = (remaining + 2) // 3 if remaining else 0
+    weeks_two = (remaining + 1) // 2 if remaining else 0
+    weeks_one = remaining if remaining else 0
+
+    estimates = {}
+    estimates[3] = base_date + timedelta(weeks=weeks_three)
+    estimates[2] = base_date + timedelta(weeks=weeks_two)
+    estimates[1] = base_date + timedelta(weeks=weeks_one)
+
+    if pace_sessions_per_week and pace_sessions_per_week > 0:
+        current = _project(pace_sessions_per_week)
+        if current:
+            estimates["current"] = current
+        faster = _project(pace_sessions_per_week + 1)
+        if faster:
+            estimates["plus_one"] = faster
+        doubled = _project(pace_sessions_per_week * 2)
+        if doubled:
+            estimates["double"] = doubled
+
+    return estimates
 
 
 def _dict_tts_bytes_de(text: str) -> Optional[bytes]:
@@ -2567,6 +2616,184 @@ def has_telegram_subscription(student_code: str) -> bool:
 # Firestore helpers (uses your existing `db` and `from firebase_admin import firestore`)
 # -------------------------
 
+
+def _scores_col():
+    """Return the Firestore ``scores`` collection reference."""
+
+    return db.collection("scores")
+
+
+def expected_assignment_name(level: str, day: int) -> str:
+    """Return the canonical assignment label for ``level``/``day``."""
+
+    return f"{level} Assignment {int(day)}"
+
+
+def _lesson_chapter_strings(lesson_info: Optional[Dict[str, Any]]) -> List[str]:
+    """Extract chapter strings from lesson metadata."""
+
+    chapters: List[str] = []
+    if not isinstance(lesson_info, dict):
+        return chapters
+
+    def _maybe_add(value: Any) -> None:
+        if value is None:
+            return
+        text = str(value).strip()
+        if text:
+            chapters.append(text)
+
+    _maybe_add(lesson_info.get("chapter"))
+    for section_name in ("lesen_hören", "schreiben_sprechen"):
+        section = lesson_info.get(section_name)
+        if isinstance(section, dict):
+            _maybe_add(section.get("chapter"))
+        elif isinstance(section, list):
+            for item in section:
+                if isinstance(item, dict):
+                    _maybe_add(item.get("chapter"))
+    return chapters
+
+
+def _extract_numeric_tokens(text: str) -> List[str]:
+    """Return numeric tokens (including decimals) found in ``text``."""
+
+    tokens: List[str] = []
+    if not text:
+        return tokens
+
+    base_prefix: Optional[str] = None
+    decimal_len = 0
+    for match in re.finditer(r"\d+(?:\.\d+)?", text):
+        token = match.group()
+        if "." in token:
+            integer_part, decimal_part = token.split(".", 1)
+            base_prefix = integer_part
+            decimal_len = len(decimal_part)
+            tokens.append(f"{integer_part}.{decimal_part}")
+        else:
+            plain = token.lstrip("0") or "0"
+            if (
+                base_prefix is not None
+                and decimal_len
+                and plain.isdigit()
+                and len(plain) <= decimal_len
+            ):
+                combined = f"{base_prefix}.{plain.zfill(decimal_len)}"
+                tokens.append(combined)
+            else:
+                tokens.append(token)
+                base_prefix = None
+                decimal_len = 0
+    return tokens
+
+
+def _normalize_numeric_token(token: str) -> List[str]:
+    """Return normalised variants for a numeric chapter token."""
+
+    variants: List[str] = []
+    text = token.strip()
+    if not text:
+        return variants
+
+    def _add_variant(value: str) -> None:
+        if value and value not in variants:
+            variants.append(value)
+
+    _add_variant(text)
+
+    body = text
+    sign = ""
+    if body.startswith(("+", "-")):
+        sign, body = body[0], body[1:]
+
+    if "." in body:
+        integer_part, decimal_part = body.split(".", 1)
+        integer_norm = integer_part.lstrip("0") or "0"
+        decimal_norm = decimal_part.rstrip("0")
+        if decimal_norm:
+            _add_variant(f"{sign}{integer_norm}.{decimal_norm}")
+        else:
+            _add_variant(f"{sign}{integer_norm}")
+    else:
+        integer_norm = body.lstrip("0") or "0"
+        _add_variant(f"{sign}{integer_norm}")
+
+    return variants
+
+
+def _numeric_assignment_candidates(lesson_info: Optional[Dict[str, Any]]) -> List[str]:
+    """Return chapter-based numeric assignment candidates."""
+
+    candidates: List[str] = []
+    seen: Set[str] = set()
+    for chapter in _lesson_chapter_strings(lesson_info):
+        for raw in _extract_numeric_tokens(chapter):
+            for variant in _normalize_numeric_token(raw):
+                if variant and variant not in seen:
+                    seen.add(variant)
+                    candidates.append(variant)
+    return candidates
+
+
+def get_score_for_assignment(
+    student_code: str,
+    level: str,
+    day: int,
+    lesson_info: Optional[Dict[str, Any]] = None,
+):
+    """Return the latest score document for the student's assignment."""
+
+    candidates: List[str] = []
+    seen: Set[str] = set()
+
+    def _add_candidate(value: Any) -> None:
+        if value is None:
+            return
+        text = str(value).strip()
+        if not text or text.lower() == "nan":
+            return
+        if text not in seen:
+            seen.add(text)
+            candidates.append(text)
+
+    try:
+        day_int = int(day)
+    except (TypeError, ValueError):
+        day_int = None
+
+    if day_int is not None:
+        _add_candidate(expected_assignment_name(level, day_int))
+        _add_candidate(str(day_int))
+    else:
+        try:
+            _add_candidate(expected_assignment_name(level, day))
+        except Exception:
+            pass
+
+    for chapter_candidate in _numeric_assignment_candidates(lesson_info):
+        _add_candidate(chapter_candidate)
+
+    for candidate in candidates:
+        try:
+            query = (
+                _scores_col()
+                .where(filter=FieldFilter("studentcode", "==", student_code))
+                .where(filter=FieldFilter("assignment", "==", candidate))
+                .limit(1)
+            )
+            docs = list(query.stream())
+        except Exception:
+            continue
+        if docs:
+            doc = docs[0]
+            try:
+                return doc.to_dict() or {}
+            except Exception:
+                return {}
+    return None
+
+
 # -------------------------
 # Misc existing helper preserved
 # -------------------------
@@ -2875,32 +3102,20 @@ if tab == "My Course":
                 f"{CLASS_DISCUSSION_REMINDER}"
             )
 
-            def _launch_class_thread(chap: str) -> None:
-                current_row = st.session_state.get("student_row") or {}
-                if isinstance(current_row, dict):
-                    updated_row = dict(current_row)
-                else:
-                    try:
-                        updated_row = dict(current_row)
-                    except Exception:
-                        updated_row = {}
-                updated_row["ClassName"] = class_name_lookup
-                st.session_state["student_row"] = updated_row
-                go_class_thread(chap)
-
             st.button(
                 CLASS_DISCUSSION_LABEL,
                 key=link_key,
-                on_click=_launch_class_thread,
+                on_click=go_class_thread,
                 args=(chapter,),
             )
             if post_count == 0:
                 st.caption("No posts yet. Clicking will show the full board.")
         elif not class_name:
-            st.error(
-                "This class discussion board is unavailable. Select another "
-                "classroom tab and return, or log out and back in to refresh "
-                "your roster."
+            st.info(
+                "ℹ️ Class discussion unavailable because your class name "
+                "isn't set. Choose a different classroom tab and return, or "
+                "log out and back in to refresh your roster. If it "
+                "persists, contact support."
             )
         else:
             st.warning("Missing chapter for discussion board.")
@@ -2941,26 +3156,143 @@ if tab == "My Course":
         
             with st.expander("📚 Course Book & Study Recommendations", expanded=True):
                 LEVEL_TIME = {"A1": 15, "A2": 25, "B1": 30, "B2": 40, "C1": 45}
-                rec_time = LEVEL_TIME.get(level_key, 20)
-                st.info(f"⏱️ **Recommended:** Invest about {rec_time} minutes to complete this lesson fully.")
 
-                student_row = st.session_state.get("student_row", {})
-                start_str   = student_row.get("ContractStart", "")
+                student_row = st.session_state.get("student_row", {}) or {}
+                start_str = student_row.get("ContractStart", "")
                 parse_start = (
                     globals().get("parse_contract_start_fn")
                     or globals().get("parse_contract_start")
                 )
-                estimates = _compute_finish_date_estimates(start_str, total, parse_start)
+
+                start_date_value: Optional[date] = None
+                if callable(parse_start):
+                    try:
+                        parsed_start = parse_start(start_str)
+                    except Exception:
+                        parsed_start = None
+                    if isinstance(parsed_start, datetime):
+                        start_date_value = parsed_start.date()
+                    elif isinstance(parsed_start, date):
+                        start_date_value = parsed_start
+                    elif hasattr(parsed_start, "date"):
+                        try:
+                            start_date_value = parsed_start.date()
+                        except Exception:
+                            start_date_value = None
+
+                student_code = _safe_str(student_row.get("StudentCode", ""))
+                class_name_lookup = _resolve_class_name(
+                    student_row.get("ClassName", ""),
+                    level=student_level,
+                )[1]
+
+                att_sessions = 0
+                att_hours = 0.0
+                if student_code and class_name_lookup:
+                    try:
+                        att_sessions, att_hours = fetch_attendance_summary(
+                            student_code,
+                            class_name_lookup,
+                        )
+                    except Exception:
+                        att_sessions, att_hours = 0, 0.0
+
+                lessons_completed = min(att_sessions, total) if total else att_sessions
+                lessons_remaining = max(total - lessons_completed, 0) if total else None
+
+                avg_session_minutes: Optional[int] = None
+                if att_sessions > 0 and att_hours > 0:
+                    try:
+                        avg_minutes_float = (att_hours / att_sessions) * 60.0
+                        if avg_minutes_float > 0:
+                            avg_session_minutes = max(5, int(round(avg_minutes_float)))
+                    except Exception:
+                        avg_session_minutes = None
+
+                if avg_session_minutes:
+                    plural = "session" if att_sessions == 1 else "sessions"
+                    st.info(
+                        "⏱️ **Recommended:** Based on your attendance log, you typically "
+                        f"invest about {avg_session_minutes} minutes per session. Plan for "
+                        f"roughly that time to complete this lesson (across {att_sessions} "
+                        f"recorded {plural})."
+                    )
+                else:
+                    rec_time = LEVEL_TIME.get(level_key, 20)
+                    st.info(
+                        f"⏱️ **Recommended:** Invest about {rec_time} minutes to complete this lesson fully."
+                    )
+
+                pace_sessions_per_week: Optional[float] = None
+                anchor_date = None
+                if start_date_value:
+                    today_date = date.today()
+                    anchor_date = today_date if today_date > start_date_value else start_date_value
+                    if att_sessions > 0:
+                        elapsed_days = max((anchor_date - start_date_value).days, 0)
+                        weeks_elapsed = max(elapsed_days / 7.0, 1.0)
+                        if weeks_elapsed > 0:
+                            pace_sessions_per_week = att_sessions / weeks_elapsed
+
+                estimates = _compute_finish_date_estimates(
+                    start_str,
+                    total,
+                    parse_start,
+                    pace_sessions_per_week=pace_sessions_per_week,
+                    completed_lessons=lessons_completed,
+                    anchor_date=anchor_date,
+                )
 
                 if estimates:
-                    end_three = estimates[3]
-                    end_two   = estimates[2]
-                    end_one   = estimates[1]
                     _, content = st.columns([3, 7])
                     with content:
-                        st.success(f"If you complete **three sessions per week**, you will finish by **{end_three.strftime('%A, %d %B %Y')}**.")
-                        st.info(f"If you complete **two sessions per week**, you will finish by **{end_two.strftime('%A, %d %B %Y')}**.")
-                        st.warning(f"If you complete **one session per week**, you will finish by **{end_one.strftime('%A, %d %B %Y')}**.")
+                        if (
+                            pace_sessions_per_week
+                            and pace_sessions_per_week > 0
+                            and "current" in estimates
+                        ):
+                            pace_display = f"{pace_sessions_per_week:.1f}".rstrip("0").rstrip(".")
+                            current = estimates.get("current")
+                            plus_one = estimates.get("plus_one")
+                            doubled = estimates.get("double")
+                            if current:
+                                st.success(
+                                    "📅 At your current pace of roughly "
+                                    f"**{pace_display} sessions/week**, you are on track to "
+                                    f"finish by **{current.strftime('%A, %d %B %Y')}**."
+                                )
+                            if plus_one:
+                                faster_display = f"{pace_sessions_per_week + 1:.1f}".rstrip("0").rstrip(".")
+                                st.info(
+                                    f"🚀 Adding one more weekly session (~{faster_display} sessions/week) "
+                                    f"would bring your finish date to **{plus_one.strftime('%A, %d %B %Y')}**."
+                                )
+                            if doubled:
+                                doubled_display = f"{pace_sessions_per_week * 2:.1f}".rstrip("0").rstrip(".")
+                                st.warning(
+                                    f"💪 Doubling your pace (~{doubled_display} sessions/week) could wrap "
+                                    f"things up by **{doubled.strftime('%A, %d %B %Y')}**."
+                                )
+                            if lessons_remaining is not None:
+                                st.caption(
+                                    f"{lessons_remaining} lessons remaining based on recorded attendance."
+                                )
+                        else:
+                            end_three = estimates[3]
+                            end_two = estimates[2]
+                            end_one = estimates[1]
+                            st.success(
+                                "If you complete **three sessions per week**, you will finish by "
+                                f"**{end_three.strftime('%A, %d %B %Y')}**."
+                            )
+                            st.info(
+                                "If you complete **two sessions per week**, you will finish by "
+                                f"**{end_two.strftime('%A, %d %B %Y')}**."
+                            )
+                            st.warning(
+                                "If you complete **one session per week**, you will finish by "
+                                f"**{end_one.strftime('%A, %d %B %Y')}**."
+                            )
                 else:
                     _, content = st.columns([3, 7])
                     with content:
