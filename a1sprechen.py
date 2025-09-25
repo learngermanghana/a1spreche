@@ -3486,16 +3486,6 @@ if tab == "My Course":
                 locked_ui = locked or submission_disabled
                 submit_in_progress_key = f"{lesson_key}_submit_in_progress"
 
-                if locked:
-                    notice = st.session_state.pop(success_notice_key, None)
-                    if notice:
-                        success_msg = notice.get("message")
-                        caption_msg = notice.get("caption")
-                        if success_msg:
-                            st.success(success_msg)
-                        if caption_msg:
-                            st.caption(caption_msg)
-
                 # ---------- save previous lesson on switch + force hydrate for this one ----------
                 prev_active_key = st.session_state.get("__active_draft_key")
                 if prev_active_key and prev_active_key != draft_key:
@@ -3591,8 +3581,11 @@ if tab == "My Course":
 
                 st.subheader("✍️ Your Answer")
 
+                locked_warning_message = None
                 if locked:
-                    st.warning("This box is locked because you have already submitted your work.")
+                    locked_warning_message = (
+                        "This box is locked because you have already submitted your work."
+                    )
                     needs_resubmit = st.session_state.get(f"{lesson_key}__needs_resubmit")
                     if needs_resubmit is None:
                         answer_text = st.session_state.get(draft_key, "").strip()
@@ -3730,8 +3723,18 @@ if tab == "My Course":
                     """)
 
                 col1, col2 = st.columns([1, 1.2])
+                success_notice = st.session_state.pop(success_notice_key, None)
                 with col1:
                     st.markdown("#### 🧾 Finalize")
+                    if success_notice:
+                        success_msg = success_notice.get("message")
+                        caption_msg = success_notice.get("caption")
+                        if success_msg:
+                            st.success(success_msg)
+                        if caption_msg:
+                            st.caption(caption_msg)
+                    if locked_warning_message:
+                        st.warning(locked_warning_message)
                     confirm_final = st.checkbox(
                         f"I confirm this is my complete work for Level {student_level} • Day {info['day']} • Chapter {info['chapter']}.",
                         key=f"confirm_final_{lesson_key}",
