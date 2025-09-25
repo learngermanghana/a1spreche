@@ -19,6 +19,7 @@ import logging
 import re
 from firebase_admin import firestore
 from rapidfuzz import fuzz, process
+from google.cloud.firestore_v1 import FieldFilter
 
 # Build a canonical list of exercise labels used across the platform.  This
 # allows us to fuzzy-match noisy user-facing titles to their official version.
@@ -141,6 +142,100 @@ def _draft_doc_ref(level: str, lesson_key: str, code: str):
         .collection("lessons")
         .document(lesson_key)
     )
+
+
+# ---- Draft lookups ---------------------------------------------------------
+
+
+def recover_student_code_from_drafts(
+    lesson_key: str,
+    *,
+    draft_text: Optional[str] = None,
+) -> Optional[str]:
+    """Best-effort lookup of the student code for ``lesson_key`` drafts.
+
+    This performs a collection-group query across ``drafts_v2/*/lessons`` and
+    returns the ``student_code`` of the most recently updated draft that
+    matches ``lesson_key``.  When ``draft_text`` is provided the search is
+    further narrowed to drafts whose ``text`` matches the local contents.  The
+    lookup gracefully degrades when Firestore is unavailable or when indexes
+    are missing by falling back to client-side sorting.
+    """
+
+    if not lesson_key:
+        return None
+
+    db = _get_db()
+    if db is None:
+        return None
+
+    try:
+        query = db.collection_group("lessons").where(
+            filter=FieldFilter("lesson_key", "==", lesson_key)
+        )
+        if draft_text:
+            query = query.where(filter=FieldFilter("text", "==", str(draft_text)))
+
+        try:
+            snapshots = list(
+                query.order_by("updated_at", direction=firestore.Query.DESCENDING)
+                .limit(5)
+                .stream()
+            )
+        except Exception:
+            snapshots = list(query.stream())
+
+    except Exception as exc:  # pragma: no cover - Firestore runtime dependency
+        logging.debug("Failed to query drafts for %s: %s", lesson_key, exc)
+        return None
+
+    if not snapshots:
+        return None
+
+    def _snapshot_ts(snap) -> float:
+        try:
+            data = snap.to_dict() or {}
+        except Exception:
+            return 0.0
+        ts = data.get("updated_at")
+        if isinstance(ts, datetime):
+            try:
+                return ts.timestamp()
+            except Exception:
+                return 0.0
+        if isinstance(ts, (int, float)):
+            try:
+                return float(ts)
+            except Exception:
+                return 0.0
+        return 0.0
+
+    try:
+        snapshots.sort(key=_snapshot_ts, reverse=True)
+    except Exception:
+        pass
+
+    for snap in snapshots:
+        try:
+            data = snap.to_dict() or {}
+        except Exception:
+            data = {}
+        candidate = data.get("student_code")
+        if not candidate:
+            try:
+                parent = snap.reference.parent
+                if parent is not None:
+                    owner = parent.parent
+                    if owner is not None:
+                        candidate = owner.id
+            except Exception:
+                candidate = None
+        if candidate:
+            candidate_str = str(candidate).strip()
+            if candidate_str and candidate_str.lower() != "demo001":
+                return candidate_str
+
+    return None
 
 
 # ---- DRAFTS (server-side) — now stored separately from submissions ----
