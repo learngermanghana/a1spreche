@@ -3479,11 +3479,22 @@ if tab == "My Course":
 
                 db_locked = is_locked(student_level, code, lesson_key)
                 locked_key = f"{lesson_key}_locked"
+                success_notice_key = f"{lesson_key}__submit_success_notice"
                 if db_locked:
                     st.session_state[locked_key] = True
                 locked = db_locked or st.session_state.get(locked_key, False)
                 locked_ui = locked or submission_disabled
                 submit_in_progress_key = f"{lesson_key}_submit_in_progress"
+
+                if locked:
+                    notice = st.session_state.pop(success_notice_key, None)
+                    if notice:
+                        success_msg = notice.get("message")
+                        caption_msg = notice.get("caption")
+                        if success_msg:
+                            st.success(success_msg)
+                        if caption_msg:
+                            st.caption(caption_msg)
 
                 # ---------- save previous lesson on switch + force hydrate for this one ----------
                 prev_active_key = st.session_state.get("__active_draft_key")
@@ -3850,14 +3861,20 @@ if tab == "My Course":
                                 st.session_state[locked_key] = True
                                 st.session_state[f"{lesson_key}__receipt"] = short_ref
 
-                                st.success(
+                                success_msg = (
                                     f"Well done, {name or 'Student'}! Remember the pass mark is 60, "
                                     "and if you score below that you must revisit this Submit page to try again."
                                 )
-                                st.caption(
+                                caption_msg = (
                                     f"Receipt: `{short_ref}` • Marks will arrive by email and via "
                                     "Telegram from @falowenbot. See **Results & Resources** for scores & feedback."
                                 )
+                                st.success(success_msg)
+                                st.caption(caption_msg)
+                                st.session_state[success_notice_key] = {
+                                    "message": success_msg,
+                                    "caption": caption_msg,
+                                }
                                 row = st.session_state.get("student_row") or {}
                                 tg_subscribed = bool(
                                     row.get("TelegramChatID")
@@ -3914,7 +3931,9 @@ if tab == "My Course":
                                     )
 
                                 # Rerun so hydration path immediately shows locked view
-                                refresh_with_toast()
+                                refresh_with_toast(
+                                    "Submission saved! Remember you need at least 60 points to pass."
+                                )
                             else:
                                 # 4) Failure: remove the lock doc so student can retry cleanly
                                 try:
