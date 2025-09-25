@@ -109,6 +109,11 @@ def _safe_upper(v, default: str = "") -> str:
     return s.upper() if s else default
 
 
+def _safe_lower(v, default: str = "") -> str:
+    s = _safe_str(v, default)
+    return s.lower() if s else default
+
+
 def _coerce_day(value: Any) -> Optional[int]:
     """Return ``value`` as an ``int`` day when possible."""
 
@@ -384,8 +389,8 @@ def _show_missing_code_warning(
 def _update_student_code_session_state(code: str) -> Dict[str, Any]:
     """Persist ``code`` into session state and return the updated row."""
 
-    clean_code = _safe_upper(code)
-    if not clean_code or clean_code.lower() == "demo001":
+    clean_code = _safe_lower(code)
+    if not clean_code or clean_code == "demo001":
         return st.session_state.get("student_row") or {}
 
     current_row = st.session_state.get("student_row")
@@ -3110,7 +3115,7 @@ if tab == "My Course":
                     placeholder="e.g. KWAME123",
                     help="This appears on your student ID card or welcome email.",
                 )
-                manual_code = _safe_upper(manual_value)
+                manual_code = _safe_lower(manual_value)
                 if manual_code and manual_code.lower() != "demo001":
                     student_row = _update_student_code_session_state(manual_code)
                     st.caption("Student code saved. You're all set to continue.")
@@ -3458,7 +3463,7 @@ if tab == "My Course":
                     placeholder="e.g. KWAME123",
                     help="This appears on your student ID card or welcome email.",
                 )
-                manual_code = _safe_upper(manual_value)
+                manual_code = _safe_lower(manual_value)
                 if manual_code and manual_code.lower() != "demo001":
                     student_row = _update_student_code_session_state(manual_code)
                     code = manual_code
