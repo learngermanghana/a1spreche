@@ -1,4 +1,5 @@
 import ast
+import math
 import sys
 from pathlib import Path
 from datetime import date, datetime, UTC, timedelta
@@ -78,6 +79,31 @@ def test_course_overview_estimates_available_for_new_start_formats():
     assert iso_estimates[3] == start + timedelta(weeks=(total_lessons + 2) // 3)
     assert iso_estimates[2] == start + timedelta(weeks=(total_lessons + 1) // 2)
     assert iso_estimates[1] == start + timedelta(weeks=total_lessons)
+
+
+def test_finish_estimates_use_personalised_pace_and_anchor():
+    parse_contract_start, compute_finish = _load_contract_date_helpers()
+    total_lessons = 20
+    anchor = datetime(2024, 3, 1).date()
+
+    estimates = compute_finish(
+        "2024-01-01",
+        total_lessons,
+        parse_contract_start,
+        pace_sessions_per_week=2.5,
+        completed_lessons=5,
+        anchor_date=anchor,
+    )
+
+    assert estimates is not None
+    remaining = total_lessons - 5
+    expected_current = anchor + timedelta(weeks=math.ceil(remaining / 2.5))
+    expected_plus_one = anchor + timedelta(weeks=math.ceil(remaining / 3.5))
+    expected_double = anchor + timedelta(weeks=math.ceil(remaining / 5.0))
+
+    assert estimates["current"] == expected_current
+    assert estimates["plus_one"] == expected_plus_one
+    assert estimates["double"] == expected_double
 
 
 def test_add_months_and_months_between():
