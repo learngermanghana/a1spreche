@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import logging
-from typing import List
+import textwrap
+from typing import List, Optional
 
 import requests
 import streamlit as st
@@ -45,6 +46,18 @@ def get_playlist_ids_for_level(level: str) -> List[str]:
     return []
 
 
+def _shorten_description(raw: Optional[str], *, max_chars: int = 200) -> Optional[str]:
+    """Return a concise, single-line description."""
+    if not raw:
+        return None
+    cleaned = " ".join(raw.split())
+    if not cleaned:
+        return None
+    if len(cleaned) <= max_chars:
+        return cleaned
+    return textwrap.shorten(cleaned, width=max_chars, placeholder="…")
+
+
 @st.cache_data(ttl=43200)
 def fetch_youtube_playlist_videos(
     playlist_id: str, api_key: str = YOUTUBE_API_KEY
@@ -71,11 +84,15 @@ def fetch_youtube_playlist_videos(
             raise
         data = response.json()
         for item in data.get("items", []):
-            vid = item["snippet"]["resourceId"]["videoId"]
+            snippet = item.get("snippet", {})
+            vid = snippet.get("resourceId", {}).get("videoId")
+            if not vid:
+                continue
             videos.append(
                 {
-                    "title": item["snippet"]["title"],
+                    "title": snippet.get("title", ""),
                     "url": f"https://www.youtube.com/watch?v={vid}",
+                    "description": _shorten_description(snippet.get("description")),
                 }
             )
         next_page = data.get("nextPageToken")
