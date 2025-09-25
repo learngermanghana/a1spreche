@@ -22,7 +22,7 @@ from datetime import datetime
 from datetime import datetime as _dt
 from uuid import uuid4
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, List, Iterable, MutableMapping
+from typing import Any, Dict, Optional, Tuple, List, Iterable, MutableMapping, Set
 from functools import lru_cache
 
 # ==== Third-Party Packages ====
@@ -2964,6 +2964,18 @@ if tab == "My Course":
                 except Exception:
                     return str(u).strip().lower()
 
+            def _render_video_link(url: str, seen: Set[str]) -> bool:
+                """Render a bullet link for a lecture video if it hasn't been shown."""
+
+                if not _is_url(url):
+                    return False
+                cid = _canon_video(url)
+                if cid in seen:
+                    return False
+                st.markdown(f"- [🎬 Lecture Video (YouTube)]({url})")
+                seen.add(cid)
+                return True
+
             def pick_sections(day_info: dict):
                 """Find any section keys present for this lesson across levels."""
                 candidates = [
@@ -3016,20 +3028,12 @@ if tab == "My Course":
                         st.markdown(f"###### {icon} Chapter {chapter}")
                     # videos (embed once)
                     for maybe_vid in [video, youtube_link]:
-                        if _is_url(maybe_vid):
-                            cid = _canon_video(maybe_vid)
-                            if cid not in seen_videos:
-                                st.markdown(f"[▶️ Watch on YouTube]({maybe_vid})")
-                                seen_videos.add(cid)
+                        _render_video_link(maybe_vid, seen_videos)
                     # links/resources inline
                     if grammarbook_link:
-                        st.markdown(f"- [📘 Grammar Book (Notes)]({grammarbook_link})")
-                        st.markdown(
-                            '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
-                            unsafe_allow_html=True,
-                        )
+                        st.markdown(f"- [📘 Grammar Notes (Lecture Summary)]({grammarbook_link})")
                     if workbook_link:
-                        st.markdown(f"- [📒 Workbook (Assignment)]({workbook_link})")
+                        st.markdown(f"- [📒 Workbook Assignment]({workbook_link})")
                         with st.expander("📖 Dictionary"):
                             render_vocab_lookup(
                                 f"{key}-{idx_part}",
@@ -3042,6 +3046,10 @@ if tab == "My Course":
 
             # ---------- YOUR WORK (tolerant across levels; embeds each video at most once) ----------
             st.markdown("### 🧪 Your Work")
+            st.caption(
+                "🎬 Lecture Video → watch first • 📘 Grammar Notes → review the lesson summary • "
+                "📒 Workbook Assignment → complete for submission."
+            )
             seen_videos = set()
             sections = pick_sections(info)
 
@@ -3052,16 +3060,14 @@ if tab == "My Course":
                 # Fallback: show top-level resources even if there are no section keys
                 showed = False
                 if info.get("video"):
-                    cid = _canon_video(info["video"])
-                    if cid not in seen_videos:
-                        st.markdown(f"[▶️ Watch on YouTube]({info['video']})")
-                        seen_videos.add(cid)
-                    showed = True
+                    showed = _render_video_link(info["video"], seen_videos) or showed
                 if info.get("grammarbook_link"):
-                    st.markdown(f"- [📘 Grammar Book (Notes)]({info['grammarbook_link']})")
+                    st.markdown(
+                        f"- [📘 Grammar Notes (Lecture Summary)]({info['grammarbook_link']})"
+                    )
                     showed = True
                 if info.get("workbook_link"):
-                    st.markdown(f"- [📒 Workbook (Assignment)]({info['workbook_link']})")
+                    st.markdown(f"- [📒 Workbook Assignment]({info['workbook_link']})")
                     with st.expander("📖 Dictionary"):
                         render_vocab_lookup(
                             f"fallback-{info.get('day', '')}",
@@ -3090,7 +3096,12 @@ if tab == "My Course":
             st.markdown("### 📎 Lesson Links — Download")
 
             # Collect links (top-level + nested)
-            resources = {"Grammar Notes": [], "Workbook": [], "Videos": [], "Extras": []}
+            resources = {
+                "Grammar Notes": [],
+                "Workbook Assignment": [],
+                "Lecture Videos": [],
+                "Extras": [],
+            }
 
             def _add(kind, val):
                 for v in _as_list(val):
@@ -3098,9 +3109,9 @@ if tab == "My Course":
                         resources[kind].append(v)
 
             # top-level
-            _add("Videos", info.get("video"))
+            _add("Lecture Videos", info.get("video"))
             _add("Grammar Notes", info.get("grammarbook_link"))
-            _add("Workbook", info.get("workbook_link"))
+            _add("Workbook Assignment", info.get("workbook_link"))
             _add("Extras", info.get("extra_resources"))
 
             # nested: include whatever sections exist for this lesson
@@ -3108,9 +3119,9 @@ if tab == "My Course":
                 for part in _as_list(info.get(section_key)):
                     if not isinstance(part, dict):
                         continue
-                    _add("Videos", [part.get("video"), part.get("youtube_link")])
+                    _add("Lecture Videos", [part.get("video"), part.get("youtube_link")])
                     _add("Grammar Notes", part.get("grammarbook_link"))
-                    _add("Workbook", part.get("workbook_link"))
+                    _add("Workbook Assignment", part.get("workbook_link"))
                     _add("Extras", part.get("extra_resources"))
 
             # dedupe + remove videos already embedded above
@@ -3124,10 +3135,12 @@ if tab == "My Course":
                 # Prepare TXT bundle
                 lesson_header = f"Level: {level_key} | Day: {info.get('day','?')} | Chapter: {info.get('chapter','?')} | Topic: {info.get('topic','')}"
                 parts_txt = [lesson_header, "-" * len(lesson_header)]
-                for title, key_name in [("📘 Grammar Notes", "Grammar Notes"),
-                                        ("📒 Workbook", "Workbook"),
-                                        ("🎥 Videos", "Videos"),
-                                        ("🔗 Extras", "Extras")]:
+                for title, key_name in [
+                    ("📘 Grammar Notes (Lecture Summary)", "Grammar Notes"),
+                    ("📒 Workbook Assignment", "Workbook Assignment"),
+                    ("🎬 Lecture Videos", "Lecture Videos"),
+                    ("🔗 Extras", "Extras"),
+                ]:
                     if resources[key_name]:
                         parts_txt.append(title)
                         parts_txt.extend([f"- {u}" for u in resources[key_name]])
@@ -3164,10 +3177,10 @@ if tab == "My Course":
                 if _is_url(info.get("video")):
                     st.video(info["video"])
                 elif info.get("video"):
-                    st.markdown(f"[▶️ Watch on YouTube]({info['video']})")
-                    
+                    st.markdown(f"[🎬 Lecture Video (YouTube)]({info['video']})")
+
                 if _is_url(info.get("grammarbook_link")):
-                    render_link("📘 Grammar Book (Notes)", info["grammarbook_link"])
+                    render_link("📘 Grammar Notes (Lecture Summary)", info["grammarbook_link"])
 
                 render_link("📗 Dictionary", "https://dict.leo.org/german-english")
 
