@@ -43,36 +43,45 @@ def get_a1_schedule():
             "day": 0,
             "topic": "Tutorial",
             "chapter": "Tutorial",
-            "goal": "Welcome to the A1 German course! This first chapter is a guided tour showing how the course works. Your name is automatically pulled from your profile, so every page greets you personally.",
-            "instruction": """Daily Focus Options
-
-    Lesen & Hören  
-        • Tutor Lecture-oriented: Tutor will do about 90% and student about 10%.  
-        • Tutor explains the grammar concepts clearly for understanding.  
-
-    Schreiben & Sprechen  
-        • Practical session: Student will do about 90% and tutor 10%.  
-        • Tutor tests student knowledge to ensure full understanding of previous lessons.  
-
-Chapter Structure
-    • Goal  
-    • Instructions  
-    • Recorded Lectures  
-    • Grammar Notes  
-    • Workbook Exercises  
-
-Tabs in the Course Interface
-    • Overview  
-    • Assignments (contains your recorded lecture, grammar, and workbook)  
-    • Submit  
-
-Submitting Work
-    • Use the level selector at the top.  
-    • Upload your work via the Submit tab.  
-    • Receive email or Telegram notifications when your work is reviewed.  
-            """,
+            "goal": "Start with a quick orientation so you're ready for Day 1.",
+            "instruction": "Use the cards below to explore the key workflows before your first assignment.",
             "grammar_topic": None,
             "assignment": False,
+            "onboarding_cards": [
+                {
+                    "title": "Explore your course tabs",
+                    "helper": "Preview the Overview, Assignment, and Submit sections in the Course Book.",
+                    "steps": [
+                        "Open the Course Book to see how lessons are organised.",
+                        "Visit the Assignment tab to watch lectures and download resources.",
+                        "Check the Submit tab so you know where to upload homework.",
+                    ],
+                    "cta_label": "Open Course Book",
+                    "action": "overview",
+                },
+                {
+                    "title": "Submit your work",
+                    "helper": "Practice the upload flow now so handing in Day 1 is easy.",
+                    "steps": [
+                        "Choose a lesson from the dropdown at the top of the page.",
+                        "Attach a file or type in the submission box to try the workflow.",
+                        "Save a draft so you can return and finish without losing progress.",
+                    ],
+                    "cta_label": "Go to Submit tab",
+                    "action": "submit",
+                },
+                {
+                    "title": "Get class updates",
+                    "helper": "Stay informed about attendance, announcements, and tutor feedback.",
+                    "steps": [
+                        "Open the Classroom tab to review announcements and your Zoom link.",
+                        "Mark your attendance after each live class.",
+                        "Enable email or Telegram alerts so you never miss new feedback.",
+                    ],
+                    "cta_label": "View attendance",
+                    "action": "attendance",
+                },
+            ],
             "lesen_hören": {
                 "video": None,
                 "youtube_link": None,
