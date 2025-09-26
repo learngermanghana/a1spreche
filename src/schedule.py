@@ -1444,9 +1444,8 @@ Wir wünschen dir weiterhin viel Erfolg auf deinem Sprachlernweg!
 
 
 def get_b2_schedule():
-    schedule = [
-        # DAY 0 - TUTORIAL
-        make_day0_tutorial_entry(),
+    schedule = [make_day0_tutorial_entry()]
+    schedule.extend([
         {
             "day": 1,
             "topic": "Persönliche Identität und Selbstverständnis",
@@ -1757,7 +1756,7 @@ def get_b2_schedule():
             "workbook_link": "",
             "grammar_topic": ""
         }
-    ]
+    ])
     return _strip_topic_chapter(schedule)
 
 
