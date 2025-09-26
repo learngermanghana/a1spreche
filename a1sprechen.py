@@ -8165,7 +8165,7 @@ if tab == "Schreiben Trainer":
                 with st.spinner("👨‍🏫 Herr Felix is typing..."):
                     resp = client.chat.completions.create(
                         model="gpt-4o",
-                        messages=[{"role": "system", "content": system_prompt}] + chat_history[1:] + [{"role": "user", "content": user_input}],
+                        messages=[{"role": "system", "content": system_prompt}] + chat_history[1:],
                         temperature=0.22,
                         max_tokens=380
                     )
