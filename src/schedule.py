@@ -44,50 +44,21 @@ def get_a1_schedule():
             "topic": "Tutorial",
             "chapter": "Tutorial",
             "goal": "Start with a quick orientation so you're ready for Day 1.",
-            "instruction": "Use the cards below to explore the key workflows before your first assignment.",
+            "instruction": (
+                "Walk through the core areas of your Course Book before the first lesson.\n\n"
+                "**Overview tab** — Preview how each day is organised so you always know what's next.\n"
+                "**Assignment tab** — Watch lectures and download resources you'll submit later.\n"
+                "**Submit tab** — Practise uploading a file or saving a draft so handing in Day 1 feels easy.\n"
+                "**Classroom tab** — Review announcements, mark attendance, and confirm you can join class."
+            ),
             "grammar_topic": None,
             "assignment": False,
-            "onboarding_cards": [
-                {
-                    "title": "Explore your course tabs",
-                    "helper": "Preview the Overview, Assignment, and Submit sections in the Course Book.",
-                    "steps": [
-                        "Open the Course Book to see how lessons are organised.",
-                        "Visit the Assignment tab to watch lectures and download resources.",
-                        "Check the Submit tab so you know where to upload homework.",
-                    ],
-                    "cta_label": "Open Course Book",
-                    "action": "overview",
-                },
-                {
-                    "title": "Submit your work",
-                    "helper": "Practice the upload flow now so handing in Day 1 is easy.",
-                    "steps": [
-                        "Choose a lesson from the dropdown at the top of the page.",
-                        "Attach a file or type in the submission box to try the workflow.",
-                        "Save a draft so you can return and finish without losing progress.",
-                    ],
-                    "cta_label": "Go to Submit tab",
-                    "action": "submit",
-                },
-                {
-                    "title": "Get class updates",
-                    "helper": "Stay informed about attendance, announcements, and tutor feedback.",
-                    "steps": [
-                        "Open the Classroom tab to review announcements and your Zoom link.",
-                        "Mark your attendance after each live class.",
-                        "Enable email or Telegram alerts so you never miss new feedback.",
-                    ],
-                    "cta_label": "View attendance",
-                    "action": "attendance",
-                },
-            ],
             "lesen_hören": {
                 "video": None,
                 "youtube_link": None,
                 "grammarbook_link": None,
-                "workbook_link": None
-            }
+                "workbook_link": None,
+            },
         },
 
         # DAY 1
