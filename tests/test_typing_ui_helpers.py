@@ -152,3 +152,66 @@ def test_format_typing_banner_humanises_names():
         current_code="self",
     )
     assert banner_multi == "Bob and c are typing…"
+
+
+def test_update_typing_state_supports_edit_draft_keys():
+    indicator_calls: List[Dict[str, Any]] = []
+
+    def indicator(*args, **kwargs):
+        indicator_calls.append(dict(kwargs))
+        return True
+
+    st = StreamlitStub()
+    time_stub = TimeStub()
+    helpers = load_typing_helpers(st, indicator, time_stub)
+    update = helpers["_update_typing_state"]
+    clear = helpers["_clear_typing_state"]
+    meta_key_post = helpers["_typing_meta_key"]("q_edit_text_post42")
+    meta_key_comment = helpers["_typing_meta_key"]("c_edit_text_post42_c99")
+
+    update(
+        level="A1",
+        class_code="C1",
+        qid="post42",
+        draft_key="q_edit_text_post42",
+        student_code="stu",
+        student_name="Student",
+        text="Hallo",
+    )
+    assert indicator_calls[-1]["is_typing"] is True
+    assert st.session_state[meta_key_post]["is_typing"] is True
+
+    update(
+        level="A1",
+        class_code="C1",
+        qid="post42",
+        draft_key="c_edit_text_post42_c99",
+        student_code="stu",
+        student_name="Student",
+        text="Antwort",
+    )
+    assert indicator_calls[-1]["is_typing"] is True
+    assert st.session_state[meta_key_comment]["is_typing"] is True
+
+    update(
+        level="A1",
+        class_code="C1",
+        qid="post42",
+        draft_key="q_edit_text_post42",
+        student_code="stu",
+        student_name="Student",
+        text="",
+    )
+    assert indicator_calls[-1]["is_typing"] is False
+    assert st.session_state[meta_key_post]["is_typing"] is False
+
+    clear(
+        level="A1",
+        class_code="C1",
+        qid="post42",
+        draft_key="c_edit_text_post42_c99",
+        student_code="stu",
+        student_name="Student",
+    )
+    assert indicator_calls[-1]["is_typing"] is False
+    assert meta_key_comment not in st.session_state

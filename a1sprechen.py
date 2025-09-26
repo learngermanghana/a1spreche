@@ -5574,6 +5574,14 @@ if tab == "My Course":
                             f"q_edit_lesson_input_{q_id}",
                         ]:
                             st.session_state.pop(_k, None)
+                        _clear_typing_state(
+                            level=student_level,
+                            class_code=class_name,
+                            qid=q_id,
+                            draft_key=f"q_edit_text_{q_id}",
+                            student_code=student_code,
+                            student_name=student_name,
+                        )
 
                     can_modify_q = (q.get("asked_by_code") == student_code) or IS_ADMIN
                     if can_modify_q:
@@ -5637,11 +5645,26 @@ if tab == "My Course":
                                     value=st.session_state.get(f"q_edit_link_{q_id}", ""),
                                     key=f"q_edit_link_input_{q_id}"
                                 )
+                                banner = _format_typing_banner(
+                                    fetch_active_typists(student_level, class_name, q_id),
+                                    student_code,
+                                )
+                                if banner:
+                                    st.caption(banner)
                                 new_text = st.text_area(
                                     "Edit post",
                                     value=st.session_state.get(f"q_edit_text_{q_id}", ""),
                                     key=f"q_edit_text_input_{q_id}",
                                     height=150
+                                )
+                                _update_typing_state(
+                                    level=student_level,
+                                    class_code=class_name,
+                                    qid=q_id,
+                                    draft_key=f"q_edit_text_{q_id}",
+                                    student_code=student_code,
+                                    student_name=student_name,
+                                    text=new_text,
                                 )
                                 save_edit = st.form_submit_button("💾 Save")
                                 cancel_edit = st.form_submit_button("❌ Cancel")
@@ -5660,11 +5683,27 @@ if tab == "My Course":
                                         f"*When:* {_dt.now(UTC).strftime('%Y-%m-%d %H:%M')} UTC\n",
                                         f"*New:* {(formatted_edit[:180] + '…') if len(formatted_edit) > 180 else formatted_edit}",
                                     )
+                                    _clear_typing_state(
+                                        level=student_level,
+                                        class_code=class_name,
+                                        qid=q_id,
+                                        draft_key=f"q_edit_text_{q_id}",
+                                        student_code=student_code,
+                                        student_name=student_name,
+                                    )
                                     st.session_state[f"q_editing_{q_id}"] = False
                                     st.session_state[f"__clear_q_edit_{q_id}"] = True
                                     st.success("Post updated.")
                                     refresh_with_toast()
                             if cancel_edit:
+                                _clear_typing_state(
+                                    level=student_level,
+                                    class_code=class_name,
+                                    qid=q_id,
+                                    draft_key=f"q_edit_text_{q_id}",
+                                    student_code=student_code,
+                                    student_name=student_name,
+                                )
                                 st.session_state[f"q_editing_{q_id}"] = False
                                 st.session_state[f"__clear_q_edit_{q_id}"] = True
                                 refresh_with_toast()
@@ -5699,6 +5738,14 @@ if tab == "My Course":
                                     f"c_edit_text_input_{q_id}_{cid}",
                                 ]:
                                     st.session_state.pop(_k, None)
+                                _clear_typing_state(
+                                    level=student_level,
+                                    class_code=class_name,
+                                    qid=q_id,
+                                    draft_key=f"c_edit_text_{q_id}_{cid}",
+                                    student_code=student_code,
+                                    student_name=student_name,
+                                )
 
                             can_modify_c = (c_data.get("replied_by_code") == student_code) or IS_ADMIN
                             if can_modify_c:
@@ -5722,11 +5769,30 @@ if tab == "My Course":
                                 if st.session_state.get(f"c_editing_{q_id}_{cid}", False):
                                     edit_container = controls.container()
                                     with edit_container.form(f"c_edit_form_{q_id}_{cid}"):
+                                        banner = _format_typing_banner(
+                                            fetch_active_typists(
+                                                student_level,
+                                                class_name,
+                                                q_id,
+                                            ),
+                                            student_code,
+                                        )
+                                        if banner:
+                                            st.caption(banner)
                                         new_rtext = st.text_area(
                                             "Edit comment",
                                             value=st.session_state.get(f"c_edit_text_{q_id}_{cid}", ""),
                                             key=f"c_edit_text_input_{q_id}_{cid}",
                                             height=80
+                                        )
+                                        _update_typing_state(
+                                            level=student_level,
+                                            class_code=class_name,
+                                            qid=q_id,
+                                            draft_key=f"c_edit_text_{q_id}_{cid}",
+                                            student_code=student_code,
+                                            student_name=student_name,
+                                            text=new_rtext,
                                         )
                                         csave = st.form_submit_button("💾 Save")
                                         ccancel = st.form_submit_button("❌ Cancel")
@@ -5741,11 +5807,27 @@ if tab == "My Course":
                                             f"*When:* {_dt.now(_timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC\n"
                                             f"*New:* {(new_rtext[:180] + '…') if len(new_rtext) > 180 else new_rtext}"
                                         )
+                                        _clear_typing_state(
+                                            level=student_level,
+                                            class_code=class_name,
+                                            qid=q_id,
+                                            draft_key=f"c_edit_text_{q_id}_{cid}",
+                                            student_code=student_code,
+                                            student_name=student_name,
+                                        )
                                         st.session_state[f"c_editing_{q_id}_{cid}"] = False
                                         st.session_state[f"__clear_c_edit_{q_id}_{cid}"] = True
                                         st.success("Comment updated.")
                                         refresh_with_toast()
                                     if ccancel:
+                                        _clear_typing_state(
+                                            level=student_level,
+                                            class_code=class_name,
+                                            qid=q_id,
+                                            draft_key=f"c_edit_text_{q_id}_{cid}",
+                                            student_code=student_code,
+                                            student_name=student_name,
+                                        )
                                         st.session_state[f"c_editing_{q_id}_{cid}"] = False
                                         st.session_state[f"__clear_c_edit_{q_id}_{cid}"] = True
                                         refresh_with_toast()
