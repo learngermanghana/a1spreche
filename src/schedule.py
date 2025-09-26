@@ -1247,7 +1247,7 @@ def get_b1_schedule():
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "youtube_link": "",
-            "grammarbook_link": "https://drive.google.com/file/d/1a-UYqXhVb4q71o2_2A6z8tk1Fyb_6PA9/view?usp=sharing",
+            "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/11MN70gt1zEc0nSyeriUNDP4ZOdooYfYF/view?usp=sharing"
         },
         # TAG 17
@@ -1286,8 +1286,8 @@ def get_b1_schedule():
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "youtube_link": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1IimP5JZHHvUYkDSuE7F-YI-Z4PeMYad2/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1fHjQGvObAE3TBmnstPhQBm5RUooP_NyJ/view?usp=sharing"
         },
         # TAG 20
         {
@@ -1300,7 +1300,7 @@ def get_b1_schedule():
             "video": "",
             "youtube_link": "",
             "grammarbook_link": "",
-            "workbook_link": ""
+            "workbook_link": "https://drive.google.com/file/d/1kfFEDI3ufCCndSi-LhfMFYEdih58D5XQ/view?usp=sharing"
         },
         # TAG 21
         {
@@ -1312,8 +1312,8 @@ def get_b1_schedule():
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "youtube_link": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1-5hQoiAohD-lB-keyi7mTidjw8YJbvgT/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1y9B__4gEvvdgNzaD17SSWJO0TVRYxFBa/view?usp=sharing"
         },
         # TAG 22
         {
@@ -1325,8 +1325,8 @@ def get_b1_schedule():
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "youtube_link": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1x7Ycdg1DlCjukYoeoSTmnUL8WgkmdXAY/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/15H7jEA7zkl4c58rhybkKPjN1eqK7mPoM/view?usp=sharing"
         },
         # TAG 23
         {
@@ -1339,7 +1339,7 @@ def get_b1_schedule():
             "video": "",
             "youtube_link": "",
             "grammarbook_link": "",
-            "workbook_link": ""
+            "workbook_link": "https://drive.google.com/file/d/1DZxrsgU-vZPGrQAqLuYP3Q3U6KCFy-Cy/view?usp=sharing"
         },
         # TAG 24
         {
