@@ -1128,7 +1128,10 @@ def render_sidebar_published():
         st.sidebar.divider()
 
         st.sidebar.markdown("## How-to & tips")
-        with st.sidebar.expander("📚 Quick guide", expanded=False):
+        first_time_quick_guide = not st.session_state.get("_seen_quick_guide", False)
+        if first_time_quick_guide:
+            st.toast("👋 New here? Peek at the Quick guide in the sidebar to get started!")
+        with st.sidebar.expander("📚 Quick guide", expanded=first_time_quick_guide):
             st.markdown(
                 """
 - **Submit work:** My Course → Submit → **Confirm & Submit** (locks after submission).
@@ -1138,6 +1141,8 @@ def render_sidebar_published():
 - **Track progress:** **Dashboard** shows streaks, next lesson, and missed items.
                 """
             )
+        if first_time_quick_guide:
+            st.session_state["_seen_quick_guide"] = True
 
         with st.sidebar.expander("🧭 Dashboard tabs, explained", expanded=False):
             st.markdown(
