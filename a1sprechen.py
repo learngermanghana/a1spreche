@@ -1766,6 +1766,38 @@ except Exception as e:
 render_announcements_once(new_posts, tab == "Dashboard")
 
 
+def _go_attendance() -> None:
+    """Jump to the Attendance page inside the Classroom tab."""
+
+    st.session_state["nav_sel"] = "My Course"
+    st.session_state["main_tab_select"] = "My Course"
+    st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
+    st.session_state["cb_prev_subtab"] = "🧑‍🏫 Classroom"
+    st.session_state["classroom_page"] = "Attendance"
+    st.session_state["classroom_prev_page"] = "Attendance"
+    _qp_set(tab="My Course")
+    st.session_state["need_rerun"] = True
+
+
+def _go_next_assignment(day_value: Any) -> None:
+    """Jump straight to the Assignment tab for ``day_value``."""
+
+    st.session_state["nav_sel"] = "My Course"
+    st.session_state["main_tab_select"] = "My Course"
+    st.session_state["coursebook_subtab"] = "📘 Course Book"
+    st.session_state["cb_prev_subtab"] = "📘 Course Book"
+    st.session_state["coursebook_page"] = "Assignment"
+    st.session_state["coursebook_prev_page"] = "Assignment"
+    params = {"tab": "My Course"}
+    if day_value not in (None, "", "?"):
+        try:
+            params["day"] = int(day_value)
+        except Exception:
+            params["day"] = day_value
+    _qp_set(**params)
+    st.session_state["need_rerun"] = True
+
+
 # =========================================================
 # ===================== Dashboard =========================
 # =========================================================
@@ -1868,32 +1900,6 @@ def _normalize_assignment_submission_dates(
 
 
 if tab == "Dashboard":
-    def _go_attendance() -> None:
-        st.session_state["nav_sel"] = "My Course"
-        st.session_state["main_tab_select"] = "My Course"
-        st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
-        st.session_state["cb_prev_subtab"] = "🧑‍🏫 Classroom"
-        st.session_state["classroom_page"] = "Attendance"
-        st.session_state["classroom_prev_page"] = "Attendance"
-        _qp_set(tab="My Course")
-        st.session_state["need_rerun"] = True
-
-    def _go_next_assignment(day_value: Any) -> None:
-        st.session_state["nav_sel"] = "My Course"
-        st.session_state["main_tab_select"] = "My Course"
-        st.session_state["coursebook_subtab"] = "📘 Course Book"
-        st.session_state["cb_prev_subtab"] = "📘 Course Book"
-        st.session_state["coursebook_page"] = "Assignment"
-        st.session_state["coursebook_prev_page"] = "Assignment"
-        params = {"tab": "My Course"}
-        if day_value not in (None, "", "?"):
-            try:
-                params["day"] = int(day_value)
-            except Exception:
-                params["day"] = day_value
-        _qp_set(**params)
-        st.session_state["need_rerun"] = True
-
     # ---------- Helpers ----------
     def safe_get(row, key, default=""):
         try: return row.get(key, default)
@@ -2715,6 +2721,140 @@ RESOURCE_LABELS = {
 }
 
 
+def _next_available_lesson_day(
+    schedule: Sequence[MutableMapping[str, Any]] | Sequence[dict],
+    current_index: int,
+) -> Optional[int]:
+    """Return the next non-zero ``day`` value following ``current_index``."""
+
+    for entry in schedule[current_index + 1 :]:
+        day_val = _coerce_day((entry or {}).get("day"))
+        if day_val not in (None, 0):
+            return day_val
+    for entry in schedule:
+        day_val = _coerce_day((entry or {}).get("day"))
+        if day_val not in (None, 0):
+            return day_val
+    return None
+
+
+def render_day_zero_onboarding(
+    info: MutableMapping[str, Any] | dict,
+    schedule: Sequence[MutableMapping[str, Any]] | Sequence[dict],
+    idx: int,
+) -> None:
+    """Render a dedicated onboarding layout for the tutorial day."""
+
+    st.markdown(
+        """
+        <style>
+        .day0-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:18px 16px;
+                   box-shadow:0 8px 24px rgba(15,23,42,.08);min-height:260px;display:flex;flex-direction:column;gap:12px;}
+        .day0-card__title{font-size:1.1rem;font-weight:600;color:#0f172a;}
+        .day0-card__helper{color:#475569;font-size:.95rem;line-height:1.4;}
+        .day0-card ol{margin:0;padding-left:1.2rem;color:#1e293b;font-size:.95rem;line-height:1.45;}
+        .day0-card__cta{margin-top:auto;}
+        .day0-card__cta button{width:100%;border-radius:999px;}
+        @media (max-width:768px){.day0-card{min-height:auto;}}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    goal_text = _safe_str(info.get("goal"))
+    intro_text = _safe_str(info.get("instruction"))
+    if goal_text:
+        st.markdown(f"#### 🚀 {goal_text}")
+    else:
+        st.markdown("#### 🚀 Welcome to Falowen")
+    if intro_text:
+        st.caption(intro_text)
+
+    cards = info.get("onboarding_cards") or []
+    if not isinstance(cards, Sequence) or not cards:
+        return
+
+    target_day = _next_available_lesson_day(schedule, idx) or 1
+
+    def _set_coursebook_page(page: str) -> None:
+        st.session_state["coursebook_page"] = page
+        st.session_state["coursebook_prev_page"] = page
+
+    def _jump_course(page: str) -> None:
+        _go_next_assignment(target_day)
+        _set_coursebook_page(page)
+
+    def _jump_classroom() -> None:
+        st.session_state["nav_sel"] = "My Course"
+        st.session_state["main_tab_select"] = "My Course"
+        st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
+        st.session_state["cb_prev_subtab"] = "🧑‍🏫 Classroom"
+        _qp_set(tab="My Course")
+        st.session_state["need_rerun"] = True
+
+    def _go_dashboard() -> None:
+        st.session_state["nav_sel"] = "Dashboard"
+        st.session_state["main_tab_select"] = "Dashboard"
+        _qp_set(tab="Dashboard")
+        st.session_state["need_rerun"] = True
+
+    action_map: Dict[str, Any] = {
+        "overview": lambda: _jump_course("Overview"),
+        "assignment": lambda: _jump_course("Assignment"),
+        "submit": lambda: _jump_course("Submit"),
+        "classroom": _jump_classroom,
+        "attendance": _go_attendance,
+        "dashboard": _go_dashboard,
+    }
+
+    chunk = 3
+    for start in range(0, len(cards), chunk):
+        cols = st.columns(len(cards[start : start + chunk]))
+        for col, card in zip(cols, cards[start : start + chunk]):
+            with col:
+                title_raw = _safe_str(card.get("title"), "")
+                helper_raw = _safe_str(card.get("helper"), "")
+                title = html.escape(title_raw)
+                helper = html.escape(helper_raw)
+                steps = card.get("steps") or []
+                if not isinstance(steps, Sequence):
+                    steps = []
+                steps_html = "".join(
+                    f"<li>{html.escape(_safe_str(step, ''))}</li>" for step in steps if _safe_str(step, "")
+                )
+
+                st.markdown("<div class='day0-card'>", unsafe_allow_html=True)
+                if title:
+                    st.markdown(
+                        f"<div class='day0-card__title'>{title}</div>",
+                        unsafe_allow_html=True,
+                    )
+                if helper:
+                    st.markdown(
+                        f"<div class='day0-card__helper'>{helper}</div>",
+                        unsafe_allow_html=True,
+                    )
+                if steps_html:
+                    st.markdown(
+                        f"<ol>{steps_html}</ol>",
+                        unsafe_allow_html=True,
+                    )
+
+                cta_label = _safe_str(card.get("cta_label"))
+                action_key = _safe_lower(card.get("action"))
+                action_fn = action_map.get(action_key)
+                if cta_label and callable(action_fn):
+                    st.markdown("<div class='day0-card__cta'>", unsafe_allow_html=True)
+                    st.button(
+                        cta_label,
+                        key=f"day0_card_btn_{start}_{title_raw}",
+                        on_click=action_fn,
+                        use_container_width=True,
+                    )
+                    st.markdown("</div>", unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+
+
 # ---- Firestore Helpers ----
 if tab == "My Course":
     # === HANDLE ALL SWITCHING *BEFORE* ANY WIDGET ===
@@ -2957,7 +3097,10 @@ if tab == "My Course":
         )
         if info.get("grammar_topic"):
             st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
-        if info.get("goal") or info.get("instruction"):
+
+        if _coerce_day(info.get("day")) == 0:
+            render_day_zero_onboarding(info, schedule, idx)
+        elif info.get("goal") or info.get("instruction"):
             st.info(
                 f"🎯 **Goal:** {info.get('goal','')}\n\n"
                 f"📝 **Instruction:** {info.get('instruction','')}"
