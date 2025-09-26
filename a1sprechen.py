@@ -2750,8 +2750,10 @@ def render_day_zero_onboarding(
 ) -> None:
     """Render a dedicated onboarding layout for the tutorial day."""
 
+
     seen_state_key = "day0_onboarding_seen"
     expanded_default = not st.session_state.get(seen_state_key, False)
+
 
     with st.expander("Day 0 onboarding overview", expanded=expanded_default):
         st.markdown(
