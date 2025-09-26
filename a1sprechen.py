@@ -7437,6 +7437,13 @@ if tab == "Schreiben Trainer":
             st.session_state[f"{student_code}_last_user_letter"] = existing_letter
 
         letter_disabled = daily_so_far >= SCHREIBEN_DAILY_LIMIT
+        if letter_disabled:
+            st.warning(
+                "You've reached today's limit for letter corrections. Please come back"
+                " tomorrow after the daily quota resets to submit a new letter. While"
+                " you wait, feel free to explore the other tabs for prompts, ideas, or"
+                " practice activities."
+            )
 
         user_letter = st.text_area(
             "Paste or type your German letter/essay here.",
