@@ -2750,47 +2750,51 @@ def render_day_zero_onboarding(
 ) -> None:
     """Render a dedicated onboarding layout for the tutorial day."""
 
-    st.markdown(
-        """
-        <style>
-        .day0-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:18px 16px;
-                   box-shadow:0 8px 24px rgba(15,23,42,.08);min-height:260px;display:flex;flex-direction:column;gap:12px;}
-        .day0-card__title{font-size:1.1rem;font-weight:600;color:#0f172a;}
-        .day0-card__helper{color:#475569;font-size:.95rem;line-height:1.4;}
-        .day0-card ol{margin:0;padding-left:1.2rem;color:#1e293b;font-size:.95rem;line-height:1.45;}
-        .day0-card__cta{margin-top:auto;}
-        .day0-card__cta button{width:100%;border-radius:999px;}
-        @media (max-width:768px){.day0-card{min-height:auto;}}
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.caption("Review the tutorial if you need a refresher.")
 
     goal_text = _safe_str(info.get("goal"))
     intro_text = _safe_str(info.get("instruction"))
-    if goal_text:
-        st.markdown(f"#### 🚀 {goal_text}")
-    else:
-        st.markdown("#### 🚀 Welcome to Falowen")
-    if intro_text:
-        st.caption(intro_text)
-
     cards = info.get("onboarding_cards") or []
-    if not isinstance(cards, Sequence) or isinstance(cards, (str, bytes)) or not cards:
-        info_lines: List[str] = []
+
+    with st.expander("📘 Day 0 Tutorial – optional", expanded=False):
+        st.markdown(
+            """
+            <style>
+            .day0-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:18px 16px;
+                       box-shadow:0 8px 24px rgba(15,23,42,.08);min-height:260px;display:flex;flex-direction:column;gap:12px;}
+            .day0-card__title{font-size:1.1rem;font-weight:600;color:#0f172a;}
+            .day0-card__helper{color:#475569;font-size:.95rem;line-height:1.4;}
+            .day0-card ol{margin:0;padding-left:1.2rem;color:#1e293b;font-size:.95rem;line-height:1.45;}
+            .day0-card__cta{margin-top:auto;}
+            .day0-card__cta button{width:100%;border-radius:999px;}
+            @media (max-width:768px){.day0-card{min-height:auto;}}
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
         if goal_text:
-            info_lines.append(f"🎯 **Goal:** {goal_text}")
+            st.markdown(f"#### 🚀 {goal_text}")
+        else:
+            st.markdown("#### 🚀 Welcome to Falowen")
         if intro_text:
-            info_lines.append(f"📝 **Instruction:** {intro_text}")
-        if info_lines:
-            st.info("\n\n".join(info_lines))
-        return
+            st.caption(intro_text)
 
-    target_day = _next_available_lesson_day(schedule, idx) or 1
+        if not isinstance(cards, Sequence) or isinstance(cards, (str, bytes)) or not cards:
+            info_lines: List[str] = []
+            if goal_text:
+                info_lines.append(f"🎯 **Goal:** {goal_text}")
+            if intro_text:
+                info_lines.append(f"📝 **Instruction:** {intro_text}")
+            if info_lines:
+                st.info("\n\n".join(info_lines))
+            return
 
-    def _set_coursebook_page(page: str) -> None:
-        st.session_state["coursebook_page"] = page
-        st.session_state["coursebook_prev_page"] = page
+        target_day = _next_available_lesson_day(schedule, idx) or 1
+
+        def _set_coursebook_page(page: str) -> None:
+            st.session_state["coursebook_page"] = page
+            st.session_state["coursebook_prev_page"] = page
 
     def _jump_course(page: str) -> None:
         _go_next_assignment(target_day)
@@ -2819,52 +2823,52 @@ def render_day_zero_onboarding(
         "dashboard": _go_dashboard,
     }
 
-    chunk = 3
-    for start in range(0, len(cards), chunk):
-        cols = st.columns(len(cards[start : start + chunk]))
-        for col, card in zip(cols, cards[start : start + chunk]):
-            with col:
-                title_raw = _safe_str(card.get("title"), "")
-                helper_raw = _safe_str(card.get("helper"), "")
-                title = html.escape(title_raw)
-                helper = html.escape(helper_raw)
-                steps = card.get("steps") or []
-                if not isinstance(steps, Sequence):
-                    steps = []
-                steps_html = "".join(
-                    f"<li>{html.escape(_safe_str(step, ''))}</li>" for step in steps if _safe_str(step, "")
-                )
-
-                st.markdown("<div class='day0-card'>", unsafe_allow_html=True)
-                if title:
-                    st.markdown(
-                        f"<div class='day0-card__title'>{title}</div>",
-                        unsafe_allow_html=True,
-                    )
-                if helper:
-                    st.markdown(
-                        f"<div class='day0-card__helper'>{helper}</div>",
-                        unsafe_allow_html=True,
-                    )
-                if steps_html:
-                    st.markdown(
-                        f"<ol>{steps_html}</ol>",
-                        unsafe_allow_html=True,
+        chunk = 3
+        for start in range(0, len(cards), chunk):
+            cols = st.columns(len(cards[start : start + chunk]))
+            for col, card in zip(cols, cards[start : start + chunk]):
+                with col:
+                    title_raw = _safe_str(card.get("title"), "")
+                    helper_raw = _safe_str(card.get("helper"), "")
+                    title = html.escape(title_raw)
+                    helper = html.escape(helper_raw)
+                    steps = card.get("steps") or []
+                    if not isinstance(steps, Sequence):
+                        steps = []
+                    steps_html = "".join(
+                        f"<li>{html.escape(_safe_str(step, ''))}</li>" for step in steps if _safe_str(step, "")
                     )
 
-                cta_label = _safe_str(card.get("cta_label"))
-                action_key = _safe_lower(card.get("action"))
-                action_fn = action_map.get(action_key)
-                if cta_label and callable(action_fn):
-                    st.markdown("<div class='day0-card__cta'>", unsafe_allow_html=True)
-                    st.button(
-                        cta_label,
-                        key=f"day0_card_btn_{start}_{title_raw}",
-                        on_click=action_fn,
-                        use_container_width=True,
-                    )
+                    st.markdown("<div class='day0-card'>", unsafe_allow_html=True)
+                    if title:
+                        st.markdown(
+                            f"<div class='day0-card__title'>{title}</div>",
+                            unsafe_allow_html=True,
+                        )
+                    if helper:
+                        st.markdown(
+                            f"<div class='day0-card__helper'>{helper}</div>",
+                            unsafe_allow_html=True,
+                        )
+                    if steps_html:
+                        st.markdown(
+                            f"<ol>{steps_html}</ol>",
+                            unsafe_allow_html=True,
+                        )
+
+                    cta_label = _safe_str(card.get("cta_label"))
+                    action_key = _safe_lower(card.get("action"))
+                    action_fn = action_map.get(action_key)
+                    if cta_label and callable(action_fn):
+                        st.markdown("<div class='day0-card__cta'>", unsafe_allow_html=True)
+                        st.button(
+                            cta_label,
+                            key=f"day0_card_btn_{start}_{title_raw}",
+                            on_click=action_fn,
+                            use_container_width=True,
+                        )
+                        st.markdown("</div>", unsafe_allow_html=True)
                     st.markdown("</div>", unsafe_allow_html=True)
-                st.markdown("</div>", unsafe_allow_html=True)
 
 
 # ---- Firestore Helpers ----
