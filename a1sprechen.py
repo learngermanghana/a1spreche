@@ -7609,7 +7609,7 @@ if tab == "Schreiben Trainer":
                 # --- Save to Firestore ---
                 score_match = re.search(r"Score[: ]+(\d+)", feedback)
                 score = int(score_match.group(1)) if score_match else 0
-                passed = score >= 17
+                passed = score >= 18
                 save_submission(
                     student_code=student_code,
                     score=score,
