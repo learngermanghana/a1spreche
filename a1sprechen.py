@@ -2776,7 +2776,14 @@ def render_day_zero_onboarding(
         st.caption(intro_text)
 
     cards = info.get("onboarding_cards") or []
-    if not isinstance(cards, Sequence) or not cards:
+    if not isinstance(cards, Sequence) or isinstance(cards, (str, bytes)) or not cards:
+        info_lines: List[str] = []
+        if goal_text:
+            info_lines.append(f"🎯 **Goal:** {goal_text}")
+        if intro_text:
+            info_lines.append(f"📝 **Instruction:** {intro_text}")
+        if info_lines:
+            st.info("\n\n".join(info_lines))
         return
 
     target_day = _next_available_lesson_day(schedule, idx) or 1
