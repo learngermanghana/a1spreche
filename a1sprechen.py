@@ -90,6 +90,10 @@ HERR_FELIX_TYPING_HTML = (
     "</div>"
 )
 
+_TYPING_TRACKER_PREFIX = "__typing_meta__"
+_TYPING_PING_INTERVAL = 4.0
+_NEW_POST_TYPING_ID = "__new_post__"
+
 
 def _safe_str(v, default: str = "") -> str:
     if v is None:
@@ -112,6 +116,96 @@ def _safe_upper(v, default: str = "") -> str:
 def _safe_lower(v, default: str = "") -> str:
     s = _safe_str(v, default)
     return s.lower() if s else default
+
+
+def _typing_meta_key(draft_key: str) -> str:
+    return f"{_TYPING_TRACKER_PREFIX}:{draft_key}"
+
+
+def _update_typing_state(
+    *,
+    level: str,
+    class_code: str,
+    qid: str,
+    draft_key: str,
+    student_code: str,
+    student_name: str,
+    text: str,
+) -> None:
+    if not (level and class_code and qid and student_code):
+        return
+
+    meta_key = _typing_meta_key(draft_key)
+    meta = st.session_state.get(meta_key, {"is_typing": False, "last_sent": 0.0})
+    try:
+        last_sent = float(meta.get("last_sent", 0.0))
+    except Exception:
+        last_sent = 0.0
+    last_state = bool(meta.get("is_typing", False))
+
+    is_typing = bool((text or "").strip())
+    now_ts = time.time()
+    should_send = False
+
+    if is_typing != last_state:
+        should_send = True
+    elif is_typing and (now_ts - last_sent) >= _TYPING_PING_INTERVAL:
+        should_send = True
+
+    if should_send:
+        set_typing_indicator(
+            level,
+            class_code,
+            qid,
+            student_code,
+            student_name,
+            is_typing=is_typing,
+        )
+        last_sent = now_ts
+
+    st.session_state[meta_key] = {"is_typing": is_typing, "last_sent": last_sent}
+
+
+def _clear_typing_state(
+    *,
+    level: str,
+    class_code: str,
+    qid: str,
+    draft_key: str,
+    student_code: str,
+    student_name: str,
+) -> None:
+    if not (level and class_code and qid and student_code):
+        return
+
+    set_typing_indicator(
+        level,
+        class_code,
+        qid,
+        student_code,
+        student_name,
+        is_typing=False,
+    )
+    st.session_state.pop(_typing_meta_key(draft_key), None)
+
+
+def _format_typing_banner(entries: List[Dict[str, Any]], current_code: str) -> str:
+    names: List[str] = []
+    for entry in entries:
+        if entry.get("student_code") == current_code:
+            continue
+        name = _safe_str(entry.get("student_name", "")) or _safe_str(
+            entry.get("student_code", "")
+        )
+        if name:
+            names.append(name)
+    if not names:
+        return ""
+    if len(names) == 1:
+        return f"{names[0]} is typing…"
+    if len(names) == 2:
+        return f"{names[0]} and {names[1]} are typing…"
+    return f"{', '.join(names[:-1])}, and {names[-1]} are typing…"
 
 
 def _coerce_day(value: Any) -> Optional[int]:
@@ -605,6 +699,8 @@ from src.firestore_utils import (
     load_student_profile,
     save_student_profile,
     recover_student_code_from_drafts,
+    fetch_active_typists,
+    set_typing_indicator,
 )
 from src.draft_management import (
     _draft_state_keys,
@@ -5200,6 +5296,14 @@ if tab == "My Course":
                 st.session_state.pop("q_ai_suggestion", None)
                 st.session_state.pop("q_ai_explanation", None)
                 st.session_state.pop("q_ai_diff", None)
+                _clear_typing_state(
+                    level=student_level,
+                    class_code=class_name,
+                    qid=_NEW_POST_TYPING_ID,
+                    draft_key="q_text",
+                    student_code=student_code,
+                    student_name=student_name,
+                )
             lesson = (
                 st.selectbox("Lesson", lesson_choices, key="q_lesson")
                 if lesson_choices
@@ -5235,8 +5339,27 @@ if tab == "My Course":
 
             ta_col, ai_col = st.columns([3, 1])
             with ta_col:
+                banner = _format_typing_banner(
+                    fetch_active_typists(
+                        student_level,
+                        class_name,
+                        _NEW_POST_TYPING_ID,
+                    ),
+                    student_code,
+                )
+                if banner:
+                    st.caption(banner)
                 new_q = st.text_area("Your content", key="q_text", height=160)
                 render_umlaut_pad("q_text", context="classboard_post")
+                _update_typing_state(
+                    level=student_level,
+                    class_code=class_name,
+                    qid=_NEW_POST_TYPING_ID,
+                    draft_key="q_text",
+                    student_code=student_code,
+                    student_name=student_name,
+                    text=new_q,
+                )
             with ai_col:
                 if st.button(
                     "✨ Correct with AI",
@@ -5287,6 +5410,14 @@ if tab == "My Course":
                         f"*From:* {student_name} ({student_code})\n",
                         f"*When:* {_dt.now(UTC).strftime('%Y-%m-%d %H:%M')} UTC\n",
                         f"*Content:* {preview}"
+                    )
+                    _clear_typing_state(
+                        level=student_level,
+                        class_code=class_name,
+                        qid=_NEW_POST_TYPING_ID,
+                        draft_key="q_text",
+                        student_code=student_code,
+                        student_name=student_name,
                     )
                     st.session_state["__clear_q_form"] = True
                     st.success("Post published!")
@@ -5361,6 +5492,14 @@ if tab == "My Course":
                     f"*Comment:* {prev}",
                 )
                 save_draft_to_db(student_code, draft_key, "")
+                _clear_typing_state(
+                    level=student_level,
+                    class_code=class_name,
+                    qid=q_id,
+                    draft_key=draft_key,
+                    student_code=student_code,
+                    student_name=student_name,
+                )
                 st.session_state[f"__clear_comment_draft_{q_id}"] = True
                 st.session_state[last_val_key] = ""
                 st.session_state[last_ts_key] = time.time()
@@ -5623,6 +5762,14 @@ if tab == "My Course":
                     clear_flag = f"__clear_comment_draft_{q_id}"
                     if st.session_state.pop(clear_flag, False):
                         st.session_state[draft_key] = ""
+                        _clear_typing_state(
+                            level=student_level,
+                            class_code=class_name,
+                            qid=q_id,
+                            draft_key=draft_key,
+                            student_code=student_code,
+                            student_name=student_name,
+                        )
                     def apply_ai_correction(q_id: str, draft_key: str, current_text: str) -> None:
                         if not current_text.strip():
                             return
@@ -5668,6 +5815,12 @@ if tab == "My Course":
                         if not isinstance(current_text, str):
                             current_text = ""
 
+                    banner = _format_typing_banner(
+                        fetch_active_typists(student_level, class_name, q_id),
+                        student_code,
+                    )
+                    if banner:
+                        st.caption(banner)
                     st.text_area(
                         "Reply to this thread…",
                         key=draft_key,
@@ -5684,6 +5837,15 @@ if tab == "My Course":
                     current_text = st.session_state.get(draft_key, "")
                     if not isinstance(current_text, str):
                         current_text = ""
+                    _update_typing_state(
+                        level=student_level,
+                        class_code=class_name,
+                        qid=q_id,
+                        draft_key=draft_key,
+                        student_code=student_code,
+                        student_name=student_name,
+                        text=current_text,
+                    )
                     autosave_maybe(student_code, draft_key, current_text, min_secs=2.0, min_delta=12)
 
                     send_col, ai_col = st.columns([1, 1])
