@@ -8111,7 +8111,7 @@ if tab == "Schreiben Trainer":
 
             if st.session_state.pop(ns("clear_chat"), False):
                 st.session_state[draft_key] = ""
-                save_now(draft_key, student_code)
+                save_now(draft_key, student_code, show_toast=False)
 
             st.text_area(
                 "Chat input",
@@ -8153,7 +8153,6 @@ if tab == "Schreiben Trainer":
             if send:
                 user_input = st.session_state[draft_key].strip()
                 save_now(draft_key, student_code)
-                toast_ok("Saved!")
 
             else:
                 user_input = ""
