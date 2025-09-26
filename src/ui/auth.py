@@ -459,7 +459,11 @@ def render_signup_request_banner() -> None:
               .inline-banner b{ color:#0f172a; }
               .inline-banner .note{ color:#475569; font-size:.95rem; margin-top:6px; }
               .inline-banner ul{ margin:6px 0 0 1.1rem; }
-            </style>
+              .inline-banner .subnote{ color:#475569; font-size:.9rem; margin-top:4px; }
+              .inline-banner .cta{ display:inline-flex; align-items:center; gap:8px; margin-top:10px; }
+              .inline-banner .cta a{ background:#1f2d7a; color:#fff; padding:8px 14px; border-radius:8px; text-decoration:none; font-weight:600; }
+              .inline-banner .cta a:hover{ background:#23338f; }
+        </style>
             """,
             unsafe_allow_html=True,
         )
@@ -471,9 +475,15 @@ def render_signup_request_banner() -> None:
           <div><b>Which option should I use?</b></div>
           <ul>
             <li><b>Sign Up (Approved):</b> For students already added by your tutor/office. Use your <b>Student Code</b> and <b>registered email</b> to create a password.</li>
-            <li><b>Request Access:</b> New learner or not on the roster yet. Fill the form and we’ll set you up and email next steps.</li>
+            <li><b>Request Access:</b> New learner or not on the roster yet. Fill the form and we’ll set you up and email next steps.
+              <div class="subnote">If you signed up in the app first, click this option to finish activating your account.</div>
+            </li>
           </ul>
           <div class="note">Not sure? Choose <b>Request Access</b> — we’ll route you correctly.</div>
+          <div class="cta">
+            <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header"
+               target="_blank" rel="noopener">📝 Open Request Access Form</a>
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
