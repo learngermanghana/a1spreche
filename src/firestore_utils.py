@@ -12,7 +12,7 @@ re-used outside the monolithic :mod:`a1sprechen` module.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import logging
@@ -112,6 +112,14 @@ except Exception:  # pragma: no cover - Firestore may be unavailable
 
 db = None  # type: ignore
 
+_TYPING_TTL_SECONDS = 10.0
+
+
+def _ensure_utc(ts: datetime) -> datetime:
+    if ts.tzinfo is None:
+        return ts.replace(tzinfo=timezone.utc)
+    return ts.astimezone(timezone.utc)
+
 
 def _get_db():
     return db if db is not None else get_db()
@@ -142,6 +150,137 @@ def _draft_doc_ref(level: str, lesson_key: str, code: str):
         .collection("lessons")
         .document(lesson_key)
     )
+
+
+def _typing_collection(level: str, class_code: str, qid: str):
+    db = _get_db()
+    if db is None:
+        return None
+    return (
+        db.collection("class_board")
+        .document(level)
+        .collection("classes")
+        .document(class_code)
+        .collection("posts")
+        .document(qid)
+        .collection("typing")
+    )
+
+
+def _typing_doc_ref(level: str, class_code: str, qid: str, student_code: str):
+    collection = _typing_collection(level, class_code, qid)
+    if collection is None:
+        return None
+    return collection.document(student_code)
+
+
+def set_typing_indicator(
+    level: str,
+    class_code: str,
+    qid: str,
+    student_code: str,
+    student_name: str,
+    *,
+    is_typing: bool,
+    now: Optional[datetime] = None,
+) -> bool:
+    """Update the typing indicator state for a class board draft."""
+
+    if not (level and class_code and qid and student_code):
+        return False
+
+    doc_ref = _typing_doc_ref(level, class_code, qid, student_code)
+    if doc_ref is None:
+        return False
+
+    try:
+        if is_typing:
+            ts = _ensure_utc(now or datetime.now(timezone.utc))
+            doc_ref.set(
+                {
+                    "student_name": student_name or "",
+                    "last_seen": ts,
+                }
+            )
+        else:
+            doc_ref.delete()
+    except Exception as exc:  # pragma: no cover - network failures best-effort
+        logging.debug(
+            "Failed to update typing indicator for %s/%s/%s: %s",
+            level,
+            class_code,
+            qid,
+            exc,
+        )
+        return False
+
+    return True
+
+
+def _coerce_timestamp(value: Any) -> Optional[datetime]:
+    if isinstance(value, datetime):
+        return _ensure_utc(value)
+    if hasattr(value, "to_datetime"):
+        try:
+            return _ensure_utc(value.to_datetime())
+        except Exception:
+            return None
+    if isinstance(value, (int, float)):
+        try:
+            return datetime.fromtimestamp(float(value), timezone.utc)
+        except Exception:
+            return None
+    return None
+
+
+def fetch_active_typists(
+    level: str,
+    class_code: str,
+    qid: str,
+    *,
+    now: Optional[datetime] = None,
+    ttl_seconds: float = _TYPING_TTL_SECONDS,
+) -> List[Dict[str, Any]]:
+    """Return active typing indicators for ``qid`` filtered by ``ttl_seconds``."""
+
+    if ttl_seconds <= 0:
+        ttl_seconds = _TYPING_TTL_SECONDS
+
+    collection = _typing_collection(level, class_code, qid)
+    if collection is None:
+        return []
+
+    current_time = _ensure_utc(now or datetime.now(timezone.utc))
+    cutoff = current_time - timedelta(seconds=ttl_seconds)
+    try:
+        snapshots = list(collection.stream())
+    except Exception as exc:  # pragma: no cover - Firestore best-effort
+        logging.debug(
+            "Failed to read typing indicators for %s/%s/%s: %s",
+            level,
+            class_code,
+            qid,
+            exc,
+        )
+        return []
+
+    active: List[Dict[str, Any]] = []
+    for snap in snapshots:
+        try:
+            data = snap.to_dict() or {}
+        except Exception:
+            continue
+        ts = _coerce_timestamp(data.get("last_seen"))
+        if ts is None or ts < cutoff:
+            continue
+        entry = {
+            "student_code": getattr(snap, "id", ""),
+            "student_name": data.get("student_name", ""),
+            "last_seen": ts,
+        }
+        active.append(entry)
+
+    return active
 
 
 # ---- Draft lookups ---------------------------------------------------------

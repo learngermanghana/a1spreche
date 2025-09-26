@@ -23,6 +23,8 @@ def load_send_comment(stub_st):
         'uuid4': lambda: 'abcd1234',
         'time': time,
         'refresh_with_toast': lambda *a, **k: None,
+        '_clear_typing_state': lambda **kwargs: None,
+        'student_level': 'A1',
     }
     exec(compile(mod, 'a1sprechen.py', 'exec'), glb)
     return glb['send_comment']
