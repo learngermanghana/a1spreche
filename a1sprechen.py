@@ -5248,8 +5248,8 @@ if tab == "My Course":
                     box-shadow:inset 0 0 4px rgba(0,0,0,0.6), 0 2px 6px rgba(0,0,0,0.08);
                     font-family:'Chalkboard','Chalkduster','Comic Sans MS',cursive;
                     display:flex;align-items:center;justify-content:space-between;">
-                    <div style="font-weight:700;font-size:1.15rem;">💬 Class Board {_badge_html}</div>
-                    <div style="font-size:0.92rem;opacity:.9;">Share a post • Comment with classmates</div>
+                    <div style="font-weight:700;font-size:1.15rem;">💬 Class Board — {class_name} {_badge_html}</div>
+                    <div style="font-size:0.92rem;opacity:.9;">Share a post • Comment with {class_name} classmates</div>
                 </div>
                 ''',
                 unsafe_allow_html=True
