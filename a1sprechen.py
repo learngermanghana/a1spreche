@@ -5268,6 +5268,16 @@ if tab == "My Course":
                 paragraphs = [textwrap.fill(p, width=80) for p in text.split("\n\n")]
                 return "\n\n".join(paragraphs)
 
+            def escape_with_linebreaks(text: str) -> str:
+                """Escape text and convert newlines into HTML-friendly breaks."""
+                if not text:
+                    return ""
+                normalized = (text or "").replace("\r\n", "\n").replace("\r", "\n")
+                escaped = html.escape(normalized)
+                paragraphs = escaped.split("\n\n")
+                formatted = [p.replace("\n", "<br>") for p in paragraphs]
+                return "<p>" + "</p><p>".join(formatted) + "</p>" if formatted else ""
+
             # ---- Prepare lesson choices ----
             lesson_choices = []
             try:
@@ -5529,31 +5539,54 @@ if tab == "My Course":
                     ts_label = _fmt_ts(ts)
                     pin_html = " 📌" if q.get("pinned") else ""
                     topic_html = (
-                        f"<div style='font-weight:bold;color:#8d4de8;'>{q.get('topic','')}</div>"
+                        f"<div style='font-weight:bold;color:#8d4de8;'>{html.escape(str(q.get('topic', '')))}</div>"
                         if q.get("topic")
                         else ""
                     )
-                    content_html = format_post(q.get("content", "")).replace("\n", "<br>")
-                    link_html = (
-                        f"<div style='margin-top:4px;'><a href='{q.get('link')}' target='_blank'>{q.get('link')}</a></div>"
-                        if q.get("link")
-                        else ""
-                    )
-                    lesson = q.get("lesson")
+                    content_html = escape_with_linebreaks(q.get("content", ""))
+                    raw_link_value = q.get("link")
+                    raw_link = str(raw_link_value).strip() if raw_link_value else ""
+                    safe_link_html = ""
+                    if raw_link:
+                        parsed_link = urlparse(raw_link)
+                        if parsed_link.scheme.lower() in {"http", "https"}:
+                            safe_href = html.escape(raw_link, quote=True)
+                            safe_label = html.escape(raw_link)
+                            safe_link_html = (
+                                "<div style='margin-top:4px;'>"
+                                f"<a href='{safe_href}' target='_blank' rel='noopener noreferrer'>{safe_label}</a>"
+                                "</div>"
+                            )
+                    link_html = safe_link_html
+                    lesson_value = q.get("lesson")
+                    lesson = str(lesson_value) if lesson_value else ""
                     if lesson:
                         day_part = lesson.split(":")[0]
                         day = day_part.split()[1] if len(day_part.split()) > 1 else ""
                         course_link = build_course_day_link(day)
+                        safe_lesson = html.escape(lesson)
+                        link_markup = ""
+                        if course_link:
+                            safe_course_link = html.escape(course_link, quote=True)
+                            link_markup = (
+                                f" – <a href='{safe_course_link}' target='_blank' rel='noopener noreferrer'>View page</a>"
+                            )
                         lesson_html = (
-                            f"<div style='font-size:1.1rem;font-weight:600;color:#0f172a;'>📘 {lesson} – "
-                            f"<a href='{course_link}'>View page</a></div>"
+                            "<div style='font-size:1.1rem;font-weight:600;color:#0f172a;'>"
+                            f"📘 {safe_lesson}{link_markup}"
+                            "</div>"
                         )
                     else:
                         lesson_html = ""
+                    safe_author = html.escape(str(q.get("asked_by_name", "")))
+                    safe_timestamp = html.escape(ts_label) if ts_label else ""
+                    timestamp_html = (
+                        f"<span style='color:#aaa;'> • {safe_timestamp}</span>" if safe_timestamp else ""
+                    )
                     st.markdown(
                         f"<div style='padding:10px;background:#f8fafc;border:1px solid #ddd;border-radius:6px;margin:6px 0;font-size:1rem;line-height:1.5;'>"
-                        f"<b>{q.get('asked_by_name','')}</b>{pin_html}"
-                        f"<span style='color:#aaa;'> • {ts_label}</span>"
+                        f"<b>{safe_author}</b>{pin_html}"
+                        f"{timestamp_html}"
                         f"{lesson_html}"
                         f"{topic_html}"
                         f"{content_html}"
