@@ -5261,22 +5261,55 @@ if tab == "My Course":
                 except Exception:
                     return ""
 
+            def _normalize_legacy_post_content(text: str) -> str:
+                """Clean artifacts from legacy wrapped posts for display."""
+                if not text:
+                    return ""
+
+                normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+
+                # Remove leading double-spaces introduced by legacy rewrapping.
+                normalized = normalized.lstrip()
+                normalized = re.sub(r"(?m)(?<=\n)[ \t]{2,}(?=\S)", "", normalized)
+
+                if "·" in normalized:
+                    # Convert legacy middot bullets to regular bullets for consistency.
+                    normalized = re.sub(
+                        r"(?m)(^|\n)\s*·\s*",
+                        lambda m: (m.group(1) or "") + "• ",
+                        normalized,
+                    )
+                    normalized = normalized.replace(" · ", " • ")
+
+                return normalized
+
             def format_post(text: str) -> str:
                 """Normalize post text for consistent rendering."""
-                text = (text or "").strip()
-                text = re.sub(r"\n\s*\n+", "\n\n", text)
-                paragraphs = [textwrap.fill(p, width=80) for p in text.split("\n\n")]
-                return "\n\n".join(paragraphs)
+                cleaned = (text or "")
+                cleaned = cleaned.replace("\r\n", "\n").replace("\r", "\n")
+                cleaned = cleaned.strip()
+                cleaned = re.sub(r"\n\s*\n+", "\n\n", cleaned)
+                return cleaned
 
             def escape_with_linebreaks(text: str) -> str:
                 """Escape text and convert newlines into HTML-friendly breaks."""
                 if not text:
                     return ""
-                normalized = (text or "").replace("\r\n", "\n").replace("\r", "\n")
-                escaped = html.escape(normalized)
-                paragraphs = escaped.split("\n\n")
-                formatted = [p.replace("\n", "<br>") for p in paragraphs]
-                return "<p>" + "</p><p>".join(formatted) + "</p>" if formatted else ""
+
+                normalized = _normalize_legacy_post_content(text)
+                normalized = normalized.strip()
+                normalized = re.sub(r"\n\s*\n+", "\n\n", normalized)
+
+                paragraphs = [p for p in normalized.split("\n\n") if p != ""]
+                if not paragraphs:
+                    return ""
+
+                escaped_paragraphs: List[str] = []
+                for para in paragraphs:
+                    escaped = html.escape(para)
+                    escaped_paragraphs.append(escaped.replace("\n", "<br>"))
+
+                return "".join(f"<p>{p}</p>" for p in escaped_paragraphs)
 
             # ---- Prepare lesson choices ----
             lesson_choices = []
