@@ -3842,6 +3842,7 @@ if tab == "My Course":
                 st.subheader("✍️ Your Answer")
 
                 locked_warning_message = None
+                needs_resubmit = False
                 if locked:
                     locked_warning_message = (
                         "This box is locked because you have already submitted your work."
@@ -3891,6 +3892,8 @@ if tab == "My Course":
                             """,
                             unsafe_allow_html=True,
                         )
+                show_resubmit_hint = locked and needs_resubmit
+
                 # ---------- Editor (save on blur + debounce) ----------
                 st.text_area(
                     "Type all your answers here",
@@ -3971,6 +3974,11 @@ if tab == "My Course":
                         file_name=fname,
                         mime="text/plain",
                         help="Save a clean backup of your current draft"
+                    )
+
+                if show_resubmit_hint:
+                    st.info(
+                        "🔒 This box is locked because you already submitted. Scroll up to use the resubmit email link if you need to send an update."
                     )
 
                 with st.expander("📌 How to Submit", expanded=False):
