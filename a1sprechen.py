@@ -3867,6 +3867,11 @@ if tab == "My Course":
                         )
                         with st.container(border=True):
                             st.markdown("**Need to resubmit?**")
+                            st.caption(
+                                "The button opens a pre-filled email to learngermanghana@gmail.com. "
+                                "If your device doesn't launch an email app, copy the address and "
+                                "send your resubmission manually using the template above."
+                            )
                             st.link_button(
                                 "Resubmit via email",
                                 resubmit_link,
