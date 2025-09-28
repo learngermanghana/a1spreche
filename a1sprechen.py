@@ -3865,33 +3865,13 @@ if tab == "My Course":
                             "?subject=Assignment%20Resubmission"
                             f"&body={_urllib.quote(resubmit_body)}"
                         )
-                        st.markdown(
-                            f"""
-                            <div class="resubmit-box">
-                              <p>Need to resubmit?</p>
-                              <a href="{resubmit_link}">
-
-                                Resubmit via email
-                              </a>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
-                        st.markdown(
-                            """
-                            <style>
-                              .resubmit-box {
-                                margin-top: 1rem;
-                                padding: 1rem;
-                                background: #fff3cd;
-                                border-left: 4px solid #ffa726;
-                                border-radius: 8px;
-                              }
-                              .resubmit-box a { color: #d97706; font-weight: 600; }
-                            </style>
-                            """,
-                            unsafe_allow_html=True,
-                        )
+                        with st.container(border=True):
+                            st.markdown("**Need to resubmit?**")
+                            st.link_button(
+                                "Resubmit via email",
+                                resubmit_link,
+                                use_container_width=True,
+                            )
                 show_resubmit_hint = locked and needs_resubmit
 
                 # ---------- Editor (save on blur + debounce) ----------
