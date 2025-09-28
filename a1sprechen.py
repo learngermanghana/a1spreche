@@ -3865,18 +3865,14 @@ if tab == "My Course":
                             "?subject=Assignment%20Resubmission"
                             f"&body={_urllib.quote(resubmit_body)}"
                         )
-                        with st.container(border=True):
-                            st.markdown("**Need to resubmit?**")
-                            st.caption(
-                                "The button opens a pre-filled email to learngermanghana@gmail.com. "
-                                "If your device doesn't launch an email app, copy the address and "
-                                "send your resubmission manually using the template above."
-                            )
-                            st.link_button(
-                                "Resubmit via email",
-                                resubmit_link,
-                                use_container_width=True,
-                            )
+                        st.write("**Need to resubmit?**")
+                        st.text(
+                            "Email learngermanghana@gmail.com with your revised work using the template above."
+                        )
+                        st.markdown(f"[Email us your resubmission]({resubmit_link})")
+                        st.text(
+                            "If the link doesn't open an email app, copy the address and send your resubmission manually."
+                        )
                 show_resubmit_hint = locked and needs_resubmit
 
                 # ---------- Editor (save on blur + debounce) ----------
