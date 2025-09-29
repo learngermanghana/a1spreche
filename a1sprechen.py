@@ -480,6 +480,43 @@ def _show_missing_code_warning(
     )
 
 
+def render_resubmit_email_cta(
+    *,
+    lesson_info: Optional[Dict[str, Any]] = None,
+    student_name: str = "",
+    student_code: str = "",
+) -> None:
+    """Display the resubmission email instructions."""
+
+    info = lesson_info or {}
+    assignment_day = _safe_str(info.get("day"))
+    safe_name = _safe_str(student_name)
+    safe_code = _safe_str(student_code)
+    if safe_code.lower() == "demo001":
+        safe_code = ""
+
+    resubmit_body = (
+        "Paste your revised work here.\n\n"
+        f"Name: {safe_name}\n"
+        f"Student Code: {safe_code}\n"
+        f"Assignment number: {assignment_day}"
+    )
+    resubmit_link = (
+        "mailto:learngermanghana@gmail.com"
+        "?subject=Assignment%20Resubmission"
+        f"&body={_urllib.quote(resubmit_body)}"
+    )
+
+    st.write("**Need to resubmit?**")
+    st.text(
+        "Email learngermanghana@gmail.com with your revised work using the template above."
+    )
+    st.markdown(f"[Email us your resubmission]({resubmit_link})")
+    st.text(
+        "If the link doesn't open an email app, copy the address and send your resubmission manually."
+    )
+
+
 def _update_student_code_session_state(code: str) -> Dict[str, Any]:
     """Persist ``code`` into session state and return the updated row."""
 
@@ -3705,6 +3742,9 @@ if tab == "My Course":
             name_default = _safe_str(student_row.get("Name"))
             missing_code = (not code) or (code.lower() == "demo001")
 
+            locked_key = f"{lesson_key}_locked"
+            needs_resubmit_key = f"{lesson_key}__needs_resubmit"
+
             code_input_key = "submit_student_code_input"
             if missing_code:
                 _show_missing_code_warning(
@@ -3724,6 +3764,25 @@ if tab == "My Course":
                     code = manual_code
                     missing_code = False
                     st.success("Student code saved. You can now submit your work.")
+
+                resubmit_should_show = (
+                    st.session_state.get(locked_key, False)
+                    or bool(st.session_state.get(f"{lesson_key}__receipt"))
+                    or (st.session_state.get(needs_resubmit_key) is not None)
+                )
+                if resubmit_should_show:
+                    stored_row = st.session_state.get("student_row") or {}
+                    resubmit_name = name_default or _safe_str(stored_row.get("Name"))
+                    candidate_code = (
+                        st.session_state.get("student_code")
+                        or stored_row.get("StudentCode")
+                        or manual_code
+                    )
+                    render_resubmit_email_cta(
+                        lesson_info=info,
+                        student_name=resubmit_name,
+                        student_code=candidate_code,
+                    )
             else:
                 st.session_state[code_input_key] = code
 
@@ -3738,7 +3797,6 @@ if tab == "My Course":
                 email = st.text_input("Email", value=student_row.get('Email', ''))
 
                 db_locked = is_locked(student_level, code, lesson_key)
-                locked_key = f"{lesson_key}_locked"
                 success_notice_key = f"{lesson_key}__submit_success_notice"
                 if db_locked:
                     st.session_state[locked_key] = True
@@ -3847,33 +3905,20 @@ if tab == "My Course":
                     locked_warning_message = (
                         "This box is locked because you have already submitted your work."
                     )
-                    needs_resubmit = st.session_state.get(f"{lesson_key}__needs_resubmit")
+                    needs_resubmit = st.session_state.get(needs_resubmit_key)
                     if needs_resubmit is None:
                         answer_text = st.session_state.get(draft_key, "").strip()
                         MIN_WORDS = 20
                         needs_resubmit = len(answer_text.split()) < MIN_WORDS
-                    if needs_resubmit:
+                    needs_resubmit = bool(needs_resubmit)
+                    st.session_state[needs_resubmit_key] = needs_resubmit
 
-                        resubmit_body = (
-                            "Paste your revised work here.\n\n"
-                            f"Name: {name or ''}\n"
-                            f"Student Code: {code or ''}\n"
-                            f"Assignment number: {info['day']}"
-                        )
-                        resubmit_link = (
-                            "mailto:learngermanghana@gmail.com"
-                            "?subject=Assignment%20Resubmission"
-                            f"&body={_urllib.quote(resubmit_body)}"
-                        )
-                        st.write("**Need to resubmit?**")
-                        st.text(
-                            "Email learngermanghana@gmail.com with your revised work using the template above."
-                        )
-                        st.markdown(f"[Email us your resubmission]({resubmit_link})")
-                        st.text(
-                            "If the link doesn't open an email app, copy the address and send your resubmission manually."
-                        )
-                show_resubmit_hint = locked and needs_resubmit
+                    render_resubmit_email_cta(
+                        lesson_info=info,
+                        student_name=(name or name_default),
+                        student_code=code,
+                    )
+                show_resubmit_hint = locked and bool(needs_resubmit)
 
                 # ---------- Editor (save on blur + debounce) ----------
                 st.text_area(
