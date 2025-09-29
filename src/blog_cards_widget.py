@@ -43,6 +43,7 @@ def render_blog_cards(
     for it in items:
         title_txt = it.get("title", "") or ""
         href_txt = it.get("href", "") or "#"
+        safe_href = safe_http_url(href_txt) or "#"
 
         # Body: strip HTML to plain text; provide a readable fallback if empty
         raw_body = it.get("body", "") or ""
@@ -53,7 +54,7 @@ def render_blog_cards(
         img_url = safe_http_url(it.get("image") or "")
 
         title = esc(title_txt)
-        href = esc(href_txt)
+        href = esc(safe_href)
         body = esc(snippet)
 
         img_html = (
