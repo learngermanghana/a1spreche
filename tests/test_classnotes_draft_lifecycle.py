@@ -1,4 +1,4 @@
-import types
+import types  # required for types.SimpleNamespace
 from datetime import datetime
 from unittest.mock import MagicMock
 
