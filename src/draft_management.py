@@ -7,7 +7,7 @@ module so they can be reused and tested independently.
 
 from datetime import datetime, timezone as _timezone
 import time
-from typing import Tuple
+from typing import Optional, Tuple
 
 import streamlit as st
 
@@ -22,7 +22,11 @@ db = None  # type: ignore
 
 def _get_db():
     return db if db is not None else get_db()
-from src.firestore_utils import save_chat_draft_to_db, save_draft_to_db
+from src.firestore_utils import (
+    save_chat_draft_to_db,
+    save_draft_to_db,
+    load_draft_meta_from_db,
+)
 from src.utils.toasts import toast_ok, toast_err
 
 
@@ -34,6 +38,76 @@ def _draft_state_keys(draft_key: str) -> Tuple[str, str, str, str]:
         f"{draft_key}_saved",
         f"{draft_key}_saved_at",
     )
+
+
+def reset_local_draft_state(
+    draft_key: str,
+    text: str = "",
+    *,
+    saved: bool = False,
+    saved_at: Optional[datetime] = None,
+) -> None:
+    """Synchronize Streamlit session metadata for ``draft_key`` with ``text``."""
+
+    last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(
+        draft_key
+    )
+    st.session_state[draft_key] = text
+    st.session_state[last_val_key] = text
+    st.session_state[last_ts_key] = time.time()
+    st.session_state[saved_flag_key] = saved
+    st.session_state[saved_at_key] = saved_at
+
+
+def initialize_draft_state(code: str, draft_key: str) -> None:
+    """Ensure the local session holds the latest draft content for ``draft_key``."""
+
+    if draft_key not in st.session_state:
+        text, ts = load_draft_meta_from_db(code, draft_key)
+        reset_local_draft_state(
+            draft_key,
+            text=text or "",
+            saved=bool(text),
+            saved_at=ts,
+        )
+        return
+
+    last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(
+        draft_key
+    )
+    st.session_state.setdefault(draft_key, "")
+    st.session_state.setdefault(last_val_key, st.session_state[draft_key])
+    st.session_state.setdefault(last_ts_key, time.time())
+    st.session_state.setdefault(saved_flag_key, bool(st.session_state[draft_key]))
+    st.session_state.setdefault(saved_at_key, None)
+
+
+def autosave_draft_for_text(
+    code: str,
+    draft_key: str,
+    text: str,
+    *,
+    min_secs: float = 5.0,
+    min_delta: int = 30,
+    locked: bool = False,
+) -> None:
+    """Autosave wrapper that keeps tests focused on orchestration logic."""
+
+    autosave_maybe(
+        code,
+        draft_key,
+        text,
+        min_secs=min_secs,
+        min_delta=min_delta,
+        locked=locked,
+    )
+
+
+def clear_draft_after_post(code: str, draft_key: str) -> None:
+    """Persist an empty draft and clear local state after publishing."""
+
+    save_draft_to_db(code, draft_key, "")
+    reset_local_draft_state(draft_key, text="", saved=False, saved_at=None)
 
 
 def save_now(draft_key: str, code: str, show_toast: bool = True) -> None:
@@ -192,6 +266,10 @@ def on_cb_subtab_change() -> None:
 
 __all__ = [
     "_draft_state_keys",
+    "autosave_draft_for_text",
+    "clear_draft_after_post",
+    "initialize_draft_state",
+    "reset_local_draft_state",
     "save_now",
     "autosave_maybe",
     "load_notes_from_db",
