@@ -495,22 +495,25 @@ def render_resubmit_email_cta(
     if safe_code.lower() == "demo001":
         safe_code = ""
 
+    st.write("**Need to resubmit?**")
+    st.text(
+        "Email learngermanghana@gmail.com with your revised work using the template below."
+    )
+
     resubmit_body = (
         "Paste your revised work here.\n\n"
         f"Name: {safe_name}\n"
         f"Student Code: {safe_code}\n"
         f"Assignment number: {assignment_day}"
     )
+    st.code(resubmit_body, language="text")
+
     resubmit_link = (
         "mailto:learngermanghana@gmail.com"
         "?subject=Assignment%20Resubmission"
         f"&body={_urllib.quote(resubmit_body)}"
     )
 
-    st.write("**Need to resubmit?**")
-    st.text(
-        "Email learngermanghana@gmail.com with your revised work using the template above."
-    )
     st.markdown(f"[Email us your resubmission]({resubmit_link})")
     st.text(
         "If the link doesn't open an email app, copy the address and send your resubmission manually."
