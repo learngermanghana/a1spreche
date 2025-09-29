@@ -744,8 +744,11 @@ from src.firestore_utils import (
 )
 from src.draft_management import (
     _draft_state_keys,
+    clear_draft_after_post,
+    initialize_draft_state,
     save_now,
     autosave_maybe,
+    reset_local_draft_state,
     load_notes_from_db,
     save_notes_to_db,
     autosave_learning_note,
@@ -5367,15 +5370,17 @@ if tab == "My Course":
                 "If you're responding, scroll down to find the existing question and reply there. "
                 "When you want to post a new question, use the text box below."
             )
+            draft_key = "q_text"
+            initialize_draft_state(student_code, draft_key)
             if st.session_state.get("__clear_q_form"):
                 st.session_state.pop("__clear_q_form", None)
                 st.session_state["q_topic"] = ""
-                st.session_state["q_text"] = ""
                 st.session_state["q_link"] = ""
                 st.session_state["q_lesson"] = lesson_choices[0] if lesson_choices else ""
                 st.session_state.pop("q_ai_suggestion", None)
                 st.session_state.pop("q_ai_explanation", None)
                 st.session_state.pop("q_ai_diff", None)
+                reset_local_draft_state(draft_key)
                 _clear_typing_state(
                     level=student_level,
                     class_code=class_name,
@@ -5429,7 +5434,7 @@ if tab == "My Course":
                 )
                 if banner:
                     st.caption(banner)
-                new_q = st.text_area("Your content", key="q_text", height=160)
+                new_q = st.text_area("Your content", key=draft_key, height=160)
                 render_umlaut_pad("q_text", context="classboard_post")
                 _update_typing_state(
                     level=student_level,
@@ -5439,6 +5444,13 @@ if tab == "My Course":
                     student_code=student_code,
                     student_name=student_name,
                     text=new_q,
+                )
+                autosave_maybe(
+                    student_code,
+                    draft_key,
+                    st.session_state.get(draft_key, ""),
+                    min_secs=2.0,
+                    min_delta=12,
                 )
             with ai_col:
                 if st.button(
@@ -5499,6 +5511,7 @@ if tab == "My Course":
                         student_code=student_code,
                         student_name=student_name,
                     )
+                    clear_draft_after_post(student_code, draft_key)
                     st.session_state["__clear_q_form"] = True
                     st.success("Post published!")
                     refresh_with_toast()
