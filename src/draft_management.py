@@ -107,7 +107,15 @@ def clear_draft_after_post(code: str, draft_key: str) -> None:
     """Persist an empty draft and clear local state after publishing."""
 
     save_draft_to_db(code, draft_key, "")
-    reset_local_draft_state(draft_key, text="", saved=False, saved_at=None)
+    st.session_state.pop(draft_key, None)
+
+    last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(
+        draft_key
+    )
+    st.session_state[last_val_key] = ""
+    st.session_state[last_ts_key] = time.time()
+    st.session_state[saved_flag_key] = False
+    st.session_state[saved_at_key] = None
 
 
 def save_now(draft_key: str, code: str, show_toast: bool = True) -> None:
