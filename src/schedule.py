@@ -243,8 +243,8 @@ def get_a1_schedule():
             "instruction": "Use self-practice workbook and review answers for self-check.",
             "assignment": False,
             "schreiben_sprechen": {
-                "video": "",
-                "youtube_link": "",
+                "video": "https://youtu.be/LZ5AhNpkMrM",
+                "youtube_link": "https://youtu.be/LZ5AhNpkMrM",
                 "workbook_link": "https://drive.google.com/file/d/1-fDUBzfJ4n-fukM9ROPx-dSC7g9gamEb/view?usp=sharing"
             }
         },
