@@ -57,7 +57,7 @@ def test_clear_draft_after_post_resets_local_state(monkeypatch):
         "q_text"
     )
 
-    assert session_state["q_text"] == ""
+    assert "q_text" not in session_state
     assert session_state[last_val_key] == ""
     assert session_state[saved_flag_key] is False
     assert session_state[saved_at_key] is None
