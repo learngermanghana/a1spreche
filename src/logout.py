@@ -8,6 +8,8 @@ import streamlit as st
 
 from falowen.sessions import destroy_session_token
 
+from .firestore_utils import save_draft_to_db
+
 
 def do_logout(
     *,
@@ -16,6 +18,13 @@ def do_logout(
     logger: Any = logging,
 ) -> None:
     """Clear session information and revoke the current session token."""
+    student_code = ""
+
+    try:
+        student_code = st_module.session_state.get("student_code", "") or ""
+    except Exception:
+        logger.exception("Failed to capture student code on logout")
+
     try:
         prev_token = st_module.session_state.get("session_token", "")
         if prev_token:
@@ -32,6 +41,22 @@ def do_logout(
         "falowen_chat_draft_key",
     }
     draft_prefixes = ("draft_", "falowen_chat_draft_")
+
+    try:
+        for key in list(st_module.session_state.keys()):
+            if key.startswith("classroom_comment_draft_"):
+                value = st_module.session_state.get(key)
+                if value:
+                    try:
+                        save_draft_to_db(student_code, key, value)
+                    except Exception:
+                        logger.exception(
+                            "Failed to persist comment draft %s for %s",
+                            key,
+                            student_code,
+                        )
+    except Exception:
+        logger.exception("Failed to persist classroom comment drafts on logout")
 
     for key in list(st_module.session_state.keys()):
         should_clear = False
