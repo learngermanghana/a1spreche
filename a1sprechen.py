@@ -50,6 +50,7 @@ from src.topic_coach_persistence import (
     load_topic_coach_state,
     persist_topic_coach_state,
 )
+from src.forum_timer import _to_datetime_any, build_forum_timer_indicator
 from src.level_sync import sync_level_state
 
 from flask import Flask
@@ -5211,38 +5212,6 @@ if tab == "My Course":
                 except Exception:
                     _qdocs = list(board_base.order_by("created_at", direction="DESCENDING").limit(250).stream())
 
-                def _to_datetime_any(v):
-                    if v is None:
-                        return None
-                    try:
-                        if hasattr(v, "to_datetime"):
-                            return v.to_datetime()
-                    except Exception:
-                        dt_val = None
-                    if dt_val is None:
-                        try:
-                            if hasattr(v, "seconds"):
-                                dt_val = _dt.fromtimestamp(int(v.seconds), _timezone.utc)
-                        except Exception:
-                            dt_val = None
-                    if dt_val is None:
-                        try:
-                            if _dateparse:
-                                dt_val = _dateparse.parse(str(v))
-                        except Exception:
-                            dt_val = None
-                    if dt_val is None:
-                        for fmt in ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"):
-                            try:
-                                dt_val = _dt.strptime(str(v), fmt)
-                                break
-                            except Exception:
-                                continue
-                    if dt_val and dt_val.tzinfo is None:
-                        dt_val = dt_val.replace(tzinfo=_timezone.utc)
-                    return dt_val
-                   
-
                 for _doc in _qdocs:
                     _d = (_doc.to_dict() or {})
                     _total += 1
@@ -5380,6 +5349,7 @@ if tab == "My Course":
                 st.session_state.pop("q_ai_suggestion", None)
                 st.session_state.pop("q_ai_explanation", None)
                 st.session_state.pop("q_ai_diff", None)
+                st.session_state["q_forum_timer_minutes"] = 0
                 reset_local_draft_state(draft_key)
                 _clear_typing_state(
                     level=student_level,
@@ -5396,6 +5366,17 @@ if tab == "My Course":
             )
             topic = st.text_input("Topic (optional)", key="q_topic")
             link = st.text_input("Link (optional)", key="q_link")
+            timer_key = "q_forum_timer_minutes"
+            if timer_key not in st.session_state:
+                st.session_state[timer_key] = 0
+            if IS_ADMIN:
+                st.number_input(
+                    "Forum timer (minutes)",
+                    min_value=0,
+                    step=5,
+                    key=timer_key,
+                    help="Automatically close replies after this many minutes.",
+                )
 
             st.markdown(
                 """
@@ -5494,6 +5475,9 @@ if tab == "My Course":
                         "link": (link or "").strip(),
                         "pinned": False,
                     }
+                    timer_minutes_val = int(st.session_state.get("q_forum_timer_minutes", 0) or 0)
+                    if timer_minutes_val > 0:
+                        payload["expires_at"] = _dt.now(UTC) + timedelta(minutes=timer_minutes_val)
                     board_base.document(q_id).set(payload)
                     preview = (formatted_q[:180] + "…") if len(formatted_q) > 180 else formatted_q
                     topic_tag = f" • Topic: {payload['topic']}" if payload["topic"] else ""
@@ -5513,6 +5497,7 @@ if tab == "My Course":
                     )
                     clear_draft_after_post(student_code, draft_key)
                     st.session_state["__clear_q_form"] = True
+                    st.session_state["q_forum_timer_minutes"] = 0
                     st.success("Post published!")
                     refresh_with_toast()
 
@@ -5616,11 +5601,14 @@ if tab == "My Course":
             if not questions:
                 st.info("No posts yet.")
             else:
+                now_for_timer = _dt.now(UTC)
                 for idx, q in enumerate(questions):
                     q_id = q.get("id", "")
                     ts = q.get("timestamp")
                     ts_label = _fmt_ts(ts)
                     pin_html = " 📌" if q.get("pinned") else ""
+                    timer_info = build_forum_timer_indicator(q.get("expires_at"), now=now_for_timer)
+                    timer_minutes_remaining = int(timer_info.get("minutes") or 0)
                     topic_html = (
                         f"<div style='font-weight:bold;color:#8d4de8;'>{html.escape(str(q.get('topic', '')))}</div>"
                         if q.get("topic")
@@ -5666,17 +5654,32 @@ if tab == "My Course":
                     timestamp_html = (
                         f"<span style='color:#aaa;'> • {safe_timestamp}</span>" if safe_timestamp else ""
                     )
-                    st.markdown(
-                        f"<div style='padding:10px;background:#f8fafc;border:1px solid #ddd;border-radius:6px;margin:6px 0;font-size:1rem;line-height:1.5;'>"
+                    timer_html = ""
+                    timer_label = timer_info.get("label") or ""
+                    if timer_info.get("status") == "open" and timer_label:
+                        timer_html = (
+                            "<div style='margin-top:4px;font-size:0.95rem;font-weight:600;color:#dc2626;'>"
+                            f"{html.escape(str(timer_label))}"
+                            "</div>"
+                        )
+                    elif timer_info.get("status") == "closed" and timer_label:
+                        timer_html = (
+                            "<div style='margin-top:4px;font-size:0.95rem;font-weight:600;color:#64748b;'>"
+                            f"{html.escape(str(timer_label))}"
+                            "</div>"
+                        )
+                    post_html = (
+                        "<div style='padding:10px;background:#f8fafc;border:1px solid #ddd;border-radius:6px;margin:6px 0;font-size:1rem;line-height:1.5;'>"
                         f"<b>{safe_author}</b>{pin_html}"
                         f"{timestamp_html}"
+                        f"{timer_html}"
                         f"{lesson_html}"
                         f"{topic_html}"
                         f"{content_html}"
                         f"{link_html}"
-                        f"</div>",
-                        unsafe_allow_html=True
+                        "</div>"
                     )
+                    st.markdown(post_html, unsafe_allow_html=True)
                     clear_q_edit_flag = f"__clear_q_edit_{q_id}"
                     if st.session_state.pop(clear_q_edit_flag, False):
                         for _k in [
@@ -5688,6 +5691,7 @@ if tab == "My Course":
                             f"q_edit_topic_input_{q_id}",
                             f"q_edit_link_input_{q_id}",
                             f"q_edit_lesson_input_{q_id}",
+                            f"q_edit_timer_input_{q_id}",
                         ]:
                             st.session_state.pop(_k, None)
                         _clear_typing_state(
@@ -5709,6 +5713,7 @@ if tab == "My Course":
                                 st.session_state[f"q_edit_topic_{q_id}"] = q.get("topic", "")
                                 st.session_state[f"q_edit_link_{q_id}"] = q.get("link", "")
                                 st.session_state[f"q_edit_lesson_{q_id}"] = q.get("lesson", "")
+                                st.session_state[f"q_edit_timer_input_{q_id}"] = timer_minutes_remaining
                         with qc2:
                             if st.button("🗑️ Delete", key=f"q_del_btn_{q_id}"):
                                 try:
@@ -5761,6 +5766,15 @@ if tab == "My Course":
                                     value=st.session_state.get(f"q_edit_link_{q_id}", ""),
                                     key=f"q_edit_link_input_{q_id}"
                                 )
+                                if f"q_edit_timer_input_{q_id}" not in st.session_state:
+                                    st.session_state[f"q_edit_timer_input_{q_id}"] = timer_minutes_remaining
+                                if IS_ADMIN:
+                                    st.number_input(
+                                        "Forum timer (minutes)",
+                                        min_value=0,
+                                        step=5,
+                                        key=f"q_edit_timer_input_{q_id}",
+                                    )
                                 banner = _format_typing_banner(
                                     fetch_active_typists(student_level, class_name, q_id),
                                     student_code,
@@ -5787,12 +5801,23 @@ if tab == "My Course":
                             if save_edit:
                                 formatted_edit = format_post(new_text)
                                 if formatted_edit:
-                                    board_base.document(q_id).update({
+                                    update_payload = {
                                         "content": formatted_edit,
                                         "topic": (new_topic or "").strip(),
                                         "link": (new_link or "").strip(),
                                         "lesson": new_lesson,
-                                    })
+                                    }
+                                    if IS_ADMIN:
+                                        timer_minutes_updated = int(
+                                            st.session_state.get(f"q_edit_timer_input_{q_id}", 0) or 0
+                                        )
+                                        if timer_minutes_updated > 0:
+                                            update_payload["expires_at"] = _dt.now(UTC) + timedelta(
+                                                minutes=timer_minutes_updated
+                                            )
+                                        else:
+                                            update_payload["expires_at"] = firestore.DELETE_FIELD
+                                    board_base.document(q_id).update(update_payload)
                                     _notify_slack(
                                         f"✏️ *Class Board post edited* — {class_name}\n",
                                         f"*By:* {student_name} ({student_code}) • QID: {q_id}\n",
