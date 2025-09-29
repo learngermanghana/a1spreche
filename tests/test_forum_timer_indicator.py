@@ -1,6 +1,10 @@
 from datetime import datetime, timedelta, timezone
 
-from src.forum_timer import build_forum_timer_indicator, to_datetime_any
+from src.forum_timer import (
+    build_forum_reply_indicator_text,
+    build_forum_timer_indicator,
+    to_datetime_any,
+)
 
 
 def test_to_datetime_any_handles_naive_datetime():
@@ -27,3 +31,25 @@ def test_build_forum_timer_indicator_closed():
     assert info["status"] == "closed"
     assert info["minutes"] == 0
     assert info["label"] == "Forum closed"
+
+
+def test_build_forum_reply_indicator_text_mirrors_open_label():
+    info = {
+        "status": "open",
+        "label": "⏳ 7 minutes left",
+        "minutes": 7,
+    }
+    assert build_forum_reply_indicator_text(info) == "⏳ 7 minutes left"
+
+
+def test_build_forum_reply_indicator_text_handles_closed_state():
+    info = {
+        "status": "closed",
+        "label": "Forum closed",
+        "minutes": 0,
+    }
+    assert build_forum_reply_indicator_text(info) == "Forum closed"
+
+
+def test_build_forum_reply_indicator_text_empty_when_no_timer():
+    assert build_forum_reply_indicator_text({"status": "none", "label": ""}) == ""

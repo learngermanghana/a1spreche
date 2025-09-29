@@ -89,7 +89,24 @@ def build_forum_timer_indicator(
     }
 
 
+def build_forum_reply_indicator_text(timer_info: Optional[Dict[str, Any]]) -> str:
+    """Return the countdown/closed label to display near the reply composer."""
+    if not timer_info:
+        return ""
+
+    status = timer_info.get("status")
+    label = timer_info.get("label") or ""
+    if status in {"open", "closed"} and label:
+        return str(label)
+    return ""
+
+
 # Backwards-compatible private aliases for modules expecting these helpers
 _to_datetime_any = to_datetime_any
 
-__all__ = ["to_datetime_any", "_to_datetime_any", "build_forum_timer_indicator"]
+__all__ = [
+    "to_datetime_any",
+    "_to_datetime_any",
+    "build_forum_timer_indicator",
+    "build_forum_reply_indicator_text",
+]

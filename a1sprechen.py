@@ -50,7 +50,11 @@ from src.topic_coach_persistence import (
     load_topic_coach_state,
     persist_topic_coach_state,
 )
-from src.forum_timer import _to_datetime_any, build_forum_timer_indicator
+from src.forum_timer import (
+    _to_datetime_any,
+    build_forum_reply_indicator_text,
+    build_forum_timer_indicator,
+)
 from src.level_sync import sync_level_state
 
 from flask import Flask
@@ -6044,6 +6048,17 @@ if tab == "My Course":
                     )
                     if banner:
                         st.caption(banner)
+                    reply_timer_label = build_forum_reply_indicator_text(timer_info)
+                    if reply_timer_label:
+                        reply_color = "#dc2626" if timer_info.get("status") == "open" else "#64748b"
+                        st.markdown(
+                            "<div style='font-size:0.95rem;font-weight:600;color:%s;margin:6px 0 -4px;'>%s</div>"
+                            % (
+                                reply_color,
+                                html.escape(str(reply_timer_label)),
+                            ),
+                            unsafe_allow_html=True,
+                        )
                     st.text_area(
                         "Reply to this thread…",
                         key=draft_key,
