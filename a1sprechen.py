@@ -630,6 +630,42 @@ def render_umlaut_pad(widget_key: str, *, context: str, disabled: bool = False) 
     markdown_fn(body)
 
 
+def render_message(role: str, text: str) -> None:
+    """Render a chat bubble for ``role`` (``"assistant"`` or ``"user"``)."""
+
+    markdown_fn = getattr(st, "markdown", None)
+    if markdown_fn is None:
+        return
+
+    role_key = (role or "").strip().lower()
+
+    content = _safe_str(text)
+    content_html = html.escape(content).replace("\n", "<br>")
+
+    if role_key == "assistant":
+        label_html = "<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>"
+        bubble_html = f"<div class='bubble-a'>{content_html}</div>"
+    else:
+        student_label = (
+            _safe_str(
+                st.session_state.get("student_display_name")
+                or st.session_state.get("student_name")
+                or st.session_state.get("student_code")
+                or "You",
+            )
+            or "You"
+        )
+        label_html = (
+            "<div class='bubble-wrap'><div class='lbl-u'>"
+            f"{html.escape(student_label)}"
+            "</div></div>"
+        )
+        bubble_html = f"<div class='bubble-u'>{content_html}</div>"
+
+    markdown_fn(label_html, unsafe_allow_html=True)
+    markdown_fn(bubble_html, unsafe_allow_html=True)
+
+
 
 def ensure_student_row(*, stop_if_missing: bool = False) -> Dict[str, Any]:
     """Ensure ``st.session_state['student_row']`` is populated from the roster."""
