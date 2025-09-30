@@ -5501,7 +5501,6 @@ if tab == "My Course":
                     )
                     clear_draft_after_post(student_code, draft_key)
                     st.session_state["__clear_q_form"] = True
-                    st.session_state["q_forum_timer_minutes"] = 0
                     st.success("Post published!")
                     refresh_with_toast()
 
