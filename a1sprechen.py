@@ -5733,11 +5733,6 @@ if tab == "My Course":
                     show_timer_warning = (
                         timer_info.get("status") == "open" and timer_minutes_remaining == 1
                     )
-                    if show_timer_warning:
-                        st.info(
-                            "⏳ Time up soon—replies close in under a minute.",
-                            icon="⏳",
-                        )
 
                     clear_q_edit_flag = f"__clear_q_edit_{q_id}"
                     if st.session_state.pop(clear_q_edit_flag, False):
@@ -6113,6 +6108,11 @@ if tab == "My Course":
                                 html.escape(str(reply_timer_label)),
                             ),
                             unsafe_allow_html=True,
+                        )
+                    if show_timer_warning:
+                        st.info(
+                            "⏳ Time up soon—replies close in under a minute.",
+                            icon="⏳",
                         )
                     st.text_area(
                         "Reply to this thread…",
