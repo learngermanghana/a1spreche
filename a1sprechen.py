@@ -7775,6 +7775,9 @@ if tab == "Vocab Trainer":
             st.markdown('<div class="sticky-search">', unsafe_allow_html=True)
             cols = st.columns([6, 3, 3])
             with cols[0]:
+                pending_dict_q = st.session_state.pop("dict_q_pending", None)
+                if pending_dict_q is not None:
+                    st.session_state["dict_q"] = pending_dict_q
                 q = st.text_input("🔎 Search (German or English)", key="dict_q", placeholder="e.g., Wochenende, bakery, spielen")
             with cols[1]:
                 search_in = st.selectbox("Field", ["Both", "German", "English"], 0, key="dict_field")
@@ -7864,7 +7867,7 @@ if tab == "Vocab Trainer":
             for i, s in enumerate(suggestions[:5]):
                 with bcols[i]:
                     if st.button(s, key=f"sugg_{i}"):
-                        st.session_state["dict_q"] = s
+                        st.session_state["dict_q_pending"] = s
                         refresh_with_toast()
 
         levels_label = ", ".join(levels) if levels else "none"
