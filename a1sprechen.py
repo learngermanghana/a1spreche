@@ -5270,7 +5270,7 @@ if tab == "My Course":
 
             def _fmt_ts(ts):
                 try:
-                    return ts.strftime("%d %b %H:%M")
+                    return ts.strftime("%d %b %H:%M:%S")
                 except Exception:
                     return ""
 
