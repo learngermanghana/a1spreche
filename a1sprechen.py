@@ -7209,6 +7209,11 @@ if tab == "Chat • Grammar • Exams":
             unsafe_allow_html=True,
         )
 
+        st.markdown(
+            '<a class="btn" href="https://blog.falowen.app/blog/a1-speaking-exam-guide/" target="_blank" rel="noopener">📘 Read the A1 Speaking Exam Guide</a>',
+            unsafe_allow_html=True,
+        )
+
         # Button to your speaking practice page (PRACTICE_URL)
         st.markdown(
             f'<a class="btn secondary" href="{PRACTICE_URL}" target="_blank" rel="noopener">📝 Open Speaking Practice</a>',
