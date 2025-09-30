@@ -6119,8 +6119,6 @@ if tab == "My Course":
                         key=draft_key,
                         placeholder="Reply to this thread…",
                         label_visibility="collapsed",
-                        on_change=save_now,
-                        args=(draft_key, student_code),
                     )
                     render_umlaut_pad(
                         draft_key,
@@ -6153,6 +6151,7 @@ if tab == "My Course":
                             if not current_text.strip():
                                 st.warning("Type a reply first.")
                             else:
+                                save_now(draft_key, student_code, show_toast=False)
                                 send_comment(
                                     q_id,
                                     student_code,
