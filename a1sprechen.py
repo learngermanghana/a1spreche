@@ -913,11 +913,14 @@ def inject_notice_css():
 
 
 def calc_blog_height(num_posts: int) -> int:
-    """Return the container height needed for a blog card grid.
+    """Return the container height needed for the desktop blog card grid.
 
-    Each card occupies roughly ``312px`` in height and rows are separated by a
-    ``16px`` gap.  The function computes the minimum height necessary to show
-    all posts without leaving excessive blank space.
+    The blog cards render inside a CSS grid defined as
+    ``repeat(auto-fill, minmax(240px, 1fr))`` with a ``16px`` gap and a maximum
+    width of ``1120px``.  On wide viewports this produces four columns, so each
+    row requires space for four cards plus the gaps between them.  Each card is
+    approximately ``312px`` tall.  The function computes the minimum height
+    necessary to show all posts without leaving excessive blank space.
 
     Parameters
     ----------
@@ -932,7 +935,14 @@ def calc_blog_height(num_posts: int) -> int:
 
     CARD_HEIGHT = 312
     ROW_GAP = 16
-    CARDS_PER_ROW = 3
+    CARD_MIN_WIDTH = 240
+    GRID_MAX_WIDTH = 1120
+
+    # Desktop layout shows at most four columns: floor((max_width + gap) /
+    # (min_width + gap)) = floor((1120 + 16) / (240 + 16)) = 4.
+    CARDS_PER_ROW = max(
+        1, math.floor((GRID_MAX_WIDTH + ROW_GAP) / (CARD_MIN_WIDTH + ROW_GAP))
+    )
 
     if num_posts <= 0:
         return 0
