@@ -141,6 +141,9 @@ def render_vocab_dictionary(student_level_locked: str) -> None:
         st.markdown('<div class="sticky-search">', unsafe_allow_html=True)
         cols = st.columns([6, 3, 3])
         with cols[0]:
+            pending_dict_q = st.session_state.pop("dict_q_pending", None)
+            if pending_dict_q is not None:
+                st.session_state["dict_q"] = pending_dict_q
             query = st.text_input(
                 "🔎 Search (German or English)",
                 key="dict_q",
@@ -265,7 +268,7 @@ def render_vocab_dictionary(student_level_locked: str) -> None:
         for idx, suggestion in enumerate(suggestions[:5]):
             with button_cols[idx]:
                 if st.button(suggestion, key=f"sugg_{idx}"):
-                    st.session_state["dict_q"] = suggestion
+                    st.session_state["dict_q_pending"] = suggestion
                     refresh_with_toast()
 
     levels_label = ", ".join(levels) if levels else "none"
