@@ -1060,7 +1060,7 @@ def login_page():
         """, unsafe_allow_html=True)
 
     # Blog posts / announcements
-    blog_posts = fetch_blog_feed(limit=3)[:3]
+    blog_posts = fetch_blog_feed(limit=4)[:4]
     if blog_posts:
         st.markdown("---")
         st.markdown(
