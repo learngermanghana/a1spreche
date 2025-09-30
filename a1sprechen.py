@@ -5451,7 +5451,6 @@ if tab == "My Course":
                     st.session_state["q_ai_explanation"] = explanation
                     st.session_state["q_ai_diff"] = diff_with_markers(original, improved)
                 st.session_state[ai_flag] = False
-                st.session_state["need_rerun"] = True
 
             ta_col, ai_col = st.columns([3, 1])
             with ta_col:
@@ -5490,7 +5489,7 @@ if tab == "My Course":
                     disabled=st.session_state.get(ai_flag, False),
                 ):
                     st.session_state[ai_flag] = True
-                    st.session_state["need_rerun"] = True
+                    st.rerun()
 
             if st.session_state.get("q_ai_diff"):
                 st.markdown(st.session_state["q_ai_diff"], unsafe_allow_html=True)
@@ -6087,7 +6086,6 @@ if tab == "My Course":
                         with st.spinner("Correcting with AI..."):
                             apply_ai_correction(q_id, draft_key, current_text)
                         st.session_state[ai_flag] = False
-                        st.session_state["need_rerun"] = True
                         current_text = st.session_state.get(draft_key, "")
                         if not isinstance(current_text, str):
                             current_text = ""
@@ -6174,7 +6172,7 @@ if tab == "My Course":
                             width="stretch",
                         ):
                             st.session_state[ai_flag] = True
-                            st.session_state["need_rerun"] = True
+                            st.rerun()
 
                     if idx < len(questions) - 1:
                         st.divider()
