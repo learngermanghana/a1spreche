@@ -1070,7 +1070,7 @@ def login_page():
         height = globals().get("calc_blog_height", lambda n: 380)(len(blog_posts))
         render_blog_cards(blog_posts, height=height)
         st.markdown(
-            '<div style="text-align:center;margin-top:8px;">'
+            '<div style="text-align:center;margin:4px 0 0;">'
             '<a href="https://blog.falowen.app/" target="_blank" rel="noopener">Read more</a>'
             '</div>',
             unsafe_allow_html=True,
