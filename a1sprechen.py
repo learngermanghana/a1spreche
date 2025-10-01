@@ -6165,7 +6165,7 @@ if tab == "My Course":
                                     saved_flag_key,
                                     saved_at_key,
                                 )
-                                st.session_state["need_rerun"] = True
+                                st.rerun()
 
                     with ai_col:
                         if st.button(
