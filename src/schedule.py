@@ -404,7 +404,7 @@ def get_a1_schedule():
             "schreiben_sprechen": {
                 "video": "https://youtu.be/IVtUc9T3o0Y",
                 "youtube_link": "https://youtu.be/IVtUc9T3o0Y",
-                "workbook_link": "https://drive.google.com/file/d/1953B01hB9Ex7LXXU0qIaGU8xgCDjpSm4/view?usp=sharing"
+                "workbook_link": "https://drive.google.com/file/d/1p1eI_lwAHj6I9BD-Nw3TAdnemEskUUAq/view?usp=sharing"
             }
         },
         # DAY 16
