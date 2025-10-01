@@ -402,8 +402,8 @@ def get_a1_schedule():
             "instruction": "After completing this chapter, open Chat • Grammar • Exams, pick A1 as your level, and ask for Teil 3-style prompts to practice.",
             "grammar_topic": "Imperative",
             "schreiben_sprechen": {
-                "video": "https://youtu.be/IVtUc9T3o0Y",
-                "youtube_link": "https://youtu.be/IVtUc9T3o0Y",
+                "video": "https://youtu.be/1g1r5_dPvkk",
+                "youtube_link": "https://youtu.be/1g1r5_dPvkk",
                 "workbook_link": "https://drive.google.com/file/d/1p1eI_lwAHj6I9BD-Nw3TAdnemEskUUAq/view?usp=sharing"
             }
         },
