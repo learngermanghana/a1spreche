@@ -502,7 +502,7 @@ def render_resubmit_email_cta(
 
     st.write("**Need to resubmit?**")
     st.text(
-        "Email learngermanghana@gmail.com with your revised work using the template below."
+        "Click the link below to email learngermanghana@gmail.com with your revised work."
     )
 
     resubmit_body = (
@@ -511,7 +511,6 @@ def render_resubmit_email_cta(
         f"Student Code: {safe_code}\n"
         f"Assignment number: {assignment_day}"
     )
-    st.code(resubmit_body, language="text")
 
     resubmit_link = (
         "mailto:learngermanghana@gmail.com"
@@ -519,7 +518,12 @@ def render_resubmit_email_cta(
         f"&body={_urllib.quote(resubmit_body)}"
     )
 
-    st.markdown(f"[Email us your resubmission]({resubmit_link})")
+    st.markdown(
+        f"[Click here to open a pre-filled resubmission email]({resubmit_link})"
+    )
+    st.text(
+        "The email will already include your name, student code, and assignment number—just paste your revised work before sending."
+    )
     st.text(
         "If the link doesn't open an email app, copy the address and send your resubmission manually."
     )
