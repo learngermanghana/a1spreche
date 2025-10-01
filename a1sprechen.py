@@ -1353,8 +1353,7 @@ def render_sidebar_published():
         with st.sidebar.expander("🔔 Telegram notifications", expanded=False):
             st.markdown(
                 """
-- [Open the Falowen bot](https://t.me/falowenbot) and tap **Start**
-- Register: `/register <student_code>` (e.g. `/register kwame202`)
+- Open the Falowen bot link or search for `@falowenbot`, tap **Start**, then type your student code (e.g. `kwame202`)
 - To deactivate: send `/stop`
                 """
             )
