@@ -509,8 +509,8 @@ def get_a1_schedule():
             "instruction": "Write all the two letters in this document and send to your tutor for corrections",
             "grammar_topic": "Formal and Informal Letter",
             "schreiben_sprechen": {
-                "video": "https://youtu.be/n9Y0kt_XRZY",
-                "youtube_link": "https://youtu.be/n9Y0kt_XRZY",
+                "video": "https://youtu.be/2iJQFYGUqRE",
+                "youtube_link": "https://youtu.be/2iJQFYGUqRE",
                 "workbook_link": "https://drive.google.com/file/d/1SjaDH1bYR7O-BnIbM2N82XOEjeLCfPFb/view?usp=sharing"
             }
         },
