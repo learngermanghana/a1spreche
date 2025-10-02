@@ -7,7 +7,7 @@ been extracted so they can be imported independently and tested.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Iterable, Optional, Dict, Any
+from typing import Iterable, Optional
 from collections import Counter
 
 import os
@@ -134,57 +134,6 @@ def vocab_attempt_exists(student_code: str, session_id: str) -> bool:
     return any(h.get("session_id") == session_id for h in history)
 
 
-def _merge_schedule_updates(
-    existing: Dict[str, Any],
-    updates: Optional[Dict[str, Optional[Dict[str, Any]]]],
-) -> Dict[str, Any]:
-    """Merge per-word schedule *updates* into *existing* data."""
-
-    merged: Dict[str, Any] = {str(k): dict(v) for k, v in (existing or {}).items()}
-    if not updates:
-        return merged
-
-    for raw_word, payload in updates.items():
-        word = str(raw_word).strip()
-        if not word:
-            continue
-        if payload is None:
-            merged.pop(word, None)
-            continue
-        cleaned = {k: v for k, v in payload.items() if v is not None}
-        merged[word] = cleaned
-    return merged
-
-
-def update_vocab_schedule(
-    student_code: str, updates: Dict[str, Optional[Dict[str, Any]]]
-) -> None:
-    """Apply *updates* to a student's stored vocabulary schedule."""
-
-    if not updates:
-        return
-
-    _db = _get_db()
-    if _db is None:
-        st.warning("Firestore not initialized; skipping schedule update.")
-        return
-
-    doc_ref = _db.collection("vocab_stats").document(student_code)
-    try:
-        doc = doc_ref.get()
-    except Exception as e:  # pragma: no cover - firestore failure
-        st.warning(f"Could not load existing schedule ({e}); skipping update.")
-        return
-
-    data = doc.to_dict() if doc.exists else {}
-    schedule = _merge_schedule_updates(data.get("schedule", {}), updates)
-
-    try:
-        doc_ref.set({"schedule": schedule}, merge=True)
-    except Exception as e:  # pragma: no cover - firestore failure
-        st.warning(f"Could not update schedule ({e}).")
-
-
 def save_vocab_attempt(
     student_code: str,
     level: str,
@@ -193,7 +142,6 @@ def save_vocab_attempt(
     practiced_words: Iterable[str],
     session_id: Optional[str] = None,
     incorrect_words: Optional[Iterable[str]] = None,
-    schedule_updates: Optional[Dict[str, Optional[Dict[str, Any]]]] = None,
 ) -> None:
     """Persist one vocab practice attempt to Firestore."""
 
@@ -219,7 +167,6 @@ def save_vocab_attempt(
     data = doc.to_dict() if doc.exists else {}
     history = data.get("history", [])
     total_sessions = data.get("total_sessions", len(history))
-    schedule = _merge_schedule_updates(data.get("schedule", {}), schedule_updates)
 
     
     raw_total = int(total) if total is not None else 0
@@ -244,27 +191,19 @@ def save_vocab_attempt(
             if text and text not in seen_incorrect:
                 seen_incorrect.append(text)
 
-    words_list = list(practiced_words or [])
-    should_record = bool(words_list) or total_int or correct_int
-    timestamp = datetime.now(tz=timezone.utc).isoformat(timespec="minutes")
-    if should_record:
-        attempt = {
-            "level": level,
-            "total": total_int,
-            "correct": correct_int,
-            "practiced_words": words_list,
-            "timestamp": timestamp,
-            "session_id": session_id,
-            "incorrect_words": seen_incorrect,
-        }
+    attempt = {
+        "level": level,
+        "total": total_int,
+        "correct": correct_int,
+        "practiced_words": list(practiced_words or []),
+        "timestamp": datetime.now(tz=timezone.utc).isoformat(timespec="minutes"),
+        "session_id": session_id,
+        "incorrect_words": seen_incorrect,
+    }
 
-        history.append(attempt)
-        total_sessions += 1
-        history = history[-MAX_HISTORY:]
-    else:
-        attempt = None
-        timestamp = data.get("last_practiced") or timestamp
-
+    history.append(attempt)
+    total_sessions += 1
+    history = history[-MAX_HISTORY:]
     completed = {w for a in history for w in a.get("practiced_words", [])}
 
     incorrect_counter: Counter[str] = Counter()
@@ -276,15 +215,16 @@ def save_vocab_attempt(
     aggregated_incorrect = [word for word, _ in incorrect_counter.most_common(50)]
 
     try:
-        payload = {
-            "history": history,
-            "last_practiced": attempt["timestamp"] if attempt else timestamp,
-            "completed_words": sorted(completed),
-            "total_sessions": total_sessions,
-            "incorrect_words": aggregated_incorrect,
-            "schedule": schedule,
-        }
-        doc_ref.set(payload, merge=True)
+        doc_ref.set(
+            {
+                "history": history,
+                "last_practiced": attempt["timestamp"],
+                "completed_words": sorted(completed),
+                "total_sessions": total_sessions,
+                "incorrect_words": aggregated_incorrect,
+            },
+            merge=True,
+        )
     except Exception as e:  # pragma: no cover - firestore failure
         st.warning(f"Could not save stats ({e}).")
 
@@ -300,7 +240,6 @@ def get_vocab_stats(student_code: str):
             "completed_words": [],
             "total_sessions": 0,
             "incorrect_words": [],
-            "schedule": {},
         }
 
     doc_ref = _db.collection("vocab_stats").document(student_code)
@@ -327,7 +266,6 @@ def get_vocab_stats(student_code: str):
             "completed_words": data.get("completed_words", []),
             "total_sessions": total_sessions,
             "incorrect_words": data.get("incorrect_words", []),
-            "schedule": data.get("schedule", {}),
         }
 
     return {
@@ -336,5 +274,4 @@ def get_vocab_stats(student_code: str):
         "completed_words": [],
         "total_sessions": 0,
         "incorrect_words": [],
-        "schedule": {},
     }

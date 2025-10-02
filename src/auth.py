@@ -1,12 +1,11 @@
-"""Authentication helpers for managing user cookies and sessions (updated)."""
+"""Authentication helpers for managing user cookies and sessions."""
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from threading import Lock
-from typing import Any, Optional, Tuple, Union, Dict
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 from collections.abc import MutableMapping
 from types import SimpleNamespace
 
@@ -14,7 +13,6 @@ try:  # pragma: no cover - streamlit isn't always available during tests
     import streamlit as st
 except Exception:  # pragma: no cover
     st = SimpleNamespace(session_state={}, query_params={})
-
 
 # --------------------------------------------------------------------
 # Minimal cookie manager for tests (in-memory)
@@ -69,28 +67,15 @@ def create_cookie_manager() -> SimpleCookieManager:
     """Return a fresh ``SimpleCookieManager`` (used by tests)."""
     return SimpleCookieManager()
 
-
 # --------------------------------------------------------------------
 # Cookie write helpers (robust across managers)
 # --------------------------------------------------------------------
-def _default_cookie_kwargs(**overrides: Any) -> Dict[str, Any]:
-    """
-    Build cookie kwargs with safe defaults.
-    - No hard-coded domain. If you want one, set env COOKIE_DOMAIN.
-    - Lax samesite; secure+httponly by default.
-    """
-    domain = os.getenv("COOKIE_DOMAIN")  # e.g. ".yourdomain.com"; omit for current host
-    base = {
-        "httponly": True,
-        "secure": True,
-        "samesite": "Lax",
-        # "domain": domain  # set only if provided
-    }
-    if domain:
-        base["domain"] = domain
-    base.update(overrides or {})
-    return base
-
+_DEFAULT_COOKIE_KW = {
+    "httponly": True,
+    "secure": True,
+    "samesite": "Lax",
+    "domain": ".falowen.app",  # make sure you always serve from https://www.falowen.app
+}
 
 def _cm_save(cm: Any) -> None:
     saver = getattr(cm, "save", None)
@@ -100,7 +85,6 @@ def _cm_save(cm: Any) -> None:
         except Exception:
             logging.exception("Cookie save failed")
 
-
 def _cm_set(
     cm: Union[MutableMapping[str, Any], object], key: str, value: Any, **kwargs: Any
 ) -> None:
@@ -108,7 +92,8 @@ def _cm_set(
     Try cookie_manager.set(key, value, **kwargs). Fall back to mapping semantics
     (for SimpleCookieManager/tests). Tracks kwargs in SimpleCookieManager.store for assertions.
     """
-    cookie_args = _default_cookie_kwargs(**kwargs)
+    cookie_args = dict(_DEFAULT_COOKIE_KW)
+    cookie_args.update(kwargs or {})
 
     setter = getattr(cm, "set", None)
     if callable(setter):
@@ -116,18 +101,15 @@ def _cm_set(
         try:
             setter(key, value, **cookie_args)
         except TypeError:
-            # Some managers don’t accept all kwargs; retry with a reduced set.
+            # Some managers don't accept path/domain/httponly; try a reduced set
             reduced = {k: cookie_args[k] for k in ("secure", "samesite") if k in cookie_args}
             if "expires" in cookie_args:
                 reduced["expires"] = cookie_args["expires"]
-            if "domain" in cookie_args:
-                # Some managers accept domain; keep it if possible
-                reduced["domain"] = cookie_args["domain"]
             try:
                 setter(key, value, **reduced)
             except Exception:
+                # Final fallback: set value only
                 setter(key, value)
-        _cm_save(cm)
         return
 
     # Mapping fallback (tests)
@@ -138,76 +120,51 @@ def _cm_set(
         setattr(cm, key, value)
     if hasattr(cm, "store"):
         store = getattr(cm, "store", {})
-        if isinstance(store, dict):
-            store[key] = {"value": value, "kwargs": cookie_args}
-    _cm_save(cm)
-
-
-def _cm_delete(cm: Union[MutableMapping[str, Any], object], key: str) -> None:
-    deleter = getattr(cm, "delete", None)
-    if callable(deleter):
-        try:
-            deleter(key)
-            _cm_save(cm)
-            return
-        except Exception:
-            pass
-    try:
-        if isinstance(cm, MutableMapping):
-            cm.pop(key, None)  # type: ignore[attr-defined]
-        else:
-            delattr(cm, key)  # type: ignore[attr-defined]
-    except Exception:
-        pass
-    _cm_save(cm)
-
-
-def _cm_get(cm: Union[MutableMapping[str, Any], object], key: str, default: Any = None) -> Any:
-    getter = getattr(cm, "get", None)
-    if callable(getter):
-        try:
-            return getter(key, default)
-        except TypeError:
-            # Some managers use get(key) only
-            try:
-                return getter(key)
-            except Exception:
-                pass
-    # Mapping fallback
-    try:
-        if isinstance(cm, MutableMapping):
-            return cm.get(key, default)  # type: ignore[attr-defined]
-    except Exception:
-        pass
-    # Attribute fallback
-    return getattr(cm, key, default)
-
+        if isinstance(store, dict) and key in store:
+            store[key]["kwargs"] = cookie_args
 
 # Public cookie ops used by the app
 def set_student_code_cookie(
-    cm: Union[MutableMapping[str, Any], object], code: str, *, days: int = 7, **kwargs: Any
+    cm: Union[MutableMapping[str, Any], object], code: str, **kwargs: Any
 ) -> None:
-    expires = kwargs.pop("expires", datetime.now(timezone.utc) + timedelta(days=days))
-    _cm_set(cm, "student_code", code, expires=expires, **kwargs)
-
+    _cm_set(cm, "student_code", code, **kwargs)
 
 def set_session_token_cookie(
-    cm: Union[MutableMapping[str, Any], object], token: str, *, days: int = 7, **kwargs: Any
+    cm: Union[MutableMapping[str, Any], object], token: str, **kwargs: Any
 ) -> None:
-    expires = kwargs.pop("expires", datetime.now(timezone.utc) + timedelta(days=days))
-    _cm_set(cm, "session_token", token, expires=expires, **kwargs)
-
+    _cm_set(cm, "session_token", token, **kwargs)
 
 def clear_session(cm: Union[MutableMapping[str, Any], object]) -> None:
-    _cm_delete(cm, "student_code")
-    _cm_delete(cm, "session_token")
-
+    try:
+        # Try CookieManager.delete if available
+        deleter = getattr(cm, "delete", None)
+        if callable(deleter):
+            deleter("student_code")
+            deleter("session_token")
+            return
+    except Exception:
+        pass
+    # Mapping fallback
+    try:
+        cm.pop("student_code", None)  # type: ignore[attr-defined]
+        cm.pop("session_token", None)  # type: ignore[attr-defined]
+    except Exception:
+        # Very defensive
+        try:
+            del cm["student_code"]  # type: ignore[index]
+        except Exception:
+            pass
+        try:
+            del cm["session_token"]  # type: ignore[index]
+        except Exception:
+            pass
 
 # --------------------------------------------------------------------
 # Session token registry (in-memory)
 # --------------------------------------------------------------------
 class _SessionStore:
     """In-memory mapping of session token to student code."""
+
     def __init__(self, ttl: int = 3600) -> None:  # pragma: no cover
         self._store: Dict[str, Tuple[str, datetime]] = {}
         self._lock = Lock()
@@ -265,51 +222,23 @@ def clear_session_clients() -> None:  # pragma: no cover
     if store is not None:
         store.clear()
 
-
 def bootstrap_cookies(cm: SimpleCookieManager) -> SimpleCookieManager:
-    """Hook to adjust a cookie manager instance at startup if needed."""
     return cm
 
-
 # --------------------------------------------------------------------
-# Cookie-based session restoration (helpers you can call on page load)
+# Cookie-based session restoration
 # --------------------------------------------------------------------
-def read_student_code(cm: Union[MutableMapping[str, Any], object]) -> Optional[str]:
-    return _cm_get(cm, "student_code")
-
-
-def read_session_token(cm: Union[MutableMapping[str, Any], object]) -> Optional[str]:
-    return _cm_get(cm, "session_token")
-
-
-def restore_session_from_cookies(cm: Union[MutableMapping[str, Any], object]) -> Optional[str]:
-    """
-    If a session token cookie exists, surface the student code from our in-memory
-    store (if previously persisted) and return it. This is a best-effort helper.
-    """
-    tok = read_session_token(cm)
-    if not tok:
-        return None
-    return get_session_client(tok)
-
 
 def reset_password_page(token: str) -> None:  # pragma: no cover
     """Placeholder for the password reset flow."""
     return None
 
-
 __all__ = [
-    # cookie manager + creation
     "SimpleCookieManager",
     "create_cookie_manager",
-    # cookie ops
     "set_student_code_cookie",
     "set_session_token_cookie",
     "clear_session",
-    "read_student_code",
-    "read_session_token",
-    "restore_session_from_cookies",
-    # session store
     "persist_session_client",
     "get_session_client",
     "clear_session_clients",

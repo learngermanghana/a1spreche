@@ -12,7 +12,6 @@ from src.services.vocab import VOCAB_LISTS, get_audio_url
 from src.stats import save_vocab_attempt, vocab_attempt_exists
 from src.stats_ui import render_vocab_stats
 from src.utils.toasts import refresh_with_toast
-from src.vocab.scheduler import VocabScheduleManager
 
 if TYPE_CHECKING:  # pragma: no cover - runtime import to avoid circular dependency
     from typing import Callable
@@ -69,7 +68,7 @@ def render_vocab_practice(student_code: str, level: str) -> None:
         "vt_total": None,
         "vt_saved": False,
         "vt_session_id": None,
-        "vt_mode": "Due today",
+        "vt_mode": "Only new words",
         "vt_incorrect": [],
     }
     for key, value in defaults.items():
@@ -83,71 +82,7 @@ def render_vocab_practice(student_code: str, level: str) -> None:
     items = VOCAB_LISTS.get(level, [])
     completed = set(stats["completed_words"])
     not_done = [pair for pair in items if pair[0] not in completed]
-    schedule_manager = VocabScheduleManager(
-        student_code, stats.get("schedule", {})
-    )
-    due_items = schedule_manager.due_items(items)
-    due_count = len(due_items)
-    next_due = schedule_manager.next_due_after_now()
-    new_count = len(not_done)
-
-    col_due, col_next, col_new = st.columns(3)
-    col_due.metric("Due today", due_count)
-    next_display = (
-        next_due.replace("T", " ")[:16] if next_due else "🎉 All clear!"
-    )
-    col_next.metric("Next review", next_display)
-    col_new.metric("New words available", new_count)
     st.info(f"{len(not_done)} words NOT yet done at {level}.")
-
-    if schedule_manager.known_words:
-        due_labels = {
-            item.pair[0]: f"{item.pair[0]} · due {item.due_at.date()}"
-            for item in due_items
-        }
-        with st.expander("🔧 Manage review schedule", expanded=False):
-            st.caption(
-                "Snooze cards if you need more time or reset them to relearn from scratch."
-            )
-            snooze_options = list(due_labels.keys()) or list(schedule_manager.known_words)
-            snooze_selection = st.multiselect(
-                "Cards to snooze",
-                options=snooze_options,
-                format_func=lambda word: due_labels.get(word, word),
-                key="vt_snooze_selection",
-            )
-            snooze_days = st.slider(
-                "Snooze for how many days?",
-                1,
-                14,
-                value=1,
-                key="vt_snooze_days",
-            )
-            if st.button("Snooze selected", key="vt_snooze_button"):
-                updates = schedule_manager.snooze_cards(
-                    snooze_selection, days=snooze_days
-                )
-                if updates:
-                    schedule_manager.persist_updates(updates)
-                    st.success("Snoozed selected cards.")
-                    refresh_with_toast()
-                else:
-                    st.info("Select at least one card to snooze.")
-
-            reset_selection = st.multiselect(
-                "Cards to reset",
-                options=list(schedule_manager.known_words),
-                key="vt_reset_selection",
-                help="Resetting clears the schedule so the word returns as new.",
-            )
-            if st.button("Reset selected cards", key="vt_reset_button"):
-                updates = schedule_manager.reset_cards(reset_selection)
-                if updates:
-                    schedule_manager.persist_updates(updates)
-                    st.success("Reset schedule for selected cards.")
-                    refresh_with_toast()
-                else:
-                    st.info("Select at least one card to reset.")
 
     if st.button("🔁 Start New Practice", key="vt_reset"):
         for key in defaults:
@@ -159,14 +94,11 @@ def render_vocab_practice(student_code: str, level: str) -> None:
             st.subheader("Daily Practice Setup")
             mode = st.radio(
                 "Select words:",
-                ["Due today", "Only new words", "All words", "Review my mistakes"],
+                ["Only new words", "All words", "Review my mistakes"],
                 horizontal=True,
                 key="vt_mode",
             )
-            due_pairs = [item.pair for item in due_items]
-            if mode == "Due today":
-                session_vocab = due_pairs.copy()
-            elif mode == "Only new words":
+            if mode == "Only new words":
                 session_vocab = not_done.copy()
             elif mode == "Review my mistakes":
                 session_vocab = [
@@ -177,9 +109,7 @@ def render_vocab_practice(student_code: str, level: str) -> None:
                 session_vocab = items.copy()
             max_count = len(session_vocab)
             if max_count == 0:
-                if mode == "Due today":
-                    st.success("🎉 Nothing due today! Try another mode.")
-                elif mode == "Review my mistakes":
+                if mode == "Review my mistakes":
                     st.success("🎉 No recorded mistakes to review. Try another mode.")
                 elif mode == "Only new words":
                     st.success("🎉 All done! Switch to 'All words' to repeat.")
@@ -195,8 +125,7 @@ def render_vocab_practice(student_code: str, level: str) -> None:
             )
             submitted = st.form_submit_button("Start")
         if submitted:
-            if mode != "Due today":
-                random.shuffle(session_vocab)
+            random.shuffle(session_vocab)
             st.session_state.vt_list = session_vocab[:count]
             st.session_state.vt_total = count
             st.session_state.vt_index = 0
@@ -298,10 +227,6 @@ def render_vocab_practice(student_code: str, level: str) -> None:
             if not st.session_state.get("vt_session_id"):
                 st.session_state.vt_session_id = str(uuid4())
             if not vocab_attempt_exists(student_code, st.session_state.vt_session_id):
-                schedule_updates = schedule_manager.record_session(
-                    practiced_words=words,
-                    incorrect_words=st.session_state.get("vt_incorrect", []),
-                )
                 save_vocab_attempt(
                     student_code=student_code,
                     level=level,
@@ -310,7 +235,6 @@ def render_vocab_practice(student_code: str, level: str) -> None:
                     practiced_words=words,
                     session_id=st.session_state.vt_session_id,
                     incorrect_words=st.session_state.get("vt_incorrect", []),
-                    schedule_updates=schedule_updates,
                 )
             st.session_state.vt_saved = True
             refresh_with_toast()
