@@ -8959,6 +8959,7 @@ if tab == "Schreiben Trainer":
                 st.caption(f"Last saved at {saved_at.strftime('%H:%M:%S')}")
 
             letter_draft_key = ns("letter_draft_saved")
+            initialize_draft_state(student_code, letter_draft_key)
             letter_draft = st.session_state.get(letter_draft_key, "")
 
             col_send, col_save = st.columns([3,1])
@@ -9019,6 +9020,7 @@ if tab == "Schreiben Trainer":
                 len(st.session_state[ns("selected_letter_lines")]) != len(user_msgs):
                 st.session_state[ns("selected_letter_lines")] = [True] * len(user_msgs)
 
+            saved_letter_draft = st.session_state.get(letter_draft_key, "")
             selected_lines = []
             for i, line in enumerate(user_msgs):
                 st.session_state[ns("selected_letter_lines")][i] = st.checkbox(
@@ -9029,8 +9031,11 @@ if tab == "Schreiben Trainer":
                 if st.session_state[ns("selected_letter_lines")][i]:
                     selected_lines.append(line)
 
-            letter_draft = "\n".join(selected_lines)
-            st.session_state[letter_draft_key] = letter_draft
+            if selected_lines:
+                letter_draft = "\n".join(selected_lines)
+                st.session_state[letter_draft_key] = letter_draft
+            else:
+                letter_draft = saved_letter_draft
 
             # --- Live word/character count for the letter draft ---
             draft_word_count = len(letter_draft.split())
