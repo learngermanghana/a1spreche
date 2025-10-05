@@ -8802,12 +8802,11 @@ if tab == "Schreiben Trainer":
                 st.session_state["need_rerun"] = True
             st.markdown("### ✏️ Enter your exam prompt or draft to start coaching")
             draft_key = ns("prompt_draft")
-            if draft_key not in st.session_state:
-                st.session_state[draft_key] = load_draft_from_db(student_code, draft_key)
+            initialize_draft_state(student_code, draft_key)
 
-            
+
             if st.session_state.pop(ns("clear_prompt"), False):
-                st.session_state[draft_key] = ""
+                reset_local_draft_state(draft_key, "")
                 save_now(draft_key, student_code)
 
             prompt = st.text_area(
@@ -8921,15 +8920,15 @@ if tab == "Schreiben Trainer":
 
 
             draft_key = ns("chat_draft")
-            if draft_key not in st.session_state:
-                st.session_state[draft_key] = load_draft_from_db(student_code, draft_key)
+            initialize_draft_state(student_code, draft_key)
 
-            
+
             if st.session_state.pop(ns("clear_chat_draft"), False):
-                st.session_state[draft_key] = ""
+                reset_local_draft_state(draft_key, "")
+                save_now(draft_key, student_code, show_toast=False)
 
             if st.session_state.pop(ns("clear_chat"), False):
-                st.session_state[draft_key] = ""
+                reset_local_draft_state(draft_key, "")
                 save_now(draft_key, student_code, show_toast=False)
 
             st.text_area(
