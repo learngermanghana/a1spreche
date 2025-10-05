@@ -8611,6 +8611,7 @@ if tab == "Schreiben Trainer":
         chat_draft_key = ns("chat_draft")
         drafts_hydrated_key = ns("drafts_hydrated")
 
+
         # --- Reset per-student Letter Coach state on student change ---
         prev_letter_coach_code = st.session_state.get("prev_letter_coach_code", None)
         if student_code != prev_letter_coach_code:
@@ -8630,6 +8631,7 @@ if tab == "Schreiben Trainer":
             ("clear_chat", False),
             ("clear_chat_draft", False),
             ("drafts_hydrated", False),
+
         ]:
             if ns(k) not in st.session_state:
                 st.session_state[ns(k)] = default
@@ -8655,12 +8657,16 @@ if tab == "Schreiben Trainer":
                 return
             prompt_text = st.session_state.get(prompt_draft_key, "") or ""
             chat_text = st.session_state.get(chat_draft_key, "") or ""
+
             save_letter_coach_draft(student_code, prompt_text, chat_text)
+
 
         def clear_letter_coach_draft_state() -> None:
             if not student_code:
                 return
             clear_letter_coach_draft(student_code)
+
+
 
         def save_prompt_draft_now(*, show_toast: bool = True) -> None:
             save_now(prompt_draft_key, student_code, show_toast=show_toast)
@@ -9000,6 +9006,7 @@ if tab == "Schreiben Trainer":
                 min_delta=1,
             )
             sync_letter_coach_draft_state()
+
 
             if st.button("💾 Save Draft Now", key=ns("manual_chat_save")):
                 save_chat_draft_now()
