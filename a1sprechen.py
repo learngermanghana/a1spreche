@@ -6694,6 +6694,8 @@ if tab == "Chat • Grammar • Exams":
     KEY_CONN_SUGGEST   = "cchat_w_conn_suggest"
     KEY_CONN_SESSION   = "cchat_w_conn_session"
     KEY_CONN_COACH     = "cchat_w_conn_coach"
+    KEY_CONN_RESPONSE  = "cchat_w_conn_response"
+    KEY_CONN_CLEAR     = "cchat_w_conn_clear"
     # Also make Regen button unique
     KEY_REGEN_BTN      = "cchat_w_btn_regen_v2"
 
@@ -7240,6 +7242,7 @@ if tab == "Chat • Grammar • Exams":
                     height=120,
                     placeholder="z.B. weil, obwohl, trotzdem – oder Themen wie: Mein Wochenende, Arbeit vs. Freizeit",
                 )
+                suggestion_placeholder.empty()
             else:
                 st.caption(
                     "Let Herr Felix suggest 3–5 connectors for your current CEFR level "
@@ -7277,11 +7280,15 @@ if tab == "Chat • Grammar • Exams":
                     st.session_state[KEY_CONN_SESSION] = suggestions
                 suggestions = st.session_state.get(KEY_CONN_SESSION, "")
                 if suggestions:
-                    st.markdown(
-                        f"<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>",
+                    suggestion_placeholder.markdown(
+                        (
+                            "<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>"
+                            f"<div class='bubble-a'>{suggestions}</div>"
+                        ),
                         unsafe_allow_html=True,
                     )
-                    st.markdown(f"<div class='bubble-a'>{suggestions}</div>", unsafe_allow_html=True)
+                else:
+                    suggestion_placeholder.empty()
                 connectors_text = suggestions
 
             scenario_text = st.text_area(
@@ -7291,7 +7298,32 @@ if tab == "Chat • Grammar • Exams":
                 placeholder="Beschreibe kurz, was du sagen möchtest. z.B. Ich erzähle über meinen letzten Urlaub und möchte Kontraste zeigen.",
             )
 
-            coach_btn = st.button("Coach me", type="primary", key=KEY_CONN_COACH)
+            coach_response_placeholder = st.empty()
+            existing_coach_reply = st.session_state.get(KEY_CONN_RESPONSE, "")
+            if existing_coach_reply:
+                coach_response_placeholder.markdown(
+                    (
+                        "<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>"
+                        f"<div class='bubble-a'>{existing_coach_reply}</div>"
+                    ),
+                    unsafe_allow_html=True,
+                )
+
+            col_coach, col_clear = st.columns([1, 1])
+            coach_btn = col_coach.button("Coach me", type="primary", key=KEY_CONN_COACH)
+            clear_btn = col_clear.button("Clear session", type="secondary", key=KEY_CONN_CLEAR)
+
+            if clear_btn:
+                st.session_state.pop(KEY_CONN_SESSION, None)
+                st.session_state.pop(KEY_CONN_TEXT, None)
+                st.session_state.pop(KEY_CONN_SCENARIO, None)
+                st.session_state.pop(KEY_CONN_RESPONSE, None)
+                st.session_state[KEY_CONN_MODE] = "I'll choose connectors"
+                suggestion_placeholder.empty()
+                coach_response_placeholder.empty()
+                rerun_fn = getattr(st, "experimental_rerun", None) or getattr(st, "rerun", None)
+                if callable(rerun_fn):
+                    rerun_fn()
 
             if coach_btn:
                 gram_level = st.session_state.get(KEY_GRAM_LEVEL, cur_level_g)
@@ -7300,8 +7332,7 @@ if tab == "Chat • Grammar • Exams":
                 if not connector_payload and connector_mode == "I'll choose connectors":
                     st.warning("Bitte gib mindestens einen Connector oder ein Thema an – oder nutze die Vorschlagsfunktion.")
                 else:
-                    coach_placeholder = st.empty()
-                    coach_placeholder.markdown(
+                    coach_response_placeholder.markdown(
                         "<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>",
                         unsafe_allow_html=True,
                     )
@@ -7333,12 +7364,14 @@ if tab == "Chat • Grammar • Exams":
                         coaching_reply = (resp.choices[0].message.content or "").strip()
                     except Exception as exc:
                         coaching_reply = f"(Error) {exc}"
-                    coach_placeholder.empty()
-                    st.markdown(
-                        "<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>",
+                    st.session_state[KEY_CONN_RESPONSE] = coaching_reply
+                    coach_response_placeholder.markdown(
+                        (
+                            "<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>"
+                            f"<div class='bubble-a'>{coaching_reply}</div>"
+                        ),
                         unsafe_allow_html=True,
                     )
-                    st.markdown(f"<div class='bubble-a'>{coaching_reply}</div>", unsafe_allow_html=True)
 
                     if topic_db is None:
                         logging.debug("Connector Firestore logging skipped: no client available")
