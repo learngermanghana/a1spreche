@@ -9014,27 +9014,67 @@ if tab == "Schreiben Trainer":
                 - Only ticked lines will appear in your downloadable draft below.
             """)
 
-            # Store selection in session state (keeps selection per student)
-            if ns("selected_letter_lines") not in st.session_state or \
-                len(st.session_state[ns("selected_letter_lines")]) != len(user_msgs):
-                st.session_state[ns("selected_letter_lines")] = [True] * len(user_msgs)
-
             saved_letter_draft = st.session_state.get(letter_draft_key, "")
-            selected_lines = []
+            saved_at_key = f"{letter_draft_key}_saved_at"
+            saved_at = st.session_state.get(saved_at_key)
+            selection_key = ns("selected_letter_lines")
+
+            def _restore_selected_lines() -> List[bool]:
+                if not user_msgs:
+                    return []
+                if not saved_at:
+                    return [True] * len(user_msgs)
+                saved_lines = saved_letter_draft.splitlines()
+                if not saved_lines:
+                    return [False] * len(user_msgs)
+                remaining = Counter(saved_lines)
+                restored: List[bool] = []
+                for msg in user_msgs:
+                    if remaining.get(msg, 0):
+                        restored.append(True)
+                        remaining[msg] -= 1
+                    else:
+                        restored.append(False)
+                return restored
+
+            if selection_key not in st.session_state:
+                st.session_state[selection_key] = _restore_selected_lines()
+            else:
+                current_selection = st.session_state[selection_key]
+                if len(current_selection) < len(user_msgs):
+                    current_selection.extend([True] * (len(user_msgs) - len(current_selection)))
+                elif len(current_selection) > len(user_msgs):
+                    st.session_state[selection_key] = current_selection[:len(user_msgs)]
+
+            selected_lines: List[str] = []
+            previous_letter_draft = saved_letter_draft
             for i, line in enumerate(user_msgs):
-                st.session_state[ns("selected_letter_lines")][i] = st.checkbox(
+                selected = st.checkbox(
                     line,
-                    value=st.session_state[ns("selected_letter_lines")][i],
+                    value=st.session_state[selection_key][i],
                     key=ns(f"letter_line_{i}")
                 )
-                if st.session_state[ns("selected_letter_lines")][i]:
+                st.session_state[selection_key][i] = selected
+                if selected:
                     selected_lines.append(line)
 
-            if selected_lines:
-                letter_draft = "\n".join(selected_lines)
+            letter_draft = "\n".join(selected_lines) if selected_lines else ""
+            if letter_draft != previous_letter_draft:
                 st.session_state[letter_draft_key] = letter_draft
-            else:
-                letter_draft = saved_letter_draft
+                autosave_maybe(
+                    student_code,
+                    letter_draft_key,
+                    letter_draft,
+                    min_secs=0.0,
+                    min_delta=0,
+                )
+                saved_at = st.session_state.get(saved_at_key)
+
+            letter_draft = st.session_state.get(letter_draft_key, "")
+
+            saved_at = st.session_state.get(saved_at_key)
+            if saved_at:
+                st.caption(f"Last saved at {saved_at.strftime('%H:%M:%S')}")
 
             if save_clicked:
                 st.session_state[letter_draft_key] = letter_draft
