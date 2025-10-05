@@ -8964,10 +8964,9 @@ if tab == "Schreiben Trainer":
 
             col_send, col_save = st.columns([3,1])
             send = col_send.button("Send")
-            if col_save.button("\U0001f4be Save Draft", key=ns("save_letter_draft_btn")):
-                st.session_state[letter_draft_key] = letter_draft
-                save_now(letter_draft_key, student_code)
-                toast_once("Draft saved!", "✅")
+            save_clicked = col_save.button(
+                "\U0001f4be Save Draft", key=ns("save_letter_draft_btn")
+            )
 
             if send:
                 user_input = st.session_state[draft_key].strip()
@@ -9036,6 +9035,11 @@ if tab == "Schreiben Trainer":
                 st.session_state[letter_draft_key] = letter_draft
             else:
                 letter_draft = saved_letter_draft
+
+            if save_clicked:
+                st.session_state[letter_draft_key] = letter_draft
+                save_now(letter_draft_key, student_code)
+                toast_once("Draft saved!", "✅")
 
             # --- Live word/character count for the letter draft ---
             draft_word_count = len(letter_draft.split())
