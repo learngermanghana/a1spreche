@@ -7318,7 +7318,7 @@ if tab == "Chat • Grammar • Exams":
                 st.session_state.pop(KEY_CONN_TEXT, None)
                 st.session_state.pop(KEY_CONN_SCENARIO, None)
                 st.session_state.pop(KEY_CONN_RESPONSE, None)
-                st.session_state[KEY_CONN_MODE] = "I'll choose connectors"
+                st.session_state.pop(KEY_CONN_MODE, None)
                 suggestion_placeholder.empty()
                 coach_response_placeholder.empty()
                 rerun_fn = getattr(st, "experimental_rerun", None) or getattr(st, "rerun", None)
