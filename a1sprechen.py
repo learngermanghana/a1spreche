@@ -8832,10 +8832,7 @@ if tab == "Schreiben Trainer":
                 min_delta=12,
             )
 
-            if st.button("\U0001f4be Save Draft", key=f"save_prompt_draft_btn_{student_code}"):
-                save_now(draft_key, student_code)
-                toast_once("Draft saved!", "✅")
-            st.caption("Auto-saves every few seconds or click 'Save Draft' to save now.")
+            st.caption("Draft auto-saves every few seconds.")
 
             saved_at = st.session_state.get(f"{draft_key}_saved_at")
             if saved_at:
@@ -8962,11 +8959,7 @@ if tab == "Schreiben Trainer":
             initialize_draft_state(student_code, letter_draft_key)
             letter_draft = st.session_state.get(letter_draft_key, "")
 
-            col_send, col_save = st.columns([3,1])
-            send = col_send.button("Send")
-            save_clicked = col_save.button(
-                "\U0001f4be Save Draft", key=ns("save_letter_draft_btn")
-            )
+            send = st.button("Send")
 
             if send:
                 user_input = st.session_state[draft_key].strip()
@@ -9075,11 +9068,6 @@ if tab == "Schreiben Trainer":
             saved_at = st.session_state.get(saved_at_key)
             if saved_at:
                 st.caption(f"Last saved at {saved_at.strftime('%H:%M:%S')}")
-
-            if save_clicked:
-                st.session_state[letter_draft_key] = letter_draft
-                save_now(letter_draft_key, student_code)
-                toast_once("Draft saved!", "✅")
 
             # --- Live word/character count for the letter draft ---
             draft_word_count = len(letter_draft.split())
