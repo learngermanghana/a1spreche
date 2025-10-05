@@ -158,6 +158,90 @@ def load_letter_coach_progress(student_code: str):
     return "", []
 
 
+def save_letter_coach_draft(
+    student_code: str,
+    prompt_draft: str,
+    chat_draft: str,
+) -> None:
+    """Persist the in-progress Letter Coach drafts for a student."""
+
+    if not student_code:
+        st.warning("No student code provided; draft not saved.")
+        return
+
+    db = _get_db()
+    if db is None:
+        st.warning("Firestore not initialized; draft not saved.")
+        return
+
+    doc_ref = db.collection("letter_coach_drafts").document(student_code)
+    payload = {
+        "student_code": student_code,
+        "prompt_draft": prompt_draft or "",
+        "chat_draft": chat_draft or "",
+        "updated_at": firestore.SERVER_TIMESTAMP,
+    }
+
+    try:
+        doc = doc_ref.get()
+        if doc.exists:
+            doc_ref.set(payload, merge=True)
+        else:
+            payload["created_at"] = firestore.SERVER_TIMESTAMP
+            doc_ref.set(payload)
+    except Exception as exc:  # pragma: no cover - network failure
+        st.error(f"Failed to save Letter Coach draft: {exc}")
+
+
+def load_letter_coach_draft(student_code: str):
+    """Load in-progress Letter Coach drafts for ``student_code``."""
+
+    if not student_code:
+        st.warning("No student code provided; cannot load drafts.")
+        return "", "", None, None
+
+    db = _get_db()
+    if db is None:
+        st.warning("Firestore not initialized; cannot load drafts.")
+        return "", "", None, None
+
+    doc = db.collection("letter_coach_drafts").document(student_code).get()
+    if doc.exists:
+        data = doc.to_dict() or {}
+        prompt_draft = data.get("prompt_draft", "") or ""
+        chat_draft = data.get("chat_draft", "") or ""
+        created_at = data.get("created_at")
+        updated_at = data.get("updated_at")
+        return prompt_draft, chat_draft, created_at, updated_at
+    return "", "", None, None
+
+
+def clear_letter_coach_draft(student_code: str) -> None:
+    """Clear any saved in-progress Letter Coach drafts for ``student_code``."""
+
+    if not student_code:
+        st.warning("No student code provided; draft not cleared.")
+        return
+
+    db = _get_db()
+    if db is None:
+        st.warning("Firestore not initialized; draft not cleared.")
+        return
+
+    try:
+        db.collection("letter_coach_drafts").document(student_code).set(
+            {
+                "student_code": student_code,
+                "prompt_draft": "",
+                "chat_draft": "",
+                "updated_at": firestore.SERVER_TIMESTAMP,
+            },
+            merge=True,
+        )
+    except Exception as exc:  # pragma: no cover - network failure
+        st.error(f"Failed to clear Letter Coach draft: {exc}")
+
+
 # ---------------------------------------------------------------------------
 # Level detection via Google Sheet
 # ---------------------------------------------------------------------------
@@ -390,4 +474,9 @@ __all__ = [
     "save_schreiben_feedback",
     "load_schreiben_feedback",
     "delete_schreiben_feedback",
+    "save_letter_coach_progress",
+    "load_letter_coach_progress",
+    "save_letter_coach_draft",
+    "load_letter_coach_draft",
+    "clear_letter_coach_draft",
 ]
