@@ -6688,6 +6688,12 @@ if tab == "Chat • Grammar • Exams":
     KEY_GRAM_TEXT      = "cchat_w_gram_text"
     KEY_GRAM_LEVEL     = "cchat_w_gram_level"
     KEY_GRAM_ASK_BTN   = "cchat_w_gram_go"
+    KEY_CONN_MODE      = "cchat_w_conn_mode"
+    KEY_CONN_TEXT      = "cchat_w_conn_text"
+    KEY_CONN_SCENARIO  = "cchat_w_conn_scenario"
+    KEY_CONN_SUGGEST   = "cchat_w_conn_suggest"
+    KEY_CONN_SESSION   = "cchat_w_conn_session"
+    KEY_CONN_COACH     = "cchat_w_conn_coach"
     # Also make Regen button unique
     KEY_REGEN_BTN      = "cchat_w_btn_regen_v2"
 
@@ -7116,84 +7122,242 @@ if tab == "Chat • Grammar • Exams":
 
     # ===================== Grammar (simple, one-box) =====================
     with tab_gram:
-        st.info(
-            "Paste a sentence or grammar question here to get quick corrections,"
-            " short explanations in English, and German example sentences for your level."
-        )
-        gcol1, gcol2 = st.columns([3, 1])
-        gram_typing_notice = None
-        with gcol1:
-            gram_typing_notice = st.empty()
-            gram_q = st.text_area(
-                "Type your grammar question or paste text",
-                height=160,
-                key=KEY_GRAM_TEXT,
-                placeholder="z.B. Ist es 'wegen dem' oder 'wegen des'? Oder: Ich bin gestern in den Park gegangen…",
-            )
-        with gcol2:
-            level_options = ["A1", "A2", "B1", "B2"]
-            default_gram = st.session_state.get("_cchat_last_profile_level") or level_options[0]
-            if default_gram not in level_options:
-                default_gram = level_options[0]
-            cur_level_g = st.session_state.get(KEY_GRAM_LEVEL, default_gram)
-            if cur_level_g not in level_options:
-                cur_level_g = default_gram
-            gram_level = st.select_slider("Level", level_options, value=cur_level_g, key=KEY_GRAM_LEVEL)
-            ask = st.button("Ask", type="primary", width="stretch", key=KEY_GRAM_ASK_BTN)
+        level_options = ["A1", "A2", "B1", "B2"]
+        default_gram = st.session_state.get("_cchat_last_profile_level") or level_options[0]
+        if default_gram not in level_options:
+            default_gram = level_options[0]
+        cur_level_g = st.session_state.get(KEY_GRAM_LEVEL, default_gram)
+        if cur_level_g not in level_options:
+            cur_level_g = default_gram
+        st.session_state.setdefault(KEY_GRAM_LEVEL, cur_level_g)
 
-        if ask and (gram_q or "").strip():
-            sys = (
-                "You are a German grammar helper. "
-                "All EXPLANATIONS must be in English ONLY. "
-                "The CORRECTED TEXT and EXAMPLE SENTENCES must be in German ONLY. "
-                "Match the CEFR level and be concise. "
-                "If text was pasted, first give a short corrected German version of the user's text, "
-                "then provide exactly 3 concise English bullet points explaining the key grammar points and corrections, "
-                "and finally give 1–2 short German example sentences that illustrate the rule. "
-                "If it's only a question (no text to correct), give the English explanation and German examples only. "
-                "Keep the whole answer compact and classroom-friendly."
+        tab_quick, tab_connectors = st.tabs(["Quick Grammar Help", "Connector Trainer"])
+
+        with tab_quick:
+            st.info(
+                "Paste a sentence or grammar question here to get quick corrections,"
+                " short explanations in English, and German example sentences for your level."
             )
-            if gram_typing_notice is not None:
-                gram_typing_notice.markdown(
-                    HERR_FELIX_TYPING_HTML,
+            gcol1, gcol2 = st.columns([3, 1])
+            gram_typing_notice = None
+            with gcol1:
+                gram_typing_notice = st.empty()
+                gram_q = st.text_area(
+                    "Type your grammar question or paste text",
+                    height=160,
+                    key=KEY_GRAM_TEXT,
+                    placeholder="z.B. Ist es 'wegen dem' oder 'wegen des'? Oder: Ich bin gestern in den Park gegangen…",
+                )
+            with gcol2:
+                gram_level = st.select_slider(
+                    "Level",
+                    level_options,
+                    value=st.session_state.get(KEY_GRAM_LEVEL, cur_level_g),
+                    key=KEY_GRAM_LEVEL,
+                )
+                ask = st.button("Ask", type="primary", width="stretch", key=KEY_GRAM_ASK_BTN)
+
+            if ask and (gram_q or "").strip():
+                sys = (
+                    "You are a German grammar helper. "
+                    "All EXPLANATIONS must be in English ONLY. "
+                    "The CORRECTED TEXT and EXAMPLE SENTENCES must be in German ONLY. "
+                    "Match the CEFR level and be concise. "
+                    "If text was pasted, first give a short corrected German version of the user's text, "
+                    "then provide exactly 3 concise English bullet points explaining the key grammar points and corrections, "
+                    "and finally give 1–2 short German example sentences that illustrate the rule. "
+                    "If it's only a question (no text to correct), give the English explanation and German examples only. "
+                    "Keep the whole answer compact and classroom-friendly."
+                )
+                if gram_typing_notice is not None:
+                    gram_typing_notice.markdown(
+                        HERR_FELIX_TYPING_HTML,
+                        unsafe_allow_html=True,
+                    )
+
+                placeholder = st.empty()
+                placeholder.markdown(
+                    "<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>",
                     unsafe_allow_html=True,
                 )
-
-            placeholder = st.empty()
-            placeholder.markdown("<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>", unsafe_allow_html=True)
-            time.sleep(random.uniform(0.8, 1.2))
-            if topic_db is None:
-                logging.debug("Grammar Firestore logging skipped: no client available")
-            else:
+                time.sleep(random.uniform(0.8, 1.2))
+                if topic_db is None:
+                    logging.debug("Grammar Firestore logging skipped: no client available")
+                else:
+                    try:
+                        topic_db.collection("falowen_grammar_questions").add(
+                            {
+                                "student_code": st.session_state.get("student_code"),
+                                "level": gram_level,
+                                "question": gram_q,
+                                "created_at": firestore.SERVER_TIMESTAMP,
+                            }
+                        )
+                    except Exception:
+                        logging.warning("Failed to log grammar question", exc_info=True)
                 try:
-                    topic_db.collection("falowen_grammar_questions").add(
-                        {
-                            "student_code": st.session_state.get("student_code"),
-                            "level": gram_level,
-                            "question": gram_q,
-                            "created_at": firestore.SERVER_TIMESTAMP,
-                        }
+                    resp = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[
+                            {"role": "system", "content": sys + f" CEFR level: {gram_level}."},
+                            {"role": "user", "content": gram_q},
+                        ],
+                        temperature=0.1,
+                        max_tokens=700,
                     )
-                except Exception:
-                    logging.warning("Failed to log grammar question", exc_info=True)
-            try:
-                resp = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {"role": "system", "content": sys + f" CEFR level: {gram_level}."},
-                        {"role": "user", "content": gram_q},
-                    ],
-                    temperature=0.1,
-                    max_tokens=700,
+                    out = (resp.choices[0].message.content or "").strip()
+                except Exception as e:
+                    out = f"(Error) {e}"
+                placeholder.empty()
+                if gram_typing_notice is not None:
+                    gram_typing_notice.empty()
+                st.markdown(
+                    "<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>",
+                    unsafe_allow_html=True,
                 )
-                out = (resp.choices[0].message.content or "").strip()
-            except Exception as e:
-                out = f"(Error) {e}"
-            placeholder.empty()
-            if gram_typing_notice is not None:
-                gram_typing_notice.empty()
-            st.markdown(f"<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='bubble-a'>{out}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='bubble-a'>{out}</div>", unsafe_allow_html=True)
+
+        with tab_connectors:
+            gram_level = st.session_state.get(KEY_GRAM_LEVEL, cur_level_g)
+            st.info(
+                "Build smoother sentences with German connectors. Choose your own or have Herr Felix suggest a set,"
+                " then get coaching with examples matched to your level."
+            )
+
+            connector_mode = st.radio(
+                "How should we choose connectors?",
+                ("I'll choose connectors", "Suggest for me"),
+                key=KEY_CONN_MODE,
+                horizontal=True,
+            )
+
+            connectors_text = ""
+            suggestion_placeholder = st.empty()
+            if connector_mode == "I'll choose connectors":
+                connectors_text = st.text_area(
+                    "Connectors or topics to focus on",
+                    key=KEY_CONN_TEXT,
+                    height=120,
+                    placeholder="z.B. weil, obwohl, trotzdem – oder Themen wie: Mein Wochenende, Arbeit vs. Freizeit",
+                )
+            else:
+                st.caption(
+                    "Let Herr Felix suggest 3–5 connectors for your current CEFR level "
+                    f"({gram_level})."
+                )
+                if st.button("Suggest connectors", key=KEY_CONN_SUGGEST):
+                    suggestion_placeholder.markdown(
+                        "<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>",
+                        unsafe_allow_html=True,
+                    )
+                    try:
+                        resp = client.chat.completions.create(
+                            model="gpt-4o-mini",
+                            messages=[
+                                {
+                                    "role": "system",
+                                    "content": (
+                                        "You are a German writing coach. Suggest 3-5 connectors appropriate for the "
+                                        "given CEFR level. Provide them as a simple numbered list with each connector "
+                                        "in German and a short English hint about when to use it."
+                                    ),
+                                },
+                                {
+                                    "role": "user",
+                                    "content": f"CEFR level: {gram_level}. Suggest connectors for practice.",
+                                },
+                            ],
+                            temperature=0.3,
+                            max_tokens=300,
+                        )
+                        suggestions = (resp.choices[0].message.content or "").strip()
+                    except Exception as exc:
+                        suggestions = f"(Error) {exc}"
+                    suggestion_placeholder.empty()
+                    st.session_state[KEY_CONN_SESSION] = suggestions
+                suggestions = st.session_state.get(KEY_CONN_SESSION, "")
+                if suggestions:
+                    st.markdown(
+                        f"<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>",
+                        unsafe_allow_html=True,
+                    )
+                    st.markdown(f"<div class='bubble-a'>{suggestions}</div>", unsafe_allow_html=True)
+                connectors_text = suggestions
+
+            scenario_text = st.text_area(
+                "Sentence or scenario to practice",
+                key=KEY_CONN_SCENARIO,
+                height=150,
+                placeholder="Beschreibe kurz, was du sagen möchtest. z.B. Ich erzähle über meinen letzten Urlaub und möchte Kontraste zeigen.",
+            )
+
+            coach_btn = st.button("Coach me", type="primary", key=KEY_CONN_COACH)
+
+            if coach_btn:
+                gram_level = st.session_state.get(KEY_GRAM_LEVEL, cur_level_g)
+                connector_payload = connectors_text.strip()
+                scenario_payload = scenario_text.strip()
+                if not connector_payload and connector_mode == "I'll choose connectors":
+                    st.warning("Bitte gib mindestens einen Connector oder ein Thema an – oder nutze die Vorschlagsfunktion.")
+                else:
+                    coach_placeholder = st.empty()
+                    coach_placeholder.markdown(
+                        "<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>",
+                        unsafe_allow_html=True,
+                    )
+                    time.sleep(random.uniform(0.8, 1.2))
+                    sys_msg = (
+                        "You are Herr Felix, a German connector coach. Review any provided connectors (or suggest a short "
+                        "set if none were given), explain how to use them in English, and give short German example "
+                        "sentences that match the student's CEFR level. Keep the tone encouraging and classroom-friendly."
+                    )
+                    user_parts = [f"CEFR level: {gram_level}"]
+                    if connector_payload:
+                        user_parts.append(f"Connectors to cover: {connector_payload}")
+                    else:
+                        user_parts.append("No connectors provided – please suggest a helpful set.")
+                    if scenario_payload:
+                        user_parts.append(f"Practice scenario: {scenario_payload}")
+                    user_msg = "\n".join(user_parts)
+
+                    try:
+                        resp = client.chat.completions.create(
+                            model="gpt-4o-mini",
+                            messages=[
+                                {"role": "system", "content": sys_msg},
+                                {"role": "user", "content": user_msg},
+                            ],
+                            temperature=0.4,
+                            max_tokens=700,
+                        )
+                        coaching_reply = (resp.choices[0].message.content or "").strip()
+                    except Exception as exc:
+                        coaching_reply = f"(Error) {exc}"
+                    coach_placeholder.empty()
+                    st.markdown(
+                        "<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>",
+                        unsafe_allow_html=True,
+                    )
+                    st.markdown(f"<div class='bubble-a'>{coaching_reply}</div>", unsafe_allow_html=True)
+
+                    if topic_db is None:
+                        logging.debug("Connector Firestore logging skipped: no client available")
+                    else:
+                        try:
+                            topic_db.collection("falowen_connector_sessions").add(
+                                {
+                                    "student_code": st.session_state.get("student_code"),
+                                    "level": gram_level,
+                                    "mode": connector_mode,
+                                    "connectors": connector_payload,
+                                    "scenario": scenario_payload,
+                                    "response": coaching_reply,
+                                    "suggestions": st.session_state.get(KEY_CONN_SESSION, ""),
+                                    "created_at": firestore.SERVER_TIMESTAMP,
+                                }
+                            )
+                        except Exception:
+                            logging.warning("Failed to log connector session", exc_info=True)
 
 
     # ===================== Exams (Speaking • Lesen • Hören) =====================
