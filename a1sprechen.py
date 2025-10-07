@@ -8719,7 +8719,8 @@ if tab == "Schreiben Trainer":
                 "    12. Asking for price, teach them how to use 'wie viel kostet...' and how they should ask for price always when it is about enquiries. "
                 "    13. Teach them to use 'Es tut mir leid.' to say sorry. "
                 "    14. Always remind students to use 'Ich schreibe Ihnen/dir, weil ich ... möchte.' for their reasons. "
-                "    15. When suggesting phrases, tell them to type their own words too without translator so you can help them. Always remind them to type by themselves and you will correct their mistakes"
+                "    15. Never write full sentences. Give them words and ideas but tell them to write by themselves and apply what they have learnt and you will help them with corrections and ideas. "
+                "    16. When suggesting phrases, tell them to type their own words too without translator so you can help them. Always remind them to type by themselves and you will correct their mistakes"
                 "Always make grammar correction or suggest a better phrase when necessary. "
                 "If it's a continuation, review their writing so far and guide them to the next step. "
                 "If it's a new prompt, give a brief, simple overview (in English) of how to build their letter (greeting, introduction, reason, request, closing), with short examples for each. "
@@ -8751,7 +8752,9 @@ if tab == "Schreiben Trainer":
                 "    12. At each step, say 'Your next recommended step:' and ask for only the next section (first greeting, then introduction, then body using 'Zuerst', 'Außerdem', then final point 'Zum Schluss', then polite closing phrase 'Ich freue mich'). "
                 "    13. The session should be complete in about 10 student replies; if not, remind them to finish soon. After 14, end and tell the student to copy their letter below and paste into 'Mark My Letter' for feedback. "
                 "    14. Throughout, do not write the whole letter—guide only one part at a time."
-                "    15. When suggesting phrases, tell them to type their own words too without translator so you can help them. Always remind them to type by themselves and you will correct their mistakes"
+                "    15. Never write full sentences. Give them words and ideas but tell them to write by themselves and apply what they have learnt and you will help them with corrections and ideas. "
+                "    16. When suggesting phrases, tell them to type their own words too without translator so you can help them. Always remind them to type by themselves and you will correct their mistakes"
+                
                 
                 
             ),
@@ -8766,6 +8769,7 @@ if tab == "Schreiben Trainer":
                 "4. Always be sure that students complete formal letter is between 40 to 50 words,informal letter and opinion essay between 80 to 90 words "
                 "5. When giving ideas for sentences, just give 2 to 3 words and tell student to continue from there. Let the student also think and dont over feed them. "
                 "6. When suggesting phrases, tell them to type their own words too without translator so you can help them. Always remind them to type by themselves and you will correct their mistakes"
+                "7. Never write full sentences. Give them words and ideas but tell them to write by themselves and apply what they have learnt and you will help them with corrections and ideas. "
                 "For a formal letter, give a brief overview of the structure (greeting, introduction, main reason/request, closing), with useful examples. "
                 "Always make grammar correction or suggest a better phrase when necessary. "
                 "For an informal letter, outline the friendly structure (greeting, introduction, reason, personal info, closing), with simple examples. "
