@@ -9026,7 +9026,37 @@ if tab == "Schreiben Trainer":
             initialize_draft_state(student_code, letter_draft_key)
             letter_draft = st.session_state.get(letter_draft_key, "")
 
-            send = st.button("Send")
+            def _reset_letter_coach_session() -> None:
+                """Clear the current coaching session and return to the prompt stage."""
+
+                st.session_state[ns("clear_chat_draft")] = True
+                st.session_state[ns("chat")] = []
+                st.session_state[ns("prompt")] = ""
+                st.session_state[ns("selected_letter_lines")] = []
+                st.session_state[ns("reset_coach")] = True
+                reset_local_draft_state(prompt_draft_key, "")
+                save_prompt_draft_now(show_toast=False)
+                clear_letter_coach_draft_state()
+                st.session_state["need_rerun"] = True
+
+            send_col, reset_col = st.columns([2, 3])
+            with send_col:
+                send = st.button(
+                    "Send",
+                    key=ns("send_button"),
+                    type="primary",
+                    use_container_width=True,
+                )
+            with reset_col:
+                start_new_top = st.button(
+                    "Start New Letter Coach",
+                    key=ns("start_new_letter_top"),
+                    help="Clear this chat and begin a fresh coaching session.",
+                    use_container_width=True,
+                )
+
+            if start_new_top:
+                _reset_letter_coach_session()
 
             if send:
                 user_input = st.session_state[draft_key].strip()
@@ -9236,15 +9266,12 @@ if tab == "Schreiben Trainer":
                 file_name="my_letter.txt"
             )
 
-            if st.button("Start New Letter Coach"):
-                st.session_state[ns("clear_chat_draft")] = True
-                st.session_state[ns("chat")] = []
-                st.session_state[ns("prompt")] = ""
-                st.session_state[ns("selected_letter_lines")] = []
-                reset_local_draft_state(prompt_draft_key, "")
-                save_prompt_draft_now(show_toast=False)
-                clear_letter_coach_draft_state()
-                st.session_state["need_rerun"] = True
+            if st.button(
+                "Start New Letter Coach",
+                key=ns("start_new_letter_bottom"),
+                help="Clear this chat and return to the prompt input screen.",
+            ):
+                _reset_letter_coach_session()
 
 
 
