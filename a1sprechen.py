@@ -6894,6 +6894,7 @@ if tab == "Chat • Grammar • Exams":
             f"- Then show a **KEYWORDS** line with exactly 3 bold chips (e.g., **Supermarkt**, **Preise**, **Einkaufszettel**).\n"
             f"- After the English intro, ask exactly ONE short German question to begin.\n"
             f"- Never start your first reply with German.\n\n"
+            f"- The overall 6 questions should train student ability to talk in the past,present and future and also good use of connectors\n\n"
             f"- When student input looks like a letter question, stop the chat and refer them to go to ideas geenrator at the schreiben trainer as you are only trained to coach on sprechen presentation"
             f"FIRST TOPIC BEHAVIOR:\n"
             f"- If the student's FIRST message looks like a topic (1–3 words, e.g., 'Einkaufen', 'Reisen', 'Umwelt'), "
