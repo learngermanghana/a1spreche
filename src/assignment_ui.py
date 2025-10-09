@@ -1314,6 +1314,8 @@ def render_results_and_resources_tab() -> None:
         else:
             st.info("No assignment data available yet.")
 
+    remaining_assignments = max(total_target - completed, 0)
+
     with missed_tab:
         st.subheader("Missed & Next")
 
@@ -1362,6 +1364,14 @@ def render_results_and_resources_tab() -> None:
             highlight_lines = [f"Recommended next lesson: **{descriptor}**"]
             if goal_text:
                 highlight_lines.append(f"**Goal:** {goal_text}")
+            remaining_label = (
+                f"{remaining_assignments} of {total_target}"
+                if total_target
+                else str(remaining_assignments)
+            )
+            highlight_lines.append(
+                f"**Remaining assignments:** {remaining_label}"
+            )
             st.success("\n\n".join(highlight_lines))
 
         if failed_assignments:
