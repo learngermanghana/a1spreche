@@ -9240,10 +9240,38 @@ if tab == "Schreiben Trainer":
 
             st.markdown("""
                 **📝 Your Letter Draft**
-                - Tick the lines you want to include in your letter draft.
-                - You can untick any part you want to leave out.
+                - Tap the ✅ box to keep a line, or untick it to hide that line from your draft.
+                - Use the quick buttons below if you want to keep or clear everything in one tap.
                 - Only ticked lines will appear in your downloadable draft below.
             """)
+
+            if user_msgs:
+                helper_box_style = (
+                    "background:#f1f8ff; border:1px solid #cfe2ff; border-radius:10px; "
+                    "padding:0.75em 1em; margin-bottom:0.6em;"
+                )
+                st.markdown(
+                    f"<div style=\"{helper_box_style}\">"
+                    "Tap a box again to untick it if you change your mind."
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+
+                manage_keep_col, manage_clear_col = st.columns(2)
+                with manage_keep_col:
+                    if st.button("✅ Keep every line", key=ns("select_all_lines")):
+                        new_state = [True] * len(user_msgs)
+                        st.session_state[selection_key] = new_state
+                        for idx, _ in enumerate(user_msgs):
+                            st.session_state[ns(f"letter_line_{idx}")] = True
+                        st.session_state["need_rerun"] = True
+                with manage_clear_col:
+                    if st.button("🗑️ Clear all boxes", key=ns("clear_all_lines")):
+                        new_state = [False] * len(user_msgs)
+                        st.session_state[selection_key] = new_state
+                        for idx, _ in enumerate(user_msgs):
+                            st.session_state[ns(f"letter_line_{idx}")] = False
+                        st.session_state["need_rerun"] = True
 
             saved_letter_draft = st.session_state.get(letter_draft_key, "")
             saved_at_key = f"{letter_draft_key}_saved_at"
@@ -9337,6 +9365,27 @@ if tab == "Schreiben Trainer":
                 </div>
                 """,
                 unsafe_allow_html=True
+            )
+
+            st.markdown(
+                """
+                <div style="
+                    background:#fff3cd;
+                    color:#3d2c02;
+                    border-radius:10px;
+                    padding:0.9em 1.0em;
+                    margin-bottom:0.6em;
+                    border:1px solid #ffe69c;
+                    font-size:1.05em;
+                    font-weight:600;
+                    line-height:1.4;
+                ">
+                    ✅ <span>Finished brainstorming? <strong>Step 1:</strong> click <em>Copy Text</em> below.<br>
+                    📥 <strong>Step 2:</strong> paste it in <em>Mark My Letter</em> to get feedback.</span><br>
+                    💡 <span>If nothing seems to happen, the text is already copied &mdash; just paste (Ctrl/⌘ + V) in the next tool.</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
 
             # --- Mobile-friendly copy/download box ---
