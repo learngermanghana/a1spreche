@@ -2298,6 +2298,126 @@ if tab == "Dashboard":
         """,
         unsafe_allow_html=True
     )
+
+    _weekly_progress = 0.0
+    if _weekly_goal:
+        try:
+            _weekly_progress = min(1.0, max(0.0, _submitted_this_week / float(_weekly_goal)))
+        except Exception:
+            _weekly_progress = 0.0
+    _progress_pct = int(round(_weekly_progress * 100))
+    _progress_label = (
+        f"{_submitted_this_week}/{_weekly_goal} assignments this week"
+        if _weekly_goal
+        else "Assignments submitted this week"
+    )
+
+    _momentum_actions: List[str] = []
+    if _goal_left > 0:
+        _momentum_actions.append(
+            f"Submit <strong>{_goal_left}</strong> more assignment{'s' if _goal_left != 1 else ''} to hit this week's goal."
+        )
+    elif _weekly_goal:
+        _momentum_actions.append("Weekly goal reached — try an extra practice task for bonus points.")
+
+    if _missed_list:
+        _first_missed = _missed_list[0]
+        _extra_missed = len(_missed_list) - 1
+        if _extra_missed > 0:
+            _momentum_actions.append(
+                f"Finish <strong>{_first_missed}</strong> and {_extra_missed} other missed assignment{'s' if _extra_missed != 1 else ''}."
+            )
+        else:
+            _momentum_actions.append(f"Revisit <strong>{_first_missed}</strong> to stay on track.")
+    elif _next_lesson:
+        _momentum_actions.append(
+            f"Open <strong>Day {_next_lesson.get('day', '?')}</strong> next for a fresh challenge."
+        )
+
+    if _streak <= 1:
+        _momentum_actions.append("Post a submission tomorrow to start a streak.")
+    elif _streak < 5:
+        _momentum_actions.append(f"Keep the {_streak}-day streak alive with another upload tomorrow.")
+    else:
+        _momentum_actions.append(f"🔥 {_streak}-day streak! Celebrate with a vocab practice session today.")
+
+    if _att_sessions == 0:
+        _momentum_actions.append("Join your next live class to log your first attendance hour this week.")
+    else:
+        _momentum_actions.append(
+            f"You've logged {_att_sessions} session{'s' if _att_sessions != 1 else ''} — add one more speaking practice to boost fluency."
+        )
+
+    if not _momentum_actions:
+        _momentum_actions.append("Explore the Course Book and Vocab Trainer to keep learning momentum.")
+
+    _momentum_items = "".join(f"<li>{item}</li>" for item in _momentum_actions)
+
+    st.markdown(
+        f"""
+        <style>
+          .momentum-card {{
+            margin: 18px 0;
+            padding: 22px 24px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, #25317e, #6366f1);
+            color: #f8fafc;
+            box-shadow: 0 16px 35px rgba(37, 49, 126, 0.25);
+          }}
+          .momentum-card h3 {{
+            margin: 0 0 12px;
+            font-size: 1.3rem;
+          }}
+          .momentum-progress {{
+            position: relative;
+            width: 100%;
+            height: 12px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.25);
+            overflow: hidden;
+            margin: 10px 0 12px;
+          }}
+          .momentum-progress span {{
+            display: block;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #a855f7, #f97316);
+            width: {_progress_pct}%;
+            transition: width 0.3s ease;
+          }}
+          .momentum-progress-label {{
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            text-transform: uppercase;
+            font-size: 0.78rem;
+            opacity: 0.85;
+          }}
+          .momentum-card ul {{
+            margin: 14px 0 0;
+            padding-left: 20px;
+            color: rgba(248, 250, 252, 0.92);
+            line-height: 1.55;
+          }}
+          .momentum-card ul li {{
+            margin-bottom: 6px;
+          }}
+          .momentum-card a {{
+            color: #f9f871;
+            text-decoration: none;
+          }}
+        </style>
+        <div class="momentum-card">
+          <h3>🚀 Keep your momentum</h3>
+          <div class="momentum-progress"><span></span></div>
+          <div class="momentum-progress-label">{_progress_label}</div>
+          <ul>
+            {_momentum_items}
+          </ul>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     if _next_lesson:
         raw_day = _next_lesson.get("day", "?")
         day_text = str(raw_day).strip()
