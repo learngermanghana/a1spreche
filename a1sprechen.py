@@ -22,7 +22,7 @@ from datetime import datetime
 from datetime import datetime as _dt
 from uuid import uuid4
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, List, Iterable, MutableMapping, Sequence
+from typing import Any, Dict, Optional, Tuple, List, Iterable, MutableMapping, Sequence, Set
 from functools import lru_cache
 
 # ==== Third-Party Packages ====
@@ -485,6 +485,184 @@ def _show_missing_code_warning(
     )
 
 
+def _inject_resubmit_styles() -> None:
+    """Ensure the resubmit call-to-action styles are only injected once."""
+
+    flag = "__resubmit_styles_injected__"
+    if st.session_state.get(flag):
+        return
+
+    st.session_state[flag] = True
+    st.markdown(
+        """
+        <style>
+          .resubmit-card {
+            box-sizing: border-box;
+            width: 100%;
+            margin: 18px 0 6px;
+            padding: 20px 22px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, #eef2ff, #dbeafe);
+            border: 1px solid rgba(37, 99, 235, 0.15);
+            box-shadow: 0 16px 48px rgba(30, 64, 175, 0.18);
+            color: #0b1220;
+            max-width: 720px;
+          }
+          .resubmit-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+          }
+          .resubmit-icon {
+            font-size: 2.4rem;
+            line-height: 1;
+          }
+          .resubmit-eyebrow {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: 800;
+            margin: 0 0 4px;
+            color: rgba(15, 23, 42, 0.72);
+          }
+          .resubmit-title {
+            margin: 0;
+            font-size: 1.45rem;
+            font-weight: 800;
+            line-height: 1.25;
+          }
+          .resubmit-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin: 18px 0 12px;
+            padding: 12px 18px;
+            border-radius: 999px;
+            background: #1d4ed8;
+            color: #f8fafc !important;
+            font-weight: 800;
+            font-size: 1.05rem;
+            text-decoration: none;
+            box-shadow: 0 10px 30px rgba(37, 99, 235, 0.35);
+            transition: transform 120ms ease, box-shadow 180ms ease;
+            border: 1px solid rgba(15, 23, 42, 0.08);
+          }
+          .resubmit-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 14px 38px rgba(37, 99, 235, 0.42);
+          }
+          .resubmit-button:active {
+            transform: translateY(0);
+          }
+          .resubmit-steps {
+            margin: 0 0 14px;
+            padding-left: 18px;
+            font-size: 0.98rem;
+            line-height: 1.55;
+            color: rgba(15, 23, 42, 0.82);
+          }
+          .resubmit-details {
+            border-top: 1px solid rgba(15, 23, 42, 0.14);
+            padding-top: 14px;
+            margin-top: 14px;
+          }
+          .resubmit-details-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+            margin: 0 0 8px;
+          }
+          .resubmit-details-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: grid;
+            gap: 8px;
+          }
+          .resubmit-detail-item {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.65);
+            border-radius: 10px;
+            padding: 8px 12px;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+          }
+          .resubmit-detail-label {
+            font-weight: 700;
+            color: rgba(15, 23, 42, 0.88);
+          }
+          .resubmit-detail-value {
+            font-weight: 600;
+            color: rgba(15, 23, 42, 0.88);
+            text-align: right;
+          }
+          .resubmit-detail-missing {
+            color: rgba(15, 23, 42, 0.6);
+            font-style: italic;
+          }
+          @media (max-width: 520px) {
+            .resubmit-card { padding: 18px; }
+            .resubmit-title { font-size: 1.28rem; }
+            .resubmit-detail-item { flex-direction: column; align-items: flex-start; }
+            .resubmit-detail-value { text-align: left; }
+          }
+          @media (prefers-color-scheme: dark) {
+            .resubmit-card {
+              background: linear-gradient(135deg, rgba(37, 99, 235, 0.32), rgba(30, 64, 175, 0.28));
+              color: #e2e8f0;
+              border-color: rgba(148, 163, 184, 0.25);
+              box-shadow: 0 16px 48px rgba(15, 23, 42, 0.55);
+            }
+            .resubmit-eyebrow { color: rgba(226, 232, 240, 0.78); }
+            .resubmit-steps { color: rgba(226, 232, 240, 0.88); }
+            .resubmit-details { border-top-color: rgba(148, 163, 184, 0.35); }
+            .resubmit-detail-item { background: rgba(15, 23, 42, 0.55); border-color: rgba(148, 163, 184, 0.3); }
+            .resubmit-detail-label, .resubmit-detail-value { color: #e2e8f0; }
+            .resubmit-detail-missing { color: rgba(226, 232, 240, 0.7); }
+          }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _collect_assignment_identifiers(lesson_info: Optional[Dict[str, Any]]) -> List[str]:
+    """Return assignment chapter identifiers derived from ``lesson_info``."""
+
+    seen: Set[str] = set()
+    collected: List[str] = []
+
+    def _visit(node: Any) -> None:
+        if isinstance(node, dict):
+            try:
+                is_assignment = bool(node.get("assignment"))
+            except Exception:
+                is_assignment = False
+
+            if is_assignment:
+                chapter_text = _safe_str(node.get("chapter"))
+                if chapter_text and chapter_text not in seen:
+                    seen.add(chapter_text)
+                    collected.append(chapter_text)
+
+            for value in node.values():
+                _visit(value)
+        elif isinstance(node, list):
+            for item in node:
+                _visit(item)
+
+    _visit(lesson_info or {})
+
+    if not collected:
+        fallback = _safe_str((lesson_info or {}).get("chapter"))
+        if fallback and fallback not in seen:
+            collected.append(fallback)
+
+    return collected
+
+
 def render_resubmit_email_cta(
     *,
     lesson_info: Optional[Dict[str, Any]] = None,
@@ -494,22 +672,29 @@ def render_resubmit_email_cta(
     """Display the resubmission email instructions."""
 
     info = lesson_info or {}
-    assignment_day = _safe_str(info.get("day"))
+    assignment_identifiers = _collect_assignment_identifiers(info)
+    assignment_value = ", ".join(assignment_identifiers)
+    if not assignment_value:
+        assignment_value = _safe_str(info.get("day"))
     safe_name = _safe_str(student_name)
     safe_code = _safe_str(student_code)
     if safe_code.lower() == "demo001":
         safe_code = ""
 
-    st.write("**Need to resubmit?**")
-    st.text(
-        "Click the link below to email learngermanghana@gmail.com with your revised work."
-    )
+    _inject_resubmit_styles()
+
+    detail_map = {
+        "Name": safe_name,
+        "Student code": safe_code,
+        "Assignment number": assignment_value,
+    }
 
     resubmit_body = (
         "Paste your revised work here.\n\n"
-        f"Name: {safe_name}\n"
-        f"Student Code: {safe_code}\n"
-        f"Assignment number: {assignment_day}"
+        + "\n".join(
+            f"{label}: {value}" if value else f"{label}: "
+            for label, value in detail_map.items()
+        )
     )
 
     resubmit_link = (
@@ -518,14 +703,47 @@ def render_resubmit_email_cta(
         f"&body={_urllib.quote(resubmit_body)}"
     )
 
+    detail_items: List[str] = []
+    for label, value in detail_map.items():
+        if value:
+            display_value = html.escape(value)
+        else:
+            display_value = "<span class=\"resubmit-detail-missing\">Add before sending</span>"
+        detail_items.append(
+            f"<li class=\"resubmit-detail-item\"><span class=\"resubmit-detail-label\">{label}</span>"
+            f"<span class=\"resubmit-detail-value\">{display_value}</span></li>"
+        )
+    details_html = "".join(detail_items)
+
     st.markdown(
-        f"[Click here to open a pre-filled resubmission email]({resubmit_link})"
+        f"""
+        <div class="resubmit-card" role="complementary">
+          <div class="resubmit-header">
+            <div class="resubmit-icon" aria-hidden="true">📬</div>
+            <div>
+              <p class="resubmit-eyebrow">Need to resubmit?</p>
+              <h3 class="resubmit-title">Send your updated assignment to the team</h3>
+            </div>
+          </div>
+          <a class="resubmit-button" href="{resubmit_link}">📧 Open pre-filled email</a>
+          <ol class="resubmit-steps">
+            <li>Tap the button above to open your email app.</li>
+            <li>Paste your revised work underneath the pre-filled details.</li>
+            <li>Send the email so your coach knows you have an update.</li>
+          </ol>
+          <div class="resubmit-details">
+            <p class="resubmit-details-title">Included in the email:</p>
+            <ul class="resubmit-details-list">{details_html}</ul>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
-    st.text(
-        "The email will already include your name, student code, and assignment number—just paste your revised work before sending."
-    )
-    st.text(
-        "If the link doesn't open an email app, copy the address and send your resubmission manually."
+
+    st.caption(
+        "If the button doesn't open an email window, send a message to "
+        "[learngermanghana@gmail.com](mailto:learngermanghana@gmail.com) "
+        "with the details above and paste your revised work manually."
     )
 
 
