@@ -2298,126 +2298,6 @@ if tab == "Dashboard":
         """,
         unsafe_allow_html=True
     )
-
-    _weekly_progress = 0.0
-    if _weekly_goal:
-        try:
-            _weekly_progress = min(1.0, max(0.0, _submitted_this_week / float(_weekly_goal)))
-        except Exception:
-            _weekly_progress = 0.0
-    _progress_pct = int(round(_weekly_progress * 100))
-    _progress_label = (
-        f"{_submitted_this_week}/{_weekly_goal} assignments this week"
-        if _weekly_goal
-        else "Assignments submitted this week"
-    )
-
-    _momentum_actions: List[str] = []
-    if _goal_left > 0:
-        _momentum_actions.append(
-            f"Submit <strong>{_goal_left}</strong> more assignment{'s' if _goal_left != 1 else ''} to hit this week's goal."
-        )
-    elif _weekly_goal:
-        _momentum_actions.append("Weekly goal reached — try an extra practice task for bonus points.")
-
-    if _missed_list:
-        _first_missed = _missed_list[0]
-        _extra_missed = len(_missed_list) - 1
-        if _extra_missed > 0:
-            _momentum_actions.append(
-                f"Finish <strong>{_first_missed}</strong> and {_extra_missed} other missed assignment{'s' if _extra_missed != 1 else ''}."
-            )
-        else:
-            _momentum_actions.append(f"Revisit <strong>{_first_missed}</strong> to stay on track.")
-    elif _next_lesson:
-        _momentum_actions.append(
-            f"Open <strong>Day {_next_lesson.get('day', '?')}</strong> next for a fresh challenge."
-        )
-
-    if _streak <= 1:
-        _momentum_actions.append("Post a submission tomorrow to start a streak.")
-    elif _streak < 5:
-        _momentum_actions.append(f"Keep the {_streak}-day streak alive with another upload tomorrow.")
-    else:
-        _momentum_actions.append(f"🔥 {_streak}-day streak! Celebrate with a vocab practice session today.")
-
-    if _att_sessions == 0:
-        _momentum_actions.append("Join your next live class to log your first attendance hour this week.")
-    else:
-        _momentum_actions.append(
-            f"You've logged {_att_sessions} session{'s' if _att_sessions != 1 else ''} — add one more speaking practice to boost fluency."
-        )
-
-    if not _momentum_actions:
-        _momentum_actions.append("Explore the Course Book and Vocab Trainer to keep learning momentum.")
-
-    _momentum_items = "".join(f"<li>{item}</li>" for item in _momentum_actions)
-
-    st.markdown(
-        f"""
-        <style>
-          .momentum-card {{
-            margin: 18px 0;
-            padding: 22px 24px;
-            border-radius: 20px;
-            background: linear-gradient(135deg, #25317e, #6366f1);
-            color: #f8fafc;
-            box-shadow: 0 16px 35px rgba(37, 49, 126, 0.25);
-          }}
-          .momentum-card h3 {{
-            margin: 0 0 12px;
-            font-size: 1.3rem;
-          }}
-          .momentum-progress {{
-            position: relative;
-            width: 100%;
-            height: 12px;
-            border-radius: 999px;
-            background: rgba(15, 23, 42, 0.25);
-            overflow: hidden;
-            margin: 10px 0 12px;
-          }}
-          .momentum-progress span {{
-            display: block;
-            height: 100%;
-            border-radius: inherit;
-            background: linear-gradient(90deg, #a855f7, #f97316);
-            width: {_progress_pct}%;
-            transition: width 0.3s ease;
-          }}
-          .momentum-progress-label {{
-            font-weight: 700;
-            letter-spacing: 0.01em;
-            text-transform: uppercase;
-            font-size: 0.78rem;
-            opacity: 0.85;
-          }}
-          .momentum-card ul {{
-            margin: 14px 0 0;
-            padding-left: 20px;
-            color: rgba(248, 250, 252, 0.92);
-            line-height: 1.55;
-          }}
-          .momentum-card ul li {{
-            margin-bottom: 6px;
-          }}
-          .momentum-card a {{
-            color: #f9f871;
-            text-decoration: none;
-          }}
-        </style>
-        <div class="momentum-card">
-          <h3>🚀 Keep your momentum</h3>
-          <div class="momentum-progress"><span></span></div>
-          <div class="momentum-progress-label">{_progress_label}</div>
-          <ul>
-            {_momentum_items}
-          </ul>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
     if _next_lesson:
         raw_day = _next_lesson.get("day", "?")
         day_text = str(raw_day).strip()
@@ -9240,38 +9120,10 @@ if tab == "Schreiben Trainer":
 
             st.markdown("""
                 **📝 Your Letter Draft**
-                - Tap the ✅ box to keep a line, or untick it to hide that line from your draft.
-                - Use the quick buttons below if you want to keep or clear everything in one tap.
+                - Tick the lines you want to include in your letter draft.
+                - You can untick any part you want to leave out.
                 - Only ticked lines will appear in your downloadable draft below.
             """)
-
-            if user_msgs:
-                helper_box_style = (
-                    "background:#f1f8ff; border:1px solid #cfe2ff; border-radius:10px; "
-                    "padding:0.75em 1em; margin-bottom:0.6em;"
-                )
-                st.markdown(
-                    f"<div style=\"{helper_box_style}\">"
-                    "Tap a box again to untick it if you change your mind."
-                    "</div>",
-                    unsafe_allow_html=True,
-                )
-
-                manage_keep_col, manage_clear_col = st.columns(2)
-                with manage_keep_col:
-                    if st.button("✅ Keep every line", key=ns("select_all_lines")):
-                        new_state = [True] * len(user_msgs)
-                        st.session_state[selection_key] = new_state
-                        for idx, _ in enumerate(user_msgs):
-                            st.session_state[ns(f"letter_line_{idx}")] = True
-                        st.session_state["need_rerun"] = True
-                with manage_clear_col:
-                    if st.button("🗑️ Clear all boxes", key=ns("clear_all_lines")):
-                        new_state = [False] * len(user_msgs)
-                        st.session_state[selection_key] = new_state
-                        for idx, _ in enumerate(user_msgs):
-                            st.session_state[ns(f"letter_line_{idx}")] = False
-                        st.session_state["need_rerun"] = True
 
             saved_letter_draft = st.session_state.get(letter_draft_key, "")
             saved_at_key = f"{letter_draft_key}_saved_at"
@@ -9365,27 +9217,6 @@ if tab == "Schreiben Trainer":
                 </div>
                 """,
                 unsafe_allow_html=True
-            )
-
-            st.markdown(
-                """
-                <div style="
-                    background:#fff3cd;
-                    color:#3d2c02;
-                    border-radius:10px;
-                    padding:0.9em 1.0em;
-                    margin-bottom:0.6em;
-                    border:1px solid #ffe69c;
-                    font-size:1.05em;
-                    font-weight:600;
-                    line-height:1.4;
-                ">
-                    ✅ <span>Finished brainstorming? <strong>Step 1:</strong> click <em>Copy Text</em> below.<br>
-                    📥 <strong>Step 2:</strong> paste it in <em>Mark My Letter</em> to get feedback.</span><br>
-                    💡 <span>If nothing seems to happen, the text is already copied &mdash; just paste (Ctrl/⌘ + V) in the next tool.</span>
-                </div>
-                """,
-                unsafe_allow_html=True,
             )
 
             # --- Mobile-friendly copy/download box ---
