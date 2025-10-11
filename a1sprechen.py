@@ -8297,6 +8297,7 @@ if tab == "Schreiben Trainer":
             "Mark My Letter",
             "Ideas Generator (Letter Coach)",
             "Vocab Trainer",
+
         ],
         horizontal=True,
         key=f"schreiben_sub_tab_{student_code}"
