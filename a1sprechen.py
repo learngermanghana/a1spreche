@@ -6562,6 +6562,68 @@ if tab == "My Course":
 if tab == "My Results and Resources":
     render_results_and_resources_tab()
 
+
+@st.cache_data
+def build_dict_df(levels):
+    rows = []
+    sentence_map = {}
+
+    # Collect sentences for each token in the sentence bank
+    for lvl in levels:
+        for item in SENTENCE_BANK.get(lvl, []):
+            sentence = item.get("target_de", "")
+            for tok in item.get("tokens", []):
+                t = str(tok).strip()
+                if not t or t in [",", ".", "!", "?", ":", ";"]:
+                    continue
+                sentence_map.setdefault((lvl, t), sentence)
+
+    # Build initial rows from the vocab lists
+    for lvl in levels:
+        for entry in VOCAB_LISTS.get(lvl, []):
+            de = entry[0]
+            en = entry[1]
+            pron = entry[2] if len(entry) > 2 else ""
+            sent = sentence_map.get((lvl, de), "")
+            rows.append(
+                {
+                    "Level": lvl,
+                    "German": de,
+                    "English": en,
+                    "Pronunciation": pron,
+                    "Sentence": sent,
+                }
+            )
+
+    df = (
+        pd.DataFrame(rows)
+        if rows
+        else pd.DataFrame(
+            columns=["Level", "German", "English", "Pronunciation", "Sentence"]
+        )
+    )
+
+    # Add extra tokens that appear in the sentence bank but not in the vocab list
+    extra = []
+    for (lvl, t), sent in sentence_map.items():
+        if not ((df["German"] == t) & (df["Level"] == lvl)).any():
+            extra.append(
+                {
+                    "Level": lvl,
+                    "German": t,
+                    "English": "",
+                    "Pronunciation": "",
+                    "Sentence": sent,
+                }
+            )
+    if extra:
+        df = pd.concat([df, pd.DataFrame(extra)], ignore_index=True)
+
+    if not df.empty:
+        df = df.drop_duplicates(subset=["Level", "German"]).reset_index(drop=True)
+    return df
+
+
 def render_vocab_trainer_section() -> None:
     # --- Who is this? ---
     student_code = st.session_state.get("student_code", "") or ""
@@ -8116,67 +8178,6 @@ if tab == "Chat • Grammar • Exams":
 # ================================
 # CONFIG: Sheet for Vocab + Audio
 # ================================
-@st.cache_data
-def build_dict_df(levels):
-    rows = []
-    sentence_map = {}
-
-    # Collect sentences for each token in the sentence bank
-    for lvl in levels:
-        for item in SENTENCE_BANK.get(lvl, []):
-            sentence = item.get("target_de", "")
-            for tok in item.get("tokens", []):
-                t = str(tok).strip()
-                if not t or t in [",", ".", "!", "?", ":", ";"]:
-                    continue
-                sentence_map.setdefault((lvl, t), sentence)
-
-    # Build initial rows from the vocab lists
-        for lvl in levels:
-            for entry in VOCAB_LISTS.get(lvl, []):
-                de = entry[0]
-                en = entry[1]
-                pron = entry[2] if len(entry) > 2 else ""
-                sent = sentence_map.get((lvl, de), "")
-                rows.append(
-                    {
-                        "Level": lvl,
-                        "German": de,
-                        "English": en,
-                        "Pronunciation": pron,
-                        "Sentence": sent,
-                    }
-                )
-
-    df = (
-        pd.DataFrame(rows)
-        if rows
-        else pd.DataFrame(
-            columns=["Level", "German", "English", "Pronunciation", "Sentence"]
-        )
-    )
-
-    # Add extra tokens that appear in the sentence bank but not in the vocab list
-    extra = []
-    for (lvl, t), sent in sentence_map.items():
-        if not ((df["German"] == t) & (df["Level"] == lvl)).any():
-            extra.append(
-                {
-                    "Level": lvl,
-                    "German": t,
-                    "English": "",
-                    "Pronunciation": "",
-                    "Sentence": sent,
-                }
-            )
-    if extra:
-        df = pd.concat([df, pd.DataFrame(extra)], ignore_index=True)
-
-    if not df.empty:
-        df = df.drop_duplicates(subset=["Level", "German"]).reset_index(drop=True)
-    return df
-
-
 def is_correct_answer(user_input: str, answer: str) -> bool:
     """Return True if the user's input matches the expected answer.
 
