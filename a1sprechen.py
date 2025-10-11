@@ -1302,12 +1302,14 @@ def render_sidebar_published():
         st.session_state.pop("_chat_focus_tab", None)
         st.session_state["need_rerun"] = True
 
-    def _go_dictionary():
-        st.session_state["nav_sel"] = "Chat • Grammar • Exams"
-        st.session_state["main_tab_select"] = "Chat • Grammar • Exams"
-        st.session_state["vocab_practice_subtab"] = "Dictionary"
-        st.session_state["_chat_focus_tab"] = "📚 Vocab"
-        _qp_set_safe(tab="Chat • Grammar • Exams")
+    def _go_course_submit():
+        st.session_state["nav_sel"] = "My Course"
+        st.session_state["main_tab_select"] = "My Course"
+        st.session_state["coursebook_subtab"] = "📘 Course Book"
+        st.session_state["coursebook_page"] = "Submit"
+        st.session_state["coursebook_prev_page"] = "Submit"
+        _qp_set_safe(tab="My Course")
+        st.session_state.pop("_chat_focus_tab", None)
         st.session_state["need_rerun"] = True
     if st.session_state.get("logged_in", False):
         st.sidebar.markdown("## Quick access")
@@ -1315,7 +1317,7 @@ def render_sidebar_published():
         st.sidebar.button("📈 My Course",                width="stretch", on_click=_go, args=("My Course",))
         st.sidebar.button("📊 Results & Resources",      width="stretch", on_click=_go, args=("My Results and Resources",))
         st.sidebar.button("🗣️ Chat • Grammar • Exams", width="stretch", on_click=_go_chat_main)
-        st.sidebar.button("📗 Dictionary",              width="stretch", on_click=_go_dictionary)
+        st.sidebar.button("✅ Submit Assignment",       width="stretch", on_click=_go_course_submit)
         st.sidebar.button("✍️ Schreiben Trainer",        width="stretch", on_click=_go, args=("Schreiben Trainer",))
         st.sidebar.button("🎥 Join on Zoom",             width="stretch", on_click=_go_zoom_class)
         st.sidebar.button("❓ Class Notes & Q&A",         width="stretch", on_click=_go_post_qna)
