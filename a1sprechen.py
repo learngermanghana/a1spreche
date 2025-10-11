@@ -1302,13 +1302,6 @@ def render_sidebar_published():
         st.session_state.pop("_chat_focus_tab", None)
         st.session_state["need_rerun"] = True
 
-    def _go_chat_vocab():
-        st.session_state["nav_sel"] = "Chat • Grammar • Exams"
-        st.session_state["main_tab_select"] = "Chat • Grammar • Exams"
-        st.session_state["_chat_focus_tab"] = "📚 Vocab"
-        _qp_set_safe(tab="Chat • Grammar • Exams")
-        st.session_state["need_rerun"] = True
-
     def _go_dictionary():
         st.session_state["nav_sel"] = "Chat • Grammar • Exams"
         st.session_state["main_tab_select"] = "Chat • Grammar • Exams"
@@ -1322,7 +1315,6 @@ def render_sidebar_published():
         st.sidebar.button("📈 My Course",                width="stretch", on_click=_go, args=("My Course",))
         st.sidebar.button("📊 Results & Resources",      width="stretch", on_click=_go, args=("My Results and Resources",))
         st.sidebar.button("🗣️ Chat • Grammar • Exams", width="stretch", on_click=_go_chat_main)
-        st.sidebar.button("📚 Vocab (Chat tab)",         width="stretch", on_click=_go_chat_vocab)
         st.sidebar.button("📗 Dictionary",              width="stretch", on_click=_go_dictionary)
         st.sidebar.button("✍️ Schreiben Trainer",        width="stretch", on_click=_go, args=("Schreiben Trainer",))
         st.sidebar.button("🎥 Join on Zoom",             width="stretch", on_click=_go_zoom_class)
