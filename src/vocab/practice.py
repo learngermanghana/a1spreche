@@ -80,9 +80,50 @@ def render_vocab_practice(student_code: str, level: str) -> None:
     }
 
     items = VOCAB_LISTS.get(level, [])
-    completed = set(stats["completed_words"])
-    not_done = [pair for pair in items if pair[0] not in completed]
+    completed_words = [
+        str(word).strip()
+        for word in stats.get("completed_words", [])
+        if str(word).strip()
+    ]
+    completed_words = sorted(set(completed_words), key=str.lower)
+    completed_lookup = set(completed_words)
+
+    not_done = [pair for pair in items if pair[0] not in completed_lookup]
+
     st.info(f"{len(not_done)} words NOT yet done at {level}.")
+    if completed_words:
+        st.success(f"{len(completed_words)} words already practiced at {level}.")
+        with st.expander("See practiced words", expanded=False):
+            history = stats.get("history", []) or []
+            last_session = next(
+                (
+                    session
+                    for session in reversed(history)
+                    if session.get("practiced_words")
+                ),
+                None,
+            )
+            if last_session:
+                practiced = [
+                    str(word).strip()
+                    for word in last_session.get("practiced_words", [])
+                    if str(word).strip()
+                ]
+                if practiced:
+                    st.markdown(
+                        "**Last session:** "
+                        + ", ".join(f"`{word}`" for word in practiced)
+                    )
+            if len(completed_words) <= 12:
+                st.markdown(", ".join(f"`{word}`" for word in completed_words))
+            else:
+                col_count = 3 if len(completed_words) > 36 else 2
+                columns = st.columns(col_count)
+                for idx, word in enumerate(completed_words):
+                    columns[idx % col_count].markdown("- `{}`".format(word))
+            st.caption(
+                "Tip: These words stay here even when you start a new practice session."
+            )
 
     if st.button("🔁 Start New Practice", key="vt_reset"):
         for key in defaults:
