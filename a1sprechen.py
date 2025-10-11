@@ -8266,13 +8266,38 @@ if tab == "Schreiben Trainer":
         st.session_state[f"schreiben_sub_tab_{student_code}"] = pending_subtab
 
     # --- Sub-tabs for the Trainer ---
+    st.markdown(
+        """
+        <style>
+        div[role="radiogroup"][aria-label="Choose Mode"],
+        div[data-testid="stHorizontalBlock"] [aria-label="Choose Mode"] {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        div[role="radiogroup"][aria-label="Choose Mode"] > label,
+        div[data-testid="stHorizontalBlock"] [aria-label="Choose Mode"] > label {
+            flex: 1 1 180px;
+            min-width: 160px;
+        }
+        @media (max-width: 640px) {
+            div[role="radiogroup"][aria-label="Choose Mode"] > label,
+            div[data-testid="stHorizontalBlock"] [aria-label="Choose Mode"] > label {
+                flex-basis: 100%;
+            }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     sub_tab = st.radio(
         "Choose Mode",
         [
             "Practice Letters",
-            "Vocab Trainer",
             "Mark My Letter",
             "Ideas Generator (Letter Coach)",
+            "Vocab Trainer",
+
         ],
         horizontal=True,
         key=f"schreiben_sub_tab_{student_code}"
@@ -8331,7 +8356,7 @@ if tab == "Schreiben Trainer":
                 key=f"practice_prompt_{student_code}",
             )
         st.info(
-            "Use \u201cIdeas Generator (Letter Coach)\u201d for ideas and \u201cMark My Letter\u201d to submit your response for evaluation.",
+            "Use \u201cMark My Letter\u201d to submit your response for evaluation and \u201cIdeas Generator (Letter Coach)\u201d when you need inspiration.",
         )
 
     if sub_tab == "Vocab Trainer":
