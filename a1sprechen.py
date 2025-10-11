@@ -7144,14 +7144,70 @@ if tab == "Chat • Grammar • Exams":
 
     # ---------- Subtabs ----------
     tab_labels = ["🧑‍🏫 Topic Coach", "🛠️ Grammar", "📝 Exams", "📚 Vocab"]
+    base_tab_labels = tab_labels[:]
     focus_tab = st.session_state.get("_chat_focus_tab")
-    if focus_tab not in tab_labels:
-        focus_tab = None
-        st.session_state["_chat_focus_tab"] = None
+    if focus_tab not in base_tab_labels:
+        focus_tab = base_tab_labels[0]
+        st.session_state["_chat_focus_tab"] = focus_tab
+
+    st.markdown(
+        """
+        <style>
+          .chat-grammar-tabs [data-baseweb="tab-list"]{
+            flex-wrap:wrap;
+            row-gap:0.35rem;
+            column-gap:0.35rem;
+            justify-content:center;
+          }
+          .chat-grammar-tabs [data-baseweb="tab"]{
+            flex:0 0 auto;
+            border-radius:999px !important;
+            padding:4px 14px !important;
+            white-space:nowrap;
+          }
+          @media (max-width: 640px){
+            .chat-tab-selector{ display:block; margin-bottom:0.5rem; }
+            .chat-tab-selector label{ font-weight:700; color:#0f172a; }
+          }
+          @media (min-width: 641px){
+            .chat-tab-selector{ display:none; }
+          }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    selector_key = "chat_tab_selector"
+
+    def _sync_chat_tab_focus() -> None:
+        chosen = st.session_state.get(selector_key)
+        if chosen and chosen in base_tab_labels:
+            if st.session_state.get("_chat_focus_tab") != chosen:
+                st.session_state["_chat_focus_tab"] = chosen
+                st.session_state["need_rerun"] = True
+
+    with st.container():
+        st.markdown('<div class="chat-tab-selector">', unsafe_allow_html=True)
+        st.selectbox(
+            "Select a tool",
+            base_tab_labels,
+            index=base_tab_labels.index(focus_tab),
+            key=selector_key,
+            on_change=_sync_chat_tab_focus,
+            help="Use this menu on phones to switch between Chat • Grammar • Exams tools.",
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    if st.session_state.get(selector_key) not in base_tab_labels:
+        st.session_state[selector_key] = focus_tab
+
     if focus_tab in tab_labels:
         idx = tab_labels.index(focus_tab)
         tab_labels = tab_labels[idx:] + tab_labels[:idx]
+
+    st.markdown('<div class="chat-grammar-tabs">', unsafe_allow_html=True)
     tab_contexts = st.tabs(tab_labels)
+    st.markdown('</div>', unsafe_allow_html=True)
     tab_lookup = dict(zip(tab_labels, tab_contexts))
     tab_tc = tab_lookup["🧑‍🏫 Topic Coach"]
     tab_gram = tab_lookup["🛠️ Grammar"]
