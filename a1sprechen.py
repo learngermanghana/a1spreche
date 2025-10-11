@@ -8158,6 +8158,7 @@ if tab == "Schreiben Trainer":
     # --- Writing stats summary with Firestore ---
     student_code = st.session_state.get("student_code", "demo")
     stats = render_schreiben_stats(student_code)
+    student_name = _safe_str(st.session_state.get("student_name"), "Student") or "Student"
 
     # --- Update session states for new student (preserves drafts, etc) ---
     prev_student_code = st.session_state.get("prev_student_code", None)
@@ -8397,6 +8398,7 @@ if tab == "Schreiben Trainer":
                 f"The student has submitted a {schreiben_level} German letter or essay.\n"
                 f"Your job is to mark, score, and explain feedback in a kind, step-by-step way.\n"
                 f"Always answer in English.\n"
+                f"Begin with a warm greeting that uses the student's name ({student_name}) and refer to them by name throughout your feedback.\n"
                 f"1. Give a quick summary (one line) of how well the student did overall.\n"
                 f"2. Then show a detailed breakdown of strengths and weaknesses in 4 areas:\n"
                 f"   Grammar, Vocabulary, Spelling, Structure.\n"
@@ -8506,6 +8508,7 @@ if tab == "Schreiben Trainer":
                     "Your feedback was:\n"
                     f"{st.session_state[f'{student_code}_last_feedback']}\n\n"
                     "Now the student has submitted an improved version below.\n"
+                    f"The student's name is {student_name}. Begin by greeting {student_name} and continue to use their name warmly throughout your response.\n"
                     "Compare both versions and:\n"
                     "- Tell the student exactly what they improved, and which mistakes were fixed.\n"
                     "- Point out if there are still errors left, with new tips for further improvement.\n"
@@ -8606,6 +8609,7 @@ if tab == "Schreiben Trainer":
 
         # === NAMESPACED SESSION KEYS (per student) ===
         student_code = st.session_state.get("student_code", "demo")
+        student_name = _safe_str(st.session_state.get("student_name"), "Student") or "Student"
         ns_prefix = f"{student_code}_letter_coach_"
         def ns(key): return ns_prefix + key
 
@@ -8954,6 +8958,9 @@ if tab == "Schreiben Trainer":
                     st.session_state[ns("prompt")] = prompt
                     student_level = st.session_state.get("schreiben_level", "A1")
                     system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=prompt)
+                    system_prompt += (
+                        f" The student's name is {student_name}. Always greet {student_name} and weave their name into your encouragement and guidance."
+                    )
                     chat_history = [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": prompt}
@@ -9097,6 +9104,9 @@ if tab == "Schreiben Trainer":
                 chat_history.append({"role": "user", "content": user_input})
                 student_level = st.session_state.get("schreiben_level", "A1")
                 system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=st.session_state[ns("prompt")])
+                system_prompt += (
+                    f" The student's name is {student_name}. Always greet {student_name} warmly and include their name in your feedback."
+                )
                 with st.spinner("👨‍🏫 Herr Felix is typing..."):
                     resp = client.chat.completions.create(
                         model="gpt-4o",
