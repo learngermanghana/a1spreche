@@ -2769,19 +2769,27 @@ if tab == "Dashboard":
     st.caption(expander_title)
     with st.expander(expander_title, expanded=False):
         if exam_info:
+            register_link = "[Register online here](https://www.goethe.de/ins/gh/en/spr/prf.html)"
             if days_to_exam is not None and days_to_exam > 0:
                 st.info(
                     "\n".join(
                         [
                             f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).",
                             fee_text,
-                            "[Register online here](https://www.goethe.de/ins/gh/en/spr/prf.html)",
+                            register_link,
                         ]
                     )
-
                 )
             elif days_to_exam == 0:
-                st.success("🚀 Exam is today! Good luck!")
+                st.success(
+                    "\n".join(
+                        [
+                            f"📝 Registration is today ({exam_date:%d %b %Y}).",
+                            fee_text,
+                            register_link,
+                        ]
+                    )
+                )
             else:
                 st.error(
                     f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.  \n",
