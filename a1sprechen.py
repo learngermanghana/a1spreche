@@ -2792,8 +2792,12 @@ if tab == "Dashboard":
                 )
             else:
                 st.error(
-                    f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.  \n",
-                    f"{fee_text}"
+                    "\n".join(
+                        [
+                            f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.",
+                            fee_text,
+                        ]
+                    )
                 )
 
             st.caption(
