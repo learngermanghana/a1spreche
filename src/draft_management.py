@@ -40,6 +40,44 @@ def _draft_state_keys(draft_key: str) -> Tuple[str, str, str, str]:
     )
 
 
+def _skip_counter_key(draft_key: str) -> str:
+    return f"{draft_key}__skip_next_save"
+
+
+def skip_next_save(draft_key: str, *, count: int = 1) -> None:
+    """Skip the next ``count`` save operations for ``draft_key``.
+
+    ``count`` is clamped to a minimum of one so callers can simply request a
+    skip without worrying about zero/negative values.  The counter is stored in
+    :mod:`streamlit` session state so ``save_now`` and ``autosave_maybe`` can
+    consume it on the next rerun triggered by a download button click.
+    """
+
+    key = _skip_counter_key(draft_key)
+    try:
+        current = int(st.session_state.get(key, 0) or 0)
+    except (TypeError, ValueError):
+        current = 0
+    st.session_state[key] = current + max(1, int(count))
+
+
+def _consume_skip_counter(draft_key: str) -> bool:
+    key = _skip_counter_key(draft_key)
+    try:
+        remaining = int(st.session_state.get(key, 0) or 0)
+    except (TypeError, ValueError):
+        remaining = 0
+    if remaining <= 0:
+        return False
+
+    new_value = remaining - 1
+    if new_value > 0:
+        st.session_state[key] = new_value
+    else:
+        st.session_state.pop(key, None)
+    return True
+
+
 def reset_local_draft_state(
     draft_key: str,
     text: str = "",
@@ -120,6 +158,9 @@ def clear_draft_after_post(code: str, draft_key: str) -> None:
 
 def save_now(draft_key: str, code: str, show_toast: bool = True) -> None:
     """Immediately persist the draft associated with ``draft_key``."""
+    if _consume_skip_counter(draft_key):
+        return
+
     text = st.session_state.get(draft_key, "") or ""
     if st.session_state.get("falowen_chat_draft_key") == draft_key:
         conv = st.session_state.get("falowen_conv_key", "")
@@ -157,6 +198,10 @@ def autosave_maybe(
     last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(
         lesson_field_key
     )
+    if _consume_skip_counter(lesson_field_key):
+        st.session_state[last_ts_key] = time.time()
+        return
+
     last_val = st.session_state.get(last_val_key, "")
     if not isinstance(last_val, str):
         last_val = ""
