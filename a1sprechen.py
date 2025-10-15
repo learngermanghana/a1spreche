@@ -4028,14 +4028,13 @@ if tab == "My Course":
                 )
                 render_umlaut_pad(draft_key, context=f"coursebook_{lesson_key}", disabled=locked_ui)
 
+                # ---------- Manual save + last saved time + safe reload ----------
+                csave1, csave2, csave3 = st.columns([1, 1, 1])
+
                 # Debounced autosave (safe so empty first-render won't wipe a non-empty cloud draft)
                 current_text = st.session_state.get(draft_key, "")
                 last_val = st.session_state.get(last_val_key, "")
-                if not locked_ui and (current_text.strip() or not last_val.strip()):
-                    autosave_maybe(code, draft_key, current_text, min_secs=2.0, min_delta=12, locked=locked_ui)
-
-                # ---------- Manual save + last saved time + safe reload ----------
-                csave1, csave2, csave3 = st.columns([1, 1, 1])
+                download_clicked = False
 
                 with csave1:
                     if st.button("💾 Save Draft now", disabled=locked_ui):
@@ -4090,15 +4089,26 @@ if tab == "My Course":
                     safe_chapter = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(info.get("chapter", "")))
                     fname = f"falowen_draft_{student_level}_day{info['day']}_{safe_chapter}.txt"
 
-                    st.download_button(
+                    download_clicked = st.download_button(
                         "⬇️ Download draft (TXT)",
                         data=(header + clean_body).encode("utf-8"),
                         file_name=fname,
                         mime="text/plain",
                         help="Save a clean backup of your current draft",
                         key=f"{draft_key}__download_txt",
-                        on_click=skip_next_save,
-                        kwargs={"draft_key": draft_key, "count": 2},
+                    )
+
+                if download_clicked:
+                    skip_next_save(draft_key, count=2)
+
+                if not locked_ui and (current_text.strip() or not last_val.strip()):
+                    autosave_maybe(
+                        code,
+                        draft_key,
+                        current_text,
+                        min_secs=2.0,
+                        min_delta=12,
+                        locked=locked_ui,
                     )
 
                 if show_resubmit_hint:
