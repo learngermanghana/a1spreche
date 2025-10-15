@@ -798,6 +798,7 @@ from src.draft_management import (
     save_notes_to_db,
     autosave_learning_note,
     on_cb_subtab_change,
+    skip_next_save,
 )
 from src.falowen.chat_core import (
     back_step,
@@ -4094,7 +4095,10 @@ if tab == "My Course":
                         data=(header + clean_body).encode("utf-8"),
                         file_name=fname,
                         mime="text/plain",
-                        help="Save a clean backup of your current draft"
+                        help="Save a clean backup of your current draft",
+                        key=f"{draft_key}__download_txt",
+                        on_click=skip_next_save,
+                        kwargs={"draft_key": draft_key, "count": 2},
                     )
 
                 if show_resubmit_hint:
