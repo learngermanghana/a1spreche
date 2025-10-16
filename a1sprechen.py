@@ -240,7 +240,9 @@ def _render_live_forum_timer(timer_info: Dict[str, Any], *, key: str) -> None:
                 expiry_dt = expiry_dt.astimezone(UTC)
             iso_expiry = expiry_dt.isoformat()
 
+
     base_color = "#ef4444" if status == "open" else "#64748b"
+
     element_id = f"reply-timer-{key}"
     html_label = html.escape(label)
 
@@ -267,7 +269,9 @@ def _render_live_forum_timer(timer_info: Dict[str, Any], *, key: str) -> None:
             const now = new Date();
             const diffMinutes = Math.max(0, Math.ceil((expiry - now) / 60000));
             el.textContent = formatLabel(diffMinutes);
+
             el.style.color = diffMinutes <= 1 ? "#dc2626" : "#ef4444";
+
           }}
 
           tick();
