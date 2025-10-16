@@ -42,6 +42,16 @@ def to_datetime_any(value: Any) -> Optional[_dt]:
                 dt_val = None
 
         if dt_val is None:
+            # Manually handle common ISO 8601 strings (e.g. 2024-01-01T12:30:00Z)
+            try:
+                iso_text = str(value).strip()
+                if iso_text.endswith("Z"):
+                    iso_text = iso_text[:-1] + "+00:00"
+                dt_val = _dt.fromisoformat(iso_text)
+            except Exception:
+                dt_val = None
+
+        if dt_val is None:
             for fmt in (
                 "%Y-%m-%d",
                 "%Y-%m-%d %H:%M:%S",
@@ -55,8 +65,14 @@ def to_datetime_any(value: Any) -> Optional[_dt]:
                 except Exception:
                     continue
 
-    if dt_val is not None and dt_val.tzinfo is None:
-        dt_val = dt_val.replace(tzinfo=_timezone.utc)
+    if dt_val is not None:
+        if dt_val.tzinfo is None:
+            dt_val = dt_val.replace(tzinfo=_timezone.utc)
+        else:
+            try:
+                dt_val = dt_val.astimezone(_timezone.utc)
+            except Exception:
+                pass
 
     return dt_val
 
