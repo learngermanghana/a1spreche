@@ -213,6 +213,138 @@ def _format_typing_banner(entries: List[Dict[str, Any]], current_code: str) -> s
     return f"{', '.join(names[:-1])}, and {names[-1]} are typing…"
 
 
+def _render_live_forum_timer(timer_info: Dict[str, Any], *, key: str) -> None:
+    """Render a live-updating countdown for the reply composer."""
+
+    label = build_forum_reply_indicator_text(timer_info)
+    if not label:
+        return
+
+    status = str(timer_info.get("status") or "")
+    expires_at = timer_info.get("expires_at")
+    iso_expiry = ""
+    if isinstance(expires_at, _dt):
+        try:
+            iso_expiry = expires_at.astimezone(UTC).isoformat()
+        except Exception:
+            iso_expiry = ""
+    elif hasattr(expires_at, "to_datetime"):
+        try:
+            expiry_dt = expires_at.to_datetime()
+        except Exception:
+            expiry_dt = None
+        if isinstance(expiry_dt, _dt):
+            if expiry_dt.tzinfo is None:
+                expiry_dt = expiry_dt.replace(tzinfo=_timezone.utc)
+            else:
+                expiry_dt = expiry_dt.astimezone(UTC)
+            iso_expiry = expiry_dt.isoformat()
+
+    base_color = "#ef4444" if status == "open" else "#64748b"
+    element_id = f"reply-timer-{key}"
+    html_label = html.escape(label)
+
+    script = f"""
+    <div id="{element_id}" style="font-size:0.95rem;font-weight:600;color:{base_color};margin:6px 0 -4px;">
+        {html_label}
+    </div>
+    <script>
+      (function() {{
+        const el = document.getElementById({json.dumps(element_id)});
+        if (!el) return;
+        const status = {json.dumps(status)};
+        const expiryIso = {json.dumps(iso_expiry)};
+
+        function formatLabel(minutes) {{
+          if (minutes <= 0) return "Forum closed";
+          if (minutes === 1) return "⏳ 1 minute left";
+          return `⏳ ${{minutes}} minutes left`;
+        }}
+
+        if (status === "open" && expiryIso) {{
+          function tick() {{
+            const expiry = new Date(expiryIso);
+            const now = new Date();
+            const diffMinutes = Math.max(0, Math.ceil((expiry - now) / 60000));
+            el.textContent = formatLabel(diffMinutes);
+            el.style.color = diffMinutes <= 1 ? "#dc2626" : "#ef4444";
+          }}
+
+          tick();
+          const timerHandle = setInterval(function () {{
+            if (!document.body.contains(el)) {{
+              clearInterval(timerHandle);
+              return;
+            }}
+            tick();
+          }}, 15000);
+        }} else if (status === "closed") {{
+          el.style.color = "#64748b";
+        }}
+      }})();
+    </script>
+    """
+
+    try:
+        components.html(script, height=36, key=f"reply_timer_component_{key}", scrolling=False)
+    except Exception:
+        st.caption(label)
+
+
+def _format_saved_timestamp(value: Any) -> str:
+    if value is None:
+        return ""
+
+    dt_value: Optional[_dt] = None
+    if isinstance(value, _dt):
+        dt_value = value
+    elif hasattr(value, "to_datetime"):
+        try:
+            maybe_dt = value.to_datetime()
+        except Exception:
+            maybe_dt = None
+        if isinstance(maybe_dt, _dt):
+            dt_value = maybe_dt
+
+    if dt_value is not None:
+        if dt_value.tzinfo is None:
+            dt_value = dt_value.replace(tzinfo=_timezone.utc)
+        else:
+            dt_value = dt_value.astimezone(UTC)
+        return dt_value.strftime("%H:%M:%S UTC")
+
+    if isinstance(value, str):
+        return value
+
+    return ""
+
+
+def _render_autosave_status(draft_key: str, current_text: str) -> None:
+    last_val_key, _, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
+
+    last_val = st.session_state.get(last_val_key, "")
+    if not isinstance(last_val, str):
+        last_val = str(last_val or "")
+
+    if not isinstance(current_text, str):
+        current_text = str(current_text or "")
+
+    dirty = current_text != last_val
+    saved_flag = bool(st.session_state.get(saved_flag_key))
+    saved_at_val = st.session_state.get(saved_at_key)
+    saved_label = _format_saved_timestamp(saved_at_val)
+
+    if dirty:
+        st.caption("💾 Autosave pending…")
+    elif saved_flag:
+        if saved_label:
+            st.caption(f"💾 Draft autosaved at {saved_label}")
+        else:
+            st.caption("💾 Draft autosaved.")
+    else:
+        st.caption("💾 Autosave ready.")
+
+
 def _coerce_day(value: Any) -> Optional[int]:
     """Return ``value`` as an ``int`` day when possible."""
 
@@ -5517,13 +5649,15 @@ if tab == "My Course":
                     student_name=student_name,
                     text=new_q,
                 )
+                current_post_text = st.session_state.get(draft_key, "")
                 autosave_maybe(
                     student_code,
                     draft_key,
-                    st.session_state.get(draft_key, ""),
-                    min_secs=2.0,
-                    min_delta=12,
+                    current_post_text,
+                    min_secs=1.0,
+                    min_delta=8,
                 )
+                _render_autosave_status(draft_key, current_post_text)
             with ai_col:
                 if st.button(
                     "✨ Correct with AI",
@@ -6138,17 +6272,7 @@ if tab == "My Course":
                     )
                     if banner:
                         st.caption(banner)
-                    reply_timer_label = build_forum_reply_indicator_text(timer_info)
-                    if reply_timer_label:
-                        reply_color = "#dc2626" if timer_info.get("status") == "open" else "#64748b"
-                        st.markdown(
-                            "<div style='font-size:0.95rem;font-weight:600;color:%s;margin:6px 0 -4px;'>%s</div>"
-                            % (
-                                reply_color,
-                                html.escape(str(reply_timer_label)),
-                            ),
-                            unsafe_allow_html=True,
-                        )
+                    _render_live_forum_timer(timer_info, key=f"{q_id}_reply")
                     if show_timer_warning:
                         st.info(
                             "⏳ Time up soon—replies close in under a minute.",
@@ -6177,7 +6301,8 @@ if tab == "My Course":
                         student_name=student_name,
                         text=current_text,
                     )
-                    autosave_maybe(student_code, draft_key, current_text, min_secs=2.0, min_delta=12)
+                    autosave_maybe(student_code, draft_key, current_text, min_secs=1.0, min_delta=8)
+                    _render_autosave_status(draft_key, current_text)
 
                     send_col, ai_col = st.columns([1, 1])
 

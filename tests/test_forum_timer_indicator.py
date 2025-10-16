@@ -15,6 +15,19 @@ def test_to_datetime_any_handles_naive_datetime():
     assert parsed.hour == 12
 
 
+def test_to_datetime_any_handles_iso_z_string():
+    iso_value = "2024-06-01T10:15:30Z"
+    parsed = to_datetime_any(iso_value)
+    assert parsed is not None
+    assert parsed.tzinfo == timezone.utc
+    assert parsed.year == 2024
+    assert parsed.month == 6
+    assert parsed.day == 1
+    assert parsed.hour == 10
+    assert parsed.minute == 15
+    assert parsed.second == 30
+
+
 def test_build_forum_timer_indicator_future_minutes():
     now = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
     expires = now + timedelta(minutes=12)
