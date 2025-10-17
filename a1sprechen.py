@@ -4396,10 +4396,7 @@ if tab == "My Course":
                         data=(header + clean_body).encode("utf-8"),
                         file_name=fname,
                         mime="text/plain",
-                        help="Save a clean backup of your current draft",
-                        key=f"{draft_key}__download_txt",
-                        on_click=skip_next_save,
-                        kwargs={"draft_key": draft_key, "count": 2},
+                        help="Save a clean backup of your current draft"
                     )
 
                 if show_resubmit_hint:
@@ -5670,47 +5667,9 @@ if tab == "My Course":
 
                 normalized = text.replace("\r\n", "\n").replace("\r", "\n")
 
-                def _html_to_plain_text(value: str) -> str:
-                    """Convert legacy HTML payloads into readable plain text."""
-                    soup = BeautifulSoup(value, "html.parser")
-
-                    for node in soup(["script", "style"]):
-                        node.decompose()
-
-                    for br in soup.find_all("br"):
-                        br.replace_with("\n")
-
-                    for li in soup.find_all("li"):
-                        li_text = li.get_text(" ", strip=True)
-                        li.clear()
-                        if li_text:
-                            li.append(f"• {li_text}")
-
-                    for anchor in soup.find_all("a"):
-                        anchor_text = anchor.get_text(" ", strip=True)
-                        href = (anchor.get("href") or "").strip()
-                        replacement = anchor_text
-                        if href:
-                            replacement = f"{anchor_text or href} ({href})"
-                        anchor.replace_with(replacement)
-
-                    block_tags = {"p", "div", "section", "article", "header", "footer", "h1", "h2", "h3", "h4", "h5", "h6"}
-                    for block in soup.find_all(block_tags):
-                        if block.contents and not str(block).endswith("\n"):
-                            block.append("\n\n")
-
-                    extracted = soup.get_text("\n")
-                    extracted = re.sub(r"\n{3,}", "\n\n", extracted)
-                    return extracted.strip()
-
                 # Remove leading double-spaces introduced by legacy rewrapping.
                 normalized = normalized.lstrip()
                 normalized = re.sub(r"(?m)(?<=\n)[ \t]{2,}(?=\S)", "", normalized)
-
-                if "<" in normalized and ">" in normalized:
-                    plain = _html_to_plain_text(normalized)
-                    if plain:
-                        normalized = plain
 
                 if "·" in normalized:
                     # Convert legacy middot bullets to regular bullets for consistency.
@@ -5800,7 +5759,14 @@ if tab == "My Course":
             timer_key = "q_forum_timer_minutes"
             if timer_key not in st.session_state:
                 st.session_state[timer_key] = 0
-            _render_classboard_timer_selector(timer_key)
+            if IS_ADMIN:
+                st.number_input(
+                    "Forum timer (minutes)",
+                    min_value=0,
+                    step=5,
+                    key=timer_key,
+                    help="Automatically close replies after this many minutes.",
+                )
 
             st.markdown(
                 """
@@ -5849,15 +5815,13 @@ if tab == "My Course":
                     student_name=student_name,
                     text=new_q,
                 )
-                current_post_text = st.session_state.get(draft_key, "")
                 autosave_maybe(
                     student_code,
                     draft_key,
-                    current_post_text,
-                    min_secs=1.0,
-                    min_delta=8,
+                    st.session_state.get(draft_key, ""),
+                    min_secs=2.0,
+                    min_delta=12,
                 )
-                _render_autosave_status(draft_key, current_post_text)
             with ai_col:
                 if st.button(
                     "✨ Correct with AI",
@@ -6078,11 +6042,20 @@ if tab == "My Course":
                     timestamp_html = (
                         f"<span style='color:#aaa;'> • {safe_timestamp}</span>" if safe_timestamp else ""
                     )
-                    timer_html = _build_forum_timer_markup(
-                        timer_info,
-                        element_id=f"classboard-timer-{q_id}",
-                        base_style="margin-top:4px;font-size:0.95rem;font-weight:600;",
-                    )
+                    timer_html = ""
+                    timer_label = timer_info.get("label") or ""
+                    if timer_info.get("status") == "open" and timer_label:
+                        timer_html = (
+                            "<div style='margin-top:4px;font-size:0.95rem;font-weight:600;color:#dc2626;'>"
+                            f"{html.escape(str(timer_label))}"
+                            "</div>"
+                        )
+                    elif timer_info.get("status") == "closed" and timer_label:
+                        timer_html = (
+                            "<div style='margin-top:4px;font-size:0.95rem;font-weight:600;color:#64748b;'>"
+                            f"{html.escape(str(timer_label))}"
+                            "</div>"
+                        )
                     post_html = (
                         "<div style='padding:10px;background:#f8fafc;border:1px solid #ddd;border-radius:6px;margin:6px 0;font-size:1rem;line-height:1.5;'>"
                         f"<b>{safe_author}</b>{pin_html}"
@@ -6188,7 +6161,13 @@ if tab == "My Course":
                                 )
                                 if f"q_edit_timer_input_{q_id}" not in st.session_state:
                                     st.session_state[f"q_edit_timer_input_{q_id}"] = timer_minutes_remaining
-                                _render_classboard_timer_selector(f"q_edit_timer_input_{q_id}")
+                                if IS_ADMIN:
+                                    st.number_input(
+                                        "Forum timer (minutes)",
+                                        min_value=0,
+                                        step=5,
+                                        key=f"q_edit_timer_input_{q_id}",
+                                    )
                                 banner = _format_typing_banner(
                                     fetch_active_typists(student_level, class_name, q_id),
                                     student_code,
@@ -6221,15 +6200,16 @@ if tab == "My Course":
                                         "link": (new_link or "").strip(),
                                         "lesson": new_lesson,
                                     }
-                                    timer_minutes_updated = int(
-                                        st.session_state.get(f"q_edit_timer_input_{q_id}", 0) or 0
-                                    )
-                                    if timer_minutes_updated > 0:
-                                        update_payload["expires_at"] = _dt.now(UTC) + timedelta(
-                                            minutes=timer_minutes_updated
+                                    if IS_ADMIN:
+                                        timer_minutes_updated = int(
+                                            st.session_state.get(f"q_edit_timer_input_{q_id}", 0) or 0
                                         )
-                                    elif "expires_at" in q:
-                                        update_payload["expires_at"] = firestore.DELETE_FIELD
+                                        if timer_minutes_updated > 0:
+                                            update_payload["expires_at"] = _dt.now(UTC) + timedelta(
+                                                minutes=timer_minutes_updated
+                                            )
+                                        else:
+                                            update_payload["expires_at"] = firestore.DELETE_FIELD
                                     board_base.document(q_id).update(update_payload)
                                     _notify_slack(
                                         f"✏️ *Class Board post edited* — {class_name}\n",
@@ -6456,7 +6436,17 @@ if tab == "My Course":
                     )
                     if banner:
                         st.caption(banner)
-                    _render_live_forum_timer(timer_info, key=f"{q_id}_reply")
+                    reply_timer_label = build_forum_reply_indicator_text(timer_info)
+                    if reply_timer_label:
+                        reply_color = "#dc2626" if timer_info.get("status") == "open" else "#64748b"
+                        st.markdown(
+                            "<div style='font-size:0.95rem;font-weight:600;color:%s;margin:6px 0 -4px;'>%s</div>"
+                            % (
+                                reply_color,
+                                html.escape(str(reply_timer_label)),
+                            ),
+                            unsafe_allow_html=True,
+                        )
                     if show_timer_warning:
                         st.info(
                             "⏳ Time up soon—replies close in under a minute.",
@@ -6485,8 +6475,7 @@ if tab == "My Course":
                         student_name=student_name,
                         text=current_text,
                     )
-                    autosave_maybe(student_code, draft_key, current_text, min_secs=1.0, min_delta=8)
-                    _render_autosave_status(draft_key, current_text)
+                    autosave_maybe(student_code, draft_key, current_text, min_secs=2.0, min_delta=12)
 
                     send_col, ai_col = st.columns([1, 1])
 
