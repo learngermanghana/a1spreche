@@ -29,6 +29,7 @@ from functools import lru_cache
 import bcrypt
 import pandas as pd
 import requests
+from bs4 import BeautifulSoup
 import streamlit as st
 import streamlit.components.v1 as components
 from docx import Document
@@ -5669,9 +5670,47 @@ if tab == "My Course":
 
                 normalized = text.replace("\r\n", "\n").replace("\r", "\n")
 
+                def _html_to_plain_text(value: str) -> str:
+                    """Convert legacy HTML payloads into readable plain text."""
+                    soup = BeautifulSoup(value, "html.parser")
+
+                    for node in soup(["script", "style"]):
+                        node.decompose()
+
+                    for br in soup.find_all("br"):
+                        br.replace_with("\n")
+
+                    for li in soup.find_all("li"):
+                        li_text = li.get_text(" ", strip=True)
+                        li.clear()
+                        if li_text:
+                            li.append(f"• {li_text}")
+
+                    for anchor in soup.find_all("a"):
+                        anchor_text = anchor.get_text(" ", strip=True)
+                        href = (anchor.get("href") or "").strip()
+                        replacement = anchor_text
+                        if href:
+                            replacement = f"{anchor_text or href} ({href})"
+                        anchor.replace_with(replacement)
+
+                    block_tags = {"p", "div", "section", "article", "header", "footer", "h1", "h2", "h3", "h4", "h5", "h6"}
+                    for block in soup.find_all(block_tags):
+                        if block.contents and not str(block).endswith("\n"):
+                            block.append("\n\n")
+
+                    extracted = soup.get_text("\n")
+                    extracted = re.sub(r"\n{3,}", "\n\n", extracted)
+                    return extracted.strip()
+
                 # Remove leading double-spaces introduced by legacy rewrapping.
                 normalized = normalized.lstrip()
                 normalized = re.sub(r"(?m)(?<=\n)[ \t]{2,}(?=\S)", "", normalized)
+
+                if "<" in normalized and ">" in normalized:
+                    plain = _html_to_plain_text(normalized)
+                    if plain:
+                        normalized = plain
 
                 if "·" in normalized:
                     # Convert legacy middot bullets to regular bullets for consistency.
