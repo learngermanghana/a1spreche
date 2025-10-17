@@ -115,6 +115,11 @@ CLASSBOARD_TIMER_MINUTE_CHOICES: List[int] = [
 ]
 
 
+CLASSBOARD_TIMER_HELP_TEXT = (
+    "Choose how long replies remain open. Select 'No reply timer' to keep the thread open."
+)
+
+
 def _format_classboard_timer_option(minutes: int) -> str:
     if minutes <= 0:
         return "No reply timer"
@@ -143,6 +148,82 @@ def _classboard_timer_options(current: Optional[int]) -> List[int]:
         options.append(int(current))
         options = sorted(options)
     return options
+
+
+def _render_classboard_timer_selector(
+    timer_state_key: str,
+    *,
+    label: str = "Reply timer",
+    help_text: str = CLASSBOARD_TIMER_HELP_TEXT,
+) -> int:
+    """Render timer presets alongside a manual minute input."""
+
+    if timer_state_key not in st.session_state:
+        st.session_state[timer_state_key] = 0
+
+    current_value = int(st.session_state.get(timer_state_key, 0) or 0)
+    options = _classboard_timer_options(current_value)
+
+    preset_key = f"{timer_state_key}__preset"
+    manual_key = f"{timer_state_key}__manual"
+    mode_key = f"{timer_state_key}__mode"
+    preset_prev_key = f"{timer_state_key}__preset_prev"
+    manual_prev_key = f"{timer_state_key}__manual_prev"
+
+    if preset_key not in st.session_state:
+        initial_preset = current_value if current_value in options else options[0]
+        st.session_state[preset_key] = int(initial_preset)
+    if manual_key not in st.session_state:
+        st.session_state[manual_key] = int(current_value)
+    if mode_key not in st.session_state:
+        st.session_state[mode_key] = (
+            "preset" if current_value in options else "manual"
+        )
+
+    select_col, manual_col = st.columns([3, 2])
+    with select_col:
+        st.selectbox(
+            label,
+            options,
+            key=preset_key,
+            format_func=_format_classboard_timer_option,
+            help=help_text,
+        )
+    with manual_col:
+        st.number_input(
+            "Custom (minutes)",
+            value=int(st.session_state.get(manual_key, current_value)),
+            min_value=0,
+            max_value=10080,
+            step=1,
+            key=manual_key,
+            help="Type any number of minutes (0 = no reply timer).",
+        )
+
+    preset_val = int(st.session_state.get(preset_key, 0) or 0)
+    manual_val = int(st.session_state.get(manual_key, 0) or 0)
+
+    prev_manual = st.session_state.get(manual_prev_key, manual_val)
+    prev_preset = st.session_state.get(preset_prev_key, preset_val)
+
+    if manual_val != prev_manual:
+        st.session_state[timer_state_key] = manual_val
+        st.session_state[mode_key] = "manual"
+    elif preset_val != prev_preset:
+        st.session_state[timer_state_key] = preset_val
+        st.session_state[mode_key] = "preset"
+    else:
+        mode = st.session_state.get(mode_key, "preset")
+        if mode == "manual":
+            st.session_state[timer_state_key] = manual_val
+        else:
+            st.session_state[timer_state_key] = preset_val
+            st.session_state[manual_key] = int(st.session_state[timer_state_key])
+
+    st.session_state[preset_prev_key] = int(st.session_state[preset_key])
+    st.session_state[manual_prev_key] = int(st.session_state[manual_key])
+
+    return int(st.session_state[timer_state_key])
 
 
 def _safe_str(v, default: str = "") -> str:
@@ -5671,16 +5752,7 @@ if tab == "My Course":
             timer_key = "q_forum_timer_minutes"
             if timer_key not in st.session_state:
                 st.session_state[timer_key] = 0
-            timer_options = _classboard_timer_options(st.session_state.get(timer_key))
-            st.selectbox(
-                "Reply timer",
-                timer_options,
-                key=timer_key,
-                format_func=_format_classboard_timer_option,
-                help=(
-                    "Choose how long replies remain open. Select 'No reply timer' to keep the thread open."
-                ),
-            )
+            _render_classboard_timer_selector(timer_key)
 
             st.markdown(
                 """
@@ -6068,18 +6140,7 @@ if tab == "My Course":
                                 )
                                 if f"q_edit_timer_input_{q_id}" not in st.session_state:
                                     st.session_state[f"q_edit_timer_input_{q_id}"] = timer_minutes_remaining
-                                edit_timer_options = _classboard_timer_options(
-                                    st.session_state.get(f"q_edit_timer_input_{q_id}")
-                                )
-                                st.selectbox(
-                                    "Reply timer",
-                                    edit_timer_options,
-                                    key=f"q_edit_timer_input_{q_id}",
-                                    format_func=_format_classboard_timer_option,
-                                    help=(
-                                        "Choose how long replies remain open. Select 'No reply timer' to keep the thread open."
-                                    ),
-                                )
+                                _render_classboard_timer_selector(f"q_edit_timer_input_{q_id}")
                                 banner = _format_typing_banner(
                                     fetch_active_typists(student_level, class_name, q_id),
                                     student_code,
