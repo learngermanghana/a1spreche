@@ -161,7 +161,13 @@ def _render_classboard_timer_selector(
     if timer_state_key not in st.session_state:
         st.session_state[timer_state_key] = 0
 
-    current_value = int(st.session_state.get(timer_state_key, 0) or 0)
+    def _coerce_minutes(value: Any) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return 0
+
+    current_value = _coerce_minutes(st.session_state.get(timer_state_key, 0) or 0)
     options = _classboard_timer_options(current_value)
 
     preset_key = f"{timer_state_key}__preset"
@@ -180,6 +186,29 @@ def _render_classboard_timer_selector(
             "preset" if current_value in options else "manual"
         )
 
+    preset_val = _coerce_minutes(st.session_state.get(preset_key, 0) or 0)
+    manual_val = _coerce_minutes(st.session_state.get(manual_key, 0) or 0)
+
+    prev_manual = _coerce_minutes(st.session_state.get(manual_prev_key, manual_val) or 0)
+    prev_preset = _coerce_minutes(st.session_state.get(preset_prev_key, preset_val) or 0)
+
+    if manual_val != prev_manual:
+        st.session_state[timer_state_key] = manual_val
+        st.session_state[mode_key] = "manual"
+    elif preset_val != prev_preset:
+        st.session_state[timer_state_key] = preset_val
+        st.session_state[mode_key] = "preset"
+        manual_val = preset_val
+        st.session_state[manual_key] = manual_val
+    else:
+        mode = st.session_state.get(mode_key, "preset")
+        if mode == "manual":
+            st.session_state[timer_state_key] = manual_val
+        else:
+            st.session_state[timer_state_key] = preset_val
+            manual_val = preset_val
+            st.session_state[manual_key] = manual_val
+
     select_col, manual_col = st.columns([3, 2])
     with select_col:
         st.selectbox(
@@ -192,7 +221,7 @@ def _render_classboard_timer_selector(
     with manual_col:
         st.number_input(
             "Custom (minutes)",
-            value=int(st.session_state.get(manual_key, current_value)),
+            value=manual_val,
             min_value=0,
             max_value=10080,
             step=1,
@@ -200,28 +229,8 @@ def _render_classboard_timer_selector(
             help="Type any number of minutes (0 = no reply timer).",
         )
 
-    preset_val = int(st.session_state.get(preset_key, 0) or 0)
-    manual_val = int(st.session_state.get(manual_key, 0) or 0)
-
-    prev_manual = st.session_state.get(manual_prev_key, manual_val)
-    prev_preset = st.session_state.get(preset_prev_key, preset_val)
-
-    if manual_val != prev_manual:
-        st.session_state[timer_state_key] = manual_val
-        st.session_state[mode_key] = "manual"
-    elif preset_val != prev_preset:
-        st.session_state[timer_state_key] = preset_val
-        st.session_state[mode_key] = "preset"
-    else:
-        mode = st.session_state.get(mode_key, "preset")
-        if mode == "manual":
-            st.session_state[timer_state_key] = manual_val
-        else:
-            st.session_state[timer_state_key] = preset_val
-            st.session_state[manual_key] = int(st.session_state[timer_state_key])
-
-    st.session_state[preset_prev_key] = int(st.session_state[preset_key])
-    st.session_state[manual_prev_key] = int(st.session_state[manual_key])
+    st.session_state[preset_prev_key] = _coerce_minutes(st.session_state[preset_key])
+    st.session_state[manual_prev_key] = _coerce_minutes(st.session_state[manual_key])
 
     return int(st.session_state[timer_state_key])
 
