@@ -5749,6 +5749,7 @@ if tab == "My Course":
             )
             draft_key = "q_text"
             initialize_draft_state(student_code, draft_key)
+            timer_key = "q_forum_timer_minutes"
             if st.session_state.get("__clear_q_form"):
                 st.session_state.pop("__clear_q_form", None)
                 st.session_state["q_topic"] = ""
@@ -5757,7 +5758,15 @@ if tab == "My Course":
                 st.session_state.pop("q_ai_suggestion", None)
                 st.session_state.pop("q_ai_explanation", None)
                 st.session_state.pop("q_ai_diff", None)
-                st.session_state["q_forum_timer_minutes"] = 0
+                st.session_state[timer_key] = 0
+                for _suffix in [
+                    "__preset",
+                    "__manual",
+                    "__mode",
+                    "__preset_prev",
+                    "__manual_prev",
+                ]:
+                    st.session_state.pop(f"{timer_key}{_suffix}", None)
                 reset_local_draft_state(draft_key)
                 _clear_typing_state(
                     level=student_level,
@@ -5774,17 +5783,18 @@ if tab == "My Course":
             )
             topic = st.text_input("Topic (optional)", key="q_topic")
             link = st.text_input("Link (optional)", key="q_link")
-            timer_key = "q_forum_timer_minutes"
             if timer_key not in st.session_state:
                 st.session_state[timer_key] = 0
             if IS_ADMIN:
-                st.number_input(
-                    "Forum timer (minutes)",
-                    min_value=0,
-                    step=5,
-                    key=timer_key,
-                    help="Automatically close replies after this many minutes.",
+                timer_minutes_val = _render_classboard_timer_selector(
+                    timer_key,
+                    label="Reply timer",
+                    help_text="Automatically close replies after this many minutes.",
                 )
+                if timer_minutes_val > 0:
+                    st.caption(
+                        f"Replies will close {_format_classboard_timer_option(timer_minutes_val)} after posting."
+                    )
 
             st.markdown(
                 """
@@ -6103,6 +6113,11 @@ if tab == "My Course":
                             f"q_edit_link_input_{q_id}",
                             f"q_edit_lesson_input_{q_id}",
                             f"q_edit_timer_input_{q_id}",
+                            f"q_edit_timer_input_{q_id}__preset",
+                            f"q_edit_timer_input_{q_id}__manual",
+                            f"q_edit_timer_input_{q_id}__mode",
+                            f"q_edit_timer_input_{q_id}__preset_prev",
+                            f"q_edit_timer_input_{q_id}__manual_prev",
                         ]:
                             st.session_state.pop(_k, None)
                         _clear_typing_state(
@@ -6177,15 +6192,19 @@ if tab == "My Course":
                                     value=st.session_state.get(f"q_edit_link_{q_id}", ""),
                                     key=f"q_edit_link_input_{q_id}"
                                 )
-                                if f"q_edit_timer_input_{q_id}" not in st.session_state:
-                                    st.session_state[f"q_edit_timer_input_{q_id}"] = timer_minutes_remaining
+                                timer_state_key = f"q_edit_timer_input_{q_id}"
+                                if timer_state_key not in st.session_state:
+                                    st.session_state[timer_state_key] = timer_minutes_remaining
+                                updated_timer_minutes = timer_minutes_remaining
                                 if IS_ADMIN:
-                                    st.number_input(
-                                        "Forum timer (minutes)",
-                                        min_value=0,
-                                        step=5,
-                                        key=f"q_edit_timer_input_{q_id}",
+                                    updated_timer_minutes = _render_classboard_timer_selector(
+                                        timer_state_key,
+                                        label="Reply timer",
                                     )
+                                    if updated_timer_minutes > 0:
+                                        st.caption(
+                                            f"Replies will close {_format_classboard_timer_option(updated_timer_minutes)} after saving."
+                                        )
                                 banner = _format_typing_banner(
                                     fetch_active_typists(student_level, class_name, q_id),
                                     student_code,
@@ -6219,9 +6238,7 @@ if tab == "My Course":
                                         "lesson": new_lesson,
                                     }
                                     if IS_ADMIN:
-                                        timer_minutes_updated = int(
-                                            st.session_state.get(f"q_edit_timer_input_{q_id}", 0) or 0
-                                        )
+                                        timer_minutes_updated = int(updated_timer_minutes or 0)
                                         if timer_minutes_updated > 0:
                                             update_payload["expires_at"] = _dt.now(UTC) + timedelta(
                                                 minutes=timer_minutes_updated
@@ -6456,15 +6473,8 @@ if tab == "My Course":
                         st.caption(banner)
                     reply_timer_label = build_forum_reply_indicator_text(timer_info)
                     if reply_timer_label:
-                        reply_color = "#dc2626" if timer_info.get("status") == "open" else "#64748b"
-                        st.markdown(
-                            "<div style='font-size:0.95rem;font-weight:600;color:%s;margin:6px 0 -4px;'>%s</div>"
-                            % (
-                                reply_color,
-                                html.escape(str(reply_timer_label)),
-                            ),
-                            unsafe_allow_html=True,
-                        )
+                        timer_render_key = q_id or f"reply_{idx}"
+                        _render_live_forum_timer(timer_info, key=timer_render_key)
                     if show_timer_warning:
                         st.info(
                             "⏳ Time up soon—replies close in under a minute.",
