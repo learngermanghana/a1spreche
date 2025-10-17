@@ -4318,6 +4318,17 @@ if tab == "My Course":
                 show_resubmit_hint = locked and bool(needs_resubmit)
 
                 # ---------- Editor (save on blur + debounce) ----------
+
+                # Downloading triggers a rerun that resets the textarea's widget
+                # state before Streamlit replays ``st.text_area``.  Persist the
+                # previous text under a temporary key so we can restore it here
+                # *before* the widget is instantiated on the next run.
+                restore_after_download_key = f"{draft_key}__restore_after_download"
+                if restore_after_download_key in st.session_state:
+                    st.session_state[draft_key] = st.session_state.pop(
+                        restore_after_download_key
+                    )
+
                 st.text_area(
                     "Type all your answers here",
                     height=500,
@@ -4404,7 +4415,7 @@ if tab == "My Course":
                         # Skip the next save cycle and restore the in-memory draft so
                         # students keep their work after downloading a backup.
                         skip_next_save(draft_key, count=2)
-                        st.session_state[draft_key] = draft_txt
+                        st.session_state[restore_after_download_key] = draft_txt
 
                 if show_resubmit_hint:
                     st.info(
