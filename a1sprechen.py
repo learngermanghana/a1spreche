@@ -258,87 +258,113 @@ def _format_typing_banner(entries: List[Dict[str, Any]], current_code: str) -> s
     return f"{', '.join(names[:-1])}, and {names[-1]} are typing…"
 
 
-def _render_live_forum_timer(timer_info: Dict[str, Any], *, key: str) -> None:
-    """Render a live-updating countdown for the reply composer."""
+def _timer_expiry_iso(timer_info: Dict[str, Any]) -> str:
+    """Return the expiry timestamp from ``timer_info`` as an ISO string."""
+
+    dt_val = timer_info.get("expires_at")
+    dt_val = _to_datetime_any(dt_val)
+    if isinstance(dt_val, _dt):
+        try:
+            return dt_val.astimezone(UTC).isoformat()
+        except Exception:
+            return ""
+    return ""
+
+
+def _build_forum_timer_markup(
+    timer_info: Dict[str, Any],
+    *,
+    element_id: str,
+    base_style: str,
+    open_color: str = "#ef4444",
+    closed_color: str = "#64748b",
+) -> str:
+    """Return HTML+JS markup that renders a live countdown for ``timer_info``."""
 
     label = build_forum_reply_indicator_text(timer_info)
     if not label:
-        return
+        return ""
 
     status = str(timer_info.get("status") or "")
-    expires_at = timer_info.get("expires_at")
-    iso_expiry = ""
-    if isinstance(expires_at, _dt):
-        try:
-            iso_expiry = expires_at.astimezone(UTC).isoformat()
-        except Exception:
-            iso_expiry = ""
-    elif hasattr(expires_at, "to_datetime"):
-        try:
-            expiry_dt = expires_at.to_datetime()
-        except Exception:
-            expiry_dt = None
-        if isinstance(expiry_dt, _dt):
-            if expiry_dt.tzinfo is None:
-                expiry_dt = expiry_dt.replace(tzinfo=_timezone.utc)
-            else:
-                expiry_dt = expiry_dt.astimezone(UTC)
-            iso_expiry = expiry_dt.isoformat()
-
-
-    base_color = "#ef4444" if status == "open" else "#64748b"
-
-    element_id = f"reply-timer-{key}"
+    iso_expiry = _timer_expiry_iso(timer_info)
+    base_color = open_color if status == "open" else closed_color
     html_label = html.escape(label)
+    style_attr = f"{base_style}color:{base_color};"
 
-    script = f"""
-    <div id="{element_id}" style="font-size:0.95rem;font-weight:600;color:{base_color};margin:6px 0 -4px;">
-        {html_label}
-    </div>
-    <script>
-      (function() {{
-        const el = document.getElementById({json.dumps(element_id)});
-        if (!el) return;
-        const status = {json.dumps(status)};
-        const expiryIso = {json.dumps(iso_expiry)};
+    parts = [
+        f"<div id="{element_id}" style="{style_attr}">{html_label}</div>",
+    ]
 
-        function formatLabel(minutes) {{
-          if (minutes <= 0) return "Forum closed";
-          if (minutes === 1) return "⏳ 1 minute left";
-          return `⏳ ${{minutes}} minutes left`;
-        }}
+    if status == "open" and iso_expiry:
+        parts.append(
+            """
+<script>
+  (function() {
+    const el = document.getElementById(%(element)s);
+    if (!el) return;
+    const expiryIso = %(expiry)s;
 
-        if (status === "open" && expiryIso) {{
-          function tick() {{
-            const expiry = new Date(expiryIso);
-            const now = new Date();
-            const diffMinutes = Math.max(0, Math.ceil((expiry - now) / 60000));
-            el.textContent = formatLabel(diffMinutes);
+    function formatLabel(minutes) {
+      if (minutes <= 0) return "Forum closed";
+      if (minutes === 1) return "⏳ 1 minute left";
+      return `⏳ ${minutes} minutes left`;
+    }
 
-            el.style.color = "#ef4444";
+    function tick() {
+      const expiry = new Date(expiryIso);
+      const now = new Date();
+      const diffMinutes = Math.max(0, Math.ceil((expiry - now) / 60000));
+      el.textContent = formatLabel(diffMinutes);
+      el.style.color = %(open_color)s;
+    }
 
-          }}
+    tick();
+    const timerHandle = setInterval(function () {
+      if (!document.body.contains(el)) {
+        clearInterval(timerHandle);
+        return;
+      }
+      tick();
+    }, 15000);
+  })();
+</script>
+            """
+            % {
+                "element": json.dumps(element_id),
+                "expiry": json.dumps(iso_expiry),
+                "open_color": json.dumps(open_color),
+            },
+        )
 
-          tick();
-          const timerHandle = setInterval(function () {{
-            if (!document.body.contains(el)) {{
-              clearInterval(timerHandle);
-              return;
-            }}
-            tick();
-          }}, 15000);
-        }} else if (status === "closed") {{
-          el.style.color = "#64748b";
-        }}
-      }})();
-    </script>
-    """
+    return "\n".join(parts)
+
+
+def _render_live_forum_timer(timer_info: Dict[str, Any], *, key: str) -> None:
+    """Render a live-updating countdown for the reply composer."""
+
+    markup = _build_forum_timer_markup(
+        timer_info,
+        element_id=f"reply-timer-{key}",
+        base_style="font-size:0.95rem;font-weight:600;margin:6px 0 -4px;",
+    )
+
+    if not markup:
+        return
 
     try:
-        components.html(script, height=36, key=f"reply_timer_component_{key}", scrolling=False)
+        components.html(
+            markup,
+            height=36,
+            key=f"reply_timer_component_{key}",
+            scrolling=False,
+        )
     except Exception:
+        label = build_forum_reply_indicator_text(timer_info)
+        if not label:
+            return
+        color = "#ef4444" if str(timer_info.get("status") or "") == "open" else "#64748b"
         st.markdown(
-            f"<div style='font-size:0.95rem;font-weight:600;color:#ef4444;margin:6px 0 -4px;'>{html_label}</div>",
+            f"<div style='font-size:0.95rem;font-weight:600;color:{color};margin:6px 0 -4px;'>{html.escape(label)}</div>",
             unsafe_allow_html=True,
         )
 
@@ -5932,20 +5958,11 @@ if tab == "My Course":
                     timestamp_html = (
                         f"<span style='color:#aaa;'> • {safe_timestamp}</span>" if safe_timestamp else ""
                     )
-                    timer_html = ""
-                    timer_label = timer_info.get("label") or ""
-                    if timer_info.get("status") == "open" and timer_label:
-                        timer_html = (
-                            "<div style='margin-top:4px;font-size:0.95rem;font-weight:600;color:#ef4444;'>"
-                            f"{html.escape(str(timer_label))}"
-                            "</div>"
-                        )
-                    elif timer_info.get("status") == "closed" and timer_label:
-                        timer_html = (
-                            "<div style='margin-top:4px;font-size:0.95rem;font-weight:600;color:#64748b;'>"
-                            f"{html.escape(str(timer_label))}"
-                            "</div>"
-                        )
+                    timer_html = _build_forum_timer_markup(
+                        timer_info,
+                        element_id=f"classboard-timer-{q_id}",
+                        base_style="margin-top:4px;font-size:0.95rem;font-weight:600;",
+                    )
                     post_html = (
                         "<div style='padding:10px;background:#f8fafc;border:1px solid #ddd;border-radius:6px;margin:6px 0;font-size:1rem;line-height:1.5;'>"
                         f"<b>{safe_author}</b>{pin_html}"
