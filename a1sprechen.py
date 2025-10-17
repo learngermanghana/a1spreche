@@ -4391,13 +4391,20 @@ if tab == "My Course":
                     safe_chapter = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(info.get("chapter", "")))
                     fname = f"falowen_draft_{student_level}_day{info['day']}_{safe_chapter}.txt"
 
-                    st.download_button(
+                    clicked = st.download_button(
                         "⬇️ Download draft (TXT)",
                         data=(header + clean_body).encode("utf-8"),
                         file_name=fname,
                         mime="text/plain",
                         help="Save a clean backup of your current draft"
                     )
+                    if clicked:
+                        # Download buttons trigger a rerun that can briefly clear the
+                        # textarea value (which would otherwise be saved as empty).
+                        # Skip the next save cycle and restore the in-memory draft so
+                        # students keep their work after downloading a backup.
+                        skip_next_save(draft_key, count=2)
+                        st.session_state[draft_key] = draft_txt
 
                 if show_resubmit_hint:
                     st.info(
