@@ -99,6 +99,51 @@ _TYPING_TRACKER_PREFIX = "__typing_meta__"
 _TYPING_PING_INTERVAL = 4.0
 _NEW_POST_TYPING_ID = "__new_post__"
 
+CLASSBOARD_TIMER_MINUTE_CHOICES: List[int] = [
+    0,
+    15,
+    30,
+    45,
+    60,
+    90,
+    120,
+    180,
+    240,
+    360,
+    720,
+    1440,
+]
+
+
+def _format_classboard_timer_option(minutes: int) -> str:
+    if minutes <= 0:
+        return "No reply timer"
+
+    if minutes % (24 * 60) == 0:
+        days = minutes // (24 * 60)
+        return f"{days} day{'s' if days != 1 else ''}"
+
+    if minutes % 60 == 0:
+        hours = minutes // 60
+        return f"{hours} hour{'s' if hours != 1 else ''}"
+
+    if minutes > 60:
+        hours = minutes // 60
+        minutes_left = minutes % 60
+        hour_part = f"{hours} hour{'s' if hours != 1 else ''}"
+        minute_part = f"{minutes_left} minute{'s' if minutes_left != 1 else ''}"
+        return f"{hour_part} {minute_part}"
+
+    return f"{minutes} minute{'s' if minutes != 1 else ''}"
+
+
+def _classboard_timer_options(current: Optional[int]) -> List[int]:
+    options = list(CLASSBOARD_TIMER_MINUTE_CHOICES)
+    if current is not None and current not in options:
+        options.append(int(current))
+        options = sorted(options)
+    return options
+
 
 def _safe_str(v, default: str = "") -> str:
     if v is None:
@@ -5600,14 +5645,16 @@ if tab == "My Course":
             timer_key = "q_forum_timer_minutes"
             if timer_key not in st.session_state:
                 st.session_state[timer_key] = 0
-            if IS_ADMIN:
-                st.number_input(
-                    "Forum timer (minutes)",
-                    min_value=0,
-                    step=5,
-                    key=timer_key,
-                    help="Automatically close replies after this many minutes.",
-                )
+            timer_options = _classboard_timer_options(st.session_state.get(timer_key))
+            st.selectbox(
+                "Reply timer",
+                timer_options,
+                key=timer_key,
+                format_func=_format_classboard_timer_option,
+                help=(
+                    "Choose how long replies remain open. Select 'No reply timer' to keep the thread open."
+                ),
+            )
 
             st.markdown(
                 """
@@ -6004,13 +6051,18 @@ if tab == "My Course":
                                 )
                                 if f"q_edit_timer_input_{q_id}" not in st.session_state:
                                     st.session_state[f"q_edit_timer_input_{q_id}"] = timer_minutes_remaining
-                                if IS_ADMIN:
-                                    st.number_input(
-                                        "Forum timer (minutes)",
-                                        min_value=0,
-                                        step=5,
-                                        key=f"q_edit_timer_input_{q_id}",
-                                    )
+                                edit_timer_options = _classboard_timer_options(
+                                    st.session_state.get(f"q_edit_timer_input_{q_id}")
+                                )
+                                st.selectbox(
+                                    "Reply timer",
+                                    edit_timer_options,
+                                    key=f"q_edit_timer_input_{q_id}",
+                                    format_func=_format_classboard_timer_option,
+                                    help=(
+                                        "Choose how long replies remain open. Select 'No reply timer' to keep the thread open."
+                                    ),
+                                )
                                 banner = _format_typing_banner(
                                     fetch_active_typists(student_level, class_name, q_id),
                                     student_code,
@@ -6043,16 +6095,15 @@ if tab == "My Course":
                                         "link": (new_link or "").strip(),
                                         "lesson": new_lesson,
                                     }
-                                    if IS_ADMIN:
-                                        timer_minutes_updated = int(
-                                            st.session_state.get(f"q_edit_timer_input_{q_id}", 0) or 0
+                                    timer_minutes_updated = int(
+                                        st.session_state.get(f"q_edit_timer_input_{q_id}", 0) or 0
+                                    )
+                                    if timer_minutes_updated > 0:
+                                        update_payload["expires_at"] = _dt.now(UTC) + timedelta(
+                                            minutes=timer_minutes_updated
                                         )
-                                        if timer_minutes_updated > 0:
-                                            update_payload["expires_at"] = _dt.now(UTC) + timedelta(
-                                                minutes=timer_minutes_updated
-                                            )
-                                        else:
-                                            update_payload["expires_at"] = firestore.DELETE_FIELD
+                                    elif "expires_at" in q:
+                                        update_payload["expires_at"] = firestore.DELETE_FIELD
                                     board_base.document(q_id).update(update_payload)
                                     _notify_slack(
                                         f"✏️ *Class Board post edited* — {class_name}\n",
