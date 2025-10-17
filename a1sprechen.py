@@ -271,36 +271,26 @@ def _timer_expiry_iso(timer_info: Dict[str, Any]) -> str:
     return ""
 
 
-def _build_forum_timer_markup(
-    timer_info: Dict[str, Any],
+def _build_forum_timer_script(
     *,
     element_id: str,
-    base_style: str,
-    open_color: str = "#ef4444",
-    closed_color: str = "#64748b",
+    iso_expiry: str,
+    open_color: str,
+    use_parent_document: bool = False,
 ) -> str:
-    """Return HTML+JS markup that renders a live countdown for ``timer_info``."""
+    """Return a ``<script>`` tag that wires up the timer countdown behaviour."""
 
-    label = build_forum_reply_indicator_text(timer_info)
-    if not label:
-        return ""
+    doc_expr = "document"
+    if use_parent_document:
+        doc_expr = "(window.parent && window.parent.document) ? window.parent.document : null"
 
-    status = str(timer_info.get("status") or "")
-    iso_expiry = _timer_expiry_iso(timer_info)
-    base_color = open_color if status == "open" else closed_color
-    html_label = html.escape(label)
-    style_attr = f"{base_style}color:{base_color};"
-
-    parts = [
-        f"<div id="{element_id}" style="{style_attr}">{html_label}</div>",
-    ]
-
-    if status == "open" and iso_expiry:
-        parts.append(
-            """
+    return (
+        """
 <script>
   (function() {
-    const el = document.getElementById(%(element)s);
+    const doc = %(doc_expr)s;
+    if (!doc) return;
+    const el = doc.getElementById(%(element)s);
     if (!el) return;
     const expiryIso = %(expiry)s;
 
@@ -320,7 +310,7 @@ def _build_forum_timer_markup(
 
     tick();
     const timerHandle = setInterval(function () {
-      if (!document.body.contains(el)) {
+      if (!doc.body.contains(el)) {
         clearInterval(timerHandle);
         return;
       }
@@ -328,12 +318,48 @@ def _build_forum_timer_markup(
     }, 15000);
   })();
 </script>
-            """
-            % {
-                "element": json.dumps(element_id),
-                "expiry": json.dumps(iso_expiry),
-                "open_color": json.dumps(open_color),
-            },
+        """
+        % {
+            "doc_expr": doc_expr,
+            "element": json.dumps(element_id),
+            "expiry": json.dumps(iso_expiry),
+            "open_color": json.dumps(open_color),
+        }
+    )
+
+
+def _build_forum_timer_markup(
+    timer_info: Dict[str, Any],
+    *,
+    element_id: str,
+    base_style: str,
+    open_color: str = "#ef4444",
+    closed_color: str = "#64748b",
+    include_script: bool = True,
+    use_parent_document_for_script: bool = False,
+) -> str:
+    """Return HTML+JS markup that renders a live countdown for ``timer_info``."""
+
+    label = build_forum_reply_indicator_text(timer_info)
+    if not label:
+        return ""
+
+    status = str(timer_info.get("status") or "")
+    iso_expiry = _timer_expiry_iso(timer_info)
+    base_color = open_color if status == "open" else closed_color
+    html_label = html.escape(label)
+    style_attr = f"{base_style}color:{base_color};"
+
+    parts = [f"<div id=\"{element_id}\" style=\"{style_attr}\">{html_label}</div>"]
+
+    if include_script and status == "open" and iso_expiry:
+        parts.append(
+            _build_forum_timer_script(
+                element_id=element_id,
+                iso_expiry=iso_expiry,
+                open_color=open_color,
+                use_parent_document=use_parent_document_for_script,
+            )
         )
 
     return "\n".join(parts)
@@ -367,6 +393,41 @@ def _render_live_forum_timer(timer_info: Dict[str, Any], *, key: str) -> None:
             f"<div style='font-size:0.95rem;font-weight:600;color:{color};margin:6px 0 -4px;'>{html.escape(label)}</div>",
             unsafe_allow_html=True,
         )
+
+
+def _render_forum_timer_script_in_parent(
+    timer_info: Dict[str, Any],
+    *,
+    element_id: str,
+    component_key: str,
+    open_color: str = "#ef4444",
+) -> None:
+    """Mount the countdown script so it can update markup rendered outside the component."""
+
+    if str(timer_info.get("status") or "") != "open":
+        return
+
+    iso_expiry = _timer_expiry_iso(timer_info)
+    if not iso_expiry:
+        return
+
+    script_markup = _build_forum_timer_script(
+        element_id=element_id,
+        iso_expiry=iso_expiry,
+        open_color=open_color,
+        use_parent_document=True,
+    )
+
+    try:
+        components.html(
+            script_markup,
+            height=0,
+            key=component_key,
+            scrolling=False,
+        )
+    except Exception:
+        # Fallback: allow the static label rendered in the parent document to remain.
+        return
 
 
 def _format_saved_timestamp(value: Any) -> str:
@@ -5958,10 +6019,14 @@ if tab == "My Course":
                     timestamp_html = (
                         f"<span style='color:#aaa;'> • {safe_timestamp}</span>" if safe_timestamp else ""
                     )
+                    timer_element_id = f"classboard-timer-{q_id}"
+                    timer_open_color = "#ef4444"
                     timer_html = _build_forum_timer_markup(
                         timer_info,
-                        element_id=f"classboard-timer-{q_id}",
+                        element_id=timer_element_id,
                         base_style="margin-top:4px;font-size:0.95rem;font-weight:600;",
+                        open_color=timer_open_color,
+                        include_script=False,
                     )
                     post_html = (
                         "<div style='padding:10px;background:#f8fafc;border:1px solid #ddd;border-radius:6px;margin:6px 0;font-size:1rem;line-height:1.5;'>"
@@ -5975,6 +6040,13 @@ if tab == "My Course":
                         "</div>"
                     )
                     st.markdown(post_html, unsafe_allow_html=True)
+
+                    _render_forum_timer_script_in_parent(
+                        timer_info,
+                        element_id=timer_element_id,
+                        component_key=f"classboard_timer_component_{q_id}",
+                        open_color=timer_open_color,
+                    )
 
                     show_timer_warning = (
                         timer_info.get("status") == "open" and timer_minutes_remaining == 1
