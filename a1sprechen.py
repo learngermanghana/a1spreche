@@ -292,7 +292,7 @@ def _build_forum_timer_markup(
     style_attr = f"{base_style}color:{base_color};"
 
     parts = [
-        f"<div id="{element_id}" style="{style_attr}">{html_label}</div>",
+        f'<div id="{element_id}" style="{style_attr}">{html_label}</div>',
     ]
 
     if status == "open" and iso_expiry:
