@@ -270,7 +270,7 @@ def _render_live_forum_timer(timer_info: Dict[str, Any], *, key: str) -> None:
             const diffMinutes = Math.max(0, Math.ceil((expiry - now) / 60000));
             el.textContent = formatLabel(diffMinutes);
 
-            el.style.color = diffMinutes <= 1 ? "#dc2626" : "#ef4444";
+            el.style.color = "#ef4444";
 
           }}
 
@@ -292,7 +292,10 @@ def _render_live_forum_timer(timer_info: Dict[str, Any], *, key: str) -> None:
     try:
         components.html(script, height=36, key=f"reply_timer_component_{key}", scrolling=False)
     except Exception:
-        st.caption(label)
+        st.markdown(
+            f"<div style='font-size:0.95rem;font-weight:600;color:#ef4444;margin:6px 0 -4px;'>{html_label}</div>",
+            unsafe_allow_html=True,
+        )
 
 
 def _format_saved_timestamp(value: Any) -> str:
@@ -5886,7 +5889,7 @@ if tab == "My Course":
                     timer_label = timer_info.get("label") or ""
                     if timer_info.get("status") == "open" and timer_label:
                         timer_html = (
-                            "<div style='margin-top:4px;font-size:0.95rem;font-weight:600;color:#dc2626;'>"
+                            "<div style='margin-top:4px;font-size:0.95rem;font-weight:600;color:#ef4444;'>"
                             f"{html.escape(str(timer_label))}"
                             "</div>"
                         )
