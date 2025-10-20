@@ -179,6 +179,47 @@ def save_now(draft_key: str, code: str, show_toast: bool = True) -> None:
         toast_ok("Saved!")
 
 
+def save_before_download(
+    draft_key: str,
+    code: str,
+    *,
+    skip_count: int = 2,
+) -> None:
+    """Persist the current draft before triggering a download.
+
+    Streamlit reruns the script when a download button is clicked.  Those
+    reruns also trigger the autosave logic which, without coordination, can
+    misinterpret the download click as a change and attempt to resave with
+    stale state.  This helper ensures the latest text is persisted immediately
+    and that downstream autosave callbacks skip the redundant saves triggered by
+    the rerun.
+    """
+
+    if not draft_key:
+        return
+
+    skip_key = _skip_counter_key(draft_key)
+    try:
+        previous_skip = int(st.session_state.get(skip_key, 0) or 0)
+    except (TypeError, ValueError):
+        previous_skip = 0
+
+    if previous_skip > 0:
+        st.session_state.pop(skip_key, None)
+
+    extra_skip = max(1, int(skip_count)) if skip_count else 1
+    total_skip = previous_skip + extra_skip
+
+    if not code:
+        skip_next_save(draft_key, count=total_skip)
+        return
+
+    try:
+        save_now(draft_key, code, show_toast=False)
+    finally:
+        skip_next_save(draft_key, count=total_skip)
+
+
 def autosave_maybe(
     code: str,
     lesson_field_key: str,
@@ -324,6 +365,7 @@ __all__ = [
     "initialize_draft_state",
     "reset_local_draft_state",
     "save_now",
+    "save_before_download",
     "autosave_maybe",
     "load_notes_from_db",
     "save_notes_to_db",
