@@ -4636,6 +4636,7 @@ if tab == "My Course":
 
 
 
+
     if cb_subtab == "🧑‍🏫 Classroom":
         # --- Classroom banner (top of subtab) ---
         st.markdown(
@@ -5768,7 +5769,7 @@ if tab == "My Course":
                 st.session_state.pop("q_ai_suggestion", None)
                 st.session_state.pop("q_ai_explanation", None)
                 st.session_state.pop("q_ai_diff", None)
-                _initialize_classboard_timer_state("q_forum_timer_minutes", 0)
+                st.session_state["q_forum_timer_minutes"] = 0
                 reset_local_draft_state(draft_key)
                 _clear_typing_state(
                     level=student_level,
@@ -5786,11 +5787,16 @@ if tab == "My Course":
             topic = st.text_input("Topic (optional)", key="q_topic")
             link = st.text_input("Link (optional)", key="q_link")
             timer_key = "q_forum_timer_minutes"
-            _render_classboard_timer_selector(
-                timer_key,
-                label="Reply timer",
-                help_text=CLASSBOARD_TIMER_HELP_TEXT,
-            )
+            if timer_key not in st.session_state:
+                st.session_state[timer_key] = 0
+            if IS_ADMIN:
+                st.number_input(
+                    "Forum timer (minutes)",
+                    min_value=0,
+                    step=5,
+                    key=timer_key,
+                    help="Automatically close replies after this many minutes.",
+                )
 
             st.markdown(
                 """
@@ -5839,15 +5845,13 @@ if tab == "My Course":
                     student_name=student_name,
                     text=new_q,
                 )
-                current_post_text = st.session_state.get(draft_key, "")
                 autosave_maybe(
                     student_code,
                     draft_key,
-                    current_post_text,
-                    min_secs=1.0,
-                    min_delta=8,
+                    st.session_state.get(draft_key, ""),
+                    min_secs=2.0,
+                    min_delta=12,
                 )
-                _render_autosave_status(draft_key, current_post_text)
             with ai_col:
                 if st.button(
                     "✨ Correct with AI",
@@ -6023,7 +6027,6 @@ if tab == "My Course":
                     pin_html = " 📌" if q.get("pinned") else ""
                     timer_info = build_forum_timer_indicator(q.get("expires_at"), now=now_for_timer)
                     timer_minutes_remaining = int(timer_info.get("minutes") or 0)
-                    edit_timer_key = f"q_edit_timer_minutes_{q_id}"
                     topic_html = (
                         f"<div style='font-weight:bold;color:#8d4de8;'>{html.escape(str(q.get('topic', '')))}</div>"
                         if q.get("topic")
@@ -6069,11 +6072,20 @@ if tab == "My Course":
                     timestamp_html = (
                         f"<span style='color:#aaa;'> • {safe_timestamp}</span>" if safe_timestamp else ""
                     )
-                    timer_html = _build_forum_timer_markup(
-                        timer_info,
-                        element_id=f"classboard-timer-{q_id}",
-                        base_style="margin-top:4px;font-size:0.95rem;font-weight:600;",
-                    )
+                    timer_html = ""
+                    timer_label = timer_info.get("label") or ""
+                    if timer_info.get("status") == "open" and timer_label:
+                        timer_html = (
+                            "<div style='margin-top:4px;font-size:0.95rem;font-weight:600;color:#dc2626;'>"
+                            f"{html.escape(str(timer_label))}"
+                            "</div>"
+                        )
+                    elif timer_info.get("status") == "closed" and timer_label:
+                        timer_html = (
+                            "<div style='margin-top:4px;font-size:0.95rem;font-weight:600;color:#64748b;'>"
+                            f"{html.escape(str(timer_label))}"
+                            "</div>"
+                        )
                     post_html = (
                         "<div style='padding:10px;background:#f8fafc;border:1px solid #ddd;border-radius:6px;margin:6px 0;font-size:1rem;line-height:1.5;'>"
                         f"<b>{safe_author}</b>{pin_html}"
@@ -6102,9 +6114,9 @@ if tab == "My Course":
                             f"q_edit_topic_input_{q_id}",
                             f"q_edit_link_input_{q_id}",
                             f"q_edit_lesson_input_{q_id}",
+                            f"q_edit_timer_input_{q_id}",
                         ]:
                             st.session_state.pop(_k, None)
-                        _clear_classboard_timer_state(edit_timer_key)
                         _clear_typing_state(
                             level=student_level,
                             class_code=class_name,
@@ -6124,9 +6136,7 @@ if tab == "My Course":
                                 st.session_state[f"q_edit_topic_{q_id}"] = q.get("topic", "")
                                 st.session_state[f"q_edit_link_{q_id}"] = q.get("link", "")
                                 st.session_state[f"q_edit_lesson_{q_id}"] = q.get("lesson", "")
-                                _initialize_classboard_timer_state(
-                                    edit_timer_key, timer_minutes_remaining
-                                )
+                                st.session_state[f"q_edit_timer_input_{q_id}"] = timer_minutes_remaining
                         with qc2:
                             if st.button("🗑️ Delete", key=f"q_del_btn_{q_id}"):
                                 try:
@@ -6179,15 +6189,15 @@ if tab == "My Course":
                                     value=st.session_state.get(f"q_edit_link_{q_id}", ""),
                                     key=f"q_edit_link_input_{q_id}"
                                 )
-                                if edit_timer_key not in st.session_state:
-                                    _initialize_classboard_timer_state(
-                                        edit_timer_key, timer_minutes_remaining
+                                if f"q_edit_timer_input_{q_id}" not in st.session_state:
+                                    st.session_state[f"q_edit_timer_input_{q_id}"] = timer_minutes_remaining
+                                if IS_ADMIN:
+                                    st.number_input(
+                                        "Forum timer (minutes)",
+                                        min_value=0,
+                                        step=5,
+                                        key=f"q_edit_timer_input_{q_id}",
                                     )
-                                _render_classboard_timer_selector(
-                                    edit_timer_key,
-                                    label="Reply timer",
-                                    help_text=CLASSBOARD_TIMER_HELP_TEXT,
-                                )
                                 banner = _format_typing_banner(
                                     fetch_active_typists(student_level, class_name, q_id),
                                     student_code,
@@ -6220,15 +6230,16 @@ if tab == "My Course":
                                         "link": (new_link or "").strip(),
                                         "lesson": new_lesson,
                                     }
-                                    timer_minutes_updated = int(
-                                        st.session_state.get(edit_timer_key, 0) or 0
-                                    )
-                                    if timer_minutes_updated > 0:
-                                        update_payload["expires_at"] = _dt.now(UTC) + timedelta(
-                                            minutes=timer_minutes_updated
+                                    if IS_ADMIN:
+                                        timer_minutes_updated = int(
+                                            st.session_state.get(f"q_edit_timer_input_{q_id}", 0) or 0
                                         )
-                                    elif "expires_at" in q:
-                                        update_payload["expires_at"] = firestore.DELETE_FIELD
+                                        if timer_minutes_updated > 0:
+                                            update_payload["expires_at"] = _dt.now(UTC) + timedelta(
+                                                minutes=timer_minutes_updated
+                                            )
+                                        else:
+                                            update_payload["expires_at"] = firestore.DELETE_FIELD
                                     board_base.document(q_id).update(update_payload)
                                     _notify_slack(
                                         f"✏️ *Class Board post edited* — {class_name}\n",
@@ -6455,7 +6466,17 @@ if tab == "My Course":
                     )
                     if banner:
                         st.caption(banner)
-                    _render_live_forum_timer(timer_info, key=f"{q_id}_reply")
+                    reply_timer_label = build_forum_reply_indicator_text(timer_info)
+                    if reply_timer_label:
+                        reply_color = "#dc2626" if timer_info.get("status") == "open" else "#64748b"
+                        st.markdown(
+                            "<div style='font-size:0.95rem;font-weight:600;color:%s;margin:6px 0 -4px;'>%s</div>"
+                            % (
+                                reply_color,
+                                html.escape(str(reply_timer_label)),
+                            ),
+                            unsafe_allow_html=True,
+                        )
                     if show_timer_warning:
                         st.info(
                             "⏳ Time up soon—replies close in under a minute.",
@@ -6484,8 +6505,7 @@ if tab == "My Course":
                         student_name=student_name,
                         text=current_text,
                     )
-                    autosave_maybe(student_code, draft_key, current_text, min_secs=1.0, min_delta=8)
-                    _render_autosave_status(draft_key, current_text)
+                    autosave_maybe(student_code, draft_key, current_text, min_secs=2.0, min_delta=12)
 
                     send_col, ai_col = st.columns([1, 1])
 
