@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock
 import types
+import time
 
 from src import draft_management as dm
 
@@ -55,3 +56,41 @@ def test_autosave_maybe_handles_none_state(monkeypatch):
     assert session_state[last_ts_key] >= 0.0
     assert session_state[saved_flag_key] is True
     assert saved_at_key in session_state
+
+
+def test_save_before_download_persists_and_skips(monkeypatch):
+    draft_key = "draft_A1_day1_ch1"
+    session_state = {draft_key: "Hello"}
+    mock_st = types.SimpleNamespace(session_state=session_state)
+    monkeypatch.setattr(dm, "st", mock_st)
+
+    save_calls = []
+    monkeypatch.setattr(dm, "save_draft_to_db", lambda code, key, text: save_calls.append((code, key, text)))
+    chat_mock = MagicMock()
+    monkeypatch.setattr(dm, "save_chat_draft_to_db", chat_mock)
+
+    dm.save_before_download(draft_key, "STUDENT42")
+
+    assert save_calls == [("STUDENT42", draft_key, "Hello")]
+    chat_mock.assert_not_called()
+
+    last_val_key, last_ts_key, saved_flag_key, saved_at_key = dm._draft_state_keys(draft_key)
+    assert session_state[last_val_key] == "Hello"
+    assert session_state[last_ts_key] <= time.time()
+    assert session_state[saved_flag_key] is True
+    assert saved_at_key in session_state
+
+    # skip counter should cover the next two saves
+    assert dm._consume_skip_counter(draft_key) is True
+    assert dm._consume_skip_counter(draft_key) is True
+    assert dm._consume_skip_counter(draft_key) is False
+
+    # existing skip counters are preserved when saving again
+    dm.skip_next_save(draft_key, count=1)
+    session_state[draft_key] = "Updated"
+    dm.save_before_download(draft_key, "STUDENT42", skip_count=1)
+    assert save_calls[-1] == ("STUDENT42", draft_key, "Updated")
+
+    assert dm._consume_skip_counter(draft_key) is True
+    assert dm._consume_skip_counter(draft_key) is True
+    assert dm._consume_skip_counter(draft_key) is False

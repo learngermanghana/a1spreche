@@ -1117,13 +1117,13 @@ from src.draft_management import (
     clear_draft_after_post,
     initialize_draft_state,
     save_now,
+    save_before_download,
     autosave_maybe,
     reset_local_draft_state,
     load_notes_from_db,
     save_notes_to_db,
     autosave_learning_note,
     on_cb_subtab_change,
-    skip_next_save,
 )
 from src.falowen.chat_core import (
     back_step,
@@ -4424,8 +4424,8 @@ if tab == "My Course":
                         mime="text/plain",
                         help="Save a clean backup of your current draft",
                         key=f"{draft_key}__download_txt",
-                        on_click=skip_next_save,
-                        kwargs={"draft_key": draft_key, "count": 2},
+                        on_click=save_before_download,
+                        kwargs={"draft_key": draft_key, "code": code, "skip_count": 2},
                     )
 
                 if show_resubmit_hint:
