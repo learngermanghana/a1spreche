@@ -3117,6 +3117,8 @@ if tab == "Dashboard":
 
 
 
+
+
 def render_section(day_info: dict, key: str, title: str, icon: str) -> None:
     """Render a lesson section (supports list or single dict)."""
     content = day_info.get(key)
@@ -4318,17 +4320,6 @@ if tab == "My Course":
                 show_resubmit_hint = locked and bool(needs_resubmit)
 
                 # ---------- Editor (save on blur + debounce) ----------
-
-                # Downloading triggers a rerun that resets the textarea's widget
-                # state before Streamlit replays ``st.text_area``.  Persist the
-                # previous text under a temporary key so we can restore it here
-                # *before* the widget is instantiated on the next run.
-                restore_after_download_key = f"{draft_key}__restore_after_download"
-                if restore_after_download_key in st.session_state:
-                    st.session_state[draft_key] = st.session_state.pop(
-                        restore_after_download_key
-                    )
-
                 st.text_area(
                     "Type all your answers here",
                     height=500,
@@ -4402,20 +4393,16 @@ if tab == "My Course":
                     safe_chapter = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(info.get("chapter", "")))
                     fname = f"falowen_draft_{student_level}_day{info['day']}_{safe_chapter}.txt"
 
-                    clicked = st.download_button(
+                    st.download_button(
                         "⬇️ Download draft (TXT)",
                         data=(header + clean_body).encode("utf-8"),
                         file_name=fname,
                         mime="text/plain",
-                        help="Save a clean backup of your current draft"
+                        help="Save a clean backup of your current draft",
+                        key=f"{draft_key}__download_txt",
+                        on_click=skip_next_save,
+                        kwargs={"draft_key": draft_key, "count": 2},
                     )
-                    if clicked:
-                        # Download buttons trigger a rerun that can briefly clear the
-                        # textarea value (which would otherwise be saved as empty).
-                        # Skip the next save cycle and restore the in-memory draft so
-                        # students keep their work after downloading a backup.
-                        skip_next_save(draft_key, count=2)
-                        st.session_state[restore_after_download_key] = draft_txt
 
                 if show_resubmit_hint:
                     st.info(
@@ -6524,7 +6511,7 @@ if tab == "My Course":
 
                     if idx < len(questions) - 1:
                         st.divider()
-
+#
 
     # === LEARNING NOTES SUBTAB ===
     elif cb_subtab == "📒 Learning Notes":
@@ -6883,6 +6870,7 @@ if tab == "My Course":
                                 refresh_with_toast()
                     with cols[3]:
                         st.caption("")
+
 
 
 
