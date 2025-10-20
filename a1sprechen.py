@@ -121,6 +121,30 @@ CLASSBOARD_TIMER_HELP_TEXT = (
 )
 
 
+_CLASSBOARD_TIMER_STATE_SUFFIXES = (
+    "__preset",
+    "__manual",
+    "__mode",
+    "__preset_prev",
+    "__manual_prev",
+)
+
+
+def _clear_classboard_timer_state(timer_state_key: str) -> None:
+    """Remove the stored value and any companion session-state metadata."""
+
+    for suffix in ("", *_CLASSBOARD_TIMER_STATE_SUFFIXES):
+        key = timer_state_key if suffix == "" else f"{timer_state_key}{suffix}"
+        st.session_state.pop(key, None)
+
+
+def _initialize_classboard_timer_state(timer_state_key: str, minutes: int = 0) -> None:
+    """Reset the timer selector state to ``minutes`` and clear derived fields."""
+
+    _clear_classboard_timer_state(timer_state_key)
+    st.session_state[timer_state_key] = int(minutes)
+
+
 def _format_classboard_timer_option(minutes: int) -> str:
     if minutes <= 0:
         return "No reply timer"
@@ -5744,7 +5768,7 @@ if tab == "My Course":
                 st.session_state.pop("q_ai_suggestion", None)
                 st.session_state.pop("q_ai_explanation", None)
                 st.session_state.pop("q_ai_diff", None)
-                st.session_state["q_forum_timer_minutes"] = 0
+                _initialize_classboard_timer_state("q_forum_timer_minutes", 0)
                 reset_local_draft_state(draft_key)
                 _clear_typing_state(
                     level=student_level,
@@ -5762,17 +5786,10 @@ if tab == "My Course":
             topic = st.text_input("Topic (optional)", key="q_topic")
             link = st.text_input("Link (optional)", key="q_link")
             timer_key = "q_forum_timer_minutes"
-            if timer_key not in st.session_state:
-                st.session_state[timer_key] = 0
-            timer_options = _classboard_timer_options(st.session_state.get(timer_key))
-            st.selectbox(
-                "Reply timer",
-                timer_options,
-                key=timer_key,
-                format_func=_format_classboard_timer_option,
-                help=(
-                    "Choose how long replies remain open. Select 'No reply timer' to keep the thread open."
-                ),
+            _render_classboard_timer_selector(
+                timer_key,
+                label="Reply timer",
+                help_text=CLASSBOARD_TIMER_HELP_TEXT,
             )
 
             st.markdown(
@@ -6006,6 +6023,7 @@ if tab == "My Course":
                     pin_html = " 📌" if q.get("pinned") else ""
                     timer_info = build_forum_timer_indicator(q.get("expires_at"), now=now_for_timer)
                     timer_minutes_remaining = int(timer_info.get("minutes") or 0)
+                    edit_timer_key = f"q_edit_timer_minutes_{q_id}"
                     topic_html = (
                         f"<div style='font-weight:bold;color:#8d4de8;'>{html.escape(str(q.get('topic', '')))}</div>"
                         if q.get("topic")
@@ -6084,9 +6102,9 @@ if tab == "My Course":
                             f"q_edit_topic_input_{q_id}",
                             f"q_edit_link_input_{q_id}",
                             f"q_edit_lesson_input_{q_id}",
-                            f"q_edit_timer_input_{q_id}",
                         ]:
                             st.session_state.pop(_k, None)
+                        _clear_classboard_timer_state(edit_timer_key)
                         _clear_typing_state(
                             level=student_level,
                             class_code=class_name,
@@ -6106,7 +6124,9 @@ if tab == "My Course":
                                 st.session_state[f"q_edit_topic_{q_id}"] = q.get("topic", "")
                                 st.session_state[f"q_edit_link_{q_id}"] = q.get("link", "")
                                 st.session_state[f"q_edit_lesson_{q_id}"] = q.get("lesson", "")
-                                st.session_state[f"q_edit_timer_input_{q_id}"] = timer_minutes_remaining
+                                _initialize_classboard_timer_state(
+                                    edit_timer_key, timer_minutes_remaining
+                                )
                         with qc2:
                             if st.button("🗑️ Delete", key=f"q_del_btn_{q_id}"):
                                 try:
@@ -6159,19 +6179,14 @@ if tab == "My Course":
                                     value=st.session_state.get(f"q_edit_link_{q_id}", ""),
                                     key=f"q_edit_link_input_{q_id}"
                                 )
-                                if f"q_edit_timer_input_{q_id}" not in st.session_state:
-                                    st.session_state[f"q_edit_timer_input_{q_id}"] = timer_minutes_remaining
-                                edit_timer_options = _classboard_timer_options(
-                                    st.session_state.get(f"q_edit_timer_input_{q_id}")
-                                )
-                                st.selectbox(
-                                    "Reply timer",
-                                    edit_timer_options,
-                                    key=f"q_edit_timer_input_{q_id}",
-                                    format_func=_format_classboard_timer_option,
-                                    help=(
-                                        "Choose how long replies remain open. Select 'No reply timer' to keep the thread open."
-                                    ),
+                                if edit_timer_key not in st.session_state:
+                                    _initialize_classboard_timer_state(
+                                        edit_timer_key, timer_minutes_remaining
+                                    )
+                                _render_classboard_timer_selector(
+                                    edit_timer_key,
+                                    label="Reply timer",
+                                    help_text=CLASSBOARD_TIMER_HELP_TEXT,
                                 )
                                 banner = _format_typing_banner(
                                     fetch_active_typists(student_level, class_name, q_id),
@@ -6206,7 +6221,7 @@ if tab == "My Course":
                                         "lesson": new_lesson,
                                     }
                                     timer_minutes_updated = int(
-                                        st.session_state.get(f"q_edit_timer_input_{q_id}", 0) or 0
+                                        st.session_state.get(edit_timer_key, 0) or 0
                                     )
                                     if timer_minutes_updated > 0:
                                         update_payload["expires_at"] = _dt.now(UTC) + timedelta(
