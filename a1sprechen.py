@@ -5283,7 +5283,11 @@ if tab == "My Course":
                     f"""
                     **Computer or iPhone:** Download the **.ics** above and install.
                     - **Computer (Google Calendar web):** calendar.google.com → **Settings** → **Import & export** → **Import**.
-                    - **iPhone (Apple Calendar):** Download the `.ics`, open it, choose notifications, then **Done**.
+                    - **iPhone (Apple Calendar via iCloud.com):**
+                        1. Tap **⬇️ Download full course (.ics)** and save the file to your device (Files app → iCloud Drive/Downloads).
+                        2. Open Safari → iCloud.com → sign in with your Apple ID.
+                        3. In iCloud Drive, locate the downloaded calendar file and tap it. If it doesn’t open, re-download it from this page and try again.
+                        4. Choose **Calendar** when prompted, then tap **Add All** to import the events.
 
                     **Android (Google Calendar app):** The app **can’t import `.ics`**. Use these links (**with repeat**):
                     {_phone_links_ul}
