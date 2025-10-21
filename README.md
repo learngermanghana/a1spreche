@@ -140,6 +140,20 @@ st.markdown(
 Extend `src/styles.py` with additional variables or classes and reuse them across
 components.
 
+## Course Calendar (iPhone iCloud Import)
+
+Students who need to add the course calendar to the native iOS Calendar app can
+follow these steps on their iPhone:
+
+1. Download the provided `.iso` calendar file and ensure it is saved to the
+   device (Files app or iCloud Drive both work).
+2. Open Safari and sign in to [iCloud.com](https://www.icloud.com/).
+3. Locate the downloaded calendar file within iCloud Drive and tap to open it.
+4. If the file does not open, redownload it from the same iCloud Drive page and
+   try opening it again.
+5. Once the file opens, choose the Calendar option on iCloud.com and select
+   **Add All** to import every event into the Calendar app.
+
 ## Blog Feed
 
 The dashboard displays new posts pulled from a JSON feed at
