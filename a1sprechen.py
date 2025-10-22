@@ -5284,7 +5284,7 @@ if tab == "My Course":
                     **Computer or iPhone:** Download the **.ics** above and install.
                     - **Computer (Google Calendar web):** calendar.google.com → **Settings** → **Import & export** → **Import**.
                     - **iPhone (Apple Calendar via iCloud.com):**
-                        1. Tap **⬇️ Download full course (.ics)** and save the file to your device (Files app → iCloud Drive/Downloads).
+                        1. Tap Download full course (.ics)** above and save the file to your device (Files app → iCloud Drive/Downloads).
                         2. Open Safari → iCloud.com → sign in with your Apple ID.
                         3. In iCloud Drive, locate the downloaded calendar file and tap it. If it doesn’t open, re-download it from this page and try again.
                         4. Choose **Calendar** when prompted, then tap **Add All** to import the events.
