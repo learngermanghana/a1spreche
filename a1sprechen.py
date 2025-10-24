@@ -3596,6 +3596,34 @@ if tab == "My Course":
             st.warning(f"No lessons found for level **{level_key}**.")
             # Removed st.stop() so downstream sections (e.g., class board) can still render
 
+        # ---------- mini-tabs inside Course Book ----------
+        if "coursebook_page" not in st.session_state:
+            st.session_state["coursebook_page"] = "Overview"
+        if "coursebook_prev_page" not in st.session_state:
+            st.session_state["coursebook_prev_page"] = st.session_state["coursebook_page"]
+
+        def on_coursebook_page_change() -> None:
+            prev = st.session_state.get("coursebook_prev_page")
+            curr = st.session_state.get("coursebook_page")
+            if prev in {"Assignment", "Submit"}:
+                draft_key = st.session_state.get("coursebook_draft_key")
+                code = (
+                    st.session_state.get("student_code")
+                    or (st.session_state.get("student_row") or {}).get("StudentCode", "")
+                )
+                if draft_key and code:
+                    last_val_key, *_ = _draft_state_keys(draft_key)
+                    if st.session_state.get(draft_key, "") != st.session_state.get(last_val_key, ""):
+                        save_now(draft_key, code)
+            st.session_state["coursebook_prev_page"] = curr
+
+        coursebook_section = st.radio(
+            "Section",
+            ["Overview", "Assignment", "Submit"],
+            key="coursebook_page",
+            on_change=on_coursebook_page_change,
+        )
+
         # ---- Search ----
         query = st.text_input("🔍 Search for topic, chapter, grammar, day, or anything…")
         search_terms = [q for q in query.strip().lower().split() if q] if query else []
@@ -3740,34 +3768,7 @@ if tab == "My Course":
 
         st.divider()
 
-        # ---------- mini-tabs inside Course Book ----------
-        if "coursebook_page" not in st.session_state:
-            st.session_state["coursebook_page"] = "Overview"
-        if "coursebook_prev_page" not in st.session_state:
-            st.session_state["coursebook_prev_page"] = st.session_state["coursebook_page"]
-        def on_coursebook_page_change() -> None:
-            prev = st.session_state.get("coursebook_prev_page")
-            curr = st.session_state.get("coursebook_page")
-            if prev in {"Assignment", "Submit"}:
-                draft_key = st.session_state.get("coursebook_draft_key")
-                code = (
-                    st.session_state.get("student_code")
-                    or (st.session_state.get("student_row") or {}).get("StudentCode", "")
-                )
-                if draft_key and code:
-                    last_val_key, *_ = _draft_state_keys(draft_key)
-                    if st.session_state.get(draft_key, "") != st.session_state.get(last_val_key, ""):
-                        save_now(draft_key, code)
-            st.session_state["coursebook_prev_page"] = curr
-
         student_row = st.session_state.get("student_row", {})
-        
-        coursebook_section = st.radio(
-            "Section",
-            ["Overview", "Assignment", "Submit"],
-            key="coursebook_page",
-            on_change=on_coursebook_page_change,
-        )
 
         # OVERVIEW
         if coursebook_section == "Overview":
