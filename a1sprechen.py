@@ -3685,6 +3685,38 @@ if tab == "My Course":
                 on_change=on_coursebook_page_change,
             )
 
+        day_value = _coerce_day(info.get("day"))
+        goal_text = _safe_str(info.get("goal"))
+        grammar_text = _safe_str(info.get("grammar_topic"))
+        instruction_text = _safe_str(info.get("instruction"))
+
+        if day_value != 0:
+            def _format_summary_row(icon: str, label: str, value: str) -> str:
+                if not value:
+                    return ""
+                highlighted = (
+                    highlight_terms(html.escape(value), search_terms)
+                    if search_terms
+                    else html.escape(value)
+                )
+                return f"<p>{icon} <strong>{label}</strong> {highlighted}</p>"
+
+            summary_rows = [
+                _format_summary_row("🎯", "Goal:", goal_text),
+                _format_summary_row("🔤", "Grammar Focus:", grammar_text),
+                _format_summary_row("📝", "Instruction:", instruction_text),
+            ]
+            summary_html = "".join(row for row in summary_rows if row)
+            if summary_html:
+                st.markdown(
+                    "<div style='border-left:4px solid #2b6cb0;"
+                    "background:#ebf8ff;padding:12px 16px;border-radius:8px;"
+                    "margin:0 0 16px 0;'>"
+                    f"{summary_html}"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+
         st.divider()
 
         # ---- Progress ----
@@ -3699,16 +3731,9 @@ if tab == "My Course":
             f"### {highlight_terms(title_txt, search_terms)} (Chapter {chapter or '?'})",
             unsafe_allow_html=True,
         )
-        if info.get("grammar_topic"):
-            st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
 
-        if _coerce_day(info.get("day")) == 0:
+        if day_value == 0:
             render_day_zero_onboarding(info, schedule, idx)
-        elif info.get("goal") or info.get("instruction"):
-            st.info(
-                f"🎯 **Goal:** {info.get('goal','')}\n\n"
-                f"📝 **Instruction:** {info.get('instruction','')}"
-            )
 
         # ---- Class discussion count & link ----
         student_row = st.session_state.get("student_row") or {}
