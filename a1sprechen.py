@@ -3642,17 +3642,10 @@ if tab == "My Course":
                 label_visibility="collapsed",
             )
 
-        st.divider()
-
-        # ---- Progress ----
         total = len(schedule)
         done = idx + 1
         pct = int(done / total * 100) if total else 0
-        st.progress(pct)
-        st.markdown(f"**You’ve loaded {done} / {total} lessons ({pct}%)**")
-        st.divider()
 
-        # ---- Lesson info ----
         info = schedule[idx]
         lesson_key = lesson_key_build(
             student_level,
@@ -3661,22 +3654,83 @@ if tab == "My Course":
         )
         draft_key = f"draft_{lesson_key}"
         st.session_state["coursebook_draft_key"] = draft_key
+
+        coursebook_tabs = st.container()
+
+        if "coursebook_page" not in st.session_state:
+            st.session_state["coursebook_page"] = "Overview"
+        if "coursebook_prev_page" not in st.session_state:
+            st.session_state["coursebook_prev_page"] = st.session_state["coursebook_page"]
+
+        def on_coursebook_page_change() -> None:
+            prev = st.session_state.get("coursebook_prev_page")
+            curr = st.session_state.get("coursebook_page")
+            if prev in {"Assignment", "Submit"}:
+                draft_key_state = st.session_state.get("coursebook_draft_key")
+                code = (
+                    st.session_state.get("student_code")
+                    or (st.session_state.get("student_row") or {}).get("StudentCode", "")
+                )
+                if draft_key_state and code:
+                    last_val_key, *_ = _draft_state_keys(draft_key_state)
+                    if st.session_state.get(draft_key_state, "") != st.session_state.get(last_val_key, ""):
+                        save_now(draft_key_state, code)
+            st.session_state["coursebook_prev_page"] = curr
+
+        with coursebook_tabs:
+            coursebook_section = st.radio(
+                "Section",
+                ["Overview", "Assignment", "Submit"],
+                key="coursebook_page",
+                on_change=on_coursebook_page_change,
+            )
+
+        st.divider()
+
+        # ---- Progress ----
+        st.progress(pct)
+        st.markdown(f"**You’ve loaded {done} / {total} lessons ({pct}%)**")
+        st.divider()
+
+        # ---- Lesson info ----
         chapter = info.get("chapter")
         title_txt = f"Day {info['day']}: {info['topic']}"
         st.markdown(
             f"### {highlight_terms(title_txt, search_terms)} (Chapter {chapter or '?'})",
             unsafe_allow_html=True,
         )
-        if info.get("grammar_topic"):
-            st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
+        grammar_focus_html = (
+            highlight_terms(info["grammar_topic"], search_terms)
+            if info.get("grammar_topic")
+            else ""
+        )
+        goal_instruction_parts = []
+        goal_text = (info.get("goal") or "").strip()
+        if goal_text:
+            goal_instruction_parts.append(f"🎯 **Goal:** {goal_text}")
+        instruction_text = (info.get("instruction") or "").strip()
+        if instruction_text:
+            goal_instruction_parts.append(f"📝 **Instruction:** {instruction_text}")
+        goal_instruction_msg = "\n\n".join(goal_instruction_parts)
+        is_day_zero = _coerce_day(info.get("day")) == 0
 
-        if _coerce_day(info.get("day")) == 0:
+        def render_lesson_focus(position: str) -> None:
+            if not grammar_focus_html and not goal_instruction_msg:
+                return
+            if position == "before":
+                st.caption("🎯 Lesson goal & grammar focus")
+            else:
+                st.caption("🔁 Reminder: lesson goal & grammar focus")
+            if grammar_focus_html:
+                st.markdown(
+                    f"**🔤 Grammar Focus:** {grammar_focus_html}",
+                    unsafe_allow_html=True,
+                )
+            if goal_instruction_msg:
+                st.info(goal_instruction_msg)
+
+        if is_day_zero:
             render_day_zero_onboarding(info, schedule, idx)
-        elif info.get("goal") or info.get("instruction"):
-            st.info(
-                f"🎯 **Goal:** {info.get('goal','')}\n\n"
-                f"📝 **Instruction:** {info.get('instruction','')}"
-            )
 
         # ---- Class discussion count & link ----
         student_row = st.session_state.get("student_row") or {}
@@ -3740,902 +3794,878 @@ if tab == "My Course":
 
         st.divider()
 
-        # ---------- mini-tabs inside Course Book ----------
-        if "coursebook_page" not in st.session_state:
-            st.session_state["coursebook_page"] = "Overview"
-        if "coursebook_prev_page" not in st.session_state:
-            st.session_state["coursebook_prev_page"] = st.session_state["coursebook_page"]
-        def on_coursebook_page_change() -> None:
-            prev = st.session_state.get("coursebook_prev_page")
-            curr = st.session_state.get("coursebook_page")
-            if prev in {"Assignment", "Submit"}:
-                draft_key = st.session_state.get("coursebook_draft_key")
-                code = (
-                    st.session_state.get("student_code")
-                    or (st.session_state.get("student_row") or {}).get("StudentCode", "")
-                )
-                if draft_key and code:
-                    last_val_key, *_ = _draft_state_keys(draft_key)
-                    if st.session_state.get(draft_key, "") != st.session_state.get(last_val_key, ""):
-                        save_now(draft_key, code)
-            st.session_state["coursebook_prev_page"] = curr
-
         student_row = st.session_state.get("student_row", {})
-        
-        coursebook_section = st.radio(
-            "Section",
-            ["Overview", "Assignment", "Submit"],
-            key="coursebook_page",
-            on_change=on_coursebook_page_change,
-        )
 
-        # OVERVIEW
-        if coursebook_section == "Overview":
-        
-            with st.expander("📚 Course Book & Study Recommendations", expanded=True):
-                LEVEL_TIME = {"A1": 15, "A2": 25, "B1": 30, "B2": 40, "C1": 45}
-                rec_time = LEVEL_TIME.get(level_key, 20)
-                st.info(f"⏱️ **Recommended:** Invest about {rec_time} minutes to complete this lesson fully.")
+        with coursebook_tabs:
 
-                student_row = st.session_state.get("student_row", {})
-                start_str   = student_row.get("ContractStart", "")
-                parse_start = (
-                    globals().get("parse_contract_start_fn")
-                    or globals().get("parse_contract_start")
-                )
-                estimates = _compute_finish_date_estimates(start_str, total, parse_start)
+            render_lesson_focus("before")
 
-                if estimates:
-                    end_three = estimates[3]
-                    end_two   = estimates[2]
-                    end_one   = estimates[1]
-                    _, content = st.columns([3, 7])
-                    with content:
-                        st.success(f"If you complete **three sessions per week**, you will finish by **{end_three.strftime('%A, %d %B %Y')}**.")
-                        st.info(f"If you complete **two sessions per week**, you will finish by **{end_two.strftime('%A, %d %B %Y')}**.")
-                        st.warning(f"If you complete **one session per week**, you will finish by **{end_one.strftime('%A, %d %B %Y')}**.")
-                else:
-                    _, content = st.columns([3, 7])
-                    with content:
-                        st.warning(
-                            "❓ We couldn't load your finish date estimates. Try scrolling up, "
-                            "switching to a different tab and back, or logging out and logging "
-                            "in again. If the problem persists, please contact administration."
-                        )
+            # OVERVIEW
+            if coursebook_section == "Overview":
 
-        # ASSIGNMENT (activities + resources; tolerant across A1–C1)
-        elif coursebook_section == "Assignment":
+                with st.expander("📚 Course Book & Study Recommendations", expanded=True):
+                    LEVEL_TIME = {"A1": 15, "A2": 25, "B1": 30, "B2": 40, "C1": 45}
+                    rec_time = LEVEL_TIME.get(level_key, 20)
+                    st.info(f"⏱️ **Recommended:** Invest about {rec_time} minutes to complete this lesson fully.")
 
-            draft_text = st.session_state.get(draft_key, "")
-            recovered_code = _recover_student_code(
-                lesson_key=lesson_key,
-                draft_text=draft_text if draft_text else None,
-            )
-            student_row = (
-                _update_student_code_session_state(recovered_code)
-                if recovered_code
-                else st.session_state.get("student_row")
-                or {}
-            )
+                    student_row = st.session_state.get("student_row", {})
+                    start_str   = student_row.get("ContractStart", "")
+                    parse_start = (
+                        globals().get("parse_contract_start_fn")
+                        or globals().get("parse_contract_start")
+                    )
+                    estimates = _compute_finish_date_estimates(start_str, total, parse_start)
 
-            if not recovered_code:
-                manual_key = "assignment_student_code_input"
-                st.warning(
-                    "We couldn't detect your student code automatically. "
-                    "Enter it below so your work is linked to your account."
-                )
-                manual_value = st.text_input(
-                    "Student code",
-                    key=manual_key,
-                    placeholder="e.g. KWAME123",
-                    help="This appears on your student ID card or welcome email.",
-                )
-                manual_code = _safe_lower(manual_value)
-                if manual_code and manual_code.lower() != "demo001":
-                    student_row = _update_student_code_session_state(manual_code)
-                    st.caption("Student code saved. You're all set to continue.")
-
-            # ---------- helpers ----------
-            def _as_list(x):
-                if not x: return []
-                return x if isinstance(x, list) else [x]
-
-            def _is_url(u: str) -> bool:
-                try:
-                    p = urlparse(str(u))
-                    return p.scheme in ("http", "https") and bool(p.netloc)
-                except Exception:
-                    return False
-
-            def _dedup(seq):
-                out, seen = [], set()
-                for s in seq:
-                    if s and s not in seen:
-                        seen.add(s); out.append(s)
-                return out
-
-            def _canon_video(u: str) -> str:
-                """Stable id for a video url (YouTube => yt:ID, else normalized url)."""
-                if not u:
-                    return ""
-                try:
-                    p = urlsplit(u)
-                    host = (p.netloc or "").lower().replace("www.", "")
-                    if "youtube.com" in host:
-                        q = parse_qs(p.query or "")
-                        vid = (q.get("v", [""])[0] or "").strip()
-                        return f"yt:{vid}" if vid else u.strip().lower()
-                    if "youtu.be" in host:
-                        vid = (p.path or "/").strip("/").split("/")[0]
-                        return f"yt:{vid}" if vid else u.strip().lower()
-                    return u.strip().lower()
-                except Exception:
-                    return str(u).strip().lower()
-
-            def pick_sections(day_info: dict):
-                """Find any section keys present for this lesson across levels."""
-                candidates = [
-                    ("lesen_hören",        "Lesen & Hören",        "📚"),
-                    ("lesen_hoeren",       "Lesen & Hören",        "📚"),
-                    ("lesenhoeren",        "Lesen & Hören",        "📚"),
-                    ("lesen",              "Lesen",                "📖"),
-                    ("hören",              "Hören",                "🎧"),
-                    ("hoeren",             "Hören",                "🎧"),
-                    ("schreiben_sprechen", "Schreiben & Sprechen", "📝"),
-                    ("sprechen_schreiben", "Schreiben & Sprechen", "📝"),
-                    ("sprechen",           "Sprechen",             "🗣️"),
-                    ("schreiben",          "Schreiben",            "✍️"),
-                ]
-                found = []
-                for key, title, icon in candidates:
-                    if day_info.get(key):
-                        found.append((key, title, icon))
-                return found
-
-            def render_section_any(day_info, key, title, icon, seen_videos: set):
-                content = day_info.get(key)
-                if not content:
-                    return
-
-                if isinstance(content, dict):
-                    items = [content]
-                elif isinstance(content, list):
-                    items = [c for c in content if isinstance(c, dict)]
-                    if len(items) != len(content):
-                        logging.warning("Expected dict elements in '%s' list, skipping non-dict entries", key)
-                else:
-                    logging.warning("Expected dict or list for '%s', got %s", key, type(content).__name__)
-                    return
-
-                st.markdown(f"#### {icon} {title}")
-                for idx_part, part in enumerate(items):
-                    chapter = part.get('chapter', '')
-                    video = part.get('video')
-                    youtube_link = part.get('youtube_link')
-                    grammarbook_link = part.get('grammarbook_link')
-                    workbook_link = part.get('workbook_link')
-                    extras = part.get('extra_resources')
-
-                    if len(items) > 1:
-                        st.markdown(
-                            f"###### {icon} Part {idx_part+1} of {len(items)}: Chapter {chapter}"
-                        )
+                    if estimates:
+                        end_three = estimates[3]
+                        end_two   = estimates[2]
+                        end_one   = estimates[1]
+                        _, content = st.columns([3, 7])
+                        with content:
+                            st.success(f"If you complete **three sessions per week**, you will finish by **{end_three.strftime('%A, %d %B %Y')}**.")
+                            st.info(f"If you complete **two sessions per week**, you will finish by **{end_two.strftime('%A, %d %B %Y')}**.")
+                            st.warning(f"If you complete **one session per week**, you will finish by **{end_one.strftime('%A, %d %B %Y')}**.")
                     else:
-                        st.markdown(f"###### {icon} Chapter {chapter}")
-                    # videos (embed once)
-                    for maybe_vid in [video, youtube_link]:
-                        if _is_url(maybe_vid):
-                            cid = _canon_video(maybe_vid)
-                            if cid not in seen_videos:
-                                st.markdown(
-                                    f"[🎬 Lecture Video on YouTube]({maybe_vid})"
+                        _, content = st.columns([3, 7])
+                        with content:
+                            st.warning(
+                                "❓ We couldn't load your finish date estimates. Try scrolling up, "
+                                "switching to a different tab and back, or logging out and logging "
+                                "in again. If the problem persists, please contact administration."
+                            )
+
+            # ASSIGNMENT (activities + resources; tolerant across A1–C1)
+            elif coursebook_section == "Assignment":
+
+                draft_text = st.session_state.get(draft_key, "")
+                recovered_code = _recover_student_code(
+                    lesson_key=lesson_key,
+                    draft_text=draft_text if draft_text else None,
+                )
+                student_row = (
+                    _update_student_code_session_state(recovered_code)
+                    if recovered_code
+                    else st.session_state.get("student_row")
+                    or {}
+                )
+
+                if not recovered_code:
+                    manual_key = "assignment_student_code_input"
+                    st.warning(
+                        "We couldn't detect your student code automatically. "
+                        "Enter it below so your work is linked to your account."
+                    )
+                    manual_value = st.text_input(
+                        "Student code",
+                        key=manual_key,
+                        placeholder="e.g. KWAME123",
+                        help="This appears on your student ID card or welcome email.",
+                    )
+                    manual_code = _safe_lower(manual_value)
+                    if manual_code and manual_code.lower() != "demo001":
+                        student_row = _update_student_code_session_state(manual_code)
+                        st.caption("Student code saved. You're all set to continue.")
+
+                # ---------- helpers ----------
+                def _as_list(x):
+                    if not x: return []
+                    return x if isinstance(x, list) else [x]
+
+                def _is_url(u: str) -> bool:
+                    try:
+                        p = urlparse(str(u))
+                        return p.scheme in ("http", "https") and bool(p.netloc)
+                    except Exception:
+                        return False
+
+                def _dedup(seq):
+                    out, seen = [], set()
+                    for s in seq:
+                        if s and s not in seen:
+                            seen.add(s); out.append(s)
+                    return out
+
+                def _canon_video(u: str) -> str:
+                    """Stable id for a video url (YouTube => yt:ID, else normalized url)."""
+                    if not u:
+                        return ""
+                    try:
+                        p = urlsplit(u)
+                        host = (p.netloc or "").lower().replace("www.", "")
+                        if "youtube.com" in host:
+                            q = parse_qs(p.query or "")
+                            vid = (q.get("v", [""])[0] or "").strip()
+                            return f"yt:{vid}" if vid else u.strip().lower()
+                        if "youtu.be" in host:
+                            vid = (p.path or "/").strip("/").split("/")[0]
+                            return f"yt:{vid}" if vid else u.strip().lower()
+                        return u.strip().lower()
+                    except Exception:
+                        return str(u).strip().lower()
+
+                def pick_sections(day_info: dict):
+                    """Find any section keys present for this lesson across levels."""
+                    candidates = [
+                        ("lesen_hören",        "Lesen & Hören",        "📚"),
+                        ("lesen_hoeren",       "Lesen & Hören",        "📚"),
+                        ("lesenhoeren",        "Lesen & Hören",        "📚"),
+                        ("lesen",              "Lesen",                "📖"),
+                        ("hören",              "Hören",                "🎧"),
+                        ("hoeren",             "Hören",                "🎧"),
+                        ("schreiben_sprechen", "Schreiben & Sprechen", "📝"),
+                        ("sprechen_schreiben", "Schreiben & Sprechen", "📝"),
+                        ("sprechen",           "Sprechen",             "🗣️"),
+                        ("schreiben",          "Schreiben",            "✍️"),
+                    ]
+                    found = []
+                    for key, title, icon in candidates:
+                        if day_info.get(key):
+                            found.append((key, title, icon))
+                    return found
+
+                def render_section_any(day_info, key, title, icon, seen_videos: set):
+                    content = day_info.get(key)
+                    if not content:
+                        return
+
+                    if isinstance(content, dict):
+                        items = [content]
+                    elif isinstance(content, list):
+                        items = [c for c in content if isinstance(c, dict)]
+                        if len(items) != len(content):
+                            logging.warning("Expected dict elements in '%s' list, skipping non-dict entries", key)
+                    else:
+                        logging.warning("Expected dict or list for '%s', got %s", key, type(content).__name__)
+                        return
+
+                    st.markdown(f"#### {icon} {title}")
+                    for idx_part, part in enumerate(items):
+                        chapter = part.get('chapter', '')
+                        video = part.get('video')
+                        youtube_link = part.get('youtube_link')
+                        grammarbook_link = part.get('grammarbook_link')
+                        workbook_link = part.get('workbook_link')
+                        extras = part.get('extra_resources')
+
+                        if len(items) > 1:
+                            st.markdown(
+                                f"###### {icon} Part {idx_part+1} of {len(items)}: Chapter {chapter}"
+                            )
+                        else:
+                            st.markdown(f"###### {icon} Chapter {chapter}")
+                        # videos (embed once)
+                        for maybe_vid in [video, youtube_link]:
+                            if _is_url(maybe_vid):
+                                cid = _canon_video(maybe_vid)
+                                if cid not in seen_videos:
+                                    st.markdown(
+                                        f"[🎬 Lecture Video on YouTube]({maybe_vid})"
+                                    )
+                                    seen_videos.add(cid)
+                        # links/resources inline
+                        if grammarbook_link:
+                            st.markdown(f"- [📘 Grammar Book (Notes)]({grammarbook_link})")
+                            st.markdown(
+                                "<em>Reminder:</em> 📘 gives you the grammar from today's lecture; 📒 is the assignment you must complete.",
+                                unsafe_allow_html=True,
+                            )
+                        if workbook_link:
+                            st.markdown(f"- [📒 Workbook (Assignment)]({workbook_link})")
+                            with st.expander("📖 Dictionary"):
+                                render_vocab_lookup(
+                                    f"{key}-{idx_part}",
+                                    f"Day {day_info.get('day')} Chapter {chapter}",
                                 )
-                                seen_videos.add(cid)
-                    # links/resources inline
-                    if grammarbook_link:
-                        st.markdown(f"- [📘 Grammar Book (Notes)]({grammarbook_link})")
-                        st.markdown(
-                            "<em>Reminder:</em> 📘 gives you the grammar from today's lecture; 📒 is the assignment you must complete.",
-                            unsafe_allow_html=True,
-                        )
-                    if workbook_link:
-                        st.markdown(f"- [📒 Workbook (Assignment)]({workbook_link})")
+                            render_assignment_reminder()
+                        if extras:
+                            for ex in _as_list(extras):
+                                st.markdown(f"- [🔗 Extra]({ex})")
+
+                # ---------- YOUR WORK (tolerant across levels; embeds each video at most once) ----------
+                st.markdown("### 🧪 Your Work")
+                seen_videos = set()
+                sections = pick_sections(info)
+
+                if sections:
+                    for key, title, icon in sections:
+                        render_section_any(info, key, title, icon, seen_videos)
+                else:
+                    # Fallback: show top-level resources even if there are no section keys
+                    showed = False
+                    if info.get("video"):
+                        cid = _canon_video(info["video"])
+                        if cid not in seen_videos:
+                            st.markdown(
+                                f"[🎬 Lecture Video on YouTube]({info['video']})"
+                            )
+                            seen_videos.add(cid)
+                        showed = True
+                    if info.get("grammarbook_link"):
+                        st.markdown(f"- [📘 Grammar Book (Notes)]({info['grammarbook_link']})")
+                        showed = True
+                    if info.get("workbook_link"):
+                        st.markdown(f"- [📒 Workbook (Assignment)]({info['workbook_link']})")
                         with st.expander("📖 Dictionary"):
                             render_vocab_lookup(
-                                f"{key}-{idx_part}",
-                                f"Day {day_info.get('day')} Chapter {chapter}",
+                                f"fallback-{info.get('day', '')}",
+                                f"Day {info.get('day')} Chapter {info.get('chapter', '')}",
                             )
                         render_assignment_reminder()
-                    if extras:
-                        for ex in _as_list(extras):
-                            st.markdown(f"- [🔗 Extra]({ex})")
+                        showed = True
+                    for ex in _as_list(info.get("extra_resources")):
+                        st.markdown(f"- [🔗 Extra]({ex})")
+                        showed = True
 
-            # ---------- YOUR WORK (tolerant across levels; embeds each video at most once) ----------
-            st.markdown("### 🧪 Your Work")
-            seen_videos = set()
-            sections = pick_sections(info)
+                    if not showed:
+                        st.info(
+                            "No activity sections or links found for this lesson. Check the lesson data for A2/B1 key names."
+                        )
 
-            if sections:
-                for key, title, icon in sections:
-                    render_section_any(info, key, title, icon, seen_videos)
-            else:
-                # Fallback: show top-level resources even if there are no section keys
-                showed = False
-                if info.get("video"):
-                    cid = _canon_video(info["video"])
-                    if cid not in seen_videos:
+                # --- quick access to translators and language support ---
+                translator_col, support_col = st.columns([1, 1.6])
+                with translator_col:
+                    st.markdown(
+                        "[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; "
+                        "[🌐 Google Translate](https://translate.google.com)",
+                        unsafe_allow_html=True,
+                    )
+                with support_col:
+                    render_lesson_language_support(info, level_key)
+
+                # ---------- Build a clean downloadable bundle of links (no on-page repetition) ----------
+                st.divider()
+                st.markdown("### 📎 Lesson Links — Download")
+
+                # Collect links (top-level + nested)
+                resources = {"Grammar Notes": [], "Workbook": [], "Videos": [], "Extras": []}
+
+                def _add(kind, val):
+                    for v in _as_list(val):
+                        if _is_url(v):
+                            resources[kind].append(v)
+
+                # top-level
+                _add("Videos", info.get("video"))
+                _add("Grammar Notes", info.get("grammarbook_link"))
+                _add("Workbook", info.get("workbook_link"))
+                _add("Extras", info.get("extra_resources"))
+
+                # nested: include whatever sections exist for this lesson
+                for section_key, _, _ in sections or []:
+                    for part in _as_list(info.get(section_key)):
+                        if not isinstance(part, dict):
+                            continue
+                        _add("Videos", [part.get("video"), part.get("youtube_link")])
+                        _add("Grammar Notes", part.get("grammarbook_link"))
+                        _add("Workbook", part.get("workbook_link"))
+                        _add("Extras", part.get("extra_resources"))
+
+                # dedupe + remove videos already embedded above
+                for k in list(resources.keys()):
+                    resources[k] = _dedup(resources[k])
+
+                # If nothing remains after filtering, don't show anything
+                if not any(resources.values()):
+                    st.caption("All lesson links are already shown above. No extra links to download.")
+                else:
+                    # Prepare TXT bundle
+                    lesson_header = f"Level: {level_key} | Day: {info.get('day','?')} | Chapter: {info.get('chapter','?')} | Topic: {info.get('topic','')}"
+                    parts_txt = [lesson_header, "-" * len(lesson_header)]
+                    for title, key_name in [("📘 Grammar Notes", "Grammar Notes"),
+                                            ("📒 Workbook", "Workbook"),
+                                            ("🎥 Videos", "Videos"),
+                                            ("🔗 Extras", "Extras")]:
+                        if resources[key_name]:
+                            parts_txt.append(title)
+                            parts_txt.extend([f"- {u}" for u in resources[key_name]])
+                            parts_txt.append("")
+                    bundle_txt = "\n".join(parts_txt).strip() + "\n"
+
+                    temp_path = st.session_state.get("links_temp_path")
+                    if not temp_path or not os.path.exists(temp_path):
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as tmp:
+                            tmp.write(bundle_txt.encode("utf-8"))
+                            temp_path = tmp.name
+                        st.session_state["links_temp_path"] = temp_path
+
+                    cdl1, cdl2 = st.columns([1, 1])
+                    with cdl1:
+                        file_obj = open(temp_path, "rb")
+                        clicked = st.download_button(
+                            "⬇️ Download lesson links (TXT)",
+                            data=file_obj,
+                            file_name=f"lesson_links_{level_key}_day{info.get('day','')}.txt",
+                            mime="text/plain",
+                            key="dl_links_txt",
+                        )
+                        file_obj.close()
+                        if clicked:
+                            try:
+                                os.remove(temp_path)
+                            finally:
+                                st.session_state.pop("links_temp_path", None)
+
+                    
+
+                with st.expander("📚 Study Resources"):
+                    if _is_url(info.get("video")):
+                        st.video(info["video"])
+                    elif info.get("video"):
                         st.markdown(
                             f"[🎬 Lecture Video on YouTube]({info['video']})"
                         )
-                        seen_videos.add(cid)
-                    showed = True
-                if info.get("grammarbook_link"):
-                    st.markdown(f"- [📘 Grammar Book (Notes)]({info['grammarbook_link']})")
-                    showed = True
-                if info.get("workbook_link"):
-                    st.markdown(f"- [📒 Workbook (Assignment)]({info['workbook_link']})")
-                    with st.expander("📖 Dictionary"):
-                        render_vocab_lookup(
-                            f"fallback-{info.get('day', '')}",
-                            f"Day {info.get('day')} Chapter {info.get('chapter', '')}",
-                        )
-                    render_assignment_reminder()
-                    showed = True
-                for ex in _as_list(info.get("extra_resources")):
-                    st.markdown(f"- [🔗 Extra]({ex})")
-                    showed = True
+                        
+                    if _is_url(info.get("grammarbook_link")):
+                        render_link("📘 Grammar Book (Notes)", info["grammarbook_link"])
 
-                if not showed:
-                    st.info(
-                        "No activity sections or links found for this lesson. Check the lesson data for A2/B1 key names."
+                    render_link("📗 Dictionary", "https://dict.leo.org/german-english")
+
+
+                st.markdown("#### 🎬 Video of the Day for Your Level")
+                playlist_ids = get_playlist_ids_for_level(level_key)
+                fetch_videos = fetch_youtube_playlist_videos
+                playlist_id = random.choice(playlist_ids) if playlist_ids else None
+
+                reflection_prompts = [
+                    "📝 After watching, jot down two new words or phrases you heard.",
+                    "🗣️ Pause the video and repeat a key sentence aloud to practice pronunciation.",
+                    "💬 Summarize the main idea of the video in one or two simple sentences.",
+                ]
+
+                if playlist_id:
+                    if st.button("🔄 Refresh videos", key=f"refresh_vod_{level_key}"):
+                        st.cache_data.clear()
+                        st.session_state["need_rerun"] = True
+                    st.caption(
+                        "Click 'Refresh videos' to clear cached playlist data and reload from YouTube if results look out of date."
                     )
-
-            # --- quick access to translators and language support ---
-            translator_col, support_col = st.columns([1, 1.6])
-            with translator_col:
-                st.markdown(
-                    "[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; "
-                    "[🌐 Google Translate](https://translate.google.com)",
-                    unsafe_allow_html=True,
-                )
-            with support_col:
-                render_lesson_language_support(info, level_key)
-
-            # ---------- Build a clean downloadable bundle of links (no on-page repetition) ----------
-            st.divider()
-            st.markdown("### 📎 Lesson Links — Download")
-
-            # Collect links (top-level + nested)
-            resources = {"Grammar Notes": [], "Workbook": [], "Videos": [], "Extras": []}
-
-            def _add(kind, val):
-                for v in _as_list(val):
-                    if _is_url(v):
-                        resources[kind].append(v)
-
-            # top-level
-            _add("Videos", info.get("video"))
-            _add("Grammar Notes", info.get("grammarbook_link"))
-            _add("Workbook", info.get("workbook_link"))
-            _add("Extras", info.get("extra_resources"))
-
-            # nested: include whatever sections exist for this lesson
-            for section_key, _, _ in sections or []:
-                for part in _as_list(info.get(section_key)):
-                    if not isinstance(part, dict):
-                        continue
-                    _add("Videos", [part.get("video"), part.get("youtube_link")])
-                    _add("Grammar Notes", part.get("grammarbook_link"))
-                    _add("Workbook", part.get("workbook_link"))
-                    _add("Extras", part.get("extra_resources"))
-
-            # dedupe + remove videos already embedded above
-            for k in list(resources.keys()):
-                resources[k] = _dedup(resources[k])
-
-            # If nothing remains after filtering, don't show anything
-            if not any(resources.values()):
-                st.caption("All lesson links are already shown above. No extra links to download.")
-            else:
-                # Prepare TXT bundle
-                lesson_header = f"Level: {level_key} | Day: {info.get('day','?')} | Chapter: {info.get('chapter','?')} | Topic: {info.get('topic','')}"
-                parts_txt = [lesson_header, "-" * len(lesson_header)]
-                for title, key_name in [("📘 Grammar Notes", "Grammar Notes"),
-                                        ("📒 Workbook", "Workbook"),
-                                        ("🎥 Videos", "Videos"),
-                                        ("🔗 Extras", "Extras")]:
-                    if resources[key_name]:
-                        parts_txt.append(title)
-                        parts_txt.extend([f"- {u}" for u in resources[key_name]])
-                        parts_txt.append("")
-                bundle_txt = "\n".join(parts_txt).strip() + "\n"
-
-                temp_path = st.session_state.get("links_temp_path")
-                if not temp_path or not os.path.exists(temp_path):
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as tmp:
-                        tmp.write(bundle_txt.encode("utf-8"))
-                        temp_path = tmp.name
-                    st.session_state["links_temp_path"] = temp_path
-
-                cdl1, cdl2 = st.columns([1, 1])
-                with cdl1:
-                    file_obj = open(temp_path, "rb")
-                    clicked = st.download_button(
-                        "⬇️ Download lesson links (TXT)",
-                        data=file_obj,
-                        file_name=f"lesson_links_{level_key}_day{info.get('day','')}.txt",
-                        mime="text/plain",
-                        key="dl_links_txt",
-                    )
-                    file_obj.close()
-                    if clicked:
-                        try:
-                            os.remove(temp_path)
-                        finally:
-                            st.session_state.pop("links_temp_path", None)
-
-                
-
-            with st.expander("📚 Study Resources"):
-                if _is_url(info.get("video")):
-                    st.video(info["video"])
-                elif info.get("video"):
-                    st.markdown(
-                        f"[🎬 Lecture Video on YouTube]({info['video']})"
-                    )
-                    
-                if _is_url(info.get("grammarbook_link")):
-                    render_link("📘 Grammar Book (Notes)", info["grammarbook_link"])
-
-                render_link("📗 Dictionary", "https://dict.leo.org/german-english")
-
-
-            st.markdown("#### 🎬 Video of the Day for Your Level")
-            playlist_ids = get_playlist_ids_for_level(level_key)
-            fetch_videos = fetch_youtube_playlist_videos
-            playlist_id = random.choice(playlist_ids) if playlist_ids else None
-
-            reflection_prompts = [
-                "📝 After watching, jot down two new words or phrases you heard.",
-                "🗣️ Pause the video and repeat a key sentence aloud to practice pronunciation.",
-                "💬 Summarize the main idea of the video in one or two simple sentences.",
-            ]
-
-            if playlist_id:
-                if st.button("🔄 Refresh videos", key=f"refresh_vod_{level_key}"):
-                    st.cache_data.clear()
-                    st.session_state["need_rerun"] = True
-                st.caption(
-                    "Click 'Refresh videos' to clear cached playlist data and reload from YouTube if results look out of date."
-                )
-                try:
-                    video_list = fetch_videos(playlist_id)
-                except Exception:
-                    video_list = []
-                if video_list:
-                    today_idx = date.today().toordinal() % len(video_list)
-                    video = video_list[today_idx]
-                    st.markdown(f"**{video['title']}**")
-                    st.video(video['url'])
-                    description = video.get("description")
-                    if description:
-                        st.caption(description)
+                    try:
+                        video_list = fetch_videos(playlist_id)
+                    except Exception:
+                        video_list = []
+                    if video_list:
+                        today_idx = date.today().toordinal() % len(video_list)
+                        video = video_list[today_idx]
+                        st.markdown(f"**{video['title']}**")
+                        st.video(video['url'])
+                        description = video.get("description")
+                        if description:
+                            st.caption(description)
+                        else:
+                            st.caption(random.choice(reflection_prompts))
                     else:
-                        st.caption(random.choice(reflection_prompts))
+                        st.info("No videos found for your level’s playlist. Check back soon!")
                 else:
-                    st.info("No videos found for your level’s playlist. Check back soon!")
-            else:
-                st.info("No playlist found for your level yet. Stay tuned!")
-            st.markdown("**The End**")
+                    st.info("No playlist found for your level yet. Stay tuned!")
+                st.markdown("**The End**")
 
 
-        # SUBMIT
-        elif coursebook_section == "Submit":
-            submission_disabled_reason = _submission_block_reason(info, schedule)
-            submission_disabled = bool(submission_disabled_reason)
+            # SUBMIT
+            elif coursebook_section == "Submit":
+                submission_disabled_reason = _submission_block_reason(info, schedule)
+                submission_disabled = bool(submission_disabled_reason)
 
-            st.markdown("### ✅ Submit Your Assignment")
-            st.markdown(
-                f"""
-                <div style="box-sizing:border-box;padding:14px 16px;border-radius:10px;
-                            background:#f0f9ff;border:1px solid #bae6fd;margin:6px 0 12px 0;">
-                  <div style="font-size:1.05rem;">
-                    📌 <b>You're on:</b> Level <b>{student_level}</b> • Day <b>{info['day']}</b> • Chapter <b>{info['chapter']}</b>
-                  </div>
-                  <div style="color:#0369a1;margin-top:4px;">
-                    Make sure this matches the assignment your tutor set. If not, change the lesson from the dropdown above.
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-            draft_text = st.session_state.get(draft_key, "")
-            recovered_code = _recover_student_code(
-                lesson_key=lesson_key,
-                draft_text=draft_text if draft_text else None,
-            )
-            student_row = (
-                _update_student_code_session_state(recovered_code)
-                if recovered_code
-                else st.session_state.get("student_row")
-                or {}
-            )
-            code = _safe_str(student_row.get("StudentCode"), "demo001")
-            name_default = _safe_str(student_row.get("Name"))
-            missing_code = (not code) or (code.lower() == "demo001")
-
-            locked_key = f"{lesson_key}_locked"
-            needs_resubmit_key = f"{lesson_key}__needs_resubmit"
-
-            code_input_key = "submit_student_code_input"
-            if missing_code:
-                _show_missing_code_warning(
-                    name=name_default,
-                    level=student_level,
-                    lesson_info=info,
+                st.markdown("### ✅ Submit Your Assignment")
+                st.markdown(
+                    f"""
+                    <div style="box-sizing:border-box;padding:14px 16px;border-radius:10px;
+                                background:#f0f9ff;border:1px solid #bae6fd;margin:6px 0 12px 0;">
+                      <div style="font-size:1.05rem;">
+                        📌 <b>You're on:</b> Level <b>{student_level}</b> • Day <b>{info['day']}</b> • Chapter <b>{info['chapter']}</b>
+                      </div>
+                      <div style="color:#0369a1;margin-top:4px;">
+                        Make sure this matches the assignment your tutor set. If not, change the lesson from the dropdown above.
+                      </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
                 )
-                manual_value = st.text_input(
-                    "Enter your student code to continue",
-                    key=code_input_key,
-                    placeholder="e.g. KWAME123",
-                    help="This appears on your student ID card or welcome email.",
-                )
-                manual_code = _safe_lower(manual_value)
-                if manual_code and manual_code.lower() != "demo001":
-                    student_row = _update_student_code_session_state(manual_code)
-                    code = manual_code
-                    missing_code = False
-                    st.success("Student code saved. You can now submit your work.")
 
-                resubmit_should_show = (
-                    st.session_state.get(locked_key, False)
-                    or bool(st.session_state.get(f"{lesson_key}__receipt"))
-                    or (st.session_state.get(needs_resubmit_key) is not None)
+                draft_text = st.session_state.get(draft_key, "")
+                recovered_code = _recover_student_code(
+                    lesson_key=lesson_key,
+                    draft_text=draft_text if draft_text else None,
                 )
-                if resubmit_should_show:
-                    stored_row = st.session_state.get("student_row") or {}
-                    resubmit_name = name_default or _safe_str(stored_row.get("Name"))
-                    candidate_code = (
-                        st.session_state.get("student_code")
-                        or stored_row.get("StudentCode")
-                        or manual_code
-                    )
-                    render_resubmit_email_cta(
+                student_row = (
+                    _update_student_code_session_state(recovered_code)
+                    if recovered_code
+                    else st.session_state.get("student_row")
+                    or {}
+                )
+                code = _safe_str(student_row.get("StudentCode"), "demo001")
+                name_default = _safe_str(student_row.get("Name"))
+                missing_code = (not code) or (code.lower() == "demo001")
+
+                locked_key = f"{lesson_key}_locked"
+                needs_resubmit_key = f"{lesson_key}__needs_resubmit"
+
+                code_input_key = "submit_student_code_input"
+                if missing_code:
+                    _show_missing_code_warning(
+                        name=name_default,
+                        level=student_level,
                         lesson_info=info,
-                        student_name=resubmit_name,
-                        student_code=candidate_code,
                     )
-            else:
-                st.session_state[code_input_key] = code
+                    manual_value = st.text_input(
+                        "Enter your student code to continue",
+                        key=code_input_key,
+                        placeholder="e.g. KWAME123",
+                        help="This appears on your student ID card or welcome email.",
+                    )
+                    manual_code = _safe_lower(manual_value)
+                    if manual_code and manual_code.lower() != "demo001":
+                        student_row = _update_student_code_session_state(manual_code)
+                        code = manual_code
+                        missing_code = False
+                        st.success("Student code saved. You can now submit your work.")
 
-            if not missing_code:
-                if submission_disabled:
-                    st.info(submission_disabled_reason)
-
-                st.session_state["student_code"] = code
-                chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
-
-                name = st.text_input("Name", value=student_row.get('Name', ''))
-                email = st.text_input("Email", value=student_row.get('Email', ''))
-
-                db_locked = is_locked(student_level, code, lesson_key)
-                success_notice_key = f"{lesson_key}__submit_success_notice"
-                if db_locked:
-                    st.session_state[locked_key] = True
-                locked = db_locked or st.session_state.get(locked_key, False)
-                locked_ui = locked or submission_disabled
-                submit_in_progress_key = f"{lesson_key}_submit_in_progress"
-
-                # ---------- save previous lesson on switch + force hydrate for this one ----------
-                prev_active_key = st.session_state.get("__active_draft_key")
-                if prev_active_key and prev_active_key != draft_key:
-                    try:
-                        prev_text = st.session_state.get(prev_active_key, "")
-                        save_draft_to_db(code, prev_active_key, prev_text)
-                    except Exception:
-                        pass  # never block UI
-                    # ensure the newly selected lesson re-hydrates from cloud
-                    st.session_state.pop(f"{draft_key}__hydrated_v2", None)
-                st.session_state["__active_draft_key"] = draft_key
-
-                # ---------- Decide what to show (guarded hydration) ----------
-                pending_key      = f"{draft_key}__pending_reload"
-                pending_text_key = f"{draft_key}__reload_text"
-                pending_ts_key   = f"{draft_key}__reload_ts"
-                hydrated_key     = f"{draft_key}__hydrated_v2"  # only hydrate once per lesson
-
-                last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
-
-                # 1) If a forced reload was requested, apply it BEFORE widget creation
-                if st.session_state.get(pending_key):
-                    cloud_text = st.session_state.pop(pending_text_key, "")
-                    cloud_ts   = st.session_state.pop(pending_ts_key, None)
-                    st.session_state[pending_key] = False
-
-                    st.session_state[draft_key]      = cloud_text or ""
-                    st.session_state[last_val_key]   = st.session_state[draft_key]
-                    st.session_state[last_ts_key]    = time.time()
-                    st.session_state[saved_flag_key] = True
-                    st.session_state[saved_at_key]   = (cloud_ts or datetime.now(_timezone.utc))
-                    st.session_state[hydrated_key]   = True
-
-                    try:
-                        when = (cloud_ts.strftime('%Y-%m-%d %H:%M') + " UTC") if cloud_ts else "now"
-                    except Exception:
-                        when = "now"
-                    st.info(f"Reloaded cloud draft (saved {when}).")
-
+                    resubmit_should_show = (
+                        st.session_state.get(locked_key, False)
+                        or bool(st.session_state.get(f"{lesson_key}__receipt"))
+                        or (st.session_state.get(needs_resubmit_key) is not None)
+                    )
+                    if resubmit_should_show:
+                        stored_row = st.session_state.get("student_row") or {}
+                        resubmit_name = name_default or _safe_str(stored_row.get("Name"))
+                        candidate_code = (
+                            st.session_state.get("student_code")
+                            or stored_row.get("StudentCode")
+                            or manual_code
+                        )
+                        render_resubmit_email_cta(
+                            lesson_info=info,
+                            student_name=resubmit_name,
+                            student_code=candidate_code,
+                        )
                 else:
-                    # 2) If a SUBMISSION exists, always enforce it (locked) on every run
-                    latest = fetch_latest(student_level, code, lesson_key)
-                    if latest and (latest.get("answer", "") is not None):
-                        sub_txt = latest.get("answer", "") or ""
-                        sub_ts  = latest.get("updated_at")
+                    st.session_state[code_input_key] = code
 
-                        st.session_state[draft_key]      = sub_txt
-                        st.session_state[last_val_key]   = sub_txt
+                if not missing_code:
+                    if submission_disabled:
+                        st.info(submission_disabled_reason)
+
+                    st.session_state["student_code"] = code
+                    chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
+
+                    name = st.text_input("Name", value=student_row.get('Name', ''))
+                    email = st.text_input("Email", value=student_row.get('Email', ''))
+
+                    db_locked = is_locked(student_level, code, lesson_key)
+                    success_notice_key = f"{lesson_key}__submit_success_notice"
+                    if db_locked:
+                        st.session_state[locked_key] = True
+                    locked = db_locked or st.session_state.get(locked_key, False)
+                    locked_ui = locked or submission_disabled
+                    submit_in_progress_key = f"{lesson_key}_submit_in_progress"
+
+                    # ---------- save previous lesson on switch + force hydrate for this one ----------
+                    prev_active_key = st.session_state.get("__active_draft_key")
+                    if prev_active_key and prev_active_key != draft_key:
+                        try:
+                            prev_text = st.session_state.get(prev_active_key, "")
+                            save_draft_to_db(code, prev_active_key, prev_text)
+                        except Exception:
+                            pass  # never block UI
+                        # ensure the newly selected lesson re-hydrates from cloud
+                        st.session_state.pop(f"{draft_key}__hydrated_v2", None)
+                    st.session_state["__active_draft_key"] = draft_key
+
+                    # ---------- Decide what to show (guarded hydration) ----------
+                    pending_key      = f"{draft_key}__pending_reload"
+                    pending_text_key = f"{draft_key}__reload_text"
+                    pending_ts_key   = f"{draft_key}__reload_ts"
+                    hydrated_key     = f"{draft_key}__hydrated_v2"  # only hydrate once per lesson
+
+                    last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
+
+                    # 1) If a forced reload was requested, apply it BEFORE widget creation
+                    if st.session_state.get(pending_key):
+                        cloud_text = st.session_state.pop(pending_text_key, "")
+                        cloud_ts   = st.session_state.pop(pending_ts_key, None)
+                        st.session_state[pending_key] = False
+
+                        st.session_state[draft_key]      = cloud_text or ""
+                        st.session_state[last_val_key]   = st.session_state[draft_key]
                         st.session_state[last_ts_key]    = time.time()
                         st.session_state[saved_flag_key] = True
-                        st.session_state[saved_at_key]   = (sub_ts or datetime.now(_timezone.utc))
-                        st.session_state[locked_key]     = True
+                        st.session_state[saved_at_key]   = (cloud_ts or datetime.now(_timezone.utc))
                         st.session_state[hydrated_key]   = True
-                        locked = True  # enforce read-only
 
-                        when = f"{sub_ts.strftime('%Y-%m-%d %H:%M')} UTC" if sub_ts else ""
-                        st.success(f"Showing your submitted answer. {('Updated ' + when) if when else ''}")
+                        try:
+                            when = (cloud_ts.strftime('%Y-%m-%d %H:%M') + " UTC") if cloud_ts else "now"
+                        except Exception:
+                            when = "now"
+                        st.info(f"Reloaded cloud draft (saved {when}).")
 
                     else:
-                        # 3) No submission → hydrate ONCE from cloud; after that, never clobber local typing
-                        if not st.session_state.get(hydrated_key, False):
-                            cloud_text, cloud_ts = load_draft_meta_from_db(code, draft_key)
-                            if cloud_text is not None:
-                                st.session_state[draft_key]      = cloud_text or ""
-                                st.session_state[last_val_key]   = st.session_state[draft_key]
-                                st.session_state[last_ts_key]    = time.time()
-                                st.session_state[saved_flag_key] = True
-                                st.session_state[saved_at_key]   = (cloud_ts or datetime.now(_timezone.utc))
-                            else:
-                                st.session_state.setdefault(draft_key, "")
-                                st.session_state.setdefault(last_val_key, "")
-                                st.session_state.setdefault(last_ts_key, time.time())
-                                st.session_state.setdefault(saved_flag_key, False)
-                                st.session_state.setdefault(saved_at_key, None)
+                        # 2) If a SUBMISSION exists, always enforce it (locked) on every run
+                        latest = fetch_latest(student_level, code, lesson_key)
+                        if latest and (latest.get("answer", "") is not None):
+                            sub_txt = latest.get("answer", "") or ""
+                            sub_ts  = latest.get("updated_at")
 
-                            st.session_state[hydrated_key] = True
+                            st.session_state[draft_key]      = sub_txt
+                            st.session_state[last_val_key]   = sub_txt
+                            st.session_state[last_ts_key]    = time.time()
+                            st.session_state[saved_flag_key] = True
+                            st.session_state[saved_at_key]   = (sub_ts or datetime.now(_timezone.utc))
+                            st.session_state[locked_key]     = True
+                            st.session_state[hydrated_key]   = True
+                            locked = True  # enforce read-only
 
-                            if cloud_text:
-                                when = f"{cloud_ts.strftime('%Y-%m-%d %H:%M')} UTC" if cloud_ts else ""
-                                st.info(f"💾 Restored your saved draft. {('Last saved ' + when) if when else ''}")
-                            elif not submission_disabled:
-                                st.caption("Start typing your answer.")
+                            when = f"{sub_ts.strftime('%Y-%m-%d %H:%M')} UTC" if sub_ts else ""
+                            st.success(f"Showing your submitted answer. {('Updated ' + when) if when else ''}")
+
                         else:
-                            # If 'hydrated' but local is empty, pull cloud once
-                            if not st.session_state.get(draft_key, "") and not locked_ui:
-                                ctext, cts = load_draft_meta_from_db(code, draft_key)
-                                if ctext:
-                                    st.session_state[draft_key]      = ctext
-                                    st.session_state[last_val_key]   = ctext
+                            # 3) No submission → hydrate ONCE from cloud; after that, never clobber local typing
+                            if not st.session_state.get(hydrated_key, False):
+                                cloud_text, cloud_ts = load_draft_meta_from_db(code, draft_key)
+                                if cloud_text is not None:
+                                    st.session_state[draft_key]      = cloud_text or ""
+                                    st.session_state[last_val_key]   = st.session_state[draft_key]
                                     st.session_state[last_ts_key]    = time.time()
                                     st.session_state[saved_flag_key] = True
-                                    st.session_state[saved_at_key]   = (cts or datetime.now(_timezone.utc))
-
-                st.subheader("✍️ Your Answer")
-
-                locked_warning_message = None
-                needs_resubmit = False
-                if locked:
-                    locked_warning_message = (
-                        "This box is locked because you have already submitted your work."
-                    )
-                    needs_resubmit = st.session_state.get(needs_resubmit_key)
-                    if needs_resubmit is None:
-                        answer_text = st.session_state.get(draft_key, "").strip()
-                        MIN_WORDS = 20
-                        needs_resubmit = len(answer_text.split()) < MIN_WORDS
-                    needs_resubmit = bool(needs_resubmit)
-                    st.session_state[needs_resubmit_key] = needs_resubmit
-
-                    render_resubmit_email_cta(
-                        lesson_info=info,
-                        student_name=(name or name_default),
-                        student_code=code,
-                    )
-                show_resubmit_hint = locked and bool(needs_resubmit)
-
-                # ---------- Editor (save on blur + debounce) ----------
-                st.text_area(
-                    "Type all your answers here",
-                    height=500,
-                    key=draft_key,              # value already hydrated in st.session_state[draft_key]
-                    on_change=save_now,         # guaranteed save on blur/change
-                    args=(draft_key, code),
-                    disabled=locked_ui,
-                    help="Autosaves on blur and in the background while you type."
-                )
-                render_umlaut_pad(draft_key, context=f"coursebook_{lesson_key}", disabled=locked_ui)
-
-                # Debounced autosave (safe so empty first-render won't wipe a non-empty cloud draft)
-                current_text = st.session_state.get(draft_key, "")
-                last_val = st.session_state.get(last_val_key, "")
-                if not locked_ui and (current_text.strip() or not last_val.strip()):
-                    autosave_maybe(code, draft_key, current_text, min_secs=2.0, min_delta=12, locked=locked_ui)
-
-                # ---------- Manual save + last saved time + safe reload ----------
-                csave1, csave2, csave3 = st.columns([1, 1, 1])
-
-                with csave1:
-                    if st.button("💾 Save Draft now", disabled=locked_ui):
-                        save_draft_to_db(code, draft_key, current_text)
-                        st.session_state[last_val_key]   = current_text
-                        st.session_state[last_ts_key]    = time.time()
-                        st.session_state[saved_flag_key] = True
-                        st.session_state[saved_at_key]   = datetime.now(_timezone.utc)
-                        st.success("Draft saved.")
-
-                with csave2:
-                    ts = st.session_state.get(saved_at_key)
-                    if ts:
-                        st.caption("Last saved: " + ts.strftime("%Y-%m-%d %H:%M") + " UTC")
-                    else:
-                        st.caption("No local save yet")
-
-                with csave3:
-                    # Current draft text
-                    draft_txt = st.session_state.get(draft_key, "") or ""
-
-                    # Last-saved timestamp (for header)
-                    _, _, _, saved_at_key = _draft_state_keys(draft_key)
-                    ts = st.session_state.get(saved_at_key)
-                    when = (
-                        ts.astimezone(_timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-                        if ts else datetime.now(_timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-                    )
-
-                    # Strip any previous backup header the student may have pasted back
-                    def _strip_old_header(txt: str) -> str:
-                        if not txt:
-                            return ""
-                        # Remove ONE leading “Falowen — Draft Backup … ======” block if present
-                        pattern = r"(?s)\AFalowen\s+—\s+Draft\s+Backup.*?\n[-=]{8,}\n\n"
-                        return re.sub(pattern, "", txt, count=1)
-
-                    clean_body = (_strip_old_header(draft_txt).rstrip() + "\n")
-
-                    # Build a simple, single header
-                    header_lines = [
-                        "Falowen — Draft Backup",
-                        f"Level: {student_level}  •  Day: {info['day']}  •  Chapter: {info.get('chapter','')}",
-                        f"Student: {name}  •  Code: {code}",
-                        f"Saved (UTC): {when}",
-                        "=" * 56,
-                        ""  # blank line before body
-                    ]
-                    header = "\n".join(header_lines)
-
-                    # Safe filename
-                    safe_chapter = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(info.get("chapter", "")))
-                    fname = f"falowen_draft_{student_level}_day{info['day']}_{safe_chapter}.txt"
-
-                    st.download_button(
-                        "⬇️ Download draft (TXT)",
-                        data=(header + clean_body).encode("utf-8"),
-                        file_name=fname,
-                        mime="text/plain",
-                        help="Save a clean backup of your current draft",
-                        key=f"{draft_key}__download_txt",
-                        on_click=save_before_download,
-                        kwargs={"draft_key": draft_key, "code": code, "skip_count": 2},
-                    )
-
-                if show_resubmit_hint:
-                    st.info(
-                        "🔒 This box is locked because you already submitted. Scroll up to use the resubmit email link if you need to send an update."
-                    )
-
-                with st.expander("📌 How to Submit", expanded=False):
-                    st.markdown(f"""
-                        1) Check you’re on the correct page: **Level {student_level} • Day {info['day']} • Chapter {info['chapter']}**.  
-                        2) Tick the two confirmations below.  
-                        3) Click **Confirm & Submit**.  
-                        4) Your box will lock (read-only).  
-                        _You’ll get an **email** when it’s marked. See **Results & Resources** for scores & feedback._
-                    """)
-
-                col1, col2 = st.columns([1, 1.2])
-                success_notice = st.session_state.pop(success_notice_key, None)
-                with col1:
-                    st.markdown("#### 🧾 Finalize")
-                    if success_notice:
-                        success_msg = success_notice.get("message")
-                        caption_msg = success_notice.get("caption")
-                        if success_msg:
-                            st.success(success_msg)
-                        if caption_msg:
-                            st.caption(caption_msg)
-                    if locked_warning_message:
-                        st.warning(locked_warning_message)
-                    confirm_final = st.checkbox(
-                        f"I confirm this is my complete work for Level {student_level} • Day {info['day']} • Chapter {info['chapter']}.",
-                        key=f"confirm_final_{lesson_key}",
-                        disabled=locked_ui
-                    )
-                    confirm_lock = st.checkbox(
-                        "I understand it will be locked after I submit.",
-                        key=f"confirm_lock_{lesson_key}",
-                        disabled=locked_ui
-                    )
-                    can_submit = (
-                        confirm_final
-                        and confirm_lock
-                        and (not locked_ui)
-                    )
-
-                with col2:
-                    st.markdown("#### 🔍 Live Preview")
-                    preview_text = st.session_state.get(draft_key, "") or ""
-                    word_count = len(preview_text.split()) if preview_text else 0
-                    if preview_text.strip():
-                        st.caption(f"Word count: {word_count}")
-                        preview_box = (
-                            "<div style=\"max-height:360px;overflow:auto;padding:12px;border:1px solid #e2e8f0;"
-                            "border-radius:8px;background:#f8fafc;white-space:pre-wrap;line-height:1.5;\">"
-                            f"{html.escape(preview_text)}"
-                            "</div>"
-                        )
-                        st.markdown(preview_box, unsafe_allow_html=True)
-                    else:
-                        st.info("Draft preview will appear here once you start typing.")
-                        st.caption("Word count: 0")
-
-                submit_in_progress = st.session_state.get(submit_in_progress_key, False)
-
-                with col1:
-                    if st.button(
-                        "✅ Confirm & Submit",
-                        type="primary",
-                        disabled=(not can_submit) or submit_in_progress,
-                    ):
-                        st.session_state[submit_in_progress_key] = True
-                        
-                        try:
-
-                            # 1) Try to acquire the lock first
-                            got_lock = acquire_lock(student_level, code, lesson_key)
-
-                            # If lock exists already, check whether a submission exists; if yes, reflect lock and rerun.
-                            if not got_lock:
-                                if has_existing_submission(student_level, code, lesson_key):
-                                    st.session_state[locked_key] = True
-                                    st.warning("You have already submitted this assignment. It is locked.")
-                                    refresh_with_toast()
+                                    st.session_state[saved_at_key]   = (cloud_ts or datetime.now(_timezone.utc))
                                 else:
-                                    st.info("Found an old lock without a submission — recovering and submitting now…")
+                                    st.session_state.setdefault(draft_key, "")
+                                    st.session_state.setdefault(last_val_key, "")
+                                    st.session_state.setdefault(last_ts_key, time.time())
+                                    st.session_state.setdefault(saved_flag_key, False)
+                                    st.session_state.setdefault(saved_at_key, None)
 
-                            posts_ref = db.collection("submissions").document(student_level).collection("posts")
+                                st.session_state[hydrated_key] = True
 
-                            # 2) Pre-create doc (avoids add() tuple-order mismatch)
-                            doc_ref = posts_ref.document()  # auto-ID now available
-                            short_ref = f"{doc_ref.id[:8].upper()}-{info['day']}"
+                                if cloud_text:
+                                    when = f"{cloud_ts.strftime('%Y-%m-%d %H:%M')} UTC" if cloud_ts else ""
+                                    st.info(f"💾 Restored your saved draft. {('Last saved ' + when) if when else ''}")
+                                elif not submission_disabled:
+                                    st.caption("Start typing your answer.")
+                            else:
+                                # If 'hydrated' but local is empty, pull cloud once
+                                if not st.session_state.get(draft_key, "") and not locked_ui:
+                                    ctext, cts = load_draft_meta_from_db(code, draft_key)
+                                    if ctext:
+                                        st.session_state[draft_key]      = ctext
+                                        st.session_state[last_val_key]   = ctext
+                                        st.session_state[last_ts_key]    = time.time()
+                                        st.session_state[saved_flag_key] = True
+                                        st.session_state[saved_at_key]   = (cts or datetime.now(_timezone.utc))
 
-                            payload = {
-                                "student_code": code,
-                                "student_name": name or "Student",
-                                "student_email": email,
-                                "level": student_level,
-                                "day": info["day"],
-                                "chapter": chapter_name,
-                                "lesson_key": lesson_key,
-                                "answer": (st.session_state.get(draft_key, "") or "").strip(),
-                                "status": "submitted",
-                                "receipt": short_ref,  # persist receipt immediately
-                                "created_at": firestore.SERVER_TIMESTAMP,
-                                "updated_at": firestore.SERVER_TIMESTAMP,
-                                "version": 1,
-                            }
+                    st.subheader("✍️ Your Answer")
 
-                            saved_ok = False
+                    locked_warning_message = None
+                    needs_resubmit = False
+                    if locked:
+                        locked_warning_message = (
+                            "This box is locked because you have already submitted your work."
+                        )
+                        needs_resubmit = st.session_state.get(needs_resubmit_key)
+                        if needs_resubmit is None:
+                            answer_text = st.session_state.get(draft_key, "").strip()
+                            MIN_WORDS = 20
+                            needs_resubmit = len(answer_text.split()) < MIN_WORDS
+                        needs_resubmit = bool(needs_resubmit)
+                        st.session_state[needs_resubmit_key] = needs_resubmit
 
-                            # Archive the draft so it won't rehydrate again (drafts_v2)
+                        render_resubmit_email_cta(
+                            lesson_info=info,
+                            student_name=(name or name_default),
+                            student_code=code,
+                        )
+                    show_resubmit_hint = locked and bool(needs_resubmit)
+
+                    # ---------- Editor (save on blur + debounce) ----------
+                    st.text_area(
+                        "Type all your answers here",
+                        height=500,
+                        key=draft_key,              # value already hydrated in st.session_state[draft_key]
+                        on_change=save_now,         # guaranteed save on blur/change
+                        args=(draft_key, code),
+                        disabled=locked_ui,
+                        help="Autosaves on blur and in the background while you type."
+                    )
+                    render_umlaut_pad(draft_key, context=f"coursebook_{lesson_key}", disabled=locked_ui)
+
+                    # Debounced autosave (safe so empty first-render won't wipe a non-empty cloud draft)
+                    current_text = st.session_state.get(draft_key, "")
+                    last_val = st.session_state.get(last_val_key, "")
+                    if not locked_ui and (current_text.strip() or not last_val.strip()):
+                        autosave_maybe(code, draft_key, current_text, min_secs=2.0, min_delta=12, locked=locked_ui)
+
+                    # ---------- Manual save + last saved time + safe reload ----------
+                    csave1, csave2, csave3 = st.columns([1, 1, 1])
+
+                    with csave1:
+                        if st.button("💾 Save Draft now", disabled=locked_ui):
+                            save_draft_to_db(code, draft_key, current_text)
+                            st.session_state[last_val_key]   = current_text
+                            st.session_state[last_ts_key]    = time.time()
+                            st.session_state[saved_flag_key] = True
+                            st.session_state[saved_at_key]   = datetime.now(_timezone.utc)
+                            st.success("Draft saved.")
+
+                    with csave2:
+                        ts = st.session_state.get(saved_at_key)
+                        if ts:
+                            st.caption("Last saved: " + ts.strftime("%Y-%m-%d %H:%M") + " UTC")
+                        else:
+                            st.caption("No local save yet")
+
+                    with csave3:
+                        # Current draft text
+                        draft_txt = st.session_state.get(draft_key, "") or ""
+
+                        # Last-saved timestamp (for header)
+                        _, _, _, saved_at_key = _draft_state_keys(draft_key)
+                        ts = st.session_state.get(saved_at_key)
+                        when = (
+                            ts.astimezone(_timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+                            if ts else datetime.now(_timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+                        )
+
+                        # Strip any previous backup header the student may have pasted back
+                        def _strip_old_header(txt: str) -> str:
+                            if not txt:
+                                return ""
+                            # Remove ONE leading “Falowen — Draft Backup … ======” block if present
+                            pattern = r"(?s)\AFalowen\s+—\s+Draft\s+Backup.*?\n[-=]{8,}\n\n"
+                            return re.sub(pattern, "", txt, count=1)
+
+                        clean_body = (_strip_old_header(draft_txt).rstrip() + "\n")
+
+                        # Build a simple, single header
+                        header_lines = [
+                            "Falowen — Draft Backup",
+                            f"Level: {student_level}  •  Day: {info['day']}  •  Chapter: {info.get('chapter','')}",
+                            f"Student: {name}  •  Code: {code}",
+                            f"Saved (UTC): {when}",
+                            "=" * 56,
+                            ""  # blank line before body
+                        ]
+                        header = "\n".join(header_lines)
+
+                        # Safe filename
+                        safe_chapter = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(info.get("chapter", "")))
+                        fname = f"falowen_draft_{student_level}_day{info['day']}_{safe_chapter}.txt"
+
+                        st.download_button(
+                            "⬇️ Download draft (TXT)",
+                            data=(header + clean_body).encode("utf-8"),
+                            file_name=fname,
+                            mime="text/plain",
+                            help="Save a clean backup of your current draft",
+                            key=f"{draft_key}__download_txt",
+                            on_click=save_before_download,
+                            kwargs={"draft_key": draft_key, "code": code, "skip_count": 2},
+                        )
+
+                    if show_resubmit_hint:
+                        st.info(
+                            "🔒 This box is locked because you already submitted. Scroll up to use the resubmit email link if you need to send an update."
+                        )
+
+                    with st.expander("📌 How to Submit", expanded=False):
+                        st.markdown(f"""
+                            1) Check you’re on the correct page: **Level {student_level} • Day {info['day']} • Chapter {info['chapter']}**.  
+                            2) Tick the two confirmations below.  
+                            3) Click **Confirm & Submit**.  
+                            4) Your box will lock (read-only).  
+                            _You’ll get an **email** when it’s marked. See **Results & Resources** for scores & feedback._
+                        """)
+
+                    col1, col2 = st.columns([1, 1.2])
+                    success_notice = st.session_state.pop(success_notice_key, None)
+                    with col1:
+                        st.markdown("#### 🧾 Finalize")
+                        if success_notice:
+                            success_msg = success_notice.get("message")
+                            caption_msg = success_notice.get("caption")
+                            if success_msg:
+                                st.success(success_msg)
+                            if caption_msg:
+                                st.caption(caption_msg)
+                        if locked_warning_message:
+                            st.warning(locked_warning_message)
+                        confirm_final = st.checkbox(
+                            f"I confirm this is my complete work for Level {student_level} • Day {info['day']} • Chapter {info['chapter']}.",
+                            key=f"confirm_final_{lesson_key}",
+                            disabled=locked_ui
+                        )
+                        confirm_lock = st.checkbox(
+                            "I understand it will be locked after I submit.",
+                            key=f"confirm_lock_{lesson_key}",
+                            disabled=locked_ui
+                        )
+                        can_submit = (
+                            confirm_final
+                            and confirm_lock
+                            and (not locked_ui)
+                        )
+
+                    with col2:
+                        st.markdown("#### 🔍 Live Preview")
+                        preview_text = st.session_state.get(draft_key, "") or ""
+                        word_count = len(preview_text.split()) if preview_text else 0
+                        if preview_text.strip():
+                            st.caption(f"Word count: {word_count}")
+                            preview_box = (
+                                "<div style=\"max-height:360px;overflow:auto;padding:12px;border:1px solid #e2e8f0;"
+                                "border-radius:8px;background:#f8fafc;white-space:pre-wrap;line-height:1.5;\">"
+                                f"{html.escape(preview_text)}"
+                                "</div>"
+                            )
+                            st.markdown(preview_box, unsafe_allow_html=True)
+                        else:
+                            st.info("Draft preview will appear here once you start typing.")
+                            st.caption("Word count: 0")
+
+                    submit_in_progress = st.session_state.get(submit_in_progress_key, False)
+
+                    with col1:
+                        if st.button(
+                            "✅ Confirm & Submit",
+                            type="primary",
+                            disabled=(not can_submit) or submit_in_progress,
+                        ):
+                            st.session_state[submit_in_progress_key] = True
+                            
                             try:
 
-                                doc_ref.set(payload)  # write the submission
-                                saved_ok = True
-                                st.caption(f"Saved to: `{doc_ref.path}`")  # optional debug
-                            except Exception as e:
-                                st.error(f"Could not save submission: {e}")
+                                # 1) Try to acquire the lock first
+                                got_lock = acquire_lock(student_level, code, lesson_key)
 
-                            if saved_ok:
-                                # 3) Success: lock UI, remember receipt, archive draft, notify, rerun
-                                st.session_state[locked_key] = True
-                                st.session_state[f"{lesson_key}__receipt"] = short_ref
+                                # If lock exists already, check whether a submission exists; if yes, reflect lock and rerun.
+                                if not got_lock:
+                                    if has_existing_submission(student_level, code, lesson_key):
+                                        st.session_state[locked_key] = True
+                                        st.warning("You have already submitted this assignment. It is locked.")
+                                        refresh_with_toast()
+                                    else:
+                                        st.info("Found an old lock without a submission — recovering and submitting now…")
 
-                                success_msg = (
-                                    f"Well done, {name or 'Student'}! Remember the pass mark is 60, "
-                                    "and if you score below that you must revisit this Submit page to try again."
-                                )
-                                caption_msg = (
-                                    f"Receipt: `{short_ref}` • Marks will arrive by email and via "
-                                    "Telegram from @falowenbot. See **Results & Resources** for scores & feedback."
-                                )
-                                st.success(success_msg)
-                                st.caption(caption_msg)
-                                st.session_state[success_notice_key] = {
-                                    "message": success_msg,
-                                    "caption": caption_msg,
+                                posts_ref = db.collection("submissions").document(student_level).collection("posts")
+
+                                # 2) Pre-create doc (avoids add() tuple-order mismatch)
+                                doc_ref = posts_ref.document()  # auto-ID now available
+                                short_ref = f"{doc_ref.id[:8].upper()}-{info['day']}"
+
+                                payload = {
+                                    "student_code": code,
+                                    "student_name": name or "Student",
+                                    "student_email": email,
+                                    "level": student_level,
+                                    "day": info["day"],
+                                    "chapter": chapter_name,
+                                    "lesson_key": lesson_key,
+                                    "answer": (st.session_state.get(draft_key, "") or "").strip(),
+                                    "status": "submitted",
+                                    "receipt": short_ref,  # persist receipt immediately
+                                    "created_at": firestore.SERVER_TIMESTAMP,
+                                    "updated_at": firestore.SERVER_TIMESTAMP,
+                                    "version": 1,
                                 }
-                                row = st.session_state.get("student_row") or {}
-                                tg_subscribed = bool(
-                                    row.get("TelegramChatID")
-                                    or row.get("telegram_chat_id")
-                                    or row.get("Telegram")
-                                    or row.get("telegram")
-                                )
-                                if not tg_subscribed:
-                                    try:
-                                        tg_subscribed = has_telegram_subscription(code)
-                                    except Exception:
-                                        tg_subscribed = False
-                                if tg_subscribed:
-                                    st.info("You'll also receive a Telegram notification when your score is posted.")
-                                else:
-                                    with st.expander("🔔 Subscribe to Telegram notifications", expanded=False):
-                                        st.markdown(
-                                            "\n".join(
-                                                [
-                                                    "1. Search for **@falowenbot** on Telegram and open the chat.",
-                                                    "2. Tap **Start**, then follow the prompts to connect your account so you can receive your marks.",
-                                                    "3. To deactivate: send `/stop`",
-                                                ]
-                                            )
-                                        )
-                                answer_text = st.session_state.get(draft_key, "").strip()
-                                MIN_WORDS = 20
 
-                                st.session_state[f"{lesson_key}__needs_resubmit"] = (
-                                    len(answer_text.split()) < MIN_WORDS
-                                )
-
+                                saved_ok = False
 
                                 # Archive the draft so it won't rehydrate again (drafts_v2)
                                 try:
-                                    _draft_doc_ref(student_level, lesson_key, code).set(
-                                        {"status": "submitted", "archived_at": firestore.SERVER_TIMESTAMP}, merge=True
+
+                                    doc_ref.set(payload)  # write the submission
+                                    saved_ok = True
+                                    st.caption(f"Saved to: `{doc_ref.path}`")  # optional debug
+                                except Exception as e:
+                                    st.error(f"Could not save submission: {e}")
+
+                                if saved_ok:
+                                    # 3) Success: lock UI, remember receipt, archive draft, notify, rerun
+                                    st.session_state[locked_key] = True
+                                    st.session_state[f"{lesson_key}__receipt"] = short_ref
+
+                                    success_msg = (
+                                        f"Well done, {name or 'Student'}! Remember the pass mark is 60, "
+                                        "and if you score below that you must revisit this Submit page to try again."
                                     )
-                                except Exception:
-                                    pass
+                                    caption_msg = (
+                                        f"Receipt: `{short_ref}` • Marks will arrive by email and via "
+                                        "Telegram from @falowenbot. See **Results & Resources** for scores & feedback."
+                                    )
+                                    st.success(success_msg)
+                                    st.caption(caption_msg)
+                                    st.session_state[success_notice_key] = {
+                                        "message": success_msg,
+                                        "caption": caption_msg,
+                                    }
+                                    row = st.session_state.get("student_row") or {}
+                                    tg_subscribed = bool(
+                                        row.get("TelegramChatID")
+                                        or row.get("telegram_chat_id")
+                                        or row.get("Telegram")
+                                        or row.get("telegram")
+                                    )
+                                    if not tg_subscribed:
+                                        try:
+                                            tg_subscribed = has_telegram_subscription(code)
+                                        except Exception:
+                                            tg_subscribed = False
+                                    if tg_subscribed:
+                                        st.info("You'll also receive a Telegram notification when your score is posted.")
+                                    else:
+                                        with st.expander("🔔 Subscribe to Telegram notifications", expanded=False):
+                                            st.markdown(
+                                                "\n".join(
+                                                    [
+                                                        "1. Search for **@falowenbot** on Telegram and open the chat.",
+                                                        "2. Tap **Start**, then follow the prompts to connect your account so you can receive your marks.",
+                                                        "3. To deactivate: send `/stop`",
+                                                    ]
+                                                )
+                                            )
+                                    answer_text = st.session_state.get(draft_key, "").strip()
+                                    MIN_WORDS = 20
 
-                                # Notify Slack (best-effort)
-                                webhook = get_slack_webhook()
-                                if webhook:
-                                    notify_slack_submission(
-                                        webhook_url=webhook,
-                                        student_name=name or "Student",
-                                        student_code=code,
-                                        level=student_level,
-                                        day=info["day"],
-                                        chapter=chapter_name,
-                                        receipt=short_ref,
-                                        preview=st.session_state.get(draft_key, "")
+                                    st.session_state[f"{lesson_key}__needs_resubmit"] = (
+                                        len(answer_text.split()) < MIN_WORDS
                                     )
 
-                                # Rerun so hydration path immediately shows locked view
-                                refresh_with_toast(
-                                    "Submission saved! Remember you need at least 60 points to pass."
-                                )
-                            else:
-                                # 4) Failure: remove the lock doc so student can retry cleanly
-                                try:
-                                    db.collection("submission_locks").document(lock_id(student_level, code, lesson_key)).delete()
-                                except Exception:
-                                    pass
-                                st.warning("Submission not saved. Please fix the issue and try again.")
-                        finally:
-                            st.session_state[submit_in_progress_key] = False
-                            st.markdown("**The End**")
 
+                                    # Archive the draft so it won't rehydrate again (drafts_v2)
+                                    try:
+                                        _draft_doc_ref(student_level, lesson_key, code).set(
+                                            {"status": "submitted", "archived_at": firestore.SERVER_TIMESTAMP}, merge=True
+                                        )
+                                    except Exception:
+                                        pass
 
+                                    # Notify Slack (best-effort)
+                                    webhook = get_slack_webhook()
+                                    if webhook:
+                                        notify_slack_submission(
+                                            webhook_url=webhook,
+                                            student_name=name or "Student",
+                                            student_code=code,
+                                            level=student_level,
+                                            day=info["day"],
+                                            chapter=chapter_name,
+                                            receipt=short_ref,
+                                            preview=st.session_state.get(draft_key, "")
+                                        )
 
+                                    # Rerun so hydration path immediately shows locked view
+                                    refresh_with_toast(
+                                        "Submission saved! Remember you need at least 60 points to pass."
+                                    )
+                                else:
+                                    # 4) Failure: remove the lock doc so student can retry cleanly
+                                    try:
+                                        db.collection("submission_locks").document(lock_id(student_level, code, lesson_key)).delete()
+                                    except Exception:
+                                        pass
+                                    st.warning("Submission not saved. Please fix the issue and try again.")
+                            finally:
+                                st.session_state[submit_in_progress_key] = False
+                                st.markdown("**The End**")
+
+            render_lesson_focus("after")
 
     if cb_subtab == "🧑‍🏫 Classroom":
         # --- Classroom banner (top of subtab) ---
