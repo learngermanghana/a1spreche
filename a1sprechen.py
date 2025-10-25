@@ -3196,8 +3196,10 @@ def render_section(day_info: dict, key: str, title: str, icon: str) -> None:
             chapter_suffix = f": Chapter {chapter}" if chapter else ""
             st.markdown(
                 "###### "
+
                 f"{icon} This is your {_task_position_word(position)} task"
                 f"{chapter_suffix}"
+
             )
         if part.get('video'):
             st.video(part['video'])
