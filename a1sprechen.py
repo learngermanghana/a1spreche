@@ -4051,20 +4051,6 @@ if tab == "My Course":
             with support_col:
                 render_lesson_language_support(info, level_key)
 
-            st.divider()
-
-            with st.expander("📚 Study Resources"):
-                if _is_url(info.get("video")):
-                    st.video(info["video"])
-                elif info.get("video"):
-                    st.markdown(
-                        f"[🎬 Lecture Help Video on YouTube]({info['video']})"
-                    )
-
-                if _is_url(info.get("grammarbook_link")):
-                    render_link("📘 Grammar Book (Notes)", info["grammarbook_link"])
-
-
             st.markdown("#### 🎬 Video of the Day for Your Level")
             playlist_ids = get_playlist_ids_for_level(level_key)
             fetch_videos = fetch_youtube_playlist_videos
