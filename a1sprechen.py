@@ -1155,7 +1155,6 @@ import src.ui_components as _ui_components
 from src.ui_components import (
     render_assignment_reminder,
     render_link,
-    render_vocab_lookup,
 )
 
 _falowen_db = load_falowen_db()
@@ -4001,11 +4000,6 @@ if tab == "My Course":
                         )
                     if workbook_link:
                         st.markdown(f"- [📒 Workbook (Assignment)]({workbook_link})")
-                        with st.expander("📖 Dictionary"):
-                            render_vocab_lookup(
-                                f"{key}-{idx_part}",
-                                f"Day {day_info.get('day')} Chapter {chapter}",
-                            )
                         render_assignment_reminder()
                     if extras:
                         for ex in _as_list(extras):
@@ -4035,11 +4029,6 @@ if tab == "My Course":
                     showed = True
                 if info.get("workbook_link"):
                     st.markdown(f"- [📒 Workbook (Assignment)]({info['workbook_link']})")
-                    with st.expander("📖 Dictionary"):
-                        render_vocab_lookup(
-                            f"fallback-{info.get('day', '')}",
-                            f"Day {info.get('day')} Chapter {info.get('chapter', '')}",
-                        )
                     render_assignment_reminder()
                     showed = True
                 for ex in _as_list(info.get("extra_resources")):
@@ -4062,94 +4051,7 @@ if tab == "My Course":
             with support_col:
                 render_lesson_language_support(info, level_key)
 
-            # ---------- Build a clean downloadable bundle of links (no on-page repetition) ----------
             st.divider()
-            st.markdown("### 📎 Lesson Links — Download")
-
-            # Collect links (top-level + nested)
-            resources = {"Grammar Notes": [], "Workbook": [], "Videos": [], "Extras": []}
-
-            def _add(kind, val):
-                for v in _as_list(val):
-                    if _is_url(v):
-                        resources[kind].append(v)
-
-            # top-level
-            _add("Videos", info.get("video"))
-            _add("Grammar Notes", info.get("grammarbook_link"))
-            _add("Workbook", info.get("workbook_link"))
-            _add("Extras", info.get("extra_resources"))
-
-            # nested: include whatever sections exist for this lesson
-            for section_key, _, _ in sections or []:
-                for part in _as_list(info.get(section_key)):
-                    if not isinstance(part, dict):
-                        continue
-                    _add("Videos", [part.get("video"), part.get("youtube_link")])
-                    _add("Grammar Notes", part.get("grammarbook_link"))
-                    _add("Workbook", part.get("workbook_link"))
-                    _add("Extras", part.get("extra_resources"))
-
-            # dedupe + remove videos already embedded above
-            for k in list(resources.keys()):
-                resources[k] = _dedup(resources[k])
-
-            # If nothing remains after filtering, don't show anything
-            if not any(resources.values()):
-                st.caption("All lesson links are already shown above. No extra links to download.")
-            else:
-                # Prepare TXT bundle
-                lesson_header = f"Level: {level_key} | Day: {info.get('day','?')} | Chapter: {info.get('chapter','?')} | Topic: {info.get('topic','')}"
-                parts_txt = [lesson_header, "-" * len(lesson_header)]
-                for title, key_name in [("📘 Grammar Notes", "Grammar Notes"),
-                                        ("📒 Workbook", "Workbook"),
-                                        ("🎥 Videos", "Videos"),
-                                        ("🔗 Extras", "Extras")]:
-                    if resources[key_name]:
-                        parts_txt.append(title)
-                        parts_txt.extend([f"- {u}" for u in resources[key_name]])
-                        parts_txt.append("")
-                bundle_txt = "\n".join(parts_txt).strip() + "\n"
-
-                temp_path = st.session_state.get("links_temp_path")
-                if not temp_path or not os.path.exists(temp_path):
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as tmp:
-                        tmp.write(bundle_txt.encode("utf-8"))
-                        temp_path = tmp.name
-                    st.session_state["links_temp_path"] = temp_path
-
-                cdl1, cdl2 = st.columns([1, 1])
-                with cdl1:
-                    file_obj = open(temp_path, "rb")
-                    clicked = st.download_button(
-                        "⬇️ Download lesson links (TXT)",
-                        data=file_obj,
-                        file_name=f"lesson_links_{level_key}_day{info.get('day','')}.txt",
-                        mime="text/plain",
-                        key="dl_links_txt",
-                    )
-                    file_obj.close()
-                    if clicked:
-                        try:
-                            os.remove(temp_path)
-                        finally:
-                            st.session_state.pop("links_temp_path", None)
-
-                
-
-            with st.expander("📚 Study Resources"):
-                if _is_url(info.get("video")):
-                    st.video(info["video"])
-                elif info.get("video"):
-                    st.markdown(
-                        f"[🎬 Lecture Help Video on YouTube]({info['video']})"
-                    )
-                    
-                if _is_url(info.get("grammarbook_link")):
-                    render_link("📘 Grammar Book (Notes)", info["grammarbook_link"])
-
-                render_link("📗 Dictionary", "https://dict.leo.org/german-english")
-
 
             st.markdown("#### 🎬 Video of the Day for Your Level")
             playlist_ids = get_playlist_ids_for_level(level_key)
