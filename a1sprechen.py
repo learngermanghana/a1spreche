@@ -3154,6 +3154,34 @@ if tab == "Dashboard":
 
 
 
+def _task_position_word(position: int) -> str:
+    """Return a plain-English word describing the nth task."""
+
+    ordinal_words = {
+        1: "first",
+        2: "second",
+        3: "third",
+        4: "fourth",
+        5: "fifth",
+        6: "sixth",
+        7: "seventh",
+        8: "eighth",
+        9: "ninth",
+        10: "tenth",
+    }
+
+    if position in ordinal_words:
+        return ordinal_words[position]
+
+    # Fallback to numeric ordinals for larger counts (e.g., 11th, 21st).
+    if 10 <= position % 100 <= 20:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(position % 10, "th")
+
+    return f"{position}{suffix}"
+
+
 def render_section(day_info: dict, key: str, title: str, icon: str) -> None:
     """Render a lesson section (supports list or single dict)."""
     content = day_info.get(key)
@@ -3163,7 +3191,14 @@ def render_section(day_info: dict, key: str, title: str, icon: str) -> None:
     st.markdown(f"#### {icon} {title}")
     for idx, part in enumerate(items):
         if len(items) > 1:
-            st.markdown(f"###### {icon} Part {idx+1} of {len(items)}: Chapter {part.get('chapter','')}")
+            position = idx + 1
+            chapter = (part.get("chapter", "") or "").strip()
+            chapter_suffix = f": Chapter {chapter}" if chapter else ""
+            st.markdown(
+                "###### "
+                f"{icon} This is your {_task_position_word(position)} task"
+                f"{chapter_suffix}"
+            )
         if part.get('video'):
             st.video(part['video'])
         if part.get('grammarbook_link'):
@@ -3936,8 +3971,13 @@ if tab == "My Course":
                     extras = part.get('extra_resources')
 
                     if len(items) > 1:
+                        position = idx_part + 1
+                        chapter_clean = (chapter or "").strip()
+                        chapter_suffix = f": Chapter {chapter_clean}" if chapter_clean else ""
                         st.markdown(
-                            f"###### {icon} Part {idx_part+1} of {len(items)}: Chapter {chapter}"
+                            "###### "
+                            f"{icon} This is your {_task_position_word(position)} task"
+                            f"{chapter_suffix}"
                         )
                     else:
                         st.markdown(f"###### {icon} Chapter {chapter}")
