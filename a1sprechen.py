@@ -3196,8 +3196,10 @@ def render_section(day_info: dict, key: str, title: str, icon: str) -> None:
             chapter_suffix = f": Chapter {chapter}" if chapter else ""
             st.markdown(
                 "###### "
-                f"{icon} This is your {_task_position_word(position)} task "
-                f"({position} of {len(items)}){chapter_suffix}"
+
+                f"{icon} This is your {_task_position_word(position)} task"
+                f"{chapter_suffix}"
+
             )
         if part.get('video'):
             st.video(part['video'])
@@ -3971,8 +3973,13 @@ if tab == "My Course":
                     extras = part.get('extra_resources')
 
                     if len(items) > 1:
+                        position = idx_part + 1
+                        chapter_clean = (chapter or "").strip()
+                        chapter_suffix = f": Chapter {chapter_clean}" if chapter_clean else ""
                         st.markdown(
-                            f"###### {icon} Part {idx_part+1} of {len(items)}: Chapter {chapter}"
+                            "###### "
+                            f"{icon} This is your {_task_position_word(position)} task"
+                            f"{chapter_suffix}"
                         )
                     else:
                         st.markdown(f"###### {icon} Chapter {chapter}")
