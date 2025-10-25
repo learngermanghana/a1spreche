@@ -121,6 +121,17 @@ CLASSBOARD_TIMER_HELP_TEXT = (
 )
 
 
+COURSEBOOK_OVERVIEW_LABEL = "Overview"
+COURSEBOOK_ASSIGNMENT_LABEL = "Assignment – Grammar Book"
+COURSEBOOK_SUBMIT_LABEL = "Submit"
+COURSEBOOK_ASSIGNMENT_LEGACY_LABELS = {"Assignment"}
+COURSEBOOK_SECTION_OPTIONS = [
+    COURSEBOOK_OVERVIEW_LABEL,
+    COURSEBOOK_ASSIGNMENT_LABEL,
+    COURSEBOOK_SUBMIT_LABEL,
+]
+
+
 _CLASSBOARD_TIMER_STATE_SUFFIXES = (
     "__preset",
     "__manual",
@@ -1632,8 +1643,8 @@ def render_sidebar_published():
         st.session_state["nav_sel"] = "My Course"
         st.session_state["main_tab_select"] = "My Course"
         st.session_state["coursebook_subtab"] = "📘 Course Book"
-        st.session_state["coursebook_page"] = "Submit"
-        st.session_state["coursebook_prev_page"] = "Submit"
+        st.session_state["coursebook_page"] = COURSEBOOK_SUBMIT_LABEL
+        st.session_state["coursebook_prev_page"] = COURSEBOOK_SUBMIT_LABEL
         _qp_set_safe(tab="My Course")
         st.session_state.pop("_chat_focus_tab", None)
         st.session_state["need_rerun"] = True
@@ -2332,8 +2343,8 @@ def _go_next_assignment(day_value: Any) -> None:
     st.session_state["main_tab_select"] = "My Course"
     st.session_state["coursebook_subtab"] = "📘 Course Book"
     st.session_state["cb_prev_subtab"] = "📘 Course Book"
-    st.session_state["coursebook_page"] = "Assignment"
-    st.session_state["coursebook_prev_page"] = "Assignment"
+    st.session_state["coursebook_page"] = COURSEBOOK_ASSIGNMENT_LABEL
+    st.session_state["coursebook_prev_page"] = COURSEBOOK_ASSIGNMENT_LABEL
     params = {"tab": "My Course"}
     if day_value not in (None, "", "?"):
         try:
@@ -3348,9 +3359,9 @@ def render_day_zero_onboarding(
 
         target_day = _next_available_lesson_day(schedule, idx) or 1
 
-        def _set_coursebook_page(page: str) -> None:
-            st.session_state["coursebook_page"] = page
-            st.session_state["coursebook_prev_page"] = page
+    def _set_coursebook_page(page: str) -> None:
+        st.session_state["coursebook_page"] = page
+        st.session_state["coursebook_prev_page"] = page
 
     def _jump_course(page: str) -> None:
         _go_next_assignment(target_day)
@@ -3371,9 +3382,9 @@ def render_day_zero_onboarding(
         st.session_state["need_rerun"] = True
 
     action_map: Dict[str, Any] = {
-        "overview": lambda: _jump_course("Overview"),
-        "assignment": lambda: _jump_course("Assignment"),
-        "submit": lambda: _jump_course("Submit"),
+        "overview": lambda: _jump_course(COURSEBOOK_OVERVIEW_LABEL),
+        "assignment": lambda: _jump_course(COURSEBOOK_ASSIGNMENT_LABEL),
+        "submit": lambda: _jump_course(COURSEBOOK_SUBMIT_LABEL),
         "classroom": _jump_classroom,
         "attendance": _go_attendance,
         "dashboard": _go_dashboard,
@@ -3598,14 +3609,21 @@ if tab == "My Course":
 
         # ---------- mini-tabs inside Course Book ----------
         if "coursebook_page" not in st.session_state:
-            st.session_state["coursebook_page"] = "Overview"
+            st.session_state["coursebook_page"] = COURSEBOOK_OVERVIEW_LABEL
         if "coursebook_prev_page" not in st.session_state:
             st.session_state["coursebook_prev_page"] = st.session_state["coursebook_page"]
+
+        if st.session_state.get("coursebook_page") in COURSEBOOK_ASSIGNMENT_LEGACY_LABELS:
+            st.session_state["coursebook_page"] = COURSEBOOK_ASSIGNMENT_LABEL
+        if st.session_state.get("coursebook_prev_page") in COURSEBOOK_ASSIGNMENT_LEGACY_LABELS:
+            st.session_state["coursebook_prev_page"] = COURSEBOOK_ASSIGNMENT_LABEL
+
+        assignment_labels = COURSEBOOK_ASSIGNMENT_LEGACY_LABELS | {COURSEBOOK_ASSIGNMENT_LABEL}
 
         def on_coursebook_page_change() -> None:
             prev = st.session_state.get("coursebook_prev_page")
             curr = st.session_state.get("coursebook_page")
-            if prev in {"Assignment", "Submit"}:
+            if prev in assignment_labels or prev == COURSEBOOK_SUBMIT_LABEL:
                 draft_key = st.session_state.get("coursebook_draft_key")
                 code = (
                     st.session_state.get("student_code")
@@ -3619,7 +3637,7 @@ if tab == "My Course":
 
         coursebook_section = st.radio(
             "Section",
-            ["Overview", "Assignment", "Submit"],
+            COURSEBOOK_SECTION_OPTIONS,
             key="coursebook_page",
             on_change=on_coursebook_page_change,
         )
@@ -3771,7 +3789,7 @@ if tab == "My Course":
         student_row = st.session_state.get("student_row", {})
 
         # OVERVIEW
-        if coursebook_section == "Overview":
+        if coursebook_section == COURSEBOOK_OVERVIEW_LABEL:
         
             with st.expander("📚 Course Book & Study Recommendations", expanded=True):
                 LEVEL_TIME = {"A1": 15, "A2": 25, "B1": 30, "B2": 40, "C1": 45}
@@ -3805,7 +3823,7 @@ if tab == "My Course":
                         )
 
         # ASSIGNMENT (activities + resources; tolerant across A1–C1)
-        elif coursebook_section == "Assignment":
+        elif coursebook_section in assignment_labels:
 
             draft_text = st.session_state.get(draft_key, "")
             recovered_code = _recover_student_code(
@@ -3929,7 +3947,7 @@ if tab == "My Course":
                             cid = _canon_video(maybe_vid)
                             if cid not in seen_videos:
                                 st.markdown(
-                                    f"[🎬 Lecture Video on YouTube]({maybe_vid})"
+                                    f"[🎬 Lecture Help Video on YouTube]({maybe_vid})"
                                 )
                                 seen_videos.add(cid)
                     # links/resources inline
@@ -3966,7 +3984,7 @@ if tab == "My Course":
                     cid = _canon_video(info["video"])
                     if cid not in seen_videos:
                         st.markdown(
-                            f"[🎬 Lecture Video on YouTube]({info['video']})"
+                            f"[🎬 Lecture Help Video on YouTube]({info['video']})"
                         )
                         seen_videos.add(cid)
                     showed = True
@@ -4082,7 +4100,7 @@ if tab == "My Course":
                     st.video(info["video"])
                 elif info.get("video"):
                     st.markdown(
-                        f"[🎬 Lecture Video on YouTube]({info['video']})"
+                        f"[🎬 Lecture Help Video on YouTube]({info['video']})"
                     )
                     
                 if _is_url(info.get("grammarbook_link")):
@@ -4131,7 +4149,7 @@ if tab == "My Course":
 
 
         # SUBMIT
-        elif coursebook_section == "Submit":
+        elif coursebook_section == COURSEBOOK_SUBMIT_LABEL:
             submission_disabled_reason = _submission_block_reason(info, schedule)
             submission_disabled = bool(submission_disabled_reason)
 
