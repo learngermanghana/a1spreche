@@ -3370,43 +3370,42 @@ def render_day_zero_onboarding(
                         break
     cards = info.get("onboarding_cards") or []
 
-    with st.expander("📘 Day 0 Tutorial – optional", expanded=False):
-        st.markdown(
-            """
-            <style>
-            .day0-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:18px 16px;
-                       box-shadow:0 8px 24px rgba(15,23,42,.08);min-height:260px;display:flex;flex-direction:column;gap:12px;}
-            .day0-card__title{font-size:1.1rem;font-weight:600;color:#0f172a;}
-            .day0-card__helper{color:#475569;font-size:.95rem;line-height:1.4;}
-            .day0-card ol{margin:0;padding-left:1.2rem;color:#1e293b;font-size:.95rem;line-height:1.45;}
-            .day0-card__cta{margin-top:auto;}
-            .day0-card__cta button{width:100%;border-radius:999px;}
-            @media (max-width:768px){.day0-card{min-height:auto;}}
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
+    st.markdown(
+        """
+        <style>
+        .day0-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:18px 16px;
+                   box-shadow:0 8px 24px rgba(15,23,42,.08);min-height:260px;display:flex;flex-direction:column;gap:12px;}
+        .day0-card__title{font-size:1.1rem;font-weight:600;color:#0f172a;}
+        .day0-card__helper{color:#475569;font-size:.95rem;line-height:1.4;}
+        .day0-card ol{margin:0;padding-left:1.2rem;color:#1e293b;font-size:.95rem;line-height:1.45;}
+        .day0-card__cta{margin-top:auto;}
+        .day0-card__cta button{width:100%;border-radius:999px;}
+        @media (max-width:768px){.day0-card{min-height:auto;}}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
+    if goal_text:
+        st.markdown(f"#### 🚀 {goal_text}")
+    else:
+        st.markdown("#### 🚀 Welcome to Falowen")
+    if intro_text:
+        st.caption(intro_text)
+    if video_url:
+        st.video(video_url)
+
+    if not isinstance(cards, Sequence) or isinstance(cards, (str, bytes)) or not cards:
+        info_lines: List[str] = []
         if goal_text:
-            st.markdown(f"#### 🚀 {goal_text}")
-        else:
-            st.markdown("#### 🚀 Welcome to Falowen")
+            info_lines.append(f"🎯 **Goal:** {goal_text}")
         if intro_text:
-            st.caption(intro_text)
-        if video_url:
-            st.video(video_url)
+            info_lines.append(f"📝 **Instruction:** {intro_text}")
+        if info_lines:
+            st.info("\n\n".join(info_lines))
+        return
 
-        if not isinstance(cards, Sequence) or isinstance(cards, (str, bytes)) or not cards:
-            info_lines: List[str] = []
-            if goal_text:
-                info_lines.append(f"🎯 **Goal:** {goal_text}")
-            if intro_text:
-                info_lines.append(f"📝 **Instruction:** {intro_text}")
-            if info_lines:
-                st.info("\n\n".join(info_lines))
-            return
-
-        target_day = _next_available_lesson_day(schedule, idx) or 1
+    target_day = _next_available_lesson_day(schedule, idx) or 1
 
     def _set_coursebook_page(page: str) -> None:
         st.session_state["coursebook_page"] = page
