@@ -3684,13 +3684,6 @@ if tab == "My Course":
                         save_now(draft_key, code)
             st.session_state["coursebook_prev_page"] = curr
 
-        coursebook_section = st.radio(
-            "Section",
-            COURSEBOOK_SECTION_OPTIONS,
-            key="coursebook_page",
-            on_change=on_coursebook_page_change,
-        )
-
         # ---- Search ----
         query = st.text_input("🔍 Search for topic, chapter, grammar, day, or anything…")
         search_terms = [q for q in query.strip().lower().split() if q] if query else []
@@ -3765,13 +3758,27 @@ if tab == "My Course":
         if info.get("grammar_topic"):
             st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
 
-        if _coerce_day(info.get("day")) == 0:
+        day_value = _coerce_day(info.get("day"))
+
+        if day_value == 0:
             render_day_zero_onboarding(info, schedule, idx)
         elif info.get("goal") or info.get("instruction"):
             st.info(
                 f"🎯 **Goal:** {info.get('goal','')}\n\n"
                 f"📝 **Instruction:** {info.get('instruction','')}"
             )
+
+        coursebook_section = None
+        if day_value != 0:
+            coursebook_section = st.radio(
+                "Section",
+                COURSEBOOK_SECTION_OPTIONS,
+                key="coursebook_page",
+                on_change=on_coursebook_page_change,
+            )
+        else:
+            st.session_state.setdefault("coursebook_prev_page", COURSEBOOK_OVERVIEW_LABEL)
+            st.session_state.setdefault("coursebook_page", COURSEBOOK_OVERVIEW_LABEL)
 
         # ---- Class discussion count & link ----
         student_row = st.session_state.get("student_row") or {}
