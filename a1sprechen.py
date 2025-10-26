@@ -3357,6 +3357,17 @@ def render_day_zero_onboarding(
 
     goal_text = _safe_str(info.get("goal"))
     intro_text = _safe_str(info.get("instruction"))
+    video_url = _safe_str(info.get("tutorial_video_url"))
+    if not video_url:
+        section = info.get("lesen_hören")
+        if isinstance(section, dict):
+            video_url = _safe_str(section.get("video") or section.get("youtube_link"))
+        elif isinstance(section, Sequence):
+            for part in section:
+                if isinstance(part, dict):
+                    video_url = _safe_str(part.get("video") or part.get("youtube_link"))
+                    if video_url:
+                        break
     cards = info.get("onboarding_cards") or []
 
     with st.expander("📘 Day 0 Tutorial – optional", expanded=False):
@@ -3382,6 +3393,8 @@ def render_day_zero_onboarding(
             st.markdown("#### 🚀 Welcome to Falowen")
         if intro_text:
             st.caption(intro_text)
+        if video_url:
+            st.video(video_url)
 
         if not isinstance(cards, Sequence) or isinstance(cards, (str, bytes)) or not cards:
             info_lines: List[str] = []
