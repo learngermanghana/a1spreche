@@ -6,7 +6,8 @@ import re
 import streamlit as st
 
 
-DAY0_TUTORIAL_VIDEO_URL = "https://youtu.be/QT7YeWg9ReI"
+DAY0_TUTORIAL_VIDEO_URL_A1 = "https://youtu.be/QT7YeWg9ReI"
+DAY0_TUTORIAL_VIDEO_URL_ADVANCED = "https://youtu.be/JuScjOEqOEw"
 
 
 def _strip_topic_chapter(schedule: List[Dict[str, object]]) -> List[Dict[str, object]]:
@@ -27,7 +28,9 @@ def _strip_topic_chapter(schedule: List[Dict[str, object]]) -> List[Dict[str, ob
     return schedule
 
 
-def make_day0_tutorial_entry() -> Dict[str, object]:
+def make_day0_tutorial_entry(
+    video_url: str = DAY0_TUTORIAL_VIDEO_URL_ADVANCED,
+) -> Dict[str, object]:
     """Return the shared Day 0 tutorial entry.
 
     The entry introduces learners to the daily course structure and is reused
@@ -40,12 +43,12 @@ def make_day0_tutorial_entry() -> Dict[str, object]:
         "chapter": "Tutorial",
         "goal": "Watch the Day 0 tutorial video to see how the course is organised.",
         "instruction": None,
-        "tutorial_video_url": DAY0_TUTORIAL_VIDEO_URL,
+        "tutorial_video_url": video_url,
         "grammar_topic": None,
         "assignment": False,
         "lesen_hören": {
-            "video": DAY0_TUTORIAL_VIDEO_URL,
-            "youtube_link": DAY0_TUTORIAL_VIDEO_URL,
+            "video": video_url,
+            "youtube_link": video_url,
             "grammarbook_link": None,
             "workbook_link": None,
         },
@@ -73,12 +76,12 @@ def get_a1_schedule():
             "chapter": "Tutorial",
             "goal": "Watch the Day 0 tutorial video to see how the course is organised.",
             "instruction": None,
-            "tutorial_video_url": DAY0_TUTORIAL_VIDEO_URL,
+            "tutorial_video_url": DAY0_TUTORIAL_VIDEO_URL_A1,
             "grammar_topic": None,
             "assignment": False,
             "lesen_hören": {
-                "video": DAY0_TUTORIAL_VIDEO_URL,
-                "youtube_link": DAY0_TUTORIAL_VIDEO_URL,
+                "video": DAY0_TUTORIAL_VIDEO_URL_A1,
+                "youtube_link": DAY0_TUTORIAL_VIDEO_URL_A1,
                 "grammarbook_link": None,
                 "workbook_link": None,
             },
