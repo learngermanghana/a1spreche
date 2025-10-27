@@ -1,6 +1,7 @@
 """Tests covering the shared Day 0 tutorial schedule entry."""
 
 from src.schedule import (
+    DAY0_TUTORIAL_VIDEO_URL_ADVANCED,
     _strip_topic_chapter,
     get_b2_schedule,
     make_day0_tutorial_entry,
@@ -15,6 +16,16 @@ def test_b2_schedule_starts_with_full_day0_orientation():
 
     assert schedule[0] == orientation_entry
     assert sum(1 for item in schedule if item.get("day") == 0) == 1
+
+
+def test_day0_orientation_uses_advanced_video_url():
+    """The shared Day 0 entry should point to the advanced tutorial video."""
+
+    orientation_entry = make_day0_tutorial_entry()
+
+    assert orientation_entry["tutorial_video_url"] == DAY0_TUTORIAL_VIDEO_URL_ADVANCED
+    assert orientation_entry["lesen_hören"]["video"] == DAY0_TUTORIAL_VIDEO_URL_ADVANCED
+    assert orientation_entry["lesen_hören"]["youtube_link"] == DAY0_TUTORIAL_VIDEO_URL_ADVANCED
 
 
 def test_strip_topic_chapter_trims_trailing_chapter_numbers():
