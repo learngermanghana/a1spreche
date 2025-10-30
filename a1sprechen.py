@@ -6702,6 +6702,16 @@ if tab == "My Course":
 
                     if idx < len(questions) - 1:
                         st.divider()
+
+            st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+            st.divider()
+            st.button(
+                "Log out",
+                key=_ukey("classnotes_logout"),
+                type="secondary",
+                on_click=do_logout,
+                help="End your session when you finish reading the Class Notes & Q&A feed.",
+            )
 #
 
     # === LEARNING NOTES SUBTAB ===
