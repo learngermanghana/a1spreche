@@ -4054,13 +4054,6 @@ if tab == "My Course":
                 except Exception:
                     return False
 
-            def _dedup(seq):
-                out, seen = [], set()
-                for s in seq:
-                    if s and s not in seen:
-                        seen.add(s); out.append(s)
-                return out
-
             def _canon_video(u: str) -> str:
                 """Stable id for a video url (YouTube => yt:ID, else normalized url)."""
                 if not u:
@@ -4068,16 +4061,49 @@ if tab == "My Course":
                 try:
                     p = urlsplit(u)
                     host = (p.netloc or "").lower().replace("www.", "")
-                    if "youtube.com" in host:
-                        q = parse_qs(p.query or "")
-                        vid = (q.get("v", [""])[0] or "").strip()
-                        return f"yt:{vid}" if vid else u.strip().lower()
-                    if "youtu.be" in host:
-                        vid = (p.path or "/").strip("/").split("/")[0]
-                        return f"yt:{vid}" if vid else u.strip().lower()
+                    path = (p.path or "/").strip("/")
+                    if "youtube.com" in host or "youtu.be" in host:
+                        vid = ""
+                        if "youtube.com" in host:
+                            q = parse_qs(p.query or "")
+                            vid = (q.get("v", [""])[0] or "").strip()
+                            if not vid:
+                                parts = path.split("/")
+                                if parts:
+                                    if parts[0] in {"embed", "shorts", "live", "v"} and len(parts) > 1:
+                                        vid = parts[1].strip()
+                                    elif len(parts) == 1:
+                                        vid = parts[0].strip()
+                        else:  # youtu.be links
+                            vid = path.split("/")[0].strip()
+
+                        vid = vid.strip()
+                        if vid:
+                            return f"yt:{vid}"
+                        return u.strip().lower()
+
                     return u.strip().lower()
                 except Exception:
                     return str(u).strip().lower()
+
+            def _pick_primary_video(*candidates: Optional[str]) -> tuple[str, List[str]]:
+                """Return the first playable url and all canonical ids for the candidates."""
+
+                primary_url = ""
+                canon_ids: List[str] = []
+
+                for candidate in candidates:
+                    if not _is_url(candidate):
+                        continue
+
+                    cid = _canon_video(candidate) or str(candidate).strip().lower()
+                    if cid and cid not in canon_ids:
+                        canon_ids.append(cid)
+
+                    if not primary_url:
+                        primary_url = str(candidate)
+
+                return primary_url, canon_ids
 
             def pick_sections(day_info: dict):
                 """Find any section keys present for this lesson across levels."""
@@ -4135,14 +4161,18 @@ if tab == "My Course":
                     else:
                         st.markdown(f"###### {icon} Chapter {chapter}")
                     # videos (embed once)
-                    for maybe_vid in [video, youtube_link]:
-                        if _is_url(maybe_vid):
-                            cid = _canon_video(maybe_vid)
-                            if cid not in seen_videos:
-                                st.markdown(
-                                    f"[🎬 Lecture Help Video on YouTube]({maybe_vid})"
-                                )
-                                seen_videos.add(cid)
+                    chosen_video, video_ids = _pick_primary_video(video, youtube_link)
+                    should_render = bool(chosen_video) and (
+                        not video_ids or any(cid not in seen_videos for cid in video_ids)
+                    )
+
+                    if should_render:
+                        st.markdown(
+                            f"[🎬 Recorded lecture video on YouTube]({chosen_video})"
+                        )
+
+                    for cid in video_ids:
+                        seen_videos.add(cid)
                     # links/resources inline
                     if grammarbook_link:
                         st.markdown(f"- [📘 Grammar Book (Notes)]({grammarbook_link})")
@@ -4168,14 +4198,17 @@ if tab == "My Course":
             else:
                 # Fallback: show top-level resources even if there are no section keys
                 showed = False
-                if info.get("video"):
-                    cid = _canon_video(info["video"])
-                    if cid not in seen_videos:
-                        st.markdown(
-                            f"[🎬 Lecture Help Video on YouTube]({info['video']})"
-                        )
-                        seen_videos.add(cid)
+                chosen_video, video_ids = _pick_primary_video(info.get("video"), info.get("youtube_link"))
+                if chosen_video and (
+                    not video_ids or any(cid not in seen_videos for cid in video_ids)
+                ):
+                    st.markdown(
+                        f"[🎬 Recorded lecture video on YouTube]({chosen_video})"
+                    )
                     showed = True
+
+                for cid in video_ids:
+                    seen_videos.add(cid)
                 if info.get("grammarbook_link"):
                     st.markdown(f"- [📘 Grammar Book (Notes)]({info['grammarbook_link']})")
                     showed = True
