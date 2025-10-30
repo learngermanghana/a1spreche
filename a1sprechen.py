@@ -62,6 +62,7 @@ from flask import Flask
 from auth import auth_bp
 from src.routes.health import register_health_route
 from src.group_schedules import load_group_schedules
+from src.course_schedule import session_summary_for_date
 from src.blog_feed import fetch_blog_feed
 from src.blog_cards_widget import render_blog_cards
 import src.schedule as _schedule
@@ -5059,11 +5060,21 @@ if tab == "My Course":
 
                 _now = _dt.now(_timezone.utc)
                 nxt_start, nxt_end, nxt_label = _compute_next_class_instance(_now)
+                next_topic_label = None
+                if nxt_start and class_name:
+                    try:
+                        next_topic_label = session_summary_for_date(class_name, nxt_start.date())
+                    except Exception:
+                        next_topic_label = None
                 if nxt_start and nxt_end:
                     start_ms = int(nxt_start.timestamp() * 1000)
                     now_ms   = int(_now.timestamp() * 1000)
                     time_left_label = _human_delta_ms(start_ms - now_ms) if now_ms < start_ms else "now"
-                    st.info(f"**Next class:** {nxt_label}  •  **Starts in:** {time_left_label}", icon="⏰")
+                    info_bits = [f"**Next class:** {nxt_label}"]
+                    if next_topic_label:
+                        info_bits.append(f"**Topic:** {next_topic_label}")
+                    info_bits.append(f"**Starts in:** {time_left_label}")
+                    st.info("  •  ".join(info_bits), icon="⏰")
                     if components:
                         components.html(
                             f"""
