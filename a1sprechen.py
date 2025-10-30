@@ -22,7 +22,7 @@ from datetime import datetime
 from datetime import datetime as _dt
 from uuid import uuid4
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, List, Iterable, MutableMapping, Sequence
+from typing import Any, Dict, Optional, Tuple, List, Iterable, MutableMapping, Sequence, Collection
 from functools import lru_cache
 
 # ==== Third-Party Packages ====
@@ -4086,24 +4086,39 @@ if tab == "My Course":
                 except Exception:
                     return str(u).strip().lower()
 
-            def _pick_primary_video(*candidates: Optional[str]) -> tuple[str, List[str]]:
-                """Return the first playable url and all canonical ids for the candidates."""
+            def _pick_primary_video(
+                *candidates: Optional[str],
+                seen: Optional[Collection[str]] = None,
+            ) -> tuple[str, List[str]]:
+                """Return the preferred playable url and all canonical ids for the candidates."""
 
-                primary_url = ""
+                preferred_url = ""
+                fallback_url = ""
                 canon_ids: List[str] = []
+                seen_ids: Collection[str] = seen or ()
 
                 for candidate in candidates:
                     if not _is_url(candidate):
                         continue
 
-                    cid = _canon_video(candidate) or str(candidate).strip().lower()
+                    candidate_url = str(candidate)
+                    cid = _canon_video(candidate_url) or candidate_url.strip().lower()
                     if cid and cid not in canon_ids:
                         canon_ids.append(cid)
 
-                    if not primary_url:
-                        primary_url = str(candidate)
+                    if not fallback_url:
+                        fallback_url = candidate_url
 
-                return primary_url, canon_ids
+                    if preferred_url:
+                        continue
+
+                    if not cid or cid not in seen_ids:
+                        preferred_url = candidate_url
+
+                if not preferred_url:
+                    preferred_url = fallback_url
+
+                return preferred_url, canon_ids
 
             def pick_sections(day_info: dict):
                 """Find any section keys present for this lesson across levels."""
@@ -4161,7 +4176,9 @@ if tab == "My Course":
                     else:
                         st.markdown(f"###### {icon} Chapter {chapter}")
                     # videos (embed once)
-                    chosen_video, video_ids = _pick_primary_video(video, youtube_link)
+                    chosen_video, video_ids = _pick_primary_video(
+                        video, youtube_link, seen=seen_videos
+                    )
                     should_render = bool(chosen_video) and (
                         not video_ids or any(cid not in seen_videos for cid in video_ids)
                     )
@@ -4198,7 +4215,9 @@ if tab == "My Course":
             else:
                 # Fallback: show top-level resources even if there are no section keys
                 showed = False
-                chosen_video, video_ids = _pick_primary_video(info.get("video"), info.get("youtube_link"))
+                chosen_video, video_ids = _pick_primary_video(
+                    info.get("video"), info.get("youtube_link"), seen=seen_videos
+                )
                 if chosen_video and (
                     not video_ids or any(cid not in seen_videos for cid in video_ids)
                 ):
