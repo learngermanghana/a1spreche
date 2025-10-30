@@ -865,7 +865,7 @@ def render_resubmit_email_cta(
         "The email will already include your name, student code, and assignment number—just paste your revised work before sending."
     )
     st.text(
-        "If the link doesn't open an email app, copy the address and send your resubmission manually."
+        "If the link doesn't open an email app, manually email learngermanghana@gmail.com and include your assignment name and student code."
     )
 
 
