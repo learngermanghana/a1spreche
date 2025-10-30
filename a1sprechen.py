@@ -62,7 +62,7 @@ from flask import Flask
 from auth import auth_bp
 from src.routes.health import register_health_route
 from src.group_schedules import load_group_schedules
-from src.course_schedule import class_progress_for_date, session_summary_for_date
+from src.course_schedule import session_summary_for_date
 from src.blog_feed import fetch_blog_feed
 from src.blog_cards_widget import render_blog_cards
 import src.schedule as _schedule

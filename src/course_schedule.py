@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from datetime import date
 from functools import lru_cache
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional
 
 _SCHEDULE_JSON = """
 {
@@ -988,122 +988,31 @@ def _format_sessions(sessions: Iterable[Dict[str, Any]]) -> Optional[str]:
     return " • ".join(formatted)
 
 
-def _coerce_day_date(day: Dict[str, Any]) -> Optional[date]:
-    """Return the ``datetime.date`` for a schedule entry if available."""
+def session_summary_for_date(class_name: str, session_date: date) -> Optional[str]:
+    """Return a concise summary of the lessons for ``session_date``.
 
-    raw = day.get("date") if isinstance(day, dict) else None
-    if raw is None:
-        return None
-    text = str(raw).strip()
-    if not text:
-        return None
-    try:
-        return date.fromisoformat(text)
-    except ValueError:
-        return None
-
-
-def _build_session_metadata(day: Dict[str, Any], session_date: date) -> Dict[str, Any]:
-    """Construct a consistent metadata dictionary for a schedule entry."""
-
-    day_number = day.get("day_number") if isinstance(day.get("day_number"), int) else None
-    sessions = day.get("sessions", []) if isinstance(day, dict) else []
-    summary = _format_sessions(sessions if isinstance(sessions, list) else [])
-    label = summary or ""
-    if day_number is not None:
-        prefix = f"Day {day_number}"
-        label = f"{prefix} — {summary}" if summary else prefix
-    return {
-        "day_number": day_number,
-        "summary": summary,
-        "label": label,
-        "date": session_date,
-        "raw": day,
-    }
-
-
-def session_details_for_date(
-    class_name: str,
-    session_date: date,
-    *,
-    course: Optional[str] = None,
-) -> Optional[Dict[str, Any]]:
-    """Return structured metadata for the class meeting on ``session_date``."""
+    Parameters
+    ----------
+    class_name:
+        Name of the class as shown on the dashboard, e.g. ``"A1 Munich Klasse"``.
+    session_date:
+        The calendar date of the upcoming class.
+    """
 
     schedule = get_schedule_for_class(class_name)
-    if not schedule and course:
-        course_key = (course or "").strip().lower()
-        if course_key:
-            for candidate in all_schedules():
-                course_value = str(candidate.get("course", "")).strip().lower()
-                if course_value == course_key:
-                    schedule = candidate
-                    break
     if not schedule:
         return None
 
     target = session_date.isoformat()
     for day in _iter_days(schedule):
         if str(day.get("date")) == target:
-            meta = _build_session_metadata(day, session_date)
-            if not meta.get("label"):
+            sessions = day.get("sessions", [])
+            label = _format_sessions(sessions if isinstance(sessions, list) else [])
+            if not label:
                 return None
-            return meta
+            day_number = day.get("day_number")
+            if isinstance(day_number, int):
+                return f"Day {day_number} — {label}"
+            return label
     return None
-
-
-def session_summary_for_date(class_name: str, session_date: date) -> Optional[str]:
-    """Return a concise summary of the lessons for ``session_date``."""
-
-    meta = session_details_for_date(class_name, session_date)
-    if not meta:
-        return None
-    return meta.get("label") or meta.get("summary")
-
-
-def class_progress_for_date(
-    class_name: str,
-    reference_date: date,
-    *,
-    course: Optional[str] = None,
-) -> Dict[str, Optional[Dict[str, Any]]]:
-    """Return the latest completed and upcoming sessions for ``class_name``."""
-
-    schedule = get_schedule_for_class(class_name)
-    if not schedule and course:
-        course_key = (course or "").strip().lower()
-        if course_key:
-            for candidate in all_schedules():
-                course_value = str(candidate.get("course", "")).strip().lower()
-                if course_value == course_key:
-                    schedule = candidate
-                    break
-    if not schedule:
-        return {"previous": None, "upcoming": None}
-
-    day_entries: List[Tuple[date, Dict[str, Any]]] = []
-    for day in _iter_days(schedule):
-        session_date = _coerce_day_date(day)
-        if session_date is None:
-            continue
-        day_entries.append((session_date, day))
-
-    if not day_entries:
-        return {"previous": None, "upcoming": None}
-
-    day_entries.sort(key=lambda item: item[0])
-
-    previous_meta: Optional[Dict[str, Any]] = None
-    upcoming_meta: Optional[Dict[str, Any]] = None
-
-    for session_date, day in day_entries:
-        meta = _build_session_metadata(day, session_date)
-        if session_date <= reference_date:
-            previous_meta = meta
-        if upcoming_meta is None and session_date >= reference_date:
-            upcoming_meta = meta
-            if session_date > reference_date:
-                break
-
-    return {"previous": previous_meta, "upcoming": upcoming_meta}
 
