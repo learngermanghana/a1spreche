@@ -4068,13 +4068,27 @@ if tab == "My Course":
                 try:
                     p = urlsplit(u)
                     host = (p.netloc or "").lower().replace("www.", "")
-                    if "youtube.com" in host:
-                        q = parse_qs(p.query or "")
-                        vid = (q.get("v", [""])[0] or "").strip()
-                        return f"yt:{vid}" if vid else u.strip().lower()
-                    if "youtu.be" in host:
-                        vid = (p.path or "/").strip("/").split("/")[0]
-                        return f"yt:{vid}" if vid else u.strip().lower()
+                    path = (p.path or "/").strip("/")
+                    if "youtube.com" in host or "youtu.be" in host:
+                        vid = ""
+                        if "youtube.com" in host:
+                            q = parse_qs(p.query or "")
+                            vid = (q.get("v", [""])[0] or "").strip()
+                            if not vid:
+                                parts = path.split("/")
+                                if parts:
+                                    if parts[0] in {"embed", "shorts", "live", "v"} and len(parts) > 1:
+                                        vid = parts[1].strip()
+                                    elif len(parts) == 1:
+                                        vid = parts[0].strip()
+                        else:  # youtu.be links
+                            vid = path.split("/")[0].strip()
+
+                        vid = vid.strip()
+                        if vid:
+                            return f"yt:{vid}"
+                        return u.strip().lower()
+
                     return u.strip().lower()
                 except Exception:
                     return str(u).strip().lower()
@@ -4140,7 +4154,7 @@ if tab == "My Course":
                             cid = _canon_video(maybe_vid)
                             if cid not in seen_videos:
                                 st.markdown(
-                                    f"[🎬 Lecture Help Video on YouTube]({maybe_vid})"
+                                    f"[🎬 Recorded lecture video on YouTube]({maybe_vid})"
                                 )
                                 seen_videos.add(cid)
                     # links/resources inline
@@ -4172,7 +4186,7 @@ if tab == "My Course":
                     cid = _canon_video(info["video"])
                     if cid not in seen_videos:
                         st.markdown(
-                            f"[🎬 Lecture Help Video on YouTube]({info['video']})"
+                            f"[🎬 Recorded lecture video on YouTube]({info['video']})"
                         )
                         seen_videos.add(cid)
                     showed = True
