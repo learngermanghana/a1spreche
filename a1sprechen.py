@@ -4204,8 +4204,16 @@ if tab == "My Course":
                     else:
                         st.markdown(f"###### {icon} Chapter {chapter}")
                     # videos (embed once)
-                    for maybe_vid in [video, youtube_link]:
-                        _render_coursebook_video_resource(maybe_vid, seen_videos)
+                    primary_video, canonical_ids = _pick_primary_video(
+                        video,
+                        youtube_link,
+                        seen=seen_videos,
+                    )
+                    if primary_video:
+                        _render_coursebook_video_resource(primary_video, seen_videos)
+                    for cid in canonical_ids:
+                        if cid:
+                            seen_videos.add(cid)
                     # links/resources inline
                     if grammarbook_link:
                         st.markdown(f"- [📘 Grammar Book (Notes)]({grammarbook_link})")
