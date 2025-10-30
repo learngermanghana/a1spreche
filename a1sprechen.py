@@ -62,11 +62,7 @@ from flask import Flask
 from auth import auth_bp
 from src.routes.health import register_health_route
 from src.group_schedules import load_group_schedules
-from src.course_schedule import (
-    session_summary_for_date,
-    session_details_for_date,
-    next_session_details,
-)
+from src.course_schedule import session_summary_for_date, session_details_for_date
 from src.blog_feed import fetch_blog_feed
 from src.blog_cards_widget import render_blog_cards
 import src.schedule as _schedule
@@ -846,18 +842,21 @@ def render_resubmit_email_cta(
         "Click the link below to email learngermanghana@gmail.com with your revised work."
     )
 
-    resubmit_body = (
-        "Paste your revised work here.\n\n"
-        f"Name: {safe_name}\n"
-        f"Student Code: {safe_code}\n"
-        f"Assignment number: {assignment_day}"
-    )
+    resubmit_lines = [
+        "Paste your revised work here.",
+        "",
+        f"Name: {safe_name}",
+        f"Student Code: {safe_code}",
+        f"Assignment number: {assignment_day}",
+    ]
+    resubmit_body = "\r\n".join(resubmit_lines)
 
-    resubmit_link = (
-        "mailto:learngermanghana@gmail.com"
-        "?subject=Assignment%20Resubmission"
-        f"&body={_urllib.quote(resubmit_body)}"
-    )
+    query_params = {
+        "subject": "Assignment Resubmission",
+        "body": resubmit_body,
+    }
+    resubmit_query = _urllib.urlencode(query_params, quote_via=_urllib.quote)
+    resubmit_link = f"mailto:learngermanghana@gmail.com?{resubmit_query}"
 
     st.markdown(
         f"[Click here to open a pre-filled resubmission email]({resubmit_link})"
