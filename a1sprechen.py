@@ -62,6 +62,7 @@ from flask import Flask
 from auth import auth_bp
 from src.routes.health import register_health_route
 from src.group_schedules import load_group_schedules
+from src.course_schedule import class_progress_for_date, session_summary_for_date
 from src.blog_feed import fetch_blog_feed
 from src.blog_cards_widget import render_blog_cards
 import src.schedule as _schedule
@@ -2576,6 +2577,96 @@ if tab == "Dashboard":
 
     _next_lesson = _summary.get("next")
 
+    _class_name_clean, _class_name_lookup = _resolve_class_name(
+        safe_get(student_row, "ClassName", ""),
+        level=_level,
+    )
+
+    _class_progress_previous = None
+    _class_progress_upcoming = None
+    try:
+        _class_progress_lookup = class_progress_for_date(
+            _class_name_lookup,
+            date.today(),
+            course=_level,
+        )
+    except Exception:
+        _class_progress_lookup = {}
+    if isinstance(_class_progress_lookup, dict):
+        _class_progress_previous = _class_progress_lookup.get("previous")
+        _class_progress_upcoming = _class_progress_lookup.get("upcoming")
+
+    def _format_progress_label(entry: Optional[Dict[str, Any]]) -> str:
+        if not isinstance(entry, dict):
+            return ""
+        label = entry.get("label") or ""
+        if not label:
+            summary = entry.get("summary") or ""
+            day_number = entry.get("day_number")
+            if isinstance(day_number, int):
+                label = f"Day {day_number}"
+                if summary:
+                    label = f"{label} — {summary}"
+            else:
+                label = summary
+        session_date = entry.get("date")
+        if isinstance(session_date, date):
+            date_str = session_date.strftime("%d %b")
+            label = f"{label} ({date_str})" if label else date_str
+        return label
+
+    _class_context_bits: List[str] = []
+    _class_reached_label = _format_progress_label(_class_progress_previous)
+    if _class_reached_label:
+        _class_context_bits.append(f"Class is on {_class_reached_label}.")
+
+    _class_upcoming_label = _format_progress_label(_class_progress_upcoming)
+    if _class_upcoming_label and _class_upcoming_label != _class_reached_label:
+        _class_context_bits.append(f"Next class: {_class_upcoming_label}.")
+
+    _next_day_int: Optional[int] = None
+    if isinstance(_next_lesson, dict):
+        day_value = _next_lesson.get("day")
+        if day_value is not None:
+            try:
+                _next_day_int = int(day_value)
+            except (TypeError, ValueError):
+                try:
+                    _next_day_int = int(float(str(day_value).strip()))
+                except (TypeError, ValueError):
+                    _next_day_int = None
+
+    _class_reached_day = (
+        _class_progress_previous.get("day_number")
+        if isinstance(_class_progress_previous, dict)
+        else None
+    )
+
+    _progress_note = ""
+    if _next_day_int is not None and _class_reached_day is not None:
+        diff = _next_day_int - _class_reached_day
+        if diff <= -1:
+            behind = abs(diff)
+            lesson_word = "lessons" if behind != 1 else "lesson"
+            _progress_note = f"Catch up: you're {behind} {lesson_word} behind the class."
+        elif diff == 0:
+            _progress_note = "Stay on pace: complete today's assignment."
+        elif diff == 1:
+            _progress_note = "Great timing—you're ready for the next class."
+        elif diff > 1:
+            _progress_note = "Awesome—you're ahead of the class!"
+
+    if _progress_note:
+        _class_context_bits.append(_progress_note)
+
+    _class_alignment_note = " ".join(_class_context_bits).strip()
+
+    def _append_alignment_note(text: str) -> str:
+        if not _class_alignment_note:
+            return text
+        note_html = f"<span style='color:#1e293b;'>{html.escape(_class_alignment_note)}</span>"
+        return f"{text}<br/>{note_html}" if text else note_html
+
     if _missed_list:
         _missed_chip = f"<span class='pill pill-amber'>{len(_missed_list)} missed</span>"
         _missed_preview = ", ".join(_missed_list[:2]) + ("…" if len(_missed_list) > 2 else "")
@@ -2586,25 +2677,23 @@ if tab == "Dashboard":
     if _failed_list:
         _next_chip = "<span class='pill pill-amber'>Rework failed assignment</span>"
         if len(_failed_list) == 1:
-            _next_sub = _failed_list[0]
+            _next_sub = _append_alignment_note(_failed_list[0])
         else:
-            _next_sub = f"{_failed_list[0]} (+{len(_failed_list) - 1} more)"
+            _next_sub = _append_alignment_note(
+                f"{_failed_list[0]} (+{len(_failed_list) - 1} more)"
+            )
     elif _next_lesson:
         _next_title = (
             f"Day {_next_lesson.get('day','?')}: {_next_lesson.get('chapter','?')} – {_next_lesson.get('topic','')}"
         )
         _next_chip = f"<span class='pill pill-purple'>{_next_title}</span>"
-        _next_sub = _next_lesson.get("goal", "")
+        _next_sub = _append_alignment_note(_next_lesson.get("goal", ""))
     elif _missed_list:
         _next_chip = "<span class='pill pill-amber'>Finish missed work</span>"
-        _next_sub = "Complete skipped assignments first"
+        _next_sub = _append_alignment_note("Complete skipped assignments first")
     else:
         _next_chip = "<span class='pill pill-green'>All caught up</span>"
-        _next_sub = ""
-    _class_name_clean, _class_name_lookup = _resolve_class_name(
-        safe_get(student_row, "ClassName", ""),
-        level=_level,
-    )
+        _next_sub = _append_alignment_note("")
     _att_sessions, _att_hours = (0, 0.0)
     if _class_name_lookup and _student_code_raw:
         _att_sessions, _att_hours = fetch_attendance_summary(
@@ -5059,11 +5148,21 @@ if tab == "My Course":
 
                 _now = _dt.now(_timezone.utc)
                 nxt_start, nxt_end, nxt_label = _compute_next_class_instance(_now)
+                next_topic_label = None
+                if nxt_start and class_name:
+                    try:
+                        next_topic_label = session_summary_for_date(class_name, nxt_start.date())
+                    except Exception:
+                        next_topic_label = None
                 if nxt_start and nxt_end:
                     start_ms = int(nxt_start.timestamp() * 1000)
                     now_ms   = int(_now.timestamp() * 1000)
                     time_left_label = _human_delta_ms(start_ms - now_ms) if now_ms < start_ms else "now"
-                    st.info(f"**Next class:** {nxt_label}  •  **Starts in:** {time_left_label}", icon="⏰")
+                    info_bits = [f"**Next class:** {nxt_label}"]
+                    if next_topic_label:
+                        info_bits.append(f"**Topic:** {next_topic_label}")
+                    info_bits.append(f"**Starts in:** {time_left_label}")
+                    st.info("  •  ".join(info_bits), icon="⏰")
                     if components:
                         components.html(
                             f"""
