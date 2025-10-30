@@ -3019,12 +3019,59 @@ if tab == "Dashboard":
                     for session_date in upcoming_sessions:
                         weekday_name = week_days[session_date.weekday()]
                         display_date = session_date.strftime("%d %b")
-                        items.append(
-                            f"<li style='margin-bottom:6px;'><b>{weekday_name}</b> "
+                        base_line = (
+                            f"<div><b>{weekday_name}</b> "
                             f"<span style='color:#1976d2;'>{display_date}</span> "
-                            f"<span style='color:#333;'>{time_str}</span></li>"
+                            f"<span style='color:#333;'>{html.escape(time_str or 'Time TBD')}</span></div>"
                         )
-                    session_items_html = "<ul style='padding-left:16px; margin:9px 0 0 0;'>" + "".join(items) + "</ul>"
+
+                        agenda_html = ""
+                        session_plan = None
+                        try:
+                            session_plan = session_details_for_date(
+                                class_name_lookup,
+                                session_date,
+                            ) if class_name_lookup else None
+                        except Exception:
+                            session_plan = None
+
+                        if session_plan:
+                            session_labels = [
+                                str(item).strip()
+                                for item in session_plan.get("sessions") or []
+                                if isinstance(item, str) and item.strip()
+                            ]
+                            if session_labels:
+                                agenda_items = "".join(
+                                    f"<li style='margin:0 0 4px 0;'>{html.escape(label)}</li>"
+                                    for label in session_labels
+                                )
+                                day_number = session_plan.get("day_number")
+                                heading_text = (
+                                    f"Day {day_number} focus"
+                                    if isinstance(day_number, int)
+                                    else "Session focus"
+                                )
+                                agenda_html = (
+                                    "<div style='margin-top:6px;'>"
+                                    f"<div style='font-weight:600;color:#0f172a;font-size:0.9em;'>{html.escape(heading_text)}</div>"
+                                    "<ul style='margin:4px 0 0 18px;padding:0;font-size:0.9em;color:#1f2933;'>"
+                                    f"{agenda_items}"
+                                    "</ul>"
+                                    "</div>"
+                                )
+
+                        items.append(
+                            "<li style='margin-bottom:12px;'>"
+                            f"{base_line}"
+                            f"{agenda_html}"
+                            "</li>"
+                        )
+                    session_items_html = (
+                        "<ul style='padding-left:16px; margin:9px 0 0 0; list-style-type:disc;'>"
+                        + "".join(items)
+                        + "</ul>"
+                    )
                 else:
                     session_items_html = "<span style='color:#c62828;'>No upcoming sessions in the visible window.</span>"
 
