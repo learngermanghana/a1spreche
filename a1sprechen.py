@@ -4176,20 +4176,14 @@ if tab == "My Course":
                     else:
                         st.markdown(f"###### {icon} Chapter {chapter}")
                     # videos (embed once)
-                    chosen_video, video_ids = _pick_primary_video(
-                        video, youtube_link, seen=seen_videos
-                    )
-                    should_render = bool(chosen_video) and (
-                        not video_ids or any(cid not in seen_videos for cid in video_ids)
-                    )
-
-                    if should_render:
-                        st.markdown(
-                            f"[🎬 Recorded lecture video on YouTube]({chosen_video})"
-                        )
-
-                    for cid in video_ids:
-                        seen_videos.add(cid)
+                    for maybe_vid in [video, youtube_link]:
+                        if _is_url(maybe_vid):
+                            cid = _canon_video(maybe_vid)
+                            if cid not in seen_videos:
+                                st.markdown(
+                                    f"[🎬 Recorded lecture video on YouTube]({maybe_vid})"
+                                )
+                                seen_videos.add(cid)
                     # links/resources inline
                     if grammarbook_link:
                         st.markdown(f"- [📘 Grammar Book (Notes)]({grammarbook_link})")
@@ -4215,15 +4209,13 @@ if tab == "My Course":
             else:
                 # Fallback: show top-level resources even if there are no section keys
                 showed = False
-                chosen_video, video_ids = _pick_primary_video(
-                    info.get("video"), info.get("youtube_link"), seen=seen_videos
-                )
-                if chosen_video and (
-                    not video_ids or any(cid not in seen_videos for cid in video_ids)
-                ):
-                    st.markdown(
-                        f"[🎬 Recorded lecture video on YouTube]({chosen_video})"
-                    )
+                if info.get("video"):
+                    cid = _canon_video(info["video"])
+                    if cid not in seen_videos:
+                        st.markdown(
+                            f"[🎬 Recorded lecture video on YouTube]({info['video']})"
+                        )
+                        seen_videos.add(cid)
                     showed = True
 
                 for cid in video_ids:
