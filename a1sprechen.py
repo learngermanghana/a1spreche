@@ -4120,6 +4120,34 @@ if tab == "My Course":
 
                 return preferred_url, canon_ids
 
+            def _render_coursebook_video_resource(
+                video_url: Optional[str],
+                seen: set[str],
+            ) -> None:
+                """Embed the lecture video with a preview and optional new-tab link."""
+
+                if not _is_url(video_url):
+                    return
+
+                canonical_id = _canon_video(str(video_url))
+                if canonical_id in seen:
+                    return
+
+                seen.add(canonical_id)
+
+                safe_url = html.escape(str(video_url))
+                st.markdown("**🎬 Recorded lecture video**")
+                st.video(video_url)
+                st.markdown(
+                    (
+                        "<div style=\"margin-top:-0.35rem;margin-bottom:1.1rem;\">"
+                        f"<a href=\"{safe_url}\" target=\"_blank\" rel=\"noopener noreferrer\">"
+                        "Open video in a new tab ↗️"
+                        "</a></div>"
+                    ),
+                    unsafe_allow_html=True,
+                )
+
             def pick_sections(day_info: dict):
                 """Find any section keys present for this lesson across levels."""
                 candidates = [
@@ -4177,13 +4205,7 @@ if tab == "My Course":
                         st.markdown(f"###### {icon} Chapter {chapter}")
                     # videos (embed once)
                     for maybe_vid in [video, youtube_link]:
-                        if _is_url(maybe_vid):
-                            cid = _canon_video(maybe_vid)
-                            if cid not in seen_videos:
-                                st.markdown(
-                                    f"[🎬 Recorded lecture video on YouTube]({maybe_vid})"
-                                )
-                                seen_videos.add(cid)
+                        _render_coursebook_video_resource(maybe_vid, seen_videos)
                     # links/resources inline
                     if grammarbook_link:
                         st.markdown(f"- [📘 Grammar Book (Notes)]({grammarbook_link})")
@@ -4210,12 +4232,7 @@ if tab == "My Course":
                 # Fallback: show top-level resources even if there are no section keys
                 showed = False
                 if info.get("video"):
-                    cid = _canon_video(info["video"])
-                    if cid not in seen_videos:
-                        st.markdown(
-                            f"[🎬 Recorded lecture video on YouTube]({info['video']})"
-                        )
-                        seen_videos.add(cid)
+                    _render_coursebook_video_resource(info["video"], seen_videos)
                     showed = True
 
                 for cid in video_ids:
