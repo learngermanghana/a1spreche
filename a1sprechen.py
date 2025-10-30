@@ -62,7 +62,7 @@ from flask import Flask
 from auth import auth_bp
 from src.routes.health import register_health_route
 from src.group_schedules import load_group_schedules
-from src.course_schedule import session_summary_for_date
+from src.course_schedule import session_summary_for_date, session_details_for_date
 from src.blog_feed import fetch_blog_feed
 from src.blog_cards_widget import render_blog_cards
 import src.schedule as _schedule
@@ -5060,12 +5060,36 @@ if tab == "My Course":
 
                 _now = _dt.now(_timezone.utc)
                 nxt_start, nxt_end, nxt_label = _compute_next_class_instance(_now)
-                next_topic_label = None
+                next_topic_label: Optional[str] = None
+                next_session_items: List[str] = []
                 if nxt_start and class_name:
+                    next_session_details = None
                     try:
-                        next_topic_label = session_summary_for_date(class_name, nxt_start.date())
+                        next_session_details = session_details_for_date(
+                            class_name,
+                            nxt_start.date(),
+                        )
                     except Exception:
-                        next_topic_label = None
+                        next_session_details = None
+
+                    if next_session_details:
+                        next_session_items = list(next_session_details.get("sessions") or [])
+                        day_number = next_session_details.get("day_number")
+                        summary = " • ".join(next_session_items)
+                        if summary:
+                            if isinstance(day_number, int):
+                                next_topic_label = f"Day {day_number} — {summary}"
+                            else:
+                                next_topic_label = summary
+
+                    if not next_topic_label:
+                        try:
+                            next_topic_label = session_summary_for_date(
+                                class_name,
+                                nxt_start.date(),
+                            )
+                        except Exception:
+                            next_topic_label = None
                 if nxt_start and nxt_end:
                     start_ms = int(nxt_start.timestamp() * 1000)
                     now_ms   = int(_now.timestamp() * 1000)
@@ -5075,6 +5099,11 @@ if tab == "My Course":
                         info_bits.append(f"**Topic:** {next_topic_label}")
                     info_bits.append(f"**Starts in:** {time_left_label}")
                     st.info("  •  ".join(info_bits), icon="⏰")
+                    if next_session_items:
+                        agenda_lines = "\n".join(f"- {item}" for item in next_session_items)
+                        st.markdown(
+                            "**This class covers:**\n\n" + agenda_lines
+                        )
                     if components:
                         components.html(
                             f"""

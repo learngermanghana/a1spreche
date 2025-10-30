@@ -988,6 +988,47 @@ def _format_sessions(sessions: Iterable[Dict[str, Any]]) -> Optional[str]:
     return " • ".join(formatted)
 
 
+def session_details_for_date(
+    class_name: str,
+    session_date: date,
+) -> Optional[Dict[str, Any]]:
+    """Return structured session details for ``session_date``.
+
+    The result contains the day number (when provided in the schedule) and a
+    list of formatted session labels describing each activity on that day.
+    """
+
+    schedule = get_schedule_for_class(class_name)
+    if not schedule:
+        return None
+
+    target = session_date.isoformat()
+    for day in _iter_days(schedule):
+        if str(day.get("date")) != target:
+            continue
+
+        sessions = day.get("sessions", [])
+        formatted_sessions: List[str] = []
+        if isinstance(sessions, list):
+            for session in sessions:
+                if not isinstance(session, dict):
+                    continue
+                label = _format_session(session)
+                if label:
+                    formatted_sessions.append(label)
+
+        if not formatted_sessions:
+            return None
+
+        day_number = day.get("day_number")
+        return {
+            "day_number": day_number if isinstance(day_number, int) else None,
+            "sessions": formatted_sessions,
+        }
+
+    return None
+
+
 def session_summary_for_date(class_name: str, session_date: date) -> Optional[str]:
     """Return a concise summary of the lessons for ``session_date``.
 
@@ -999,20 +1040,16 @@ def session_summary_for_date(class_name: str, session_date: date) -> Optional[st
         The calendar date of the upcoming class.
     """
 
-    schedule = get_schedule_for_class(class_name)
-    if not schedule:
+    details = session_details_for_date(class_name, session_date)
+    if not details:
         return None
 
-    target = session_date.isoformat()
-    for day in _iter_days(schedule):
-        if str(day.get("date")) == target:
-            sessions = day.get("sessions", [])
-            label = _format_sessions(sessions if isinstance(sessions, list) else [])
-            if not label:
-                return None
-            day_number = day.get("day_number")
-            if isinstance(day_number, int):
-                return f"Day {day_number} — {label}"
-            return label
-    return None
+    summary = " • ".join(details.get("sessions", []))
+    if not summary:
+        return None
+
+    day_number = details.get("day_number")
+    if isinstance(day_number, int):
+        return f"Day {day_number} — {summary}"
+    return summary
 
