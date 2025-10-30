@@ -3697,7 +3697,7 @@ if tab == "My Course":
 
         # ---- Load schedule (normalized) ----
         if not st.session_state.get("student_level"):
-            ensure_student_level()  
+            ensure_student_level()
         student_level = st.session_state.get("student_level", "A1")
         level_key = (student_level or "A1").strip().upper()
         schedules = load_level_schedules()
@@ -3705,6 +3705,88 @@ if tab == "My Course":
         if not schedule:
             st.warning(f"No lessons found for level **{level_key}**.")
             # Removed st.stop() so downstream sections (e.g., class board) can still render
+
+        student_row = st.session_state.get("student_row") or {}
+        _class_name_clean, class_name_lookup = _resolve_class_name(
+            student_row.get("ClassName", ""),
+            level=student_level,
+        )
+
+        next_coursebook_session = None
+        if class_name_lookup:
+            try:
+                next_coursebook_session = next_session_details(class_name_lookup)
+            except Exception:
+                next_coursebook_session = None
+
+        if next_coursebook_session:
+            plan_date = next_coursebook_session.get("date")
+            date_label = ""
+            if isinstance(plan_date, date):
+                date_label = plan_date.strftime("%a %d %b")
+            elif isinstance(next_coursebook_session.get("date_iso"), str):
+                date_label = str(next_coursebook_session.get("date_iso"))
+            elif plan_date:
+                try:
+                    date_label = str(plan_date)
+                except Exception:
+                    date_label = ""
+
+            weekday = next_coursebook_session.get("weekday")
+            if weekday and date_label and weekday not in date_label:
+                date_line = f"{weekday} • {date_label}"
+            elif date_label:
+                date_line = date_label
+            elif weekday:
+                date_line = weekday
+            else:
+                date_line = ""
+
+            day_number = next_coursebook_session.get("day_number")
+            heading_text = (
+                f"Next live class — Day {day_number} focus"
+                if isinstance(day_number, int)
+                else "Next live class focus"
+            )
+
+            session_labels = [
+                str(item).strip()
+                for item in next_coursebook_session.get("sessions") or []
+                if isinstance(item, str) and item.strip()
+            ]
+            agenda_html = ""
+            if session_labels:
+                agenda_items = "".join(
+                    f"<li style='margin:0 0 4px 0;'>{html.escape(label)}</li>"
+                    for label in session_labels
+                )
+                agenda_html = (
+                    "<ul style='margin:8px 0 0 18px;padding:0;color:#1f2933;font-size:0.95em;'>"
+                    f"{agenda_items}"
+                    "</ul>"
+                )
+
+            summary_line = next_coursebook_session.get("summary")
+            if session_labels and summary_line:
+                summary_line = None
+
+            info_html = [
+                "<div style='margin:0 0 16px 0;padding:16px;border-radius:12px;", 
+                "background:#f8fafc;border:1px solid #e2e8f0;'>",
+                f"<div style='font-weight:600;color:#0f172a;font-size:1.05rem;'>{html.escape(heading_text)}</div>",
+            ]
+            if date_line:
+                info_html.append(
+                    f"<div style='margin-top:4px;color:#334155;font-size:0.95rem;'>{html.escape(date_line)}</div>"
+                )
+            if summary_line:
+                info_html.append(
+                    f"<div style='margin-top:6px;color:#0f172a;font-size:0.95rem;'>{html.escape(summary_line)}</div>"
+                )
+            if agenda_html:
+                info_html.append(agenda_html)
+            info_html.append("</div>")
+            st.markdown("".join(info_html), unsafe_allow_html=True)
 
         # ---------- mini-tabs inside Course Book ----------
         if "coursebook_page" not in st.session_state:

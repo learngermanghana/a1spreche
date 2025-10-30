@@ -528,6 +528,47 @@ def session_details_for_date(
 
     return None
 
+def session_details_for_date(
+    class_name: str,
+    session_date: date,
+) -> Optional[Dict[str, Any]]:
+    """Return structured session details for ``session_date``.
+
+    The result contains the day number (when provided in the schedule) and a
+    list of formatted session labels describing each activity on that day.
+    """
+
+    schedule = get_schedule_for_class(class_name)
+    if not schedule:
+        return None
+
+    target = session_date.isoformat()
+    for day in _iter_days(schedule):
+        if str(day.get("date")) != target:
+            continue
+
+        sessions = day.get("sessions", [])
+        formatted_sessions: List[str] = []
+        if isinstance(sessions, list):
+            for session in sessions:
+                if not isinstance(session, dict):
+                    continue
+                label = _format_session(session)
+                if label:
+                    formatted_sessions.append(label)
+
+        if not formatted_sessions:
+            return None
+
+        day_number = day.get("day_number")
+        return {
+            "day_number": day_number if isinstance(day_number, int) else None,
+            "sessions": formatted_sessions,
+        }
+
+    return None
+
+
 def session_summary_for_date(class_name: str, session_date: date) -> Optional[str]:
     """Return a concise summary of the lessons for ``session_date``.
 
