@@ -22,7 +22,7 @@ from datetime import datetime
 from datetime import datetime as _dt
 from uuid import uuid4
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, List, Iterable, MutableMapping, Sequence
+from typing import Any, Dict, Optional, Tuple, List, Iterable, MutableMapping, Sequence, Collection
 from functools import lru_cache
 
 # ==== Third-Party Packages ====
@@ -4054,13 +4054,6 @@ if tab == "My Course":
                 except Exception:
                     return False
 
-            def _dedup(seq):
-                out, seen = [], set()
-                for s in seq:
-                    if s and s not in seen:
-                        seen.add(s); out.append(s)
-                return out
-
             def _canon_video(u: str) -> str:
                 """Stable id for a video url (YouTube => yt:ID, else normalized url)."""
                 if not u:
@@ -4092,6 +4085,40 @@ if tab == "My Course":
                     return u.strip().lower()
                 except Exception:
                     return str(u).strip().lower()
+
+            def _pick_primary_video(
+                *candidates: Optional[str],
+                seen: Optional[Collection[str]] = None,
+            ) -> tuple[str, List[str]]:
+                """Return the preferred playable url and all canonical ids for the candidates."""
+
+                preferred_url = ""
+                fallback_url = ""
+                canon_ids: List[str] = []
+                seen_ids: Collection[str] = seen or ()
+
+                for candidate in candidates:
+                    if not _is_url(candidate):
+                        continue
+
+                    candidate_url = str(candidate)
+                    cid = _canon_video(candidate_url) or candidate_url.strip().lower()
+                    if cid and cid not in canon_ids:
+                        canon_ids.append(cid)
+
+                    if not fallback_url:
+                        fallback_url = candidate_url
+
+                    if preferred_url:
+                        continue
+
+                    if not cid or cid not in seen_ids:
+                        preferred_url = candidate_url
+
+                if not preferred_url:
+                    preferred_url = fallback_url
+
+                return preferred_url, canon_ids
 
             def pick_sections(day_info: dict):
                 """Find any section keys present for this lesson across levels."""
@@ -4190,6 +4217,9 @@ if tab == "My Course":
                         )
                         seen_videos.add(cid)
                     showed = True
+
+                for cid in video_ids:
+                    seen_videos.add(cid)
                 if info.get("grammarbook_link"):
                     st.markdown(f"- [📘 Grammar Book (Notes)]({info['grammarbook_link']})")
                     showed = True
