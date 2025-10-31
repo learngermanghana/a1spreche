@@ -4239,12 +4239,20 @@ if tab == "My Course":
             else:
                 # Fallback: show top-level resources even if there are no section keys
                 showed = False
-                if info.get("video"):
-                    _render_coursebook_video_resource(info["video"], seen_videos)
-                    showed = True
+                video_ids: List[str] = []
+                if info.get("video") or info.get("youtube_link"):
+                    primary_video, video_ids = _pick_primary_video(
+                        info.get("video"),
+                        info.get("youtube_link"),
+                        seen=seen_videos,
+                    )
+                    if primary_video:
+                        _render_coursebook_video_resource(primary_video, seen_videos)
+                        showed = True
 
                 for cid in video_ids:
-                    seen_videos.add(cid)
+                    if cid:
+                        seen_videos.add(cid)
                 if info.get("grammarbook_link"):
                     st.markdown(f"- [📘 Grammar Book (Notes)]({info['grammarbook_link']})")
                     showed = True
