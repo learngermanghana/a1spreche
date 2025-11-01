@@ -1642,6 +1642,18 @@ def render_sidebar_published():
         st.session_state.pop("_chat_focus_tab", None)
         st.session_state["need_rerun"] = True
 
+    def _go_vocab_trainer():
+        st.session_state["nav_sel"] = "Schreiben Trainer"
+        st.session_state["main_tab_select"] = "Schreiben Trainer"
+        # Ensure the Schreiben tab opens with the vocab trainer sub-tab selected
+        student_code = st.session_state.get("student_code")
+        if student_code:
+            st.session_state[f"schreiben_sub_tab_{student_code}"] = "Vocab Trainer"
+        st.session_state["schreiben_pending_subtab"] = "Vocab Trainer"
+        _qp_set_safe(tab="Vocab Trainer")
+        st.session_state.pop("_chat_focus_tab", None)
+        st.session_state["need_rerun"] = True
+
     def _go_course_submit():
         st.session_state["nav_sel"] = "My Course"
         st.session_state["main_tab_select"] = "My Course"
@@ -1658,6 +1670,7 @@ def render_sidebar_published():
         st.sidebar.button("📊 Results & Resources",      width="stretch", on_click=_go, args=("My Results and Resources",))
         st.sidebar.button("🗣️ Chat • Grammar • Exams", width="stretch", on_click=_go_chat_main)
         st.sidebar.button("✅ Submit Assignment",       width="stretch", on_click=_go_course_submit)
+        st.sidebar.button("📚 Vocab Trainer",           width="stretch", on_click=_go_vocab_trainer)
         st.sidebar.button("✍️ Schreiben Trainer",        width="stretch", on_click=_go, args=("Schreiben Trainer",))
         st.sidebar.button("🎥 Join on Zoom",             width="stretch", on_click=_go_zoom_class)
         st.sidebar.button("❓ Class Notes & Q&A",         width="stretch", on_click=_go_post_qna)
