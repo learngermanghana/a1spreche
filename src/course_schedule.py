@@ -425,7 +425,7 @@ _SCHEDULE_JSON = """
       {
   "course": "B1",
   "title": "Course Schedule: B1",
-  "class_name": "B1 November 2025 Klasse",
+  "class_name": "B1 Koln Klasse",
   "start_date_iso": "2025-11-20",
   "start_date_human": "Thursday, 20 November 2025",
   "timezone": "Africa/Accra",
