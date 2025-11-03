@@ -3004,21 +3004,36 @@ if tab == "Dashboard":
             after_end = bool(end_date_obj and today > end_date_obj)
             day_indices = [week_days.index(d) for d in days if d in week_days] if isinstance(days, list) else []
 
-            def get_next_sessions(from_date, weekday_indices, limit=3, end_date=None):
+            def get_next_sessions(
+                from_date,
+                weekday_indices,
+                limit=3,
+                end_date=None,
+                include_start_date=False,
+            ):
                 results = []
-                if not weekday_indices:
-                    return results
-                check_date = from_date
+                if include_start_date and (not end_date or from_date <= end_date):
+                    results.append(from_date)
+
+                check_date = from_date if not results else from_date + _td_local(days=1)
+
                 while len(results) < limit:
                     if end_date and check_date > end_date:
                         break
-                    if check_date.weekday() in weekday_indices:
+                    if not weekday_indices or check_date.weekday() in weekday_indices:
                         results.append(check_date)
                     check_date += _td_local(days=1)
+
                 return results
 
             if before_start and start_date_obj:
-                upcoming_sessions = get_next_sessions(start_date_obj, day_indices, limit=3, end_date=end_date_obj)
+                upcoming_sessions = get_next_sessions(
+                    start_date_obj,
+                    day_indices,
+                    limit=3,
+                    end_date=end_date_obj,
+                    include_start_date=True,
+                )
             elif after_end:
                 upcoming_sessions = []
             else:
