@@ -69,7 +69,7 @@ def load_group_schedules() -> Dict[str, Dict[str, Any]]:
         "B1 Koln Klasse": {
             "days": ["Thursday", "Friday"],
             "time": "7:30pm–9:00pm",
-            "start_date": "2025-11-22",
+            "start_date": "2025-11-20",
             "end_date": "2026-02-27",
             "doc_url": "https://drive.google.com/file/d/1sQ1ePNRapuVcih7BnhNNBQrO3SkM9K-O/view?usp=sharing",
         },
