@@ -691,13 +691,24 @@ def _iter_days(schedule: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
             yield day
 
 def _format_session(session: Dict[str, Any]) -> Optional[str]:
-    title = session.get("title")
-    if isinstance(title, str) and title.strip():
-        cleaned = " ".join(title.split())
-        note = session.get("note")
-        if isinstance(note, str) and note.strip():
-            return f"{cleaned} ({note.strip()})"
-        return cleaned
+    """Return a human readable label for a schedule session."""
+
+    def _normalise_text(value: Any) -> Optional[str]:
+        if isinstance(value, str):
+            cleaned = " ".join(value.split())
+            return cleaned if cleaned else None
+        if value is None:
+            return None
+        coerced = str(value).strip()
+        return coerced or None
+
+    title_label = _normalise_text(session.get("title"))
+    note_label = _normalise_text(session.get("note"))
+
+    if title_label:
+        if note_label:
+            return f"{title_label} ({note_label})"
+        return title_label
 
     chapter = session.get("chapter")
     session_type = session.get("type")
@@ -708,10 +719,9 @@ def _format_session(session: Dict[str, Any]) -> Optional[str]:
         parts.append(f"Chapter {chapter.strip()}")
     label = " — ".join(parts)
     if not label:
-        return None
-    note = session.get("note")
-    if isinstance(note, str) and note.strip():
-        label = f"{label} ({note.strip()})"
+        return title_label
+    if note_label:
+        label = f"{label} ({note_label})"
     return label
 
 def _format_sessions(sessions: Iterable[Dict[str, Any]]) -> Optional[str]:
