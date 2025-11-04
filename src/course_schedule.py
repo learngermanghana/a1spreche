@@ -425,6 +425,46 @@ _SCHEDULE_JSON = """
     }
   ],
   "version": "2025-10-30T00:00:00Z"
+    {
+      "course": "B1",
+      "title": "Course Schedule: B1",
+      "class_name": "B1 Köln Klasse",
+      "start_date_iso": "2025-11-20",
+      "start_date_human": "Thursday, 20 November 2025",
+      "timezone": "Africa/Accra",
+      "days": [
+        { "day_number": 1, "date": "2025-11-20", "weekday": "Thursday", "sessions": [ { "chapter": "1.1", "type": "Übung", "note": "Traumwelten" } ] },
+        { "day_number": 2, "date": "2025-11-21", "weekday": "Friday", "sessions": [ { "chapter": "1.2", "type": "Übung", "note": "Freundes für Leben" } ] },
+        { "day_number": 3, "date": "2025-11-27", "weekday": "Thursday", "sessions": [ { "chapter": "1.3", "type": "Übung", "note": "Erfolgsgeschichten" } ] },
+        { "day_number": 4, "date": "2025-11-28", "weekday": "Friday", "sessions": [ { "chapter": "2.4", "type": "Übung", "note": "Wohnung suchen" } ] },
+        { "day_number": 5, "date": "2025-12-04", "weekday": "Thursday", "sessions": [ { "chapter": "2.5", "type": "Übung", "note": "Der Besichtigungstermin" } ] },
+        { "day_number": 6, "date": "2025-12-05", "weekday": "Friday", "sessions": [ { "chapter": "2.6", "type": "Übung", "note": "Leben in der Stadt oder auf dem Land?" } ] },
+        { "day_number": 7, "date": "2025-12-11", "weekday": "Thursday", "sessions": [ { "chapter": "3.7", "type": "Übung", "note": "Fast Food vs. Hausmannskost" } ] },
+        { "day_number": 8, "date": "2025-12-12", "weekday": "Friday", "sessions": [ { "chapter": "3.8", "type": "Übung", "note": "Alles für die Gesundheit" } ] },
+        { "day_number": 9, "date": "2025-12-18", "weekday": "Thursday", "sessions": [ { "chapter": "3.9", "type": "Übung", "note": "Work-Life-Balance im modernen Arbeitsumfeld" } ] },
+        { "day_number": 10, "date": "2025-12-19", "weekday": "Friday", "sessions": [ { "chapter": "4.10", "type": "Übung", "note": "Digitale Auszeit und Selbstfürsorge" } ] },
+        { "day_number": 11, "date": "2026-01-01", "weekday": "Thursday", "sessions": [ { "chapter": "4.11", "type": "Übung", "note": "Teamspiele und Kooperative Aktivitäten" } ] },
+        { "day_number": 12, "date": "2026-01-02", "weekday": "Friday", "sessions": [ { "chapter": "4.12", "type": "Übung", "note": "Abenteuer in der Natur" } ] },
+        { "day_number": 13, "date": "2026-01-08", "weekday": "Thursday", "sessions": [ { "chapter": "4.13", "type": "Übung", "note": "Eigene Filmkritik schreiben" } ] },
+        { "day_number": 14, "date": "2026-01-09", "weekday": "Friday", "sessions": [ { "chapter": "5.14", "type": "Übung", "note": "Traditionelles vs. digitales Lernen" } ] },
+        { "day_number": 15, "date": "2026-01-15", "weekday": "Thursday", "sessions": [ { "chapter": "5.15", "type": "Übung", "note": "Medien und Arbeiten im Homeoffice" } ] },
+        { "day_number": 16, "date": "2026-01-16", "weekday": "Friday", "sessions": [ { "chapter": "5.16", "type": "Übung", "note": "Prüfungsangst und Stressbewältigung" } ] },
+        { "day_number": 17, "date": "2026-01-22", "weekday": "Thursday", "sessions": [ { "chapter": "5.17", "type": "Übung", "note": "Wie lernt man am besten?" } ] },
+        { "day_number": 18, "date": "2026-01-23", "weekday": "Friday", "sessions": [ { "chapter": "6.18", "type": "Übung", "note": "Wege zum Wunschberuf" } ] },
+        { "day_number": 19, "date": "2026-01-29", "weekday": "Thursday", "sessions": [ { "chapter": "6.19", "type": "Übung", "note": "Das Vorstellungsgespräch" } ] },
+        { "day_number": 20, "date": "2026-01-30", "weekday": "Friday", "sessions": [ { "chapter": "6.20", "type": "Übung", "note": "Wie wird man? (Ausbildung und Qu)" } ] },
+        { "day_number": 21, "date": "2026-02-05", "weekday": "Thursday", "sessions": [ { "chapter": "7.21", "type": "Übung", "note": "Lebensformen heute – Familie, Wohngemeinschaft" } ] },
+        { "day_number": 22, "date": "2026-02-06", "weekday": "Friday", "sessions": [ { "chapter": "7.22", "type": "Übung", "note": "Was ist dir in einer Beziehung wichtig?" } ] },
+        { "day_number": 23, "date": "2026-02-12", "weekday": "Thursday", "sessions": [ { "chapter": "7.23", "type": "Übung", "note": "Erstes Date – Typische Situationen" } ] },
+        { "day_number": 24, "date": "2026-02-13", "weekday": "Friday", "sessions": [ { "chapter": "8.24", "type": "Übung", "note": "Konsum und Nachhaltigkeit" } ] },
+        { "day_number": 25, "date": "2026-02-19", "weekday": "Thursday", "sessions": [ { "chapter": "8.25", "type": "Übung", "note": "Online einkaufen – Rechte und Risiken" } ] },
+        { "day_number": 26, "date": "2026-02-20", "weekday": "Friday", "sessions": [ { "chapter": "9.26", "type": "Übung", "note": "Reiseprobleme und Lösungen" } ] },
+        { "day_number": 27, "date": "2026-02-26", "weekday": "Thursday", "sessions": [ { "chapter": "10.27", "type": "Übung", "note": "Umweltfreundlich im Alltag" } ] },
+        { "day_number": 28, "date": "2026-02-27", "weekday": "Friday", "sessions": [ { "chapter": "10.28", "type": "Übung", "note": "Klimafreundlich leben" } ] }
+      ],
+      "generated_note": "Schedule generated by Learn Language Education Academy."
+    }
+  ]
 }
 """
 
