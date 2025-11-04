@@ -65,6 +65,12 @@ def load_group_schedules() -> Dict[str, Dict[str, Any]]:
             "start_date": "2025-08-07",
             "end_date": "2025-11-07",
             "doc_url": "https://drive.google.com/file/d/1CaLw9RO6H8JOr5HmwWOZA2O7T-bVByi7/view?usp=sharing",
+        "B1 Koln Klasse": {
+            "days": ["Thursday", "Friday"],
+            "time": "7:30pm–9:00pm",
+            "start_date": "2025-11-20",
+            "end_date": "2026-02-27",
+            "doc_url": "https://drive.google.com/file/d/1sQ1ePNRapuVcih7BnhNNBQrO3SkM9K-O/view?usp=sharing",
         },
         "B2 Munich Klasse": {
             "days": ["Friday", "Saturday"],
