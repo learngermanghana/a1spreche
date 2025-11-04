@@ -3057,6 +3057,7 @@ if tab == "Dashboard":
                         )
 
                         agenda_html = ""
+                        summary_text = ""
                         session_plan = None
                         try:
                             session_plan = session_details_for_date(
@@ -3073,11 +3074,15 @@ if tab == "Dashboard":
                                 if isinstance(item, str) and item.strip()
                             ]
                             if session_labels:
+                                day_number = session_plan.get("day_number")
+                                summary_text = " • ".join(session_labels)
+                                if isinstance(day_number, int):
+                                    summary_text = f"Day {day_number} — {summary_text}"
+
                                 agenda_items = "".join(
                                     f"<li style='margin:0 0 4px 0;'>{html.escape(label)}</li>"
                                     for label in session_labels
                                 )
-                                day_number = session_plan.get("day_number")
                                 heading_text = (
                                     f"Day {day_number} focus"
                                     if isinstance(day_number, int)
@@ -3092,9 +3097,27 @@ if tab == "Dashboard":
                                     "</div>"
                                 )
 
+                        if not summary_text and class_name_lookup:
+                            try:
+                                fallback_summary = session_summary_for_date(
+                                    class_name_lookup,
+                                    session_date,
+                                )
+                            except Exception:
+                                fallback_summary = None
+                            if fallback_summary:
+                                summary_text = fallback_summary
+
+                        summary_html = (
+                            "<div style='margin-top:2px;font-size:0.95em;color:#0f172a;font-weight:600;'>"
+                            f"{html.escape(summary_text)}"
+                            "</div>"
+                        ) if summary_text else ""
+
                         items.append(
                             "<li style='margin-bottom:12px;'>"
                             f"{base_line}"
+                            f"{summary_html}"
                             f"{agenda_html}"
                             "</li>"
                         )
@@ -5310,7 +5333,11 @@ if tab == "My Course":
                         next_session_details = None
 
                     if next_session_details:
-                        next_session_items = list(next_session_details.get("sessions") or [])
+                        next_session_items = [
+                            str(item).strip()
+                            for item in next_session_details.get("sessions") or []
+                            if isinstance(item, str) and item.strip()
+                        ]
                         day_number = next_session_details.get("day_number")
                         summary = " • ".join(next_session_items)
                         if summary:
@@ -5331,10 +5358,13 @@ if tab == "My Course":
                     start_ms = int(nxt_start.timestamp() * 1000)
                     now_ms   = int(_now.timestamp() * 1000)
                     time_left_label = _human_delta_ms(start_ms - now_ms) if now_ms < start_ms else "now"
-                    info_bits = [f"**Next class:** {nxt_label}"]
+                    display_label = nxt_label
                     if next_topic_label:
-                        info_bits.append(f"**Topic:** {next_topic_label}")
-                    info_bits.append(f"**Starts in:** {time_left_label}")
+                        display_label = f"{nxt_label} — {next_topic_label}"
+                    info_bits = [
+                        f"**Next class:** {display_label}",
+                        f"**Starts in:** {time_left_label}",
+                    ]
                     st.info("  •  ".join(info_bits), icon="⏰")
                     if next_session_items:
                         agenda_lines = "\n".join(f"- {item}" for item in next_session_items)
