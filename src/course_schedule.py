@@ -701,14 +701,27 @@ def _format_session(session: Dict[str, Any]) -> Optional[str]:
 
     chapter = session.get("chapter")
     session_type = session.get("type")
-    parts: List[str] = []
-    if isinstance(session_type, str) and session_type.strip():
-        parts.append(session_type.strip())
+
+    chapter_text: Optional[str]
     if isinstance(chapter, str) and chapter.strip():
-        parts.append(f"Chapter {chapter.strip()}")
-    label = " — ".join(parts)
+        chapter_text = f"Chapter {chapter.strip()}"
+    else:
+        chapter_text = None
+
+    type_text: Optional[str]
+    if isinstance(session_type, str) and session_type.strip():
+        type_text = session_type.strip()
+    else:
+        type_text = None
+
+    if chapter_text and type_text:
+        label = f"{chapter_text} — {type_text}"
+    else:
+        label = chapter_text or type_text
+
     if not label:
         return None
+
     note = session.get("note")
     if isinstance(note, str) and note.strip():
         label = f"{label} ({note.strip()})"
@@ -734,46 +747,6 @@ def session_details_for_date(
     The result contains the day number (when provided in the schedule) and a
     list of formatted session labels describing each activity on that day.
     """
-    schedule = get_schedule_for_class(class_name)
-    if not schedule:
-        return None
-
-    target = session_date.isoformat()
-    for day in _iter_days(schedule):
-        if str(day.get("date")) != target:
-            continue
-
-        sessions = day.get("sessions", [])
-        formatted_sessions: List[str] = []
-        if isinstance(sessions, list):
-            for session in sessions:
-                if not isinstance(session, dict):
-                    continue
-                label = _format_session(session)
-                if label:
-                    formatted_sessions.append(label)
-
-        if not formatted_sessions:
-            return None
-
-        day_number = day.get("day_number")
-        return {
-            "day_number": day_number if isinstance(day_number, int) else None,
-            "sessions": formatted_sessions,
-        }
-
-    return None
-
-def session_details_for_date(
-    class_name: str,
-    session_date: date,
-) -> Optional[Dict[str, Any]]:
-    """Return structured session details for ``session_date``.
-
-    The result contains the day number (when provided in the schedule) and a
-    list of formatted session labels describing each activity on that day.
-    """
-
     schedule = get_schedule_for_class(class_name)
     if not schedule:
         return None
