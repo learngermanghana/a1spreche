@@ -714,9 +714,69 @@ _SCHEDULE_JSON = """
 }
 """
 
+def _chapter_label(chapter: Any) -> Optional[str]:
+    if not isinstance(chapter, str):
+        return None
+    cleaned = chapter.strip()
+    if not cleaned:
+        return None
+    if cleaned[0].isdigit():
+        return f"Chapter {cleaned}"
+    return cleaned
+
+
+def _session_title_from_fields(session: Dict[str, Any]) -> Optional[str]:
+    chapter_label = _chapter_label(session.get("chapter"))
+    session_type = session.get("type")
+    session_type_label = session_type.strip() if isinstance(session_type, str) else None
+
+    if chapter_label and session_type_label:
+        return f"{chapter_label} - {session_type_label}"
+    if chapter_label:
+        return chapter_label
+    if session_type_label:
+        return session_type_label
+    return None
+
+
+def _ensure_session_title(session: Dict[str, Any]) -> None:
+    existing_title = session.get("title")
+    if isinstance(existing_title, str) and existing_title.strip():
+        session["title"] = " ".join(existing_title.split())
+        return
+
+    generated = _session_title_from_fields(session)
+    if generated:
+        session["title"] = generated
+
+
+def _normalize_schedule_titles(data: Dict[str, Any]) -> None:
+    schedules = data.get("schedules") if isinstance(data, dict) else None
+    if not isinstance(schedules, list):
+        return
+
+    for schedule in schedules:
+        if not isinstance(schedule, dict):
+            continue
+        days = schedule.get("days")
+        if not isinstance(days, list):
+            continue
+        for day in days:
+            if not isinstance(day, dict):
+                continue
+            sessions = day.get("sessions")
+            if not isinstance(sessions, list):
+                continue
+            for session in sessions:
+                if isinstance(session, dict):
+                    _ensure_session_title(session)
+
+
 @lru_cache(maxsize=1)
 def _load_schedule_data() -> Dict[str, Any]:
-    return json.loads(_SCHEDULE_JSON)
+    data = json.loads(_SCHEDULE_JSON)
+    _normalize_schedule_titles(data)
+    return data
 
 def all_schedules() -> List[Dict[str, Any]]:
     """Return all course schedules as a list."""
