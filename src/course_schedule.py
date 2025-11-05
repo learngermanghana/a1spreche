@@ -241,7 +241,7 @@ _SCHEDULE_JSON = """
           "date": "2025-11-10",
           "weekday": "Monday",
           "sessions": [
-            { "chapter": "0.1", "type": "Lesen & Hören", "title": "Chapter 0.1 - Lesen & Hören" }
+            { "chapter": "0.1", "type": "Lesen & Hören" }
           ]
         },
         {
@@ -249,8 +249,8 @@ _SCHEDULE_JSON = """
           "date": "2025-11-11",
           "weekday": "Tuesday",
           "sessions": [
-            { "chapter": "0.2", "type": "Lesen & Hören", "title": "Chapter 0.2 - Lesen & Hören" },
-            { "chapter": "1.1", "type": "Lesen & Hören", "title": "Chapter 1.1 - Lesen & Hören" }
+            { "chapter": "0.2", "type": "Lesen & Hören" },
+            { "chapter": "1.1", "type": "Lesen & Hören" }
           ]
         },
         {
@@ -258,8 +258,8 @@ _SCHEDULE_JSON = """
           "date": "2025-11-12",
           "weekday": "Wednesday",
           "sessions": [
-            { "chapter": "1.1", "type": "Schreiben & Sprechen", "title": "Chapter 1.1 - Schreiben & Sprechen" },
-            { "chapter": "1.2", "type": "Lesen & Hören", "title": "Chapter 1.2 - Lesen & Hören" }
+            { "chapter": "1.1", "type": "Schreiben & Sprechen" },
+            { "chapter": "1.2", "type": "Lesen & Hören" }
           ]
         },
         {
@@ -267,7 +267,7 @@ _SCHEDULE_JSON = """
           "date": "2025-11-17",
           "weekday": "Monday",
           "sessions": [
-            { "chapter": "2", "type": "Lesen & Hören", "title": "Chapter 2 - Lesen & Hören" }
+            { "chapter": "2", "type": "Lesen & Hören" }
           ]
         },
         {
@@ -275,7 +275,7 @@ _SCHEDULE_JSON = """
           "date": "2025-11-18",
           "weekday": "Tuesday",
           "sessions": [
-            { "chapter": "1.2", "type": "Schreiben & Sprechen", "title": "Chapter 1.2 - Schreiben & Sprechen", "note": "Recap" }
+            { "chapter": "1.2", "type": "Schreiben & Sprechen", "note": "Recap" }
           ]
         },
         {
@@ -283,7 +283,7 @@ _SCHEDULE_JSON = """
           "date": "2025-11-19",
           "weekday": "Wednesday",
           "sessions": [
-            { "chapter": "2.3", "type": "Schreiben & Sprechen", "title": "Chapter 2.3 - Schreiben & Sprechen" }
+            { "chapter": "2.3", "type": "Schreiben & Sprechen" }
           ]
         },
         {
@@ -291,7 +291,7 @@ _SCHEDULE_JSON = """
           "date": "2025-11-24",
           "weekday": "Monday",
           "sessions": [
-            { "chapter": "3", "type": "Lesen & Hören", "title": "Chapter 3 - Lesen & Hören" }
+            { "chapter": "3", "type": "Lesen & Hören" }
           ]
         },
         {
@@ -299,7 +299,7 @@ _SCHEDULE_JSON = """
           "date": "2025-11-25",
           "weekday": "Tuesday",
           "sessions": [
-            { "chapter": "4", "type": "Lesen & Hören", "title": "Chapter 4 - Lesen & Hören" }
+            { "chapter": "4", "type": "Lesen & Hören" }
           ]
         },
         {
@@ -307,7 +307,7 @@ _SCHEDULE_JSON = """
           "date": "2025-11-26",
           "weekday": "Wednesday",
           "sessions": [
-            { "chapter": "5", "type": "Lesen & Hören", "title": "Chapter 5 - Lesen & Hören" }
+            { "chapter": "5", "type": "Lesen & Hören" }
           ]
         },
         {
@@ -315,8 +315,8 @@ _SCHEDULE_JSON = """
           "date": "2025-12-01",
           "weekday": "Monday",
           "sessions": [
-            { "chapter": "6", "type": "Lesen & Hören", "title": "Chapter 6 - Lesen & Hören" },
-            { "chapter": "2.4", "type": "Schreiben & Sprechen", "title": "Chapter 2.4 - Schreiben & Sprechen" }
+            { "chapter": "6", "type": "Lesen & Hören" },
+            { "chapter": "2.4", "type": "Schreiben & Sprechen" }
           ]
         },
         {
@@ -324,7 +324,7 @@ _SCHEDULE_JSON = """
           "date": "2025-12-02",
           "weekday": "Tuesday",
           "sessions": [
-            { "chapter": "7", "type": "Lesen & Hören", "title": "Chapter 7 - Lesen & Hören" }
+            { "chapter": "7", "type": "Lesen & Hören" }
           ]
         },
         {
@@ -332,7 +332,7 @@ _SCHEDULE_JSON = """
           "date": "2025-12-03",
           "weekday": "Wednesday",
           "sessions": [
-            { "chapter": "8", "type": "Lesen & Hören", "title": "Chapter 8 - Lesen & Hören" }
+            { "chapter": "8", "type": "Lesen & Hören" }
           ]
         },
         {
@@ -340,7 +340,7 @@ _SCHEDULE_JSON = """
           "date": "2025-12-08",
           "weekday": "Monday",
           "sessions": [
-            { "chapter": "3.5", "type": "Schreiben & Sprechen", "title": "Chapter 3.5 - Schreiben & Sprechen" }
+            { "chapter": "3.5", "type": "Schreiben & Sprechen" }
           ]
         },
         {
@@ -348,7 +348,7 @@ _SCHEDULE_JSON = """
           "date": "2025-12-09",
           "weekday": "Tuesday",
           "sessions": [
-            { "chapter": "3.6", "type": "Schreiben & Sprechen", "title": "Chapter 3.6 - Schreiben & Sprechen" }
+            { "chapter": "3.6", "type": "Schreiben & Sprechen" }
           ]
         },
         {
@@ -356,7 +356,7 @@ _SCHEDULE_JSON = """
           "date": "2025-12-10",
           "weekday": "Wednesday",
           "sessions": [
-            { "chapter": "4.7", "type": "Schreiben & Sprechen", "title": "Chapter 4.7 - Schreiben & Sprechen" }
+            { "chapter": "4.7", "type": "Schreiben & Sprechen" }
           ]
         },
         {
@@ -364,8 +364,8 @@ _SCHEDULE_JSON = """
           "date": "2025-12-15",
           "weekday": "Monday",
           "sessions": [
-            { "chapter": "9", "type": "Lesen & Hören", "title": "Chapter 9 - Lesen & Hören" },
-            { "chapter": "10", "type": "Lesen & Hören", "title": "Chapter 10 - Lesen & Hören" }
+            { "chapter": "9", "type": "Lesen & Hören" },
+            { "chapter": "10", "type": "Lesen & Hören" }
           ]
         },
         {
@@ -373,7 +373,7 @@ _SCHEDULE_JSON = """
           "date": "2025-12-16",
           "weekday": "Tuesday",
           "sessions": [
-            { "chapter": "11", "type": "Lesen & Hören", "title": "Chapter 11 - Lesen & Hören" }
+            { "chapter": "11", "type": "Lesen & Hören" }
           ]
         },
         {
@@ -381,8 +381,8 @@ _SCHEDULE_JSON = """
           "date": "2025-12-17",
           "weekday": "Wednesday",
           "sessions": [
-            { "chapter": "12.1", "type": "Lesen & Hören", "title": "Chapter 12.1 - Lesen & Hören" },
-            { "chapter": "12.1", "type": "Schreiben & Sprechen", "title": "Chapter 12.1 - Schreiben & Sprechen", "note": "including 5.8" }
+            { "chapter": "12.1", "type": "Lesen & Hören" },
+            { "chapter": "12.1", "type": "Schreiben & Sprechen", "note": "including 5.8" }
           ]
         },
         {
@@ -390,7 +390,7 @@ _SCHEDULE_JSON = """
           "date": "2025-12-22",
           "weekday": "Monday",
           "sessions": [
-            { "chapter": "5.9", "type": "Schreiben & Sprechen", "title": "Chapter 5.9 - Schreiben & Sprechen" }
+            { "chapter": "5.9", "type": "Schreiben & Sprechen" }
           ]
         },
         {
@@ -398,7 +398,7 @@ _SCHEDULE_JSON = """
           "date": "2025-12-23",
           "weekday": "Tuesday",
           "sessions": [
-            { "chapter": "6.10", "type": "Schreiben & Sprechen", "title": "Chapter 6.10 - Schreiben & Sprechen", "note": "Intro to letter writing" }
+            { "chapter": "6.10", "type": "Schreiben & Sprechen", "note": "Intro to letter writing" }
           ]
         },
         {
@@ -406,8 +406,8 @@ _SCHEDULE_JSON = """
           "date": "2026-01-05",
           "weekday": "Monday",
           "sessions": [
-            { "chapter": "13", "type": "Lesen & Hören", "title": "Chapter 13 - Lesen & Hören" },
-            { "chapter": "6.11", "type": "Schreiben & Sprechen", "title": "Chapter 6.11 - Schreiben & Sprechen" }
+            { "chapter": "13", "type": "Lesen & Hören" },
+            { "chapter": "6.11", "type": "Schreiben & Sprechen" }
           ]
         },
         {
@@ -415,8 +415,8 @@ _SCHEDULE_JSON = """
           "date": "2026-01-06",
           "weekday": "Tuesday",
           "sessions": [
-            { "chapter": "14.1", "type": "Lesen & Hören", "title": "Chapter 14.1 - Lesen & Hören" },
-            { "chapter": "7.12", "type": "Schreiben & Sprechen", "title": "Chapter 7.12 - Schreiben & Sprechen" }
+            { "chapter": "14.1", "type": "Lesen & Hören" },
+            { "chapter": "7.12", "type": "Schreiben & Sprechen" }
           ]
         },
         {
@@ -424,8 +424,8 @@ _SCHEDULE_JSON = """
           "date": "2026-01-07",
           "weekday": "Wednesday",
           "sessions": [
-            { "chapter": "14.2", "type": "Lesen & Hören", "title": "Chapter 14.2 - Lesen & Hören" },
-            { "chapter": "7.12", "type": "Schreiben & Sprechen", "title": "Chapter 7.12 - Schreiben & Sprechen" }
+            { "chapter": "14.2", "type": "Lesen & Hören" },
+            { "chapter": "7.12", "type": "Schreiben & Sprechen" }
           ]
         },
         {
@@ -433,7 +433,7 @@ _SCHEDULE_JSON = """
           "date": "2026-01-12",
           "weekday": "Monday",
           "sessions": [
-            { "chapter": "8.13", "type": "Schreiben & Sprechen", "title": "Chapter 8.13 - Schreiben & Sprechen" }
+            { "chapter": "8.13", "type": "Schreiben & Sprechen" }
           ]
         },
         {
@@ -441,7 +441,7 @@ _SCHEDULE_JSON = """
           "date": "2026-01-13",
           "weekday": "Tuesday",
           "sessions": [
-            { "chapter": "Exam tips", "type": "Schreiben & Sprechen", "title": "Exam tips - Schreiben & Sprechen", "note": "Recap" }
+            { "chapter": "Exam tips", "type": "Schreiben & Sprechen", "note": "Recap" }
           ]
         }
       ],
