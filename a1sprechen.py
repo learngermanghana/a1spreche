@@ -8713,6 +8713,12 @@ if tab == "Chat • Grammar • Exams":
         st.markdown("### 🤖 Assignment helper chat")
         st.caption("Paste the brief or ask follow-up questions – Herr Felix will guide your plan, not write it for you.")
 
+        def _focus_assignment_tab() -> None:
+            """Keep the Assignment Guide tab selected after actions that trigger reruns."""
+
+            st.session_state["_chat_focus_tab"] = "📘 Assignment Guide"
+            st.session_state[selector_key] = "📘 Assignment Guide"
+
         assignment_persist_enabled = _assignment_helper_persistence_enabled()
         assign_owner_value = (student_code_tc or "").strip().lower()
         prev_assign_owner = st.session_state.get(KEY_ASSIGN_OWNER)
@@ -8804,6 +8810,7 @@ if tab == "Chat • Grammar • Exams":
             )
             if assign_level != st.session_state.get(KEY_GRAM_LEVEL) and assign_level in GRAMMAR_LEVELS:
                 st.session_state[KEY_GRAM_LEVEL_SYNC] = assign_level
+                _focus_assignment_tab()
                 st.rerun()
             st.caption("Choose the CEFR level that matches your assignment.")
         with control_cols[1]:
@@ -8820,6 +8827,7 @@ if tab == "Chat • Grammar • Exams":
                             student_code_tc,
                         )
                 st.toast("Assignment helper chat cleared.")
+                _focus_assignment_tab()
                 st.rerun()
 
         if not assign_history:
@@ -8963,6 +8971,7 @@ if tab == "Chat • Grammar • Exams":
                         )
                 typing_placeholder.empty()
                 st.session_state[KEY_ASSIGN_HISTORY] = assign_history
+                _focus_assignment_tab()
                 st.rerun()
 
             if assignment_guides:
