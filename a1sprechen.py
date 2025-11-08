@@ -4421,9 +4421,8 @@ if tab == "My Course":
             translator_col, support_col = st.columns([1, 1.6])
             with translator_col:
                 st.markdown(
-                    "[🧠 Grammar Helper](https://www.falowen.app/?tab=Chat+%E2%80%A2+Grammar+%E2%80%A2+Exams&t=ijw4H_7TnhTgX0swRfZ3BqBqiilBBfV3spz9U1cwS5AvLUJDwVYRbnc3I_HuQoss)"
-                    " &nbsp; | &nbsp; "
-                    "[📝 Assignment Helper](https://www.falowen.app/?tab=Chat+%E2%80%A2+Grammar+%E2%80%A2+Exams&t=ijw4H_7TnhTgX0swRfZ3BqBqiilBBfV3spz9U1cwS5AvLUJDwVYRbnc3I_HuQoss)",
+                    "[🧠 Grammar Helper](https://chat.grammar.page) &nbsp; | &nbsp; "
+                    "[📝 Assignment Helper](https://chat.grammar.page)",
                     unsafe_allow_html=True,
                 )
             with support_col:
