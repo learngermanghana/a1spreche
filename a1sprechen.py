@@ -7915,6 +7915,7 @@ if tab == "Chat • Grammar • Exams":
     # Grammar keys: one set shared across the grammar widgets
     KEY_GRAM_TEXT      = "cchat_w_gram_text"
     KEY_GRAM_LEVEL     = "cchat_w_gram_level"
+    KEY_GRAM_LEVEL_SYNC = "_cchat_sync_gram_level"
     KEY_GRAM_ASK_BTN   = "cchat_w_gram_go"
     KEY_CONN_MODE      = "cchat_w_conn_mode"
     KEY_CONN_TEXT      = "cchat_w_conn_text"
@@ -8433,6 +8434,10 @@ if tab == "Chat • Grammar • Exams":
         default_gram = st.session_state.get("_cchat_last_profile_level") or level_options[0]
         if default_gram not in level_options:
             default_gram = level_options[0]
+        pending_level = st.session_state.pop(KEY_GRAM_LEVEL_SYNC, None)
+        if pending_level in level_options:
+            st.session_state[KEY_GRAM_LEVEL] = pending_level
+
         if st.session_state.get(KEY_GRAM_LEVEL) not in level_options:
             st.session_state[KEY_GRAM_LEVEL] = default_gram
         cur_level_g = st.session_state.get(KEY_GRAM_LEVEL, default_gram)
@@ -8756,7 +8761,8 @@ if tab == "Chat • Grammar • Exams":
                 key=KEY_ASSIGN_LEVEL,
             )
             if assign_level != st.session_state.get(KEY_GRAM_LEVEL) and assign_level in GRAMMAR_LEVELS:
-                st.session_state[KEY_GRAM_LEVEL] = assign_level
+                st.session_state[KEY_GRAM_LEVEL_SYNC] = assign_level
+                st.rerun()
             st.caption("Choose the CEFR level that matches your assignment.")
         with control_cols[1]:
             if st.button("🧹 Clear chat", type="secondary", use_container_width=True, key="assign_clear_chat"):
