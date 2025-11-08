@@ -20,6 +20,7 @@ except Exception:  # pragma: no cover - Firestore may be unavailable in tests
 
 _CHAT_FIELD = "assignment_helper"
 _META_FIELD = "assignment_helper_meta"
+_COLLECTION = "assignment_helper_chats"
 
 
 def _coerce_messages(value: Any) -> List[Dict[str, Any]]:
@@ -36,7 +37,7 @@ def get_assignment_helper_doc(db: Any, student_code: str):
     if db is None or not student_code:
         return None
     try:
-        return db.collection("falowen_chats").document(student_code)
+        return db.collection(_COLLECTION).document(student_code)
     except Exception as exc:  # pragma: no cover - SDK failures are rare
         logging.warning(
             "Failed to resolve Assignment Helper doc for %s: %s", student_code, exc
