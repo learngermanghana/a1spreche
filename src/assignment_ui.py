@@ -1296,12 +1296,24 @@ def render_results_and_resources_tab() -> None:
     else:
         display_records = []
 
-    overview_tab, missed_tab, feedback_tab, achievements_tab, downloads_tab = st.tabs(
-        ["Overview", "Missed & Next", "Feedback", "Achievements", "Downloads"]
+    tab_labels = ["Overview", "Missed & Next", "Feedback", "Achievements", "Downloads"]
+    tab_state_key = "results_resources_active_tab"
+    default_tab = st.session_state.get(tab_state_key, tab_labels[0])
+    try:
+        default_index = tab_labels.index(default_tab)
+    except ValueError:
+        default_index = 0
 
+    selected_tab = st.radio(
+        "Results tabs",
+        tab_labels,
+        index=default_index,
+        horizontal=True,
+        key=tab_state_key,
+        label_visibility="collapsed",
     )
 
-    with overview_tab:
+    if selected_tab == "Overview":
         st.subheader("Progress overview")
         st.write(f"Total assignments: {total_target}")
         completed_summary = f"{completed} / {total_target}" if total_target else str(completed)
@@ -1316,7 +1328,7 @@ def render_results_and_resources_tab() -> None:
 
     remaining_assignments = max(total_target - completed, 0)
 
-    with missed_tab:
+    if selected_tab == "Missed & Next":
         st.subheader("Missed & Next")
 
         missed_raw = assignment_summary.get("missed")
@@ -1384,7 +1396,7 @@ def render_results_and_resources_tab() -> None:
         else:
             st.info("You\u2019re on track! No missed assignments to catch up on.")
 
-    with feedback_tab:
+    if selected_tab == "Feedback":
         st.subheader("Personalized feedback")
         if not display_records:
             st.info("No feedback available yet.")
@@ -1491,7 +1503,7 @@ def render_results_and_resources_tab() -> None:
                 if idx < len(display_records) - 1:
                     st.markdown("---")
 
-    with achievements_tab:
+    if selected_tab == "Achievements":
         st.subheader("Achievements")
         completed_summary = (
             f"{completed} / {total_target}" if total_target else str(completed)
@@ -1616,7 +1628,7 @@ def render_results_and_resources_tab() -> None:
             st.markdown("---")
             st.info("Scores will appear once assignments have been graded.")
 
-    with downloads_tab:
+    if selected_tab == "Downloads":
         choice = st.radio(
             "Select a download",
             ["Transcript PDF", "Enrollment Letter", "Receipt", "Attendance PDF"],
