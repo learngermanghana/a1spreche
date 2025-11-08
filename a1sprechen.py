@@ -2327,6 +2327,26 @@ if "_qp_set" not in globals():
             # If browser doesn't allow URL changes, just skip
             pass
 
+
+CHAT_MAIN_TAB = "Chat • Grammar • Exams"
+CHAT_TOOL_TABS = {"🧑‍🏫 Topic Coach", "🛠️ Grammar", "📘 Assignment Guide", "📝 Exams"}
+
+
+def navigate_to_chat_tab(focus_tab: Optional[str] = None) -> None:
+    """Switch to the Chat • Grammar • Exams page, optionally focusing a specific tool."""
+
+    st.session_state["nav_sel"] = CHAT_MAIN_TAB
+    st.session_state["main_tab_select"] = CHAT_MAIN_TAB
+    st.session_state["nav_dd"] = CHAT_MAIN_TAB
+
+    if focus_tab in CHAT_TOOL_TABS:
+        st.session_state["_chat_focus_tab"] = focus_tab
+    else:
+        st.session_state.pop("_chat_focus_tab", None)
+
+    _qp_set(tab=CHAT_MAIN_TAB)
+    st.session_state["need_rerun"] = True
+
 if "build_course_day_link" not in globals():
     def build_course_day_link(day: int | str, tab: str = "My Course") -> str:
         """Return a link to a specific Course Book day."""
@@ -4420,11 +4440,22 @@ if tab == "My Course":
             # --- quick access to translators and language support ---
             translator_col, support_col = st.columns([1, 1.6])
             with translator_col:
-                st.markdown(
-                    "[🧠 Grammar Helper](https://chat.grammar.page) &nbsp; | &nbsp; "
-                    "[📝 Assignment Helper](https://chat.grammar.page)",
-                    unsafe_allow_html=True,
+                st.markdown("**Need extra support?**")
+                st.button(
+                    "🧠 Grammar Helper",
+                    key="coursebook_grammar_helper",
+                    on_click=navigate_to_chat_tab,
+                    kwargs={"focus_tab": "🛠️ Grammar"},
+                    use_container_width=True,
                 )
+                st.button(
+                    "📝 Assignment Helper",
+                    key="coursebook_assignment_helper",
+                    on_click=navigate_to_chat_tab,
+                    kwargs={"focus_tab": "📘 Assignment Guide"},
+                    use_container_width=True,
+                )
+                st.caption("Opens the Chat • Grammar • Exams tools in a new tab of the app.")
             with support_col:
                 render_lesson_language_support(info, level_key)
 
