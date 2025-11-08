@@ -105,8 +105,6 @@ HERR_FELIX_TYPING_HTML = (
 
 _ASSIGNMENT_PERSIST_HOSTS_DEFAULT = {"chat.grammar.exams"}
 
-
-@lru_cache(maxsize=1)
 def _current_request_host() -> str:
     """Return the lowercase host for the active Streamlit request if available."""
 
