@@ -7796,6 +7796,10 @@ if tab == "Chat • Grammar • Exams":
     KEY_CONN_COACH     = "cchat_w_conn_coach"
     KEY_CONN_RESPONSE  = "cchat_w_conn_response"
     KEY_CONN_CLEAR     = "cchat_w_conn_clear"
+    KEY_ASSIGN_LEVEL   = "cchat_w_assign_level"
+    KEY_ASSIGN_INPUT   = "cchat_w_assign_input"
+    KEY_ASSIGN_CHAT    = "cchat_w_assign_chat"
+    KEY_ASSIGN_CLEAR   = "cchat_w_assign_clear"
     # Also make Regen button unique
     KEY_REGEN_BTN      = "cchat_w_btn_regen_v2"
 
@@ -7857,7 +7861,7 @@ if tab == "Chat • Grammar • Exams":
         )
 
     # ---------- Subtabs ----------
-    tab_labels = ["🧑‍🏫 Topic Coach", "🛠️ Grammar", "📝 Exams"]
+    tab_labels = ["🧑‍🏫 Topic Coach", "🛠️ Grammar", "📘 Assignment Guide", "📝 Exams"]
     base_tab_labels = tab_labels[:]
     focus_tab = st.session_state.get("_chat_focus_tab")
     if focus_tab not in base_tab_labels:
@@ -7908,7 +7912,7 @@ if tab == "Chat • Grammar • Exams":
             index=base_tab_labels.index(focus_tab),
             key=selector_key,
             on_change=_sync_chat_tab_focus,
-            help="Use this menu on phones to switch between Chat • Grammar • Exams tools.",
+            help="Use this menu on phones to switch between Chat • Grammar • Assignment Guide • Exams tools.",
         )
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -7925,6 +7929,7 @@ if tab == "Chat • Grammar • Exams":
     tab_lookup = dict(zip(tab_labels, tab_contexts))
     tab_tc = tab_lookup["🧑‍🏫 Topic Coach"]
     tab_gram = tab_lookup["🛠️ Grammar"]
+    tab_assign = tab_lookup["📘 Assignment Guide"]
     tab_exam = tab_lookup["📝 Exams"]
 
     # ===================== Topic Coach (intro, feedback, finalize) =====================
@@ -8562,6 +8567,137 @@ if tab == "Chat • Grammar • Exams":
                         except Exception:
                             logging.warning("Failed to log connector session", exc_info=True)
 
+    # ===================== Assignment Guide (Guidelines & Idea Support) =====================
+    with tab_assign:
+        st.info(
+            "Paste the assignment brief or any follow-up questions. Herr Felix will clarify what to do,"
+            " suggest idea paths, and flag grammar points without writing the full answer for you."
+        )
+
+        assign_level_options = ["A1", "A2", "B1", "B2", "C1"]
+        default_assign_level = (
+            st.session_state.get(KEY_ASSIGN_LEVEL)
+            or st.session_state.get(KEY_GRAM_LEVEL)
+            or active_level
+        )
+        if default_assign_level not in assign_level_options:
+            default_assign_level = assign_level_options[0]
+
+        level_col, clear_col = st.columns([4, 1])
+        with level_col:
+            assign_level = st.select_slider(
+                "Level",
+                assign_level_options,
+                value=default_assign_level,
+                key=KEY_ASSIGN_LEVEL,
+            )
+            st.caption("Match the CEFR level of your assignment so tips stay on target.")
+        if assign_level != st.session_state.get(KEY_GRAM_LEVEL):
+            st.session_state[KEY_GRAM_LEVEL] = assign_level
+
+        with clear_col:
+            if st.button("🧹 Clear chat", key=KEY_ASSIGN_CLEAR, use_container_width=True):
+                st.session_state[KEY_ASSIGN_CHAT] = []
+                st.session_state.pop(KEY_ASSIGN_INPUT, None)
+                st.toast("Cleared")
+                st.rerun()
+
+        chat_history = st.session_state.setdefault(KEY_ASSIGN_CHAT, [])
+
+        history_container = st.container()
+        with history_container:
+            if not chat_history:
+                st.caption("No messages yet — paste your assignment instructions to start the chat.")
+            else:
+                for entry in chat_history:
+                    role = entry.get("role")
+                    content = entry.get("content", "")
+                    if not content:
+                        continue
+                    if role == "user":
+                        st.markdown(
+                            f"<div class='bubble-wrap'><div class='lbl-u'>{student_label_html}</div></div>",
+                            unsafe_allow_html=True,
+                        )
+                        safe_user = html.escape(content).replace("\n", "<br>")
+                        st.markdown(f"<div class='bubble-u'>{safe_user}</div>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(
+                            "<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>",
+                            unsafe_allow_html=True,
+                        )
+                        st.markdown(f"<div class='bubble-a'>{content}</div>", unsafe_allow_html=True)
+        st.caption("Use the hints to plan your own answer — do not copy them directly.")
+
+        typing_placeholder = st.empty()
+
+        user_msg = st.chat_input(
+            "Paste assignment instructions or ask Herr Felix how to tackle them",
+            key=KEY_ASSIGN_INPUT,
+        )
+
+        if user_msg is not None:
+            clean_msg = user_msg.strip()
+            if not clean_msg:
+                st.warning("Please paste the assignment or describe it before sending.")
+            else:
+                new_entry = {
+                    "role": "user",
+                    "content": clean_msg,
+                    "level": assign_level,
+                    "ts": datetime.now(UTC).isoformat(),
+                }
+                chat_history.append(new_entry)
+
+                typing_placeholder.markdown(
+                    HERR_FELIX_TYPING_HTML,
+                    unsafe_allow_html=True,
+                )
+
+                system_text = (
+                    "You are Herr Felix, a supportive German writing coach. Students paste assignment briefs and "
+                    "follow-up questions. Reply in English with clear steps, idea suggestions, and grammar reminders "
+                    "matched to their CEFR level. Never write the full answer or provide long templates. Offer short "
+                    "German example fragments only when helpful, and encourage them to craft their own response."
+                )
+                system_text += f" Coach at CEFR level {assign_level}."
+
+                conversation = [{"role": "system", "content": system_text}]
+                for message in chat_history:
+                    role = message.get("role")
+                    content = message.get("content", "")
+                    if not content:
+                        continue
+                    if role == "user":
+                        lvl = message.get("level") or assign_level
+                        user_payload = f"Level: {lvl}\n{content}"
+                        conversation.append({"role": "user", "content": user_payload})
+                    else:
+                        conversation.append({"role": "assistant", "content": content})
+
+                try:
+                    resp = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=conversation,
+                        temperature=0.3,
+                        max_tokens=700,
+                    )
+                    assign_reply = (resp.choices[0].message.content or "").strip()
+                except Exception as exc:
+                    assign_reply = f"(Error) {exc}"
+
+                typing_placeholder.empty()
+
+                chat_history.append(
+                    {
+                        "role": "assistant",
+                        "content": assign_reply,
+                        "level": assign_level,
+                        "ts": datetime.now(UTC).isoformat(),
+                    }
+                )
+                st.session_state[KEY_ASSIGN_CHAT] = chat_history
+                st.rerun()
 
     # ===================== Exams (Speaking • Lesen • Hören) =====================
     with tab_exam:
