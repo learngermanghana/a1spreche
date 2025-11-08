@@ -160,10 +160,14 @@ def render_vocab_lookup(key: str, context_label: Optional[str] = None) -> None:
     st.markdown(header)
     st.caption("Search words from this assignment")
 
+    helper_url = (
+        "https://www.falowen.app/?tab=Chat+%E2%80%A2+Grammar+%E2%80%A2+Exams"
+        "&t=ijw4H_7TnhTgX0swRfZ3BqBqiilBBfV3spz9U1cwS5AvLUJDwVYRbnc3I_HuQoss"
+    )
     translate_caption = (
-        'Need to translate a longer phrase? Try '
-        '<a href="https://www.deepl.com/translator" target="_blank">DeepL</a> '
-        'or <a href="https://translate.google.com" target="_blank">Google Translate</a>.'
+        'Need help beyond a single word? Try the '
+        f'<a href="{helper_url}" target="_blank">Grammar Helper</a> '
+        f'or <a href="{helper_url}" target="_blank">Assignment Helper</a>.'
     )
 
     df = _load_vocab_sheet()
