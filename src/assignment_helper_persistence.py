@@ -21,6 +21,7 @@ except Exception:  # pragma: no cover - Firestore may be unavailable in tests
 _CHAT_FIELD = "assignment_helper"
 _META_FIELD = "assignment_helper_meta"
 _COLLECTION = "assignment_helper_chats"
+_THREAD_COLLECTION = "assignment_helper_threads"
 
 
 def _coerce_messages(value: Any) -> List[Dict[str, Any]]:
@@ -89,22 +90,35 @@ def persist_assignment_helper_state(
     *,
     messages: Iterable[Dict[str, Any]],
     level: Any = None,
+    thread_id: Any = None,
+    student_code: Any = None,
 ) -> bool:
     """Persist the latest Assignment Helper state to Firestore."""
 
     if doc_ref is None:
         return False
 
+    message_list = list(messages or [])
+
     meta: Dict[str, Any] = {}
     if level is not None:
         meta["level"] = str(level)
+    if thread_id is not None:
+        thread_token = str(thread_id).strip()
+        if thread_token:
+            meta["thread_id"] = thread_token
+    if student_code is not None:
+        code_token = str(student_code).strip()
+        if code_token:
+            meta["student_code"] = code_token
+    meta["message_count"] = len(message_list)
 
     server_timestamp = getattr(firestore, "SERVER_TIMESTAMP", None)
     if server_timestamp is not None:
         meta["updated_at"] = server_timestamp
 
     payload = {
-        "chats": {_CHAT_FIELD: list(messages or [])},
+        "chats": {_CHAT_FIELD: message_list},
         _META_FIELD: meta,
     }
 
@@ -115,6 +129,72 @@ def persist_assignment_helper_state(
         doc_id = getattr(doc_ref, "id", "<unknown>")
         logging.warning(
             "Failed to persist Assignment Helper transcript for %s: %s", doc_id, exc
+        )
+        return False
+
+
+def record_assignment_helper_thread(
+    db: Any,
+    *,
+    thread_id: Any,
+    student_code: Any,
+    level: Any = None,
+    message_count: Any = None,
+) -> bool:
+    """Upsert a summary record for a unique Assignment Helper thread."""
+
+    if db is None:
+        return False
+
+    thread_token = str(thread_id or "").strip()
+    if not thread_token:
+        return False
+
+    try:
+        doc_ref = db.collection(_THREAD_COLLECTION).document(thread_token)
+    except Exception as exc:  # pragma: no cover - depends on Firestore availability
+        logging.warning(
+            "Failed to resolve Assignment Helper thread doc for %s: %s",
+            thread_token,
+            exc,
+        )
+        return False
+
+    payload: Dict[str, Any] = {
+        "thread_id": thread_token,
+        "student_code": str(student_code or "").strip(),
+    }
+
+    if level is not None:
+        payload["level"] = str(level)
+
+    try:
+        count_value = int(message_count or 0)
+    except Exception:
+        count_value = 0
+    payload["message_count"] = max(0, count_value)
+
+    server_timestamp = getattr(firestore, "SERVER_TIMESTAMP", None)
+
+    try:
+        snapshot = doc_ref.get()
+    except Exception:
+        snapshot = None
+    exists = bool(getattr(snapshot, "exists", False))
+
+    if server_timestamp is not None:
+        payload["updated_at"] = server_timestamp
+        if not exists:
+            payload["created_at"] = server_timestamp
+
+    try:
+        doc_ref.set(payload, merge=True)
+        return True
+    except Exception as exc:  # pragma: no cover - depends on Firestore availability
+        logging.warning(
+            "Failed to record Assignment Helper thread %s: %s",
+            thread_token,
+            exc,
         )
         return False
 

@@ -56,6 +56,7 @@ from src.assignment_helper_persistence import (
     load_assignment_helper_state,
     persist_assignment_helper_state,
     clear_assignment_helper_state,
+    record_assignment_helper_thread,
 )
 from src.forum_timer import (
     _to_datetime_any,
@@ -7930,6 +7931,7 @@ if tab == "Chat • Grammar • Exams":
     KEY_ASSIGN_INPUT   = "cchat_w_assign_input_v2"
     KEY_ASSIGN_LEVEL   = "cchat_w_assign_level"
     KEY_ASSIGN_PLAN    = "cchat_w_assign_plan"
+    KEY_ASSIGN_THREAD  = "cchat_w_assign_thread_id"
     # Also make Regen button unique
     KEY_REGEN_BTN      = "cchat_w_btn_regen_v2"
 
@@ -8725,6 +8727,8 @@ if tab == "Chat • Grammar • Exams":
         assign_doc_ref = None
         assign_meta: Dict[str, Any] = {}
         remote_history: List[Dict[str, Any]] = []
+        assign_thread_id = st.session_state.get(KEY_ASSIGN_THREAD, "")
+        remote_thread_id = ""
         if assignment_persist_enabled and student_code_tc:
             assign_doc_ref, remote_history, assign_meta = load_assignment_helper_state(
                 topic_db, student_code_tc
@@ -8733,6 +8737,44 @@ if tab == "Chat • Grammar • Exams":
                 assign_history.clear()
                 assign_history.extend(remote_history)
                 st.session_state[KEY_ASSIGN_HISTORY] = assign_history
+
+            remote_thread_id = str(assign_meta.get("thread_id", "")).strip()
+            if remote_thread_id:
+                assign_thread_id = remote_thread_id
+
+        if prev_assign_owner != assign_owner_value:
+            assign_thread_id = ""
+
+        if not assign_thread_id:
+            assign_thread_id = uuid4().hex
+        st.session_state[KEY_ASSIGN_THREAD] = assign_thread_id
+
+        if (
+            assignment_persist_enabled
+            and assign_doc_ref is not None
+            and assign_history
+            and not remote_thread_id
+        ):
+            backfill_ok = persist_assignment_helper_state(
+                assign_doc_ref,
+                messages=assign_history,
+                level=assign_meta.get("level"),
+                thread_id=assign_thread_id,
+                student_code=student_code_tc,
+            )
+            if not backfill_ok:
+                logging.warning(
+                    "Failed to backfill Assignment Helper thread metadata for %s",
+                    student_code_tc,
+                )
+            elif topic_db is not None:
+                record_assignment_helper_thread(
+                    topic_db,
+                    thread_id=assign_thread_id,
+                    student_code=student_code_tc,
+                    level=assign_meta.get("level"),
+                    message_count=len(assign_history),
+                )
 
         assign_level_options = ["A1", "A2", "B1", "B2", "C1"]
         remote_level_pref = str(assign_meta.get("level", "") or "").strip().upper()
@@ -8768,6 +8810,7 @@ if tab == "Chat • Grammar • Exams":
             if st.button("🧹 Clear chat", type="secondary", use_container_width=True, key="assign_clear_chat"):
                 assign_history.clear()
                 st.session_state[KEY_ASSIGN_HISTORY] = assign_history
+                st.session_state[KEY_ASSIGN_THREAD] = uuid4().hex
                 if assignment_persist_enabled and assign_doc_ref is None and student_code_tc:
                     assign_doc_ref = get_assignment_helper_doc(topic_db, student_code_tc)
                 if assignment_persist_enabled and assign_doc_ref is not None:
@@ -8826,14 +8869,25 @@ if tab == "Chat • Grammar • Exams":
                 if assignment_persist_enabled and assign_doc_ref is None and student_code_tc:
                     assign_doc_ref = get_assignment_helper_doc(topic_db, student_code_tc)
                 if assignment_persist_enabled and assign_doc_ref is not None:
-                    if not persist_assignment_helper_state(
+                    persist_ok = persist_assignment_helper_state(
                         assign_doc_ref,
                         messages=assign_history,
                         level=assign_level,
-                    ):
+                        thread_id=assign_thread_id,
+                        student_code=student_code_tc,
+                    )
+                    if not persist_ok:
                         logging.warning(
                             "Failed to persist Assignment Helper transcript for %s after user message",
                             student_code_tc,
+                        )
+                    elif topic_db is not None:
+                        record_assignment_helper_thread(
+                            topic_db,
+                            thread_id=assign_thread_id,
+                            student_code=student_code_tc,
+                            level=assign_level,
+                            message_count=len(assign_history),
                         )
                 typing_placeholder.markdown(
                     HERR_FELIX_TYPING_HTML,
@@ -8887,14 +8941,25 @@ if tab == "Chat • Grammar • Exams":
                 if assignment_persist_enabled and assign_doc_ref is None and student_code_tc:
                     assign_doc_ref = get_assignment_helper_doc(topic_db, student_code_tc)
                 if assignment_persist_enabled and assign_doc_ref is not None:
-                    if not persist_assignment_helper_state(
+                    persist_ok = persist_assignment_helper_state(
                         assign_doc_ref,
                         messages=assign_history,
                         level=assign_level,
-                    ):
+                        thread_id=assign_thread_id,
+                        student_code=student_code_tc,
+                    )
+                    if not persist_ok:
                         logging.warning(
                             "Failed to persist Assignment Helper transcript for %s after assistant reply",
                             student_code_tc,
+                        )
+                    elif topic_db is not None:
+                        record_assignment_helper_thread(
+                            topic_db,
+                            thread_id=assign_thread_id,
+                            student_code=student_code_tc,
+                            level=assign_level,
+                            message_count=len(assign_history),
                         )
                 typing_placeholder.empty()
                 st.session_state[KEY_ASSIGN_HISTORY] = assign_history
