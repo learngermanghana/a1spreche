@@ -103,6 +103,97 @@ HERR_FELIX_TYPING_HTML = (
     "</div>"
 )
 
+_ASSIGNMENT_PERSIST_HOSTS_DEFAULT = {"chat.grammar.exams"}
+
+
+@lru_cache(maxsize=1)
+def _current_request_host() -> str:
+    """Return the lowercase host for the active Streamlit request if available."""
+
+    try:  # pragma: no cover - depends on Streamlit runtime internals
+        from streamlit.runtime.scriptrunner import get_script_run_ctx  # type: ignore[attr-defined]
+    except Exception:  # pragma: no cover - runtime module not available during tests
+        return ""
+
+    host = ""
+    try:
+        ctx = get_script_run_ctx()
+        session_info = getattr(ctx, "session_info", None) if ctx else None
+        client = getattr(session_info, "client", None) if session_info else None
+        host = (getattr(client, "host", "") or "").strip()
+        if not host:
+            request = getattr(client, "request", None) if client else None
+            headers = getattr(request, "headers", None) if request else None
+            if headers is not None:
+                if isinstance(headers, dict):
+                    host = (headers.get("host") or headers.get("Host") or "").strip()
+                elif hasattr(headers, "get"):
+                    host = (headers.get("host") or headers.get("Host") or "").strip()
+    except Exception:  # pragma: no cover - defensive against runtime differences
+        host = ""
+
+    if not host:
+        return ""
+
+    # Clean variations such as ports, schemes or multiple hosts
+    host = re.sub(r"^https?://", "", host, flags=re.IGNORECASE)
+    host = host.split(",")[0].strip()
+    host = host.split(":")[0].strip().lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return host
+
+
+@lru_cache(maxsize=1)
+def _assignment_helper_persist_hosts() -> set[str]:
+    """Return the set of hosts allowed to persist Assignment Helper chats."""
+
+    hosts = set(_ASSIGNMENT_PERSIST_HOSTS_DEFAULT)
+
+    def _ingest(raw: Any) -> None:
+        if not raw:
+            return
+        parts = re.split(r"[\s,]+", str(raw))
+        for part in parts:
+            token = part.strip()
+            if not token:
+                continue
+            token = re.sub(r"^https?://", "", token, flags=re.IGNORECASE)
+            token = token.split(",")[0].strip()
+            token = token.split(":")[0].strip().lower()
+            if token.startswith("www."):
+                token = token[4:]
+            if token:
+                hosts.add(token)
+
+    _ingest(os.getenv("ASSIGNMENT_HELPER_PERSIST_HOSTS"))
+
+    try:  # pragma: no cover - secrets unavailable in tests
+        secret_hosts = (
+            st.secrets.get("assignment_helper", {}).get("persist_hosts", "")
+            if hasattr(st, "secrets")
+            else ""
+        )
+    except Exception:
+        secret_hosts = ""
+    _ingest(secret_hosts)
+
+    return hosts
+
+
+def _assignment_helper_persistence_enabled() -> bool:
+    """Return ``True`` when Assignment Helper transcripts should be saved to Firestore."""
+
+    if os.getenv("ASSIGNMENT_HELPER_FORCE_DISABLE") == "1":
+        return False
+    if os.getenv("ASSIGNMENT_HELPER_FORCE_ENABLE") == "1":
+        return True
+
+    host = _current_request_host()
+    if not host:
+        return False
+    return host in _assignment_helper_persist_hosts()
+
 _TYPING_TRACKER_PREFIX = "__typing_meta__"
 _TYPING_PING_INTERVAL = 4.0
 _NEW_POST_TYPING_ID = "__new_post__"
@@ -7803,6 +7894,7 @@ if tab == "Chat • Grammar • Exams":
     KEY_CONN_RESPONSE  = "cchat_w_conn_response"
     KEY_CONN_CLEAR     = "cchat_w_conn_clear"
     KEY_ASSIGN_HISTORY = "cchat_w_assign_history_v2"
+    KEY_ASSIGN_OWNER = "cchat_w_assign_history_owner"
     KEY_ASSIGN_INPUT   = "cchat_w_assign_input_v2"
     KEY_ASSIGN_LEVEL   = "cchat_w_assign_level"
     KEY_ASSIGN_PLAN    = "cchat_w_assign_plan"
@@ -8583,11 +8675,40 @@ if tab == "Chat • Grammar • Exams":
         st.markdown("### 🤖 Assignment helper chat")
         st.caption("Paste the brief or ask follow-up questions – Herr Felix will guide your plan, not write it for you.")
 
+        assignment_persist_enabled = _assignment_helper_persistence_enabled()
+        assign_owner_value = (student_code_tc or "").strip().lower()
+        prev_assign_owner = st.session_state.get(KEY_ASSIGN_OWNER)
+        if prev_assign_owner != assign_owner_value:
+            st.session_state[KEY_ASSIGN_HISTORY] = []
+        st.session_state[KEY_ASSIGN_OWNER] = assign_owner_value
+
         assign_history = st.session_state.setdefault(KEY_ASSIGN_HISTORY, [])
         for legacy_key in ("cchat_w_assign_prompt", "cchat_w_assign_response", "cchat_w_assign_ai"):
             st.session_state.pop(legacy_key, None)
 
+        assign_doc_ref = None
+        assign_meta: Dict[str, Any] = {}
+        remote_history: List[Dict[str, Any]] = []
+        if assignment_persist_enabled and student_code_tc:
+            assign_doc_ref, remote_history, assign_meta = load_assignment_helper_state(
+                topic_db, student_code_tc
+            )
+            if remote_history and assign_history != remote_history:
+                assign_history.clear()
+                assign_history.extend(remote_history)
+                st.session_state[KEY_ASSIGN_HISTORY] = assign_history
+
         assign_level_options = ["A1", "A2", "B1", "B2", "C1"]
+        remote_level_pref = str(assign_meta.get("level", "") or "").strip().upper()
+        if (
+            assignment_persist_enabled
+            and remote_level_pref
+            and remote_level_pref in assign_level_options
+        ):
+            stored_level = st.session_state.get(KEY_ASSIGN_LEVEL)
+            if not stored_level or stored_level not in assign_level_options:
+                st.session_state[KEY_ASSIGN_LEVEL] = remote_level_pref
+
         control_cols = st.columns([4, 1])
         with control_cols[0]:
             default_assign_level = (
@@ -8609,8 +8730,16 @@ if tab == "Chat • Grammar • Exams":
         with control_cols[1]:
             if st.button("🧹 Clear chat", type="secondary", use_container_width=True, key="assign_clear_chat"):
                 assign_history.clear()
-                st.toast("Assignment helper chat cleared.")
                 st.session_state[KEY_ASSIGN_HISTORY] = assign_history
+                if assignment_persist_enabled and assign_doc_ref is None and student_code_tc:
+                    assign_doc_ref = get_assignment_helper_doc(topic_db, student_code_tc)
+                if assignment_persist_enabled and assign_doc_ref is not None:
+                    if not clear_assignment_helper_state(assign_doc_ref):
+                        logging.warning(
+                            "Failed to clear Assignment Helper transcript for %s",
+                            student_code_tc,
+                        )
+                st.toast("Assignment helper chat cleared.")
                 st.rerun()
 
         if not assign_history:
@@ -8656,6 +8785,19 @@ if tab == "Chat • Grammar • Exams":
                 st.warning("Please paste the assignment or describe it before sending.")
             else:
                 assign_history.append({"role": "user", "content": prompt_clean})
+                st.session_state[KEY_ASSIGN_HISTORY] = assign_history
+                if assignment_persist_enabled and assign_doc_ref is None and student_code_tc:
+                    assign_doc_ref = get_assignment_helper_doc(topic_db, student_code_tc)
+                if assignment_persist_enabled and assign_doc_ref is not None:
+                    if not persist_assignment_helper_state(
+                        assign_doc_ref,
+                        messages=assign_history,
+                        level=assign_level,
+                    ):
+                        logging.warning(
+                            "Failed to persist Assignment Helper transcript for %s after user message",
+                            student_code_tc,
+                        )
                 typing_placeholder.markdown(
                     HERR_FELIX_TYPING_HTML,
                     unsafe_allow_html=True,
@@ -8705,6 +8847,18 @@ if tab == "Chat • Grammar • Exams":
                     assign_reply = f"(Error) {exc}"
 
                 assign_history.append({"role": "assistant", "content": assign_reply})
+                if assignment_persist_enabled and assign_doc_ref is None and student_code_tc:
+                    assign_doc_ref = get_assignment_helper_doc(topic_db, student_code_tc)
+                if assignment_persist_enabled and assign_doc_ref is not None:
+                    if not persist_assignment_helper_state(
+                        assign_doc_ref,
+                        messages=assign_history,
+                        level=assign_level,
+                    ):
+                        logging.warning(
+                            "Failed to persist Assignment Helper transcript for %s after assistant reply",
+                            student_code_tc,
+                        )
                 typing_placeholder.empty()
                 st.session_state[KEY_ASSIGN_HISTORY] = assign_history
                 st.rerun()
