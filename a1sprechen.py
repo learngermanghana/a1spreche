@@ -8728,6 +8728,10 @@ if tab == "Chat • Grammar • Exams":
         assign_meta: Dict[str, Any] = {}
         remote_history: List[Dict[str, Any]] = []
         assign_thread_id = st.session_state.get(KEY_ASSIGN_THREAD, "")
+
+        if prev_assign_owner != assign_owner_value:
+            assign_thread_id = ""
+
         remote_thread_id = ""
         if assignment_persist_enabled and student_code_tc:
             assign_doc_ref, remote_history, assign_meta = load_assignment_helper_state(
@@ -8741,9 +8745,6 @@ if tab == "Chat • Grammar • Exams":
             remote_thread_id = str(assign_meta.get("thread_id", "")).strip()
             if remote_thread_id:
                 assign_thread_id = remote_thread_id
-
-        if prev_assign_owner != assign_owner_value:
-            assign_thread_id = ""
 
         if not assign_thread_id:
             assign_thread_id = uuid4().hex
