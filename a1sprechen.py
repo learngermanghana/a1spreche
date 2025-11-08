@@ -63,7 +63,7 @@ from src.forum_timer import (
     build_forum_reply_indicator_text,
     build_forum_timer_indicator,
 )
-from src.level_sync import sync_level_state
+from src.level_sync import sync_level_state, sync_assignment_level_state
 
 from flask import Flask
 from auth import auth_bp
@@ -7930,6 +7930,8 @@ if tab == "Chat • Grammar • Exams":
     KEY_ASSIGN_OWNER = "cchat_w_assign_history_owner"
     KEY_ASSIGN_INPUT   = "cchat_w_assign_input_v2"
     KEY_ASSIGN_LEVEL   = "cchat_w_assign_level"
+    KEY_ASSIGN_LAST_STUDENT = "_cchat_assign_last_student_code"
+    KEY_ASSIGN_LAST_AUTO = "_cchat_assign_last_auto_level"
     KEY_ASSIGN_PLAN    = "cchat_w_assign_plan"
     KEY_ASSIGN_THREAD  = "cchat_w_assign_thread_id"
     # Also make Regen button unique
@@ -8792,6 +8794,33 @@ if tab == "Chat • Grammar • Exams":
             stored_level = st.session_state.get(KEY_ASSIGN_LEVEL)
             if not stored_level or stored_level not in assign_level_options:
                 st.session_state[KEY_ASSIGN_LEVEL] = remote_level_pref
+
+        if assignment_persist_enabled:
+            auto_detect_level = _safe_upper(
+                st.session_state.get("student_level"), ""
+            )
+            if auto_detect_level not in assign_level_options:
+                fallback_candidates = [
+                    remote_level_pref,
+                    st.session_state.get(KEY_GRAM_LEVEL),
+                    active_level,
+                    assign_level_options[0],
+                ]
+                for candidate in fallback_candidates:
+                    candidate_level = _safe_upper(candidate, "")
+                    if candidate_level in assign_level_options:
+                        auto_detect_level = candidate_level
+                        break
+
+            sync_assignment_level_state(
+                st.session_state,
+                student_code=assign_owner_value,
+                detected_level=auto_detect_level,
+                level_options=assign_level_options,
+                assign_key=KEY_ASSIGN_LEVEL,
+                last_student_key=KEY_ASSIGN_LAST_STUDENT,
+                last_level_key=KEY_ASSIGN_LAST_AUTO,
+            )
 
         control_cols = st.columns([4, 1])
         with control_cols[0]:
