@@ -51,6 +51,12 @@ from src.topic_coach_persistence import (
     load_topic_coach_state,
     persist_topic_coach_state,
 )
+from src.assignment_helper_persistence import (
+    get_assignment_helper_doc,
+    load_assignment_helper_state,
+    persist_assignment_helper_state,
+    clear_assignment_helper_state,
+)
 from src.forum_timer import (
     _to_datetime_any,
     build_forum_reply_indicator_text,
