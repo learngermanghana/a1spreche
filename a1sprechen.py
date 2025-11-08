@@ -7799,6 +7799,7 @@ if tab == "Chat • Grammar • Exams":
     KEY_ASSIGN_HISTORY = "cchat_w_assign_history_v2"
     KEY_ASSIGN_INPUT   = "cchat_w_assign_input_v2"
     KEY_ASSIGN_LEVEL   = "cchat_w_assign_level"
+    KEY_ASSIGN_PLAN    = "cchat_w_assign_plan"
     # Also make Regen button unique
     KEY_REGEN_BTN      = "cchat_w_btn_regen_v2"
 
@@ -8685,6 +8686,64 @@ if tab == "Chat • Grammar • Exams":
                 typing_placeholder.empty()
                 st.session_state[KEY_ASSIGN_HISTORY] = assign_history
                 st.rerun()
+
+            if assignment_guides:
+                level_options = sorted({lvl for guide in assignment_guides for lvl in guide["levels"]})
+                default_level_pref = st.session_state.get("_cchat_last_profile_level")
+                if default_level_pref in level_options:
+                    default_level_index = level_options.index(default_level_pref)
+                else:
+                    default_level_index = 0
+
+                level_filter = st.selectbox(
+                    "Focus level",
+                    options=level_options,
+                    index=default_level_index,
+                    key="assign_guide_level",
+                    help="Filter the suggestions to match the CEFR level you are practising.",
+                )
+
+                filtered_guides = [g for g in assignment_guides if level_filter in g["levels"]] or assignment_guides
+
+                guide_titles = [guide["title"] for guide in filtered_guides]
+                selected_title = st.selectbox(
+                    "Choose an assignment style",
+                    guide_titles,
+                    key="assign_guide_selector",
+                ) if guide_titles else None
+
+                selected_guide = next((g for g in filtered_guides if g["title"] == selected_title), filtered_guides[0]) if filtered_guides else None
+            else:
+                selected_guide = None
+
+            if selected_guide:
+                st.markdown(f"### {selected_guide['title']}")
+                st.caption(selected_guide["focus"])
+
+                st.markdown("#### 🧱 Suggested structure")
+                st.markdown("\n".join(f"- {item}" for item in selected_guide["structure"]))
+
+                st.markdown("#### 💡 Idea sparks")
+                st.markdown("\n".join(f"- {idea}" for idea in selected_guide["ideas"]))
+
+                st.markdown("#### 🔑 Useful phrases to practise")
+                st.markdown("\n".join(f"- {phrase}" for phrase in selected_guide["phrases"]))
+
+                st.markdown("#### ✅ Final checks before you submit")
+                st.markdown("\n".join(f"- {item}" for item in selected_guide["checklist"]))
+
+                st.markdown("#### ✍️ Plan your answer")
+                st.text_area(
+                    "Write short notes or keywords before you start your draft",
+                    key=KEY_ASSIGN_PLAN,
+                    height=140,
+                    placeholder="z.B. Punkt 1: Danke für ... | Punkt 2: Meine Neuigkeit ... | Frage: Wann sehen wir uns?",
+                    help="Keep it brief—just bullet ideas to guide your real assignment answer.",
+                )
+                st.caption(
+                    "Tipp: Nutze diese Notizen, um deine eigenen Sätze zu formulieren. Schreibe danach deinen vollständigen Text"
+                    " im Aufgabenbereich oder Heft."
+                )
 
     # ===================== Exams (Speaking • Lesen • Hören) =====================
     with tab_exam:
