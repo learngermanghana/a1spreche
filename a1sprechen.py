@@ -8719,7 +8719,8 @@ if tab == "Chat • Grammar • Exams":
             """Keep the Assignment Guide tab selected after actions that trigger reruns."""
 
             st.session_state["_chat_focus_tab"] = "📘 Assignment Guide"
-            st.session_state[selector_key] = "📘 Assignment Guide"
+            if selector_key in st.session_state:
+                st.session_state[selector_key] = "📘 Assignment Guide"
 
         assignment_persist_enabled = _assignment_helper_persistence_enabled()
         assign_owner_value = (student_code_tc or "").strip().lower()
