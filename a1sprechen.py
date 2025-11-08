@@ -7796,11 +7796,9 @@ if tab == "Chat • Grammar • Exams":
     KEY_CONN_COACH     = "cchat_w_conn_coach"
     KEY_CONN_RESPONSE  = "cchat_w_conn_response"
     KEY_CONN_CLEAR     = "cchat_w_conn_clear"
-    KEY_ASSIGN_PROMPT  = "cchat_w_assign_prompt"
+    KEY_ASSIGN_HISTORY = "cchat_w_assign_history_v2"
+    KEY_ASSIGN_INPUT   = "cchat_w_assign_input_v2"
     KEY_ASSIGN_LEVEL   = "cchat_w_assign_level"
-    KEY_ASSIGN_ASK     = "cchat_w_assign_ai"
-    KEY_ASSIGN_RESPONSE = "cchat_w_assign_response"
-    KEY_ASSIGN_PLAN    = "cchat_w_assign_plan"
     # Also make Regen button unique
     KEY_REGEN_BTN      = "cchat_w_btn_regen_v2"
 
@@ -8575,19 +8573,16 @@ if tab == "Chat • Grammar • Exams":
             " gather ideas, and organise your answer without receiving a full sample solution."
         )
 
-        st.markdown("### 🤖 Ask Herr Felix for assignment ideas")
+        st.markdown("### 🤖 Assignment helper chat")
+        st.caption("Paste the brief or ask follow-up questions – Herr Felix will guide your plan, not write it for you.")
+
+        assign_history = st.session_state.setdefault(KEY_ASSIGN_HISTORY, [])
+        for legacy_key in ("cchat_w_assign_prompt", "cchat_w_assign_response", "cchat_w_assign_ai"):
+            st.session_state.pop(legacy_key, None)
+
         assign_level_options = ["A1", "A2", "B1", "B2", "C1"]
-        prompt_col, control_col = st.columns([3, 1])
-        with prompt_col:
-            assign_prompt = st.text_area(
-                "Paste the assignment question or describe what you must write",
-                key=KEY_ASSIGN_PROMPT,
-                height=180,
-                placeholder="z.B. Schreib eine E-Mail an deine Lehrerin, weil du den Kurs wechseln möchtest. Gebe Gründe an …",
-                help="Share the exact instructions so Herr Felix can highlight what matters most.",
-            )
-        ask_ai = False
-        with control_col:
+        control_cols = st.columns([4, 1])
+        with control_cols[0]:
             default_assign_level = (
                 st.session_state.get(KEY_ASSIGN_LEVEL)
                 or st.session_state.get(KEY_GRAM_LEVEL)
@@ -8604,236 +8599,92 @@ if tab == "Chat • Grammar • Exams":
             if assign_level != st.session_state.get(KEY_GRAM_LEVEL):
                 st.session_state[KEY_GRAM_LEVEL] = assign_level
             st.caption("Choose the CEFR level that matches your assignment.")
-            ask_ai = st.button("Get ideas & tips", type="primary", use_container_width=True, key=KEY_ASSIGN_ASK)
+        with control_cols[1]:
+            if st.button("🧹 Clear chat", type="secondary", use_container_width=True, key="assign_clear_chat"):
+                assign_history.clear()
+                st.toast("Assignment helper chat cleared.")
+                st.session_state[KEY_ASSIGN_HISTORY] = assign_history
+                st.rerun()
 
-        ai_response_placeholder = st.empty()
-        if ask_ai:
-            if not (assign_prompt or "").strip():
-                st.warning("Please paste the assignment or describe it before asking for ideas.")
-            else:
-                ai_response_placeholder.markdown(
-                    "<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>",
+        if not assign_history:
+            st.caption("No messages yet — paste your task below to get guidance from Herr Felix.")
+
+        def _render_assign_message(msg: Dict[str, str]) -> None:
+            text = msg.get("content", "")
+            safe = html.escape(text)
+            safe = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", safe)
+            safe = safe.replace("\n", "<br>")
+            if msg.get("role") == "user":
+                st.markdown(
+                    f"<div class='bubble-wrap'><div class='lbl-u'>{student_label_html}</div></div>",
                     unsafe_allow_html=True,
                 )
-                time.sleep(random.uniform(0.8, 1.2))
-                sys_msg = (
-                    "You are Herr Felix, a supportive German writing coach. A student will send an assignment brief. "
-                    "Reply in English with level-appropriate planning help, but never write the full answer. "
-                    "Include three sections titled 'Task focus', 'Idea starters', and 'Helpful German phrases'. "
-                    "Each section must contain concise bullet points. Offer only short German sample phrases (no long paragraphs). "
-                    "Finish with one motivational planning tip. Keep the tone encouraging."
+                st.markdown(f"<div class='bubble-u'>{safe}</div>", unsafe_allow_html=True)
+            else:
+                st.markdown("<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='bubble-a'>{safe}</div>", unsafe_allow_html=True)
+
+        history_snapshot = list(assign_history)
+        older_messages = history_snapshot[:-4] if len(history_snapshot) > 4 else []
+        recent_messages = history_snapshot[-4:] if len(history_snapshot) > 4 else history_snapshot
+
+        if older_messages:
+            with st.expander(f"Show earlier ({len(older_messages)})", expanded=False):
+                for item in older_messages:
+                    _render_assign_message(item)
+
+        for item in recent_messages:
+            _render_assign_message(item)
+
+        typing_placeholder = st.empty()
+
+        user_prompt = st.chat_input(
+            "Paste the assignment question or ask for planning help",
+            key=KEY_ASSIGN_INPUT,
+        )
+
+        if user_prompt:
+            prompt_clean = user_prompt.strip()
+            if not prompt_clean:
+                st.warning("Please paste the assignment or describe it before sending.")
+            else:
+                assign_history.append({"role": "user", "content": prompt_clean})
+                typing_placeholder.markdown(
+                    HERR_FELIX_TYPING_HTML,
+                    unsafe_allow_html=True,
                 )
-                user_msg = (
-                    f"CEFR level: {assign_level}\n"
-                    f"Assignment brief:\n{assign_prompt.strip()}\n"
-                    "Provide planning guidance without completing the student's task."
+
+                system_msg = (
+                    "You are Herr Felix, a supportive German writing coach. "
+                    f"Always tailor advice to CEFR level {assign_level}. "
+                    "Students will paste assignment briefs or follow-up questions. "
+                    "Provide planning guidance, structure suggestions, and short phrase ideas without writing the full assignment. "
+                    "Default to clear sections titled 'Task focus', 'Idea starters', and 'Helpful German phrases'. "
+                    "Each section should contain 2-4 concise bullet points using the bullet character •. "
+                    "Offer only short German sample phrases (no long paragraphs) and finish with one brief motivational planning tip in English."
                 )
+
+                convo = [{"role": "system", "content": system_msg}]
+                convo.extend(
+                    {"role": msg.get("role", "user"), "content": msg.get("content", "")}
+                    for msg in assign_history
+                )
+
                 try:
                     resp = client.chat.completions.create(
                         model="gpt-4o-mini",
-                        messages=[
-                            {"role": "system", "content": sys_msg},
-                            {"role": "user", "content": user_msg},
-                        ],
+                        messages=convo,
                         temperature=0.3,
                         max_tokens=700,
                     )
                     assign_reply = (resp.choices[0].message.content or "").strip()
                 except Exception as exc:
                     assign_reply = f"(Error) {exc}"
-                ai_response_placeholder.empty()
-                st.session_state[KEY_ASSIGN_RESPONSE] = assign_reply
 
-        if st.session_state.get(KEY_ASSIGN_RESPONSE):
-            st.markdown("<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>", unsafe_allow_html=True)
-            st.markdown(
-                f"<div class='bubble-a'>{st.session_state[KEY_ASSIGN_RESPONSE]}</div>",
-                unsafe_allow_html=True,
-            )
-            st.caption("Nutze die Hinweise für deine eigenen Stichpunkte – nicht als fertige Lösung.")
-
-        st.divider()
-
-        assignment_guides = [
-            {
-                "title": "A1 Informal letter or email to a friend",
-                "levels": ["A1", "A2"],
-                "focus": (
-                    "Respond warmly to personal news, ask simple follow-up questions, and share one or two updates about"
-                    " yourself. Keep sentences short and friendly."
-                ),
-                "structure": [
-                    "Greeting + friendly opening (Wie geht's? Danke für ...)",
-                    "React to their news (Freude, Glückwünsche, kurze Meinung)",
-                    "Share your own update or plan (z.B. Wochenende, Familie, Hobby)",
-                    "Invite the friend to reply or meet + simple closing", 
-                ],
-                "ideas": [
-                    "Write one reason you are happy or surprised about their message.",
-                    "Add one short story (2 Sätze) from your week to keep the letter personal.",
-                    "Finish with a question so the conversation continues.",
-                ],
-                "phrases": [
-                    "Vielen Dank für deine Nachricht ...",
-                    "Ich freue mich, dass ...",
-                    "Am Wochenende habe ich ...",
-                    "Schreib mir bald zurück!",
-                ],
-                "checklist": [
-                    "Hast du alle Teile der Aufgabe beantwortet (z.B. danken, fragen, erzählen)?",
-                    "Benutzt du freundliche Grußformeln am Anfang und Ende?",
-                    "Gibt es mindestens ein Fragezeichen am Ende einer Frage?",
-                ],
-            },
-            {
-                "title": "A2 Formal email to an office or school",
-                "levels": ["A2", "B1"],
-                "focus": (
-                    "Show respect, include the key facts (reason, dates, requests), and end with a polite closing."
-                ),
-                "structure": [
-                    "Subject line or opening sentence stating your reason",
-                    "Short self-introduction (Name, Kurs, Datum)",
-                    "Explain the situation with 2–3 clear points (Problem, Wunsch, Frage)",
-                    "Polite request for action or confirmation",
-                    "Formal closing (Mit freundlichen Grüßen + Name)",
-                ],
-                "ideas": [
-                    "Note the date/time/location connected to the issue.",
-                    "State what you expect or need (Termin, Information, Hilfe).",
-                    "Add one sentence showing appreciation or understanding.",
-                ],
-                "phrases": [
-                    "Sehr geehrte Damen und Herren,",
-                    "Ich schreibe Ihnen, weil ...",
-                    "Könnten Sie mir bitte ... schicken?",
-                    "Vielen Dank im Voraus für Ihre Hilfe.",
-                ],
-                "checklist": [
-                    "Ist der Ton höflich (Sie-Form, kein Du)?",
-                    "Hast du alle Fragen oder Aufgabenpunkte beantwortet?",
-                    "Stehen Name und Grußformel in einer eigenen Zeile am Ende?",
-                ],
-            },
-            {
-                "title": "B1 Short report or experience for a blog",
-                "levels": ["B1", "B2"],
-                "focus": (
-                    "Describe an event or experience, highlight feelings or reactions, and give a short conclusion or"
-                    " recommendation."
-                ),
-                "structure": [
-                    "Catchy heading or first sentence naming the event",
-                    "Paragraph 1: What happened? Where and with whom?",
-                    "Paragraph 2: Your opinions or feelings (positiv/negativ, Gründe)",
-                    "Paragraph 3: Empfehlung oder Ausblick (Würdest du es wieder machen?)",
-                ],
-                "ideas": [
-                    "Use at least one connector to order events (zuerst, dann, danach, schließlich).",
-                    "Mention one problem or highlight to keep the story interesting.",
-                    "End with advice for classmates who might try the same thing.",
-                ],
-                "phrases": [
-                    "Letzten Samstag habe ich ...",
-                    "Das Beste daran war ...",
-                    "Obwohl ..., hatte ich viel Spaß.",
-                    "Ich empfehle euch, ...",
-                ],
-                "checklist": [
-                    "Hast du die Zeitformen gemischt (Perfekt + Präteritum oder Präsens für Kommentare)?",
-                    "Gibt es einen klaren Anfang, eine Mitte und ein Ende?",
-                    "Hast du deine Meinung begründet (weil, denn, deshalb)?",
-                ],
-            },
-            {
-                "title": "B1/B2 Complaint or problem-solving email",
-                "levels": ["B1", "B2"],
-                "focus": (
-                    "Explain what went wrong, describe the impact, and state what solution you want while remaining respectful."
-                ),
-                "structure": [
-                    "Formal greeting + reason for writing",
-                    "Details of the problem (Wann? Was genau?)",
-                    "Describe consequences for you",
-                    "Say what you expect (Rückerstattung, Reparatur, neuer Termin)",
-                    "Polite closing",
-                ],
-                "ideas": [
-                    "Include one factual detail (Bestellnummer, Datum, Ort).",
-                    "Explain briefly how you felt or why it is urgent.",
-                    "Offer a cooperative sentence (Ich freue mich auf Ihre Rückmeldung).",
-                ],
-                "phrases": [
-                    "Leider muss ich mich beschweren, weil ...",
-                    "Das Gerät funktioniert nicht, seit ...",
-                    "Ich bitte Sie daher, ...",
-                    "Für eine schnelle Lösung wäre ich Ihnen dankbar.",
-                ],
-                "checklist": [
-                    "Sind die Informationen sachlich und höflich formuliert?",
-                    "Hast du klar gesagt, was du dir wünschst?",
-                    "Gibt es Absätze, damit der Text leicht zu lesen ist?",
-                ],
-            },
-        ]
-
-        if assignment_guides:
-            level_options = sorted({lvl for guide in assignment_guides for lvl in guide["levels"]})
-            default_level_pref = st.session_state.get("_cchat_last_profile_level")
-            if default_level_pref in level_options:
-                default_level_index = level_options.index(default_level_pref)
-            else:
-                default_level_index = 0
-
-            level_filter = st.selectbox(
-                "Focus level",
-                options=level_options,
-                index=default_level_index,
-                key="assign_guide_level",
-                help="Filter the suggestions to match the CEFR level you are practising.",
-            )
-
-            filtered_guides = [g for g in assignment_guides if level_filter in g["levels"]] or assignment_guides
-
-            guide_titles = [guide["title"] for guide in filtered_guides]
-            selected_title = st.selectbox(
-                "Choose an assignment style",
-                guide_titles,
-                key="assign_guide_selector",
-            ) if guide_titles else None
-
-            selected_guide = next((g for g in filtered_guides if g["title"] == selected_title), filtered_guides[0]) if filtered_guides else None
-        else:
-            selected_guide = None
-
-        if selected_guide:
-            st.markdown(f"### {selected_guide['title']}")
-            st.caption(selected_guide["focus"])
-
-            st.markdown("#### 🧱 Suggested structure")
-            st.markdown("\n".join(f"- {item}" for item in selected_guide["structure"]))
-
-            st.markdown("#### 💡 Idea sparks")
-            st.markdown("\n".join(f"- {idea}" for idea in selected_guide["ideas"]))
-
-            st.markdown("#### 🔑 Useful phrases to practise")
-            st.markdown("\n".join(f"- {phrase}" for phrase in selected_guide["phrases"]))
-
-            st.markdown("#### ✅ Final checks before you submit")
-            st.markdown("\n".join(f"- {item}" for item in selected_guide["checklist"]))
-
-            st.markdown("#### ✍️ Plan your answer")
-            st.text_area(
-                "Write short notes or keywords before you start your draft",
-                key=KEY_ASSIGN_PLAN,
-                height=140,
-                placeholder="z.B. Punkt 1: Danke für ... | Punkt 2: Meine Neuigkeit ... | Frage: Wann sehen wir uns?",
-                help="Keep it brief—just bullet ideas to guide your real assignment answer.",
-            )
-            st.caption(
-                "Tipp: Nutze diese Notizen, um deine eigenen Sätze zu formulieren. Schreibe danach deinen vollständigen Text"
-                " im Aufgabenbereich oder Heft."
-            )
+                assign_history.append({"role": "assistant", "content": assign_reply})
+                typing_placeholder.empty()
+                st.session_state[KEY_ASSIGN_HISTORY] = assign_history
+                st.rerun()
 
     # ===================== Exams (Speaking • Lesen • Hören) =====================
     with tab_exam:
