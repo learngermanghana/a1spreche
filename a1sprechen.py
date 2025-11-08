@@ -7805,8 +7805,7 @@ if tab == "Chat • Grammar • Exams":
     KEY_ASSIGN_HISTORY = "cchat_w_assign_history_v2"
     KEY_ASSIGN_INPUT   = "cchat_w_assign_input_v2"
     KEY_ASSIGN_LEVEL   = "cchat_w_assign_level"
-    KEY_ASSIGN_LOADED  = "cchat_w_assign_loaded"
-    KEY_ASSIGN_STUDENT = "cchat_w_assign_student"
+    KEY_ASSIGN_PLAN    = "cchat_w_assign_plan"
     # Also make Regen button unique
     KEY_REGEN_BTN      = "cchat_w_btn_regen_v2"
 
@@ -8584,48 +8583,11 @@ if tab == "Chat • Grammar • Exams":
         st.markdown("### 🤖 Assignment helper chat")
         st.caption("Paste the brief or ask follow-up questions – Herr Felix will guide your plan, not write it for you.")
 
-        assign_level_options = ["A1", "A2", "B1", "B2", "C1"]
-
-        active_assign_student = _safe_lower(student_code_tc, "")
-        prev_assign_student = st.session_state.get(KEY_ASSIGN_STUDENT)
-        if prev_assign_student != active_assign_student:
-            st.session_state[KEY_ASSIGN_STUDENT] = active_assign_student
-            for _key in (KEY_ASSIGN_HISTORY, KEY_ASSIGN_INPUT, KEY_ASSIGN_LEVEL):
-                st.session_state.pop(_key, None)
-            st.session_state[KEY_ASSIGN_LOADED] = False
-
-        if KEY_ASSIGN_LOADED not in st.session_state:
-            st.session_state[KEY_ASSIGN_LOADED] = False
-
-        assign_doc_ref = None
-        if student_code_tc:
-            if not st.session_state.get(KEY_ASSIGN_LOADED, False):
-                doc_ref_loaded, stored_messages, stored_meta = load_assignment_helper_state(
-                    topic_db, student_code_tc
-                )
-                assign_doc_ref = doc_ref_loaded
-                if stored_messages or KEY_ASSIGN_HISTORY not in st.session_state:
-                    st.session_state[KEY_ASSIGN_HISTORY] = stored_messages
-                if KEY_ASSIGN_HISTORY not in st.session_state:
-                    st.session_state[KEY_ASSIGN_HISTORY] = []
-                meta_level = (stored_meta or {}).get("level")
-                if (
-                    isinstance(meta_level, str)
-                    and meta_level in assign_level_options
-                    and KEY_ASSIGN_LEVEL not in st.session_state
-                ):
-                    st.session_state[KEY_ASSIGN_LEVEL] = meta_level
-                st.session_state[KEY_ASSIGN_LOADED] = True
-            if assign_doc_ref is None:
-                assign_doc_ref = get_assignment_helper_doc(topic_db, student_code_tc)
-        else:
-            st.session_state.setdefault(KEY_ASSIGN_HISTORY, [])
-            st.session_state[KEY_ASSIGN_LOADED] = True
-
         assign_history = st.session_state.setdefault(KEY_ASSIGN_HISTORY, [])
         for legacy_key in ("cchat_w_assign_prompt", "cchat_w_assign_response", "cchat_w_assign_ai"):
             st.session_state.pop(legacy_key, None)
 
+        assign_level_options = ["A1", "A2", "B1", "B2", "C1"]
         control_cols = st.columns([4, 1])
         with control_cols[0]:
             default_assign_level = (
@@ -8647,18 +8609,8 @@ if tab == "Chat • Grammar • Exams":
         with control_cols[1]:
             if st.button("🧹 Clear chat", type="secondary", use_container_width=True, key="assign_clear_chat"):
                 assign_history.clear()
-                st.session_state[KEY_ASSIGN_HISTORY] = assign_history
-                st.session_state[KEY_ASSIGN_LOADED] = True
-                if assign_doc_ref is None and student_code_tc:
-                    assign_doc_ref = get_assignment_helper_doc(topic_db, student_code_tc)
-                if assign_doc_ref is not None:
-                    try:
-                        clear_assignment_helper_state(assign_doc_ref)
-                    except Exception:
-                        logging.warning(
-                            "Failed to clear Assignment Helper transcript", exc_info=True
-                        )
                 st.toast("Assignment helper chat cleared.")
+                st.session_state[KEY_ASSIGN_HISTORY] = assign_history
                 st.rerun()
 
         if not assign_history:
@@ -8708,15 +8660,31 @@ if tab == "Chat • Grammar • Exams":
                     HERR_FELIX_TYPING_HTML,
                     unsafe_allow_html=True,
                 )
-
                 system_msg = (
-                    "You are Herr Felix, a supportive German writing coach. "
+                    "You are Herr Felix, a supportive German writing coach for school assignments and quizzes. "
                     f"Always tailor advice to CEFR level {assign_level}. "
-                    "Students will paste assignment briefs or follow-up questions. "
-                    "Provide planning guidance, structure suggestions, and short phrase ideas without writing the full assignment. "
-                    "Default to clear sections titled 'Task focus', 'Idea starters', and 'Helpful German phrases'. "
-                    "Each section should contain 2-4 concise bullet points using the bullet character •. "
-                    "Offer only short German sample phrases (no long paragraphs) and finish with one brief motivational planning tip in English."
+                    "Your main goal is to help students understand the task, plan their answer, "
+                    "and improve their own thinking. You must NOT write the full solution or full text. "
+                    "Students will paste assignment briefs, objective (multiple-choice) questions, "
+                    "or follow-up questions. For objective questions, you may explain what is being tested, "
+                    "give hints, and show how to think about each option, but you must never say directly "
+                    "which option (A, B, C, etc.) is correct and you must not write the exact final answer. "
+                    "First, briefly clarify what the task is asking in simple language and highlight key words. "
+                    "If the task is unclear, ask 1–2 short clarifying questions. "
+                    "Then provide planning guidance, structure suggestions, and short phrase ideas "
+                    "without completing the whole assignment. If a student asks you to give the answer "
+                    "or to write the text for them, politely refuse and instead offer ideas, structure, "
+                    "hints, and example phrases. "
+                    "Always answer using clear sections titled 'Task focus', 'Idea starters', "
+                    "and 'Helpful German phrases'. Each section must contain 2–4 concise bullet points "
+                    "using the bullet character •. "
+                    "Under 'Helpful German phrases', only give short sample phrases or sentence starters "
+                    "(no long paragraphs, no full solutions). "
+                    "Students may ask follow-up questions. In follow-ups, continue to give hints, "
+                    "planning help, corrections, and short example phrases, but never give the direct answer "
+                    "to a multiple-choice question and never write the full assignment. "
+                    "Keep a kind, motivating tone and finish each reply with one brief motivational "
+                    "planning tip in English."
                 )
 
                 convo = [{"role": "system", "content": system_msg}]
@@ -8739,21 +8707,65 @@ if tab == "Chat • Grammar • Exams":
                 assign_history.append({"role": "assistant", "content": assign_reply})
                 typing_placeholder.empty()
                 st.session_state[KEY_ASSIGN_HISTORY] = assign_history
-                st.session_state[KEY_ASSIGN_LOADED] = True
-                if assign_doc_ref is None and student_code_tc:
-                    assign_doc_ref = get_assignment_helper_doc(topic_db, student_code_tc)
-                if assign_doc_ref is not None:
-                    try:
-                        persist_assignment_helper_state(
-                            assign_doc_ref,
-                            messages=assign_history,
-                            level=assign_level,
-                        )
-                    except Exception:
-                        logging.warning(
-                            "Failed to persist Assignment Helper transcript", exc_info=True
-                        )
                 st.rerun()
+
+            if assignment_guides:
+                level_options = sorted({lvl for guide in assignment_guides for lvl in guide["levels"]})
+                default_level_pref = st.session_state.get("_cchat_last_profile_level")
+                if default_level_pref in level_options:
+                    default_level_index = level_options.index(default_level_pref)
+                else:
+                    default_level_index = 0
+
+                level_filter = st.selectbox(
+                    "Focus level",
+                    options=level_options,
+                    index=default_level_index,
+                    key="assign_guide_level",
+                    help="Filter the suggestions to match the CEFR level you are practising.",
+                )
+
+                filtered_guides = [g for g in assignment_guides if level_filter in g["levels"]] or assignment_guides
+
+                guide_titles = [guide["title"] for guide in filtered_guides]
+                selected_title = st.selectbox(
+                    "Choose an assignment style",
+                    guide_titles,
+                    key="assign_guide_selector",
+                ) if guide_titles else None
+
+                selected_guide = next((g for g in filtered_guides if g["title"] == selected_title), filtered_guides[0]) if filtered_guides else None
+            else:
+                selected_guide = None
+
+            if selected_guide:
+                st.markdown(f"### {selected_guide['title']}")
+                st.caption(selected_guide["focus"])
+
+                st.markdown("#### 🧱 Suggested structure")
+                st.markdown("\n".join(f"- {item}" for item in selected_guide["structure"]))
+
+                st.markdown("#### 💡 Idea sparks")
+                st.markdown("\n".join(f"- {idea}" for idea in selected_guide["ideas"]))
+
+                st.markdown("#### 🔑 Useful phrases to practise")
+                st.markdown("\n".join(f"- {phrase}" for phrase in selected_guide["phrases"]))
+
+                st.markdown("#### ✅ Final checks before you submit")
+                st.markdown("\n".join(f"- {item}" for item in selected_guide["checklist"]))
+
+                st.markdown("#### ✍️ Plan your answer")
+                st.text_area(
+                    "Write short notes or keywords before you start your draft",
+                    key=KEY_ASSIGN_PLAN,
+                    height=140,
+                    placeholder="z.B. Punkt 1: Danke für ... | Punkt 2: Meine Neuigkeit ... | Frage: Wann sehen wir uns?",
+                    help="Keep it brief—just bullet ideas to guide your real assignment answer.",
+                )
+                st.caption(
+                    "Tipp: Nutze diese Notizen, um deine eigenen Sätze zu formulieren. Schreibe danach deinen vollständigen Text"
+                    " im Aufgabenbereich oder Heft."
+                )
 
     # ===================== Exams (Speaking • Lesen • Hören) =====================
     with tab_exam:
