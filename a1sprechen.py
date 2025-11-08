@@ -4421,8 +4421,8 @@ if tab == "My Course":
             translator_col, support_col = st.columns([1, 1.6])
             with translator_col:
                 st.markdown(
-                    "[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; "
-                    "[🌐 Google Translate](https://translate.google.com)",
+                    "[🧠 Grammar Helper](https://chat.grammar.page) &nbsp; | &nbsp; "
+                    "[📝 Assignment Helper](https://chat.grammar.page)",
                     unsafe_allow_html=True,
                 )
             with support_col:

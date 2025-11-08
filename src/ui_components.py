@@ -161,9 +161,9 @@ def render_vocab_lookup(key: str, context_label: Optional[str] = None) -> None:
     st.caption("Search words from this assignment")
 
     translate_caption = (
-        'Need to translate a longer phrase? Try '
-        '<a href="https://www.deepl.com/translator" target="_blank">DeepL</a> '
-        'or <a href="https://translate.google.com" target="_blank">Google Translate</a>.'
+        'Need help beyond a single word? Try the '
+        '<a href="https://chat.grammar.page" target="_blank">Grammar Helper</a> '
+        'or <a href="https://chat.grammar.page" target="_blank">Assignment Helper</a>.'
     )
 
     df = _load_vocab_sheet()
