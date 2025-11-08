@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Sequence, Any, MutableMapping
+from typing import Sequence, Any, MutableMapping, List
 
 
-def _coerce_level_options(level_options: Sequence[str]) -> list[str]:
-    coerced: list[str] = []
+def _coerce_level_options(level_options: Sequence[str]) -> List[str]:
+    coerced: List[str] = []
     for opt in level_options:
         text = str(opt)
         if text:
