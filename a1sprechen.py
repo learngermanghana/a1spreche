@@ -7809,7 +7809,8 @@ if tab == "Chat • Grammar • Exams":
     # Also make Regen button unique
     KEY_REGEN_BTN      = "cchat_w_btn_regen_v2"
 
-    level_options = ["A1", "A2", "B1", "B2"]
+    GRAMMAR_LEVELS = ("A1", "A2", "B1", "B2")
+    level_options = list(GRAMMAR_LEVELS)
     ensure_student_level()
     roster_level = _safe_upper(st.session_state.get("student_level"), "")
     match = re.search("|".join(level_options), roster_level) if roster_level else None
@@ -8305,14 +8306,13 @@ if tab == "Chat • Grammar • Exams":
 
     # ===================== Grammar (simple, one-box) =====================
     with tab_gram:
-        level_options = ["A1", "A2", "B1", "B2"]
+        level_options = list(GRAMMAR_LEVELS)
         default_gram = st.session_state.get("_cchat_last_profile_level") or level_options[0]
         if default_gram not in level_options:
             default_gram = level_options[0]
+        if st.session_state.get(KEY_GRAM_LEVEL) not in level_options:
+            st.session_state[KEY_GRAM_LEVEL] = default_gram
         cur_level_g = st.session_state.get(KEY_GRAM_LEVEL, default_gram)
-        if cur_level_g not in level_options:
-            cur_level_g = default_gram
-        st.session_state.setdefault(KEY_GRAM_LEVEL, cur_level_g)
 
         tab_quick, tab_connectors = st.tabs(["Quick Grammar Help", "Connector Trainer"])
 
@@ -8603,7 +8603,7 @@ if tab == "Chat • Grammar • Exams":
                 value=default_assign_level,
                 key=KEY_ASSIGN_LEVEL,
             )
-            if assign_level != st.session_state.get(KEY_GRAM_LEVEL):
+            if assign_level != st.session_state.get(KEY_GRAM_LEVEL) and assign_level in GRAMMAR_LEVELS:
                 st.session_state[KEY_GRAM_LEVEL] = assign_level
             st.caption("Choose the CEFR level that matches your assignment.")
         with control_cols[1]:
