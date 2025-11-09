@@ -4803,13 +4803,18 @@ if tab == "My Course":
                         "🔒 This box is locked because you already submitted. Scroll up to use the resubmit email link if you need to send an update."
                     )
 
-                st.markdown("📌 How to Submit")
-                        1) Check you’re on the correct page: **Level {student_level} • Day {info['day']} • Chapter {info['chapter']}**.  
-                        2) Tick the two confirmations below.  
-                        3) Click **Confirm & Submit**.  
-                        4) Your box will lock (read-only).  
+                st.markdown(
+                    textwrap.dedent(
+                        f"""📌 How to Submit
+
+                        1) Check you’re on the correct page: **Level {student_level} • Day {info['day']} • Chapter {info['chapter']}**.
+                        2) Tick the two confirmations below.
+                        3) Click **Confirm & Submit**.
+                        4) Your box will lock (read-only).
                         _You’ll get an **email** when it’s marked. See **Results & Resources** for scores & feedback._
-                    """)
+                        """
+                    )
+                )
 
                 col1, col2 = st.columns([1, 1.2])
                 success_notice = st.session_state.pop(success_notice_key, None)
