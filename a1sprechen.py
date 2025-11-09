@@ -195,63 +195,6 @@ def _assignment_helper_persistence_enabled() -> bool:
         return False
     return host in _assignment_helper_persist_hosts()
 
-
-@lru_cache(maxsize=1)
-def _use_radio_level_selectors() -> bool:
-    """Return ``True`` when level pickers should render as radio buttons."""
-
-    return _current_request_host() == "chat.grammar.exams"
-
-
-def _render_level_selector(
-    label: str,
-    options: Sequence[Any],
-    *,
-    value: Any,
-    key: str,
-    on_change=None,
-    help: Optional[str] = None,
-):
-    """Render either a slider or radio level selector depending on the host."""
-
-    option_list = list(options)
-    if not option_list:
-        return st.select_slider(
-            label,
-            option_list,
-            value=value,
-            key=key,
-            on_change=on_change,
-            help=help,
-        )
-
-    selected_value = value if value in option_list else option_list[0]
-
-    if key:
-        current_state = st.session_state.get(key)
-        if current_state not in option_list:
-            st.session_state[key] = selected_value
-
-    if _use_radio_level_selectors():
-        index = option_list.index(selected_value)
-        return st.radio(
-            label,
-            option_list,
-            index=index,
-            key=key,
-            on_change=on_change,
-            help=help,
-        )
-
-    return st.select_slider(
-        label,
-        option_list,
-        value=selected_value,
-        key=key,
-        on_change=on_change,
-        help=help,
-    )
-
 _TYPING_TRACKER_PREFIX = "__typing_meta__"
 _TYPING_PING_INTERVAL = 4.0
 _NEW_POST_TYPING_ID = "__new_post__"
@@ -8317,20 +8260,11 @@ if tab == "Chat • Grammar • Exams":
 
     selector_key = "chat_tab_selector"
 
-    def _focus_chat_tab(tab_label: str, *, clear_selector: bool = True) -> None:
-        """Persist the active Chat/Grammar tab across reruns."""
-
-        if tab_label not in base_tab_labels:
-            return
-        st.session_state["_chat_focus_tab"] = tab_label
-        if clear_selector:
-            st.session_state.pop(selector_key, None)
-
     def _sync_chat_tab_focus() -> None:
         chosen = st.session_state.get(selector_key)
         if chosen and chosen in base_tab_labels:
             if st.session_state.get("_chat_focus_tab") != chosen:
-                _focus_chat_tab(chosen, clear_selector=False)
+                st.session_state["_chat_focus_tab"] = chosen
                 st.session_state["need_rerun"] = True
 
     with st.container():
@@ -8398,12 +8332,7 @@ if tab == "Chat • Grammar • Exams":
             cur_level = st.session_state.get(KEY_LEVEL_SLIDER, default_level)
             if cur_level not in level_options:
                 cur_level = default_level
-            level = _render_level_selector(
-                "Level (CEFR)",
-                level_options,
-                value=cur_level,
-                key=KEY_LEVEL_SLIDER,
-            )
+            level = st.select_slider("Level (CEFR)", level_options, value=cur_level, key=KEY_LEVEL_SLIDER)
         with colB:
             force_de = st.toggle("Force German replies 🇩🇪", key=KEY_FORCE_DE_TOG, value=st.session_state.get(KEY_FORCE_DE_TOG, False))
         with colC:
@@ -8733,9 +8662,6 @@ if tab == "Chat • Grammar • Exams":
 
     # ===================== Grammar (simple, one-box) =====================
     with tab_gram:
-        def _focus_grammar_tab() -> None:
-            _focus_chat_tab("🛠️ Grammar")
-
         level_options = list(GRAMMAR_LEVELS)
         default_gram = st.session_state.get("_cchat_last_profile_level") or level_options[0]
         if default_gram not in level_options:
@@ -8766,17 +8692,15 @@ if tab == "Chat • Grammar • Exams":
                     placeholder="z.B. Ist es 'wegen dem' oder 'wegen des'? Oder: Ich bin gestern in den Park gegangen…",
                 )
             with gcol2:
-                gram_level = _render_level_selector(
+                gram_level = st.select_slider(
                     "Level",
                     level_options,
                     value=st.session_state.get(KEY_GRAM_LEVEL, cur_level_g),
                     key=KEY_GRAM_LEVEL,
-                    on_change=_focus_grammar_tab,
                 )
                 ask = st.button("Ask", type="primary", width="stretch", key=KEY_GRAM_ASK_BTN)
 
             if ask and (gram_q or "").strip():
-                _focus_grammar_tab()
                 sys = (
                     "You are a German grammar helper. "
                     "All EXPLANATIONS must be in English ONLY. "
@@ -8848,7 +8772,6 @@ if tab == "Chat • Grammar • Exams":
                 ("I'll choose connectors", "Suggest for me"),
                 key=KEY_CONN_MODE,
                 horizontal=True,
-                on_change=_focus_grammar_tab,
             )
 
             connectors_text = ""
@@ -8867,7 +8790,6 @@ if tab == "Chat • Grammar • Exams":
                     f"({gram_level})."
                 )
                 if st.button("Suggest connectors", key=KEY_CONN_SUGGEST):
-                    _focus_grammar_tab()
                     suggestion_placeholder.markdown(
                         "<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>",
                         unsafe_allow_html=True,
@@ -8933,7 +8855,6 @@ if tab == "Chat • Grammar • Exams":
             clear_btn = col_clear.button("Clear session", type="secondary", key=KEY_CONN_CLEAR)
 
             if clear_btn:
-                _focus_grammar_tab()
                 st.session_state.pop(KEY_CONN_SESSION, None)
                 st.session_state.pop(KEY_CONN_TEXT, None)
                 st.session_state.pop(KEY_CONN_SCENARIO, None)
@@ -8946,7 +8867,6 @@ if tab == "Chat • Grammar • Exams":
                     rerun_fn()
 
             if coach_btn:
-                _focus_grammar_tab()
                 gram_level = st.session_state.get(KEY_GRAM_LEVEL, cur_level_g)
                 connector_payload = connectors_text.strip()
                 scenario_payload = scenario_text.strip()
@@ -9026,7 +8946,13 @@ if tab == "Chat • Grammar • Exams":
         def _focus_assignment_tab() -> None:
             """Keep the Assignment Guide tab selected after actions that trigger reruns."""
 
-            _focus_chat_tab("📘 Assignment Guide")
+            st.session_state["_chat_focus_tab"] = "📘 Assignment Guide"
+            if selector_key in st.session_state:
+                # Streamlit raises an error when we try to programmatically override the
+                # value of an existing selectbox widget via ``st.session_state[key] =``.
+                # Removing the stored widget state lets the next rerun initialise the
+                # selectbox with the desired default index instead.
+                st.session_state.pop(selector_key, None)
 
         assignment_persist_enabled = _assignment_helper_persistence_enabled()
         assign_owner_value = (student_code_tc or "").strip().lower()
@@ -9138,7 +9064,7 @@ if tab == "Chat • Grammar • Exams":
             )
             if default_assign_level not in assign_level_options:
                 default_assign_level = assign_level_options[0]
-            assign_level = _render_level_selector(
+            assign_level = st.select_slider(
                 "Level",
                 assign_level_options,
                 value=default_assign_level,
@@ -9370,9 +9296,6 @@ if tab == "Chat • Grammar • Exams":
 
     # ===================== Exams (Speaking • Lesen • Hören) =====================
     with tab_exam:
-        def _focus_exam_tab() -> None:
-            _focus_chat_tab("📝 Exams")
-
         # Level-aware Goethe links (Lesen & Hören)
         lesen_links = {
             "A1": [("Goethe A1 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd1/ueb.html")],
@@ -9466,12 +9389,11 @@ if tab == "Chat • Grammar • Exams":
                 """,
                 unsafe_allow_html=True,
             )
-            lv = _render_level_selector(
+            lv = st.select_slider(
                 "Level",
-                list(lesen_links.keys()),
+                options=list(lesen_links.keys()),
                 value=level_for_exams,
                 key="exam_lesen_level",
-                on_change=_focus_exam_tab,
             )
             _link_buttons(lesen_links.get(lv, []))
 
@@ -9486,12 +9408,11 @@ if tab == "Chat • Grammar • Exams":
                 """,
                 unsafe_allow_html=True,
             )
-            lv_h = _render_level_selector(
+            lv_h = st.select_slider(
                 "Level",
-                list(hoeren_links.keys()),
+                options=list(hoeren_links.keys()),
                 value=level_for_exams,
                 key="exam_hoeren_level",
-                on_change=_focus_exam_tab,
             )
             _link_buttons(hoeren_links.get(lv_h, []))
 
