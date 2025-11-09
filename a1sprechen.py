@@ -4803,8 +4803,7 @@ if tab == "My Course":
                         "🔒 This box is locked because you already submitted. Scroll up to use the resubmit email link if you need to send an update."
                     )
 
-                with st.expander("📌 How to Submit", expanded=False):
-                    st.markdown(f"""
+                st.markdown("📌 How to Submit")
                         1) Check you’re on the correct page: **Level {student_level} • Day {info['day']} • Chapter {info['chapter']}**.  
                         2) Tick the two confirmations below.  
                         3) Click **Confirm & Submit**.  
