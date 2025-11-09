@@ -4,6 +4,11 @@ This module mirrors :mod:`src.topic_coach_persistence` but keeps the
 implementation scoped to the Assignment Helper tab so that tests and other
 callers can exercise the Firestore integration without importing the
 Streamlit application entrypoint.
+
+The Assignment Helper stores transcripts alongside the Grammar Helper within
+the shared ``falowen_chats`` collection. Keeping both experiences in the same
+document allows the application to preload chats efficiently while maintaining
+separate metadata fields for each helper.
 """
 
 from __future__ import annotations
@@ -20,7 +25,7 @@ except Exception:  # pragma: no cover - Firestore may be unavailable in tests
 
 _CHAT_FIELD = "assignment_helper"
 _META_FIELD = "assignment_helper_meta"
-_COLLECTION = "assignment_helper_chats"
+_CHAT_COLLECTION = "falowen_chats"
 _THREAD_COLLECTION = "assignment_helper_threads"
 
 
@@ -38,7 +43,7 @@ def get_assignment_helper_doc(db: Any, student_code: str):
     if db is None or not student_code:
         return None
     try:
-        return db.collection(_COLLECTION).document(student_code)
+        return db.collection(_CHAT_COLLECTION).document(student_code)
     except Exception as exc:  # pragma: no cover - SDK failures are rare
         logging.warning(
             "Failed to resolve Assignment Helper doc for %s: %s", student_code, exc
@@ -208,7 +213,13 @@ def clear_assignment_helper_state(doc_ref: Any) -> bool:
     try:
         delete_field = getattr(firestore, "DELETE_FIELD", None)
         if delete_field is None:
-            doc_ref.delete()
+            doc_ref.set(
+                {
+                    "chats": {_CHAT_FIELD: []},
+                    _META_FIELD: {},
+                },
+                merge=True,
+            )
         else:
             doc_ref.set(
                 {
