@@ -107,29 +107,6 @@ HERR_FELIX_TYPING_HTML = (
 _ASSIGNMENT_PERSIST_HOSTS_DEFAULT = {"chat.grammar.exams"}
 
 
-CHAT_TOOL_TABS = {"🧑‍🏫 Topic Coach", "🛠️ Grammar", "📘 Assignment Guide", "📝 Exams"}
-
-
-def _set_chat_focus_tab(tab_label: str, *, schedule_next: bool = True) -> None:
-    """Remember ``tab_label`` as the active Chat • Grammar • Exams tool."""
-
-    if tab_label not in CHAT_TOOL_TABS:
-        return
-
-    st.session_state["_chat_focus_tab"] = tab_label
-    if schedule_next:
-        st.session_state["_chat_focus_pending"] = tab_label
-    else:
-        st.session_state.pop("_chat_focus_pending", None)
-
-
-def _clear_chat_focus_tab() -> None:
-    """Forget any stored Chat • Grammar • Exams tool focus."""
-
-    st.session_state.pop("_chat_focus_tab", None)
-    st.session_state.pop("_chat_focus_pending", None)
-
-
 @lru_cache(maxsize=1)
 def _current_request_host() -> str:
     """Return the lowercase host for the active Streamlit request if available."""
@@ -1738,11 +1715,11 @@ def render_sidebar_published():
         st.session_state["main_tab_select"] = tab_name
         _qp_set_safe(tab=tab_name)
         if tab_name != "Chat • Grammar • Exams":
-            _clear_chat_focus_tab()
+            st.session_state.pop("_chat_focus_tab", None)
         st.session_state["need_rerun"] = True
 
     def _go_chat_main():
-        _clear_chat_focus_tab()
+        st.session_state["_chat_focus_tab"] = None
         _go("Chat • Grammar • Exams")
 
     def _go_zoom_class():
@@ -1751,7 +1728,7 @@ def render_sidebar_published():
         st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
         st.session_state["classroom_page"] = "Join on Zoom"
         _qp_set_safe(tab="My Course")
-        _clear_chat_focus_tab()
+        st.session_state.pop("_chat_focus_tab", None)
         st.session_state["need_rerun"] = True
 
     def _go_post_qna():
@@ -1760,7 +1737,7 @@ def render_sidebar_published():
         st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
         st.session_state["classroom_page"] = "Class Notes & Q&A"
         _qp_set_safe(tab="My Course")
-        _clear_chat_focus_tab()
+        st.session_state.pop("_chat_focus_tab", None)
         st.session_state["need_rerun"] = True
 
     def _go_vocab_trainer():
@@ -1772,7 +1749,7 @@ def render_sidebar_published():
             st.session_state[f"schreiben_sub_tab_{student_code}"] = "Vocab Trainer"
         st.session_state["schreiben_pending_subtab"] = "Vocab Trainer"
         _qp_set_safe(tab="Vocab Trainer")
-        _clear_chat_focus_tab()
+        st.session_state.pop("_chat_focus_tab", None)
         st.session_state["need_rerun"] = True
 
     def _go_course_submit():
@@ -1782,7 +1759,7 @@ def render_sidebar_published():
         st.session_state["coursebook_page"] = COURSEBOOK_SUBMIT_LABEL
         st.session_state["coursebook_prev_page"] = COURSEBOOK_SUBMIT_LABEL
         _qp_set_safe(tab="My Course")
-        _clear_chat_focus_tab()
+        st.session_state.pop("_chat_focus_tab", None)
         st.session_state["need_rerun"] = True
     if st.session_state.get("logged_in", False):
         st.sidebar.markdown("## Quick access")
@@ -2353,6 +2330,9 @@ if "_qp_set" not in globals():
 
 
 CHAT_MAIN_TAB = "Chat • Grammar • Exams"
+CHAT_TOOL_TABS = {"🧑‍🏫 Topic Coach", "🛠️ Grammar", "📘 Assignment Guide", "📝 Exams"}
+
+
 def navigate_to_chat_tab(focus_tab: Optional[str] = None) -> None:
     """Switch to the Chat • Grammar • Exams page, optionally focusing a specific tool."""
 
@@ -2361,9 +2341,9 @@ def navigate_to_chat_tab(focus_tab: Optional[str] = None) -> None:
     st.session_state["nav_dd"] = CHAT_MAIN_TAB
 
     if focus_tab in CHAT_TOOL_TABS:
-        _set_chat_focus_tab(focus_tab)
+        st.session_state["_chat_focus_tab"] = focus_tab
     else:
-        _clear_chat_focus_tab()
+        st.session_state.pop("_chat_focus_tab", None)
 
     _qp_set(tab=CHAT_MAIN_TAB)
     st.session_state["need_rerun"] = True
@@ -2418,7 +2398,7 @@ def render_dropdown_nav():
         default = "Schreiben Trainer"
         st.session_state["main_tab_select"] = default
         st.session_state["nav_sel"] = default
-        _clear_chat_focus_tab()
+        st.session_state.pop("_chat_focus_tab", None)
         st.session_state["schreiben_pending_subtab"] = "Vocab Trainer"
         student_code_for_nav = st.session_state.get("student_code")
         if student_code_for_nav:
@@ -2434,7 +2414,7 @@ def render_dropdown_nav():
         st.session_state["main_tab_select"] = sel_val
         st.session_state["nav_sel"] = sel_val
         if sel_val != "Chat • Grammar • Exams":
-            _clear_chat_focus_tab()
+            st.session_state.pop("_chat_focus_tab", None)
         _qp_set(tab=sel_val)
 
     sel = st.selectbox(
@@ -2486,7 +2466,7 @@ def _go_attendance() -> None:
     st.session_state["classroom_page"] = "Attendance"
     st.session_state["classroom_prev_page"] = "Attendance"
     _qp_set(tab="My Course")
-    _clear_chat_focus_tab()
+    st.session_state.pop("_chat_focus_tab", None)
     st.session_state["need_rerun"] = True
 
 
@@ -2506,7 +2486,7 @@ def _go_next_assignment(day_value: Any) -> None:
         except Exception:
             params["day"] = day_value
     _qp_set(**params)
-    _clear_chat_focus_tab()
+    st.session_state.pop("_chat_focus_tab", None)
     st.session_state["need_rerun"] = True
 
 
@@ -8246,13 +8226,10 @@ if tab == "Chat • Grammar • Exams":
     # ---------- Subtabs ----------
     tab_labels = ["🧑‍🏫 Topic Coach", "🛠️ Grammar", "📘 Assignment Guide", "📝 Exams"]
     base_tab_labels = tab_labels[:]
-    pending_focus = st.session_state.pop("_chat_focus_pending", None)
     focus_tab = st.session_state.get("_chat_focus_tab")
-    if pending_focus in base_tab_labels:
-        focus_tab = pending_focus
     if focus_tab not in base_tab_labels:
         focus_tab = base_tab_labels[0]
-    _set_chat_focus_tab(focus_tab, schedule_next=False)
+        st.session_state["_chat_focus_tab"] = focus_tab
 
     st.markdown(
         """
@@ -8287,7 +8264,7 @@ if tab == "Chat • Grammar • Exams":
         chosen = st.session_state.get(selector_key)
         if chosen and chosen in base_tab_labels:
             if st.session_state.get("_chat_focus_tab") != chosen:
-                _set_chat_focus_tab(chosen)
+                st.session_state["_chat_focus_tab"] = chosen
                 st.session_state["need_rerun"] = True
 
     with st.container():
@@ -8969,7 +8946,7 @@ if tab == "Chat • Grammar • Exams":
         def _focus_assignment_tab() -> None:
             """Keep the Assignment Guide tab selected after actions that trigger reruns."""
 
-            _set_chat_focus_tab("📘 Assignment Guide")
+            st.session_state["_chat_focus_tab"] = "📘 Assignment Guide"
             if selector_key in st.session_state:
                 # Streamlit raises an error when we try to programmatically override the
                 # value of an existing selectbox widget via ``st.session_state[key] =``.
@@ -9159,7 +9136,6 @@ if tab == "Chat • Grammar • Exams":
             else:
                 assign_history.append({"role": "user", "content": prompt_clean})
                 st.session_state[KEY_ASSIGN_HISTORY] = assign_history
-                _focus_assignment_tab()
                 if assignment_persist_enabled and assign_doc_ref is None and student_code_tc:
                     assign_doc_ref = get_assignment_helper_doc(topic_db, student_code_tc)
                 if assignment_persist_enabled and assign_doc_ref is not None:
