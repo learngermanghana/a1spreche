@@ -8251,8 +8251,35 @@ if tab == "Chat • Grammar • Exams":
         unsafe_allow_html=True,
     )
 
-    def _focus_chat_tab(tab_label: str) -> None:
+    selector_key = "chat_tab_selector"
+
+    def _focus_chat_tab(tab_label: str, *, clear_selector: bool = True) -> None:
         """Persist the active Chat/Grammar tab across reruns."""
+
+        if tab_label not in base_tab_labels:
+            return
+        st.session_state["_chat_focus_tab"] = tab_label
+        if clear_selector:
+            st.session_state.pop(selector_key, None)
+
+    def _sync_chat_tab_focus() -> None:
+        chosen = st.session_state.get(selector_key)
+        if chosen and chosen in base_tab_labels:
+            if st.session_state.get("_chat_focus_tab") != chosen:
+                _focus_chat_tab(chosen, clear_selector=False)
+                st.session_state["need_rerun"] = True
+
+    with st.container():
+        st.markdown('<div class="chat-tab-selector">', unsafe_allow_html=True)
+        st.selectbox(
+            "Select a tool",
+            base_tab_labels,
+            index=base_tab_labels.index(focus_tab),
+            key=selector_key,
+            on_change=_sync_chat_tab_focus,
+            help="Use this menu on phones to switch between Chat • Grammar • Assignment Guide • Exams tools.",
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
 
         if tab_label not in base_tab_labels:
             return
