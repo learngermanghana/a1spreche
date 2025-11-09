@@ -8724,7 +8724,11 @@ if tab == "Chat • Grammar • Exams":
 
             st.session_state["_chat_focus_tab"] = "📘 Assignment Guide"
             if selector_key in st.session_state:
-                st.session_state[selector_key] = "📘 Assignment Guide"
+                # Streamlit raises an error when we try to programmatically override the
+                # value of an existing selectbox widget via ``st.session_state[key] =``.
+                # Removing the stored widget state lets the next rerun initialise the
+                # selectbox with the desired default index instead.
+                st.session_state.pop(selector_key, None)
 
         assignment_persist_enabled = _assignment_helper_persistence_enabled()
         assign_owner_value = (student_code_tc or "").strip().lower()
