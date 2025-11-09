@@ -8245,6 +8245,16 @@ if tab == "Chat • Grammar • Exams":
             border-radius:999px !important;
             padding:4px 14px !important;
             white-space:nowrap;
+            border:1px solid #e5e7eb;
+            background:#f9fafb;
+            color:#111827;
+            font-weight:600;
+            font-size:0.9rem;
+          }
+          .chat-grammar-tabs [data-baseweb="tab"][aria-selected="true"]{
+            background:#111827;
+            color:#f9fafb;
+            border-color:#111827;
           }
           @media (max-width: 640px){
             .chat-tab-selector{ display:block; margin-bottom:0.5rem; }
@@ -8282,14 +8292,11 @@ if tab == "Chat • Grammar • Exams":
     if st.session_state.get(selector_key) not in base_tab_labels:
         st.session_state[selector_key] = focus_tab
 
-    if focus_tab in tab_labels:
-        idx = tab_labels.index(focus_tab)
-        tab_labels = tab_labels[idx:] + tab_labels[:idx]
-
+    # Keep fixed order – no rotation, so tabs don't jump on rerun
     st.markdown('<div class="chat-grammar-tabs">', unsafe_allow_html=True)
-    tab_contexts = st.tabs(tab_labels)
+    tab_contexts = st.tabs(base_tab_labels)
     st.markdown('</div>', unsafe_allow_html=True)
-    tab_lookup = dict(zip(tab_labels, tab_contexts))
+    tab_lookup = dict(zip(base_tab_labels, tab_contexts))
     tab_tc = tab_lookup["🧑‍🏫 Topic Coach"]
     tab_gram = tab_lookup["🛠️ Grammar"]
     tab_assign = tab_lookup["📘 Assignment Guide"]
