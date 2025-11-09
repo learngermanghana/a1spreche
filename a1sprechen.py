@@ -195,6 +195,63 @@ def _assignment_helper_persistence_enabled() -> bool:
         return False
     return host in _assignment_helper_persist_hosts()
 
+
+@lru_cache(maxsize=1)
+def _use_radio_level_selectors() -> bool:
+    """Return ``True`` when level pickers should render as radio buttons."""
+
+    return _current_request_host() == "chat.grammar.exams"
+
+
+def _render_level_selector(
+    label: str,
+    options: Sequence[Any],
+    *,
+    value: Any,
+    key: str,
+    on_change=None,
+    help: Optional[str] = None,
+):
+    """Render either a slider or radio level selector depending on the host."""
+
+    option_list = list(options)
+    if not option_list:
+        return st.select_slider(
+            label,
+            option_list,
+            value=value,
+            key=key,
+            on_change=on_change,
+            help=help,
+        )
+
+    selected_value = value if value in option_list else option_list[0]
+
+    if key:
+        current_state = st.session_state.get(key)
+        if current_state not in option_list:
+            st.session_state[key] = selected_value
+
+    if _use_radio_level_selectors():
+        index = option_list.index(selected_value)
+        return st.radio(
+            label,
+            option_list,
+            index=index,
+            key=key,
+            on_change=on_change,
+            help=help,
+        )
+
+    return st.select_slider(
+        label,
+        option_list,
+        value=selected_value,
+        key=key,
+        on_change=on_change,
+        help=help,
+    )
+
 _TYPING_TRACKER_PREFIX = "__typing_meta__"
 _TYPING_PING_INTERVAL = 4.0
 _NEW_POST_TYPING_ID = "__new_post__"
@@ -8341,7 +8398,12 @@ if tab == "Chat • Grammar • Exams":
             cur_level = st.session_state.get(KEY_LEVEL_SLIDER, default_level)
             if cur_level not in level_options:
                 cur_level = default_level
-            level = st.select_slider("Level (CEFR)", level_options, value=cur_level, key=KEY_LEVEL_SLIDER)
+            level = _render_level_selector(
+                "Level (CEFR)",
+                level_options,
+                value=cur_level,
+                key=KEY_LEVEL_SLIDER,
+            )
         with colB:
             force_de = st.toggle("Force German replies 🇩🇪", key=KEY_FORCE_DE_TOG, value=st.session_state.get(KEY_FORCE_DE_TOG, False))
         with colC:
@@ -8704,7 +8766,7 @@ if tab == "Chat • Grammar • Exams":
                     placeholder="z.B. Ist es 'wegen dem' oder 'wegen des'? Oder: Ich bin gestern in den Park gegangen…",
                 )
             with gcol2:
-                gram_level = st.select_slider(
+                gram_level = _render_level_selector(
                     "Level",
                     level_options,
                     value=st.session_state.get(KEY_GRAM_LEVEL, cur_level_g),
@@ -9076,7 +9138,7 @@ if tab == "Chat • Grammar • Exams":
             )
             if default_assign_level not in assign_level_options:
                 default_assign_level = assign_level_options[0]
-            assign_level = st.select_slider(
+            assign_level = _render_level_selector(
                 "Level",
                 assign_level_options,
                 value=default_assign_level,
@@ -9404,9 +9466,9 @@ if tab == "Chat • Grammar • Exams":
                 """,
                 unsafe_allow_html=True,
             )
-            lv = st.select_slider(
+            lv = _render_level_selector(
                 "Level",
-                options=list(lesen_links.keys()),
+                list(lesen_links.keys()),
                 value=level_for_exams,
                 key="exam_lesen_level",
                 on_change=_focus_exam_tab,
@@ -9424,9 +9486,9 @@ if tab == "Chat • Grammar • Exams":
                 """,
                 unsafe_allow_html=True,
             )
-            lv_h = st.select_slider(
+            lv_h = _render_level_selector(
                 "Level",
-                options=list(hoeren_links.keys()),
+                list(hoeren_links.keys()),
                 value=level_for_exams,
                 key="exam_hoeren_level",
                 on_change=_focus_exam_tab,
