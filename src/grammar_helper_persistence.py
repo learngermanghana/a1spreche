@@ -122,13 +122,7 @@ def clear_grammar_helper_state(doc_ref: Any) -> bool:
     try:
         delete_field = getattr(firestore, "DELETE_FIELD", None)
         if delete_field is None:
-            doc_ref.set(
-                {
-                    "chats": {_CHAT_FIELD: []},
-                    _META_FIELD: {},
-                },
-                merge=True,
-            )
+            doc_ref.delete()
         else:
             doc_ref.set(
                 {
