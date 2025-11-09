@@ -7778,6 +7778,230 @@ def render_vocab_trainer_section() -> None:
 
 #Maincode for me
 
+# ===================== Assignment Helper – Firestore persistence =====================
+
+ASSIGN_COLLECTION = "falowen_assignment_helpers"
+ASSIGN_THREADS_COLLECTION = "falowen_assignment_helper_threads"
+
+
+def _assignment_helper_persistence_enabled() -> bool:
+    """
+    Return True if we have a Firestore client available and can persist
+    Assignment Guide chat. Keeps the rest of the UI free to fall back
+    to in-memory session_state when Firestore is not configured.
+    """
+    try:
+        # topic_db is created earlier with _resolve_topic_coach_db()
+        return topic_db is not None  # type: ignore[name-defined]
+    except NameError:
+        return False
+
+
+def get_assignment_helper_doc(
+    db: Optional[firestore.Client],
+    student_code: Optional[str],
+):
+    """
+    Get a Firestore document reference for the student's Assignment Helper thread.
+
+    Document structure (in collection ASSIGN_COLLECTION):
+      {
+        student_code: "...",
+        level: "A2",
+        thread_id: "...",
+        messages: [
+          {role: "user"|"assistant", content: "...", ts: "..."},
+          ...
+        ],
+        message_count: 7,
+        updated_at: <SERVER_TIMESTAMP>,
+        created_at: <SERVER_TIMESTAMP>
+      }
+    """
+    if db is None or not student_code:
+        return None
+    student_code = str(student_code).strip().lower()
+    if not student_code:
+        return None
+    return db.collection(ASSIGN_COLLECTION).document(student_code)
+
+
+def load_assignment_helper_state(
+    db: Optional[firestore.Client],
+    student_code: Optional[str],
+) -> Tuple[Optional[Any], List[Dict[str, Any]], Dict[str, Any]]:
+    """
+    Load persisted Assignment Helper chat + metadata.
+
+    Returns (doc_ref, messages, meta_dict).
+    meta_dict contains at least: level?, thread_id?, message_count?, created_at?, updated_at?
+    """
+    if db is None or not student_code:
+        return None, [], {}
+
+    doc_ref = get_assignment_helper_doc(db, student_code)
+    if doc_ref is None:
+        return None, [], {}
+
+    try:
+        snap = doc_ref.get()
+    except Exception:
+        logging.warning("Failed to load Assignment Helper state for %s", student_code, exc_info=True)
+        return doc_ref, [], {}
+
+    if not snap.exists:
+        return doc_ref, [], {}
+
+    data = snap.to_dict() or {}
+
+    raw_messages = data.get("messages") or []
+    messages: List[Dict[str, Any]] = []
+    if isinstance(raw_messages, list):
+        for msg in raw_messages:
+            if not isinstance(msg, dict):
+                continue
+            role = str(msg.get("role", "user")).strip().lower() or "user"
+            content = str(msg.get("content", ""))
+            ts = msg.get("ts")
+            messages.append(
+                {
+                    "role": role,
+                    "content": content,
+                    "ts": ts,
+                }
+            )
+
+    # Everything except messages we treat as metadata
+    meta = {k: v for k, v in data.items() if k != "messages"}
+    return doc_ref, messages, meta
+
+
+def persist_assignment_helper_state(
+    doc_ref,
+    messages: List[Dict[str, Any]],
+    level: Optional[str],
+    thread_id: Optional[str],
+    student_code: Optional[str],
+) -> bool:
+    """
+    Persist current Assignment Helper conversation into Firestore.
+
+    Called:
+      - after each user message
+      - after each assistant reply
+      - when backfilling existing local history
+    """
+    if doc_ref is None:
+        return False
+
+    try:
+        # Keep only a reasonable number of messages to avoid giant docs
+        # (you can adjust this limit).
+        MAX_STORED_MESSAGES = 120
+        trimmed = messages[-MAX_STORED_MESSAGES:]
+
+        stored_msgs: List[Dict[str, Any]] = []
+        for msg in trimmed:
+            if not isinstance(msg, dict):
+                continue
+            role = str(msg.get("role", "user")).strip().lower() or "user"
+            content = str(msg.get("content", ""))
+            ts = msg.get("ts")  # you already store ISO timestamps in session_state
+            stored_msgs.append(
+                {
+                    "role": role,
+                    "content": content,
+                    "ts": ts,
+                }
+            )
+
+        payload: Dict[str, Any] = {
+            "student_code": (student_code or "").strip().lower(),
+            "level": (level or "").strip().upper(),
+            "thread_id": (thread_id or "").strip(),
+            "messages": stored_msgs,
+            "message_count": len(stored_msgs),
+            "updated_at": firestore.SERVER_TIMESTAMP,
+        }
+
+        # Ensure created_at is set once
+        try:
+            # Use a transaction so we only set created_at on first write
+            client: firestore.Client = doc_ref._client  # type: ignore[assignment]
+
+            @firestore.transactional
+            def _tx_write(tx, ref, data):
+                snap = ref.get(transaction=tx)
+                if not snap.exists:
+                    data["created_at"] = firestore.SERVER_TIMESTAMP
+                tx.set(ref, data, merge=True)
+
+            tx = client.transaction()
+            _tx_write(tx, doc_ref, payload)
+        except Exception:
+            # Fallback to simple set if transaction not available
+            doc_ref.set(payload, merge=True)
+
+        return True
+    except Exception:
+        logging.warning("Failed to persist Assignment Helper state", exc_info=True)
+        return False
+
+
+def clear_assignment_helper_state(doc_ref) -> bool:
+    """
+    Clear only the messages (and thread metadata) for the student's Assignment Guide chat,
+    keeping the document itself for future use.
+    """
+    if doc_ref is None:
+        return False
+
+    try:
+        doc_ref.update(
+            {
+                "messages": firestore.DELETE_FIELD,
+                "message_count": 0,
+                "thread_id": "",
+                "updated_at": firestore.SERVER_TIMESTAMP,
+            }
+        )
+        return True
+    except Exception:
+        logging.warning("Failed to clear Assignment Helper state", exc_info=True)
+        return False
+
+
+def record_assignment_helper_thread(
+    db: Optional[firestore.Client],
+    thread_id: str,
+    student_code: Optional[str],
+    level: Optional[str],
+    message_count: int,
+) -> None:
+    """
+    Optional: keep a separate threads collection for analytics / teacher dashboard.
+
+    Each document key is thread_id so you can later list or aggregate by thread.
+    """
+    if db is None or not thread_id:
+        return
+
+    try:
+        doc_ref = db.collection(ASSIGN_THREADS_COLLECTION).document(thread_id)
+        doc_ref.set(
+            {
+                "thread_id": thread_id,
+                "student_code": (student_code or "").strip().lower(),
+                "level": (level or "").strip().upper(),
+                "message_count": int(message_count),
+                "updated_at": firestore.SERVER_TIMESTAMP,
+            },
+            merge=True,
+        )
+    except Exception:
+        logging.warning("Failed to record Assignment Helper thread %s", thread_id, exc_info=True)
+
+
 if tab == "Chat • Grammar • Exams":
     st.markdown("## 🗣️ Chat • Grammar • Exams")
     st.caption("Simple & clear: last 3 messages shown; input stays below. 3 keywords • 6 questions.")
