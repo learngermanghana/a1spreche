@@ -58,6 +58,12 @@ from src.assignment_helper_persistence import (
     clear_assignment_helper_state,
     record_assignment_helper_thread,
 )
+from src.grammar_helper_persistence import (
+    clear_grammar_helper_state,
+    get_grammar_helper_doc,
+    load_grammar_helper_state,
+    persist_grammar_helper_state,
+)
 from src.forum_timer import (
     _to_datetime_any,
     build_forum_reply_indicator_text,
@@ -188,6 +194,20 @@ def _assignment_helper_persistence_enabled() -> bool:
     if os.getenv("ASSIGNMENT_HELPER_FORCE_DISABLE") == "1":
         return False
     if os.getenv("ASSIGNMENT_HELPER_FORCE_ENABLE") == "1":
+        return True
+
+    host = _current_request_host()
+    if not host:
+        return False
+    return host in _assignment_helper_persist_hosts()
+
+
+def _grammar_helper_persistence_enabled() -> bool:
+    """Return ``True`` when Grammar Helper transcripts should be saved to Firestore."""
+
+    if os.getenv("GRAMMAR_HELPER_FORCE_DISABLE") == "1":
+        return False
+    if os.getenv("GRAMMAR_HELPER_FORCE_ENABLE") == "1":
         return True
 
     host = _current_request_host()
@@ -7922,6 +7942,9 @@ if tab == "Chat • Grammar • Exams":
     KEY_GRAM_LEVEL     = "cchat_w_gram_level"
     KEY_GRAM_LEVEL_SYNC = "_cchat_sync_gram_level"
     KEY_GRAM_ASK_BTN   = "cchat_w_gram_go"
+    KEY_GRAM_HISTORY  = "cchat_w_gram_history"
+    KEY_GRAM_OWNER    = "cchat_w_gram_owner"
+    KEY_GRAM_CLEAR    = "cchat_w_gram_clear"
     KEY_CONN_MODE      = "cchat_w_conn_mode"
     KEY_CONN_TEXT      = "cchat_w_conn_text"
     KEY_CONN_SCENARIO  = "cchat_w_conn_scenario"
@@ -7998,6 +8021,30 @@ if tab == "Chat • Grammar • Exams":
             finalized=st.session_state.get(finalized_data_key, False),
             focus_tips=focus_payload,
         )
+
+    grammar_persist_enabled = _grammar_helper_persistence_enabled()
+    gram_owner_value = (student_code_tc or "").strip().lower()
+    prev_gram_owner = st.session_state.get(KEY_GRAM_OWNER)
+    if prev_gram_owner != gram_owner_value:
+        st.session_state[KEY_GRAM_HISTORY] = []
+    st.session_state[KEY_GRAM_OWNER] = gram_owner_value
+
+    grammar_history = st.session_state.setdefault(KEY_GRAM_HISTORY, [])
+    grammar_doc_ref = None
+    grammar_meta: Dict[str, Any] = {}
+    remote_grammar_history: List[Dict[str, Any]] = []
+    remote_grammar_level = ""
+    if grammar_persist_enabled and student_code_tc:
+        grammar_doc_ref, remote_grammar_history, grammar_meta = load_grammar_helper_state(
+            topic_db, student_code_tc
+        )
+        if remote_grammar_history and grammar_history != remote_grammar_history:
+            grammar_history.clear()
+            grammar_history.extend(remote_grammar_history)
+            st.session_state[KEY_GRAM_HISTORY] = grammar_history
+        remote_level_value = str(grammar_meta.get("level", "") or "").strip().upper()
+        if remote_level_value:
+            remote_grammar_level = remote_level_value
 
     # ---------- Subtabs ----------
     tab_labels = ["🧑‍🏫 Topic Coach", "🛠️ Grammar", "📘 Assignment Guide", "📝 Exams"]
@@ -8446,6 +8493,11 @@ if tab == "Chat • Grammar • Exams":
         if pending_level in level_options:
             st.session_state[KEY_GRAM_LEVEL] = pending_level
 
+        if remote_grammar_level and remote_grammar_level in level_options:
+            stored_gram_level = st.session_state.get(KEY_GRAM_LEVEL)
+            if stored_gram_level not in level_options:
+                st.session_state[KEY_GRAM_LEVEL] = remote_grammar_level
+
         if st.session_state.get(KEY_GRAM_LEVEL) not in level_options:
             st.session_state[KEY_GRAM_LEVEL] = default_gram
         cur_level_g = st.session_state.get(KEY_GRAM_LEVEL, default_gram)
@@ -8457,6 +8509,45 @@ if tab == "Chat • Grammar • Exams":
                 "Paste a sentence or grammar question here to get quick corrections,"
                 " short explanations in English, and German example sentences for your level."
             )
+
+            history_placeholder = st.empty()
+            typing_placeholder = st.empty()
+
+            def _render_grammar_message(msg: Dict[str, str]) -> None:
+                text = msg.get("content", "")
+                safe = html.escape(text)
+                safe = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", safe)
+                safe = safe.replace("\n", "<br>")
+                if msg.get("role") == "assistant":
+                    st.markdown(
+                        "<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>",
+                        unsafe_allow_html=True,
+                    )
+                    st.markdown(
+                        f"<div class='bubble-a'>{safe}</div>",
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        f"<div class='bubble-wrap'><div class='lbl-u'>{student_label_html}</div></div>",
+                        unsafe_allow_html=True,
+                    )
+                    st.markdown(
+                        f"<div class='bubble-u'>{safe}</div>",
+                        unsafe_allow_html=True,
+                    )
+
+            def _render_grammar_history(messages: List[Dict[str, Any]]) -> None:
+                history_placeholder.empty()
+                with history_placeholder.container():
+                    if not messages:
+                        st.caption("No questions yet — ask something to begin.")
+                        return
+                    for msg in messages:
+                        _render_grammar_message(msg)
+
+            _render_grammar_history(st.session_state.get(KEY_GRAM_HISTORY, []))
+
             gcol1, gcol2 = st.columns([3, 1])
             gram_typing_notice = None
             with gcol1:
@@ -8475,8 +8566,37 @@ if tab == "Chat • Grammar • Exams":
                     key=KEY_GRAM_LEVEL,
                 )
                 ask = st.button("Ask", type="primary", width="stretch", key=KEY_GRAM_ASK_BTN)
+                clear_gram_chat = st.button(
+                    "🧹 Clear chat",
+                    type="secondary",
+                    width="stretch",
+                    key=KEY_GRAM_CLEAR,
+                )
+
+            if clear_gram_chat:
+                history = st.session_state.setdefault(KEY_GRAM_HISTORY, [])
+                history.clear()
+                st.session_state[KEY_GRAM_HISTORY] = history
+                st.session_state.pop(KEY_GRAM_TEXT, None)
+                typing_placeholder.empty()
+                if gram_typing_notice is not None:
+                    gram_typing_notice.empty()
+                if grammar_persist_enabled:
+                    if grammar_doc_ref is None and student_code_tc:
+                        grammar_doc_ref = get_grammar_helper_doc(topic_db, student_code_tc)
+                    if grammar_doc_ref is not None:
+                        if not clear_grammar_helper_state(grammar_doc_ref):
+                            logging.warning(
+                                "Failed to clear Grammar Helper transcript for %s",
+                                student_code_tc,
+                            )
+                _render_grammar_history(history)
+                st.rerun()
+
+            history = st.session_state.setdefault(KEY_GRAM_HISTORY, [])
 
             if ask and (gram_q or "").strip():
+                question = (gram_q or "").strip()
                 sys = (
                     "You are a German grammar helper. "
                     "All EXPLANATIONS must be in English ONLY. "
@@ -8488,15 +8608,30 @@ if tab == "Chat • Grammar • Exams":
                     "If it's only a question (no text to correct), give the English explanation and German examples only. "
                     "Keep the whole answer compact and classroom-friendly."
                 )
+                history.append({"role": "user", "content": question})
+                st.session_state[KEY_GRAM_HISTORY] = history
+                _render_grammar_history(history)
+                if grammar_persist_enabled:
+                    if grammar_doc_ref is None and student_code_tc:
+                        grammar_doc_ref = get_grammar_helper_doc(topic_db, student_code_tc)
+                    if grammar_doc_ref is not None:
+                        persist_grammar_helper_state(
+                            grammar_doc_ref,
+                            messages=history,
+                            level=gram_level,
+                            student_code=student_code_tc,
+                        )
                 if gram_typing_notice is not None:
                     gram_typing_notice.markdown(
                         HERR_FELIX_TYPING_HTML,
                         unsafe_allow_html=True,
                     )
 
-                placeholder = st.empty()
-                placeholder.markdown(
-                    "<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>",
+                typing_placeholder.markdown(
+                    (
+                        "<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>"
+                        "<div class='bubble-a'><div class='typing'><span></span><span></span><span></span></div></div>"
+                    ),
                     unsafe_allow_html=True,
                 )
                 time.sleep(random.uniform(0.8, 1.2))
@@ -8508,7 +8643,7 @@ if tab == "Chat • Grammar • Exams":
                             {
                                 "student_code": st.session_state.get("student_code"),
                                 "level": gram_level,
-                                "question": gram_q,
+                                "question": question,
                                 "created_at": firestore.SERVER_TIMESTAMP,
                             }
                         )
@@ -8519,7 +8654,7 @@ if tab == "Chat • Grammar • Exams":
                         model="gpt-4o-mini",
                         messages=[
                             {"role": "system", "content": sys + f" CEFR level: {gram_level}."},
-                            {"role": "user", "content": gram_q},
+                            {"role": "user", "content": question},
                         ],
                         temperature=0.1,
                         max_tokens=700,
@@ -8527,14 +8662,28 @@ if tab == "Chat • Grammar • Exams":
                     out = (resp.choices[0].message.content or "").strip()
                 except Exception as e:
                     out = f"(Error) {e}"
-                placeholder.empty()
+                typing_placeholder.empty()
                 if gram_typing_notice is not None:
                     gram_typing_notice.empty()
-                st.markdown(
-                    "<div class='bubble-wrap'><div class='lbl-a'>Herr Felix</div></div>",
-                    unsafe_allow_html=True,
-                )
-                st.markdown(f"<div class='bubble-a'>{out}</div>", unsafe_allow_html=True)
+                history.append({"role": "assistant", "content": out})
+                st.session_state[KEY_GRAM_HISTORY] = history
+                _render_grammar_history(history)
+                st.session_state[KEY_GRAM_TEXT] = ""
+                if grammar_persist_enabled:
+                    if grammar_doc_ref is None and student_code_tc:
+                        grammar_doc_ref = get_grammar_helper_doc(topic_db, student_code_tc)
+                    if grammar_doc_ref is not None:
+                        persist_ok = persist_grammar_helper_state(
+                            grammar_doc_ref,
+                            messages=history,
+                            level=gram_level,
+                            student_code=student_code_tc,
+                        )
+                        if not persist_ok:
+                            logging.warning(
+                                "Failed to persist Grammar Helper transcript for %s",
+                                student_code_tc,
+                            )
 
         with tab_connectors:
             gram_level = st.session_state.get(KEY_GRAM_LEVEL, cur_level_g)
