@@ -7,6 +7,8 @@ import jwt
 import uuid
 import sqlite3
 from pathlib import Path
+from typing import Iterable, Sequence
+
 
 from werkzeug.security import check_password_hash
 
@@ -17,7 +19,7 @@ COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "Lax")  # use "None" if cross-sit
 COOKIE_PATH = "/"
 MAX_AGE = 60 * 60 * 24 * 30  # 30 days
 
-def _set_cookie(resp, token: str):
+def _set_cookie(resp, token: str, *, device_id: str | None = None):
     """
     Sets the session cookie. If running under falowen.app, use domain=.falowen.app.
     Otherwise (e.g., testing on <app>.herokuapp.com), omit domain so the cookie is set.
@@ -34,6 +36,11 @@ def _set_cookie(resp, token: str):
         kwargs["domain"] = ".falowen.app"  # share across www/api if needed
 
     resp.set_cookie(COOKIE_NAME, token, **kwargs)
+
+    if device_id:
+        device_kwargs = dict(kwargs)
+        device_kwargs["httponly"] = False
+        resp.set_cookie("device_id", device_id, **device_kwargs)
     return resp
 
 # --- JWT helpers and refresh-token persistence ---
@@ -134,13 +141,68 @@ _BASE_DIR = Path(__file__).resolve().parent
 REFRESH_DB_PATH = os.getenv("REFRESH_DB_PATH", str(_BASE_DIR / "refresh_tokens.db"))
 
 
+def _ensure_schema(conn: sqlite3.Connection) -> None:
+    """Create or migrate the refresh token store to the current schema."""
+
+    info = conn.execute("PRAGMA table_info(refresh_tokens)").fetchall()
+    columns = [row[1] for row in info]
+    pk_map = {row[1]: row[5] for row in info}
+
+    if not info:
+        conn.execute(
+            """
+            CREATE TABLE refresh_tokens (
+                token TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                device_id TEXT,
+                user_agent TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    elif pk_map.get("user_id") == 1 and "token" in columns and pk_map.get("token") != 1:
+        existing: Sequence[tuple[str, str]] = conn.execute(
+            "SELECT user_id, token FROM refresh_tokens"
+        ).fetchall()
+        conn.execute("ALTER TABLE refresh_tokens RENAME TO refresh_tokens_legacy")
+        conn.execute(
+            """
+            CREATE TABLE refresh_tokens (
+                token TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                device_id TEXT,
+                user_agent TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        if existing:
+            conn.executemany(
+                "INSERT OR IGNORE INTO refresh_tokens(token, user_id) VALUES (?, ?)",
+                [(row[1], row[0]) for row in existing if row[1]],
+            )
+        conn.execute("DROP TABLE refresh_tokens_legacy")
+    else:
+        if "device_id" not in columns:
+            conn.execute("ALTER TABLE refresh_tokens ADD COLUMN device_id TEXT")
+        if "user_agent" not in columns:
+            conn.execute("ALTER TABLE refresh_tokens ADD COLUMN user_agent TEXT")
+        if "created_at" not in columns:
+            conn.execute(
+                "ALTER TABLE refresh_tokens ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            )
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id)"
+    )
+
+
 def _with_db(fn):
     """Utility decorator to handle connection lifecycle."""
+
     def wrapper(*args, **kwargs):
         conn = sqlite3.connect(REFRESH_DB_PATH)
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS refresh_tokens (user_id TEXT PRIMARY KEY, token TEXT)"
-        )
+        _ensure_schema(conn)
         try:
             result = fn(conn, *args, **kwargs)
             conn.commit()
@@ -151,25 +213,83 @@ def _with_db(fn):
     return wrapper
 
 
+def _resolve_device_id() -> tuple[str | None, bool]:
+    """Return a best-effort stable identifier for the current device."""
+
+    headers: Iterable[str] = (
+        request.headers.get("X-Device-Id", ""),
+        request.headers.get("X-Device-ID", ""),
+    )
+    for candidate in headers:
+        candidate = (candidate or "").strip()
+        if candidate:
+            return candidate[:128], False
+
+    cookie_device = (request.cookies.get("device_id") or "").strip()
+    if cookie_device:
+        return cookie_device[:128], False
+
+    return uuid.uuid4().hex, True
+
+
 @_with_db
-def _store_refresh(conn: sqlite3.Connection, user_id: str, token: str) -> None:
+def _store_refresh(
+    conn: sqlite3.Connection,
+    user_id: str,
+    token: str,
+    device_id: str | None,
+    user_agent: str | None,
+) -> None:
+    if device_id:
+        conn.execute(
+            "DELETE FROM refresh_tokens WHERE user_id = ? AND device_id = ?",
+            (user_id, device_id),
+        )
     conn.execute(
-        "REPLACE INTO refresh_tokens(user_id, token) VALUES (?, ?)",
-        (user_id, token),
+        """
+        INSERT INTO refresh_tokens(token, user_id, device_id, user_agent, created_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(token) DO UPDATE SET
+            user_id = excluded.user_id,
+            device_id = excluded.device_id,
+            user_agent = excluded.user_agent,
+            created_at = CURRENT_TIMESTAMP
+        """,
+        (token, user_id, device_id, user_agent),
     )
 
 
 @_with_db
-def _fetch_refresh(conn: sqlite3.Connection, user_id: str) -> str | None:
+def _fetch_refresh(
+    conn: sqlite3.Connection, token: str
+) -> tuple[str | None, str | None]:
     row = conn.execute(
-        "SELECT token FROM refresh_tokens WHERE user_id = ?", (user_id,)
+        "SELECT user_id, device_id FROM refresh_tokens WHERE token = ?", (token,)
     ).fetchone()
-    return row[0] if row else None
+    if not row:
+        return None, None
+    return row[0], row[1]
 
 
 @_with_db
-def _delete_refresh(conn: sqlite3.Connection, user_id: str) -> None:
-    conn.execute("DELETE FROM refresh_tokens WHERE user_id = ?", (user_id,))
+def _delete_refresh(
+    conn: sqlite3.Connection,
+    *,
+    token: str | None = None,
+    user_id: str | None = None,
+    device_id: str | None = None,
+) -> None:
+    if token:
+        conn.execute("DELETE FROM refresh_tokens WHERE token = ?", (token,))
+        return
+    if user_id and device_id:
+        conn.execute(
+            "DELETE FROM refresh_tokens WHERE user_id = ? AND device_id = ?",
+            (user_id, device_id),
+        )
+        return
+    if user_id:
+        conn.execute("DELETE FROM refresh_tokens WHERE user_id = ?", (user_id,))
 
 
 def _issue_access(user_id: str) -> str:
@@ -177,7 +297,7 @@ def _issue_access(user_id: str) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
 
 
-def _issue_refresh(user_id: str) -> str:
+def _issue_refresh(user_id: str) -> tuple[str, str | None]:
     payload = {
         "sub": user_id,
         "type": "refresh",
@@ -186,8 +306,10 @@ def _issue_refresh(user_id: str) -> str:
         "jti": uuid.uuid4().hex,
     }
     token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
-    _store_refresh(user_id, token)
-    return token
+    device_id, _ = _resolve_device_id()
+    user_agent = request.headers.get("User-Agent")
+    _store_refresh(user_id, token, device_id, user_agent)
+    return token, device_id
 
 
 def _get_user_from_refresh(token: str) -> str | None:
@@ -200,9 +322,9 @@ def _get_user_from_refresh(token: str) -> str | None:
     except jwt.PyJWTError:
         return None
 
-    stored = _fetch_refresh(user_id)
-    if stored != token:
-        _delete_refresh(user_id)
+    stored_user, _ = _fetch_refresh(token)
+    if stored_user != user_id:
+        _delete_refresh(token=token)
         return None
     return user_id
 # ------------------------------------------------------------
@@ -216,14 +338,14 @@ def login():
         return jsonify(error="invalid credentials"), 401
 
     access = _issue_access(user_id)
-    refresh = _issue_refresh(user_id)
+    refresh, device_id = _issue_refresh(user_id)
 
     resp = make_response(jsonify(
         access_token=access,
         refresh_token=refresh,
         expires_in=3600
     ), 200)
-    _set_cookie(resp, refresh)   # persist on web via HttpOnly cookie
+    _set_cookie(resp, refresh, device_id=device_id)   # persist on web via HttpOnly cookie
     return resp
 
 @auth_bp.route("/refresh", methods=["POST", "GET"])
@@ -239,14 +361,14 @@ def refresh():
         return jsonify(error="invalid refresh token"), 401
 
     access = _issue_access(user_id)
-    new_refresh = _issue_refresh(user_id)
+    new_refresh, device_id = _issue_refresh(user_id)
 
     resp = make_response(jsonify(
         access_token=access,
         refresh_token=new_refresh,
         expires_in=3600
     ), 200)
-    _set_cookie(resp, new_refresh)   # extend cookie expiry for web
+    _set_cookie(resp, new_refresh, device_id=device_id)   # extend cookie expiry for web
     return resp
 
 @auth_bp.post("/logout")
@@ -255,7 +377,7 @@ def logout():
     if rt:
         uid = _get_user_from_refresh(rt)
         if uid:
-            _delete_refresh(uid)
+            _delete_refresh(token=rt)
 
     resp = make_response("", 204)
     # Clear cookie with the same attributes we set
