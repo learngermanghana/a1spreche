@@ -9,7 +9,18 @@ def init_db(path: str) -> None:
     conn = sqlite3.connect(path)
     with conn:
         conn.execute(
-            "CREATE TABLE IF NOT EXISTS refresh_tokens (user_id TEXT PRIMARY KEY, token TEXT)"
+            """
+            CREATE TABLE IF NOT EXISTS refresh_tokens (
+                token TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                device_id TEXT,
+                user_agent TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id)"
         )
     conn.close()
 

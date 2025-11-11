@@ -52,8 +52,8 @@ table with:
 python scripts/init_refresh_db.py
 ```
 
-This creates a `refresh_tokens` table mapping `user_id` to the latest issued
-refresh token.
+This creates a `refresh_tokens` table storing refresh tokens per device so
+multiple logins can remain active simultaneously.
 
 ## Usage
 
