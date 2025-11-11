@@ -581,12 +581,6 @@ def get_assignment_summary(student_code: str, level: str, df: pd.DataFrame) -> d
 
         chapter_candidates = _chapter_strings(lesson)
         chapter_display = chapter_candidates[0] if chapter_candidates else ""
-        if any(
-            cand.strip().startswith("14.") or cand.strip() == "14"
-            for cand in chapter_candidates
-        ):
-            continue
-
         general_nums = (
             _numbers_from_source(lesson.get("chapter")) if lesson.get("assignment") else []
         )
