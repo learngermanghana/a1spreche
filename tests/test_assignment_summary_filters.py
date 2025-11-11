@@ -3,7 +3,7 @@ import pandas as pd
 from src import assignment_ui
 
 
-def test_next_assignment_skips_goethe_and_final_cap(monkeypatch):
+def test_next_assignment_skips_goethe_but_includes_final_cap(monkeypatch):
     schedule = [
         {"day": 1, "chapter": "1.0", "assignment": True, "topic": "Ch1"},
         {"day": 2, "chapter": "1.5", "assignment": True, "topic": "Goethe practice"},
@@ -23,7 +23,7 @@ def test_next_assignment_skips_goethe_and_final_cap(monkeypatch):
 
     summary = assignment_ui.get_assignment_summary("s1", "A1", df)
     assert summary["missed"] == []
-    assert summary["next"]["day"] == 4
+    assert summary["next"]["day"] == 3
     assert summary["failed"] == []
 
 
