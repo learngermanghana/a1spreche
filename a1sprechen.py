@@ -10095,7 +10095,6 @@ if tab == "Schreiben Trainer":
                 "Anfragen und Informationen (Making enquiries)",
                 [
                     "Ich möchte eine Anfrage stellen.",
-                    "Ich möchte mich erkundigen, ob der Termin noch frei ist.",
                     "Könnten Sie mir bitte Informationen über [Thema] geben?",
                     "Wie viel kostet das und wie soll ich bezahlen?",
                     "Kann ich mit Kreditkarte oder bar bezahlen?",
@@ -10107,16 +10106,15 @@ if tab == "Schreiben Trainer":
                     "Ich möchte ein Hotelzimmer reservieren.",
                     "Haben Sie vom [Datum] bis zum [Datum] ein freies Zimmer?",
                     "Könnten Sie mir bitte die Preise für ein Einzelzimmer nennen?",
-                    "Ich brauche das Zimmer für [Anzahl] Personen.",
+                    "Ich brauche das Zimmer für [Number] Personen.",
                 ],
             ),
             (
                 "Neuen Termin vereinbaren (Setting a new appointment)",
                 [
                     "Können wir einen anderen Termin vereinbaren?",
-                    "Haben Sie nächste Woche einen freien Termin?",
-                    "Bitte sagen Sie mir, wann es für Sie passt.",
-                    "Ich freue mich auf Ihre Rückmeldung.",
+                    "Es regnet,deshalb kann ich nicht kommen.",
+                    "Ich bin krank. Ich habe Kopfschmerzen.",
                 ],
             ),
         ]
