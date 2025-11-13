@@ -10117,6 +10117,51 @@ if tab == "Schreiben Trainer":
                     "Ich bin krank. Ich habe Kopfschmerzen.",
                 ],
             ),
+            (
+                "Geburtstag feiern (Celebrating a birthday)",
+                [
+                    "Herzlichen Glückwunsch zum Geburtstag!",
+                    "Ich wünsche dir einen wunderschönen Tag mit deiner Familie.",
+                    "Feierst du am Wochenende? Ich würde mich freuen, dabei zu sein.",
+                    "Alles Gute und viel Gesundheit für das neue Lebensjahr!",
+                ],
+            ),
+            (
+                "Neuer Job (Congratulating on a new job)",
+                [
+                    "Herzlichen Glückwunsch zu Ihrem neuen Job!",
+                    "Ich freue mich sehr über diese tolle Nachricht.",
+                    "Ich wünsche Ihnen viel Erfolg in der neuen Position.",
+                    "Lassen Sie uns bald darauf anstoßen!",
+                ],
+            ),
+            (
+                "Hochzeits-Einladung (Wedding invitation)",
+                [
+                    "Wir heiraten am [Datum] und laden euch herzlich ein.",
+                    "Die Feier findet in [Ort] statt, Beginn ist um [Uhrzeit].",
+                    "Bitte gebt uns bis zum [Datum] Bescheid, ob ihr kommen könnt.",
+                    "Wir würden uns sehr freuen, diesen besonderen Tag mit euch zu feiern.",
+                ],
+            ),
+            (
+                "Dank aussprechen (Expressing thanks)",
+                [
+                    "Vielen Dank für Ihre schnelle Antwort.",
+                    "Ich danke Ihnen herzlich für die Unterstützung.",
+                    "Ihre Hilfe hat mir sehr weitergeholfen.",
+                    "Bitte lassen Sie mich wissen, wenn ich mich revanchieren kann.",
+                ],
+            ),
+            (
+                "Sich entschuldigen (Apologising)",
+                [
+                    "Es tut mir sehr leid für die Unannehmlichkeiten.",
+                    "Bitte entschuldigen Sie meinen Fehler.",
+                    "Ich werde darauf achten, dass es nicht wieder passiert.",
+                    "Vielen Dank für Ihr Verständnis.",
+                ],
+            ),
         ]
 
         download_lines = ["Schreiben Trainer – Phrase Bank", ""]
