@@ -10138,10 +10138,20 @@ if tab == "Schreiben Trainer":
             (
                 "Hochzeits-Einladung (Wedding invitation)",
                 [
-                    "Wir heiraten am [Datum] und laden euch herzlich ein.",
-                    "Die Feier findet in [Ort] statt, Beginn ist um [Uhrzeit].",
-                    "Bitte gebt uns bis zum [Datum] Bescheid, ob ihr kommen könnt.",
-                    "Wir würden uns sehr freuen, diesen besonderen Tag mit euch zu feiern.",
+                    "Ich schreibe dir, weil ich dich zu unserer Hochzeit einladen möchte.",
+                    "Wir heiraten am [Datum].",
+                    "Die Feier ist in [Ort] und beginnt um [Uhrzeit].",
+                    "Sag uns bitte bis [Datum], ob du kommen kannst.",
+                    "Wir freuen uns sehr auf dich.",
+                ],
+            ),
+            (
+                "Zur Hochzeit gratulieren (Congratulating on a wedding)",
+                [
+                    "Ich schreibe dir, weil ich dir zur Hochzeit gratulieren möchte.",
+                    "Herzlichen Glückwunsch zur Hochzeit!",
+                    "Ich wünsche euch viel Glück und Liebe.",
+                    "Ich freue mich sehr für euch beide.",
                 ],
             ),
             (
