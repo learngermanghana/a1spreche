@@ -10122,7 +10122,7 @@ if tab == "Schreiben Trainer":
                 [
                     "Herzlichen Glückwunsch zum Geburtstag!",
                     "Ich wünsche dir einen wunderschönen Tag mit deiner Familie.",
-                    "Feierst du am Wochenende? Ich würde mich freuen, dabei zu sein.",
+                    "Feierst du am Wochenende?",
                     "Alles Gute und viel Gesundheit für das neue Lebensjahr!",
                 ],
             ),
@@ -10132,7 +10132,7 @@ if tab == "Schreiben Trainer":
                     "Herzlichen Glückwunsch zu Ihrem neuen Job!",
                     "Ich freue mich sehr über diese tolle Nachricht.",
                     "Ich wünsche Ihnen viel Erfolg in der neuen Position.",
-                    "Lassen Sie uns bald darauf anstoßen!",
+                    "Wo ist die Party",
                 ],
             ),
             (
