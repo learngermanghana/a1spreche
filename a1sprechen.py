@@ -10081,6 +10081,67 @@ if tab == "Schreiben Trainer":
             clear_letter_coach_draft_state()
             st.session_state.pop(ns("reset_coach"))
 
+        phrase_sections = [
+            (
+                "Termin absagen (Cancelling an appointment)",
+                [
+                    "Ich schreibe Ihnen, weil ich den Termin absagen möchte.",
+                    "Es tut mir leid, ich kann nicht kommen.",
+                    "Entschuldigung, ich muss den Termin absagen.",
+                    "Können wir einen anderen Termin vereinbaren?",
+                ],
+            ),
+            (
+                "Anfragen und Informationen (Making enquiries)",
+                [
+                    "Ich möchte eine Anfrage stellen.",
+                    "Ich möchte mich erkundigen, ob der Termin noch frei ist.",
+                    "Könnten Sie mir bitte Informationen über [Thema] geben?",
+                    "Wie viel kostet das und wie soll ich bezahlen?",
+                    "Kann ich mit Kreditkarte oder bar bezahlen?",
+                ],
+            ),
+            (
+                "Hotel reservieren (Hotel reservation)",
+                [
+                    "Ich möchte ein Hotelzimmer reservieren.",
+                    "Haben Sie vom [Datum] bis zum [Datum] ein freies Zimmer?",
+                    "Könnten Sie mir bitte die Preise für ein Einzelzimmer nennen?",
+                    "Ich brauche das Zimmer für [Anzahl] Personen.",
+                ],
+            ),
+            (
+                "Neuen Termin vereinbaren (Setting a new appointment)",
+                [
+                    "Können wir einen anderen Termin vereinbaren?",
+                    "Haben Sie nächste Woche einen freien Termin?",
+                    "Bitte sagen Sie mir, wann es für Sie passt.",
+                    "Ich freue mich auf Ihre Rückmeldung.",
+                ],
+            ),
+        ]
+
+        download_lines = ["Schreiben Trainer – Phrase Bank", ""]
+        for title, phrases in phrase_sections:
+            download_lines.append(title)
+            download_lines.extend(f"- {phrase}" for phrase in phrases)
+            download_lines.append("")
+
+        with st.expander("📚 Quick phrase bank for common Schreiben tasks"):
+            st.markdown(
+                "These ready-to-use fragments help you start or finish typical Schreiben tasks. "
+                "Add your own details (Zeit, Ort, Grund) to customise each sentence."
+            )
+            for title, phrases in phrase_sections:
+                st.markdown(f"**{title}**")
+                st.markdown("\n".join(f"- {phrase}" for phrase in phrases))
+            st.download_button(
+                "📥 Download phrase bank (TXT)",
+                data="\n".join(download_lines),
+                file_name="schreiben_phrase_bank.txt",
+                mime="text/plain",
+            )
+
         st.markdown(
             "**[German Writing Rules](https://drive.google.com/file/d/1o7_ez3WSNgpgxU_nEtp6EO1PXDyi3K3b/view?usp=sharing)**",
         )
