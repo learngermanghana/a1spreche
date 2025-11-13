@@ -10094,6 +10094,7 @@ if tab == "Schreiben Trainer":
             (
                 "Anfragen und Informationen (Making enquiries)",
                 [
+                    "Ich schreibe Ihnen, weil ich eine Anfrage stellen möchte.",
                     "Ich möchte eine Anfrage stellen.",
                     "Könnten Sie mir bitte Informationen über [Thema] geben?",
                     "Wie viel kostet das und wie soll ich bezahlen?",
@@ -10103,6 +10104,7 @@ if tab == "Schreiben Trainer":
             (
                 "Hotel reservieren (Hotel reservation)",
                 [
+                    "Ich schreibe Ihnen, weil ich ein Hotelzimmer reservieren möchte.",
                     "Ich möchte ein Hotelzimmer reservieren.",
                     "Haben Sie vom [Datum] bis zum [Datum] ein freies Zimmer?",
                     "Könnten Sie mir bitte die Preise für ein Einzelzimmer nennen?",
@@ -10112,51 +10114,55 @@ if tab == "Schreiben Trainer":
             (
                 "Neuen Termin vereinbaren (Setting a new appointment)",
                 [
+                    "Ich schreibe Ihnen, weil ich einen neuen Termin vereinbaren möchte.",
                     "Können wir einen anderen Termin vereinbaren?",
-                    "Es regnet,deshalb kann ich nicht kommen.",
+                    "Es regnet, deshalb kann ich nicht kommen.",
                     "Ich bin krank. Ich habe Kopfschmerzen.",
                 ],
             ),
             (
                 "Geburtstag feiern (Celebrating a birthday)",
                 [
+                    "Ich schreibe Ihnen, weil ich Ihnen zum Geburtstag gratulieren möchte.",
                     "Herzlichen Glückwunsch zum Geburtstag!",
-                    "Ich wünsche dir einen wunderschönen Tag mit deiner Familie.",
-                    "Feierst du am Wochenende?",
+                    "Ich wünsche Ihnen einen wunderschönen Tag mit Ihrer Familie.",
+                    "Feiern Sie am Wochenende?",
                     "Alles Gute und viel Gesundheit für das neue Lebensjahr!",
                 ],
             ),
             (
                 "Neuer Job (Congratulating on a new job)",
                 [
+                    "Ich schreibe Ihnen, weil ich Ihnen zum neuen Job gratulieren möchte.",
                     "Herzlichen Glückwunsch zu Ihrem neuen Job!",
                     "Ich freue mich sehr über diese tolle Nachricht.",
                     "Ich wünsche Ihnen viel Erfolg in der neuen Position.",
-                    "Wo ist die Party",
+                    "Wo ist die Party?",
                 ],
             ),
             (
                 "Hochzeits-Einladung (Wedding invitation)",
                 [
-                    "Ich schreibe dir, weil ich dich zu unserer Hochzeit einladen möchte.",
+                    "Ich schreibe Ihnen, weil ich Sie zu unserer Hochzeit einladen möchte.",
                     "Wir heiraten am [Datum].",
                     "Die Feier ist in [Ort] und beginnt um [Uhrzeit].",
-                    "Sag uns bitte bis [Datum], ob du kommen kannst.",
-                    "Wir freuen uns sehr auf dich.",
+                    "Bitte sagen Sie uns bis [Datum], ob Sie kommen können.",
+                    "Wir freuen uns sehr auf Sie.",
                 ],
             ),
             (
                 "Zur Hochzeit gratulieren (Congratulating on a wedding)",
                 [
-                    "Ich schreibe dir, weil ich dir zur Hochzeit gratulieren möchte.",
-                    "Herzlichen Glückwunsch zur Hochzeit!",
-                    "Ich wünsche euch viel Glück und Liebe.",
-                    "Ich freue mich sehr für euch beide.",
+                    "Ich schreibe Ihnen, weil ich Ihnen zur Hochzeit gratulieren möchte.",
+                    "Herzlichen Glückwunsch zu Ihrer Hochzeit!",
+                    "Ich wünsche Ihnen viel Glück und Liebe.",
+                    "Ich freue mich sehr für Sie beide.",
                 ],
             ),
             (
                 "Dank aussprechen (Expressing thanks)",
                 [
+                    "Ich schreibe Ihnen, weil ich mich bedanken möchte.",
                     "Vielen Dank für Ihre schnelle Antwort.",
                     "Ich danke Ihnen herzlich für die Unterstützung.",
                     "Ihre Hilfe hat mir sehr weitergeholfen.",
@@ -10166,6 +10172,7 @@ if tab == "Schreiben Trainer":
             (
                 "Sich entschuldigen (Apologising)",
                 [
+                    "Ich schreibe Ihnen, weil ich mich entschuldigen möchte.",
                     "Es tut mir sehr leid für die Unannehmlichkeiten.",
                     "Bitte entschuldigen Sie meinen Fehler.",
                     "Ich werde darauf achten, dass es nicht wieder passiert.",
