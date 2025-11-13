@@ -10081,6 +10081,107 @@ if tab == "Schreiben Trainer":
             clear_letter_coach_draft_state()
             st.session_state.pop(ns("reset_coach"))
 
+        phrase_sections = [
+            (
+                "Termin absagen (Cancelling an appointment)",
+                [
+                    "Ich schreibe Ihnen, weil ich den Termin absagen möchte.",
+                    "Es tut mir leid, ich kann nicht kommen.",
+                    "Entschuldigung, ich muss den Termin absagen.",
+                    "Können wir einen anderen Termin vereinbaren?",
+                    "Der Grund ist Krankheit, deshalb kann ich nicht kommen.",
+                    "Bitte schreiben Sie mir zurück, ob Sie meine Absage bekommen haben.",
+                ],
+            ),
+            (
+                "Anfragen und Informationen (Making enquiries)",
+                [
+                    "Ich möchte eine Anfrage stellen.",
+                    "Ich möchte mich erkundigen, ob der Termin noch frei ist.",
+                    "Könnten Sie mir bitte Informationen über [Thema] geben?",
+                    "Wie viel kostet das und wie soll ich bezahlen?",
+                    "Kann ich mit Kreditkarte oder bar bezahlen?",
+                    "Ich möchte wissen, ob es Ermäßigungen für Studierende gibt.",
+                    "Ich möchte wissen, wann ich eine Antwort bekommen kann.",
+                ],
+            ),
+            (
+                "Hotel reservieren (Hotel reservation)",
+                [
+                    "Ich möchte ein Hotelzimmer reservieren.",
+                    "Haben Sie vom [Datum] bis zum [Datum] ein freies Zimmer?",
+                    "Könnten Sie mir bitte die Preise für ein Einzelzimmer nennen?",
+                    "Ich brauche das Zimmer für [Anzahl] Personen.",
+                    "Ist das Frühstück im Preis inbegriffen?",
+                    "Könnten Sie meine Reservierung bitte schriftlich bestätigen?",
+                ],
+            ),
+            (
+                "Neuen Termin vereinbaren (Setting a new appointment)",
+                [
+                    "Können wir einen anderen Termin vereinbaren?",
+                    "Haben Sie nächste Woche einen freien Termin?",
+                    "Ich möchte wissen, wann es für Sie passt.",
+                    "Ich freue mich auf Ihre Rückmeldung.",
+                    "Ich bin am [Tag/Uhrzeit] verfügbar, passt das für Sie?",
+                    "Vielen Dank für Ihre Flexibilität.",
+                ],
+            ),
+            (
+                "Geburtstagsglückwünsche (Happy birthday wishes)",
+                [
+                    "Alles Gute zum Geburtstag!",
+                    "Ich schreibe dir, weil ich dir zum Geburtstag gratulieren möchte.",
+                    "Ich wünsche dir einen schönen Tag mit deiner Familie.",
+                    "Ich hoffe, dass all deine Wünsche in Erfüllung gehen.",
+                    "Ich freue mich darauf, dich bald zu sehen.",
+                    "Deshalb möchte ich dir viele liebe Grüße schicken.",
+                ],
+            ),
+            (
+                "Zum neuen Job gratulieren (Congratulating on a new job)",
+                [
+                    "Herzlichen Glückwunsch zu deinem neuen Job!",
+                    "Ich schreibe dir, weil ich dir zu deinem neuen Job gratulieren möchte.",
+                    "Ich freue mich sehr über deine tolle Nachricht.",
+                    "Du hast diesen Erfolg wirklich verdient.",
+                    "Ich wünsche dir viel Erfolg und Spaß im neuen Team.",
+                    "Deshalb hoffe ich, dass wir bald zusammen feiern.",
+                ],
+            ),
+            (
+                "Zur Hochzeit einladen (Wedding invitation)",
+                [
+                    "Wir heiraten am [Datum] und würden uns über dein Kommen freuen.",
+                    "Die Trauung findet um [Uhrzeit] im [Ort] statt.",
+                    "Bitte sag mir bis [Datum], ob du kommen kannst.",
+                    "Nach der Zeremonie feiern wir gemeinsam im [Ort].",
+                    "Wir freuen uns, diesen besonderen Tag mit dir zu teilen.",
+                ],
+            ),
+        ]
+
+        download_lines = ["Schreiben Trainer – Phrase Bank", ""]
+        for title, phrases in phrase_sections:
+            download_lines.append(title)
+            download_lines.extend(f"- {phrase}" for phrase in phrases)
+            download_lines.append("")
+
+        with st.expander("📚 Quick phrase bank for common Schreiben tasks"):
+            st.markdown(
+                "These ready-to-use fragments help you start or finish typical Schreiben tasks. "
+                "Add your own details (Zeit, Ort, Grund) to customise each sentence."
+            )
+            for title, phrases in phrase_sections:
+                st.markdown(f"**{title}**")
+                st.markdown("\n".join(f"- {phrase}" for phrase in phrases))
+            st.download_button(
+                "📥 Download phrase bank (TXT)",
+                data="\n".join(download_lines),
+                file_name="schreiben_phrase_bank.txt",
+                mime="text/plain",
+            )
+
         st.markdown(
             "**[German Writing Rules](https://drive.google.com/file/d/1o7_ez3WSNgpgxU_nEtp6EO1PXDyi3K3b/view?usp=sharing)**",
         )
