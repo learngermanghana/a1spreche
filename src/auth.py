@@ -195,15 +195,22 @@ class _SessionStore:
         with self._lock:
             self._store.clear()
 
+# --------------------------------------------------------------------
+# Global session store (shared across all tabs/sessions)
+# --------------------------------------------------------------------
+_GLOBAL_SESSION_STORE: Optional[_SessionStore] = None
 
 def get_session_store(st_module=st) -> _SessionStore:
-    """Return the per-session ``_SessionStore`` from ``st.session_state``."""
-    ss = st_module.session_state
-    store = ss.get("_session_store")
-    if store is None:
-        store = _SessionStore()
-        ss["_session_store"] = store
-    return store
+    """
+    Return a process-wide ``_SessionStore`` shared across all tabs/sessions.
+
+    The st_module argument is kept for backwards-compatibility but is not used
+    anymore, so tests that call get_session_store(st_module=...) still work.
+    """
+    global _GLOBAL_SESSION_STORE
+    if _GLOBAL_SESSION_STORE is None:
+        _GLOBAL_SESSION_STORE = _SessionStore()
+    return _GLOBAL_SESSION_STORE
 
 
 def persist_session_client(token: str, student_code: str) -> None:  # pragma: no cover
@@ -215,12 +222,10 @@ def get_session_client(token: str) -> Optional[str]:  # pragma: no cover
 
 
 def clear_session_clients() -> None:  # pragma: no cover
-    ss = getattr(st, "session_state", None)
-    if ss is None:
-        return
-    store = ss.pop("_session_store", None)
-    if store is not None:
-        store.clear()
+    """Clear all stored session mappings."""
+    global _GLOBAL_SESSION_STORE
+    if _GLOBAL_SESSION_STORE is not None:
+        _GLOBAL_SESSION_STORE.clear()
 
 def bootstrap_cookies(cm: SimpleCookieManager) -> SimpleCookieManager:
     return cm
