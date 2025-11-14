@@ -7646,6 +7646,7 @@ def render_vocab_trainer_section() -> None:
             key="dict_levels",
         )
         levels = ["nan" if lvl == "Unknown level" else lvl for lvl in levels_display]
+        levels_label = ", ".join(levels_display) if levels_display else "none"
         df_dict = build_dict_df(levels)
         for c in ["Level","German","English","Pronunciation"]:
             if c not in df_dict.columns: df_dict[c] = ""
@@ -7713,6 +7714,12 @@ def render_vocab_trainer_section() -> None:
         else:
             if not df_view.empty: top_row = df_view.iloc[0]
 
+        with st.expander(
+            f"Browse all words for levels: {levels_label}", expanded=False
+        ):
+            df_show = df_view[["German", "English"]].copy()
+            st.dataframe(df_show, width="stretch", height=420)
+
         # Details panel (download-only audio)
         if top_row is not None and len(top_row) > 0:
             de  = str(top_row["German"])
@@ -7762,13 +7769,6 @@ def render_vocab_trainer_section() -> None:
                     if st.button(s, key=f"sugg_{i}"):
                         st.session_state["dict_q_pending"] = s
                         refresh_with_toast()
-
-        levels_label = ", ".join(levels) if levels else "none"
-        with st.expander(
-            f"Browse all words for levels: {levels_label}", expanded=False
-        ):
-            df_show = df_view[["German", "English"]].copy()
-            st.dataframe(df_show, width="stretch", height=420)
 
 
 
