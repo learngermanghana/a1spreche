@@ -7440,7 +7440,7 @@ def render_vocab_trainer_section() -> None:
 
     subtab = st.radio(
         "Choose practice:",
-        ["Sentence Builder", "Vocab Practice", "Dictionary"],
+        ["Sentence Builder", "Vocab Practice", "All Vocabs"],
         horizontal=True,
         key="vocab_practice_subtab"
     )
@@ -7614,9 +7614,9 @@ def render_vocab_trainer_section() -> None:
                 refresh_with_toast()
 
     # ===========================
-    # SUBTAB: Dictionary  (download-only audio)
+    # SUBTAB: All Vocabs  (download-only audio)
     # ===========================
-    elif subtab == "Dictionary":
+    elif subtab == "All Vocabs":
         import io
         import json
         import difflib
