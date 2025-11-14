@@ -44,7 +44,7 @@ def render_vocab_trainer_tab() -> None:
 
     subtab = st.radio(
         "Choose practice:",
-        ["Sentence Builder", "Vocab Practice", "Dictionary"],
+        ["Sentence Builder", "Vocab Practice", "All Vocabs"],
         horizontal=True,
         key="vocab_practice_subtab",
     )

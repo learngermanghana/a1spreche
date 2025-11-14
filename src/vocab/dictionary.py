@@ -68,9 +68,9 @@ def build_dict_df(levels: Iterable[str]) -> pd.DataFrame:
 
 
 def render_vocab_dictionary(student_level_locked: str) -> None:
-    """Render the dictionary sub-tab for the selected *student_level_locked*."""
+    """Render the All Vocabs sub-tab for the selected *student_level_locked*."""
 
-    st.markdown("### 📖 Vocabulary dictionary")
+    st.markdown("### 📖 All Vocabs")
     st.caption(
         "Browse the vocabulary that is available in the Vocab Trainer. "
         "Use the practice sub-tab for exercises—this page is for reference only."
