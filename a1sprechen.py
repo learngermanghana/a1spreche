@@ -1,5 +1,6 @@
 # ==== Standard Library ====
 import calendar
+import copy
 import difflib
 import hashlib
 import html
@@ -7456,12 +7457,18 @@ def render_vocab_trainer_section() -> None:
     # ===========================
     elif subtab == "Vocab Practice":
         defaults = {
-            "vt_history": [], "vt_list": [], "vt_index": 0,
-            "vt_score": 0, "vt_total": None, "vt_saved": False, "vt_session_id": None,
+            "vt_history": [],
+            "vt_list": [],
+            "vt_index": 0,
+            "vt_score": 0,
+            "vt_total": None,
+            "vt_saved": False,
+            "vt_session_id": None,
             "vt_mode": "Only new words",
         }
         for k, v in defaults.items():
-            st.session_state.setdefault(k, v)
+            if k not in st.session_state:
+                st.session_state[k] = copy.deepcopy(v)
 
         # Stats
         stats = render_vocab_stats(student_code)
@@ -7474,8 +7481,8 @@ def render_vocab_trainer_section() -> None:
         st.info(f"{len(not_done)} words NOT yet done at {level}.")
 
         if st.button("🔁 Start New Practice", key="vt_reset"):
-            for k in defaults:
-                st.session_state[k] = defaults[k]
+            for k, v in defaults.items():
+                st.session_state[k] = copy.deepcopy(v)
             refresh_with_toast()
 
         if st.session_state.vt_total is None:
@@ -7609,8 +7616,8 @@ def render_vocab_trainer_section() -> None:
                 st.session_state.vt_saved = True
                 refresh_with_toast()
             if st.button("Practice Again", key="vt_again"):
-                for k in defaults:
-                    st.session_state[k] = defaults[k]
+                for k, v in defaults.items():
+                    st.session_state[k] = copy.deepcopy(v)
                 refresh_with_toast()
 
     # ===========================
