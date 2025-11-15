@@ -7,8 +7,9 @@ extracted into their own module for easier reuse and testing.
 from __future__ import annotations
 
 import logging
+import hashlib
 from datetime import datetime, date
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Any
 
 import re
 import pandas as pd
@@ -467,6 +468,78 @@ def delete_schreiben_feedback(student_code: str) -> None:
     db.collection("schreiben_feedback").document(student_code).delete()
 
 
+def vocab_practice_word_key(level: str, german: str, english: str) -> str:
+    """Return a stable hash for a vocab entry."""
+
+    base = f"{level}|{german}|{english}".strip().lower()
+    return hashlib.md5(base.encode("utf-8")).hexdigest()
+
+
+def load_vocab_practice_progress(student_code: str) -> Dict[str, Dict[str, Any]]:
+    """Load per-word vocab practice progress for a student."""
+
+    if not student_code:
+        st.warning("No student code provided; vocab progress unavailable.")
+        return {}
+
+    db = _get_db()
+    if db is None:
+        st.warning("Firestore not initialized; vocab progress unavailable.")
+        return {}
+
+    doc = db.collection("schreiben_vocab_progress").document(student_code).get()
+    if not doc.exists:
+        return {}
+    data = doc.to_dict() or {}
+    return data.get("entries", {}) or {}
+
+
+def set_vocab_practice_status(
+    student_code: str,
+    *,
+    level: str,
+    german: str,
+    english: str,
+    practiced: bool,
+) -> None:
+    """Persist whether a vocab entry has been practiced by the student."""
+
+    if not student_code:
+        st.warning("No student code provided; vocab progress not saved.")
+        return
+
+    db = _get_db()
+    if db is None:
+        st.warning("Firestore not initialized; vocab progress not saved.")
+        return
+
+    word_key = vocab_practice_word_key(level, german, english)
+    doc_ref = db.collection("schreiben_vocab_progress").document(student_code)
+    payload = {
+        "student_code": student_code,
+        "updated_at": firestore.SERVER_TIMESTAMP,
+        "entries": {
+            word_key: {
+                "level": level,
+                "german": german,
+                "english": english,
+                "practiced": practiced,
+                "updated_at": firestore.SERVER_TIMESTAMP,
+            }
+        },
+    }
+
+    try:
+        doc = doc_ref.get()
+        if doc.exists:
+            doc_ref.set(payload, merge=True)
+        else:
+            payload["created_at"] = firestore.SERVER_TIMESTAMP
+            doc_ref.set(payload)
+    except Exception as exc:  # pragma: no cover - network failure
+        st.error(f"Failed to update vocab progress: {exc}")
+
+
 __all__ = [
     "update_schreiben_stats",
     "get_schreiben_stats",
@@ -479,4 +552,7 @@ __all__ = [
     "save_letter_coach_draft",
     "load_letter_coach_draft",
     "clear_letter_coach_draft",
+    "vocab_practice_word_key",
+    "load_vocab_practice_progress",
+    "set_vocab_practice_status",
 ]

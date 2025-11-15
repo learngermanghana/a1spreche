@@ -1282,6 +1282,9 @@ from src.schreiben import (
     load_letter_coach_draft,
     clear_letter_coach_draft,
     get_level_from_code,
+    load_vocab_practice_progress,
+    set_vocab_practice_status,
+    vocab_practice_word_key,
 )
 from src.ui.auth import (
     render_signup_form,
@@ -9584,6 +9587,7 @@ if tab == "Schreiben Trainer":
     sub_tab = st.radio(
         "Choose Mode",
         [
+            "Vocab Practice",
             "Practice Letters",
             "Mark My Letter",
             "Ideas Generator (Letter Coach)",
@@ -9615,6 +9619,249 @@ if tab == "Schreiben Trainer":
 
 
     st.divider()
+
+    # ----------- VOCAB PRACTICE -----------
+    if sub_tab == "Vocab Practice":
+        st.markdown("### 📚 Schreiben Trainer – Vocab Practice")
+        st.caption(
+            "Use this mini trainer to revise essential words for your writing tasks."
+        )
+
+        level_map: Dict[str, List[Tuple[str, ...]]] = {}
+        for lvl, entries in VOCAB_LISTS.items():
+            label = str(lvl).strip()
+            if not label or label.lower() == "nan":
+                label = "Unknown level"
+            level_map.setdefault(label, []).extend(entries)
+
+        if not level_map:
+            st.warning("No vocabulary data found. Please refresh the vocab sheet and try again.")
+        else:
+            available_levels = sorted(level_map.keys())
+            default_level = (
+                schreiben_level if schreiben_level in level_map else available_levels[0]
+            )
+            selected_level = st.selectbox(
+                "Choose a level",
+                available_levels,
+                index=available_levels.index(default_level),
+                key=f"sch_vocab_level_{student_code}",
+            )
+
+            vocab_entries = level_map.get(selected_level, [])
+
+            def _unpack_entry(entry: Tuple[str, ...]) -> Tuple[str, str, str]:
+                german = str(entry[0]) if len(entry) > 0 else ""
+                english = str(entry[1]) if len(entry) > 1 else ""
+                pronunciation = str(entry[2]) if len(entry) > 2 else ""
+                if german.lower() == "nan":
+                    german = ""
+                if english.lower() == "nan":
+                    english = ""
+                if pronunciation.lower() == "nan":
+                    pronunciation = ""
+                return german, english, pronunciation
+
+            progress_data = (
+                load_vocab_practice_progress(student_code)
+                if student_code
+                else {}
+            )
+            practiced_keys = {
+                key for key, meta in progress_data.items() if meta.get("practiced")
+            }
+
+            def _entry_key(entry: Tuple[str, ...]) -> str:
+                german, english, _ = _unpack_entry(entry)
+                return vocab_practice_word_key(selected_level, german, english)
+
+            total_words = len(vocab_entries)
+            practiced_count = sum(
+                1 for entry in vocab_entries if _entry_key(entry) in practiced_keys
+            )
+            remaining_words = total_words - practiced_count
+            completion_ratio = practiced_count / total_words if total_words else 0.0
+
+            st.progress(
+                completion_ratio,
+                text=f"{practiced_count}/{total_words} words practiced",
+            )
+            if remaining_words <= 0 and total_words:
+                st.success(
+                    "Amazing! You've practiced every word at this level. Use the buttons"
+                    " below to keep the words fresh or switch to another level."
+                )
+
+            if not student_code:
+                st.info(
+                    "Enter your student code to sync vocab progress with Falowen and keep"
+                    " track of practiced words."
+                )
+            else:
+                st.caption("Progress is saved automatically to Firestore for this student code.")
+
+            records = []
+            for entry in vocab_entries:
+                german, english, pronunciation = _unpack_entry(entry)
+                if not german:
+                    continue
+                status = (
+                    "✅ Practiced" if _entry_key(entry) in practiced_keys else "⏳ Not yet"
+                )
+                records.append(
+                    {
+                        "German": german,
+                        "English": english,
+                        "Pronunciation": pronunciation,
+                        "Status": status,
+                    }
+                )
+
+            if records:
+                with st.expander("Word list & status", expanded=False):
+                    df_vocab = pd.DataFrame(records)
+                    st.dataframe(
+                        df_vocab,
+                        hide_index=True,
+                        use_container_width=True,
+                    )
+
+            st.markdown("#### Practice a word")
+
+            state_prefix = f"svocab_{student_code or 'anon'}_{selected_level}"
+            current_word_key = f"{state_prefix}_current"
+
+            def _reset_attempt_state() -> None:
+                for suffix in ("guess", "show", "result"):
+                    st.session_state.pop(f"{state_prefix}_{suffix}", None)
+
+            def _pick_next_word() -> Optional[Dict[str, str]]:
+                if not vocab_entries:
+                    return None
+                unpracticed = [
+                    entry for entry in vocab_entries if _entry_key(entry) not in practiced_keys
+                ]
+                pool = unpracticed or vocab_entries
+                entry = random.choice(pool)
+                german, english, pronunciation = _unpack_entry(entry)
+                return {
+                    "level": selected_level,
+                    "german": german,
+                    "english": english,
+                    "pronunciation": pronunciation,
+                    "key": vocab_practice_word_key(selected_level, german, english),
+                }
+
+            if st.button(
+                "🔁 New word",
+                key=f"{state_prefix}_next",
+                use_container_width=True,
+            ):
+                st.session_state[current_word_key] = _pick_next_word()
+                _reset_attempt_state()
+
+            if current_word_key not in st.session_state or not st.session_state[current_word_key]:
+                st.session_state[current_word_key] = _pick_next_word()
+
+            def _normalize_answer_text(text: str) -> str:
+                cleaned = re.sub(r"[^a-zA-ZäöüÄÖÜß\s]", "", (text or "").lower())
+                return re.sub(r"\s+", " ", cleaned).strip()
+
+            def _is_correct_answer(user_text: str, answer_text: str) -> bool:
+                guess_norm = _normalize_answer_text(user_text)
+                if not guess_norm:
+                    return False
+                parts = re.split(r"[,/;]", answer_text or "") or [answer_text]
+                return any(guess_norm == _normalize_answer_text(part) for part in parts)
+
+            current_word = st.session_state.get(current_word_key)
+            if not current_word:
+                st.info("No words available for this level yet. Please check another level.")
+            else:
+                german = current_word.get("german", "")
+                english = current_word.get("english", "")
+                pronunciation = current_word.get("pronunciation", "")
+                st.markdown(f"##### 🇩🇪 {german}")
+                if pronunciation and pronunciation.lower() not in ("nan", "none"):
+                    st.caption(f"Pronunciation: {pronunciation}")
+
+                guess_key = f"{state_prefix}_guess"
+                guess_value = st.text_input(
+                    "Type the English meaning",
+                    key=guess_key,
+                    placeholder="e.g., invitation, complaint, groceries",
+                )
+
+                show_key = f"{state_prefix}_show"
+                result_key = f"{state_prefix}_result"
+
+                action_cols = st.columns([2, 1])
+                with action_cols[0]:
+                    if st.button(
+                        "Check answer",
+                        key=f"{state_prefix}_check",
+                        use_container_width=True,
+                    ):
+                        st.session_state[show_key] = True
+                        st.session_state[result_key] = _is_correct_answer(guess_value, english)
+                with action_cols[1]:
+                    if st.button(
+                        "Reveal",
+                        key=f"{state_prefix}_reveal",
+                        use_container_width=True,
+                    ):
+                        st.session_state[show_key] = True
+                        st.session_state[result_key] = None
+
+                if st.session_state.get(show_key):
+                    answer_text = english or "(No translation in sheet)"
+                    result = st.session_state.get(result_key)
+                    if result is True:
+                        st.success(f"Correct! {german} = {answer_text}")
+                    elif result is False:
+                        st.info(f"Keep practicing! {german} = **{answer_text}**")
+                    else:
+                        st.info(f"Answer: **{answer_text}**")
+
+                    audio_url = get_audio_url(selected_level, german)
+                    if audio_url:
+                        st.audio(audio_url)
+
+                practiced = current_word.get("key") in practiced_keys
+                col_prac, col_unprac = st.columns(2)
+                with col_prac:
+                    if st.button(
+                        "✅ Mark practiced",
+                        key=f"{state_prefix}_mark_done",
+                        disabled=(not student_code) or practiced,
+                        use_container_width=True,
+                    ):
+                        set_vocab_practice_status(
+                            student_code,
+                            level=selected_level,
+                            german=german,
+                            english=english,
+                            practiced=True,
+                        )
+                        st.session_state["need_rerun"] = True
+                with col_unprac:
+                    if st.button(
+                        "↩️ Mark not practiced",
+                        key=f"{state_prefix}_mark_todo",
+                        disabled=(not student_code) or not practiced,
+                        use_container_width=True,
+                    ):
+                        set_vocab_practice_status(
+                            student_code,
+                            level=selected_level,
+                            german=german,
+                            english=english,
+                            practiced=False,
+                        )
+                        st.session_state["need_rerun"] = True
+
+                if not student_code:
+                    st.caption("Sign in with your student code to enable progress tracking.")
 
     # ----------- PRACTICE LETTERS -----------
     if sub_tab == "Practice Letters":
