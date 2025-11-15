@@ -7619,28 +7619,32 @@ def render_vocab_trainer_section() -> None:
                 unsafe_allow_html=True
             )
 
+            input_key = f"vt_input_{idx}"
             usr = st.text_input(
                 f"{word} = ?",
-                key=f"vt_input_{idx}",
+                key=input_key,
                 placeholder="Type your answer here...",
             )
             render_umlaut_pad(
-                f"vt_input_{idx}",
+                input_key,
                 context=f"vocab_practice_{student_code}",
             )
             if usr and st.button("Check", key=f"vt_check_{idx}"):
                 st.session_state.vt_history.append(("user", usr))
-                if is_correct_answer(usr, answer):
+                correct = is_correct_answer(usr, answer)
+                if correct:
                     st.session_state.vt_score += 1
                     fb = f"✅ Correct! '{word}' = '{answer}'"
+                    seen = set(st.session_state.get("vt_seen_words", []) or [])
+                    if word not in seen:
+                        seen.add(word)
+                        st.session_state.vt_seen_words = list(seen)
+                    st.session_state.vt_index += 1
                 else:
-                    fb = f"❌ Nope. '{word}' = '{answer}'"
-                seen = set(st.session_state.get("vt_seen_words", []) or [])
-                if word not in seen:
-                    seen.add(word)
-                    st.session_state.vt_seen_words = list(seen)
+                    fb = f"❌ Nope. '{word}' = '{answer}'. Try again!"
                 st.session_state.vt_history.append(("assistant", fb))
-                st.session_state.vt_index += 1
+                # Clear the input so the student can retype their next attempt.
+                st.session_state[input_key] = ""
                 refresh_with_toast()
 
         if isinstance(tot, int) and idx >= tot:
