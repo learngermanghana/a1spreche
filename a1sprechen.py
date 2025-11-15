@@ -1741,18 +1741,6 @@ def render_sidebar_published():
         st.session_state.pop("_chat_focus_tab", None)
         st.session_state["need_rerun"] = True
 
-    def _go_vocab_trainer():
-        st.session_state["nav_sel"] = "Schreiben Trainer"
-        st.session_state["main_tab_select"] = "Schreiben Trainer"
-        # Ensure the Schreiben tab opens with the vocab trainer sub-tab selected
-        student_code = st.session_state.get("student_code")
-        if student_code:
-            st.session_state[f"schreiben_sub_tab_{student_code}"] = "Vocab Trainer"
-        st.session_state["schreiben_pending_subtab"] = "Vocab Trainer"
-        _qp_set_safe(tab="Vocab Trainer")
-        st.session_state.pop("_chat_focus_tab", None)
-        st.session_state["need_rerun"] = True
-
     def _go_course_submit():
         st.session_state["nav_sel"] = "My Course"
         st.session_state["main_tab_select"] = "My Course"
@@ -1769,7 +1757,6 @@ def render_sidebar_published():
         st.sidebar.button("📊 Results & Resources",      width="stretch", on_click=_go, args=("My Results and Resources",))
         st.sidebar.button("🗣️ Chat • Grammar • Exams", width="stretch", on_click=_go_chat_main)
         st.sidebar.button("✅ Submit Assignment",       width="stretch", on_click=_go_course_submit)
-        st.sidebar.button("📚 Vocab Trainer",           width="stretch", on_click=_go_vocab_trainer)
         st.sidebar.button("✍️ Schreiben Trainer",        width="stretch", on_click=_go, args=("Schreiben Trainer",))
         st.sidebar.button("🎥 Join on Zoom",             width="stretch", on_click=_go_zoom_class)
         st.sidebar.button("❓ Class Notes & Q&A",         width="stretch", on_click=_go_post_qna)
@@ -1796,7 +1783,7 @@ def render_sidebar_published():
                 - **Submit work:** My Course → Submit → **Confirm & Submit** (locks after submission).
                 - **Check feedback:** **Results & Resources** shows marks, comments, downloads.
                 - **Practice speaking:** **Tools → Sprechen** for instant pronunciation feedback.
-                - **Build vocab:** **Schreiben Trainer → Vocab Trainer** for daily words & review cycles.
+                - **Build vocab:** Use the Dashboard quick vocab chip & Course Book materials for fresh words.
                 - **Track progress:** **Dashboard** shows streaks, next lesson, and missed items.
                 """
             )
@@ -1810,7 +1797,7 @@ def render_sidebar_published():
                 - **My Course:** Lessons, materials, and submission flow.
                 - **Results & Resources:** Marks, feedback, downloadable resources.
                 - **Chat • Grammar • Exams:** Guided conversation practice plus instant pronunciation feedback.
-                - **Schreiben Trainer:** Structured writing with iterative feedback and 📚 vocab practice tools.
+                - **Schreiben Trainer:** Structured writing with iterative feedback to sharpen exam essays.
                 """
             )
 
@@ -2395,18 +2382,6 @@ def render_dropdown_nav():
 
     # Default from URL OR session
     default = _qp_get_first("tab", st.session_state.get("main_tab_select", "Dashboard"))
-    if default == "Vocab Trainer":
-        default = "Schreiben Trainer"
-        st.session_state["main_tab_select"] = default
-        st.session_state["nav_sel"] = default
-        st.session_state.pop("_chat_focus_tab", None)
-        st.session_state["schreiben_pending_subtab"] = "Vocab Trainer"
-        student_code_for_nav = st.session_state.get("student_code")
-        if student_code_for_nav:
-            st.session_state[f"schreiben_sub_tab_{student_code_for_nav}"] = "Vocab Trainer"
-        # Clear the query-param override after applying it once so that
-        # subsequent reruns respect the user's tab selection.
-        _qp_set(tab=default)
     if default not in tabs:
         default = "Dashboard"
 
@@ -9581,10 +9556,6 @@ if tab == "Schreiben Trainer":
         st.session_state[f"{student_code}_improved_letter"] = ""
         st.session_state["prev_student_code"] = student_code
 
-    pending_subtab = st.session_state.pop("schreiben_pending_subtab", None)
-    if pending_subtab:
-        st.session_state[f"schreiben_sub_tab_{student_code}"] = pending_subtab
-
     # --- Sub-tabs for the Trainer ---
     st.markdown(
         """
@@ -9616,7 +9587,6 @@ if tab == "Schreiben Trainer":
             "Practice Letters",
             "Mark My Letter",
             "Ideas Generator (Letter Coach)",
-            "Vocab Trainer",
 
         ],
         horizontal=True,
@@ -9678,9 +9648,6 @@ if tab == "Schreiben Trainer":
         st.info(
             "Use \u201cMark My Letter\u201d to submit your response for evaluation and \u201cIdeas Generator (Letter Coach)\u201d when you need inspiration.",
         )
-
-    if sub_tab == "Vocab Trainer":
-        render_vocab_trainer_section()
 
     # ----------- 1. MARK MY LETTER -----------
     if sub_tab == "Mark My Letter":
