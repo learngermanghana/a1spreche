@@ -2404,6 +2404,9 @@ def render_dropdown_nav():
         student_code_for_nav = st.session_state.get("student_code")
         if student_code_for_nav:
             st.session_state[f"schreiben_sub_tab_{student_code_for_nav}"] = "Vocab Trainer"
+        # Clear the query-param override after applying it once so that
+        # subsequent reruns respect the user's tab selection.
+        _qp_set(tab=default)
     if default not in tabs:
         default = "Dashboard"
 
