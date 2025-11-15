@@ -140,6 +140,14 @@ WRITING_PROMPTS = {
             ],
         },
         {
+            "Thema": "Sie möchten ein Buch in der Bibliothek ausleihen. Schreiben Sie eine Nachricht an die Bibliothek.",
+            "Punkte": [
+                "Warum schreiben Sie?",
+                "Welches Buch möchten Sie ausleihen?",
+                "Für wie lange möchten Sie das Buch ausleihen?"
+            ],
+        },
+        {
             "Thema": "Schreiben Sie eine E-Mail an Ihre Schule, Sie möchten den Deutschkurs wechseln.",
             "Punkte": [
                 "Warum schreiben Sie?",
