@@ -7644,7 +7644,13 @@ def render_vocab_trainer_section() -> None:
                     fb = f"❌ Nope. '{word}' = '{answer}'. Try again!"
                 st.session_state.vt_history.append(("assistant", fb))
                 # Clear the input so the student can retype their next attempt.
-                st.session_state[input_key] = ""
+                #
+                # Streamlit raises an exception if we attempt to write to a
+                # session_state key that does not yet exist (for example when
+                # the associated widget was not rendered in a previous run).
+                # Guard the assignment so we only reset keys that already exist.
+                if input_key in st.session_state:
+                    st.session_state[input_key] = ""
                 refresh_with_toast()
 
         if isinstance(tot, int) and idx >= tot:
