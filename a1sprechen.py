@@ -7406,7 +7406,14 @@ def build_dict_df(levels):
         df = pd.concat([df, pd.DataFrame(extra)], ignore_index=True)
 
     if not df.empty:
-        df = df.drop_duplicates(subset=["Level", "German"]).reset_index(drop=True)
+        # Only drop rows that are truly identical.  Earlier versions removed every
+        # row that shared the same ``Level`` and ``German`` value which meant
+        # legitimate duplicates (for example a word that appears twice with
+        # different English glosses) disappeared.  That made the totals shown in
+        # the UI lower than the actual number of entries in the Google Sheet.
+        # Considering every column preserves intentional duplicates while still
+        # eliminating copy-paste repeats.
+        df = df.drop_duplicates().reset_index(drop=True)
     return df
 
 
