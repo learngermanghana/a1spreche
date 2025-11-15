@@ -7465,7 +7465,24 @@ def render_vocab_trainer_section() -> None:
             "vt_saved": False,
             "vt_session_id": None,
             "vt_mode": "Only new words",
+            "vt_seen_words": [],
         }
+
+        def reset_vocab_practice(*, preserve_seen: bool = False) -> None:
+            """Reset vocab practice session state.
+
+            When ``preserve_seen`` is ``True`` we keep track of the words that
+            have already appeared so a restart continues with the remaining
+            ones instead of starting from scratch.
+            """
+
+            seen_words = copy.deepcopy(st.session_state.get("vt_seen_words", []))
+            for k, v in defaults.items():
+                if preserve_seen and k == "vt_seen_words":
+                    continue
+                st.session_state[k] = copy.deepcopy(v)
+            if preserve_seen:
+                st.session_state["vt_seen_words"] = seen_words
         for k, v in defaults.items():
             if k not in st.session_state:
                 st.session_state[k] = copy.deepcopy(v)
@@ -7481,8 +7498,9 @@ def render_vocab_trainer_section() -> None:
         st.info(f"{len(not_done)} words NOT yet done at {level}.")
 
         if st.button("🔁 Start New Practice", key="vt_reset"):
-            for k, v in defaults.items():
-                st.session_state[k] = copy.deepcopy(v)
+            # Preserve words already seen so the next session continues with
+            # fresh items instead of repeating the same ones immediately.
+            reset_vocab_practice(preserve_seen=True)
             refresh_with_toast()
 
         if st.session_state.vt_total is None:
@@ -7507,7 +7525,22 @@ def render_vocab_trainer_section() -> None:
                 import random
                 from uuid import uuid4
                 random.shuffle(session_vocab)
-                st.session_state.vt_list = session_vocab[:count]
+                seen_words = set(st.session_state.get("vt_seen_words", []) or [])
+                fresh_items = [item for item in session_vocab if item[0] not in seen_words]
+                selected: list[tuple[str, str]] = fresh_items[:count]
+                if len(selected) < count:
+                    remaining = count - len(selected)
+                    previously_seen = [
+                        item
+                        for item in session_vocab
+                        if item[0] in seen_words and item not in selected
+                    ]
+                    selected.extend(previously_seen[:remaining])
+                if len(selected) < count:
+                    # Fallback for very short lists – just reuse the shuffled vocab.
+                    selected = session_vocab[:count]
+
+                st.session_state.vt_list = selected
                 st.session_state.vt_total = count
                 st.session_state.vt_index = 0
                 st.session_state.vt_score = 0
@@ -7592,6 +7625,10 @@ def render_vocab_trainer_section() -> None:
                     fb = f"✅ Correct! '{word}' = '{answer}'"
                 else:
                     fb = f"❌ Nope. '{word}' = '{answer}'"
+                seen = set(st.session_state.get("vt_seen_words", []) or [])
+                if word not in seen:
+                    seen.add(word)
+                    st.session_state.vt_seen_words = list(seen)
                 st.session_state.vt_history.append(("assistant", fb))
                 st.session_state.vt_index += 1
                 refresh_with_toast()
@@ -7614,10 +7651,10 @@ def render_vocab_trainer_section() -> None:
                         session_id=st.session_state.vt_session_id
                     )
                 st.session_state.vt_saved = True
+                st.session_state.vt_seen_words = []
                 refresh_with_toast()
             if st.button("Practice Again", key="vt_again"):
-                for k, v in defaults.items():
-                    st.session_state[k] = copy.deepcopy(v)
+                reset_vocab_practice()
                 refresh_with_toast()
 
     # ===========================
