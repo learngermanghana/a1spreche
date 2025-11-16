@@ -66,7 +66,7 @@ def test_save_product_writes_under_workspace_and_sets_uid():
 
     action, path, payload = db.calls[0]
     assert action == "set"
-    assert path == "default/workspaces/products/sku-1"
+    assert path == "workspaces/store-123/products/sku-1"
     _assert_workspace_uid(payload, "store-123")
     assert payload["name"] == "Orange"
 
@@ -78,7 +78,7 @@ def test_save_sell_uses_add_when_document_id_missing():
 
     action, path, payload = db.calls[0]
     assert action == "add"
-    assert path == "default/workspaces/sell"
+    assert path == "workspaces/tenant-a/sell"
     _assert_workspace_uid(payload, "tenant-a")
     assert payload["qty"] == 2
 

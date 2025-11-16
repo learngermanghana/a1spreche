@@ -2,10 +2,10 @@
 
 The current Streamlit code base has a number of ad-hoc Firestore writes. The
 inventory dashboard (products, receiving stock, and selling stock) needs every
-write to live under ``default/workspaces/<collection>`` so that each store
-remains isolated even though all entries share the same sub-collection.  Every
-document also carries ``workspace_uid`` so that the dashboard can filter rows
-per store without having to duplicate the workspace in the Firestore path.
+write to live under ``workspaces/<uid>/…`` so that each store remains isolated
+inside its own workspace document.  Centralising the write logic here prevents
+each caller from having to remember the exact Firestore path or to add the
+``workspace_uid`` field manually.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ class _DatabaseLike:  # pragma: no cover - runtime duck type helper
 def _workspace_collection(
     db: _DatabaseLike, workspace_uid: str, collection_name: str
 ) -> _CollectionLike:
-    """Return the nested collection ``default/workspaces/<collection_name>``.
+    """Return the nested collection ``workspaces/<uid>/<collection_name>``.
 
     Args:
         db: Firestore database client.
@@ -50,8 +50,8 @@ def _workspace_collection(
     if not workspace_uid:
         raise ValueError("workspace_uid is required")
     return (
-        db.collection("default")
-        .document("workspaces")
+        db.collection("workspaces")
+        .document(workspace_uid)
         .collection(collection_name)
     )
 
