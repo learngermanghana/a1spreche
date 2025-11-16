@@ -17,7 +17,7 @@ TEST_SECRET = "test-secret"
 TEST_HASHES = {"u": generate_password_hash("pw")}
 
 
-def _configure_env() -> None:
+def _configure_env(*, max_age_days: int | None = None) -> None:
     os.environ["JWT_SECRET"] = TEST_SECRET
     os.environ["AUTH_USER_CREDENTIALS"] = json.dumps(TEST_HASHES)
     db_path = Path(__file__).resolve().parent / f"refresh_tokens_{uuid.uuid4().hex}.db"
@@ -25,10 +25,14 @@ def _configure_env() -> None:
     if db_path.exists():
         db_path.unlink()
     os.environ["REFRESH_DB_PATH"] = str(db_path)
+    if max_age_days is None:
+        os.environ.pop("SESSION_MAX_AGE_DAYS", None)
+    else:
+        os.environ["SESSION_MAX_AGE_DAYS"] = str(max_age_days)
 
 
-def create_app():
-    _configure_env()
+def create_app(*, max_age_days: int | None = None):
+    _configure_env(max_age_days=max_age_days)
     reload(auth)
     app = Flask(__name__)
     app.register_blueprint(auth.auth_bp)

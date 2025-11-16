@@ -100,6 +100,11 @@ Tracking Prevention shortens cookie lifetimes to about a week when they aren't
 updated. A daily refresh ensures the cookie expiry is extended well before the
 platform can discard it.
 
+Set the ``SESSION_MAX_AGE_DAYS`` environment variable to control how long the
+refresh cookie remains valid (defaults to 90 days). Increasing this window can
+help keep rarely-used accounts signed in longer while still allowing periodic
+rotation through the refresh endpoint.
+
 ## Level-Based Admin Mapping
 
 Administrative access is determined by combining the `roles.admins` list from
