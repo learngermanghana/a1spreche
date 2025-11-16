@@ -17,15 +17,39 @@ auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 COOKIE_NAME = "session"
 COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "Lax")  # use "None" if cross-site; requires HTTPS
 COOKIE_PATH = "/"
-MAX_AGE = 60 * 60 * 24 * 30  # 30 days
+_DEFAULT_MAX_AGE_DAYS = 90
+_MAX_AGE_ENV = "SESSION_MAX_AGE_DAYS"
+
+
+def _load_cookie_max_age() -> int:
+    """Return the cookie lifetime (in seconds) from env or default."""
+
+    raw_days = os.getenv(_MAX_AGE_ENV, "").strip()
+    if not raw_days:
+        return _DEFAULT_MAX_AGE_DAYS * 24 * 60 * 60
+
+    try:
+        days = int(raw_days)
+    except ValueError as exc:  # pragma: no cover - defensive guard
+        raise RuntimeError(f"{_MAX_AGE_ENV} must be an integer number of days") from exc
+
+    if days <= 0:
+        raise RuntimeError(f"{_MAX_AGE_ENV} must be a positive integer (got {days})")
+
+    return days * 24 * 60 * 60
+
+
+MAX_AGE = _load_cookie_max_age()
 
 def _set_cookie(resp, token: str, *, device_id: str | None = None):
     """
     Sets the session cookie. If running under falowen.app, use domain=.falowen.app.
     Otherwise (e.g., testing on <app>.herokuapp.com), omit domain so the cookie is set.
     """
+    expires = datetime.now(UTC) + timedelta(seconds=MAX_AGE)
     kwargs = dict(
         max_age=MAX_AGE,
+        expires=expires,
         httponly=True,
         secure=True,                 # requires HTTPS (Cloudflare/Heroku provide this)
         samesite=COOKIE_SAMESITE,
@@ -381,7 +405,14 @@ def logout():
 
     resp = make_response("", 204)
     # Clear cookie with the same attributes we set
-    kwargs = dict(httponly=True, secure=True, samesite=COOKIE_SAMESITE, path=COOKIE_PATH, max_age=0)
+    kwargs = dict(
+        httponly=True,
+        secure=True,
+        samesite=COOKIE_SAMESITE,
+        path=COOKIE_PATH,
+        max_age=0,
+        expires=0,
+    )
     host = (request.host or "").split(":")[0]
     if host.endswith("falowen.app"):
         kwargs["domain"] = ".falowen.app"

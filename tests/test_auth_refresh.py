@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import datetime, timezone
 from http.cookies import SimpleCookie
 from email.utils import parsedate_to_datetime
 import time
@@ -18,13 +19,17 @@ TEST_SECRET = "test-secret"
 TEST_HASHES = {"u": generate_password_hash("pw")}
 
 
-def _configure_env() -> None:
+def _configure_env(*, max_age_days: int | None = None) -> None:
     os.environ["JWT_SECRET"] = TEST_SECRET
     os.environ["AUTH_USER_CREDENTIALS"] = json.dumps(TEST_HASHES)
+    if max_age_days is None:
+        os.environ.pop("SESSION_MAX_AGE_DAYS", None)
+    else:
+        os.environ["SESSION_MAX_AGE_DAYS"] = str(max_age_days)
 
 
-def create_app():
-    _configure_env()
+def create_app(*, max_age_days: int | None = None):
+    _configure_env(max_age_days=max_age_days)
     reload(auth)
     app = Flask(__name__)
     app.register_blueprint(auth.auth_bp)
@@ -55,3 +60,18 @@ def test_refresh_extends_cookie_expiry():
     assert second_expires > first_expires
     assert third_expires > second_expires
     assert f"max-age={auth.MAX_AGE}" in refresh_resp2.headers["Set-Cookie"].lower()
+
+
+def test_cookie_max_age_override():
+    override_days = 120
+    app = create_app(max_age_days=override_days)
+    client = app.test_client()
+
+    login_resp = client.post("/auth/login", json={"user_id": "u", "password": "pw"})
+    expires, cookie_header = _cookie_expires(login_resp)
+
+    assert auth.MAX_AGE == override_days * 24 * 60 * 60
+    assert f"max-age={auth.MAX_AGE}" in cookie_header.lower()
+
+    delta = expires - datetime.now(timezone.utc)
+    assert abs(delta.total_seconds() - auth.MAX_AGE) < 5
