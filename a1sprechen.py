@@ -8298,13 +8298,6 @@ if tab == "Chat • Grammar • Exams":
             color:#f9fafb;
             border-color:#111827;
           }
-          @media (max-width: 640px){
-            .chat-tab-selector{ display:block; margin-bottom:0.5rem; }
-            .chat-tab-selector label{ font-weight:700; color:#0f172a; }
-          }
-          @media (min-width: 641px){
-            .chat-tab-selector{ display:none; }
-          }
         </style>
         """,
         unsafe_allow_html=True,
@@ -8331,8 +8324,9 @@ if tab == "Chat • Grammar • Exams":
         )
         st.markdown("</div>", unsafe_allow_html=True)
 
-    if st.session_state.get(selector_key) not in base_tab_labels:
-        st.session_state[selector_key] = focus_tab
+        if tab_label not in base_tab_labels:
+            return
+        st.session_state["_chat_focus_tab"] = tab_label
 
     # Keep fixed order – no rotation, so tabs don't jump on rerun
     st.markdown('<div class="chat-grammar-tabs">', unsafe_allow_html=True)
