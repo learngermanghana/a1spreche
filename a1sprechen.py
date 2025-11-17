@@ -1787,7 +1787,7 @@ def render_sidebar_published():
                 - **Check feedback:** **Results & Resources** shows marks, comments, downloads.
                 - **Practice speaking:** **Tools → Sprechen** for instant pronunciation feedback.
                 - **Build vocab:** Use the Dashboard quick vocab chip & Course Book materials for fresh words.
-                - **Track progress:** **Dashboard** shows streaks, next lesson, and missed items.
+                - **Track progress:** **Dashboard** shows streaks, next lesson, and jumped items.
                 """
             )
         if first_time_quick_guide:
@@ -1796,7 +1796,7 @@ def render_sidebar_published():
         with st.sidebar.expander("🧭 Dashboard tabs, explained", expanded=False):
             st.markdown(
                 """
-                - **Dashboard:** Overview (streak, next lesson, missed, leaderboard, new posts).
+                - **Dashboard:** Overview (streak, next lesson, jumped, leaderboard, new posts).
                 - **My Course:** Lessons, materials, and submission flow.
                 - **Results & Resources:** Marks, feedback, downloadable resources.
                 - **Chat • Grammar • Exams:** Guided conversation practice plus instant pronunciation feedback.
@@ -2694,7 +2694,7 @@ if tab == "Dashboard":
     _next_lesson = _summary.get("next")
 
     if _missed_list:
-        _missed_chip = f"<span class='pill pill-amber'>{len(_missed_list)} missed</span>"
+        _missed_chip = f"<span class='pill pill-amber'>{len(_missed_list)} jumped</span>"
         _missed_preview = ", ".join(_missed_list[:2]) + ("…" if len(_missed_list) > 2 else "")
     else:
         _missed_chip = "<span class='pill pill-green'>None</span>"
@@ -2713,8 +2713,8 @@ if tab == "Dashboard":
         _next_chip = f"<span class='pill pill-purple'>{_next_title}</span>"
         _next_sub = _next_lesson.get("goal", "")
     elif _missed_list:
-        _next_chip = "<span class='pill pill-amber'>Finish missed work</span>"
-        _next_sub = "Complete skipped assignments first"
+        _next_chip = "<span class='pill pill-amber'>Finish jumped work</span>"
+        _next_sub = "Complete jumped assignments first"
     else:
         _next_chip = "<span class='pill pill-green'>All caught up</span>"
         _next_sub = ""
@@ -2753,7 +2753,7 @@ if tab == "Dashboard":
             <div class="sub">{_rank_text}</div>
           </div>
           <div class="minicard">
-            <h4>📚 Missed Assignments</h4>
+            <h4>📚 Jumped Assignments</h4>
             <div>{_missed_chip}</div>
             <div class="sub">{_missed_preview}</div>
           </div>
