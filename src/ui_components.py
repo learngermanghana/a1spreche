@@ -160,6 +160,10 @@ def render_vocab_lookup(key: str, context_label: Optional[str] = None) -> None:
     st.markdown(header)
     st.caption("Search words from this assignment")
 
+    helper_url = (
+        "https://www.falowen.app/?tab=Chat+%E2%80%A2+Grammar+%E2%80%A2+Exams"
+        "&t=ijw4H_7TnhTgX0swRfZ3BqBqiilBBfV3spz9U1cwS5AvLUJDwVYRbnc3I_HuQoss"
+    )
     translate_caption = (
         'Need help beyond a single word? Try the '
         '<a href="https://chat.grammar.exams/grammar" target="_blank">Grammar Helper</a> '
