@@ -1290,7 +1290,13 @@ def render_results_and_resources_tab() -> None:
     else:
         display_records = []
 
-    tab_labels = ["Overview", "Missed & Next", "Feedback", "Achievements", "Downloads"]
+    tab_labels = [
+        "Overview",
+        "Jumped & Next",
+        "Feedback",
+        "Achievements",
+        "Downloads",
+    ]
     tab_state_key = "results_resources_active_tab"
     default_tab = st.session_state.get(tab_state_key, tab_labels[0])
     try:
@@ -1322,8 +1328,8 @@ def render_results_and_resources_tab() -> None:
 
     remaining_assignments = max(total_target - completed, 0)
 
-    if selected_tab == "Missed & Next":
-        st.subheader("Missed & Next")
+    if selected_tab == "Jumped & Next":
+        st.subheader("Jumped & Next")
 
         missed_raw = assignment_summary.get("missed")
         if isinstance(missed_raw, (list, tuple, set)):
@@ -1385,10 +1391,10 @@ def render_results_and_resources_tab() -> None:
             st.markdown("\n".join(f"- {item}" for item in failed_assignments))
 
         if missed_assignments:
-            st.markdown("**Missed assignments to review:**")
+            st.markdown("**Jumped assignments to review:**")
             st.markdown("\n".join(f"- {item}" for item in missed_assignments))
         else:
-            st.info("You\u2019re on track! No missed assignments to catch up on.")
+            st.info("You\u2019re on track! No jumped assignments to catch up on.")
 
     if selected_tab == "Feedback":
         st.subheader("Personalized feedback")
