@@ -6533,16 +6533,19 @@ if tab == "My Course":
                         )
 
                     can_modify_q = (q.get("asked_by_code") == student_code) or IS_ADMIN
+                    start_q_edit_flag = f"__start_q_edit_{q_id}"
                     if can_modify_q:
                         qc1, qc2, qc3, _ = st.columns([1, 1, 1, 6])
                         with qc1:
                             if st.button("✏️ Edit", key=f"q_edit_btn_{q_id}"):
-                                st.session_state[f"q_editing_{q_id}"] = True
-                                st.session_state[f"q_edit_text_{q_id}"] = q.get("content", "")
-                                st.session_state[f"q_edit_topic_{q_id}"] = q.get("topic", "")
-                                st.session_state[f"q_edit_link_{q_id}"] = q.get("link", "")
-                                st.session_state[f"q_edit_lesson_{q_id}"] = q.get("lesson", "")
-                                st.session_state[f"q_edit_timer_input_{q_id}"] = timer_minutes_remaining
+                                st.session_state[start_q_edit_flag] = True
+                        if st.session_state.pop(start_q_edit_flag, False):
+                            st.session_state[f"q_editing_{q_id}"] = True
+                            st.session_state[f"q_edit_text_{q_id}"] = q.get("content", "")
+                            st.session_state[f"q_edit_topic_{q_id}"] = q.get("topic", "")
+                            st.session_state[f"q_edit_link_{q_id}"] = q.get("link", "")
+                            st.session_state[f"q_edit_lesson_{q_id}"] = q.get("lesson", "")
+                            st.session_state[f"q_edit_timer_input_{q_id}"] = timer_minutes_remaining
                         with qc2:
                             if st.button("🗑️ Delete", key=f"q_del_btn_{q_id}"):
                                 try:
@@ -6718,13 +6721,16 @@ if tab == "My Course":
                                 )
 
                             can_modify_c = (c_data.get("replied_by_code") == student_code) or IS_ADMIN
+                            start_c_edit_flag = f"__start_c_edit_{q_id}_{cid}"
                             if can_modify_c:
                                 controls = message.container()
                                 rc1, rc2, _ = controls.columns([1, 1, 6])
                                 with rc1:
                                     if st.button("✏️ Edit", key=f"c_edit_btn_{q_id}_{cid}"):
-                                        st.session_state[f"c_editing_{q_id}_{cid}"] = True
-                                        st.session_state[f"c_edit_text_{q_id}_{cid}"] = c_data.get("content", "")
+                                        st.session_state[start_c_edit_flag] = True
+                                if st.session_state.pop(start_c_edit_flag, False):
+                                    st.session_state[f"c_editing_{q_id}_{cid}"] = True
+                                    st.session_state[f"c_edit_text_{q_id}_{cid}"] = c_data.get("content", "")
                                 with rc2:
                                     if st.button("🗑️ Delete", key=f"c_del_btn_{q_id}_{cid}"):
                                         c.reference.delete()
@@ -6915,16 +6921,24 @@ if tab == "My Course":
 
                     send_col, ai_col = st.columns([1, 1])
 
+                    send_request_key = f"__send_reply_request_{q_id}"
+                    send_error_key = f"__send_reply_error_{q_id}"
+
                     with send_col:
                         if st.button(
                             "Send Reply",
                             key=f"q_send_comment_{q_id}",
                             type="primary",
                             width="stretch",
+                            disabled=st.session_state.get(send_request_key, False),
                         ):
+                            st.session_state[send_request_key] = True
+
+                        if st.session_state.pop(send_request_key, False):
                             if not current_text.strip():
-                                st.warning("Type a reply first.")
+                                st.session_state[send_error_key] = "Type a reply first."
                             else:
+                                st.session_state.pop(send_error_key, None)
                                 save_now(draft_key, student_code, show_toast=False)
                                 send_comment(
                                     q_id,
@@ -6939,6 +6953,8 @@ if tab == "My Course":
                                     saved_at_key,
                                 )
                                 st.rerun()
+                        if st.session_state.get(send_error_key):
+                            st.warning(st.session_state[send_error_key])
 
                     with ai_col:
                         if st.button(
