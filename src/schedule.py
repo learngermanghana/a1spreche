@@ -314,10 +314,10 @@ def get_a1_schedule():
             "topic": "Schreiben & Sprechen 3.5",
             "chapter": "3.5",
             "goal": "Recap from the lesen and horen. Understand numbers, time, asking of price and how to formulate statements in German",
-            "instruction": "Use the statement rule to talk about your weekly routine using the activities listed. Share with your tutor when done",
+            "instruction": "Use the statement rule to talk about your weekly routine using the activities listed. Go to the classnotes page, search for the assignment number and add your contribution",
             "schreiben_sprechen": {
-                "video": "https://youtu.be/PwDLGmfBUDw",
-                "youtube_link": "https://youtu.be/PwDLGmfBUDw",
+                "video": "https://youtu.be/vVEZq_ipYzI",
+                "youtube_link": "https://youtu.be/vVEZq_ipYzI",
                 "assignment": False,
                 "workbook_link": "https://drive.google.com/file/d/12oFKrKrHBwSpSnzxLX_e-cjPSiYtCFVs/view?usp=sharing"
             }
