@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import UTC, datetime
 from typing import Any, Protocol
 
 import pandas as pd
@@ -19,6 +20,11 @@ except ImportError:  # pragma: no cover - fallback for missing dependency
         return {}
 
 from src.stats import get_student_level
+
+# ``get_cookie_manager`` is optionally monkeypatched in tests and may be set by
+# importing :mod:`src.config`.  The bootstrap helper below first checks this
+# name before performing a lazy import to avoid circular imports.
+get_cookie_manager = None  # type: ignore[assignment]
 
 
 class CookieLike(Protocol):
@@ -72,10 +78,44 @@ def bootstrap_state() -> None:
 
 
 def bootstrap_session_from_qp() -> None:
-    """Seed ``st.session_state`` using a ``?t=`` query parameter if present."""
+    """Seed ``st.session_state`` using a ``?t=`` query parameter or cookies."""
+
+    def _get_cookie_manager():
+        cm_getter = globals().get("get_cookie_manager")
+        if callable(cm_getter):
+            return cm_getter()
+        try:
+            from .config import get_cookie_manager as _get_cm
+
+            return _get_cm()
+        except Exception:
+            logging.exception("Cookie manager unavailable while bootstrapping session")
+            return None
+
+    def _load_cookie_session():
+        cm = _get_cookie_manager()
+        if cm is None:
+            return "", ""
+
+        token = (cm.get("falowen_session_token") or "").strip()
+        student_code = (cm.get("falowen_student_code") or "").strip()
+        expires_raw = cm.get("falowen_session_expiry")
+        if expires_raw:
+            try:
+                expires_ts = int(expires_raw)
+                if expires_ts <= int(datetime.now(UTC).timestamp()):
+                    return "", ""
+            except Exception:
+                logging.debug("Invalid cookie expiry while bootstrapping session", exc_info=True)
+
+        return token, student_code
+
     tok: Any = st.query_params.get("t")
     if isinstance(tok, list):
         tok = tok[0] if tok else None
+    student_code_hint = ""
+    if not tok:
+        tok, student_code_hint = _load_cookie_session()
     if not tok:
         return
 
@@ -91,7 +131,7 @@ def bootstrap_session_from_qp() -> None:
         logging.warning("Session token validator returned non-dict data")
         return
 
-    sc = data.get("student_code", "")
+    sc = data.get("student_code", "") or student_code_hint
     if not sc:
         return
 
@@ -100,6 +140,7 @@ def bootstrap_session_from_qp() -> None:
             "student_code": sc,
             "session_token": tok,
             "student_name": data.get("name", ""),
+            "cookie_synced": True,
             "logged_in": True,
         }
     )
