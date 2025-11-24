@@ -2321,7 +2321,7 @@ if "_qp_set" not in globals():
 
 
 CHAT_MAIN_TAB = "Chat • Grammar • Exams"
-CHAT_TOOL_TABS = {"🧑‍🏫 Topic Coach", "🛠️ Grammar", "📘 Assignment Guide", "📝 Exams"}
+CHAT_TOOL_TABS = {"🧑‍🏫 Topic Coach", "🛠️ Grammar", "📘 Essay Explainer", "📝 Exams"}
 
 
 def navigate_to_chat_tab(focus_tab: Optional[str] = None) -> None:
@@ -4432,10 +4432,10 @@ if tab == "My Course":
                     use_container_width=True,
                 )
                 st.button(
-                    "📝 Assignment Helper",
+                    "📘 Essay Explainer",
                     key="coursebook_assignment_helper",
                     on_click=navigate_to_chat_tab,
-                    kwargs={"focus_tab": "📘 Assignment Guide"},
+                    kwargs={"focus_tab": "📘 Essay Explainer"},
                     use_container_width=True,
                 )
                 st.caption("Opens the Chat • Grammar • Exams tools in a new tab of the app.")
@@ -7850,7 +7850,7 @@ def render_vocab_trainer_section() -> None:
 
 #Maincode for me
 
-# ===================== Assignment Helper – Firestore persistence =====================
+# ===================== Essay Explainer – Firestore persistence =====================
 
 ASSIGN_COLLECTION = "falowen_assignment_helpers"
 ASSIGN_THREADS_COLLECTION = "falowen_assignment_helper_threads"
@@ -7859,7 +7859,7 @@ ASSIGN_THREADS_COLLECTION = "falowen_assignment_helper_threads"
 def _assignment_helper_persistence_enabled() -> bool:
     """
     Return True if we have a Firestore client available and can persist
-    Assignment Guide chat. Keeps the rest of the UI free to fall back
+    Essay Explainer chat. Keeps the rest of the UI free to fall back
     to in-memory session_state when Firestore is not configured.
     """
     try:
@@ -8022,7 +8022,7 @@ def persist_assignment_helper_state(
 
 def clear_assignment_helper_state(doc_ref) -> bool:
     """
-    Clear only the messages (and thread metadata) for the student's Assignment Guide chat,
+    Clear only the messages (and thread metadata) for the student's Essay Explainer chat,
     keeping the document itself for future use.
     """
     if doc_ref is None:
@@ -8296,7 +8296,7 @@ if tab == "Chat • Grammar • Exams":
         )
 
     # ---------- Subtabs ----------
-    tab_labels = ["🧑‍🏫 Topic Coach", "🛠️ Grammar", "📘 Assignment Guide", "📝 Exams"]
+    tab_labels = ["🧑‍🏫 Topic Coach", "🛠️ Grammar", "📘 Essay Explainer", "📝 Exams"]
     base_tab_labels = tab_labels[:]
     focus_tab = st.session_state.get("_chat_focus_tab")
     if focus_tab not in base_tab_labels:
@@ -8357,7 +8357,7 @@ if tab == "Chat • Grammar • Exams":
             index=base_tab_labels.index(focus_tab),
             key=selector_key,
             on_change=_sync_chat_tab_focus,
-            help="Use this menu on phones to switch between Chat • Grammar • Assignment Guide • Exams tools.",
+            help="Use this menu on phones to switch between Chat • Grammar • Essay Explainer • Exams tools.",
         )
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -8371,7 +8371,7 @@ if tab == "Chat • Grammar • Exams":
     tab_lookup = dict(zip(base_tab_labels, tab_contexts))
     tab_tc = tab_lookup["🧑‍🏫 Topic Coach"]
     tab_gram = tab_lookup["🛠️ Grammar"]
-    tab_assign = tab_lookup["📘 Assignment Guide"]
+    tab_assign = tab_lookup["📘 Essay Explainer"]
     tab_exam = tab_lookup["📝 Exams"]
 
     # ===================== Topic Coach (intro, feedback, finalize) =====================
@@ -9012,20 +9012,23 @@ if tab == "Chat • Grammar • Exams":
                         except Exception:
                             logging.warning("Failed to log connector session", exc_info=True)
 
-    # ===================== Assignment Guide (Guidelines & Idea Support) =====================
+    # ===================== Essay Explainer (Guidelines & Idea Support) =====================
     with tab_assign:
         st.info(
-            "Need clarity on a writing task? Use this guide to understand what markers expect,"
-            " gather ideas, and organise your answer without receiving a full sample solution."
+            "Need help untangling a German passage? Use this explainer to break down essays,"
+            " highlight key terms, and understand what the task is asking without receiving a full answer."
         )
 
-        st.markdown("### 🤖 Assignment helper chat")
-        st.caption("Paste the brief or ask follow-up questions – Herr Felix will guide your plan, not write it for you.")
+        st.markdown("### 🤖 Essay explainer chat")
+        st.caption(
+            "Paste the passage or prompt – Herr Felix will surface keywords, short translations,"
+            " and understanding tips without giving the full answer."
+        )
 
         def _focus_assignment_tab() -> None:
-            """Keep the Assignment Guide tab selected after actions that trigger reruns."""
+            """Keep the Essay Explainer tab selected after actions that trigger reruns."""
 
-            st.session_state["_chat_focus_tab"] = "📘 Assignment Guide"
+            st.session_state["_chat_focus_tab"] = "📘 Essay Explainer"
             if selector_key in st.session_state:
                 # Streamlit raises an error when we try to programmatically override the
                 # value of an existing selectbox widget via ``st.session_state[key] =``.
@@ -9167,7 +9170,7 @@ if tab == "Chat • Grammar • Exams":
                             "Failed to clear Assignment Helper transcript for %s",
                             student_code_tc,
                         )
-                st.toast("Assignment helper chat cleared.")
+                st.toast("Essay explainer chat cleared.")
                 _focus_assignment_tab()
                 st.rerun()
 
@@ -9243,30 +9246,23 @@ if tab == "Chat • Grammar • Exams":
                     unsafe_allow_html=True,
                 )
                 system_msg = (
-                    "You are Herr Felix, a supportive German writing coach for school assignments and quizzes. "
+                    "You are Herr Felix, a supportive German essay explainer for students. "
                     f"Always tailor advice to CEFR level {assign_level}. "
-                    "Your main goal is to help students understand the task, plan their answer, "
-                    "and improve their own thinking. You must NOT write the full solution or full text. "
-                    "Students will paste assignment briefs, objective (multiple-choice) questions, "
-                    "or follow-up questions. For objective questions, you may explain what is being tested, "
-                    "give hints, and show how to think about each option, but you must never say directly "
-                    "which option (A, B, C, etc.) is correct and you must not write the exact final answer. "
-                    "First, briefly clarify what the task is asking in simple language and highlight key words. "
-                    "If the task is unclear, ask 1–2 short clarifying questions. "
-                    "Then provide planning guidance, structure suggestions, and short phrase ideas "
-                    "without completing the whole assignment. If a student asks you to give the answer "
-                    "or to write the text for them, politely refuse and instead offer ideas, structure, "
-                    "hints, and example phrases. "
-                    "Always answer using clear sections titled 'Task focus', 'Idea starters', "
-                    "and 'Helpful German phrases'. Each section must contain 2–4 concise bullet points "
-                    "using the bullet character •. "
-                    "Under 'Helpful German phrases', only give short sample phrases or sentence starters "
-                    "(no long paragraphs, no full solutions). "
-                    "Students may ask follow-up questions. In follow-ups, continue to give hints, "
-                    "planning help, corrections, and short example phrases, but never give the direct answer "
-                    "to a multiple-choice question and never write the full assignment. "
-                    "Keep a kind, motivating tone and finish each reply with one brief motivational "
-                    "planning tip in English."
+                    "Your main goal is to help students understand passages and prompts by surfacing key ideas, "
+                    "not by writing the full answer for them. Students will paste German essays, reading passages, "
+                    "or follow-up questions. For any comprehension or multiple-choice question, explain what is "
+                    "being tested and offer hints, but never state the final answer outright. "
+                    "First, summarise what the passage or task is asking in simple English. If the task is unclear, "
+                    "ask 1–2 short clarifying questions. Then highlight essential German keywords with brief "
+                    "English cues, provide short translations for tricky phrases, and share tips for how to think "
+                    "about the passage. Avoid writing full paragraphs or full solutions. If a student asks for the "
+                    "answer, politely refuse and keep the focus on explanations and understanding. "
+                    "Always answer using clear sections titled 'Passage snapshot', 'Key keywords', "
+                    "'Helpful translations', and 'Understanding tips'. Each section must contain 2–4 concise "
+                    "bullet points using the bullet character •. "
+                    "Under 'Helpful translations', only give short phrase-level translations (no long paragraphs, "
+                    "no completed essays). Keep a kind, motivating tone and finish each reply with one brief "
+                    "motivation or comprehension tip in English."
                 )
 
                 convo = [{"role": "system", "content": system_msg}]
