@@ -42,19 +42,29 @@ def do_logout(
     }
     draft_prefixes = ("draft_", "falowen_chat_draft_")
 
+    classboard_prefixes = (
+        "classroom_comment_draft_",
+        "q_edit_text_",
+        "c_edit_text_",
+    )
     try:
         for key in list(st_module.session_state.keys()):
-            if key.startswith("classroom_comment_draft_"):
-                value = st_module.session_state.get(key)
-                if value:
-                    try:
-                        save_draft_to_db(student_code, key, value)
-                    except Exception:
-                        logger.exception(
-                            "Failed to persist comment draft %s for %s",
-                            key,
-                            student_code,
-                        )
+            should_persist = key.startswith(classboard_prefixes) or key == "q_text"
+            if not should_persist:
+                continue
+
+            value = st_module.session_state.get(key)
+            if not value:
+                continue
+
+            try:
+                save_draft_to_db(student_code, key, value)
+            except Exception:
+                logger.exception(
+                    "Failed to persist comment draft %s for %s",
+                    key,
+                    student_code,
+                )
     except Exception:
         logger.exception("Failed to persist classroom comment drafts on logout")
 
