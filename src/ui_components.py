@@ -163,7 +163,7 @@ def render_vocab_lookup(key: str, context_label: Optional[str] = None) -> None:
     translate_caption = (
         'Need help beyond a single word? Try the '
         '<a href="https://chat.grammar.exams/grammar" target="_blank">Grammar Helper</a> '
-        'or <a href="https://chat.grammar.exams/assignment" target="_blank">Assignment Helper</a>.'
+        'or <a href="https://chat.grammar.exams/assignment" target="_blank">Essay Explainer</a>.'
     )
 
     df = _load_vocab_sheet()
