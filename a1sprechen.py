@@ -6917,7 +6917,21 @@ if tab == "My Course":
                         student_name=student_name,
                         text=current_text,
                     )
-                    autosave_maybe(student_code, draft_key, current_text, min_secs=2.0, min_delta=12)
+                    autosave_maybe(
+                        student_code,
+                        draft_key,
+                        current_text,
+                        min_secs=1.0,
+                        min_delta=4,
+                    )
+
+                    saved_at_val = st.session_state.get(saved_at_key)
+                    saved_at_dt = _to_datetime_any(saved_at_val) if saved_at_val else None
+                    saved_stamp = _fmt_ts(saved_at_dt) if saved_at_dt else ""
+                    autosave_msg = "💾 Autosave on"
+                    if saved_stamp:
+                        autosave_msg += f" • Last saved {saved_stamp}"
+                    st.caption(autosave_msg)
 
                     send_col, ai_col = st.columns([1, 1])
 
