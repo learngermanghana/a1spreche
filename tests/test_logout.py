@@ -11,6 +11,9 @@ class DummySt:
             "session_token": "token-123",
             "student_code": "STUDENT42",
             "classroom_comment_draft_week1": "Remember to review.",
+            "q_text": "New question draft",
+            "q_edit_text_post123": "Editing existing question",
+            "c_edit_text_post123_comment456": "Editing a reply",
         }
         self.query_params = {}
         self.messages = []
@@ -49,4 +52,15 @@ def test_do_logout_persists_classroom_comment_drafts(monkeypatch):
         logger=logging,
     )
 
-    assert ("STUDENT42", "classroom_comment_draft_week1", "Remember to review.") in saved
+    assert (
+        "STUDENT42",
+        "classroom_comment_draft_week1",
+        "Remember to review.",
+    ) in saved
+    assert ("STUDENT42", "q_text", "New question draft") in saved
+    assert ("STUDENT42", "q_edit_text_post123", "Editing existing question") in saved
+    assert (
+        "STUDENT42",
+        "c_edit_text_post123_comment456",
+        "Editing a reply",
+    ) in saved
