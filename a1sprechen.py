@@ -2321,7 +2321,7 @@ if "_qp_set" not in globals():
 
 
 CHAT_MAIN_TAB = "Chat • Grammar • Exams"
-CHAT_TOOL_TABS = {"🧑‍🏫 Topic Coach", "🛠️ Grammar", "📘 Essay Explainer", "📝 Exams"}
+CHAT_TOOL_TABS = {"🧑‍🏫 Sprechen Coach", "🛠️ Grammar", "📘 Essay Explainer", "📝 Exams"}
 
 
 def navigate_to_chat_tab(focus_tab: Optional[str] = None) -> None:
@@ -8296,7 +8296,7 @@ if tab == "Chat • Grammar • Exams":
         )
 
     # ---------- Subtabs ----------
-    tab_labels = ["🧑‍🏫 Topic Coach", "🛠️ Grammar", "📘 Essay Explainer", "📝 Exams"]
+    tab_labels = ["🧑‍🏫 Sprechen Coach", "🛠️ Grammar", "📘 Essay Explainer", "📝 Exams"]
     base_tab_labels = tab_labels[:]
     focus_tab = st.session_state.get("_chat_focus_tab")
     if focus_tab not in base_tab_labels:
@@ -8369,7 +8369,7 @@ if tab == "Chat • Grammar • Exams":
     tab_contexts = st.tabs(base_tab_labels)
     st.markdown('</div>', unsafe_allow_html=True)
     tab_lookup = dict(zip(base_tab_labels, tab_contexts))
-    tab_tc = tab_lookup["🧑‍🏫 Topic Coach"]
+    tab_tc = tab_lookup["🧑‍🏫 Sprechen Coach"]
     tab_gram = tab_lookup["🛠️ Grammar"]
     tab_assign = tab_lookup["📘 Essay Explainer"]
     tab_exam = tab_lookup["📝 Exams"]
