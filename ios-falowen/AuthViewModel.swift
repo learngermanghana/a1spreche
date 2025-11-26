@@ -88,7 +88,10 @@ final class AuthViewModel: ObservableObject {
     }
 
     func authorizedRequest(url: URL) async throws -> URLRequest {
-        let pair = try await TokenStore.shared.currentPair()
+        // Always ensure we have a fresh/rotated token pair so we rely on the
+        // /refresh endpoint instead of keeping an in-memory access token that
+        // might be paired with an old refresh token/cookie.
+        let pair = try await TokenStore.shared.ensureFreshPair()
         var req = URLRequest(url: url)
         req.addValue("Bearer \(pair.accessToken)", forHTTPHeaderField: "Authorization")
         req.addValue("application/json", forHTTPHeaderField: "Accept")
