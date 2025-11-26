@@ -104,12 +104,20 @@ def persist_session_client(
             logger.warning("Cookie manager not ready; skipping persistence to avoid errors.")
             return
 
-    device_id = (
-        st_module.session_state.get("device_id")
-        or (cm.get(_COOKIE_DEVICE_KEY) if hasattr(cm, "get") else None)
-    )
+    cookie_device: str | None = None
+    if hasattr(cm, "get"):
+        try:
+            cookie_device = cm.get(_COOKIE_DEVICE_KEY)  # type: ignore[arg-type]
+            if isinstance(cookie_device, tuple):
+                cookie_device = cookie_device[0] if cookie_device else None
+        except Exception:
+            logger.debug("Unable to read device_id from cookie manager", exc_info=True)
+
+    device_id = (cookie_device or st_module.session_state.get("device_id") or "").strip()
     if not device_id:
         device_id = uuid4().hex
+    elif device_id != st_module.session_state.get("device_id"):
+        logger.debug("Syncing device_id from cookie to session state")
     st_module.session_state["device_id"] = device_id
 
     try:
