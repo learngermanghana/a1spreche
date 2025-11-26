@@ -235,7 +235,7 @@ def get_a1_schedule():
             "lesen_hören": {
                 "video": "https://youtu.be/0HjCQKxMl5Q",
                 "youtube_link": "https://youtu.be/0HjCQKxMl5Q",
-                "grammarbook_link": "https://drive.google.com/file/d/10OI_DQf3Oq21aEjXllaFu3HUQwtvakqI/view?usp=sharing",
+                "grammarbook_link": "https://drive.google.com/file/d/1FaRD4UibeJwCM8Yggjn84cdiVS7n-Rv2/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1woXksV9sTZ_8huXa8yf6QUQ8aUXPxVug/view?usp=sharing"
             }
         },
