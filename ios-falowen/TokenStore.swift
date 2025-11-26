@@ -31,7 +31,12 @@ actor TokenStore {
         let t = Task {
             // Always read the latest stored refresh token so we pick up rotations
             // returned by the /refresh endpoint instead of reusing an old token.
-            let token = try refreshToken ?? self.currentPair().refreshToken
+            let token: String
+            if let refreshToken {
+                token = refreshToken
+            } else {
+                token = try await self.currentPair().refreshToken
+            }
             let newPair = try await AuthAPI.refresh(using: token)
             try await self.saveAsync(newPair)
             return newPair
