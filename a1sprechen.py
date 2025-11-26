@@ -1981,6 +1981,7 @@ def diff_with_markers(original: str, corrected: str) -> str:
 bootstrap_state()
 seed_falowen_state_from_qp()
 bootstrap_session_from_qp()
+renew_session_if_needed()
 
 # If visiting with password-reset token
 if not st.session_state.get("logged_in", False):
