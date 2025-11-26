@@ -79,7 +79,31 @@ def persist_session_client(
         st_module.session_state["student_code"] = student_code
     st_module.session_state["cookie_synced"] = True
 
-    cm = cookie_manager or get_cookie_manager()
+    try:
+        st_module.query_params["t"] = token
+    except Exception:  # pragma: no cover - ``query_params`` missing when testing
+        logger.debug("query_params unavailable while persisting session", exc_info=True)
+
+    cm = cookie_manager if cookie_manager is not None else get_cookie_manager()
+    if cm is None:
+        logger.warning(
+            "No cookie manager is configured; browser cookies will not be persisted."
+        )
+        return
+    if not hasattr(cm, "set"):
+        logger.warning(
+            "Cookie manager %s does not support persistence; skipping cookie writes.",
+            type(cm).__name__,
+        )
+        return
+
+    ready_attr = getattr(cm, "ready", None)
+    if ready_attr is not None:
+        ready = ready_attr() if callable(ready_attr) else bool(ready_attr)
+        if not ready:
+            logger.warning("Cookie manager not ready; skipping persistence to avoid errors.")
+            return
+
     device_id = (
         st_module.session_state.get("device_id")
         or (cm.get(_COOKIE_DEVICE_KEY) if hasattr(cm, "get") else None)
@@ -89,6 +113,9 @@ def persist_session_client(
     st_module.session_state["device_id"] = device_id
 
     try:
+        logger.debug(
+            "Persisting session cookies with TTL=%s seconds using %s", ttl, type(cm).__name__
+        )
         cm.set(_COOKIE_TOKEN_KEY, token)
         cm.set(_COOKIE_CODE_KEY, student_code)
         cm.set(_COOKIE_EXP_KEY, str(int(expires.timestamp())))
