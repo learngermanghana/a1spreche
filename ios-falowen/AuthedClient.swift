@@ -71,8 +71,7 @@ actor AuthedClient {
 
         if http1.statusCode == 401 {
             // 3) Refresh once (single-flight via TokenStore) and retry
-            let pair = try await TokenStore.shared.currentPair()
-            let newPair = try await TokenStore.shared.refresh(using: pair.refreshToken)
+            let newPair = try await TokenStore.shared.refresh()
             authed = try authorizedSync(req, with: newPair.accessToken)
 
             let (data2, resp2) = try await URLSession.shared.data(for: authed)

@@ -20,16 +20,19 @@ actor TokenStore {
     func ensureFreshPair() async throws -> TokenPair {
         var pair = try currentPair()
         if pair.expiry <= Date().addingTimeInterval(60) {
-            pair = try await refresh(using: pair.refreshToken)
+            pair = try await refresh()
         }
         return pair
     }
 
     /// Single-flight refresh: concurrent callers await the same task.
-    func refresh(using refreshToken: String) async throws -> TokenPair {
+    func refresh(using refreshToken: String? = nil) async throws -> TokenPair {
         if let t = refreshTask { return try await t.value }
         let t = Task {
-            let newPair = try await AuthAPI.refresh(using: refreshToken)
+            // Always read the latest stored refresh token so we pick up rotations
+            // returned by the /refresh endpoint instead of reusing an old token.
+            let token = try refreshToken ?? self.currentPair().refreshToken
+            let newPair = try await AuthAPI.refresh(using: token)
             try await self.saveAsync(newPair)
             return newPair
         }
