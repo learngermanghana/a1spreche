@@ -11,6 +11,7 @@ can bootstrap cleanly and the behaviour is covered by unit tests.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 import logging
 import os
 from typing import Any, Optional
@@ -29,6 +30,7 @@ _LOG = logging.getLogger(__name__)
 _COOKIE_TOKEN_KEY = "falowen_session_token"
 _COOKIE_CODE_KEY = "falowen_student_code"
 _COOKIE_EXP_KEY = "falowen_session_expiry"
+_COOKIE_DEVICE_KEY = "device_id"
 _SESSION_MAX_AGE_ENV = "SESSION_MAX_AGE_DAYS"
 _DEFAULT_SESSION_DAYS = 90
 
@@ -78,10 +80,24 @@ def persist_session_client(
     st_module.session_state["cookie_synced"] = True
 
     cm = cookie_manager or get_cookie_manager()
+    device_id = (
+        st_module.session_state.get("device_id")
+        or (cm.get(_COOKIE_DEVICE_KEY) if hasattr(cm, "get") else None)
+    )
+    if not device_id:
+        device_id = uuid4().hex
+    st_module.session_state["device_id"] = device_id
+
     try:
         cm.set(_COOKIE_TOKEN_KEY, token)
         cm.set(_COOKIE_CODE_KEY, student_code)
         cm.set(_COOKIE_EXP_KEY, str(int(expires.timestamp())))
+        cm.set(
+            _COOKIE_DEVICE_KEY,
+            device_id,
+            max_age=ttl,
+            expires=expires.isoformat(),
+        )
         save = getattr(cm, "save", None)
         if callable(save):
             save()

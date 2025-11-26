@@ -146,7 +146,37 @@
     </div>
   </main>
   <script>
+    function ensureDeviceIdCookie() {
+      const COOKIE_KEY = "device_id";
+      const existing = document.cookie.split(";").map(c => c.trim()).find(c => c.startsWith(`${COOKIE_KEY}=`));
+      if (existing) {
+        return existing.split("=")[1];
+      }
+
+      const randomHex = () => {
+        if (window.crypto?.randomUUID) {
+          return window.crypto.randomUUID().replace(/-/g, "");
+        }
+        return Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
+      };
+
+      const deviceId = randomHex();
+      const maxAge = 60 * 60 * 24 * 90; // align with session cookie
+      const parts = [
+        `${COOKIE_KEY}=${deviceId}`,
+        "path=/",
+        `max-age=${maxAge}`,
+        "SameSite=Lax",
+      ];
+      if (location.protocol === "https:") {
+        parts.push("Secure");
+      }
+      document.cookie = parts.join("; ");
+      return deviceId;
+    }
+
     window.addEventListener("load", () => {
+      ensureDeviceIdCookie();
       fetch("/auth/refresh", { credentials: "include" }).catch(console.error);
     });
   </script>
