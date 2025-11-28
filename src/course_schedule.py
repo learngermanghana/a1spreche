@@ -328,7 +328,330 @@ _SCHEDULE_JSON = """
             }
           ]
         }
-      ],
+      ]
+    },
+    {
+      "course": "A1",
+      "title": "Course Schedule: A1",
+      "class_name": "A1 Munich Klasse",
+      "start_date_iso": "2025-12-03",
+      "start_date_human": "Wednesday, 3 December 2025",
+      "timezone": "Africa/Accra",
+      "days": [
+        {
+          "day_number": 1,
+          "date": "2025-12-03",
+          "weekday": "Wednesday",
+          "sessions": [
+            {
+              "chapter": "0.1",
+              "type": "Lesen & Hören"
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "date": "2025-12-08",
+          "weekday": "Monday",
+          "sessions": [
+            {
+              "chapter": "0.2",
+              "type": "Lesen & Hören"
+            },
+            {
+              "chapter": "1.1",
+              "type": "Lesen & Hören"
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "date": "2025-12-09",
+          "weekday": "Tuesday",
+          "sessions": [
+            {
+              "chapter": "1.1",
+              "type": "Schreiben & Sprechen"
+            },
+            {
+              "chapter": "1.2",
+              "type": "Lesen & Hören"
+            }
+          ]
+        },
+        {
+          "day_number": 4,
+          "date": "2025-12-10",
+          "weekday": "Wednesday",
+          "sessions": [
+            {
+              "chapter": "2",
+              "type": "Lesen & Hören"
+            }
+          ]
+        },
+        {
+          "day_number": 5,
+          "date": "2025-12-15",
+          "weekday": "Monday",
+          "sessions": [
+            {
+              "chapter": "1.2",
+              "type": "Schreiben & Sprechen",
+              "note": "Recap"
+            }
+          ]
+        },
+        {
+          "day_number": 6,
+          "date": "2025-12-16",
+          "weekday": "Tuesday",
+          "sessions": [
+            {
+              "chapter": "2.3",
+              "type": "Schreiben & Sprechen"
+            }
+          ]
+        },
+        {
+          "day_number": 7,
+          "date": "2025-12-17",
+          "weekday": "Wednesday",
+          "sessions": [
+            {
+              "chapter": "3",
+              "type": "Lesen & Hören"
+            }
+          ]
+        },
+        {
+          "day_number": 8,
+          "date": "2025-12-22",
+          "weekday": "Monday",
+          "sessions": [
+            {
+              "chapter": "4",
+              "type": "Lesen & Hören"
+            }
+          ]
+        },
+        {
+          "day_number": 9,
+          "date": "2025-12-23",
+          "weekday": "Tuesday",
+          "sessions": [
+            {
+              "chapter": "5",
+              "type": "Lesen & Hören"
+            }
+          ]
+        },
+        {
+          "day_number": 10,
+          "date": "2025-12-24",
+          "weekday": "Wednesday",
+          "sessions": [
+            {
+              "chapter": "6",
+              "type": "Lesen & Hören"
+            },
+            {
+              "chapter": "2.4",
+              "type": "Schreiben & Sprechen"
+            }
+          ]
+        },
+        {
+          "day_number": 11,
+          "date": "2025-12-29",
+          "weekday": "Monday",
+          "sessions": [
+            {
+              "chapter": "7",
+              "type": "Lesen & Hören"
+            }
+          ]
+        },
+        {
+          "day_number": 12,
+          "date": "2025-12-30",
+          "weekday": "Tuesday",
+          "sessions": [
+            {
+              "chapter": "8",
+              "type": "Lesen & Hören"
+            }
+          ]
+        },
+        {
+          "day_number": 13,
+          "date": "2025-12-31",
+          "weekday": "Wednesday",
+          "sessions": [
+            {
+              "chapter": "3.5",
+              "type": "Schreiben & Sprechen"
+            }
+          ]
+        },
+        {
+          "day_number": 14,
+          "date": "2026-01-05",
+          "weekday": "Monday",
+          "sessions": [
+            {
+              "chapter": "3.6",
+              "type": "Schreiben & Sprechen"
+            }
+          ]
+        },
+        {
+          "day_number": 15,
+          "date": "2026-01-06",
+          "weekday": "Tuesday",
+          "sessions": [
+            {
+              "chapter": "4.7",
+              "type": "Schreiben & Sprechen"
+            }
+          ]
+        },
+        {
+          "day_number": 16,
+          "date": "2026-01-07",
+          "weekday": "Wednesday",
+          "sessions": [
+            {
+              "chapter": "9",
+              "type": "Lesen & Hören"
+            },
+            {
+              "chapter": "10",
+              "type": "Lesen & Hören"
+            }
+          ]
+        },
+        {
+          "day_number": 17,
+          "date": "2026-01-12",
+          "weekday": "Monday",
+          "sessions": [
+            {
+              "chapter": "11",
+              "type": "Lesen & Hören"
+            }
+          ]
+        },
+        {
+          "day_number": 18,
+          "date": "2026-01-13",
+          "weekday": "Tuesday",
+          "sessions": [
+            {
+              "chapter": "12.1",
+              "type": "Lesen & Hören"
+            },
+            {
+              "chapter": "12.1",
+              "type": "Schreiben & Sprechen",
+              "note": "including 5.8"
+            }
+          ]
+        },
+        {
+          "day_number": 19,
+          "date": "2026-01-14",
+          "weekday": "Wednesday",
+          "sessions": [
+            {
+              "chapter": "5.9",
+              "type": "Schreiben & Sprechen"
+            }
+          ]
+        },
+        {
+          "day_number": 20,
+          "date": "2026-01-19",
+          "weekday": "Monday",
+          "sessions": [
+            {
+              "chapter": "6.10",
+              "type": "Schreiben & Sprechen",
+              "note": "Intro to letter writing"
+            }
+          ]
+        },
+        {
+          "day_number": 21,
+          "date": "2026-01-20",
+          "weekday": "Tuesday",
+          "sessions": [
+            {
+              "chapter": "13",
+              "type": "Lesen & Hören"
+            },
+            {
+              "chapter": "6.11",
+              "type": "Schreiben & Sprechen"
+            }
+          ]
+        },
+        {
+          "day_number": 22,
+          "date": "2026-01-21",
+          "weekday": "Wednesday",
+          "sessions": [
+            {
+              "chapter": "14.1",
+              "type": "Lesen & Hören"
+            },
+            {
+              "chapter": "7.12",
+              "type": "Schreiben & Sprechen"
+            }
+          ]
+        },
+        {
+          "day_number": 23,
+          "date": "2026-01-26",
+          "weekday": "Monday",
+          "sessions": [
+            {
+              "chapter": "14.2",
+              "type": "Lesen & Hören"
+            },
+            {
+              "chapter": "7.12",
+              "type": "Schreiben & Sprechen"
+            }
+          ]
+        },
+        {
+          "day_number": 24,
+          "date": "2026-01-27",
+          "weekday": "Tuesday",
+          "sessions": [
+            {
+              "chapter": "8.13",
+              "type": "Schreiben & Sprechen"
+            }
+          ]
+        },
+        {
+          "day_number": 25,
+          "date": "2026-01-28",
+          "weekday": "Wednesday",
+          "sessions": [
+            {
+              "chapter": "Exam tips",
+              "type": "Schreiben & Sprechen",
+              "note": "Recap"
+            }
+          ]
+        }
+      ]
+    }
+  ],
       "generated_note": "Schedule generated by Learn Language Education Academy."
     },
     {
