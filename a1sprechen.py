@@ -8567,7 +8567,7 @@ if tab == "Chat • Grammar • Exams":
             )
             col_left, col_right = st.columns([1, 10])
             with col_left:
-                if st.button("🧹 New chat", key=KEY_NEWCHAT_BTN, width="stretch"):
+                if st.button("🧹 Reset chat", key=KEY_NEWCHAT_BTN, width="stretch"):
                     st.session_state[chat_data_key] = []
                     st.session_state[qcount_data_key] = 0
                     st.session_state[finalized_data_key] = False
