@@ -1,0 +1,72 @@
+[
+  {
+    "theme": "Alltag & Termine",
+    "situation": "Einen Arzttermin kurz nach der Arbeit vereinbaren",
+    "bullet_outline": [
+      "Beschreiben Sie in einem Satz Ihr Hauptsymptom.",
+      "Bitten Sie um einen Termin nach 17:00 Uhr und schlagen Sie einen Tag vor.",
+      "Fragen Sie, ob Sie Unterlagen oder Medikamente mitbringen sollen."
+    ],
+    "target_functions": [
+      "Terminvereinbarung",
+      "Zeit aushandeln",
+      "Höflich um Hinweise bitten"
+    ]
+  },
+  {
+    "theme": "Wohnen & Nachbarschaft",
+    "situation": "Lärmproblem im Mehrfamilienhaus klären",
+    "bullet_outline": [
+      "Beschreiben Sie höflich, wann und wie oft der Lärm auftritt.",
+      "Schlagen Sie eine Lösung oder ruhige Zeiten vor.",
+      "Bitten Sie um Rückmeldung und bedanken Sie sich."
+    ],
+    "target_functions": [
+      "Beschwerden formulieren",
+      "Vorschläge machen",
+      "Rückmeldung einholen"
+    ]
+  },
+  {
+    "theme": "Arbeit & Projekte",
+    "situation": "Eine Kollegin um Unterstützung bei einer Präsentation bitten",
+    "bullet_outline": [
+      "Nennen Sie das Thema und das Datum der Präsentation.",
+      "Fragen Sie konkret nach Hilfe (z. B. Folien prüfen, Feedback geben).",
+      "Erklären Sie kurz, warum ihre Perspektive wichtig ist."
+    ],
+    "target_functions": [
+      "Um Hilfe bitten",
+      "Aufgaben beschreiben",
+      "Begründungen geben"
+    ]
+  },
+  {
+    "theme": "Reisen & Orientierung",
+    "situation": "Eine Zugverbindung mit Umstieg planen",
+    "bullet_outline": [
+      "Sagen Sie Start- und Zielbahnhof sowie das gewünschte Datum.",
+      "Fragen Sie nach der besten Umstiegsoption und Pufferzeiten.",
+      "Klären Sie Tickettyp, Sitzplatzwunsch und eventuelle Rabatte."
+    ],
+    "target_functions": [
+      "Informationen erfragen",
+      "Optionen vergleichen",
+      "Kaufentscheidungen treffen"
+    ]
+  },
+  {
+    "theme": "Studium & Kurse",
+    "situation": "Einen Kurswechsel mit der Studienberatung besprechen",
+    "bullet_outline": [
+      "Nennen Sie den aktuellen Kurs und den gewünschten Kurs.",
+      "Erklären Sie kurz, warum der Wechsel notwendig oder hilfreich ist.",
+      "Fragen Sie nach freien Plätzen und nächsten Schritten."
+    ],
+    "target_functions": [
+      "Argumentieren",
+      "Nach Verfügbarkeit fragen",
+      "Verbindliche Schritte klären"
+    ]
+  }
+]
