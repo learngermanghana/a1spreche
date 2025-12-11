@@ -121,6 +121,86 @@ DEFAULT_RUBRIC: Dict[str, str] = {
     "Fluss & Diskursmarker": "Nutzt Konnektoren (z. B. außerdem, jedoch, danach) für flüssiges Lesen?",
 }
 
+PATTERN_BANKS: Dict[str, Dict[str, object]] = {
+    "weil_clause": {
+        "structure": "weil + Nebensatz (Verb am Ende)",
+        "cefr": "A2",
+        "examples": [
+            {
+                "input": "Ich bleibe zu Hause. Ich bin krank.",
+                "output": "Ich bleibe zu Hause, weil ich krank bin.",
+            },
+            {
+                "input": "Er fährt mit dem Rad. Er möchte Geld sparen.",
+                "output": "Er fährt mit dem Rad, weil er Geld sparen möchte.",
+            },
+            {
+                "input": "Wir können nicht kommen. Wir arbeiten heute Abend.",
+                "output": "Wir können nicht kommen, weil wir heute Abend arbeiten.",
+            },
+            {
+                "input": "Sie ruft später an. Sie ist gerade im Meeting.",
+                "output": "Sie ruft später an, weil sie gerade im Meeting ist.",
+            },
+        ],
+        "upgrade_tip": "Setze das finites Verb konsequent ans Satzende und variiere Tempus/Modalverben.",
+    },
+    "zu_infinitive": {
+        "structure": "um/ohne/anstatt ... zu + Infinitiv",
+        "cefr": "B1",
+        "examples": [
+            {
+                "input": "Er lernt viel. Er möchte die Prüfung bestehen.",
+                "output": "Er lernt viel, um die Prüfung zu bestehen.",
+            },
+            {
+                "input": "Sie ging früh. Sie wollte den Zug nicht verpassen.",
+                "output": "Sie ging früh, um den Zug nicht zu verpassen.",
+            },
+            {
+                "input": "Er hat nichts gesagt. Er wollte niemanden verletzen.",
+                "output": "Er hat nichts gesagt, um niemanden zu verletzen.",
+            },
+            {
+                "input": "Sie las die Anleitung nicht. Sie baute das Regal falsch auf.",
+                "output": "Sie baute das Regal falsch auf, ohne die Anleitung zu lesen.",
+            },
+            {
+                "input": "Er schrieb die E-Mail nicht. Er rief den Kunden sofort an.",
+                "output": "Er rief den Kunden sofort an, anstatt die E-Mail zu schreiben.",
+            },
+        ],
+        "upgrade_tip": "Nutze klare Ziel-/Kontrastmarkierungen (um, ohne, anstatt) und reduziere Doppelungen.",
+    },
+    "passiv_werden": {
+        "structure": "Vorgangspassiv mit werden + Partizip II",
+        "cefr": "B1",
+        "examples": [
+            {
+                "input": "Die Firma renoviert das Büro.",
+                "output": "Das Büro wird renoviert.",
+            },
+            {
+                "input": "Jemand hat den Bericht geschrieben.",
+                "output": "Der Bericht wurde geschrieben.",
+            },
+            {
+                "input": "Man bringt das Essen gleich.",
+                "output": "Das Essen wird gleich gebracht.",
+            },
+            {
+                "input": "Die Handwerker reparieren die Heizung.",
+                "output": "Die Heizung wird repariert.",
+            },
+            {
+                "input": "Jemand hat die Tür geschlossen.",
+                "output": "Die Tür wurde geschlossen.",
+            },
+        ],
+        "upgrade_tip": "Achte auf Zeitform (wird/wurde) und füge bei Bedarf ein von- oder durch-Agent ein.",
+    },
+}
+
 
 def brain_map_prompts_as_json(scaffolds: Sequence[Dict[str, object]] | None = None) -> str:
     """Return the brain-map prompt bank as pretty-printed JSON."""
@@ -215,6 +295,40 @@ def build_feedback_prompt(scaffold: Dict[str, object]) -> str:
             • Upgrade (discourse marker)
             • Mini-drill: repeat one key sentence with two variations
           </reflection>
+        """
+        ).strip()
+
+
+def build_pattern_drill_prompt(structure_key: str, learner_level: str | None = None) -> str:
+    """Build a multi-step drill prompt for grammar pattern practice."""
+
+    bank = PATTERN_BANKS.get(structure_key)
+    if bank is None:
+        raise KeyError(f"Unknown pattern bank: {structure_key}")
+
+    pairs = bank.get("examples", [])
+    formatted_pairs = "\n".join(
+        [f"- Input: {ex['input']} → Output: {ex['output']}" for ex in pairs]
+    )
+    cefr = learner_level or bank.get("cefr", "")
+    upgrade_tip = bank.get("upgrade_tip", "")
+
+    return dedent(
+        f"""
+        You are a precise German tutor. Use the pattern bank to run a complete mini-workshop.
+
+        Target structure: {bank.get('structure')}
+        CEFR focus: {cefr}
+        Pattern bank (input → output pairs):
+        {formatted_pairs}
+
+        Actions (keep instructions compact and level-appropriate):
+        a) Recognition: ask for 2 quick checks to spot where the pattern fits.
+        b) Transformations: give 5–10 prompts that require transforming inputs using the pattern.
+        c) Production: create 3 prompts asking for free sentences that still require the pattern.
+        d) After a learner reply, return concise corrections plus one upgraded sample answer per item.
+
+        Tip: {upgrade_tip}
         """
     ).strip()
 
