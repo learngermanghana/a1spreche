@@ -75,6 +75,44 @@ BRAIN_MAP_SCAFFOLDS: List[Dict[str, object]] = [
     },
 ]
 
+WRITING_TASK_TEMPLATES: List[Dict[str, object]] = [
+    {
+        "title": "Service-Beschwerde per E-Mail",
+        "genre": "Formelle E-Mail (Beschwerde)",
+        "target_length": "140–170 Wörter",
+        "communicative_goal": "Problem präzise schildern und eine konkrete Lösung einfordern",
+        "key_connectors": ["zunächst", "außerdem", "dennoch", "abschließend"],
+    },
+    {
+        "title": "Projekt-Update an Stakeholder",
+        "genre": "Halbformeller Statusbericht",
+        "target_length": "170–200 Wörter",
+        "communicative_goal": "Fortschritt darstellen, Risiken benennen und nächste Schritte vorschlagen",
+        "key_connectors": ["aktuell", "zugleich", "allerdings", "daher", "abschließend"],
+    },
+    {
+        "title": "Meinungsbeitrag zu Stadtentwicklung",
+        "genre": "Kommentar / Meinungstext",
+        "target_length": "180–210 Wörter",
+        "communicative_goal": "Position klar vertreten, Gegenargumente aufgreifen und Fazit ziehen",
+        "key_connectors": ["einerseits", "andererseits", "zudem", "denn", "infolgedessen"],
+    },
+    {
+        "title": "Bitte um akademische Empfehlung",
+        "genre": "Formeller Bewerbungsbrief",
+        "target_length": "160–190 Wörter",
+        "communicative_goal": "Hintergrund schildern, Qualifikationen hervorheben und Empfehlung erbitten",
+        "key_connectors": ["zunächst", "ferner", "insbesondere", "daher", "mit freundlichen Grüßen"],
+    },
+    {
+        "title": "Antwort auf Kundenkritik",
+        "genre": "Formelle Antwort / Schadensbegrenzung",
+        "target_length": "150–180 Wörter",
+        "communicative_goal": "Kritik anerkennen, Verantwortung übernehmen und Wiedergutmachung anbieten",
+        "key_connectors": ["wir bedauern", "gleichzeitig", "umgehend", "damit", "abschließend"],
+    },
+]
+
 DEFAULT_RUBRIC: Dict[str, str] = {
     "Aufgabenbewältigung": "Erfüllt der Text alle Stichpunkte der Brain-Map-Situation?",
     "Kohärenz & Organisation": "Logischer Aufbau mit klaren Übergängen und Absätzen?",
@@ -177,5 +215,48 @@ def build_feedback_prompt(scaffold: Dict[str, object]) -> str:
             • Upgrade (discourse marker)
             • Mini-drill: repeat one key sentence with two variations
           </reflection>
+        """
+    ).strip()
+
+
+def build_review_prompt(
+    task_template: Dict[str, object], rubric: Dict[str, str] | None = None
+) -> str:
+    """Build a rich review prompt with rubric scores and practice drills."""
+
+    rubric_source = rubric or DEFAULT_RUBRIC
+    rubric_lines = "\n".join([f"- {k}: {v}" for k, v in rubric_source.items()])
+    connectors = ", ".join(task_template.get("key_connectors", []))
+
+    return dedent(
+        f"""
+        You are a concise but encouraging German writing examiner. Evaluate the
+        learner's submission for the task below and respond with numbered,
+        clearly separated sections.
+
+        Task template:
+        - Title: {task_template.get('title')}
+        - Genre: {task_template.get('genre')}
+        - Target length: {task_template.get('target_length')}
+        - Communicative goal: {task_template.get('communicative_goal')}
+        - Key connectors to privilege: {connectors}
+
+        Rubric focus:
+        {rubric_lines}
+
+        Output strictly in this order:
+        1) Holistic comment (2–3 sentences) on how well the text fulfills the
+           communicative goal and genre conventions.
+        2) Per-criterion scores (0–5) with one short rationale each, aligned to
+           the rubric above.
+        3) Inline error list: bullet each issue with the exact snippet and a
+           corrected version (grammar, lexicon, cohesion).
+        4) Three rewrites of the weakest sentences with upgraded connectors or
+           syntax; keep them concise and level-appropriate.
+        5) Five-item micro-drill: mix of gap-fill or transformation items that
+           recycle the learner's errors and the required connectors.
+        6) Next-step task: adjust difficulty (e.g., tighter register, more
+           hedging, denser argumentation, or stricter word limit) and restate
+           the modified assignment in 1–2 sentences.
         """
     ).strip()
